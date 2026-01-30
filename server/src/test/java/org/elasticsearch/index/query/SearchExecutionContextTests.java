@@ -659,7 +659,8 @@ public class SearchExecutionContextTests extends ESTestCase {
                     throw new UnsupportedOperationException();
                 },
                 null,
-                namespaceValidator
+                namespaceValidator,
+                null
             )
         );
         when(mapperService.isMultiField(anyString())).then(

@@ -196,7 +196,7 @@ public class Driver implements Releasable, Describable {
                 LOGGER.debug("Cancelling running driver [{}]", shortDescription, e);
                 throw e;
             } catch (RuntimeException e) {
-                LOGGER.error(Strings.format("Error running driver [%s]", shortDescription), e);
+                LOGGER.warn(Strings.format("Error running driver [%s]", shortDescription), e);
                 throw e;
             } finally {
                 assert driverContext.assertEndRunLoop();

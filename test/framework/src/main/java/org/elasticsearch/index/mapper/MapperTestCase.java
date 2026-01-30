@@ -333,6 +333,17 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
     }
 
+    protected void assertIgnoredSourceIsEmpty(ParsedDocument doc) {
+        Set<String> ignoredFields = doc.rootDoc()
+            .getFields(IgnoredSourceFieldMapper.NAME)
+            .stream()
+            .flatMap(field -> IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding.decode(field.binaryValue()).stream())
+            .map(IgnoredSourceFieldMapper.NameValue::name)
+            .collect(Collectors.toSet());
+
+        assertThat(ignoredFields, empty());
+    }
+
     protected void assertExistsQuery(MapperService mapperService) throws IOException {
         LuceneDocument fields = mapperService.documentMapper().parse(source(this::writeField)).rootDoc();
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
@@ -1858,10 +1869,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     public void testDocValuesSkippers() throws IOException {
         assumeTrue("Mapper does not support doc values skippers", supportsDocValuesSkippers());
 
-        IndexVersion preSkipperVersion = IndexVersionUtils.randomPreviousCompatibleVersion(
-            random(),
-            IndexVersions.STANDARD_INDEXES_USE_SKIPPERS
-        );
+        IndexVersion preSkipperVersion = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS);
         IndexVersion withSkipperVersion = IndexVersions.STANDARD_INDEXES_USE_SKIPPERS;
 
         Settings skippersDisabled = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false).build();
@@ -1896,7 +1904,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
         Settings statelessSkipperDefault = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
         IndexVersion statelessNoSkipperVersion = IndexVersionUtils.randomPreviousCompatibleVersion(
-            random(),
             IndexVersions.STANDARD_INDEXES_USE_SKIPPERS
         );
         {

@@ -208,29 +208,35 @@ public class AllocationDeciders {
             Decision mostNegativeDecision = Decision.YES;
             for (AllocationDecider decider : deciders) {
                 var decision = deciderAction.apply(decider);
-                if (mostNegativeDecision.type().higherThan(decision.type())) {
+                if (mostNegativeDecision.type().compareToBetweenDecisions(decision.type()) > 0) {
                     mostNegativeDecision = decision;
                     if (mostNegativeDecision.type() == Decision.Type.NO) {
-                        if (logger.isTraceEnabled()) {
-                            logger.trace(() -> logMessageCreator.apply(decider.getClass().getSimpleName(), decision));
-                        }
+                        traceNoDecisions(decider, decision, logMessageCreator);
                         break;
                     }
                 }
             }
+
             return mostNegativeDecision;
         } else {
             final var multiDecision = new Decision.Multi();
             for (AllocationDecider decider : deciders) {
                 var decision = deciderAction.apply(decider);
-                if (logger.isTraceEnabled() && decision.type() == Decision.Type.NO) {
-                    logger.trace(() -> logMessageCreator.apply(decider.getClass().getSimpleName(), decision));
-                }
+                traceNoDecisions(decider, decision, logMessageCreator);
                 if (decision != Decision.ALWAYS && (debugMode == RoutingAllocation.DebugMode.ON || decision.type() != Decision.Type.YES)) {
                     multiDecision.add(decision);
                 }
             }
             return multiDecision;
+        }
+    }
+
+    /**
+     * NO decisions have TRACE-level logging.
+     */
+    private void traceNoDecisions(AllocationDecider decider, Decision decision, BiFunction<String, Decision, String> logMessageCreator) {
+        if (logger.isTraceEnabled() && decision.type() == Decision.Type.NO) {
+            logger.trace(() -> logMessageCreator.apply(decider.getClass().getSimpleName(), decision));
         }
     }
 

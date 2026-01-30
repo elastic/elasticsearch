@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
+import org.elasticsearch.compute.aggregation.DenseVectorCountAggregatorFunction;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -37,6 +38,7 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 
 public class Count extends AggregateFunction implements ToAggregator, SurrogateExpression, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Count", Count::new);
@@ -48,26 +50,26 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
         examples = {
             @Example(file = "stats", tag = "count"),
             @Example(description = "To count the number of rows, use `COUNT()` or `COUNT(*)`", file = "docs", tag = "countAll"),
+            @Example(description = """
+                The expression can use inline functions. This example splits a string into multiple values
+                using the `SPLIT` function and counts the values.""", file = "stats", tag = "docsCountWithExpression"),
+            @Example(description = """
+                To count the number of times an expression returns `TRUE` use a
+                [`WHERE`](/reference/query-languages/esql/commands/where.md) command to remove rows that
+                shouldn’t be included.""", file = "stats", tag = "count-where"),
             @Example(
-                description = "The expression can use inline functions. This example splits a string into "
-                    + "multiple values using the `SPLIT` function and counts the values",
+                description = "To count the number of times *multiple* expressions return `TRUE` use a WHERE inside the STATS.",
                 file = "stats",
-                tag = "docsCountWithExpression"
+                tag = "count-where-many"
             ),
-            @Example(
-                description = "To count the number of times an expression returns `TRUE` use "
-                    + "a [`WHERE`](/reference/query-languages/esql/commands/where.md) command to remove rows that shouldn’t be included",
-                file = "stats",
-                tag = "count-where"
-            ),
-            @Example(
-                description = "To count the same stream of data based on two different expressions "
-                    + "use the pattern `COUNT(<expression> OR NULL)`. This builds on the three-valued logic "
-                    + "({wikipedia}/Three-valued_logic[3VL]) of the language: `TRUE OR NULL` is `TRUE`, but `FALSE OR NULL` is `NULL`, "
-                    + "plus the way COUNT handles `NULL`s: `COUNT(TRUE)` and `COUNT(FALSE)` are both 1, but `COUNT(NULL)` is 0.",
-                file = "stats",
-                tag = "count-or-null"
-            ) }
+            @Example(description = """
+                `COUNT`ing a multivalued field returns the number of values. `COUNT`ing `NULL` returns 0.
+                `COUNT`ing `true` returns 1. `COUNT`ing `false` returns 1.""", file = "stats", tag = "count-mv"),
+            @Example(description = """
+                You may see a pattern like `COUNT(<expression> OR NULL)`. This has the same meaning as
+                `COUNT() WHERE <expression>`. This relies on `COUNT(NULL)` to return `0` and builds on the
+                three-valued logic ({wikipedia}/Three-valued_logic[3VL]): `TRUE OR NULL` is `TRUE`, but
+                `FALSE OR NULL` is `NULL`. Prefer the `COUNT() WHERE <expression>` pattern.""", file = "stats", tag = "count-or-null") }
     )
     public Count(
         Source source,
@@ -81,6 +83,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                 "cartesian_shape",
                 "date",
                 "date_nanos",
+                "dense_vector",
                 "double",
                 "geo_point",
                 "geo_shape",
@@ -135,6 +138,9 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
 
     @Override
     public AggregatorFunctionSupplier supplier() {
+        if (field().dataType() == DENSE_VECTOR) {
+            return DenseVectorCountAggregatorFunction.supplier();
+        }
         return CountAggregatorFunction.supplier();
     }
 
@@ -148,13 +154,13 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
         return isType(
             field(),
             dt -> dt.isCounter() == false
-                && dt != DataType.DENSE_VECTOR
                 && dt != DataType.EXPONENTIAL_HISTOGRAM
                 && dt != DataType.TDIGEST
-                && dt != DataType.HISTOGRAM,
+                && dt != DataType.HISTOGRAM
+                && dt != DataType.DATE_RANGE,
             sourceText(),
             DEFAULT,
-            "any type except counter types, dense_vector, tdigest, histogram, or exponential_histogram"
+            "any type except counter types, tdigest, histogram, exponential_histogram, or date_range"
         );
     }
 
@@ -174,7 +180,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
 
         if (field.foldable()) {
             if (field instanceof Literal l) {
-                if (l.value() != null && (l.value() instanceof List<?>) == false) {
+                if (l.value() != null && ((l.value() instanceof List<?>) == false || l.dataType() == DENSE_VECTOR)) {
                     // TODO: Normalize COUNT(*), COUNT(), COUNT("foobar"), COUNT(1) as COUNT(*).
                     // Does not apply to COUNT([1,2,3])
                     // return new Count(s, new Literal(s, StringUtils.WILDCARD, DataType.KEYWORD));

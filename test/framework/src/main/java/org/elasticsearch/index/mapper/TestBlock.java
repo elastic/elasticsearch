@@ -480,6 +480,11 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
+            public BlockLoader.LongRangeBuilder longRangeBuilder(int expectedSize) {
+                return new LongRangeBuilder(expectedSize);
+            }
+
+            @Override
             public BlockLoader.Block buildAggregateMetricDoubleDirect(
                 BlockLoader.Block minBlock,
                 BlockLoader.Block maxBlock,
@@ -907,4 +912,68 @@ public class TestBlock implements BlockLoader.Block {
             return encodedHistograms;
         }
     }
+
+    public static class LongRangeBuilder implements BlockLoader.LongRangeBuilder {
+        private final LongBuilder from;
+        private final LongBuilder to;
+
+        LongRangeBuilder(int expectedSize) {
+            from = new LongBuilder(expectedSize);
+            to = new LongBuilder(expectedSize);
+        }
+
+        @Override
+        public BlockLoader.LongBuilder from() {
+            return from;
+        }
+
+        @Override
+        public BlockLoader.LongBuilder to() {
+            return to;
+        }
+
+        @Override
+        public BlockLoader.Block build() {
+            var fromBlock = from.build();
+            var toBlock = to.build();
+            assert fromBlock.size() == toBlock.size();
+            var values = new ArrayList<>(fromBlock.size());
+            for (int i = 0; i < fromBlock.size(); i++) {
+                values.add(List.of(fromBlock.values.get(i), toBlock.values.get(i)));
+            }
+            return new TestBlock(values);
+        }
+
+        @Override
+        public BlockLoader.Builder appendNull() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BlockLoader.Builder beginPositionEntry() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BlockLoader.Builder endPositionEntry() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void close() {
+
+        }
+
+        private static class LongBuilder extends TestBlock.Builder implements BlockLoader.LongBuilder {
+            private LongBuilder(int expectedSize) {
+                super(expectedSize);
+            }
+
+            @Override
+            public BlockLoader.LongBuilder appendLong(long value) {
+                add(value);
+                return this;
+            }
+        }
+    };
 }

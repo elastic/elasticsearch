@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -132,6 +133,14 @@ public class MetadataCreateIndexService {
         Setting.Property.NodeScope
     );
 
+    // Deliberately not registered so it can only be set in tests/plugins.
+    public static final Setting<TimeValue> CREATE_INDEX_MAX_TIMEOUT_SETTING = Setting.timeSetting(
+        "cluster.service.create_index.max_timeout",
+        TimeValue.MINUS_ONE,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private static final Logger logger = LogManager.getLogger(MetadataCreateIndexService.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MetadataCreateIndexService.class);
 
@@ -162,6 +171,8 @@ public class MetadataCreateIndexService {
     private final ClusterBlocksTransformer blocksTransformerUponIndexCreation;
     private final Priority clusterStateUpdateTaskPriority;
 
+    private volatile TimeValue maxMasterNodeTimeout;
+
     public MetadataCreateIndexService(
         final Settings settings,
         final ClusterService clusterService,
@@ -190,6 +201,13 @@ public class MetadataCreateIndexService {
         this.threadPool = threadPool;
         this.blocksTransformerUponIndexCreation = createClusterBlocksTransformerForIndexCreation(settings);
         this.clusterStateUpdateTaskPriority = CREATE_INDEX_PRIORITY_SETTING.get(settings);
+
+        if (clusterService.getClusterSettings().isDynamicSetting(CREATE_INDEX_MAX_TIMEOUT_SETTING.getKey())) {
+            // setting only registered in some tests today
+            clusterService.getClusterSettings().initializeAndWatch(CREATE_INDEX_MAX_TIMEOUT_SETTING, v -> maxMasterNodeTimeout = v);
+        } else {
+            maxMasterNodeTimeout = CREATE_INDEX_MAX_TIMEOUT_SETTING.get(clusterService.getSettings());
+        }
     }
 
     /**
@@ -211,6 +229,9 @@ public class MetadataCreateIndexService {
         }
         if (projectMetadata.hasAlias(index)) {
             throw new InvalidIndexNameException(index, "already exists as alias");
+        }
+        if (projectMetadata.hasView(index)) {
+            throw new InvalidIndexNameException(index, "already exists as an ESQL view");
         }
     }
 
@@ -300,37 +321,42 @@ public class MetadataCreateIndexService {
         final ActionListener<ShardsAcknowledgedResponse> listener
     ) {
         logger.trace("createIndex[{}]", request);
-        onlyCreateIndex(masterNodeTimeout, ackTimeout, request, listener.delegateFailureAndWrap((delegate, response) -> {
-            if (response.isAcknowledged()) {
-                logger.trace(
-                    "[{}] index creation in project [{}] acknowledged, waiting for active shards [{}]",
-                    request.index(),
-                    request.projectId(),
-                    request.waitForActiveShards()
-                );
-                ActiveShardsObserver.waitForActiveShards(
-                    clusterService,
-                    request.projectId(),
-                    new String[] { request.index() },
-                    request.waitForActiveShards(),
-                    waitForActiveShardsTimeout,
-                    delegate.map(shardsAcknowledged -> {
-                        if (shardsAcknowledged == false) {
-                            logger.debug(
-                                "[{}] index created, but the operation timed out while waiting for enough shards to be started.",
-                                request.index()
-                            );
-                        } else {
-                            logger.trace("[{}] index created and shards acknowledged", request.index());
-                        }
-                        return ShardsAcknowledgedResponse.of(true, shardsAcknowledged);
-                    })
-                );
-            } else {
-                logger.trace("index creation not acknowledged for [{}]", request);
-                delegate.onResponse(ShardsAcknowledgedResponse.NOT_ACKNOWLEDGED);
-            }
-        }));
+        onlyCreateIndex(
+            MasterService.maybeLimitMasterNodeTimeout(masterNodeTimeout, maxMasterNodeTimeout),
+            ackTimeout,
+            request,
+            listener.delegateFailureAndWrap((delegate, response) -> {
+                if (response.isAcknowledged()) {
+                    logger.trace(
+                        "[{}] index creation in project [{}] acknowledged, waiting for active shards [{}]",
+                        request.index(),
+                        request.projectId(),
+                        request.waitForActiveShards()
+                    );
+                    ActiveShardsObserver.waitForActiveShards(
+                        clusterService,
+                        request.projectId(),
+                        new String[] { request.index() },
+                        request.waitForActiveShards(),
+                        waitForActiveShardsTimeout,
+                        delegate.map(shardsAcknowledged -> {
+                            if (shardsAcknowledged == false) {
+                                logger.debug(
+                                    "[{}] index created, but the operation timed out while waiting for enough shards to be started.",
+                                    request.index()
+                                );
+                            } else {
+                                logger.trace("[{}] index created and shards acknowledged", request.index());
+                            }
+                            return ShardsAcknowledgedResponse.of(true, shardsAcknowledged);
+                        })
+                    );
+                } else {
+                    logger.trace("index creation not acknowledged for [{}]", request);
+                    delegate.onResponse(ShardsAcknowledgedResponse.NOT_ACKNOWLEDGED);
+                }
+            })
+        );
     }
 
     private void onlyCreateIndex(
@@ -571,7 +597,8 @@ public class MetadataCreateIndexService {
                     temporaryIndexMeta.getRoutingNumShards(),
                     sourceMetadata,
                     temporaryIndexMeta.isSystem(),
-                    temporaryIndexMeta.getCustomData()
+                    temporaryIndexMeta.getCustomData(),
+                    currentState.getMinTransportVersion()
                 );
             } catch (Exception e) {
                 logger.info("failed to build index metadata [{}]", request.index());
@@ -632,7 +659,6 @@ public class MetadataCreateIndexService {
         final IndexMetadata.Builder tmpImdBuilder = IndexMetadata.builder(request.index());
         tmpImdBuilder.setRoutingNumShards(routingNumShards);
         tmpImdBuilder.settings(indexSettings);
-        tmpImdBuilder.transportVersion(TransportVersion.current());
         tmpImdBuilder.system(isSystem);
 
         // Set up everything, now locally create the index to see that things are ok, and apply
@@ -1498,10 +1524,12 @@ public class MetadataCreateIndexService {
         int routingNumShards,
         @Nullable IndexMetadata sourceMetadata,
         boolean isSystem,
-        Map<String, DiffableStringMap> customData
+        Map<String, DiffableStringMap> customData,
+        TransportVersion minClusterTransportVersion
     ) {
         IndexMetadata.Builder indexMetadataBuilder = createIndexMetadataBuilder(indexName, sourceMetadata, indexSettings, routingNumShards);
         indexMetadataBuilder.system(isSystem);
+        indexMetadataBuilder.transportVersion(minClusterTransportVersion);
         // now, update the mappings with the actual source
         Map<String, MappingMetadata> mappingsMetadata = new HashMap<>();
         DocumentMapper docMapper = documentMapperSupplier.get();
@@ -1774,6 +1802,12 @@ public class MetadataCreateIndexService {
     ) {
         if (projectMetadata.hasIndex(targetIndexName)) {
             throw new ResourceAlreadyExistsException(projectMetadata.index(targetIndexName).getIndex());
+        }
+        if (projectMetadata.hasView(targetIndexName)) {
+            throw new ResourceAlreadyExistsException(
+                "cannot resize to [{}], as an ESQL view already exists with that name",
+                targetIndexName
+            );
         }
         final IndexMetadata sourceMetadata = projectMetadata.index(sourceIndex);
         if (sourceMetadata == null) {

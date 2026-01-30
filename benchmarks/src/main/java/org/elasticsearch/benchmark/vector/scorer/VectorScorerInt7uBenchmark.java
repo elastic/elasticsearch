@@ -43,10 +43,12 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.getScorerFactoryOrDie;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.luceneScoreSupplier;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.luceneScorer;
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.quantizedVectorValues;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.randomInt7BytesBetween;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
-import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.vectorValues;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.writeInt7VectorData;
+import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.dotProduct;
+import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.squareDistance;
 
 /**
  * Benchmark that compares various scalar quantized vector similarity function
@@ -73,14 +75,8 @@ public class VectorScorerInt7uBenchmark {
     public int dims;
     public static int numVectors = 2; // there are only two vectors to compare
 
-    public enum Implementation {
-        SCALAR,
-        LUCENE,
-        NATIVE
-    }
-
     @Param
-    public Implementation implementation;
+    public VectorImplementation implementation;
 
     @Param({ "DOT_PRODUCT", "EUCLIDEAN" })
     public VectorSimilarityType function;
@@ -112,10 +108,7 @@ public class VectorScorerInt7uBenchmark {
 
         @Override
         public float score(int node) throws IOException {
-            int dotProduct = 0;
-            for (int i = 0; i < vec1.length; i++) {
-                dotProduct += vec1[i] * vec2[i];
-            }
+            int dotProduct = dotProduct(vec1, vec2);
             float adjustedDistance = dotProduct * scoreCorrectionConstant + vec1CorrectionConstant + vec2CorrectionConstant;
             return (1 + adjustedDistance) / 2;
         }
@@ -142,11 +135,7 @@ public class VectorScorerInt7uBenchmark {
 
         @Override
         public float score(int node) throws IOException {
-            int squareDistance = 0;
-            for (int i = 0; i < vec1.length; i++) {
-                int diff = vec1[i] - vec2[i];
-                squareDistance += diff * diff;
-            }
+            int squareDistance = squareDistance(vec1, vec2);
             float adjustedDistance = squareDistance * scoreCorrectionConstant;
             return 1 / (1f + adjustedDistance);
         }
@@ -160,15 +149,15 @@ public class VectorScorerInt7uBenchmark {
         public void setScoringOrdinal(int node) throws IOException {}
     }
 
-    UpdateableRandomVectorScorer scorer;
-    RandomVectorScorer queryScorer;
+    private UpdateableRandomVectorScorer scorer;
+    private RandomVectorScorer queryScorer;
 
-    public static class VectorData {
+    static class VectorData {
         private final byte[][] vectorData;
         private final float[] offsets;
         private final float[] queryVector;
 
-        public VectorData(int dims) {
+        VectorData(int dims) {
             vectorData = new byte[numVectors][];
             offsets = new float[numVectors];
 
@@ -191,7 +180,7 @@ public class VectorScorerInt7uBenchmark {
         setup(new VectorData(dims));
     }
 
-    public void setup(VectorData vectorData) throws IOException {
+    void setup(VectorData vectorData) throws IOException {
         VectorScorerFactory factory = getScorerFactoryOrDie();
 
         path = Files.createTempDirectory("Int7uScorerBenchmark");
@@ -199,7 +188,7 @@ public class VectorScorerInt7uBenchmark {
         writeInt7VectorData(dir, vectorData.vectorData, vectorData.offsets);
 
         in = dir.openInput("vector.data", IOContext.DEFAULT);
-        var values = vectorValues(dims, numVectors, in, VectorSimilarityType.of(function));
+        var values = quantizedVectorValues(dims, numVectors, in, function.function());
         float scoreCorrectionConstant = values.getScalarQuantizer().getConstantMultiplier();
 
         switch (implementation) {
@@ -222,16 +211,15 @@ public class VectorScorerInt7uBenchmark {
                 };
                 break;
             case LUCENE:
-                scorer = luceneScoreSupplier(values, VectorSimilarityType.of(function)).scorer();
+                scorer = luceneScoreSupplier(values, function.function()).scorer();
                 if (supportsHeapSegments()) {
-                    queryScorer = luceneScorer(values, VectorSimilarityType.of(function), vectorData.queryVector);
+                    queryScorer = luceneScorer(values, function.function(), vectorData.queryVector);
                 }
                 break;
             case NATIVE:
                 scorer = factory.getInt7SQVectorScorerSupplier(function, in, values, scoreCorrectionConstant).orElseThrow().scorer();
                 if (supportsHeapSegments()) {
-                    queryScorer = factory.getInt7SQVectorScorer(VectorSimilarityType.of(function), values, vectorData.queryVector)
-                        .orElseThrow();
+                    queryScorer = factory.getInt7SQVectorScorer(function.function(), values, vectorData.queryVector).orElseThrow();
                 }
                 break;
         }

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateWritables;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextWritables;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ScalarFunctionWritables;
+import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.Random;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromBase64;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBase64;
@@ -74,6 +75,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StEnvelop
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohex;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StNPoints;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplify;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMin;
@@ -195,6 +198,7 @@ public class ExpressionWritables {
         entries.add(LTrim.ENTRY);
         entries.add(Neg.ENTRY);
         entries.add(Not.ENTRY);
+        entries.add(Random.ENTRY);
         entries.add(RLike.ENTRY);
         entries.add(RLikeList.ENTRY);
         entries.add(RTrim.ENTRY);
@@ -205,6 +209,7 @@ public class ExpressionWritables {
         entries.add(Space.ENTRY);
         entries.add(Sqrt.ENTRY);
         entries.add(StEnvelope.ENTRY);
+        entries.add(StNPoints.ENTRY);
         entries.add(StXMax.ENTRY);
         entries.add(StXMin.ENTRY);
         entries.add(StYMax.ENTRY);
@@ -263,7 +268,8 @@ public class ExpressionWritables {
             StDistance.ENTRY,
             StGeohash.ENTRY,
             StGeotile.ENTRY,
-            StGeohex.ENTRY
+            StGeohex.ENTRY,
+            StSimplify.ENTRY
         );
     }
 

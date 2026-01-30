@@ -14,7 +14,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -61,10 +61,7 @@ public class MapExpression extends Expression {
     }
 
     private static MapExpression readFrom(StreamInput in) throws IOException {
-        return new MapExpression(
-            Source.readFrom((StreamInput & PlanStreamInput) in),
-            in.readNamedWriteableCollectionAsList(Expression.class)
-        );
+        return new MapExpression(Source.readFrom((PlanStreamInput) in), in.readNamedWriteableCollectionAsList(Expression.class));
     }
 
     @Override
@@ -149,5 +146,21 @@ public class MapExpression extends Expression {
     public String toString() {
         String str = entryExpressions.stream().map(String::valueOf).collect(Collectors.joining(", "));
         return "{ " + str + " }";
+    }
+
+    public Map<String, Object> toFoldedMap(FoldContext ctx) throws IllegalStateException {
+        Map<String, Object> foldedMap = new LinkedHashMap<>();
+        for (Map.Entry<Expression, Expression> entry : map.entrySet()) {
+            Object key = entry.getKey().fold(ctx);
+            Expression val = entry.getValue();
+            if (val instanceof MapExpression me) {
+                foldedMap.put(BytesRefs.toString(key), me.toFoldedMap(ctx));
+            } else if (val.foldable()) {
+                foldedMap.put(BytesRefs.toString(key), val.fold(ctx));
+            } else {
+                throw new IllegalStateException("Cannot fold map with non-foldable value [" + val + "]");
+            }
+        }
+        return foldedMap;
     }
 }

@@ -14,8 +14,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 
@@ -77,15 +77,7 @@ public class ReferenceAttribute extends TypedAttribute {
     }
 
     private static ReferenceAttribute innerReadFrom(StreamInput in) throws IOException {
-        /*
-         * The funny casting dance with `(StreamInput & PlanStreamInput) in` is required
-         * because we're in esql-core here and the real PlanStreamInput is in
-         * esql-proper. And because NamedWriteableRegistry.Entry needs StreamInput,
-         * not a PlanStreamInput. And we need PlanStreamInput to handle Source
-         * and NameId. This should become a hard cast when we move everything out
-         * of esql-core.
-         */
-        Source source = Source.readFrom((StreamInput & PlanStreamInput) in);
+        Source source = Source.readFrom((PlanStreamInput) in);
         // We could cache this if we wanted to.
         String name = in.readString();
         DataType dataType = DataType.readFrom(in);
@@ -94,7 +86,7 @@ public class ReferenceAttribute extends TypedAttribute {
             in.readOptionalString();
         }
         Nullability nullability = in.readEnum(Nullability.class);
-        NameId id = NameId.readFrom((StreamInput & PlanStreamInput) in);
+        NameId id = NameId.readFrom((PlanStreamInput) in);
         boolean synthetic = in.readBoolean();
 
         return new ReferenceAttribute(source, qualifier, name, dataType, nullability, id, synthetic);

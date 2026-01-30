@@ -38,6 +38,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.Period;
+import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -52,6 +53,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isMillisOrNanos;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 
 /**
@@ -150,7 +152,7 @@ public class TRange extends EsqlConfigurationFunction
         }
 
         String operationName = sourceText();
-        TypeResolution resolution = isType(timestamp, DataType::isMillisOrNanos, operationName, DEFAULT, true, "date_nanos", "date");
+        TypeResolution resolution = isType(timestamp, DataType::isMillisOrNanos, operationName, DEFAULT, true, "date_nanos", "datetime");
 
         if (resolution.unresolved()) {
             return resolution;
@@ -228,12 +230,12 @@ public class TRange extends EsqlConfigurationFunction
         try {
             Object foldFirst = first.fold(foldContext);
             if (second == null) {
-                rangeEnd = configuration().now().toInstant();
+                rangeEnd = configuration().now();
                 rangeStart = timeWithOffset(foldFirst, rangeEnd);
             } else {
                 Object foldSecond = second.fold(foldContext);
-                rangeStart = parseToInstant(foldFirst, START_TIME_OR_OFFSET_PARAMETER);
-                rangeEnd = parseToInstant(foldSecond, END_TIME_PARAMETER);
+                rangeStart = parseToInstant(foldFirst, START_TIME_OR_OFFSET_PARAMETER, first.dataType() == DataType.DATE_NANOS);
+                rangeEnd = parseToInstant(foldSecond, END_TIME_PARAMETER, second.dataType() == DataType.DATE_NANOS);
             }
         } catch (InvalidArgumentException e) {
             throw new InvalidArgumentException(e, "invalid time range for [{}]: {}", sourceText(), e.getMessage());
@@ -249,29 +251,26 @@ public class TRange extends EsqlConfigurationFunction
 
         boolean convertToNanos = timestamp.dataType() == DataType.DATE_NANOS;
         return new long[] {
-            convertToNanos ? DateUtils.toNanoSeconds(rangeStart.toEpochMilli()) : rangeStart.toEpochMilli(),
-            convertToNanos ? DateUtils.toNanoSeconds(rangeEnd.toEpochMilli()) : rangeEnd.toEpochMilli() };
+            convertToNanos ? DateUtils.toLong(rangeStart) : rangeStart.toEpochMilli(),
+            convertToNanos ? DateUtils.toLong(rangeEnd) : rangeEnd.toEpochMilli() };
     }
 
     private Instant timeWithOffset(Object offset, Instant base) {
         if (offset instanceof TemporalAmount amount) {
-            return base.minus(amount);
+            var zonedDateTime = ZonedDateTime.ofInstant(base, configuration().zoneId());
+            return zonedDateTime.minus(amount).toInstant();
         }
         throw new InvalidArgumentException("Unsupported offset type [{}]", offset.getClass().getSimpleName());
     }
 
-    private Instant parseToInstant(Object value, String paramName) {
+    private Instant parseToInstant(Object value, String paramName, boolean nanos) {
         if (value instanceof Literal literal) {
             value = literal.fold(FoldContext.small());
         }
 
-        if (value instanceof Instant instantValue) {
-            return instantValue;
-        }
-
         if (value instanceof BytesRef bytesRef) {
             try {
-                long millis = dateTimeToLong(bytesRef.utf8ToString());
+                long millis = dateTimeToLong(bytesRef.utf8ToString(), DEFAULT_DATE_TIME_FORMATTER.withZone(configuration().zoneId()));
                 return Instant.ofEpochMilli(millis);
             } catch (Exception e) {
                 throw new InvalidArgumentException("TRANGE {} parameter must be a valid datetime string, got: {}", paramName, value);
@@ -279,7 +278,7 @@ public class TRange extends EsqlConfigurationFunction
         }
 
         if (value instanceof Long longValue) {
-            return Instant.ofEpochMilli(longValue);
+            return nanos ? DateUtils.toInstant(longValue) : Instant.ofEpochMilli(longValue);
         }
 
         throw new InvalidArgumentException(

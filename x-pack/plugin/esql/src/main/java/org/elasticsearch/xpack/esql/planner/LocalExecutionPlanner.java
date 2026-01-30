@@ -70,7 +70,6 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -95,7 +94,6 @@ import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
-import org.elasticsearch.xpack.esql.inference.XContentRowEncoder;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -342,26 +340,12 @@ public class LocalExecutionPlanner {
 
         if (fuse.fuseConfig() instanceof RrfConfig rrfConfig) {
             return source.with(
-                new RrfScoreEvalOperator.Factory(
-                    discriminatorPosition,
-                    scorePosition,
-                    rrfConfig,
-                    fuse.sourceText(),
-                    fuse.sourceLocation().getLineNumber(),
-                    fuse.sourceLocation().getColumnNumber()
-                ),
+                new RrfScoreEvalOperator.Factory(discriminatorPosition, scorePosition, rrfConfig, fuse.source()),
                 source.layout
             );
         } else if (fuse.fuseConfig() instanceof LinearConfig linearConfig) {
             return source.with(
-                new LinearScoreEvalOperator.Factory(
-                    discriminatorPosition,
-                    scorePosition,
-                    linearConfig,
-                    fuse.sourceText(),
-                    fuse.sourceLocation().getLineNumber(),
-                    fuse.sourceLocation().getColumnNumber()
-                ),
+                new LinearScoreEvalOperator.Factory(discriminatorPosition, scorePosition, linearConfig, fuse.source()),
                 source.layout
             );
         }
@@ -491,7 +475,7 @@ public class LocalExecutionPlanner {
                     OBJECT, SCALED_FLOAT, UNSIGNED_LONG -> TopNEncoder.DEFAULT_SORTABLE;
                 case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE, COUNTER_LONG, COUNTER_INTEGER, COUNTER_DOUBLE, SOURCE,
                     AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR, GEOHASH, GEOTILE, GEOHEX, EXPONENTIAL_HISTOGRAM, TDIGEST, HISTOGRAM,
-                    TSID_DATA_TYPE -> TopNEncoder.DEFAULT_UNSORTABLE;
+                    TSID_DATA_TYPE, DATE_RANGE -> TopNEncoder.DEFAULT_UNSORTABLE;
                 // unsupported fields are encoded as BytesRef, we'll use the same encoder; all values should be null at this point
                 case UNSUPPORTED -> TopNEncoder.UNSUPPORTED;
             };
@@ -634,28 +618,12 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planRerank(RerankExec rerank, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(rerank.child(), context);
 
-        EvalOperator.ExpressionEvaluator.Factory rowEncoderFactory;
-        if (rerank.rerankFields().size() > 1) {
-            // If there is more than one field used for reranking we are encoded the input in a YAML doc, using field names as key.
-            // The input value will looks like
-            // text_field: foo bar
-            // multivalue_text_field:
-            // - value 1
-            // - value 2
-            // integer_field: 132
-            Map<ColumnInfoImpl, EvalOperator.ExpressionEvaluator.Factory> rerankFieldsEvaluatorSuppliers = Maps
-                .newLinkedHashMapWithExpectedSize(rerank.rerankFields().size());
+        List<EvalOperator.ExpressionEvaluator.Factory> rerankFieldsEvaluators = rerank.rerankFields()
+            .stream()
+            .map(rerankField -> EvalMapper.toEvaluator(context.foldCtx(), rerankField.child(), source.layout))
+            .toList();
 
-            for (var rerankField : rerank.rerankFields()) {
-                rerankFieldsEvaluatorSuppliers.put(
-                    new ColumnInfoImpl(rerankField.name(), rerankField.dataType(), null),
-                    EvalMapper.toEvaluator(context.foldCtx(), rerankField.child(), source.layout)
-                );
-            }
-            rowEncoderFactory = XContentRowEncoder.yamlRowEncoderFactory(rerankFieldsEvaluatorSuppliers);
-        } else {
-            rowEncoderFactory = EvalMapper.toEvaluator(context.foldCtx(), rerank.rerankFields().get(0).child(), source.layout);
-        }
+        assert rerankFieldsEvaluators.size() > 0 : "rerank expression evaluators must not be empty";
 
         String inferenceId = BytesRefs.toString(rerank.inferenceId().fold(context.foldCtx));
         String queryText = BytesRefs.toString(rerank.queryText().fold(context.foldCtx));
@@ -668,7 +636,14 @@ public class LocalExecutionPlanner {
         int scoreChannel = outputLayout.get(rerank.scoreAttribute().id()).channel();
 
         return source.with(
-            new RerankOperator.Factory(inferenceService, inferenceId, queryText, rowEncoderFactory, scoreChannel),
+            new RerankOperator.Factory(
+                inferenceService,
+                inferenceId,
+                queryText,
+                rerankFieldsEvaluators,
+                scoreChannel,
+                RerankOperator.DEFAULT_BATCH_SIZE
+            ),
             outputLayout
         );
     }
@@ -856,6 +831,10 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planProject(ProjectExec project, LocalExecutionPlannerContext context) {
         var source = plan(project.child(), context);
+        return planProject(project, source);
+    }
+
+    public static PhysicalOperation planProject(ProjectExec project, PhysicalOperation source) {
         List<? extends NamedExpression> projections = project.projections();
         List<Integer> projectionList = new ArrayList<>(projections.size());
 
@@ -920,15 +899,7 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planChangePoint(ChangePointExec changePoint, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(changePoint.child(), context);
         Layout layout = source.layout.builder().append(changePoint.targetType()).append(changePoint.targetPvalue()).build();
-        return source.with(
-            new ChangePointOperator.Factory(
-                layout.get(changePoint.value().id()).channel(),
-                changePoint.sourceText(),
-                changePoint.sourceLocation().getLineNumber(),
-                changePoint.sourceLocation().getColumnNumber()
-            ),
-            layout
-        );
+        return source.with(new ChangePointOperator.Factory(layout.get(changePoint.value().id()).channel(), changePoint.source()), layout);
     }
 
     private PhysicalOperation planSample(SampleExec rsx, LocalExecutionPlannerContext context) {
@@ -940,7 +911,7 @@ public class LocalExecutionPlanner {
     /**
      * Immutable physical operation.
      */
-    public static class PhysicalOperation implements Describable {
+    public static class PhysicalOperation {
         final SourceOperatorFactory sourceOperatorFactory;
         final List<OperatorFactory> intermediateOperatorFactories;
         final SinkOperatorFactory sinkOperatorFactory;
@@ -950,28 +921,28 @@ public class LocalExecutionPlanner {
         /**
          * Creates a new physical operation with the given source and layout.
          */
-        static PhysicalOperation fromSource(SourceOperatorFactory sourceOperatorFactory, Layout layout) {
+        public static PhysicalOperation fromSource(SourceOperatorFactory sourceOperatorFactory, Layout layout) {
             return new PhysicalOperation(sourceOperatorFactory, layout);
         }
 
         /**
          * Creates a new physical operation from this operation with the given layout.
          */
-        PhysicalOperation with(Layout layout) {
+        public PhysicalOperation with(Layout layout) {
             return new PhysicalOperation(this, Optional.empty(), Optional.empty(), layout);
         }
 
         /**
          * Creates a new physical operation from this operation with the given intermediate operator and layout.
          */
-        PhysicalOperation with(OperatorFactory operatorFactory, Layout layout) {
+        public PhysicalOperation with(OperatorFactory operatorFactory, Layout layout) {
             return new PhysicalOperation(this, Optional.of(operatorFactory), Optional.empty(), layout);
         }
 
         /**
          * Creates a new physical operation from this operation with the given sink and layout.
          */
-        PhysicalOperation withSink(SinkOperatorFactory sink, Layout layout) {
+        public PhysicalOperation withSink(SinkOperatorFactory sink, Layout layout) {
             return new PhysicalOperation(this, Optional.empty(), Optional.of(sink), layout);
         }
 
@@ -1008,17 +979,36 @@ public class LocalExecutionPlanner {
             return sinkOperatorFactory.get(driverContext);
         }
 
-        @Override
-        public String describe() {
-            return Stream.concat(
-                Stream.concat(Stream.of(sourceOperatorFactory), intermediateOperatorFactories.stream()),
-                Stream.of(sinkOperatorFactory)
-            ).map(describable -> describable == null ? "null" : describable.describe()).collect(joining("\n\\_", "\\_", ""));
+        public Layout layout() {
+            return layout;
+        }
+
+        public Supplier<String> longDescription() {
+            return new LongDescription(sourceOperatorFactory, intermediateOperatorFactories, sinkOperatorFactory);
         }
 
         @Override
         public String toString() {
-            return describe();
+            return longDescription().get();
+        }
+    }
+
+    /**
+     * Closure that builds the description. This is a subset of {@link PhysicalOperation}
+     * that we pass to {@link Driver} that does not contain the quite large
+     * {@link PhysicalOperation#layout} member.
+     */
+    private record LongDescription(
+        SourceOperatorFactory sourceOperatorFactory,
+        List<OperatorFactory> intermediateOperatorFactories,
+        SinkOperatorFactory sinkOperatorFactory
+    ) implements Supplier<String> {
+        @Override
+        public String get() {
+            return Stream.concat(
+                Stream.concat(Stream.of(sourceOperatorFactory), intermediateOperatorFactories.stream()),
+                Stream.of(sinkOperatorFactory)
+            ).map(describable -> describable == null ? "null" : describable.describe()).collect(joining("\n\\_", "\\_", ""));
         }
     }
 
@@ -1111,7 +1101,7 @@ public class LocalExecutionPlanner {
                 localBreakerSettings.overReservedBytes(),
                 localBreakerSettings.maxOverReservedBytes()
             );
-            var driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker), description);
+            var driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker), localBreakerSettings, description);
             try {
                 source = physicalOperation.source(driverContext);
                 physicalOperation.operators(operators, driverContext);
@@ -1125,7 +1115,7 @@ public class LocalExecutionPlanner {
                     System.currentTimeMillis(),
                     System.nanoTime(),
                     driverContext,
-                    physicalOperation::describe,
+                    physicalOperation.longDescription(),
                     source,
                     operators,
                     sink,
@@ -1141,7 +1131,7 @@ public class LocalExecutionPlanner {
 
         @Override
         public String describe() {
-            return physicalOperation.describe();
+            return physicalOperation.toString();
         }
     }
 

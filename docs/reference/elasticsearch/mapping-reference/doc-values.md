@@ -85,6 +85,9 @@ How the ordering differs depends on whether the array is mapped as keyword or a 
 In case of numeric field types (e.g. `long`, `double`, `scaled_float`, etc.), the multi-valued values for each document are ordered in natural order and duplicates are retained.
 
 ## Doc values skippers [doc-values-skippers]
+```{applies_to}
+stack: ga 9.3
+```
 
 Doc values skippers are an additional data structure on doc values fields that store summary information for multi-level blocks of documents (currently minimum value, maximum value and doc count).
 They can assist fast querying and aggregation over a field without the need for a terms or points index structure, significantly reducing its disk footprint. This is particularly true when the field in question is correlated with the index sort.  For example, timestamp filtered queries in time series indexes can use skippers to filter out large blocks of documents without having to inspect individual field values.

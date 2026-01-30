@@ -64,7 +64,7 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
             fieldCapsRequest.indexFilter(new DummyQueryBuilder() {
                 @Override
                 protected void doWriteTo(StreamOutput out) throws IOException {
-                    if (out.getTransportVersion().before(transportVersion)) {
+                    if (out.getTransportVersion().supports(transportVersion) == false) {
                         throw new IllegalArgumentException("This query isn't serializable before transport version " + transportVersion);
                     }
                 }

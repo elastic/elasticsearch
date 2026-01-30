@@ -21,8 +21,6 @@ import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.AllFirst;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.AllLast;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -67,7 +65,6 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.Term;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
@@ -86,6 +83,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesi
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatePeriod;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
@@ -162,6 +160,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCoun
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFirst;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersection;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLast;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
@@ -172,6 +171,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPerc
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSlice;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSort;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvUnion;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.score.Decay;
@@ -184,6 +184,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StEnvelop
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohex;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StNPoints;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplify;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMin;
@@ -192,6 +194,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StYMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StYMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.BitLength;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ByteLength;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Chicken;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Chunk;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
@@ -232,6 +235,7 @@ import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -417,6 +421,7 @@ public class EsqlFunctionRegistry {
             new FunctionDefinition[] {
                 def(BitLength.class, BitLength::new, "bit_length"),
                 def(ByteLength.class, ByteLength::new, "byte_length"),
+                def(Chicken.class, Chicken::new, "chicken", Chicken.CHICKEN_EMOJI),
                 def(Concat.class, Concat::new, "concat"),
                 def(Contains.class, Contains::new, "contains"),
                 def(EndsWith.class, EndsWith::new, "ends_with"),
@@ -464,9 +469,11 @@ public class EsqlFunctionRegistry {
                 def(SpatialWithin.class, SpatialWithin::new, "st_within"),
                 def(StDistance.class, StDistance::new, "st_distance"),
                 def(StEnvelope.class, StEnvelope::new, "st_envelope"),
+                def(StSimplify.class, StSimplify::new, "st_simplify"),
                 def(StGeohash.class, StGeohash::new, "st_geohash"),
                 def(StGeotile.class, StGeotile::new, "st_geotile"),
                 def(StGeohex.class, StGeohex::new, "st_geohex"),
+                def(StNPoints.class, StNPoints::new, "st_npoints"),
                 def(StXMax.class, StXMax::new, "st_xmax"),
                 def(StXMin.class, StXMin::new, "st_xmin"),
                 def(StYMax.class, StYMax::new, "st_ymax"),
@@ -524,10 +531,12 @@ public class EsqlFunctionRegistry {
                 def(MvMedian.class, MvMedian::new, "mv_median"),
                 def(MvMedianAbsoluteDeviation.class, MvMedianAbsoluteDeviation::new, "mv_median_absolute_deviation"),
                 def(MvMin.class, MvMin::new, "mv_min"),
+                def(MvIntersects.class, MvIntersects::new, "mv_intersects"),
                 def(MvPercentile.class, MvPercentile::new, "mv_percentile"),
                 def(MvPSeriesWeightedSum.class, MvPSeriesWeightedSum::new, "mv_pseries_weighted_sum"),
                 def(MvSort.class, MvSort::new, "mv_sort"),
                 def(MvSlice.class, MvSlice::new, "mv_slice"),
+                def(MvUnion.class, MvUnion::new, "mv_union"),
                 def(MvZip.class, MvZip::new, "mv_zip"),
                 def(MvSum.class, MvSum::new, "mv_sum"),
                 def(Split.class, Split::new, "split") },
@@ -579,12 +588,10 @@ public class EsqlFunctionRegistry {
                 // This is an experimental function and can be removed without notice.
                 def(Delay.class, Delay::new, "delay"),
                 def(First.class, bi(First::new), "first"),
-                def(AllFirst.class, bi(AllFirst::new), "all_first"),
-                def(AllLast.class, bi(AllLast::new), "all_last"),
                 def(Last.class, bi(Last::new), "last"),
-                def(Term.class, bi(Term::new), "term"),
                 // dense vector functions
-                def(Magnitude.class, Magnitude::new, "v_magnitude") } };
+                def(Magnitude.class, Magnitude::new, "v_magnitude"),
+                def(ToDateRange.class, ToDateRange::new, "to_date_range", "to_daterange") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {
@@ -739,7 +746,7 @@ public class EsqlFunctionRegistry {
     public record MapEntryArgSignature(String name, String valueHint, String type, String description) {
         @Override
         public String toString() {
-            return "name='" + name + "', values=" + valueHint + ", description='" + description + "'";
+            return "name='" + name + "', values=" + valueHint + ", description='" + description + "', type=" + type;
         }
     }
 
@@ -792,7 +799,7 @@ public class EsqlFunctionRegistry {
 
         return types.stream()
             .filter(DATA_TYPE_CASTING_PRIORITY::containsKey)
-            .min((dt1, dt2) -> DATA_TYPE_CASTING_PRIORITY.get(dt1).compareTo(DATA_TYPE_CASTING_PRIORITY.get(dt2)))
+            .min(Comparator.comparing(DATA_TYPE_CASTING_PRIORITY::get))
             .orElse(UNSUPPORTED);
     }
 
@@ -1313,7 +1320,13 @@ public class EsqlFunctionRegistry {
     ) {
         FunctionBuilder builder = (source, children, cfg) -> {
             checkIsOptionalTriFunction(function, children.size());
-            return ctorRef.build(source, children.get(0), children.get(1), children.size() == 3 ? children.get(2) : null, cfg);
+            return ctorRef.build(
+                source,
+                children.get(0),
+                children.size() >= 2 ? children.get(1) : null,
+                children.size() == 3 ? children.get(2) : null,
+                cfg
+            );
         };
         return def(function, builder, names);
     }

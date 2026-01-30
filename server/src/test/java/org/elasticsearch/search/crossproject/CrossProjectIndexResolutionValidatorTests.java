@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.ResolvedIndexExpressions;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESTestCase;
@@ -1406,6 +1407,105 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         assertThat(e, is(notNullValue()));
         assertThat(e.getMessage(), equalTo("no such index [P1:metrics]"));
         assertThat(e.getSuppressed(), emptyArray());
+    }
+
+    public void testResolvedIndexExpressionsAreCopiedOntoNewSearchRequest() {
+        ResolvedIndexExpressions expr = new ResolvedIndexExpressions(
+            List.of(
+                new ResolvedIndexExpression(
+                    "logs",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of("logs"),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                        null
+                    ),
+                    Set.of("P1:logs")
+                )
+            )
+        );
+
+        String projectRouting = "_alias:_origin";
+        SearchRequest original = new SearchRequest("logs");
+        original.setResolvedIndexExpressions(expr);
+        original.setProjectRouting(projectRouting);
+
+        /*
+         * When a new SearchRequest object is created from an existing one, we should copy over the previously
+         * resolved expressions since the new object will not go through the Security Action Filter.
+         */
+        SearchRequest rewritten = new SearchRequest(original);
+        assertThat(rewritten.getResolvedIndexExpressions(), equalTo(expr));
+        assertThat(rewritten.getProjectRouting(), equalTo(projectRouting));
+    }
+
+    public void testValidationWorksWithExclusions() {
+        {
+            // Exclusion by itself
+            final var resolvedExclusion = randomFrom(
+                new ResolvedIndexExpression("-logs", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:-logs")),
+                new ResolvedIndexExpression("-logs*", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:-logs*"))
+            );
+            final var local = new ResolvedIndexExpressions(List.of(resolvedExclusion));
+            var remote = Map.of("P1", new ResolvedIndexExpressions(List.of()));
+
+            assertNull(
+                CrossProjectIndexResolutionValidator.validate(
+                    getStrictIgnoreUnavailable(),
+                    useProjectRouting ? "_alias:*" : null,  // a redundant project routing has no impact
+                    local,
+                    remote
+                )
+            );
+        }
+
+        {
+            // Exclusion with includes
+            final var resolvedExclusion = randomFrom(
+                new ResolvedIndexExpression("-logs*", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:-logs*")),
+                new ResolvedIndexExpression("-P1:logs*", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("-P1:logs*")),
+                new ResolvedIndexExpression("P1:-logs*", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:-logs*"))
+            );
+
+            final var local = new ResolvedIndexExpressions(
+                List.of(
+                    new ResolvedIndexExpression(
+                        "*",
+                        new ResolvedIndexExpression.LocalExpressions(
+                            Set.of("metrics"),
+                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                            null
+                        ),
+                        Set.of("P1:*")
+                    ),
+                    resolvedExclusion
+                )
+            );
+            var remote = Map.of(
+                "P1",
+                new ResolvedIndexExpressions(
+                    List.of(
+                        new ResolvedIndexExpression(
+                            "*",
+                            new ResolvedIndexExpression.LocalExpressions(
+                                Set.of("remote-metrics"),
+                                ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                                null
+                            ),
+                            Set.of()
+                        )
+                    )
+                )
+            );
+
+            assertNull(
+                CrossProjectIndexResolutionValidator.validate(
+                    getStrictAllowNoIndices(),
+                    useProjectRouting ? "_alias:*" : null,  // a redundant project routing has no impact
+                    local,
+                    remote
+                )
+            );
+        }
     }
 
     private IndicesOptions getStrictAllowNoIndices() {

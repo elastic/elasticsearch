@@ -1120,6 +1120,13 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         String ct60d = "ct_60d";
         project = addComponentTemplate(service, project, ct60d, lifecycle60d);
 
+        DataStreamLifecycle.Template lifecycle30dFrozen = DataStreamLifecycle.dataLifecycleBuilder()
+            .dataRetention(TimeValue.timeValueDays(60))
+            .frozenAfter(TimeValue.timeValueDays(30))
+            .buildTemplate();
+        String ct30dFrozen = "ct_30d_frozen";
+        project = addComponentTemplate(service, project, ct30dFrozen, lifecycle30dFrozen);
+
         DataStreamLifecycle.Template lifecycleNullRetention = DataStreamLifecycle.dataLifecycleBuilder()
             .enabled(true)
             .dataRetention(ResettableValue.reset())
@@ -1134,6 +1141,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .buildTemplate();
         String ctNullDownsampling = "ct_null_downsampling";
         project = addComponentTemplate(service, project, ctNullDownsampling, lifecycleNullDownsampling);
+
+        DataStreamLifecycle.Template lifecycleNullFrozen = DataStreamLifecycle.dataLifecycleBuilder()
+            .frozenAfter(ResettableValue.reset())
+            .buildTemplate();
+        String ctNullFrozen = "ct_null_frozen";
+        project = addComponentTemplate(service, project, ctNullFrozen, lifecycleNullFrozen);
 
         String ctEmptyLifecycle = "ct_empty_lifecycle";
         project = addComponentTemplate(service, project, ctEmptyLifecycle, emptyLifecycle);
@@ -1311,6 +1324,42 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .downsamplingMethod(ResettableValue.reset())
                 .buildTemplate()
         );
+
+        // Component A: "lifecycle": {"retention": "60d", "frozen_after": "30d"}
+        // Component B: "lifecycle": {"frozen_after": null}
+        // Composable Z:
+        // Result: "lifecycle": {"retention": "60d"}
+        assertLifecycleResolution(
+            service,
+            project,
+            List.of(ct30dFrozen, ctNullFrozen),
+            null,
+            DataStreamLifecycle.dataLifecycleBuilder()
+                .dataRetention(lifecycle30dFrozen.dataRetention())
+                .frozenAfter(ResettableValue.reset())
+                .buildTemplate()
+        );
+
+        // Component A: "lifecycle": {"retention": "60d", "frozen_after": "30d"}
+        // Component B:
+        // Composable Z: "lifecycle": {"frozen_after": null}
+        // Result: "lifecycle": {"retention": "60d"}
+        assertLifecycleResolution(
+            service,
+            project,
+            List.of(ct30dFrozen),
+            lifecycleNullFrozen,
+            DataStreamLifecycle.dataLifecycleBuilder()
+                .dataRetention(lifecycle30dFrozen.dataRetention())
+                .frozenAfter(ResettableValue.reset())
+                .buildTemplate()
+        );
+
+        // Component A: "lifecycle": {"retention": "30d"}
+        // Component B:
+        // Composable Z: "lifecycle": {"retention": "60d", "frozen_after": "30d"}
+        // Result: "lifecycle": {"retention": "60d", "frozen_after": "30d"}
+        assertLifecycleResolution(service, project, List.of(ct30d), lifecycle30dFrozen, lifecycle30dFrozen);
     }
 
     public void testResolveFailureStore() throws Exception {

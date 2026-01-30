@@ -57,7 +57,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
@@ -82,9 +81,13 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomB
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.SortedBinaryDocValuesStringFieldScript;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.TextDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.runtime.StringScriptFieldTermsQuery;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -92,6 +95,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -99,6 +103,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.IntPredicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
@@ -113,8 +118,6 @@ public final class TextFieldMapper extends FieldMapper {
         false,
         DocValuesParameter.Values.Cardinality.LOW
     );
-
-    public static final FeatureFlag TEXT_FIELDS_DOC_VALUES_FF = new FeatureFlag("text_fields_doc_values");
 
     public static class Defaults {
         public static final double FIELDDATA_MIN_FREQUENCY = 0;
@@ -421,9 +424,9 @@ public final class TextFieldMapper extends FieldMapper {
 
         @Override
         protected Parameter<?>[] getParameters() {
-            // when TEXT_FIELD_DOC_VALUES_FF is disabled, exclude docValuesParameters from parsing
+            // when EXTENDED_DOC_VALUES_PARAMS_FF is disabled, exclude docValuesParameters from parsing
             // so doc_values configuration in the mapping is ignored and the default (disabled) is used
-            if (TEXT_FIELDS_DOC_VALUES_FF.isEnabled()) {
+            if (DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
                 return new Parameter<?>[] {
                     index,
                     store,
@@ -802,15 +805,7 @@ public final class TextFieldMapper extends FieldMapper {
             boolean usesBinaryDocValuesForFallbackFields,
             boolean usesBinaryDocValues
         ) {
-            super(
-                name,
-                indexed ? IndexType.terms(true, hasDocValues) : IndexType.NONE,
-                stored,
-                tsi,
-                meta,
-                isSyntheticSource,
-                isWithinMultiField
-            );
+            super(name, IndexType.terms(indexed, hasDocValues), stored, tsi, meta, isSyntheticSource, isWithinMultiField);
             this.fielddata = false;
             // TODO block loader could use a "fast loading" delegate which isn't always the same - but frequently is.
             this.syntheticSourceDelegate = Optional.ofNullable(syntheticSourceDelegate);
@@ -955,6 +950,43 @@ public final class TextFieldMapper extends FieldMapper {
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             return SourceValueFetcher.toString(name(), context, format);
+        }
+
+        @Override
+        public boolean isSearchable() {
+            return indexType().hasTerms() || hasDocValues();
+        }
+
+        @Override
+        public Query termQuery(Object value, SearchExecutionContext context) {
+            if (indexType().hasTerms()) {
+                return super.termQuery(value, context);
+            }
+            failIfNotIndexedNorDocValuesFallback(context);
+            if (usesBinaryDocValues) {
+                return new SlowCustomBinaryDocValuesTermQuery(name(), indexedValueForSearch(value));
+            } else {
+                return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
+            }
+        }
+
+        @Override
+        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
+            if (indexType().hasTerms()) {
+                return super.termsQuery(values, context);
+            }
+            failIfNotIndexedNorDocValuesFallback(context);
+            if (usesBinaryDocValues) {
+                return new StringScriptFieldTermsQuery(
+                    new Script(""),
+                    ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx),
+                    name(),
+                    values.stream().map(this::indexedValueForSearch).map(BytesRef::utf8ToString).collect(Collectors.toSet())
+                );
+            } else {
+                Collection<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
+                return SortedSetDocValuesField.newSlowSetQuery(name(), bytesRefs);
+            }
         }
 
         @Override
@@ -1880,7 +1912,7 @@ public final class TextFieldMapper extends FieldMapper {
         final Builder b = (Builder) getMergeBuilder();
         b.index.toXContent(builder, includeDefaults);
         b.store.toXContent(builder, includeDefaults);
-        if (TEXT_FIELDS_DOC_VALUES_FF.isEnabled()) {
+        if (DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
             b.docValuesParameters.toXContent(builder, includeDefaults);
         }
         multiFields().toXContent(builder, params);

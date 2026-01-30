@@ -62,7 +62,7 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
         }
 
         // text field doc_values support is behind a feature flag
-        if (TextFieldMapper.TEXT_FIELDS_DOC_VALUES_FF.isEnabled() == false) {
+        if (FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
             return FieldMapper.DocValuesParameter.Values.DISABLED;
         }
 
@@ -176,8 +176,8 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
         private MapperTestCase.SyntheticSourceExample docValuesFieldExample(int maxValues) {
             CheckedConsumer<XContentBuilder, IOException> mapping = b -> {
                 b.field("type", fieldType);
-                // TODO: Remove this case when TextFieldMapper.TEXT_FIELD_DOC_VALUES_FF is removed.
-                if (TextFieldMapper.TEXT_FIELDS_DOC_VALUES_FF.isEnabled() == false) {
+                // TODO: Remove this case when FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF is removed.
+                if (FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
                     b.field("doc_values", true);
                 } else {
                     b.startObject("doc_values");

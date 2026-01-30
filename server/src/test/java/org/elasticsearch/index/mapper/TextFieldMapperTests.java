@@ -178,7 +178,7 @@ public class TextFieldMapperTests extends MapperTestCase {
 
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
-        if (TextFieldMapper.TEXT_FIELDS_DOC_VALUES_FF.isEnabled()) {
+        if (FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
             checker.registerConflictCheck("doc_values", b -> b.field("doc_values", true));
         }
         checker.registerConflictCheck("index_phrases", b -> b.field("index_phrases", true));
@@ -501,7 +501,10 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesEnabled() throws IOException {
-        assumeTrue("text field doc_values feature must be enabled", TextFieldMapper.TEXT_FIELDS_DOC_VALUES_FF.isEnabled());
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "text");
             b.field("doc_values", true);
@@ -547,7 +550,10 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesLowCardinality() throws IOException {
-        assumeTrue("text field doc_values feature must be enabled", TextFieldMapper.TEXT_FIELDS_DOC_VALUES_FF.isEnabled());
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
         assumeTrue("extended doc_values options must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         MapperService mapperService = createMapperService(
             fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("cardinality", "low").endObject())
@@ -558,7 +564,10 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesHighCardinality() throws IOException {
-        assumeTrue("text field doc_values feature must be enabled", TextFieldMapper.TEXT_FIELDS_DOC_VALUES_FF.isEnabled());
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
         assumeTrue("extended doc_values options must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         MapperService mapperService = createMapperService(
             fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("cardinality", "high").endObject())
@@ -569,7 +578,10 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesSerialized() throws IOException {
-        assumeTrue("text field doc_values feature must be enabled", TextFieldMapper.TEXT_FIELDS_DOC_VALUES_FF.isEnabled());
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
         // doc_values = true should be serialized
         DocumentMapper mapperWithTrue = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "text");
@@ -600,7 +612,10 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesWithAggregations() throws IOException {
-        assumeTrue("text field doc_values feature must be enabled", TextFieldMapper.TEXT_FIELDS_DOC_VALUES_FF.isEnabled());
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
         // when doc_values are enabled, the field should be aggregatable without enabling fielddata
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", "text");
@@ -612,7 +627,10 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testFieldDataUsesDocValues() throws Exception {
-        assumeTrue("text field doc_values feature must be enabled", TextFieldMapper.TEXT_FIELDS_DOC_VALUES_FF.isEnabled());
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
         // when doc_values are enabled, fielddataBuilder should use doc values
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", "text");
@@ -638,7 +656,10 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesMultiValue() throws IOException {
-        assumeTrue("text field doc_values feature must be enabled", TextFieldMapper.TEXT_FIELDS_DOC_VALUES_FF.isEnabled());
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "text");
             b.field("doc_values", true);
@@ -656,7 +677,10 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesHighCardinalityMultiValue() throws Exception {
-        assumeTrue("text field doc_values feature must be enabled", TextFieldMapper.TEXT_FIELDS_DOC_VALUES_FF.isEnabled());
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
         assumeTrue("extended doc_values options must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         MapperService mapperService = createMapperService(
             fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("cardinality", "high").endObject())
@@ -683,7 +707,10 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testSyntheticSourceWithDocValues() throws IOException {
-        assumeTrue("text field doc_values feature must be enabled", TextFieldMapper.TEXT_FIELDS_DOC_VALUES_FF.isEnabled());
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
         DocumentMapper mapper = createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "text").field("doc_values", true)))
             .documentMapper();
 
@@ -692,7 +719,10 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testSyntheticSourceWithDocValuesMultiValue() throws IOException {
-        assumeTrue("text field doc_values feature must be enabled", TextFieldMapper.TEXT_FIELDS_DOC_VALUES_FF.isEnabled());
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
         DocumentMapper mapper = createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "text").field("doc_values", true)))
             .documentMapper();
 
@@ -701,7 +731,10 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testSyntheticSourceWithDocValuesHighCardinality() throws IOException {
-        assumeTrue("text field doc_values feature must be enabled", TextFieldMapper.TEXT_FIELDS_DOC_VALUES_FF.isEnabled());
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
         assumeTrue("extended doc_values options must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createSytheticSourceMapperService(
             fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("cardinality", "high").endObject())
@@ -2446,7 +2479,10 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesExceedsMaxTermLength() throws IOException {
-        assumeTrue("text field doc_values feature must be enabled", TextFieldMapper.TEXT_FIELDS_DOC_VALUES_FF.isEnabled());
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
         // create a value that exceeds MAX_TERM_LENGTH (32766 bytes)
         String longValue = "a".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
 
@@ -2471,7 +2507,10 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesUnderMaxTermLength() throws IOException {
-        assumeTrue("text field doc_values feature must be enabled", TextFieldMapper.TEXT_FIELDS_DOC_VALUES_FF.isEnabled());
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
         String value = "x".repeat(1000);
 
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
@@ -2494,7 +2533,10 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesMixedLengthValues() throws IOException {
-        assumeTrue("text field doc_values feature must be enabled", TextFieldMapper.TEXT_FIELDS_DOC_VALUES_FF.isEnabled());
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
         String shortValue = "short value";
         String longValue = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
 
@@ -2518,7 +2560,10 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesHighCardinalityNoLengthLimit() throws IOException {
-        assumeTrue("text field doc_values feature must be enabled", TextFieldMapper.TEXT_FIELDS_DOC_VALUES_FF.isEnabled());
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
         assumeTrue("extended doc_values options must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
 
         // with HIGH cardinality (binary doc values), there's no length limit
@@ -2549,7 +2594,10 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testSyntheticSourceWithDocValuesExceedsMaxTermLength() throws IOException {
-        assumeTrue("text field doc_values feature must be enabled", TextFieldMapper.TEXT_FIELDS_DOC_VALUES_FF.isEnabled());
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
         // create a value that exceeds MAX_TERM_LENGTH
         String longValue = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
 
@@ -2562,7 +2610,10 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testSyntheticSourceWithDocValuesMixedLengthValues() throws IOException {
-        assumeTrue("text field doc_values feature must be enabled", TextFieldMapper.TEXT_FIELDS_DOC_VALUES_FF.isEnabled());
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
         String shortValue = "short";
         String longValue = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
 

@@ -68,6 +68,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -122,6 +123,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
             exception.getMessage(),
             is(Strings.format("The inference endpoint [%s] does not exist and cannot be updated", INFERENCE_ENTITY_ID_VALUE))
         );
+        verifyNoModelRegistryMutations();
     }
 
     public void testMasterOperation_RuntimeExceptionThrown_ThrowsSameException() {
@@ -132,6 +134,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
         var actualException = expectThrows(RuntimeException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(actualException, sameInstance(simulatedException));
+        verifyNoModelRegistryMutations();
     }
 
     public void testMasterOperation_NullReturned_ThrowsElasticsearchStatusException() {
@@ -144,6 +147,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
             exception.getMessage(),
             is(Strings.format("The inference endpoint [%s] does not exist and cannot be updated", INFERENCE_ENTITY_ID_VALUE))
         );
+        verifyNoModelRegistryMutations();
     }
 
     public void testMasterOperation_ServiceNotFoundInRegistry_ThrowsElasticsearchStatusException() {
@@ -156,6 +160,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
         var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(exception.getMessage(), is(Strings.format("Service [%s] not found", SERVICE_NAME_VALUE)));
+        verifyNoModelRegistryMutations();
     }
 
     public void testMasterOperation_LicenseCheckFailed_ThrowsSecurityException() {
@@ -171,6 +176,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
         var exception = expectThrows(ElasticsearchSecurityException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(exception.getMessage(), is("current license is non-compliant for [inference]"));
+        verifyNoModelRegistryMutations();
     }
 
     public void testMasterOperation_ValidationFailed_ThrowsElasticsearchStatusException() {
@@ -207,6 +213,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
             exception.getMessage(),
             is("Could not complete inference endpoint creation as validation call to service threw an exception.")
         );
+        verifyNoModelRegistryMutations();
     }
 
     public void testMasterOperation_UpdateModelTransactionFailedDueToRuntimeException_ThrowsSameException() {
@@ -232,6 +239,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
         var actualException = expectThrows(RuntimeException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(actualException, sameInstance(simulatedException));
+        verifyModelRegistryUpdateInvoked();
     }
 
     public void testMasterOperation_UpdateModelTransactionReturnedFalse_ThrowsElasticsearchStatusException() {
@@ -252,6 +260,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
         var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(exception.getMessage(), is("Failed to update model"));
+        verifyModelRegistryUpdateInvoked();
     }
 
     public void testMasterOperation_GetModelReturnedNull_ThrowsElasticsearchStatusException() {
@@ -273,6 +282,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
         var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(exception.getMessage(), is("Failed to update model, updated model not found"));
+        verifyModelRegistryUpdateInvoked();
     }
 
     public void testMasterOperation_GetModelThrownException_ThrowsElasticsearchStatusException() {
@@ -299,6 +309,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
         var exception = expectThrows(RuntimeException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(exception.getMessage(), is(exceptionMessage));
+        verifyModelRegistryUpdateInvoked();
     }
 
     public void testMasterOperation_UpdatesModelSettingsSuccessfully() {
@@ -318,10 +329,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         var listener = callMasterOperationWithActionFuture();
         var response = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
         assertThat(response.getModel(), is(model.getConfigurations()));
-    }
-
-    private void mockParsePersistedConfigToReturnModel(GoogleVertexAiEmbeddingsModel model) {
-        when(service.parsePersistedConfig(eq(INFERENCE_ENTITY_ID_VALUE), eq(TaskType.TEXT_EMBEDDING), anyMap())).thenReturn(model);
+        verifyModelRegistryUpdateInvoked();
     }
 
     private static GoogleVertexAiEmbeddingsModel createModel() {
@@ -418,6 +426,20 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
             listener.onResponse(result);
             return Void.TYPE;
         }).when(mockModelRegistry).updateModelTransaction(any(GoogleVertexAiEmbeddingsModel.class), eq(model), any());
+    }
+
+    private void mockParsePersistedConfigToReturnModel(GoogleVertexAiEmbeddingsModel model) {
+        when(service.parsePersistedConfig(eq(INFERENCE_ENTITY_ID_VALUE), eq(TaskType.TEXT_EMBEDDING), anyMap())).thenReturn(model);
+    }
+
+    private void verifyNoModelRegistryMutations() {
+        verify(mockModelRegistry, never()).storeModel(any(), any(), any());
+        verify(mockModelRegistry, never()).storeModels(any(), any(), any());
+        verify(mockModelRegistry, never()).updateModelTransaction(any(), any(), any());
+    }
+
+    private void verifyModelRegistryUpdateInvoked() {
+        verify(mockModelRegistry).updateModelTransaction(any(), any(), any());
     }
 
     private void mockModelRegistryGetModelToReturnUnparsedModel(UnparsedModel result) {

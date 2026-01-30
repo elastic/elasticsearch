@@ -12,6 +12,7 @@ package org.elasticsearch.script;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutputHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.Closeable;
 import java.io.DataOutput;
@@ -33,6 +34,11 @@ public class DataOutputStreamOutput extends StreamOutput {
     @Override
     public void writeBytes(byte[] b, int offset, int length) throws IOException {
         out.write(b, offset, length);
+    }
+
+    @Override
+    public long position() {
+        return ESTestCase.fail(new UnsupportedOperationException("not implemented"));
     }
 
     @Override

@@ -281,6 +281,11 @@ public class EsqlCapabilities {
         FN_MV_CONTAINS_V1,
 
         /**
+         * support for MV_INTERSECTS function
+         */
+        FN_MV_INTERSECTS,
+
+        /**
          * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.
          */
         FUNCTIONS_SOURCE_SERIALIZATION_WARNINGS,
@@ -1655,6 +1660,13 @@ public class EsqlCapabilities {
         TS_PERMIT_TEXT_BECOMING_KEYWORD_WHEN_GROUPED_ON,
 
         /**
+         * Fix for a bug where if you queried multiple TS indices with a field
+         * mapped to different types, the original types/suggested cast sections
+         * of the return result would be empty.
+         */
+        TS_ORIGINAL_TYPES_BUG_FIXED,
+
+        /**
          * Fix management of plans with no columns
          * https://github.com/elastic/elasticsearch/issues/120272
          */
@@ -1818,11 +1830,14 @@ public class EsqlCapabilities {
         FULL_TEXT_FUNCTIONS_ACCEPT_NULL_FIELD,
 
         /**
-         * Support for the temporary work to eventually allow FIRST to work with null and multi-value fields, among other things.
+         * Make FIRST agg work with null and multi-value fields.
          */
-        ALL_FIRST_WITH_IP_BOOLEAN_SUPPORT(Build.current().isSnapshot()),
+        FIRST_AGG_WITH_NULL_AND_MV_SUPPORT(),
 
-        ALL_LAST_WITH_IP_BOOLEAN_SUPPORT(Build.current().isSnapshot()),
+        /**
+         * Make LAST agg work with null and multi-value fields.
+         */
+        LAST_AGG_WITH_NULL_AND_MV_SUPPORT(),
 
         /**
          * Allow ST_EXTENT_AGG to gracefully handle missing spatial shapes
@@ -2006,6 +2021,11 @@ public class EsqlCapabilities {
          * Support query approximation.
          */
         APPROXIMATION(Build.current().isSnapshot()),
+
+        /**
+         * Create a ScoreOperator only when shard contexts are available
+         */
+        FIX_SCORE_OPERATOR_PLANNING,
 
         /**
          * Periodically emit partial aggregation results when the number of groups exceeds the threshold.

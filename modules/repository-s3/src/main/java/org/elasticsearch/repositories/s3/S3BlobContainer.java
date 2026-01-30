@@ -62,6 +62,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -759,10 +760,11 @@ class S3BlobContainer extends AbstractBlobContainer {
     /**
      * Copies a blob using multipart
      * <p>
-     * This is required when the blob size is larger than MAX_FILE_SIZE.
+     * This is required when the blob size is larger than {@link S3BlobContainer#getMaxCopySizeBeforeMultipart}
      * It must be called on the destination blob container.
      * <p>
-     * It uses MAX_FILE_SIZE as the copy part size, because that minimizes the number of requests needed.
+     * It uses {@link S3BlobContainer#getMaxCopySizeBeforeMultipart}
+     * as the copy part size, because that minimizes the number of requests needed.
      * Smaller part sizes might improve throughput when downloading from multiple parts at once, but we have no measurements
      * indicating this would be helpful so we optimize for request count.
      */
@@ -773,7 +775,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         final String destinationBlobName,
         final long blobSize
     ) throws IOException {
-        final long copyPartSize = MAX_FILE_SIZE.getBytes();
+        final long copyPartSize = getMaxCopySizeBeforeMultipart();
         final var destinationKey = buildKey(destinationBlobName);
         executeMultipart(
             purpose,
@@ -930,7 +932,8 @@ class S3BlobContainer extends AbstractBlobContainer {
 
                 // Step 3: Ensure all other uploads in currentUploads are complete (either successfully, aborted by us or by another upload)
 
-                .<Void>newForked(l -> ensureOtherUploadsComplete(uploadId, uploadIndex, currentUploads, l))
+                .<Void>newForked(l -> abortOtherUploads(uploadId, uploadIndex, currentUploads, l))
+                .<Void>andThen(l -> ensureOtherUploadsComplete(uploadId, currentUploads, l))
 
                 // Step 4: Read the current register value. Note that getRegister only has read-after-write semantics but that's ok here as:
                 // - all earlier uploads are now complete,
@@ -1082,7 +1085,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             return found ? uploadIndex : -1;
         }
 
-        private void ensureOtherUploadsComplete(
+        private void abortOtherUploads(
             String uploadId,
             int uploadIndex,
             List<MultipartUpload> currentUploads,
@@ -1114,6 +1117,67 @@ class S3BlobContainer extends AbstractBlobContainer {
             } else {
                 cancelOtherUploads(uploadId, currentUploads, listener);
             }
+        }
+
+        private void ensureOtherUploadsComplete(String uploadId, List<MultipartUpload> currentUploads, ActionListener<Void> listener) {
+            final var otherUploadIds = Sets.<String>newHashSetWithExpectedSize(currentUploads.size());
+            for (var currentUpload : currentUploads) {
+                final var otherUploadId = currentUpload.uploadId();
+                if (uploadId.equals(otherUploadId) == false) {
+                    otherUploadIds.add(otherUploadId);
+                }
+            }
+
+            if (otherUploadIds.isEmpty()) {
+                logger.trace("no uploads to await, proceeding with [{}]", uploadId);
+                listener.onResponse(null);
+                return;
+            }
+
+            final var executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+            final var timeoutListener = new SubscribableListener<Void>();
+            timeoutListener.addListener(listener);
+            timeoutListener.addTimeout(blobStore.getCompareAndExchangeTimeToLive(), threadPool, executor);
+
+            class OtherUploadsWaiter extends ActionRunnable<Void> {
+                OtherUploadsWaiter() {
+                    super(timeoutListener);
+                }
+
+                @Override
+                protected void doRun() {
+                    if (timeoutListener.isDone()) {
+                        logger.trace("uploads {} still incomplete at timeout, failing [{}]", otherUploadIds, uploadId);
+                        return;
+                    }
+
+                    final var newUploads = listMultipartUploads();
+                    final var newUploadIds = Sets.<String>newHashSetWithExpectedSize(newUploads.size());
+                    for (var newUpload : newUploads) {
+                        newUploadIds.add(newUpload.uploadId());
+                    }
+                    if (newUploadIds.contains(uploadId) == false) {
+                        logger.trace("upload [{}] not found in {}", uploadId, newUploadIds);
+                        throw AwsServiceException.builder().statusCode(RestStatus.NOT_FOUND.getStatus()).build();
+                    }
+
+                    newUploadIds.retainAll(otherUploadIds);
+                    if (newUploadIds.isEmpty()) {
+                        logger.trace("uploads {} all complete, proceeding with [{}]", otherUploadIds, uploadId);
+                        timeoutListener.onResponse(null);
+                    } else {
+                        logger.trace(
+                            "uploads {} from {} still in progress, retrying before completing [{}]",
+                            newUploadIds,
+                            otherUploadIds,
+                            uploadId
+                        );
+                        threadPool.schedule(OtherUploadsWaiter.this, blobStore.getCompareAndExchangeAntiContentionDelay(), executor);
+                    }
+                }
+            }
+
+            new OtherUploadsWaiter().run();
         }
 
         private void cancelOtherUploads(String uploadId, List<MultipartUpload> currentUploads, ActionListener<Void> listener) {

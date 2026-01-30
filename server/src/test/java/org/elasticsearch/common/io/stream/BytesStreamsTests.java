@@ -941,6 +941,13 @@ public class BytesStreamsTests extends ESTestCase {
         }
 
         @Override
+        public long position() {
+            final var result = output.position();
+            assertEquals(result, counting.position());
+            return result;
+        }
+
+        @Override
         public void writeInt(int i) throws IOException {
             output.writeInt(i);
             counting.writeInt(i);

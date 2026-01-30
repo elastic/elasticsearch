@@ -110,6 +110,11 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
      */
     public abstract IntVector nonEmpty();
 
+    /**
+     * The number of unique keys in the hash.
+     */
+    public abstract int numKeys();
+
     // TODO merge with nonEmpty
     @Override
     public abstract BitArray seenGroupIds(BigArrays bigArrays);

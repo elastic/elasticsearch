@@ -285,7 +285,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         verifyModelRegistryUpdateInvoked();
     }
 
-    public void testMasterOperation_GetModelThrownException_ThrowsElasticsearchStatusException() {
+    public void testMasterOperation_GetModelThrownException_ThrowsSameException() {
         mockGetModelWithSecretsToReturnUnparsedModel(
             new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
         );
@@ -298,17 +298,17 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         mockUpdateModelWithEmbeddingDetailsToReturnSameModel();
         mockUpdateModelTransactionToReturnBoolean(true, model);
 
-        var exceptionMessage = "updated model not found";
+        var simulatedException = new RuntimeException("updated model not found");
         doAnswer(invocationOnMock -> {
             ActionListener<UnparsedModel> listener = invocationOnMock.getArgument(1);
-            listener.onFailure(new RuntimeException(exceptionMessage));
+            listener.onFailure(simulatedException);
             return Void.TYPE;
         }).when(mockModelRegistry).getModel(eq(INFERENCE_ENTITY_ID_VALUE), any());
 
         var listener = callMasterOperationWithActionFuture();
 
-        var exception = expectThrows(RuntimeException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
-        assertThat(exception.getMessage(), is(exceptionMessage));
+        var actualException = expectThrows(RuntimeException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        assertThat(actualException, sameInstance(simulatedException));
         verifyModelRegistryUpdateInvoked();
     }
 

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.vectors.VectorData;
@@ -16,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
 
@@ -24,6 +27,8 @@ import java.util.ArrayList;
 import java.util.Objects;
 
 public class MMRExec extends UnaryExec implements ExecutesOn.Coordinator {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(PhysicalPlan.class, "MmrExec", MMRExec::new);
+
     private final Attribute diversifyField;
     private final Expression limit;
     private final Expression queryVectorExpression;
@@ -48,6 +53,17 @@ public class MMRExec extends UnaryExec implements ExecutesOn.Coordinator {
 
         this.queryVector = extractQueryVectorData(queryVectorExpression);
         this.lambda = MMR.tryExtractLambdaFromOptions(options);
+    }
+
+    public MMRExec(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(PhysicalPlan.class),
+            in.readNamedWriteable(Attribute.class),
+            in.readNamedWriteable(Expression.class),
+            in.readOptionalNamedWriteable(Expression.class),
+            in.readOptionalNamedWriteable(Expression.class)
+        );
     }
 
     public Attribute diversifyField() {
@@ -78,12 +94,17 @@ public class MMRExec extends UnaryExec implements ExecutesOn.Coordinator {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException("not serialized");
+        source().writeTo(out);
+        out.writeNamedWriteable(child());
+        out.writeNamedWriteable(diversifyField);
+        out.writeNamedWriteable(limit);
+        out.writeOptionalNamedWriteable(queryVectorExpression);
+        out.writeOptionalNamedWriteable(options);
     }
 
     @Override
     public String getWriteableName() {
-        throw new UnsupportedOperationException("not serialized");
+        return ENTRY.name;
     }
 
     @Override

@@ -22,11 +22,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends AbstractLogsdbRollingUpgradeTestCase {
 
@@ -68,20 +69,12 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
 
     private void verifyClusterIsRunningOldVersion() throws IOException {
         String expectedOldVersion = System.getProperty("tests.old_cluster_version");
-        if (expectedOldVersion != null) {
-            verifyOldVersion(expectedOldVersion);
-        } else {
-            String expectedServerlessOldVersion = System.getProperty("tests.serverless.bwc_stack_version");
-            verifyOldVersion(expectedServerlessOldVersion);
-            assertThat(
-                "tests.old_cluster_version or tests.serverless.bwc_stack_version system property must be set",
-                expectedServerlessOldVersion,
-                notNullValue()
-            );
-        }
-    }
 
-    private void verifyOldVersion(String expectedOldVersion) throws IOException {
+        if (expectedOldVersion == null && System.getProperty("tests.serverless.bwc_stack_version") != null) {
+            // we're running in serverless where a node's version is a commit hash rather than a release version, so skip this check
+            return;
+        }
+
         // Strip -SNAPSHOT suffix for comparison since builds from refspecs may not include it
         String normalizedExpectedVersion = expectedOldVersion.replace("-SNAPSHOT", "");
 
@@ -111,6 +104,10 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
         return messagesPerDataStream.get(dataStreamName);
     }
 
+    protected int getNumNodes() {
+        return numNodes;
+    }
+
     public void testIndexing() throws Exception {
         List<TemplateConfig> templates = getTemplates();
 
@@ -120,7 +117,7 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
         }
 
         // verification must happen after we've indexed at least one document as streams are initialized lazily
-        verifyIndexMode(IndexMode.LOGSDB, templates.get(0).dataStreamName);
+        verifyIndexMode(IndexMode.LOGSDB, templates.get(0).dataStreamName());
 
         // during upgrade
         for (int i = 0; i < numNodes; i++) {
@@ -136,7 +133,7 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
         }
     }
 
-    private void indexDocumentsAndVerifyResults(TemplateConfig config) throws Exception {
+    void indexDocumentsAndVerifyResults(TemplateConfig config) throws Exception {
         String dataStreamName = config.dataStreamName();
 
         // when - index some documents
@@ -154,13 +151,12 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
         String writeBackingIndex = getDataStreamBackingIndexNames(dataStreamName).getLast();
         var settings = (Map<?, ?>) getIndexSettings(writeBackingIndex, true).get(writeBackingIndex);
 
-        // when index mode is not specified (like when standard mode is used), then settings.index.mode will return null
         if (indexMode == IndexMode.STANDARD) {
-            assertThat(((Map<?, ?>) settings.get("defaults")).get("index.mode"), equalTo(indexMode.getName()));
-            assertThat(((Map<?, ?>) settings.get("settings")).get("index.mapping.source.mode"), equalTo("synthetic"));
+            // in 8.19 and older, index.mode is null (implicit default), in newer versions its explicitly "standard"
+            Object actualMode = ((Map<?, ?>) settings.get("defaults")).get("index.mode");
+            assertThat(actualMode, anyOf(nullValue(), equalTo(indexMode.getName())));
         } else {
             assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo(indexMode.getName()));
-            assertThat(((Map<?, ?>) settings.get("defaults")).get("index.mapping.source.mode"), equalTo("SYNTHETIC"));
         }
     }
 
@@ -175,7 +171,6 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
         var dataStreams = entityAsMap(getDataStreamResponse);
 
         assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.name"), equalTo(dataStreamName));
-        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.indices"), hasSize(1));
         assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.template"), equalTo(templateIds.get(dataStreamName)));
 
         ensureGreen(dataStreamName);

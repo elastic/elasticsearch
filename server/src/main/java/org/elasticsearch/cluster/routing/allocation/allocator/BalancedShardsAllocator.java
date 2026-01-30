@@ -692,7 +692,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             }
                             if (logger.isTraceEnabled()) {
                                 logger.trace(
-                                    "Stop balancing index [{}]  min_node [{}] weight: [{}] max_node [{}] weight: [{}] delta: [{}]",
+                                    "Stop balancing index [{}] max_node [{}] weight: [{}] min_node [{}] weight: [{}] delta: [{}]",
                                     index,
                                     maxNode.getNodeId(),
                                     weights[highIdx],
@@ -1104,6 +1104,18 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         }
                     }
                 }
+            }
+
+            if (logger.isTraceEnabled()) {
+                // Some of the target information may be null, but that's still informative.
+                logger.trace(
+                    "Shard [{}] cannot remain on node [{}] because of decision [{}]. Moving to node [{}] with decision [{}]",
+                    shardRouting.shardId(),
+                    shardRouting.currentNodeId(),
+                    remainDecision,
+                    targetNode != null ? targetNode.nodeId() : null,
+                    bestDecision
+                );
             }
 
             return MoveDecision.move(

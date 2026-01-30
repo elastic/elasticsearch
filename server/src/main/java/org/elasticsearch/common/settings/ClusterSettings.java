@@ -220,7 +220,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
     }
 
     public static final Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = Set.of(
-        AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_SETTING,
+        AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_METRICS_SETTING,
+        AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_LOGGING_SETTING,
         AllocationBalancingRoundSummaryService.BALANCER_ROUND_SUMMARIES_LOG_INTERVAL_SETTING,
         AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
         AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING,

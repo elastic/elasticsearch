@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
-import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
@@ -137,11 +136,15 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
             MultiGetShardSplitHelper splitHelper = new MultiGetShardSplitHelper(
                 logger,
                 projectMetadata,
+                // Execute split requests by re-entering through shardOperation which will handle local execution
                 (splitRequest, splitListener) -> {
                     try {
                         IndexMetadata splitIndexMetadata = projectMetadata.index(splitRequest.index());
                         ShardId splitShardId = new ShardId(splitIndexMetadata.getIndex(), splitRequest.shardId());
-                        asyncShardMultiGetAfterSplit(splitRequest, splitShardId, splitListener);
+                        // Execute locally - the split request should have correct shard routing
+                        // If the shard doesn't exist locally, this will fail and the caller will need to retry
+                        MultiGetShardResponse response = shardOperation(splitRequest, splitShardId);
+                        splitListener.onResponse(response);
                     } catch (Exception e) {
                         splitListener.onFailure(e);
                     }

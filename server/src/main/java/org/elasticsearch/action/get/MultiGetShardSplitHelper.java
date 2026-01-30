@@ -65,8 +65,19 @@ public final class MultiGetShardSplitHelper {
         if (requestSplitSummary.isUnset()) {
             return false;
         }
-        SplitShardCountSummary currentSplitSummary = SplitShardCountSummary.forSearch(indexMetadata, shardId);
-        return requestSplitSummary.equals(currentSplitSummary) == false;
+
+        // First check using forSearch (SPLIT minState) as this is what the coordinator uses
+        SplitShardCountSummary currentSearchSummary = SplitShardCountSummary.forSearch(indexMetadata, shardId);
+        if (requestSplitSummary.equals(currentSearchSummary) == false) {
+            return true;
+        }
+
+        // If they match using forSearch, also check using forIndexing (HANDOFF minState).
+        // This handles the case where targets are in HANDOFF state (ready for indexing)
+        // but not yet in SPLIT state (ready for search). Documents may have been indexed
+        // to targets, so we need to coordinate with them even though they're not "search ready".
+        SplitShardCountSummary currentIndexingSummary = SplitShardCountSummary.forIndexing(indexMetadata, shardId);
+        return requestSplitSummary.equals(currentIndexingSummary) == false;
     }
 
     /**
@@ -92,7 +103,9 @@ public final class MultiGetShardSplitHelper {
         final ShardId sourceShardId = new ShardId(index, request.shardId());
 
         IndexRouting indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
-        SplitShardCountSummary shardCountSummary = SplitShardCountSummary.forSearch(indexMetadata, sourceShardId.getId());
+        // Use forIndexing (HANDOFF minState) when splitting requests to ensure we can coordinate
+        // with targets that may have received forwarded index operations
+        SplitShardCountSummary shardCountSummary = SplitShardCountSummary.forIndexing(indexMetadata, sourceShardId.getId());
 
         Map<ShardId, List<Tuple<Integer, MultiGetRequest.Item>>> itemsByShard = new HashMap<>();
         Map<ShardId, MultiGetShardRequest> requestsPerShard = new HashMap<>();
@@ -228,20 +241,24 @@ public final class MultiGetShardSplitHelper {
         public void coordinate() {
             // Validate that we're only one split behind (we always double the shard count)
             SplitShardCountSummary requestSummary = originalRequest.getSplitShardCountSummary();
-            SplitShardCountSummary currentSummary = SplitShardCountSummary.forSearch(indexMetadata, shardId.getId());
+
+            // Check against forIndexing (HANDOFF minState) since that's what determines
+            // whether documents could have been forwarded to targets
+            SplitShardCountSummary currentIndexingSummary = SplitShardCountSummary.forIndexing(indexMetadata, shardId.getId());
 
             int requestCount = requestSummary.asInt();
-            int currentCount = currentSummary.asInt();
+            int currentIndexingCount = currentIndexingSummary.asInt();
 
-            // Check if we're more than one split behind
-            if (currentCount != requestCount * 2) {
+            // Check if we're more than one split behind based on indexing state
+            if (currentIndexingCount != requestCount && currentIndexingCount != requestCount * 2) {
                 listener.onFailure(
                     new IllegalStateException(
                         format(
                             "Multi-get request is too stale. Coordinating node has shard count %d but current shard count is %d. "
-                                + "Expected at most one split difference (count should be %d).",
+                                + "Expected at most one split difference (count should be %d or %d).",
                             requestCount,
-                            currentCount,
+                            currentIndexingCount,
+                            requestCount,
                             requestCount * 2
                         )
                     )
@@ -256,7 +273,7 @@ public final class MultiGetShardSplitHelper {
                 "Multi-get request for shard {} needs split coordination. Request count: {}, current count: {}. Split into {} requests.",
                 shardId,
                 requestCount,
-                currentCount,
+                currentIndexingCount,
                 splitRequests.size()
             );
 

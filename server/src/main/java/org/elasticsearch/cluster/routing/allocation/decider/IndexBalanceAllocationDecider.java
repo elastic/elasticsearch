@@ -160,8 +160,8 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
             nomenclature = "search";
         }
 
-        assert eligibleNodes.isEmpty() == false;
         if (eligibleNodes.isEmpty()) {
+            // It's possible if a cluster is shutting down, we might have no non-shutting down search nodes
             return allocation.decision(Decision.YES, NAME, "There are no eligible nodes available.");
         }
         assert totalShards > 0;

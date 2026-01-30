@@ -10,8 +10,13 @@
 package org.elasticsearch.test.fixtures.minio;
 
 import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTestContainer;
+import org.junit.rules.TemporaryFolder;
+import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.wait.strategy.Wait;
-import org.testcontainers.images.builder.ImageFromDockerfile;
+import org.testcontainers.images.RemoteDockerImage;
+
+import java.io.File;
+import java.io.IOException;
 
 public final class MinioTestContainer extends DockerEnvironmentAwareTestContainer {
 
@@ -26,6 +31,9 @@ public final class MinioTestContainer extends DockerEnvironmentAwareTestContaine
 
     private static final int servicePort = 9000;
     private final boolean enabled;
+    private final String bucketName;
+
+    private final TemporaryFolder dataFolder = TemporaryFolder.builder().assureDeletion().build();
 
     /**
      * for packer caching only
@@ -36,16 +44,20 @@ public final class MinioTestContainer extends DockerEnvironmentAwareTestContaine
     }
 
     public MinioTestContainer(boolean enabled, String accessKey, String secretKey, String bucketName) {
-        super(
-            new ImageFromDockerfile("localhost/es-minio-testfixture").withDockerfileFromBuilder(
-                builder -> builder.from(DOCKER_BASE_IMAGE)
-                    .env("MINIO_ACCESS_KEY", accessKey)
-                    .env("MINIO_SECRET_KEY", secretKey)
-                    .run("mkdir -p /minio/data/" + bucketName)
-                    .cmd("server", "/minio/data")
-                    .build()
-            )
-        );
+        super(new RemoteDockerImage(DOCKER_BASE_IMAGE));
+        this.bucketName = bucketName;
+        withEnv("MINIO_ROOT_USER", accessKey);
+        withEnv("MINIO_ROOT_PASSWORD", secretKey);
+        withCommand("server", "/minio/data");
+        File bucketFolder = null;
+        try {
+            dataFolder.create();
+            bucketFolder = dataFolder.newFolder("minio", "data", bucketName);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        withFileSystemBind(bucketFolder.getParentFile().getAbsolutePath(), "/minio/data/", BindMode.READ_WRITE);
+
         if (enabled) {
             addExposedPort(servicePort);
             // The following waits for a specific log message as the readiness signal. When the minio docker image
@@ -59,7 +71,21 @@ public final class MinioTestContainer extends DockerEnvironmentAwareTestContaine
     @Override
     public void start() {
         if (enabled) {
-            super.start();
+            try {
+                super.start();
+                execInContainer("mkdir -p /minio/data/" + bucketName);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    public void stop() {
+        if (enabled) {
+            super.stop();
+            dataFolder.delete();
         }
     }
 

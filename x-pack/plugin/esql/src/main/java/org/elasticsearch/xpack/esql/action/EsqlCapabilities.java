@@ -2023,9 +2023,9 @@ public class EsqlCapabilities {
         APPROXIMATION(Build.current().isSnapshot()),
 
         /**
-         * Periodically emit partial aggregation results when the number of groups exceeds the threshold.
+         * Support for function {@code JSON_EXTRACT}.
          */
-        PERIODIC_EMIT_PARTIAL_AGGREGATION_RESULTS,
+        FN_JSON_EXTRACT(Build.current().isSnapshot()),
 
         /**
          * Support for requesting the "_size" metadata field when the mapper-size plugin is enabled.

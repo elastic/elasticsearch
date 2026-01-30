@@ -1,0 +1,155 @@
+jsonExtractString
+required_capability: fn_json_extract
+// tag::json_extract[]
+ROW json = "{\"name\":\"Alice\",\"age\":30}"
+| EVAL name = JSON_EXTRACT(json, "name")
+// end::json_extract[]
+;
+
+// tag::json_extract-result[]
+json:keyword                             | name:keyword
+"{""name"":""Alice"",""age"":30}"        | Alice
+// end::json_extract-result[]
+;
+
+jsonExtractNumber
+required_capability: fn_json_extract
+ROW json = "{\"name\":\"Alice\",\"age\":30}"
+| EVAL age = JSON_EXTRACT(json, "age")
+;
+
+json:keyword                             | age:keyword
+"{""name"":""Alice"",""age"":30}"        | 30
+;
+
+jsonExtractBoolean
+required_capability: fn_json_extract
+ROW json = "{\"active\":true}"
+| EVAL active = JSON_EXTRACT(json, "active")
+;
+
+json:keyword            | active:keyword
+"{""active"":true}"     | true
+;
+
+jsonExtractNested
+required_capability: fn_json_extract
+// tag::json_extract_nested[]
+ROW json = "{\"user\":{\"address\":{\"city\":\"London\"}}}"
+| EVAL city = JSON_EXTRACT(json, "user.address.city")
+// end::json_extract_nested[]
+;
+
+// tag::json_extract_nested-result[]
+json:keyword                                             | city:keyword
+"{""user"":{""address"":{""city"":""London""}}}"         | London
+// end::json_extract_nested-result[]
+;
+
+jsonExtractArrayIndex
+required_capability: fn_json_extract
+ROW json = "{\"tags\":[\"a\",\"b\",\"c\"]}"
+| EVAL first_tag = JSON_EXTRACT(json, "tags[0]")
+;
+
+json:keyword                         | first_tag:keyword
+"{""tags"":[""a"",""b"",""c""]}"     | a
+;
+
+jsonExtractMixedNesting
+required_capability: fn_json_extract
+ROW json = "{\"orders\":[{\"id\":1,\"item\":\"book\"},{\"id\":2,\"item\":\"pen\"}]}"
+| EVAL second_item = JSON_EXTRACT(json, "orders[1].item")
+;
+
+json:keyword                                                                     | second_item:keyword
+"{""orders"":[{""id"":1,""item"":""book""},{""id"":2,""item"":""pen""}]}"        | pen
+;
+
+jsonExtractObject
+required_capability: fn_json_extract
+ROW json = "{\"user\":{\"name\":\"Alice\",\"age\":30}}"
+| EVAL user = JSON_EXTRACT(json, "user")
+;
+
+json:keyword                                     | user:keyword
+"{""user"":{""name"":""Alice"",""age"":30}}"     | "{""name"":""Alice"",""age"":30}"
+;
+
+jsonExtractMissing
+required_capability: fn_json_extract
+ROW json = "{\"name\":\"Alice\"}"
+| EVAL missing = JSON_EXTRACT(json, "nonexistent")
+;
+warning:Line 2:18: evaluation of [JSON_EXTRACT(json, \"nonexistent\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:18: java.lang.IllegalArgumentException: path [nonexistent] does not exist
+
+json:keyword              | missing:keyword
+"{""name"":""Alice""}"    | null
+;
+
+jsonExtractJsonNull
+required_capability: fn_json_extract
+ROW json = "{\"value\":null}"
+| EVAL val = JSON_EXTRACT(json, "value")
+;
+
+json:keyword           | val:keyword
+"{""value"":null}"     | null
+;
+
+jsonExtractInvalidJson
+required_capability: fn_json_extract
+ROW json = "not valid json"
+| EVAL result = JSON_EXTRACT(json, "field")
+;
+warning:Line 2:17: evaluation of [JSON_EXTRACT(json, \"field\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:17: java.lang.IllegalArgumentException: invalid JSON input
+
+json:keyword       | result:keyword
+not valid json     | null
+;
+
+jsonExtractNullInput
+required_capability: fn_json_extract
+ROW json = null
+| EVAL result = JSON_EXTRACT(json::keyword, "field")
+;
+
+json:null | result:keyword
+null      | null
+;
+
+jsonExtractNullPath
+required_capability: fn_json_extract
+ROW json = "{\"name\":\"Alice\"}"
+| EVAL result = JSON_EXTRACT(json, null::keyword)
+;
+
+json:keyword              | result:keyword
+"{""name"":""Alice""}"    | null
+;
+
+jsonExtractArrayOutOfBounds
+required_capability: fn_json_extract
+ROW json = "{\"tags\":[\"a\",\"b\"]}"
+| EVAL result = JSON_EXTRACT(json, "tags[5]")
+;
+warning:Line 2:17: evaluation of [JSON_EXTRACT(json, \"tags[5]\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:17: java.lang.IllegalArgumentException: array index out of bounds
+
+json:keyword                    | result:keyword
+"{""tags"":[""a"",""b""]}"     | null
+;
+
+jsonExtractNonObjectTraversal
+required_capability: fn_json_extract
+ROW json = "{\"name\":\"Alice\"}"
+| EVAL result = JSON_EXTRACT(json, "name.nested")
+;
+warning:Line 2:17: evaluation of [JSON_EXTRACT(json, \"name.nested\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:17: java.lang.IllegalArgumentException: path [name.nested] does not exist
+
+json:keyword              | result:keyword
+"{""name"":""Alice""}"    | null
+;

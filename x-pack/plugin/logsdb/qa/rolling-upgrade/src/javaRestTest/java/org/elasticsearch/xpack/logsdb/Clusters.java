@@ -22,6 +22,7 @@ public class Clusters {
             .setting("xpack.security.enabled", "true")
             .user(user, pass)
             .keystore("bootstrap.password", pass)
+            .jvmArg("-da:org.elasticsearch.index.translog.TranslogWriter")
             .setting("xpack.license.self_generated.type", "trial");
 
         int numNodes = Integer.parseInt(System.getProperty("tests.num_nodes", "3"));

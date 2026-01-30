@@ -108,7 +108,8 @@ public final class LongIntAdaptiveBlockHash extends AdaptiveBlockHash {
             }
         }
 
-        int numEntries() {
+        @Override
+        public int numKeys() {
             return Math.toIntExact(longLongHash.size());
         }
 
@@ -159,7 +160,7 @@ public final class LongIntAdaptiveBlockHash extends AdaptiveBlockHash {
 
         PackedValuesBlockHash migrateToPackedHash() {
             // TODO: allow specifying the initial size to avoid re-hashing
-            final int entries = numEntries();
+            final int entries = numKeys();
             boolean success = false;
             final PackedValuesBlockHash packed = new PackedValuesBlockHash(specs, blockFactory, emitBatchSize);
             final BytesRefHashTable packedHash = packed.bytesRefHash;
@@ -190,7 +191,7 @@ public final class LongIntAdaptiveBlockHash extends AdaptiveBlockHash {
             Block longKeys = null;
             Block intKeys = null;
             boolean success = false;
-            int positionCount = numEntries();
+            int positionCount = numKeys();
             try (
                 var longsBuilder = blockFactory.newLongVectorFixedBuilder(positionCount);
                 var intsBuilder = blockFactory.newIntVectorFixedBuilder(positionCount)
@@ -218,12 +219,12 @@ public final class LongIntAdaptiveBlockHash extends AdaptiveBlockHash {
 
         @Override
         public IntVector nonEmpty() {
-            return blockFactory.newIntRangeVector(0, numEntries());
+            return blockFactory.newIntRangeVector(0, numKeys());
         }
 
         @Override
         public BitArray seenGroupIds(BigArrays bigArrays) {
-            return new SeenGroupIds.Range(0, numEntries()).seenGroupIds(bigArrays);
+            return new SeenGroupIds.Range(0, numKeys()).seenGroupIds(bigArrays);
         }
 
         @Override

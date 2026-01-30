@@ -2921,6 +2921,16 @@ public class VerifierTests extends ESTestCase {
             error("FROM test METADATA _index, _score, _id | EVAL _fork = \"fork1\" | FUSE"),
             containsString("FUSE can only be used on a limited number of rows. Consider adding a LIMIT before FUSE.")
         );
+
+        assertThat(
+            error("FROM test | LIMIT 10 | FUSE"),
+            equalTo(
+                "1:24: FUSE requires a score column, default [_score] column not found.\n"
+                    + "line 1:24: FUSE requires a column to group by, default [_fork] column not found.\n"
+                    + "line 1:24: FUSE requires a key column, default [_id] column not found\n"
+                    + "line 1:24: FUSE requires a key column, default [_index] column not found"
+            )
+        );
     }
 
     public void testNoMetricInStatsByClause() {

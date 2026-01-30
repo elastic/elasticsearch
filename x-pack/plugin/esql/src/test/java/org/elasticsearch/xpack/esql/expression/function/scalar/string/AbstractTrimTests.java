@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.equalTo;
 public abstract class AbstractTrimTests extends AbstractScalarFunctionTestCase {
     static Iterable<Object[]> parameters(String name, boolean trimLeading, boolean trimTrailing) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        for (DataType type : strings()) {
+        for (DataType type : DataType.stringTypes()) {
             suppliers.add(new TestCaseSupplier("no whitespace/" + type, List.of(type), () -> {
                 String text = randomAlphaOfLength(8);
                 return testCase(name, type, text, text);

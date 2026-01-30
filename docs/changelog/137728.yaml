@@ -1,0 +1,5 @@
+pr: 137728
+summary: Set CPS index options only when not using PIT
+area: CCS
+type: bug
+issues: []

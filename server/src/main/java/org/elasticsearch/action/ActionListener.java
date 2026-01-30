@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action;
@@ -27,6 +28,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.action.ActionListenerImplementations.checkedRunnableFromReleasable;
 import static org.elasticsearch.action.ActionListenerImplementations.runnableFromReleasable;
 import static org.elasticsearch.action.ActionListenerImplementations.safeAcceptException;
 import static org.elasticsearch.action.ActionListenerImplementations.safeOnFailure;
@@ -188,6 +190,13 @@ public interface ActionListener<Response> {
     }
 
     /**
+     * Same as {@link #delegateFailureAndWrap(CheckedBiConsumer)} except that the response is ignored and not passed to the delegate.
+     */
+    default <T> ActionListener<T> delegateFailureIgnoreResponseAndWrap(CheckedConsumer<ActionListener<Response>, ? extends Exception> c) {
+        return new ActionListenerImplementations.ResponseDroppingActionListener<>(this, c);
+    }
+
+    /**
      * Creates a listener which releases the given resource on completion (whether success or failure)
      */
     static <Response> ActionListener<Response> releasing(Releasable releasable) {
@@ -328,6 +337,16 @@ public interface ActionListener<Response> {
     }
 
     /**
+     * Wraps a given listener and returns a new listener which releases the provided {@code releaseBefore}
+     * resource before the listener is notified via either {@code #onResponse} or {@code #onFailure}.
+     */
+    static <Response> ActionListener<Response> releaseBefore(Releasable releaseBefore, ActionListener<Response> delegate) {
+        return assertOnce(
+            new ActionListenerImplementations.RunBeforeActionListener<>(delegate, checkedRunnableFromReleasable(releaseBefore))
+        );
+    }
+
+    /**
      * Wraps a given listener and returns a new listener which makes sure {@link #onResponse(Object)}
      * and {@link #onFailure(Exception)} of the provided listener will be called at most once.
      */
@@ -381,8 +400,10 @@ public interface ActionListener<Response> {
                 private final AtomicReference<ElasticsearchException> firstCompletion = new AtomicReference<>();
 
                 private void assertFirstRun() {
-                    var previousRun = firstCompletion.compareAndExchange(null, new ElasticsearchException(delegate.toString()));
-                    assert previousRun == null : previousRun; // reports the stack traces of both completions
+                    var previousRun = firstCompletion.compareAndExchange(null, new ElasticsearchException("executed already"));
+                    assert previousRun == null
+                        // reports the stack traces of both completions
+                        : new AssertionError("[" + delegate + "]", previousRun);
                 }
 
                 @Override
@@ -465,6 +486,14 @@ public interface ActionListener<Response> {
         }
 
         ActionListener.run(ActionListener.runBefore(listener, resource::close), l -> action.accept(l, resource));
+    }
+
+    /**
+     * Increments ref count and returns a listener that will decrement ref count on listener completion.
+     */
+    static <Response> ActionListener<Response> withRef(ActionListener<Response> listener, RefCounted ref) {
+        ref.mustIncRef();
+        return releaseAfter(listener, ref::decRef);
     }
 
 }

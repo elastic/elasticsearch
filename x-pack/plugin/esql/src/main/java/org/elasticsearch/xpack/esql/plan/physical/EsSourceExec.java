@@ -7,47 +7,90 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.index.EsIndex;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class EsSourceExec extends LeafExec {
 
-    private final EsIndex index;
+    private static final TransportVersion REMOVE_NAME_WITH_MODS = TransportVersion.fromName("esql_es_source_remove_name_with_mods");
+
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        PhysicalPlan.class,
+        "EsSourceExec",
+        EsSourceExec::readFrom
+    );
+
+    private final String indexPattern;
+    private final IndexMode indexMode;
     private final List<Attribute> attributes;
     private final QueryBuilder query;
-    private final IndexMode indexMode;
 
     public EsSourceExec(EsRelation relation) {
-        this(relation.source(), relation.index(), relation.output(), null, relation.indexMode());
+        this(relation.source(), relation.indexPattern(), relation.indexMode(), relation.output(), null);
     }
 
-    public EsSourceExec(Source source, EsIndex index, List<Attribute> attributes, QueryBuilder query, IndexMode indexMode) {
+    public EsSourceExec(Source source, String indexPattern, IndexMode indexMode, List<Attribute> attributes, QueryBuilder query) {
         super(source);
-        this.index = index;
+        this.indexPattern = indexPattern;
+        this.indexMode = indexMode;
         this.attributes = attributes;
         this.query = query;
-        this.indexMode = indexMode;
     }
 
-    public EsIndex index() {
-        return index;
+    private static EsSourceExec readFrom(StreamInput in) throws IOException {
+        var source = Source.readFrom((PlanStreamInput) in);
+        String indexPattern = in.readString();
+        if (in.getTransportVersion().supports(REMOVE_NAME_WITH_MODS) == false) {
+            in.readMap(IndexMode::readFrom);
+        }
+        var attributes = in.readNamedWriteableCollectionAsList(Attribute.class);
+        var query = in.readOptionalNamedWriteable(QueryBuilder.class);
+        var indexMode = IndexMode.fromString(in.readString());
+        return new EsSourceExec(source, indexPattern, indexMode, attributes, query);
     }
 
-    public QueryBuilder query() {
-        return query;
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        out.writeString(indexPattern);
+        if (out.getTransportVersion().supports(REMOVE_NAME_WITH_MODS) == false) {
+            out.writeMap(Map.<String, IndexMode>of(), (o, v) -> IndexMode.writeTo(v, out));
+        }
+        out.writeNamedWriteableCollection(output());
+        out.writeOptionalNamedWriteable(query());
+        out.writeString(indexMode().getName());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    public String indexPattern() {
+        return indexPattern;
     }
 
     public IndexMode indexMode() {
         return indexMode;
+    }
+
+    public QueryBuilder query() {
+        return query;
     }
 
     @Override
@@ -57,12 +100,12 @@ public class EsSourceExec extends LeafExec {
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, EsSourceExec::new, index, attributes, query, indexMode);
+        return NodeInfo.create(this, EsSourceExec::new, indexPattern, indexMode, attributes, query);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(index);
+        return Objects.hash(indexPattern, indexMode, attributes, query);
     }
 
     @Override
@@ -76,11 +119,14 @@ public class EsSourceExec extends LeafExec {
         }
 
         EsSourceExec other = (EsSourceExec) obj;
-        return Objects.equals(index, other.index) && Objects.equals(query, other.query);
+        return Objects.equals(indexPattern, other.indexPattern)
+            && Objects.equals(indexMode, other.indexMode)
+            && Objects.equals(attributes, other.attributes)
+            && Objects.equals(query, other.query);
     }
 
     @Override
-    public String nodeString() {
-        return nodeName() + "[" + index + "]" + NodeUtils.limitedToString(attributes);
+    public String nodeString(NodeStringFormat format) {
+        return nodeName() + "[" + indexPattern + "]" + NodeUtils.toString(attributes, format);
     }
 }

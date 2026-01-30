@@ -1,21 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 public class JoinStatusTests extends ESTestCase {
 
@@ -24,7 +23,7 @@ public class JoinStatusTests extends ESTestCase {
             DiscoveryNodeUtils.create(UUID.randomUUID().toString()),
             randomLongBetween(0, 1000),
             randomAlphaOfLengthBetween(0, 100),
-            randomNonNegativeTimeValue()
+            randomTimeValue()
         );
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             joinStatus,
@@ -56,7 +55,7 @@ public class JoinStatusTests extends ESTestCase {
                     originalJoinStatus.remoteNode(),
                     originalJoinStatus.term(),
                     originalJoinStatus.message(),
-                    randomValueOtherThan(originalJoinStatus.age(), this::randomNonNegativeTimeValue)
+                    randomValueOtherThan(originalJoinStatus.age(), ESTestCase::randomTimeValue)
                 );
             }
             case 4 -> {
@@ -65,9 +64,5 @@ public class JoinStatusTests extends ESTestCase {
             }
             default -> throw new IllegalStateException();
         }
-    }
-
-    private TimeValue randomNonNegativeTimeValue() {
-        return new TimeValue(randomIntBetween(0, 1000), randomFrom(TimeUnit.values()));
     }
 }

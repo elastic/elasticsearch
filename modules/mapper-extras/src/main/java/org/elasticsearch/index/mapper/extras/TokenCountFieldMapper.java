@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.extras;
@@ -15,6 +16,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -85,9 +87,10 @@ public class TokenCountFieldMapper extends FieldMapper {
                 store.getValue(),
                 hasDocValues.getValue(),
                 nullValue.getValue(),
-                meta.getValue()
+                meta.getValue(),
+                context.isSourceSynthetic()
             );
-            return new TokenCountFieldMapper(leafName(), ft, multiFieldsBuilder.build(this, context), copyTo, this);
+            return new TokenCountFieldMapper(leafName(), ft, builderParams(this, context), this);
         }
     }
 
@@ -99,21 +102,22 @@ public class TokenCountFieldMapper extends FieldMapper {
             boolean isStored,
             boolean hasDocValues,
             Number nullValue,
-            Map<String, String> meta
+            Map<String, String> meta,
+            boolean isSyntheticSource
         ) {
             super(
                 name,
                 NumberFieldMapper.NumberType.INTEGER,
-                isSearchable,
+                IndexType.points(isSearchable, hasDocValues),
                 isStored,
-                hasDocValues,
                 false,
                 nullValue,
                 meta,
                 null,
                 false,
                 null,
-                null
+                null,
+                isSyntheticSource
             );
         }
 
@@ -126,7 +130,7 @@ public class TokenCountFieldMapper extends FieldMapper {
         }
     }
 
-    public static TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
 
     private final boolean index;
     private final boolean hasDocValues;
@@ -135,14 +139,8 @@ public class TokenCountFieldMapper extends FieldMapper {
     private final boolean enablePositionIncrements;
     private final Integer nullValue;
 
-    protected TokenCountFieldMapper(
-        String simpleName,
-        MappedFieldType defaultFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        Builder builder
-    ) {
-        super(simpleName, defaultFieldType, multiFields, copyTo);
+    protected TokenCountFieldMapper(String simpleName, MappedFieldType defaultFieldType, BuilderParams builderParams, Builder builder) {
+        super(simpleName, defaultFieldType, builderParams);
         this.analyzer = builder.analyzer.getValue();
         this.enablePositionIncrements = builder.enablePositionIncrements.getValue();
         this.nullValue = builder.nullValue.getValue();
@@ -166,7 +164,13 @@ public class TokenCountFieldMapper extends FieldMapper {
             tokenCount = countPositions(analyzer, fullPath(), value, enablePositionIncrements);
         }
 
-        NumberFieldMapper.NumberType.INTEGER.addFields(context.doc(), fieldType().name(), tokenCount, index, hasDocValues, store);
+        NumberFieldMapper.NumberType.INTEGER.addFields(
+            context.doc(),
+            fieldType().name(),
+            tokenCount,
+            IndexType.points(index, hasDocValues),
+            store
+        );
     }
 
     /**

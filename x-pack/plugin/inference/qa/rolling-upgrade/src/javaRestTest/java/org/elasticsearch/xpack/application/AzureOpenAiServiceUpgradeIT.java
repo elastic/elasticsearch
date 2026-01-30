@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.not;
 
 public class AzureOpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
 
-    private static final String OPEN_AI_AZURE_EMBEDDINGS_ADDED = "8.14.0";
+    private static final String OPEN_AI_AZURE_EMBEDDINGS_ADDED_FEATURE = "gte_v8.14.0";
 
     private static MockWebServer openAiEmbeddingsServer;
 
@@ -48,36 +48,39 @@ public class AzureOpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
     @SuppressWarnings("unchecked")
     @AwaitsFix(bugUrl = "Cannot set the URL in the tests")
     public void testOpenAiEmbeddings() throws IOException {
-        var openAiEmbeddingsSupported = getOldClusterTestVersion().onOrAfter(OPEN_AI_AZURE_EMBEDDINGS_ADDED);
-        assumeTrue("Azure OpenAI embedding service added in " + OPEN_AI_AZURE_EMBEDDINGS_ADDED, openAiEmbeddingsSupported);
+        var openAiEmbeddingsSupported = oldClusterHasFeature(OPEN_AI_AZURE_EMBEDDINGS_ADDED_FEATURE);
+        String oldClusterEndpointIdentifier = oldClusterHasFeature(MODELS_RENAMED_TO_ENDPOINTS_FEATURE) ? "endpoints" : "models";
+        assumeTrue("Azure OpenAI embedding service supported", openAiEmbeddingsSupported);
 
         final String oldClusterId = "old-cluster-embeddings";
         final String upgradedClusterId = "upgraded-cluster-embeddings";
 
+        var testTaskType = TaskType.TEXT_EMBEDDING;
+
         if (isOldCluster()) {
             // queue a response as PUT will call the service
             openAiEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(OpenAiServiceUpgradeIT.embeddingResponse()));
-            put(oldClusterId, embeddingConfig(getUrl(openAiEmbeddingsServer)), TaskType.TEXT_EMBEDDING);
+            put(oldClusterId, embeddingConfig(getUrl(openAiEmbeddingsServer)), testTaskType);
 
-            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterId).get("endpoints");
+            var configs = (List<Map<String, Object>>) get(testTaskType, oldClusterId).get(oldClusterEndpointIdentifier);
             assertThat(configs, hasSize(1));
         } else if (isMixedCluster()) {
-            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterId).get("endpoints");
+            var configs = getConfigsWithBreakingChangeHandling(testTaskType, oldClusterId);
             assertEquals("azureopenai", configs.get(0).get("service"));
 
             assertEmbeddingInference(oldClusterId);
         } else if (isUpgradedCluster()) {
             // check old cluster model
-            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterId).get("endpoints");
+            var configs = (List<Map<String, Object>>) get(testTaskType, oldClusterId).get("endpoints");
             var serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
 
             // Inference on old cluster model
             assertEmbeddingInference(oldClusterId);
 
             openAiEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(OpenAiServiceUpgradeIT.embeddingResponse()));
-            put(upgradedClusterId, embeddingConfig(getUrl(openAiEmbeddingsServer)), TaskType.TEXT_EMBEDDING);
+            put(upgradedClusterId, embeddingConfig(getUrl(openAiEmbeddingsServer)), testTaskType);
 
-            configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, upgradedClusterId).get("endpoints");
+            configs = (List<Map<String, Object>>) get(testTaskType, upgradedClusterId).get("endpoints");
             assertThat(configs, hasSize(1));
 
             // Inference on the new config

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.dfs;
@@ -12,7 +13,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -38,7 +38,6 @@ public final class DfsSearchResult extends SearchPhaseResult {
     private SearchProfileDfsPhaseResult searchProfileDfsPhaseResult;
 
     public DfsSearchResult(StreamInput in) throws IOException {
-        super(in);
         contextId = new ShardSearchContextId(in);
         int termsSize = in.readVInt();
         if (termsSize == 0) {
@@ -54,17 +53,8 @@ public final class DfsSearchResult extends SearchPhaseResult {
 
         maxDoc = in.readVInt();
         setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-                knnResults = in.readOptionalCollectionAsList(DfsKnnResults::new);
-            } else {
-                DfsKnnResults results = in.readOptionalWriteable(DfsKnnResults::new);
-                knnResults = results != null ? List.of(results) : List.of();
-            }
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
-            searchProfileDfsPhaseResult = in.readOptionalWriteable(SearchProfileDfsPhaseResult::new);
-        }
+        knnResults = in.readOptionalCollectionAsList(DfsKnnResults::new);
+        searchProfileDfsPhaseResult = in.readOptionalWriteable(SearchProfileDfsPhaseResult::new);
     }
 
     public DfsSearchResult(ShardSearchContextId contextId, SearchShardTarget shardTarget, ShardSearchRequest shardSearchRequest) {
@@ -134,25 +124,8 @@ public final class DfsSearchResult extends SearchPhaseResult {
         writeFieldStats(out, fieldStatistics);
         out.writeVInt(maxDoc);
         out.writeOptionalWriteable(getShardSearchRequest());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-                out.writeOptionalCollection(knnResults);
-            } else {
-                if (knnResults != null && knnResults.size() > 1) {
-                    throw new IllegalArgumentException(
-                        "Cannot serialize multiple KNN results to nodes using previous transport version ["
-                            + out.getTransportVersion().toReleaseVersion()
-                            + "], minimum required transport version is ["
-                            + TransportVersions.V_8_7_0.toReleaseVersion()
-                            + "]"
-                    );
-                }
-                out.writeOptionalWriteable(knnResults == null || knnResults.isEmpty() ? null : knnResults.get(0));
-            }
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
-            out.writeOptionalWriteable(searchProfileDfsPhaseResult);
-        }
+        out.writeOptionalCollection(knnResults);
+        out.writeOptionalWriteable(searchProfileDfsPhaseResult);
     }
 
     public static void writeFieldStats(StreamOutput out, Map<String, CollectionStatistics> fieldStatistics) throws IOException {

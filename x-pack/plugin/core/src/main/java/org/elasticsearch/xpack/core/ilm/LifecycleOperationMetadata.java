@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,17 +32,17 @@ import java.util.Optional;
  * Class that encapsulates the running operation mode of Index Lifecycle
  * Management and Snapshot Lifecycle Management
  */
-public class LifecycleOperationMetadata implements Metadata.Custom {
+public class LifecycleOperationMetadata implements Metadata.ProjectCustom {
     public static final String TYPE = "lifecycle_operation";
     public static final ParseField ILM_OPERATION_MODE_FIELD = new ParseField("ilm_operation_mode");
     public static final ParseField SLM_OPERATION_MODE_FIELD = new ParseField("slm_operation_mode");
     public static final LifecycleOperationMetadata EMPTY = new LifecycleOperationMetadata(OperationMode.RUNNING, OperationMode.RUNNING);
 
-    @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<LifecycleOperationMetadata, Void> PARSER = new ConstructingObjectParser<>(
         TYPE,
         a -> new LifecycleOperationMetadata(OperationMode.valueOf((String) a[0]), OperationMode.valueOf((String) a[1]))
     );
+
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ILM_OPERATION_MODE_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), SLM_OPERATION_MODE_FIELD);
@@ -68,9 +68,9 @@ public class LifecycleOperationMetadata implements Metadata.Custom {
      * value for an empty state is used.
      */
     @SuppressWarnings("deprecated")
-    public static OperationMode currentILMMode(final ClusterState state) {
-        IndexLifecycleMetadata oldMetadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
-        LifecycleOperationMetadata currentMetadata = state.metadata().custom(LifecycleOperationMetadata.TYPE);
+    public static OperationMode currentILMMode(final ProjectMetadata projectMetadata) {
+        IndexLifecycleMetadata oldMetadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE);
+        LifecycleOperationMetadata currentMetadata = projectMetadata.custom(LifecycleOperationMetadata.TYPE);
         return Optional.ofNullable(currentMetadata)
             .map(LifecycleOperationMetadata::getILMOperationMode)
             .orElse(
@@ -80,6 +80,11 @@ public class LifecycleOperationMetadata implements Metadata.Custom {
             );
     }
 
+    @Deprecated(forRemoval = true)
+    public static OperationMode currentSLMMode(final ClusterState state) {
+        return currentSLMMode(state.metadata().getProject());
+    }
+
     /**
      * Returns the current ILM mode based on the given cluster state. It first checks the newer
      * storage mechanism ({@link LifecycleOperationMetadata#getSLMOperationMode()}) before falling
@@ -87,9 +92,9 @@ public class LifecycleOperationMetadata implements Metadata.Custom {
      * value for an empty state is used.
      */
     @SuppressWarnings("deprecated")
-    public static OperationMode currentSLMMode(final ClusterState state) {
-        SnapshotLifecycleMetadata oldMetadata = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
-        LifecycleOperationMetadata currentMetadata = state.metadata().custom(LifecycleOperationMetadata.TYPE);
+    public static OperationMode currentSLMMode(ProjectMetadata project) {
+        SnapshotLifecycleMetadata oldMetadata = project.custom(SnapshotLifecycleMetadata.TYPE);
+        LifecycleOperationMetadata currentMetadata = project.custom(LifecycleOperationMetadata.TYPE);
         return Optional.ofNullable(currentMetadata)
             .map(LifecycleOperationMetadata::getSLMOperationMode)
             .orElse(
@@ -114,8 +119,8 @@ public class LifecycleOperationMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
-        return new LifecycleOperationMetadata.LifecycleOperationMetadataDiff((LifecycleOperationMetadata) previousState, this);
+    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom previousState) {
+        return new LifecycleOperationMetadataDiff((LifecycleOperationMetadata) previousState, this);
     }
 
     @Override
@@ -127,7 +132,7 @@ public class LifecycleOperationMetadata implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_7_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -164,7 +169,7 @@ public class LifecycleOperationMetadata implements Metadata.Custom {
         return Strings.toString(this, true, true);
     }
 
-    public static class LifecycleOperationMetadataDiff implements NamedDiff<Metadata.Custom> {
+    public static class LifecycleOperationMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {
 
         final OperationMode ilmOperationMode;
         final OperationMode slmOperationMode;
@@ -180,7 +185,7 @@ public class LifecycleOperationMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
             return new LifecycleOperationMetadata(this.ilmOperationMode, this.slmOperationMode);
         }
 
@@ -197,7 +202,7 @@ public class LifecycleOperationMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_7_0;
+            return TransportVersion.minimumCompatible();
         }
     }
 }

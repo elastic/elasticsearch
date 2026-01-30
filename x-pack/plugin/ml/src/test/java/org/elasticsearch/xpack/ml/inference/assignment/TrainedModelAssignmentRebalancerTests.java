@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.ml.inference.assignment;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
@@ -20,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan;
 import org.elasticsearch.xpack.ml.job.NodeLoad;
 
 import java.util.ArrayList;
@@ -27,7 +30,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.ReferenceDocs.MACHINE_LEARNING_SETTINGS;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -35,6 +41,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
@@ -61,11 +68,12 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(
                 deploymentId1,
-                TrainedModelAssignment.Builder.empty(taskParams1).addRoutingEntry("node-1", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+                TrainedModelAssignment.Builder.empty(taskParams1, null)
+                    .addRoutingEntry("node-1", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .addNewAssignment(
                 deploymentId2,
-                TrainedModelAssignment.Builder.empty(taskParams2)
+                TrainedModelAssignment.Builder.empty(taskParams2, null)
                     .addRoutingEntry("node-1", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                     .addRoutingEntry("node-2", new RoutingInfo(3, 3, RoutingState.STARTED, ""))
             )
@@ -101,11 +109,12 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(
                 deploymentId1,
-                TrainedModelAssignment.Builder.empty(taskParams1).addRoutingEntry("node-1", new RoutingInfo(0, 0, RoutingState.STARTED, ""))
+                TrainedModelAssignment.Builder.empty(taskParams1, null)
+                    .addRoutingEntry("node-1", new RoutingInfo(0, 0, RoutingState.STARTED, ""))
             )
             .addNewAssignment(
                 deploymentId2,
-                TrainedModelAssignment.Builder.empty(taskParams2)
+                TrainedModelAssignment.Builder.empty(taskParams2, null)
                     .addRoutingEntry("node-1", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                     .addRoutingEntry("node-2", new RoutingInfo(3, 3, RoutingState.STARTED, ""))
             )
@@ -140,11 +149,18 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         String modelId = "model-to-add";
         StartTrainedModelDeploymentAction.TaskParams taskParams = normalPriorityParams(modelId, modelId, 1024L, 1, 1);
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
-            .addNewAssignment(modelId, TrainedModelAssignment.Builder.empty(taskParams))
+            .addNewAssignment(modelId, TrainedModelAssignment.Builder.empty(taskParams, null))
             .build();
         expectThrows(
             ResourceAlreadyExistsException.class,
-            () -> new TrainedModelAssignmentRebalancer(currentMetadata, Map.of(), Map.of(), Optional.of(taskParams), 1, false).rebalance()
+            () -> new TrainedModelAssignmentRebalancer(
+                currentMetadata,
+                Map.of(),
+                Map.of(),
+                Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams, null)),
+                1,
+                false
+            ).rebalance()
         );
     }
 
@@ -157,7 +173,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             currentMetadata,
             Map.of(),
             Map.of(),
-            Optional.of(taskParams),
+            Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams, null)),
             1,
             false
         ).rebalance().build();
@@ -185,7 +201,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             currentMetadata,
             nodeLoads,
             Map.of(List.of(), List.of(node)),
-            Optional.of(taskParams),
+            Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams, null)),
             1,
             false
         ).rebalance().build();
@@ -222,7 +238,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             currentMetadata,
             nodeLoads,
             Map.of(),
-            Optional.of(taskParams),
+            Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams, null)),
             1,
             false
         ).rebalance().build();
@@ -235,6 +251,94 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         assertThat(
             assignment.getReason().get(),
             containsString("Could not assign (more) allocations on node [node-1]. Reason: This node has insufficient available memory.")
+        );
+    }
+
+    public void testRebalance_GivenTooBigModelAndAutoMemoryPercentageSettingNotSet_ShouldContainFixSuggestionMessage() throws Exception {
+        String modelId = "model-to-add";
+        StartTrainedModelDeploymentAction.TaskParams taskParams = normalPriorityParams(
+            modelId,
+            modelId,
+            ByteSizeValue.ofGb(2).getBytes(),
+            1,
+            1
+        );
+        TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty().build();
+        Map<DiscoveryNode, NodeLoad> nodeLoads = new HashMap<>();
+        long nodeMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
+        nodeLoads.put(buildNode("node-1", nodeMemoryBytes, 3), NodeLoad.builder("node-1").setMaxMemory(nodeMemoryBytes).build());
+
+        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(
+            currentMetadata,
+            nodeLoads,
+            Map.of(),
+            Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams, null)),
+            1,
+            false
+        ).rebalance().build();
+
+        TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId);
+        assertThat(assignment, is(notNullValue()));
+        assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
+        assertThat(assignment.getNodeRoutingTable(), is(anEmptyMap()));
+        assertThat(assignment.getReason().isPresent(), is(true));
+        assertThat(
+            assignment.getReason().get(),
+            containsString("Could not assign (more) allocations on node [node-1]. Reason: This node has insufficient available memory.")
+        );
+        assertThat(
+            assignment.getReason().get(),
+            containsString(
+                Strings.format(
+                    "If you can, consider setting `xpack.ml.use_auto_machine_memory_percent` to true: [%s]",
+                    MACHINE_LEARNING_SETTINGS
+                )
+            )
+        );
+    }
+
+    public void testRebalance_GivenTooBigModelAndAutoMemoryPercentageSettingSet_ShouldNotContainFixSuggestionMessage() throws Exception {
+        String modelId = "model-to-add";
+        StartTrainedModelDeploymentAction.TaskParams taskParams = normalPriorityParams(
+            modelId,
+            modelId,
+            ByteSizeValue.ofGb(2).getBytes(),
+            1,
+            1
+        );
+        TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty().build();
+        Map<DiscoveryNode, NodeLoad> nodeLoads = new HashMap<>();
+        long nodeMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
+        nodeLoads.put(buildNode("node-1", nodeMemoryBytes, 3), NodeLoad.builder("node-1").setMaxMemory(nodeMemoryBytes).build());
+
+        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(
+            currentMetadata,
+            nodeLoads,
+            Map.of(),
+            Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams, null)),
+            1,
+            true
+        ).rebalance().build();
+
+        TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId);
+        assertThat(assignment, is(notNullValue()));
+        assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
+        assertThat(assignment.getNodeRoutingTable(), is(anEmptyMap()));
+        assertThat(assignment.getReason().isPresent(), is(true));
+        assertThat(
+            assignment.getReason().get(),
+            containsString("Could not assign (more) allocations on node [node-1]. Reason: This node has insufficient available memory.")
+        );
+        assertThat(
+            assignment.getReason().get(),
+            not(
+                containsString(
+                    Strings.format(
+                        "If you can, consider setting `xpack.ml.use_auto_machine_memory_percent` to true: [%s]",
+                        MACHINE_LEARNING_SETTINGS
+                    )
+                )
+            )
         );
     }
 
@@ -259,7 +363,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             currentMetadata,
             nodeLoads,
             Map.of(),
-            Optional.of(taskParams),
+            Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams, null)),
             1,
             false
         ).rebalance().build();
@@ -296,7 +400,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             currentMetadata,
             nodeLoads,
             Map.of(List.of(), List.of(node1, node2)),
-            Optional.of(taskParams),
+            Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams, null)),
             1,
             false
         ).rebalance().build();
@@ -330,7 +434,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             currentMetadata,
             nodeLoads,
             Map.of(List.of(), List.of(node1)),
-            Optional.of(taskParams),
+            Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams, null)),
             1,
             false
         ).rebalance().build();
@@ -357,7 +461,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(
                 previousDeploymentId,
-                TrainedModelAssignment.Builder.empty(normalPriorityParams(previousDeploymentId, previousDeploymentId, 1024L, 3, 2))
+                TrainedModelAssignment.Builder.empty(normalPriorityParams(previousDeploymentId, previousDeploymentId, 1024L, 3, 2), null)
                     .addRoutingEntry("node-1", new RoutingInfo(2, 2, RoutingState.STARTED, ""))
                     .addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
@@ -370,7 +474,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             currentMetadata,
             nodeLoads,
             Map.of(List.of(), List.of(node1, node2)),
-            Optional.of(taskParams),
+            Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams, null)),
             1,
             false
         ).rebalance().build();
@@ -416,13 +520,13 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(
                 previousDeployment1Id,
-                TrainedModelAssignment.Builder.empty(normalPriorityParams(previousDeployment1Id, 1024L, 3, 2))
+                TrainedModelAssignment.Builder.empty(normalPriorityParams(previousDeployment1Id, 1024L, 3, 2), null)
                     .addRoutingEntry("node-1", new RoutingInfo(2, 2, RoutingState.STARTED, ""))
                     .addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .addNewAssignment(
                 previousDeployment2Id,
-                TrainedModelAssignment.Builder.empty(normalPriorityParams(previousDeployment2Id, 1024L, 4, 1))
+                TrainedModelAssignment.Builder.empty(normalPriorityParams(previousDeployment2Id, 1024L, 4, 1), null)
                     .addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .build();
@@ -483,13 +587,13 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(
                 previousDeployment1Id,
-                TrainedModelAssignment.Builder.empty(normalPriorityParams(previousDeployment1Id, 1024L, 3, 2))
+                TrainedModelAssignment.Builder.empty(normalPriorityParams(previousDeployment1Id, 1024L, 3, 2), null)
                     .addRoutingEntry("node-1", new RoutingInfo(2, 2, RoutingState.STARTED, ""))
                     .addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .addNewAssignment(
                 previousDeployment2Id,
-                TrainedModelAssignment.Builder.empty(normalPriorityParams(previousDeployment2Id, 1024L, 4, 1))
+                TrainedModelAssignment.Builder.empty(normalPriorityParams(previousDeployment2Id, 1024L, 4, 1), null)
                     .addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .build();
@@ -554,13 +658,13 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(
                 previousDeployment1Id,
-                TrainedModelAssignment.Builder.empty(normalPriorityParams(previousDeployment1Id, 1024L, 3, 2))
+                TrainedModelAssignment.Builder.empty(normalPriorityParams(previousDeployment1Id, 1024L, 3, 2), null)
                     .addRoutingEntry("node-1", new RoutingInfo(2, 2, RoutingState.STARTED, ""))
                     .addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .addNewAssignment(
                 previousDeployment2Id,
-                TrainedModelAssignment.Builder.empty(normalPriorityParams(previousDeployment2Id, 1024L, 1, 1))
+                TrainedModelAssignment.Builder.empty(normalPriorityParams(previousDeployment2Id, 1024L, 1, 1), null)
                     .addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .build();
@@ -610,7 +714,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(
                 modelId,
-                TrainedModelAssignment.Builder.empty(normalPriorityParams(modelId, 1024L, 1, 1))
+                TrainedModelAssignment.Builder.empty(normalPriorityParams(modelId, 1024L, 1, 1), null)
                     .addRoutingEntry("node-1", new RoutingInfo(1, 1, RoutingState.FAILED, "some error"))
             )
             .build();
@@ -656,7 +760,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             currentMetadata,
             nodeLoads,
             Map.of(),
-            Optional.of(taskParams),
+            Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams, null)),
             1,
             false
         ).rebalance().build();
@@ -693,7 +797,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(
                 deployment2,
-                TrainedModelAssignment.Builder.empty(taskParams2)
+                TrainedModelAssignment.Builder.empty(taskParams2, null)
                     .addRoutingEntry("node-1", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                     .addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
@@ -703,7 +807,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             currentMetadata,
             nodeLoads,
             Map.of(List.of("zone-1"), List.of(node1), List.of("zone-2"), List.of(node2)),
-            Optional.of(taskParams1),
+            Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams1, null)),
             1,
             false
         ).rebalance().build();
@@ -735,8 +839,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         String modelId2 = "model-2";
         StartTrainedModelDeploymentAction.TaskParams taskParams2 = normalPriorityParams(modelId2, ByteSizeValue.ofMb(300).getBytes(), 1, 1);
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
-            .addNewAssignment(modelId1, TrainedModelAssignment.Builder.empty(taskParams1))
-            .addNewAssignment(modelId2, TrainedModelAssignment.Builder.empty(taskParams2))
+            .addNewAssignment(modelId1, TrainedModelAssignment.Builder.empty(taskParams1, null))
+            .addNewAssignment(modelId2, TrainedModelAssignment.Builder.empty(taskParams2, null))
             .build();
 
         TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(
@@ -786,10 +890,11 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         String modelId2 = "model-2";
         StartTrainedModelDeploymentAction.TaskParams taskParams2 = normalPriorityParams(modelId2, ByteSizeValue.ofMb(300).getBytes(), 1, 1);
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
-            .addNewAssignment(modelId1, TrainedModelAssignment.Builder.empty(taskParams1))
+            .addNewAssignment(modelId1, TrainedModelAssignment.Builder.empty(taskParams1, null))
             .addNewAssignment(
                 modelId2,
-                TrainedModelAssignment.Builder.empty(taskParams2).addRoutingEntry("node-1", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+                TrainedModelAssignment.Builder.empty(taskParams2, null)
+                    .addRoutingEntry("node-1", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .build();
 
@@ -844,8 +949,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         String modelId2 = "model-2";
         StartTrainedModelDeploymentAction.TaskParams taskParams2 = normalPriorityParams(modelId2, ByteSizeValue.ofMb(300).getBytes(), 1, 1);
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
-            .addNewAssignment(modelId1, TrainedModelAssignment.Builder.empty(taskParams1))
-            .addNewAssignment(modelId2, TrainedModelAssignment.Builder.empty(taskParams2))
+            .addNewAssignment(modelId1, TrainedModelAssignment.Builder.empty(taskParams1, null))
+            .addNewAssignment(modelId2, TrainedModelAssignment.Builder.empty(taskParams2, null))
             .build();
 
         TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(
@@ -895,8 +1000,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         String modelId2 = "model-2";
         StartTrainedModelDeploymentAction.TaskParams taskParams2 = lowPriorityParams(modelId2, ByteSizeValue.ofMb(100).getBytes());
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
-            .addNewAssignment(modelId1, TrainedModelAssignment.Builder.empty(taskParams1))
-            .addNewAssignment(modelId2, TrainedModelAssignment.Builder.empty(taskParams2))
+            .addNewAssignment(modelId1, TrainedModelAssignment.Builder.empty(taskParams1, null))
+            .addNewAssignment(modelId2, TrainedModelAssignment.Builder.empty(taskParams2, null))
             .build();
 
         TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(
@@ -946,7 +1051,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(
                 modelId1,
-                TrainedModelAssignment.Builder.empty(taskParams1).addRoutingEntry("node-1", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+                TrainedModelAssignment.Builder.empty(taskParams1, null)
+                    .addRoutingEntry("node-1", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .build();
 
@@ -954,7 +1060,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             currentMetadata,
             nodeLoads,
             Map.of(List.of(), List.of(node1)),
-            Optional.of(taskParams2),
+            Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams2, null)),
             1,
             false
         ).rebalance().build();
@@ -999,7 +1105,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(
                 modelId1,
-                TrainedModelAssignment.Builder.empty(taskParams1).addRoutingEntry("node-1", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+                TrainedModelAssignment.Builder.empty(taskParams1, null)
+                    .addRoutingEntry("node-1", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .build();
 
@@ -1007,7 +1114,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             currentMetadata,
             nodeLoads,
             Map.of(List.of(), List.of(node1, node2)),
-            Optional.of(taskParams2),
+            Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams2, null)),
             1,
             false
         ).rebalance().build();
@@ -1052,7 +1159,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(
                 modelId1,
-                TrainedModelAssignment.Builder.empty(taskParams1).addRoutingEntry("node-1", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+                TrainedModelAssignment.Builder.empty(taskParams1, null)
+                    .addRoutingEntry("node-1", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .build();
 
@@ -1060,7 +1168,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             currentMetadata,
             nodeLoads,
             Map.of(List.of(), List.of(node1, node2)),
-            Optional.of(taskParams2),
+            Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams2, null)),
             1,
             false
         ).rebalance().build();
@@ -1107,7 +1215,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             currentMetadata,
             nodeLoads,
             Map.of(List.of(), List.of(node)),
-            Optional.of(taskParams),
+            Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams, null)),
             2,
             false
         ).rebalance().build();
@@ -1130,13 +1238,141 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             currentMetadata,
             nodeLoads,
             Map.of(List.of(), List.of(node)),
-            Optional.of(taskParams),
+            Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams, null)),
             1,
             false
         ).rebalance().build();
 
         assignment = result.getDeploymentAssignment(modelId);
         assertThat(assignment.getReason().isPresent(), is(false));
+    }
+
+    public void testCopyAssignments() {
+        // Create test nodes
+        AssignmentPlan.Node node1 = new AssignmentPlan.Node("node-1", ByteSizeValue.ofGb(1).getBytes(), 4);
+        AssignmentPlan.Node node2 = new AssignmentPlan.Node("node-2", ByteSizeValue.ofGb(1).getBytes(), 8);
+        List<AssignmentPlan.Node> nodes = List.of(node1, node2);
+
+        // Create test deployments
+        AssignmentPlan.Deployment deployment1 = new AssignmentPlan.Deployment(
+            "deployment-1",
+            "model-1",
+            ByteSizeValue.ofMb(100).getBytes(),
+            2,
+            1,
+            Map.of(),
+            0,
+            null,
+            Priority.NORMAL,
+            0,
+            0
+        );
+        AssignmentPlan.Deployment deployment2 = new AssignmentPlan.Deployment(
+            "deployment-2",
+            "model-2",
+            ByteSizeValue.ofMb(100).getBytes(),
+            1,
+            2,
+            Map.of(),
+            0,
+            null,
+            Priority.LOW,
+            0,
+            0
+        );
+        List<AssignmentPlan.Deployment> deployments = List.of(deployment1, deployment2);
+
+        // Create source plan and assign models to nodes
+        AssignmentPlan.Builder sourceBuilder = AssignmentPlan.builder(nodes, deployments);
+        sourceBuilder.assignModelToNode(deployment1, node1, 1);
+        sourceBuilder.assignModelToNode(deployment1, node2, 1);
+        sourceBuilder.assignModelToNode(deployment2, node2, 1);
+        AssignmentPlan source = sourceBuilder.build();
+
+        // Create destination plan
+        AssignmentPlan.Builder dest = AssignmentPlan.builder(nodes, deployments);
+
+        // Create map of node IDs to original nodes
+        Map<String, AssignmentPlan.Node> originalNodeById = nodes.stream()
+            .collect(Collectors.toMap(AssignmentPlan.Node::id, Function.identity()));
+
+        // Call copyAssignments
+        TrainedModelAssignmentRebalancer.copyAssignments(source, dest, originalNodeById);
+
+        // Build the destination plan
+        AssignmentPlan result = dest.build();
+
+        // Verify assignments
+        Optional<Map<AssignmentPlan.Node, Integer>> deployment1Assignments = result.assignments(deployment1);
+        assertThat(deployment1Assignments.isPresent(), is(true));
+        assertThat(deployment1Assignments.get().size(), equalTo(2));
+        assertThat(deployment1Assignments.get().get(node1), equalTo(1));
+        assertThat(deployment1Assignments.get().get(node2), equalTo(1));
+
+        Optional<Map<AssignmentPlan.Node, Integer>> deployment2Assignments = result.assignments(deployment2);
+        assertThat(deployment2Assignments.isPresent(), is(true));
+        assertThat(deployment2Assignments.get().size(), equalTo(1));
+        assertThat(deployment2Assignments.get().get(node2), equalTo(1));
+    }
+
+    public void testRebalance_GivenDeploymentWithMemoryRequirements_ExplainMissingAllocations() {
+        // Create a node with just enough memory to fit the model plus native executable overhead
+        long modelMemory = ByteSizeValue.ofMb(200).getBytes();
+        long memoryOverhead = ByteSizeValue.ofMb(240).getBytes();
+        long nodeMemory = memoryOverhead + modelMemory * 2 + MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
+
+        DiscoveryNode node = buildNode("node-1", nodeMemory, 4);
+
+        String deploymentId = "model-with-overhead-test";
+        StartTrainedModelDeploymentAction.TaskParams taskParams = normalPriorityParams(deploymentId, deploymentId, modelMemory, 1, 1);
+
+        TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty().build();
+        Map<DiscoveryNode, NodeLoad> nodeLoads = new HashMap<>();
+
+        // This node has no jobs or models yet, so the overhead should be accounted for
+        nodeLoads.put(node, NodeLoad.builder("node-1").setMaxMemory(nodeMemory).build());
+
+        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(
+            currentMetadata,
+            nodeLoads,
+            Map.of(List.of(), List.of(node)),
+            Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams, null)),
+            1,
+            false
+        ).rebalance().build();
+
+        // Verify the deployment was successful
+        TrainedModelAssignment assignment = result.getDeploymentAssignment(deploymentId);
+        assertThat(assignment, is(notNullValue()));
+        assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
+        assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(1)));
+        assertThat(assignment.getNodeRoutingTable(), hasKey("node-1"));
+        assertThat(assignment.getReason().isPresent(), is(false));
+
+        // Now try with a node that has slightly less memory - this should fail
+        long insufficientNodeMemory = nodeMemory - ByteSizeValue.ofMb(21).getBytes();
+        DiscoveryNode insufficientNode = buildNode("node-2", insufficientNodeMemory, 4);
+
+        Map<DiscoveryNode, NodeLoad> insufficientNodeLoads = Map.of(
+            insufficientNode,
+            NodeLoad.builder("node-2").setMaxMemory(insufficientNodeMemory).build()
+        );
+
+        TrainedModelAssignmentMetadata insufficientResult = new TrainedModelAssignmentRebalancer(
+            TrainedModelAssignmentMetadata.Builder.empty().build(),
+            insufficientNodeLoads,
+            Map.of(List.of(), List.of(insufficientNode)),
+            Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams, null)),
+            1,
+            false
+        ).rebalance().build();
+
+        TrainedModelAssignment insufficientAssignment = insufficientResult.getDeploymentAssignment(deploymentId);
+        assertThat(insufficientAssignment, is(notNullValue()));
+        assertThat(insufficientAssignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
+        assertThat(insufficientAssignment.getNodeRoutingTable(), is(anEmptyMap()));
+        assertThat(insufficientAssignment.getReason().isPresent(), is(true));
+        assertThat(insufficientAssignment.getReason().get(), containsString("insufficient available memory"));
     }
 
     private static StartTrainedModelDeploymentAction.TaskParams lowPriorityParams(String deploymentId, long modelSize) {

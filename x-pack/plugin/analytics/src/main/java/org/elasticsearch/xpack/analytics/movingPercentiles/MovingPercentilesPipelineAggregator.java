@@ -27,7 +27,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
 
@@ -42,7 +41,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
 
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
-        InternalMultiBucketAggregation<?, ?> histo = (InternalMultiBucketAggregation<?, ?>) aggregation;
+        InternalMultiBucketAggregation<?, ?> histo = asMultiBucketAggregation(aggregation);
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = histo.getBuckets();
         HistogramFactory factory = (HistogramFactory) histo;
 
@@ -101,9 +100,14 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
             }
 
             if (state != null) {
-                List<InternalAggregation> aggs = bucket.getAggregations().asList().stream().collect(Collectors.toList());
-                aggs.add(new InternalTDigestPercentiles(name(), config.keys, state, config.keyed, config.formatter, metadata()));
-                newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), InternalAggregations.from(aggs));
+                newBucket = factory.createBucket(
+                    factory.getKey(bucket),
+                    bucket.getDocCount(),
+                    InternalAggregations.append(
+                        bucket.getAggregations(),
+                        new InternalTDigestPercentiles(name(), config.keys, state, config.keyed, config.formatter, metadata())
+                    )
+                );
             }
             newBuckets.add(newBucket);
             index++;
@@ -147,9 +151,14 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
             }
 
             if (state != null) {
-                List<InternalAggregation> aggs = new ArrayList<>(bucket.getAggregations().asList());
-                aggs.add(new InternalHDRPercentiles(name(), config.keys, state, config.keyed, config.formatter, metadata()));
-                newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), InternalAggregations.from(aggs));
+                newBucket = factory.createBucket(
+                    factory.getKey(bucket),
+                    bucket.getDocCount(),
+                    InternalAggregations.append(
+                        bucket.getAggregations(),
+                        new InternalHDRPercentiles(name(), config.keys, state, config.keyed, config.formatter, metadata())
+                    )
+                );
             }
             newBuckets.add(newBucket);
             index++;

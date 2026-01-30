@@ -27,13 +27,11 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -42,6 +40,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.DestinationIndex;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
@@ -147,7 +146,6 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
             reindexRequest.setSourceQuery(config.getSource().getParsedQuery());
             reindexRequest.getSearchRequest().allowPartialSearchResults(false);
             reindexRequest.getSearchRequest().source().fetchSource(config.getSource().getSourceFiltering());
-            reindexRequest.getSearchRequest().source().sort(SeqNoFieldMapper.NAME, SortOrder.ASC);
             reindexRequest.setDestIndex(config.getDest().getIndex());
 
             // We explicitly set slices to 1 as we cannot parallelize in order to have the incremental id
@@ -228,7 +226,7 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
             ML_ORIGIN,
             parentTaskClient,
             GetIndexAction.INSTANCE,
-            new GetIndexRequest().indices(config.getDest().getIndex()),
+            new GetIndexRequest(MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT).indices(config.getDest().getIndex()),
             destIndexListener
         );
     }

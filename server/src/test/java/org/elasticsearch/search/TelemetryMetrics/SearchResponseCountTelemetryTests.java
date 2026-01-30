@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.TelemetryMetrics;
@@ -30,12 +31,15 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.elasticsearch.rest.action.search.SearchResponseMetrics.RESPONSE_COUNT_TOTAL_COUNTER_NAME;
 import static org.elasticsearch.rest.action.search.SearchResponseMetrics.RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertScrollResponsesAndHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -237,5 +241,49 @@ public class SearchResponseCountTelemetryTests extends ESSingleNodeTestCase {
                 equalTo(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE.getDisplayName())
             );
         });
+    }
+
+    public void testAdditionalSearchAttributes() {
+        // target index attribute contains the system index name
+        createIndex(".kibana");
+        {
+            SearchResponse searchResponse = client().prepareSearch(".kibana").setQuery(simpleQueryStringQuery("foo")).get();
+            try {
+                assertNoFailures(searchResponse);
+                assertSearchHits(searchResponse);
+            } finally {
+                searchResponse.decRef();
+            }
+            List<Measurement> measurements = getTestTelemetryPlugin().getLongCounterMeasurement(RESPONSE_COUNT_TOTAL_COUNTER_NAME);
+            assertEquals(1, measurements.size());
+            Measurement measurement = measurements.getFirst();
+            assertEquals(1, measurement.getLong());
+            Map<String, Object> attributes = measurement.attributes();
+            assertEquals(4, attributes.size());
+            assertEquals(".kibana", attributes.get("target"));
+            assertEquals("hits_only", attributes.get("query_type"));
+            assertEquals("_score", attributes.get("sort"));
+            assertEquals("success", attributes.get(RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME));
+        }
+        // target index attribute should be "user"
+        createIndex("custom-index");
+        {
+            SearchResponse searchResponse = client().prepareSearch("custom*").setQuery(simpleQueryStringQuery("foo")).get();
+            try {
+                assertNoFailures(searchResponse);
+                assertSearchHits(searchResponse);
+            } finally {
+                searchResponse.decRef();
+            }
+            List<Measurement> measurements = getTestTelemetryPlugin().getLongCounterMeasurement(RESPONSE_COUNT_TOTAL_COUNTER_NAME);
+            assertEquals(2, measurements.size());
+            Measurement measurement = measurements.getLast();
+            Map<String, Object> attributes = measurement.attributes();
+            assertEquals(4, attributes.size());
+            assertEquals("user", attributes.get("target"));
+            assertEquals("hits_only", attributes.get("query_type"));
+            assertEquals("_score", attributes.get("sort"));
+            assertEquals("success", attributes.get(RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME));
+        }
     }
 }

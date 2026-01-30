@@ -27,13 +27,14 @@ public class MaxFloatGroupingAggregatorFunctionTests extends GroupingAggregatorF
     protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
         return new LongFloatTupleBlockSourceOperator(
             blockFactory,
-            LongStream.range(0, end).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomFloat()))
+            LongStream.range(0, end)
+                .mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomFloatBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true)))
         );
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new MaxFloatAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new MaxFloatAggregatorFunctionSupplier();
     }
 
     @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.legacygeo.mapper;
 
@@ -32,10 +33,12 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -81,7 +84,8 @@ import java.util.stream.Collectors;
  * <p>
  * "field" : "POLYGON ((100.0 0.0, 101.0 0.0, 101.0 1.0, 100.0 1.0, 100.0 0.0))
  *
- * @deprecated use {@link org.elasticsearch.index.mapper.GeoShapeFieldMapper}
+ * @deprecated use the field mapper in the spatial module
+ * TODO: Remove this class once we no longer need to supported reading 7.x indices that might have this field type
  */
 @Deprecated
 public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<ShapeBuilder<?, ?, ?>> {
@@ -352,12 +356,12 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         public LegacyGeoShapeFieldMapper build(MapperBuilderContext context) {
             LegacyGeoShapeParser parser = new LegacyGeoShapeParser();
             GeoShapeFieldType ft = buildFieldType(parser, context);
-            return new LegacyGeoShapeFieldMapper(leafName(), ft, multiFieldsBuilder.build(this, context), copyTo, parser, this);
+            return new LegacyGeoShapeFieldMapper(leafName(), ft, builderParams(this, context), parser, this);
         }
     }
 
     @Deprecated
-    public static Mapper.TypeParser PARSER = (name, node, parserContext) -> {
+    public static final Mapper.TypeParser PARSER = (name, node, parserContext) -> {
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(parserContext.getSettings());
         boolean coerceByDefault = COERCE_SETTING.get(parserContext.getSettings());
         FieldMapper.Builder builder = new LegacyGeoShapeFieldMapper.Builder(
@@ -423,7 +427,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             LegacyGeoShapeParser parser,
             Map<String, String> meta
         ) {
-            super(name, indexed, false, false, parser, orientation, meta);
+            super(name, IndexType.terms(indexed, false), false, parser, orientation, meta);
             this.queryProcessor = new LegacyGeoShapeQueryProcessor(this);
         }
 
@@ -529,6 +533,12 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         protected Function<List<ShapeBuilder<?, ?, ?>>, List<Object>> getFormatter(String format) {
             return GeometryFormatterFactory.getFormatter(format, ShapeBuilder::buildGeometry);
         }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            // Legacy geo-shapes do not support doc-values, we can only lead from source in ES|QL
+            return blockLoaderFromSource(blContext);
+        }
     }
 
     private final IndexVersion indexCreatedVersion;
@@ -537,20 +547,18 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     public LegacyGeoShapeFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         LegacyGeoShapeParser parser,
         Builder builder
     ) {
         super(
             simpleName,
             mappedFieldType,
+            builderParams,
             builder.ignoreMalformed.get(),
             builder.coerce.get(),
             builder.ignoreZValue.get(),
             builder.orientation.get(),
-            multiFields,
-            copyTo,
             parser
         );
         this.indexCreatedVersion = builder.indexCreatedVersion;

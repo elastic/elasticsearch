@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
@@ -61,10 +62,11 @@ public class ClusterStatsIndices implements ToXContentFragment {
 
         for (ClusterStatsNodeResponse r : nodeResponses) {
             for (org.elasticsearch.action.admin.indices.stats.ShardStats shardStats : r.shardsStats()) {
-                ShardStats indexShardStats = countsPerIndex.get(shardStats.getShardRouting().getIndexName());
+                final String indexUuid = shardStats.getShardRouting().index().getUUID();
+                ShardStats indexShardStats = countsPerIndex.get(indexUuid);
                 if (indexShardStats == null) {
                     indexShardStats = new ShardStats();
-                    countsPerIndex.put(shardStats.getShardRouting().getIndexName(), indexShardStats);
+                    countsPerIndex.put(indexUuid, indexShardStats);
                 }
 
                 indexShardStats.total++;

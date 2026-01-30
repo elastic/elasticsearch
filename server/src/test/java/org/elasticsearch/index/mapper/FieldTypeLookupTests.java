@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -13,12 +14,14 @@ import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
@@ -432,6 +435,7 @@ public class FieldTypeLookupTests extends ESTestCase {
             name,
             name,
             Explicit.EXPLICIT_TRUE,
+            Optional.empty(),
             ObjectMapper.Dynamic.FALSE,
             mappers,
             Explicit.EXPLICIT_FALSE,
@@ -517,6 +521,31 @@ public class FieldTypeLookupTests extends ESTestCase {
         );
 
         assertEquals(foo.fieldType(), lookup.get("foo"));
+    }
+
+    public void testDotCount() {
+        assertEquals(0, FieldTypeLookup.dotCount(""));
+        assertEquals(1, FieldTypeLookup.dotCount("."));
+        assertEquals(2, FieldTypeLookup.dotCount(".."));
+        assertEquals(3, FieldTypeLookup.dotCount("..."));
+        assertEquals(4, FieldTypeLookup.dotCount("...."));
+        assertEquals(0, FieldTypeLookup.dotCount("foo"));
+        assertEquals(1, FieldTypeLookup.dotCount("foo.bar"));
+        assertEquals(2, FieldTypeLookup.dotCount("foo.bar.baz"));
+        assertEquals(3, FieldTypeLookup.dotCount("foo.bar.baz.bob"));
+        assertEquals(4, FieldTypeLookup.dotCount("foo.bar.baz.bob."));
+        assertEquals(4, FieldTypeLookup.dotCount("foo..bar.baz.bob"));
+        assertEquals(5, FieldTypeLookup.dotCount("foo..bar..baz.bob"));
+        assertEquals(6, FieldTypeLookup.dotCount("foo..bar..baz.bob."));
+
+        int times = atLeast(50);
+        for (int i = 0; i < times; i++) {
+            byte[] bytes = new byte[randomInt(1024)];
+            random().nextBytes(bytes);
+            String s = new String(bytes, StandardCharsets.UTF_8);
+            int expected = s.chars().map(c -> c == '.' ? 1 : 0).sum();
+            assertEquals(expected, FieldTypeLookup.dotCount(s));
+        }
     }
 
     @SafeVarargs

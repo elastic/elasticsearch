@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -23,11 +24,14 @@ public class MigrateToDataTiersRequest extends AcknowledgedRequest<MigrateToData
     private static final ParseField LEGACY_TEMPLATE_TO_DELETE = new ParseField("legacy_template_to_delete");
     private static final ParseField NODE_ATTRIBUTE_NAME = new ParseField("node_attribute");
 
-    @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<MigrateToDataTiersRequest, Void> PARSER = new ConstructingObjectParser<>(
+    public interface Factory {
+        MigrateToDataTiersRequest create(@Nullable String legacyTemplateToDelete, @Nullable String nodeAttributeName);
+    }
+
+    public static final ConstructingObjectParser<MigrateToDataTiersRequest, Factory> PARSER = new ConstructingObjectParser<>(
         "index_template",
         false,
-        a -> new MigrateToDataTiersRequest((String) a[0], (String) a[1])
+        (a, factory) -> factory.create((String) a[0], (String) a[1])
     );
 
     static {
@@ -48,18 +52,18 @@ public class MigrateToDataTiersRequest extends AcknowledgedRequest<MigrateToData
     private final String legacyTemplateToDelete;
     private boolean dryRun = false;
 
-    public static MigrateToDataTiersRequest parse(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+    public static MigrateToDataTiersRequest parse(Factory factory, XContentParser parser) throws IOException {
+        return PARSER.parse(parser, factory);
     }
 
-    public MigrateToDataTiersRequest(@Nullable String legacyTemplateToDelete, @Nullable String nodeAttributeName) {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    public MigrateToDataTiersRequest(
+        TimeValue masterNodeTimeout,
+        @Nullable String legacyTemplateToDelete,
+        @Nullable String nodeAttributeName
+    ) {
+        super(masterNodeTimeout, DEFAULT_ACK_TIMEOUT);
         this.legacyTemplateToDelete = legacyTemplateToDelete;
         this.nodeAttributeName = nodeAttributeName;
-    }
-
-    public MigrateToDataTiersRequest() {
-        this(null, null);
     }
 
     public MigrateToDataTiersRequest(StreamInput in) throws IOException {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations;
@@ -46,6 +47,7 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
     @Nullable
     private final AggregationBuilder builder;
     private final AggregatorFactories.Builder subBuilders;
+    private boolean hasBatchedResult;
 
     private AggregationReduceContext(
         BigArrays bigArrays,
@@ -135,21 +137,40 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
 
     protected abstract AggregationReduceContext forSubAgg(AggregationBuilder sub);
 
+    public boolean hasBatchedResult() {
+        return hasBatchedResult;
+    }
+
+    public void setHasBatchedResult(boolean hasBatchedResult) {
+        this.hasBatchedResult = hasBatchedResult;
+    }
+
     /**
      * A {@linkplain AggregationReduceContext} to perform a partial reduction.
      */
     public static final class ForPartial extends AggregationReduceContext {
+        private final IntConsumer multiBucketConsumer;
+
         public ForPartial(
             BigArrays bigArrays,
             ScriptService scriptService,
             Supplier<Boolean> isCanceled,
-            AggregatorFactories.Builder builders
+            AggregatorFactories.Builder builders,
+            IntConsumer multiBucketConsumer
         ) {
             super(bigArrays, scriptService, isCanceled, builders);
+            this.multiBucketConsumer = multiBucketConsumer;
         }
 
-        public ForPartial(BigArrays bigArrays, ScriptService scriptService, Supplier<Boolean> isCanceled, AggregationBuilder builder) {
+        public ForPartial(
+            BigArrays bigArrays,
+            ScriptService scriptService,
+            Supplier<Boolean> isCanceled,
+            AggregationBuilder builder,
+            IntConsumer multiBucketConsumer
+        ) {
             super(bigArrays, scriptService, isCanceled, builder);
+            this.multiBucketConsumer = multiBucketConsumer;
         }
 
         @Override
@@ -158,7 +179,9 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
         }
 
         @Override
-        protected void consumeBucketCountAndMaybeBreak(int size) {}
+        protected void consumeBucketCountAndMaybeBreak(int size) {
+            multiBucketConsumer.accept(size);
+        }
 
         @Override
         public PipelineTree pipelineTreeRoot() {
@@ -167,7 +190,7 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
 
         @Override
         protected AggregationReduceContext forSubAgg(AggregationBuilder sub) {
-            return new ForPartial(bigArrays(), scriptService(), isCanceled(), sub);
+            return new ForPartial(bigArrays(), scriptService(), isCanceled(), sub, multiBucketConsumer);
         }
     }
 
@@ -220,7 +243,9 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
 
         @Override
         protected AggregationReduceContext forSubAgg(AggregationBuilder sub) {
-            return new ForFinal(bigArrays(), scriptService(), isCanceled(), sub, multiBucketConsumer, pipelineTreeRoot);
+            ForFinal subContext = new ForFinal(bigArrays(), scriptService(), isCanceled(), sub, multiBucketConsumer, pipelineTreeRoot);
+            subContext.setHasBatchedResult(hasBatchedResult());
+            return subContext;
         }
     }
 }

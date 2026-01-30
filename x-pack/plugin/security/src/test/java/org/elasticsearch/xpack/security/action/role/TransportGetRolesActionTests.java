@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.user.UsernamesField;
+import org.elasticsearch.xpack.security.authz.ReservedRoleNameChecker;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.junit.BeforeClass;
 
@@ -67,7 +68,12 @@ public class TransportGetRolesActionTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
-        TransportGetRolesAction action = new TransportGetRolesAction(mock(ActionFilters.class), rolesStore, transportService);
+        TransportGetRolesAction action = new TransportGetRolesAction(
+            mock(ActionFilters.class),
+            rolesStore,
+            new ReservedRoleNameChecker.Default(),
+            transportService
+        );
 
         final int size = randomIntBetween(1, ReservedRolesStore.names().size());
         final List<String> names = randomSubsetOf(size, ReservedRolesStore.names());
@@ -139,7 +145,12 @@ public class TransportGetRolesActionTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
-        TransportGetRolesAction action = new TransportGetRolesAction(mock(ActionFilters.class), rolesStore, transportService);
+        TransportGetRolesAction action = new TransportGetRolesAction(
+            mock(ActionFilters.class),
+            rolesStore,
+            new ReservedRoleNameChecker.Default(),
+            transportService
+        );
 
         GetRolesRequest request = new GetRolesRequest();
         request.names(storeRoleDescriptors.stream().map(RoleDescriptor::getName).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY));
@@ -200,7 +211,12 @@ public class TransportGetRolesActionTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
-        TransportGetRolesAction action = new TransportGetRolesAction(mock(ActionFilters.class), rolesStore, transportService);
+        TransportGetRolesAction action = new TransportGetRolesAction(
+            mock(ActionFilters.class),
+            rolesStore,
+            new ReservedRoleNameChecker.Default(),
+            transportService
+        );
 
         final List<String> expectedNames = new ArrayList<>();
         if (all) {
@@ -275,7 +291,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
             requestedNames.addAll(requestedStoreNames);
         }
 
-        final NativeRolesStore rolesStore = mockNativeRolesStore(requestedNames, storeRoleDescriptors);
+        final NativeRolesStore rolesStore = mockNativeRolesStore(requestedStoreNames, storeRoleDescriptors);
 
         final TransportService transportService = new TransportService(
             Settings.EMPTY,
@@ -286,7 +302,12 @@ public class TransportGetRolesActionTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
-        final TransportGetRolesAction action = new TransportGetRolesAction(mock(ActionFilters.class), rolesStore, transportService);
+        final TransportGetRolesAction action = new TransportGetRolesAction(
+            mock(ActionFilters.class),
+            rolesStore,
+            new ReservedRoleNameChecker.Default(),
+            transportService
+        );
 
         final GetRolesRequest request = new GetRolesRequest();
         request.names(requestedNames.toArray(Strings.EMPTY_ARRAY));
@@ -298,7 +319,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
             verify(rolesStore, times(1)).getRoleDescriptors(eq(new HashSet<>()), anyActionListener());
         } else {
             assertThat(actualRoleNames, containsInAnyOrder(requestedStoreNames.toArray(Strings.EMPTY_ARRAY)));
-            verify(rolesStore, times(1)).getRoleDescriptors(eq(new HashSet<>(requestedNames)), anyActionListener());
+            verify(rolesStore, times(1)).getRoleDescriptors(eq(new HashSet<>(requestedStoreNames)), anyActionListener());
         }
     }
 
@@ -358,7 +379,12 @@ public class TransportGetRolesActionTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
-        TransportGetRolesAction action = new TransportGetRolesAction(mock(ActionFilters.class), rolesStore, transportService);
+        TransportGetRolesAction action = new TransportGetRolesAction(
+            mock(ActionFilters.class),
+            rolesStore,
+            new ReservedRoleNameChecker.Default(),
+            transportService
+        );
 
         GetRolesRequest request = new GetRolesRequest();
         request.names(storeRoleDescriptors.stream().map(RoleDescriptor::getName).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY));

@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -14,6 +16,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.FieldLookup;
@@ -22,6 +25,7 @@ import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -61,6 +65,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
     public static List<?> fetchSourceValue(MappedFieldType fieldType, Object sourceValue, String format) throws IOException {
         String field = fieldType.name();
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.getIndexSettings()).thenReturn(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY));
         when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
         when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
 
@@ -72,6 +77,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
     public static List<?> fetchSourceValues(MappedFieldType fieldType, Object... values) throws IOException {
         String field = fieldType.name();
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.getIndexSettings()).thenReturn(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY));
         when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
         when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
 
@@ -110,7 +116,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
     }
 
     public MappedFieldType getMappedFieldType() {
-        return new MappedFieldType("field", false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
+        return new MappedFieldType("field", IndexType.NONE, false, Collections.emptyMap()) {
 
             @Override
             public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
@@ -138,6 +144,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
             randomBoolean(),
             IndexOptions.NONE,
             DocValuesType.NONE,
+            DocValuesSkipIndexType.NONE,
             -1,
             new HashMap<>(),
             1,

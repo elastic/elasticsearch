@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.bytes;
@@ -31,6 +32,9 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
+import static org.hamcrest.Matchers.greaterThan;
 
 public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
 
@@ -375,6 +379,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         BytesRef ref;
         BytesRefBuilder builder = new BytesRefBuilder();
         while ((ref = iterator.next()) != null) {
+            assertThat(ref.length, greaterThan(0));
             builder.append(ref);
         }
         assertArrayEquals(BytesReference.toBytes(pbr), BytesRef.deepCopyOf(builder.toBytesRef()).bytes);
@@ -387,9 +392,10 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         int sliceLength = randomIntBetween(0, pbr.length() - sliceOffset);
         BytesReference slice = pbr.slice(sliceOffset, sliceLength);
         BytesRefIterator iterator = slice.iterator();
-        BytesRef ref = null;
+        BytesRef ref;
         BytesRefBuilder builder = new BytesRefBuilder();
         while ((ref = iterator.next()) != null) {
+            assertThat(ref.length, greaterThan(0));
             builder.append(ref);
         }
         assertArrayEquals(BytesReference.toBytes(slice), BytesRef.deepCopyOf(builder.toBytesRef()).bytes);
@@ -408,9 +414,10 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
             pbr = new BytesArray(pbr.toBytesRef());
         }
         BytesRefIterator iterator = pbr.iterator();
-        BytesRef ref = null;
+        BytesRef ref;
         BytesRefBuilder builder = new BytesRefBuilder();
         while ((ref = iterator.next()) != null) {
+            assertThat(ref.length, greaterThan(0));
             builder.append(ref);
         }
         assertArrayEquals(BytesReference.toBytes(pbr), BytesRef.deepCopyOf(builder.toBytesRef()).bytes);
@@ -502,13 +509,13 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         BytesReference copy = bytesReference.slice(0, bytesReference.length());
 
         // get refs & compare
-        assertEquals(copy, bytesReference);
+        assertThat(bytesReference, equalBytes(copy));
         int sliceFrom = randomIntBetween(0, bytesReference.length());
         int sliceLength = randomIntBetween(0, bytesReference.length() - sliceFrom);
-        assertEquals(copy.slice(sliceFrom, sliceLength), bytesReference.slice(sliceFrom, sliceLength));
+        assertThat(bytesReference.slice(sliceFrom, sliceLength), equalBytes(copy.slice(sliceFrom, sliceLength)));
 
         BytesRef bytesRef = BytesRef.deepCopyOf(copy.toBytesRef());
-        assertEquals(new BytesArray(bytesRef), copy);
+        assertThat(copy, equalBytes(new BytesArray(bytesRef)));
 
         int offsetToFlip = randomIntBetween(0, bytesRef.length - 1);
         int value = ~Byte.toUnsignedInt(bytesRef.bytes[bytesRef.offset + offsetToFlip]);
@@ -619,13 +626,13 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
 
         final BytesArray b1 = new BytesArray(array1, offset1, len);
         final BytesArray b2 = new BytesArray(array2, offset2, len);
-        assertEquals(b1, b2);
+        assertThat(b2, equalBytes(b1));
         assertEquals(Arrays.hashCode(BytesReference.toBytes(b1)), b1.hashCode());
         assertEquals(Arrays.hashCode(BytesReference.toBytes(b2)), b2.hashCode());
 
         // test same instance
-        assertEquals(b1, b1);
-        assertEquals(b2, b2);
+        assertThat(b1, equalBytes(b1));
+        assertThat(b2, equalBytes(b2));
 
         if (len > 0) {
             // test different length
@@ -682,6 +689,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         BytesRef bytesRef;
         int offset = 0;
         while ((bytesRef = iterator.next()) != null) {
+            assertThat(bytesRef.length, greaterThan(0));
             final int len = Math.min(bytesRef.length, length - offset);
             System.arraycopy(bytes, offset, bytesRef.bytes, bytesRef.offset, len);
             offset += len;
@@ -707,7 +715,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
                 }
                 boolean sliceRight = randomBoolean();
                 BytesReference right = sliceRight ? input2.readSlicedBytesReference() : input2.readBytesReference();
-                assertEquals(left, right);
+                assertThat(right, equalBytes(left));
                 if (sliceRight && bytesReference.hasArray()) {
                     assertSame(right.array(), right.array());
                 }

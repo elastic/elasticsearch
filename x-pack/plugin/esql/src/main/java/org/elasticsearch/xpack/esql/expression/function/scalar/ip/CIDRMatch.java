@@ -15,31 +15,36 @@ import org.elasticsearch.common.network.CIDRUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.function.Function;
+import java.util.Set;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.fromIndex;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isIPAndExact;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
-import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader.readerFromPlanReader;
-import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter.writerFromPlanWriter;
 
 /**
  * This function takes a first parameter of type IP, followed by one or more parameters evaluated to a CIDR specification:
@@ -52,7 +57,7 @@ import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter
  * <p>
  * Example: `| eval cidr="10.0.0.0/8" | where cidr_match(ip_field, "127.0.0.1/30", cidr)`
  */
-public class CIDRMatch extends EsqlScalarFunction {
+public class CIDRMatch extends EsqlScalarFunction implements TranslationAware.SingleValueTranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "CIDRMatch",
@@ -84,8 +89,8 @@ public class CIDRMatch extends EsqlScalarFunction {
     private CIDRMatch(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
-            ((PlanStreamInput) in).readExpression(),
-            in.readCollectionAsList(readerFromPlanReader(PlanStreamInput::readExpression))
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteableCollectionAsList(Expression.class)
         );
     }
 
@@ -93,8 +98,8 @@ public class CIDRMatch extends EsqlScalarFunction {
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         assert children().size() > 1;
-        ((PlanStreamOutput) out).writeExpression(children().get(0));
-        out.writeCollection(children().subList(1, children().size()), writerFromPlanWriter(PlanStreamOutput::writeExpression));
+        out.writeNamedWriteable(children().get(0));
+        out.writeNamedWriteableCollection(children().subList(1, children().size()));
     }
 
     @Override
@@ -116,12 +121,12 @@ public class CIDRMatch extends EsqlScalarFunction {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var ipEvaluatorSupplier = toEvaluator.apply(ipField);
         return new CIDRMatchEvaluator.Factory(
             source(),
             ipEvaluatorSupplier,
-            matches.stream().map(x -> toEvaluator.apply(x)).toArray(EvalOperator.ExpressionEvaluator.Factory[]::new)
+            matches.stream().map(toEvaluator::apply).toArray(EvalOperator.ExpressionEvaluator.Factory[]::new)
         );
     }
 
@@ -171,5 +176,26 @@ public class CIDRMatch extends EsqlScalarFunction {
     @Override
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, CIDRMatch::new, children().get(0), children().subList(1, children().size()));
+    }
+
+    @Override
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        return pushdownPredicates.isPushableFieldAttribute(ipField) && Expressions.foldable(matches) ? Translatable.YES : Translatable.NO;
+    }
+
+    @Override
+    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        var fa = LucenePushdownPredicates.checkIsFieldAttribute(ipField);
+        Check.isTrue(Expressions.foldable(matches), "Expected foldable matches, but got [{}]", matches);
+
+        String targetFieldName = handler.nameOf(fa.exactAttribute());
+        Set<Object> set = new LinkedHashSet<>(matches.stream().map(Foldables::literalValueOf).toList());
+
+        return new TermsQuery(source(), targetFieldName, set);
+    }
+
+    @Override
+    public Expression singleValueField() {
+        return ipField;
     }
 }

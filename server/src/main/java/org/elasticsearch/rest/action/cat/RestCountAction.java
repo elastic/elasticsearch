@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.cat;
@@ -12,9 +13,11 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -23,18 +26,31 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestCountAction extends AbstractCatAction {
 
+    private final CrossProjectModeDecider crossProjectModeDecider;
+
+    public RestCountAction(Settings settings) {
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+    }
+
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_cat/count"), new Route(GET, "/_cat/count/{index}"));
+        return List.of(
+            new Route(GET, "/_cat/count"),
+            new Route(POST, "/_cat/count"),
+            new Route(GET, "/_cat/count/{index}"),
+            new Route(POST, "/_cat/count/{index}")
+        );
     }
 
     @Override
@@ -54,15 +70,21 @@ public class RestCountAction extends AbstractCatAction {
         SearchRequest countRequest = new SearchRequest(indices);
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).trackTotalHits(true);
         countRequest.source(searchSourceBuilder);
+        if (crossProjectModeDecider.crossProjectEnabled() && countRequest.allowsCrossProject()) {
+            countRequest.indicesOptions(
+                IndicesOptions.builder().crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true)).build()
+            );
+        }
         try {
             request.withContentOrSourceParamParserOrNull(parser -> {
                 if (parser == null) {
                     QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
                     if (queryBuilder != null) {
+                        // since there is no request body, no need to pass in countRequest to handle project_routing param
                         searchSourceBuilder.query(queryBuilder);
                     }
                 } else {
-                    searchSourceBuilder.query(RestActions.getQueryContent(parser));
+                    searchSourceBuilder.query(RestActions.getQueryContent(parser, countRequest));
                 }
             });
         } catch (IOException e) {
@@ -71,7 +93,7 @@ public class RestCountAction extends AbstractCatAction {
         return channel -> client.search(countRequest, new RestResponseListener<SearchResponse>(channel) {
             @Override
             public RestResponse buildResponse(SearchResponse countResponse) throws Exception {
-                assert countResponse.getHits().getTotalHits().relation == TotalHits.Relation.EQUAL_TO;
+                assert countResponse.getHits().getTotalHits().relation() == TotalHits.Relation.EQUAL_TO;
                 return RestTable.buildResponse(buildTable(request, countResponse), channel);
             }
         });
@@ -89,7 +111,7 @@ public class RestCountAction extends AbstractCatAction {
     private Table buildTable(RestRequest request, SearchResponse response) {
         Table table = getTableWithHeader(request);
         table.startRow();
-        table.addCell(response.getHits().getTotalHits().value);
+        table.addCell(response.getHits().getTotalHits().value());
         table.endRow();
 
         return table;

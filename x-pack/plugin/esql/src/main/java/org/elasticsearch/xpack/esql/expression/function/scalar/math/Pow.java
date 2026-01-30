@@ -22,12 +22,10 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -66,14 +64,14 @@ public class Pow extends EsqlScalarFunction {
     }
 
     private Pow(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), ((PlanStreamInput) in).readExpression(), ((PlanStreamInput) in).readExpression());
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        ((PlanStreamOutput) out).writeExpression(base);
-        ((PlanStreamOutput) out).writeExpression(exponent);
+        out.writeNamedWriteable(base);
+        out.writeNamedWriteable(exponent);
     }
 
     @Override
@@ -129,7 +127,7 @@ public class Pow extends EsqlScalarFunction {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var baseEval = Cast.cast(source(), base.dataType(), DataType.DOUBLE, toEvaluator.apply(base));
         var expEval = Cast.cast(source(), exponent.dataType(), DataType.DOUBLE, toEvaluator.apply(exponent));
         return new PowEvaluator.Factory(source(), baseEval, expEval);

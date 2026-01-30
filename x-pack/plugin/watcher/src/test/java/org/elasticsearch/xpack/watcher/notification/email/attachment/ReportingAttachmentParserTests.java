@@ -239,7 +239,7 @@ public class ReportingAttachmentParserTests extends ESTestCase {
             XContentParseException.class,
             () -> reportingAttachmentParser.toAttachment(createWatchExecutionContext(), Payload.EMPTY, attachment)
         );
-        assertThat(e.getMessage(), containsString("Unexpected end-of-input"));
+        assertThat(e.getMessage(), containsString("Unexpected end of file"));
     }
 
     public void testInitialRequestContainsPathAsObject() throws Exception {

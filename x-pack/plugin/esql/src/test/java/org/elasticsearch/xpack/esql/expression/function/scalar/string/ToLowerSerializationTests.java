@@ -7,21 +7,13 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
-import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 
 import java.io.IOException;
-import java.util.List;
 
 public class ToLowerSerializationTests extends AbstractExpressionSerializationTests<ToLower> {
-    @Override
-    protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return EsqlScalarFunction.getNamedWriteables();
-    }
-
     @Override
     protected ToLower createTestInstance() {
         return new ToLower(randomSource(), randomChild(), configuration());
@@ -32,10 +24,5 @@ public class ToLowerSerializationTests extends AbstractExpressionSerializationTe
         Source source = instance.source();
         Expression child = randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild);
         return new ToLower(source, child, configuration());
-    }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
     }
 }

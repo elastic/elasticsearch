@@ -1,13 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.core;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 
 /**
@@ -88,5 +91,23 @@ public enum Predicates {
     @SuppressWarnings("unchecked")
     public static <T> Predicate<T> never() {
         return (Predicate<T>) NEVER;
+    }
+
+    private static class OnceTrue extends AtomicBoolean implements BooleanSupplier {
+        OnceTrue() {
+            super(true);
+        }
+
+        @Override
+        public boolean getAsBoolean() {
+            return getAndSet(false);
+        }
+    }
+
+    /**
+     * @return a {@link BooleanSupplier} which supplies {@code true} the first time it is called, and {@code false} subsequently.
+     */
+    public static BooleanSupplier once() {
+        return new OnceTrue();
     }
 }

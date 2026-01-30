@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
@@ -420,8 +421,8 @@ public class IndicesRequestCacheTests extends ESTestCase {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 IndexSearcher searcher = newSearcher(reader);
                 TopDocs topDocs = searcher.search(new TermQuery(new Term("id", Integer.toString(id))), 1);
-                assertEquals(1, topDocs.totalHits.value);
-                Document document = reader.document(topDocs.scoreDocs[0].doc);
+                assertEquals(1, topDocs.totalHits.value());
+                Document document = reader.storedFields().document(topDocs.scoreDocs[0].doc);
                 out.writeString(document.get("value"));
                 loadedFromCache = false;
                 return out.bytes();

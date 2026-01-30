@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.IntField;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.index.IndexOptions;
@@ -21,7 +21,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -73,10 +72,10 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
 
         assertThat(mapperService.fieldType("s"), notNullValue());
-        assertFalse(mapperService.fieldType("s").isIndexed());
+        assertThat(mapperService.fieldType("s").indexType(), is(IndexType.NONE));
 
         assertThat(mapperService.fieldType("l"), notNullValue());
-        assertTrue(mapperService.fieldType("l").isIndexed());
+        assertTrue(mapperService.fieldType("l").indexType().hasPoints());
     }
 
     public void testUnmatchTypeOnly() throws Exception {
@@ -104,10 +103,12 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
 
         assertThat(mapperService.fieldType("s"), notNullValue());
-        assertTrue(mapperService.fieldType("s").isIndexed());
+        var indexType = mapperService.fieldType("s").indexType();
+        assertTrue(indexType.hasTerms());
+        assertFalse(indexType.hasDocValues());
 
         assertThat(mapperService.fieldType("l"), notNullValue());
-        assertFalse(mapperService.fieldType("l").isIndexed());
+        assertTrue(mapperService.fieldType("l").indexType().hasOnlyDocValues());
     }
 
     public void testSimple() throws Exception {
@@ -221,61 +222,25 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     }
 
     public void testDynamicMapperWithBadMapping() throws IOException {
-        {
-            // in 7.x versions this will issue a deprecation warning
-            IndexVersion version = IndexVersionUtils.randomVersionBetween(
-                random(),
-                IndexVersions.V_7_0_0,
-                IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
-            );
-            DocumentMapper mapper = createDocumentMapper(version, topMapping(b -> {
-                b.startArray("dynamic_templates");
+        // in 8.x it will error out
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
                 {
-                    b.startObject();
+                    b.startObject("test");
                     {
-                        b.startObject("test");
-                        {
-                            b.field("match_mapping_type", "string");
-                            b.startObject("mapping").field("badparam", false).endObject();
-                        }
-                        b.endObject();
+                        b.field("match_mapping_type", "string");
+                        b.startObject("mapping").field("badparam", false).endObject();
                     }
                     b.endObject();
                 }
-                b.endArray();
-            }));
-            assertWarnings(
-                "Parameter [badparam] is used in a dynamic template mapping and has no effect on type [null]. "
-                    + "Usage will result in an error in future major versions and should be removed."
-            );
-            mapper.parse(source(b -> b.field("field", "foo")));
-            assertWarnings(
-                "Parameter [badparam] is used in a dynamic template mapping and has no effect on type [null]. "
-                    + "Usage will result in an error in future major versions and should be removed."
-            );
-        }
-
-        {
-            // in 8.x it will error out
-            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(topMapping(b -> {
-                b.startArray("dynamic_templates");
-                {
-                    b.startObject();
-                    {
-                        b.startObject("test");
-                        {
-                            b.field("match_mapping_type", "string");
-                            b.startObject("mapping").field("badparam", false).endObject();
-                        }
-                        b.endObject();
-                    }
-                    b.endObject();
-                }
-                b.endArray();
-            })));
-            assertThat(e.getMessage(), containsString("dynamic template [test] has invalid content"));
-            assertThat(e.getCause().getMessage(), containsString("badparam"));
-        }
+                b.endObject();
+            }
+            b.endArray();
+        })));
+        assertThat(e.getMessage(), containsString("dynamic template [test] has invalid content"));
+        assertThat(e.getCause().getMessage(), containsString("badparam"));
     }
 
     public void testDynamicRuntimeWithBadMapping() {
@@ -677,35 +642,6 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertEquals("unknown parameter [foo] on runtime field [__dynamic__my_template] of type [date]", e.getRootCause().getMessage());
     }
 
-    public void testIllegalDynamicTemplate7DotXIndex() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder();
-        mapping.startObject();
-        {
-            mapping.startObject(MapperService.SINGLE_MAPPING_NAME);
-            mapping.startArray("dynamic_templates");
-            {
-                mapping.startObject();
-                mapping.startObject("my_template");
-                mapping.field("match_mapping_type", "string");
-                mapping.startObject("mapping");
-                mapping.field("type", "string");
-                mapping.endObject();
-                mapping.endObject();
-                mapping.endObject();
-            }
-            mapping.endArray();
-            mapping.endObject();
-        }
-        mapping.endObject();
-        IndexVersion createdVersion = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersions.V_7_7_0);
-        MapperService mapperService = createMapperService(createdVersion, mapping);
-        assertThat(mapperService.documentMapper().mappingSource().toString(), containsString("\"type\":\"string\""));
-        assertWarnings("""
-            dynamic template [my_template] has invalid content \
-            [{"match_mapping_type":"string","mapping":{"type":"string"}}], attempted to validate it \
-            with the following match_mapping_type: [string], last error: [No mapper found for type [string]]""");
-    }
-
     public void testTemplateWithoutMatchPredicates() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder();
         mapping.startObject();
@@ -732,17 +668,8 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             {"foo": "41.12,-71.34", "bar": "41.12,-71.34"}
             """;
         ParsedDocument doc = mapperService.documentMapper()
-            .parse(
-                new SourceToParse(
-                    "1",
-                    new BytesArray(json),
-                    XContentType.JSON,
-                    null,
-                    Map.of("foo", "geo_point"),
-                    DocumentSizeObserver.EMPTY_INSTANCE
-                )
-            );
-        assertThat(doc.rootDoc().getFields("foo"), hasSize(2));
+            .parse(new SourceToParse("1", new BytesArray(json), XContentType.JSON, null, Map.of("foo", "geo_point"), null));
+        assertThat(doc.rootDoc().getFields("foo"), hasSize(1));
         assertThat(doc.rootDoc().getFields("bar"), hasSize(1));
     }
 
@@ -1132,6 +1059,14 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     }
 
     private MapperService createDynamicTemplateNoSubobjects() throws IOException {
+        return createDynamicTemplateWithSubobjects("false");
+    }
+
+    private MapperService createDynamicTemplateAutoSubobjects() throws IOException {
+        return createDynamicTemplateWithSubobjects("auto");
+    }
+
+    private MapperService createDynamicTemplateWithSubobjects(String subobjects) throws IOException {
         return createMapperService(topMapping(b -> {
             b.startArray("dynamic_templates");
             {
@@ -1141,7 +1076,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
                     {
                         b.field("match_mapping_type", "object");
                         b.field("match", "metric");
-                        b.startObject("mapping").field("type", "object").field("subobjects", false).endObject();
+                        b.startObject("mapping").field("type", "object").field("subobjects", subobjects).endObject();
                     }
                     b.endObject();
                 }
@@ -1388,7 +1323,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertEquals(ObjectMapper.Dynamic.FALSE, metrics.dynamic());
         assertEquals(1, metrics.mappers.size());
         ObjectMapper service = (ObjectMapper) metrics.getMapper("service");
-        assertFalse(service.subobjects());
+        assertEquals(ObjectMapper.Subobjects.DISABLED, service.subobjects());
         assertEquals(1, service.mappers.size());
         assertNotNull(service.getMapper("time"));
     }
@@ -1431,6 +1366,42 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertEquals(
             "Tried to add nested object [time] to object [__dynamic__test] which does not support subobjects",
             exception.getRootCause().getMessage()
+        );
+    }
+
+    /**
+     * test that bad mapping is accepted for indices created before 8.0.0.
+     * We still need to test this in v9 because of N-2 read compatibility
+     */
+    public void testMalformedDynamicMapping_v7() throws IOException {
+        String mapping = """
+                {
+                    "_doc": {
+                        "dynamic_templates": [
+                            {
+                                "my_template": {
+                                    "mapping": {
+                                        "ignore_malformed": true,
+                                        "type": "keyword"
+                                    },
+                                    "path_match": "*"
+                                }
+                            }
+                        ]
+                    }
+                }
+            """;
+        MapperParsingException ex = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
+        assertThat(ex.getMessage(), containsString("dynamic template [my_template] has invalid content"));
+
+        // the previous exception should be ignored by indices with v7 index versions
+        IndexVersion indexVersion = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.V_8_0_0);
+        Settings settings = Settings.builder().put("number_of_shards", 1).put("index.version.created", indexVersion).build();
+        MapperService mapperService = createMapperService(indexVersion, settings, () -> randomBoolean());
+        merge(mapperService, mapping);
+        assertWarnings(
+            "Parameter [ignore_malformed] is used in a dynamic template mapping and has no effect on type [keyword]. "
+                + "Usage will result in an error in future major versions and should be removed."
         );
     }
 
@@ -1803,7 +1774,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         Mapping mapping = doc.dynamicMappingsUpdate();
         ObjectMapper artifacts = (ObjectMapper) mapping.getRoot().getMapper("artifacts");
         ObjectMapper leaf = (ObjectMapper) artifacts.getMapper("leaf");
-        assertFalse(leaf.subobjects());
+        assertEquals(ObjectMapper.Subobjects.DISABLED, leaf.subobjects());
     }
 
     public void testSubobjectsFalseFlattened() throws IOException {
@@ -1931,22 +1902,22 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
         LuceneDocument doc = parsedDoc.rootDoc();
 
-        assertNotEquals(InetAddressPoint.class, doc.getField("one_ip").getClass());
+        assertNotEquals(ESInetAddressPoint.class, doc.getField("one_ip").getClass());
         Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("one_ip");
         assertNotNull(fieldMapper);
         assertEquals("text", fieldMapper.typeName());
 
-        assertNotEquals(InetAddressPoint.class, doc.getField("ip_two").getClass());
+        assertNotEquals(ESInetAddressPoint.class, doc.getField("ip_two").getClass());
         fieldMapper = mapperService.documentMapper().mappers().getMapper("ip_two");
         assertNotNull(fieldMapper);
         assertEquals("text", fieldMapper.typeName());
 
-        assertEquals(InetAddressPoint.class, doc.getField("three_ip").getClass());
+        assertEquals(ESInetAddressPoint.class, doc.getField("three_ip").getClass());
         fieldMapper = mapperService.documentMapper().mappers().getMapper("three_ip");
         assertNotNull(fieldMapper);
         assertEquals("ip", fieldMapper.typeName());
 
-        assertEquals(InetAddressPoint.class, doc.getField("ip_four").getClass());
+        assertEquals(ESInetAddressPoint.class, doc.getField("ip_four").getClass());
         fieldMapper = mapperService.documentMapper().mappers().getMapper("ip_four");
         assertNotNull(fieldMapper);
         assertEquals("ip", fieldMapper.typeName());
@@ -1983,17 +1954,17 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
         LuceneDocument doc = parsedDoc.rootDoc();
 
-        assertEquals(InetAddressPoint.class, doc.getField("one100_ip").getClass());
+        assertEquals(ESInetAddressPoint.class, doc.getField("one100_ip").getClass());
         Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("one100_ip");
         assertNotNull(fieldMapper);
         assertEquals("ip", fieldMapper.typeName());
 
-        assertEquals(InetAddressPoint.class, doc.getField("iptwo").getClass());
+        assertEquals(ESInetAddressPoint.class, doc.getField("iptwo").getClass());
         fieldMapper = mapperService.documentMapper().mappers().getMapper("iptwo");
         assertNotNull(fieldMapper);
         assertEquals("ip", fieldMapper.typeName());
 
-        assertNotEquals(InetAddressPoint.class, doc.getField("threeip").getClass());
+        assertNotEquals(ESInetAddressPoint.class, doc.getField("threeip").getClass());
         fieldMapper = mapperService.documentMapper().mappers().getMapper("threeip");
         assertNotNull(fieldMapper);
         assertEquals("text", fieldMapper.typeName());
@@ -2029,18 +2000,18 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
         LuceneDocument doc = parsedDoc.rootDoc();
 
-        assertEquals(InetAddressPoint.class, doc.getField("oneip").getClass());
+        assertEquals(ESInetAddressPoint.class, doc.getField("oneip").getClass());
         Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("oneip");
         assertNotNull(fieldMapper);
         assertEquals("ip", fieldMapper.typeName());
 
         // this one will not match and be an IP field because it was specified with a regex but match_pattern is implicit "simple"
-        assertNotEquals(InetAddressPoint.class, doc.getField("iptwo").getClass());
+        assertNotEquals(ESInetAddressPoint.class, doc.getField("iptwo").getClass());
         fieldMapper = mapperService.documentMapper().mappers().getMapper("iptwo");
         assertNotNull(fieldMapper);
         assertEquals("text", fieldMapper.typeName());
 
-        assertNotEquals(InetAddressPoint.class, doc.getField("threeip").getClass());
+        assertNotEquals(ESInetAddressPoint.class, doc.getField("threeip").getClass());
         fieldMapper = mapperService.documentMapper().mappers().getMapper("threeip");
         assertNotNull(fieldMapper);
         assertEquals("text", fieldMapper.typeName());
@@ -2088,18 +2059,18 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
 
         LuceneDocument doc = parsedDoc.rootDoc();
 
-        assertEquals(InetAddressPoint.class, doc.getField("outer.oneip").getClass());
+        assertEquals(ESInetAddressPoint.class, doc.getField("outer.oneip").getClass());
         Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("outer.oneip");
         assertNotNull(fieldMapper);
         assertEquals("ip", fieldMapper.typeName());
 
         // this one will not match and be an IP field because it was specified with a regex but match_pattern is implicit "simple"
-        assertNotEquals(InetAddressPoint.class, doc.getField("outer.iptwo").getClass());
+        assertNotEquals(ESInetAddressPoint.class, doc.getField("outer.iptwo").getClass());
         fieldMapper = mapperService.documentMapper().mappers().getMapper("outer.iptwo");
         assertNotNull(fieldMapper);
         assertEquals("text", fieldMapper.typeName());
 
-        assertEquals(InetAddressPoint.class, doc.getField("outer.threeip").getClass());
+        assertEquals(ESInetAddressPoint.class, doc.getField("outer.threeip").getClass());
         fieldMapper = mapperService.documentMapper().mappers().getMapper("outer.threeip");
         assertNotNull(fieldMapper);
         assertEquals("ip", fieldMapper.typeName());
@@ -2147,18 +2118,18 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
 
         LuceneDocument doc = parsedDoc.rootDoc();
 
-        assertEquals(InetAddressPoint.class, doc.getField("outer.oneip").getClass());
+        assertEquals(ESInetAddressPoint.class, doc.getField("outer.oneip").getClass());
         Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("outer.oneip");
         assertNotNull(fieldMapper);
         assertEquals("ip", fieldMapper.typeName());
 
         // this one will not match and be an IP field because it was specified with a regex but match_pattern is implicit "simple"
-        assertNotEquals(InetAddressPoint.class, doc.getField("outer.iptwo").getClass());
+        assertNotEquals(ESInetAddressPoint.class, doc.getField("outer.iptwo").getClass());
         fieldMapper = mapperService.documentMapper().mappers().getMapper("outer.iptwo");
         assertNotNull(fieldMapper);
         assertEquals("text", fieldMapper.typeName());
 
-        assertEquals(InetAddressPoint.class, doc.getField("outer.threeip").getClass());
+        assertEquals(ESInetAddressPoint.class, doc.getField("outer.threeip").getClass());
         fieldMapper = mapperService.documentMapper().mappers().getMapper("outer.threeip");
         assertNotNull(fieldMapper);
         assertEquals("ip", fieldMapper.typeName());

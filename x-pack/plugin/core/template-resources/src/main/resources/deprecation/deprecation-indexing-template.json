@@ -1,5 +1,5 @@
 {
-  "index_patterns": [".logs-deprecation.*"],
+  "index_patterns": ["${xpack.deprecation.indexing.template.pattern}"],
   "priority": 1000,
   "data_stream": {
     "hidden": true
@@ -13,5 +13,6 @@
     "description": "default template for Stack deprecation logs index template installed by x-pack",
     "managed": true
   },
+  "deprecated": ${xpack.deprecation.indexing.template.deprecated},
   "version": ${xpack.deprecation.indexing.template.version}
 }

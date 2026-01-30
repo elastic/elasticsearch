@@ -146,7 +146,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
      */
     protected void restartTaskNode(String id, String indexName) throws Exception {
         AsyncExecutionId searchId = AsyncExecutionId.decode(id);
-        final ClusterStateResponse clusterState = clusterAdmin().prepareState().clear().setNodes(true).get();
+        final ClusterStateResponse clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().setNodes(true).get();
         DiscoveryNode node = clusterState.getState().nodes().get(searchId.getTaskId().getNodeId());
 
         // Temporarily stop garbage collection, making sure to wait for any in-flight tasks to complete
@@ -314,9 +314,9 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                     assertThat(newResponse.getSearchResponse().getShardFailures().length, equalTo(numFailures));
                     assertNull(newResponse.getSearchResponse().getAggregations());
                     assertNotNull(newResponse.getSearchResponse().getHits().getTotalHits());
-                    assertThat(newResponse.getSearchResponse().getHits().getTotalHits().value, equalTo(0L));
+                    assertThat(newResponse.getSearchResponse().getHits().getTotalHits().value(), equalTo(0L));
                     assertThat(
-                        newResponse.getSearchResponse().getHits().getTotalHits().relation,
+                        newResponse.getSearchResponse().getHits().getTotalHits().relation(),
                         equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO)
                     );
                 } else {

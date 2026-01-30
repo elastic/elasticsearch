@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.RefCounted;
@@ -25,6 +27,9 @@ import java.io.IOException;
 public final class FetchSearchResult extends SearchPhaseResult {
 
     private SearchHits hits;
+
+    private transient long searchHitsSizeBytes = 0L;
+
     // client side counter
     private transient int counter;
 
@@ -40,7 +45,6 @@ public final class FetchSearchResult extends SearchPhaseResult {
     }
 
     public FetchSearchResult(StreamInput in) throws IOException {
-        super(in);
         contextId = new ShardSearchContextId(in);
         hits = SearchHits.readFrom(in, true);
         profileResult = in.readOptionalWriteable(ProfileResult::new);
@@ -67,7 +71,6 @@ public final class FetchSearchResult extends SearchPhaseResult {
             existing.decRef();
         }
         this.hits = hits;
-        hits.mustIncRef();
         assert this.profileResult == null;
         this.profileResult = profileResult;
     }
@@ -82,6 +85,21 @@ public final class FetchSearchResult extends SearchPhaseResult {
     public SearchHits hits() {
         assert hasReferences();
         return hits;
+    }
+
+    public void setSearchHitsSizeBytes(long bytes) {
+        this.searchHitsSizeBytes = bytes;
+    }
+
+    public long getSearchHitsSizeBytes() {
+        return searchHitsSizeBytes;
+    }
+
+    public void releaseCircuitBreakerBytes(CircuitBreaker circuitBreaker) {
+        if (searchHitsSizeBytes > 0L) {
+            circuitBreaker.addWithoutBreaking(-searchHitsSizeBytes);
+            searchHitsSizeBytes = 0L;
+        }
     }
 
     public FetchSearchResult initCounter() {

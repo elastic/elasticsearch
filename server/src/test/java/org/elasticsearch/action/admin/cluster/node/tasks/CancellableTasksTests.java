@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
@@ -32,9 +33,9 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ReachabilityChecker;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.FakeTcpChannel;
 import org.elasticsearch.transport.TestTransportChannels;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -61,7 +62,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class CancellableTasksTests extends TaskManagerTestCase {
 
-    public static class CancellableNodeRequest extends TransportRequest {
+    public static class CancellableNodeRequest extends AbstractTransportRequest {
         protected String requestName;
 
         public CancellableNodeRequest() {
@@ -99,7 +100,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         }
     }
 
-    public static class CancellableNodesRequest extends BaseNodesRequest<CancellableNodesRequest> {
+    public static class CancellableNodesRequest extends BaseNodesRequest {
         private final String requestName;
 
         public CancellableNodesRequest(String requestName, String... nodesIds) {
@@ -158,15 +159,11 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             if (shouldBlock) {
                 // Simulate a job that takes forever to finish
                 // Using periodic checks method to identify that the task was cancelled
-                try {
-                    waitUntil(() -> {
-                        ((CancellableTask) task).ensureNotCancelled();
-                        return false;
-                    });
-                    fail("It should have thrown an exception");
-                } catch (InterruptedException ex) {
-                    Thread.currentThread().interrupt();
-                }
+                waitUntil(() -> {
+                    ((CancellableTask) task).ensureNotCancelled();
+                    return false;
+                });
+                fail("It should have thrown an exception");
             }
             debugDelay("op4");
 

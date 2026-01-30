@@ -11,17 +11,16 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xpack.core.ilm.step.info.EmptyInfo;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 
 import java.util.Date;
-import java.util.Locale;
 import java.util.Objects;
 
 /***
@@ -43,7 +42,6 @@ public class WaitForSnapshotStep extends AsyncWaitStep {
 
     private static final String UNEXPECTED_SNAPSHOT_STATE_MESSAGE =
         "unexpected number of snapshots retrieved for repository '%s' and snapshot '%s' (expected 1, found %d)";
-    private static final String NO_INDEX_METADATA_MESSAGE = "no index metadata found for index '%s'";
     private static final String NO_ACTION_TIME_MESSAGE = "no information about ILM action start in index metadata for index '%s'";
 
     private final String policy;
@@ -54,21 +52,16 @@ public class WaitForSnapshotStep extends AsyncWaitStep {
     }
 
     @Override
-    public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
-        IndexMetadata indexMetadata = metadata.index(index);
-        if (indexMetadata == null) {
-            listener.onFailure(error(NO_INDEX_METADATA_MESSAGE, index.getName()));
-            return;
-        }
-
+    public void evaluateCondition(ProjectState state, IndexMetadata indexMetadata, Listener listener, TimeValue masterTimeout) {
+        String indexName = indexMetadata.getIndex().getName();
         Long actionTime = indexMetadata.getLifecycleExecutionState().actionTime();
 
         if (actionTime == null) {
-            listener.onFailure(error(NO_ACTION_TIME_MESSAGE, index.getName()));
+            listener.onFailure(error(NO_ACTION_TIME_MESSAGE, indexName));
             return;
         }
 
-        SnapshotLifecycleMetadata snapMeta = metadata.custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleMetadata snapMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
         if (snapMeta == null || snapMeta.getSnapshotConfigurations().containsKey(policy) == false) {
             listener.onFailure(error(POLICY_NOT_FOUND_MESSAGE, policy));
             return;
@@ -87,7 +80,7 @@ public class WaitForSnapshotStep extends AsyncWaitStep {
                 logger.debug("skipping ILM policy execution because no last snapshot start date, action time: {}", actionTime);
             } else {
                 logger.debug(
-                    "skipping ILM policy execution because snapshot start time {} is before action time {}, snapshot timestamp " + "is {}",
+                    "skipping ILM policy execution because snapshot start time {} is before action time {}, snapshot timestamp is {}",
                     snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp(),
                     actionTime,
                     snapPolicyMeta.getLastSuccess().getSnapshotFinishTimestamp()
@@ -108,14 +101,14 @@ public class WaitForSnapshotStep extends AsyncWaitStep {
             .snapshots(new String[] { snapshotName })
             .includeIndexNames(true)
             .verbose(false);
-        getClient().admin().cluster().getSnapshots(request, ActionListener.wrap(response -> {
+        getClient(state.projectId()).admin().cluster().getSnapshots(request, ActionListener.wrap(response -> {
             if (response.getSnapshots().size() != 1) {
                 listener.onFailure(error(UNEXPECTED_SNAPSHOT_STATE_MESSAGE, repositoryName, snapshotName, response.getSnapshots().size()));
             } else {
-                if (response.getSnapshots().get(0).indices().contains(index.getName())) {
+                if (response.getSnapshots().get(0).indices().contains(indexName)) {
                     listener.onResponse(true, EmptyInfo.INSTANCE);
                 } else {
-                    listener.onFailure(error(INDEX_NOT_INCLUDED_IN_SNAPSHOT_MESSAGE, policy, index.getName()));
+                    listener.onFailure(error(INDEX_NOT_INCLUDED_IN_SNAPSHOT_MESSAGE, policy, indexName));
                 }
             }
         }, listener::onFailure));
@@ -134,14 +127,14 @@ public class WaitForSnapshotStep extends AsyncWaitStep {
     private ToXContentObject notExecutedMessage(long time) {
         return (builder, params) -> {
             builder.startObject();
-            builder.field(MESSAGE_FIELD, String.format(Locale.ROOT, POLICY_NOT_EXECUTED_MESSAGE, policy, new Date(time)));
+            builder.field(MESSAGE_FIELD, Strings.format(POLICY_NOT_EXECUTED_MESSAGE, policy, new Date(time)));
             builder.endObject();
             return builder;
         };
     }
 
     private static IllegalStateException error(String message, Object... args) {
-        return new IllegalStateException(String.format(Locale.ROOT, message, args));
+        return new IllegalStateException(Strings.format(message, args));
     }
 
     @Override

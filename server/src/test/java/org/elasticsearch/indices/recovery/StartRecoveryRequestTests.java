@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.UUIDs;
@@ -31,8 +31,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class StartRecoveryRequestTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
-        final Version targetNodeVersion = randomVersion(random());
-        TransportVersion serializationVersion = TransportVersionUtils.randomVersion(random());
+        final Version targetNodeVersion = randomVersion();
+        TransportVersion serializationVersion = TransportVersionUtils.randomVersion();
         Store.MetadataSnapshot metadataSnapshot = randomBoolean()
             ? Store.MetadataSnapshot.EMPTY
             : new Store.MetadataSnapshot(
@@ -75,11 +75,7 @@ public class StartRecoveryRequestTests extends ESTestCase {
         assertThat(outRequest.recoveryId(), equalTo(inRequest.recoveryId()));
         assertThat(outRequest.startingSeqNo(), equalTo(inRequest.startingSeqNo()));
 
-        if (serializationVersion.onOrAfter(TransportVersions.V_8_11_X)) {
-            assertEquals(outRequest.clusterStateVersion(), inRequest.clusterStateVersion());
-        } else {
-            assertEquals(0L, inRequest.clusterStateVersion());
-        }
+        assertEquals(outRequest.clusterStateVersion(), inRequest.clusterStateVersion());
     }
 
     public void testDescription() {

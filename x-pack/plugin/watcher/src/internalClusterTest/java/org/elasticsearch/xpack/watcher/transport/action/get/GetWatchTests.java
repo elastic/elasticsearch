@@ -62,10 +62,13 @@ public class GetWatchTests extends AbstractWatcherIntegrationTestCase {
         // if the watches index is an alias, remove the alias randomly, otherwise the index
         if (randomBoolean()) {
             try {
-                GetIndexResponse indexResponse = indicesAdmin().prepareGetIndex().setIndices(Watch.INDEX).get();
+                GetIndexResponse indexResponse = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(Watch.INDEX).get();
                 boolean isWatchIndexAlias = Watch.INDEX.equals(indexResponse.indices()[0]) == false;
                 if (isWatchIndexAlias) {
-                    assertAcked(indicesAdmin().prepareAliases().removeAlias(indexResponse.indices()[0], Watch.INDEX));
+                    assertAcked(
+                        indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                            .removeAlias(indexResponse.indices()[0], Watch.INDEX)
+                    );
                 } else {
                     assertAcked(indicesAdmin().prepareDelete(Watch.INDEX));
                 }

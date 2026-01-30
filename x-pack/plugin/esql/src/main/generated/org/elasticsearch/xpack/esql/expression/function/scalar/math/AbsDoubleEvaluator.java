@@ -7,32 +7,37 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Abs}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class AbsDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(AbsDoubleEvaluator.class);
+
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator fieldVal;
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public AbsDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator fieldVal,
       DriverContext driverContext) {
+    this.source = source;
     this.fieldVal = fieldVal;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -46,21 +51,29 @@ public final class AbsDoubleEvaluator implements EvalOperator.ExpressionEvaluato
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += fieldVal.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public DoubleBlock eval(int positionCount, DoubleBlock fieldValBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (fieldValBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (fieldValBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (fieldValBlock.getValueCount(p) != 1) {
-          if (fieldValBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendDouble(Abs.process(fieldValBlock.getDouble(fieldValBlock.getFirstValueIndex(p))));
+        double fieldVal = fieldValBlock.getDouble(fieldValBlock.getFirstValueIndex(p));
+        result.appendDouble(Abs.process(fieldVal));
       }
       return result.build();
     }
@@ -69,7 +82,8 @@ public final class AbsDoubleEvaluator implements EvalOperator.ExpressionEvaluato
   public DoubleVector eval(int positionCount, DoubleVector fieldValVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, Abs.process(fieldValVector.getDouble(p)));
+        double fieldVal = fieldValVector.getDouble(p);
+        result.appendDouble(p, Abs.process(fieldVal));
       }
       return result.build();
     }
@@ -83,6 +97,13 @@ public final class AbsDoubleEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public void close() {
     Releasables.closeExpectNoException(fieldVal);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.analysis;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -48,7 +49,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
@@ -114,23 +114,14 @@ public class CancellationTests extends ESTestCase {
         countDownLatch.await();
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
+        verify(client, times(1)).projectResolver();
         verifyNoMoreInteractions(client);
     }
 
     private Map<String, Map<String, FieldCapabilities>> fields(String[] indices) {
-        FieldCapabilities fooField = new FieldCapabilities("foo", "integer", false, true, true, indices, null, null, emptyMap());
-        FieldCapabilities categoryField = new FieldCapabilities(
-            "event.category",
-            "keyword",
-            false,
-            true,
-            true,
-            indices,
-            null,
-            null,
-            emptyMap()
-        );
-        FieldCapabilities timestampField = new FieldCapabilities("@timestamp", "date", false, true, true, indices, null, null, emptyMap());
+        FieldCapabilities fooField = new FieldCapabilitiesBuilder("foo", "integer").indices(indices).build();
+        FieldCapabilities categoryField = new FieldCapabilitiesBuilder("event.category", "keyword").indices(indices).build();
+        FieldCapabilities timestampField = new FieldCapabilitiesBuilder("@timestamp", "date").indices(indices).build();
         Map<String, Map<String, FieldCapabilities>> fields = new HashMap<>();
         fields.put(fooField.getName(), singletonMap(fooField.getName(), fooField));
         fields.put(categoryField.getName(), singletonMap(categoryField.getName(), categoryField));
@@ -185,6 +176,7 @@ public class CancellationTests extends ESTestCase {
         verify(client).fieldCaps(any(), any());
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
+        verify(client, times(1)).projectResolver();
         verifyNoMoreInteractions(client);
     }
 
@@ -254,6 +246,7 @@ public class CancellationTests extends ESTestCase {
         verify(client).execute(any(), any(), any());
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
+        verify(client, times(1)).projectResolver();
         verifyNoMoreInteractions(client);
     }
 

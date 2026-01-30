@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -88,11 +89,7 @@ public class IgnoredFieldMapperTests extends MetadataMapperTestCase {
     }
 
     public void testIgnoredFieldType() throws IOException {
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(
-            random(),
-            IndexVersions.FIRST_DETACHED_INDEX_VERSION,
-            IndexVersion.current()
-        );
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(IndexVersions.FIRST_DETACHED_INDEX_VERSION, IndexVersion.current());
         boolean afterIntroducingDocValues = version.onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD);
         boolean beforeRemovingStoredField = version.before(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD);
         MapperService mapperService = createMapperService(version, fieldMapping(b -> b.field("type", "keyword").field("ignore_above", 3)));

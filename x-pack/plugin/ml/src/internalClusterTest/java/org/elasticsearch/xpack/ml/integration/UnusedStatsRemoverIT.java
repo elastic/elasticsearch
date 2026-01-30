@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.tasks.TaskId;
@@ -63,10 +64,61 @@ public class UnusedStatsRemoverIT extends BaseMlIntegTestCase {
     }
 
     public void testRemoveUnusedStats() throws Exception {
+        String modelId = "model-with-stats";
+        putDFA(modelId);
 
+        // Existing analytics and models
+        indexStatDocument(new DataCounts("analytics-with-stats", 1, 1, 1), DataCounts.documentId("analytics-with-stats"));
+        indexStatDocument(new InferenceStats(1, 1, 1, 1, modelId, "test", Instant.now()), InferenceStats.docId(modelId, "test"));
+        indexStatDocument(
+            new InferenceStats(1, 1, 1, 1, TrainedModelProvider.MODELS_STORED_AS_RESOURCE.iterator().next(), "test", Instant.now()),
+            InferenceStats.docId(TrainedModelProvider.MODELS_STORED_AS_RESOURCE.iterator().next(), "test")
+        );
+
+        // Unused analytics/model stats
+        indexStatDocument(new DataCounts("missing-analytics-with-stats", 1, 1, 1), DataCounts.documentId("missing-analytics-with-stats"));
+        indexStatDocument(
+            new InferenceStats(1, 1, 1, 1, "missing-model", "test", Instant.now()),
+            InferenceStats.docId("missing-model", "test")
+        );
+
+        refreshStatsIndex();
+        runUnusedStatsRemover();
+
+        final String index = MlStatsIndex.TEMPLATE_NAME + "-000001";
+
+        // Validate expected docs
+        assertDocExists(index, InferenceStats.docId(modelId, "test"));
+        assertDocExists(index, DataCounts.documentId("analytics-with-stats"));
+        assertDocExists(index, InferenceStats.docId(TrainedModelProvider.MODELS_STORED_AS_RESOURCE.iterator().next(), "test"));
+
+        // Validate removed docs
+        assertDocDoesNotExist(index, InferenceStats.docId("missing-model", "test"));
+        assertDocDoesNotExist(index, DataCounts.documentId("missing-analytics-with-stats"));
+    }
+
+    public void testRemovingUnusedStatsFromReadOnlyIndexShouldFailSilently() throws Exception {
+        String modelId = "model-with-stats";
+        putDFA(modelId);
+
+        indexStatDocument(
+            new InferenceStats(1, 1, 1, 1, "missing-model", "test", Instant.now()),
+            InferenceStats.docId("missing-model", "test")
+        );
+        makeIndexReadOnly();
+        refreshStatsIndex();
+
+        runUnusedStatsRemover();
+        refreshStatsIndex();
+
+        final String index = MlStatsIndex.TEMPLATE_NAME + "-000001";
+        assertDocExists(index, InferenceStats.docId("missing-model", "test")); // should still exist
+    }
+
+    private void putDFA(String modelId) {
         prepareIndex("foo").setId("some-empty-doc").setSource("{}", XContentType.JSON).get();
 
-        PutDataFrameAnalyticsAction.Request request = new PutDataFrameAnalyticsAction.Request(
+        PutDataFrameAnalyticsAction.Request analyticsRequest = new PutDataFrameAnalyticsAction.Request(
             new DataFrameAnalyticsConfig.Builder().setId("analytics-with-stats")
                 .setModelMemoryLimit(ByteSizeValue.ofGb(1))
                 .setSource(new DataFrameAnalyticsSource(new String[] { "foo" }, null, null, null))
@@ -74,80 +126,56 @@ public class UnusedStatsRemoverIT extends BaseMlIntegTestCase {
                 .setAnalysis(new Regression("prediction"))
                 .build()
         );
-        client.execute(PutDataFrameAnalyticsAction.INSTANCE, request).actionGet();
+        client.execute(PutDataFrameAnalyticsAction.INSTANCE, analyticsRequest).actionGet();
 
-        client.execute(
-            PutTrainedModelAction.INSTANCE,
-            new PutTrainedModelAction.Request(
-                TrainedModelConfig.builder()
-                    .setModelId("model-with-stats")
-                    .setInferenceConfig(RegressionConfig.EMPTY_PARAMS)
-                    .setInput(new TrainedModelInput(Arrays.asList("foo", "bar")))
-                    .setParsedDefinition(
-                        new TrainedModelDefinition.Builder().setPreProcessors(Collections.emptyList())
-                            .setTrainedModel(
-                                Tree.builder()
-                                    .setFeatureNames(Arrays.asList("foo", "bar"))
-                                    .setRoot(TreeNode.builder(0).setLeafValue(42))
-                                    .build()
-                            )
-                    )
-                    .validate(true)
-                    .build(),
-                false
-            )
-        ).actionGet();
+        TrainedModelDefinition.Builder definition = new TrainedModelDefinition.Builder().setPreProcessors(Collections.emptyList())
+            .setTrainedModel(
+                Tree.builder().setFeatureNames(Arrays.asList("foo", "bar")).setRoot(TreeNode.builder(0).setLeafValue(42)).build()
+            );
 
-        indexStatDocument(new DataCounts("analytics-with-stats", 1, 1, 1), DataCounts.documentId("analytics-with-stats"));
-        indexStatDocument(new DataCounts("missing-analytics-with-stats", 1, 1, 1), DataCounts.documentId("missing-analytics-with-stats"));
-        indexStatDocument(
-            new InferenceStats(1, 1, 1, 1, TrainedModelProvider.MODELS_STORED_AS_RESOURCE.iterator().next(), "test", Instant.now()),
-            InferenceStats.docId(TrainedModelProvider.MODELS_STORED_AS_RESOURCE.iterator().next(), "test")
-        );
-        indexStatDocument(
-            new InferenceStats(1, 1, 1, 1, "missing-model", "test", Instant.now()),
-            InferenceStats.docId("missing-model", "test")
-        );
-        indexStatDocument(
-            new InferenceStats(1, 1, 1, 1, "model-with-stats", "test", Instant.now()),
-            InferenceStats.docId("model-with-stats", "test")
-        );
-        client().admin().indices().prepareRefresh(MlStatsIndex.indexPattern()).get();
+        TrainedModelConfig modelConfig = TrainedModelConfig.builder()
+            .setModelId(modelId)
+            .setInferenceConfig(RegressionConfig.EMPTY_PARAMS)
+            .setInput(new TrainedModelInput(Arrays.asList("foo", "bar")))
+            .setParsedDefinition(definition)
+            .validate(true)
+            .build();
 
-        PlainActionFuture<Boolean> deletionListener = new PlainActionFuture<>();
-        UnusedStatsRemover statsRemover = new UnusedStatsRemover(client, new TaskId("test", 0L));
-        statsRemover.remove(10000.0f, deletionListener, () -> false);
-        deletionListener.actionGet();
-
-        client().admin().indices().prepareRefresh(MlStatsIndex.indexPattern()).get();
-
-        final String initialStateIndex = MlStatsIndex.TEMPLATE_NAME + "-000001";
-
-        // Make sure that stats that should exist still exist
-        assertTrue(client().prepareGet(initialStateIndex, InferenceStats.docId("model-with-stats", "test")).get().isExists());
-        assertTrue(
-            client().prepareGet(
-                initialStateIndex,
-                InferenceStats.docId(TrainedModelProvider.MODELS_STORED_AS_RESOURCE.iterator().next(), "test")
-            ).get().isExists()
-        );
-        assertTrue(client().prepareGet(initialStateIndex, DataCounts.documentId("analytics-with-stats")).get().isExists());
-
-        // make sure that unused stats were deleted
-        assertFalse(client().prepareGet(initialStateIndex, DataCounts.documentId("missing-analytics-with-stats")).get().isExists());
-        assertFalse(client().prepareGet(initialStateIndex, InferenceStats.docId("missing-model", "test")).get().isExists());
+        client.execute(PutTrainedModelAction.INSTANCE, new PutTrainedModelAction.Request(modelConfig, false)).actionGet();
     }
 
     private void indexStatDocument(ToXContentObject object, String docId) throws Exception {
-        ToXContent.Params params = new ToXContent.MapParams(
-            Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, Boolean.toString(true))
-        );
-        IndexRequest doc = new IndexRequest(MlStatsIndex.writeAlias());
-        doc.id(docId);
+        IndexRequest doc = new IndexRequest(MlStatsIndex.writeAlias()).id(docId);
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            object.toXContent(builder, params);
+            object.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")));
             doc.source(builder);
             client.index(doc).actionGet();
         }
+    }
+
+    private void refreshStatsIndex() {
+        client().admin().indices().prepareRefresh(MlStatsIndex.indexPattern()).get();
+    }
+
+    private void runUnusedStatsRemover() {
+        PlainActionFuture<Boolean> deletionListener = new PlainActionFuture<>();
+        new UnusedStatsRemover(client, new TaskId("test", 0L)).remove(10000.0f, deletionListener, () -> false);
+        deletionListener.actionGet();
+    }
+
+    private void makeIndexReadOnly() {
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(MlStatsIndex.indexPattern())
+            .setSettings(Settings.builder().put("index.blocks.write", true))
+            .get();
+    }
+
+    private void assertDocExists(String index, String docId) {
+        assertTrue(client().prepareGet(index, docId).get().isExists());
+    }
+
+    private void assertDocDoesNotExist(String index, String docId) {
+        assertFalse(client().prepareGet(index, docId).get().isExists());
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
@@ -45,7 +46,15 @@ final class BigObjectArray<T> extends AbstractBigArray implements ObjectArray<T>
     }
 
     @Override
-    public T set(long index, T value) {
+    public void set(long index, T value) {
+        final int pageIndex = pageIndex(index);
+        final int indexInPage = indexInPage(index);
+        final Object[] page = pages[pageIndex];
+        page[indexInPage] = value;
+    }
+
+    @Override
+    public T getAndSet(long index, T value) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         final Object[] page = pages[pageIndex];

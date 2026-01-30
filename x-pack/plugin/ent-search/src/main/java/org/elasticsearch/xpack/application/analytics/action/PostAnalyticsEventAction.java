@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.application.analytics.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -36,14 +38,19 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
+@UpdateForV10(owner = UpdateForV10.Owner.ENTERPRISE_SEARCH)
 public class PostAnalyticsEventAction {
 
     public static final String NAME = "cluster:admin/xpack/application/analytics/post_event";
-    public static final ActionType<PostAnalyticsEventAction.Response> INSTANCE = new ActionType<>(NAME);
+    public static final ActionType<Response> INSTANCE = new ActionType<>(NAME);
 
     private PostAnalyticsEventAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements AnalyticsEvent.Context, ToXContentObject {
+    public static class Request extends LegacyActionRequest implements AnalyticsEvent.Context, ToXContentObject {
 
         private final String eventCollectionName;
 
@@ -137,6 +144,10 @@ public class PostAnalyticsEventAction {
 
         public boolean isDebug() {
             return debug;
+        }
+
+        Map<String, List<String>> headers() {
+            return Collections.unmodifiableMap(headers);
         }
 
         private String header(String header) {
@@ -311,7 +322,7 @@ public class PostAnalyticsEventAction {
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
-        public static Response ACCEPTED = new Response(true);
+        public static final Response ACCEPTED = new Response(true);
 
         public static Response readFromStreamInput(StreamInput in) throws IOException {
             boolean accepted = in.readBoolean();

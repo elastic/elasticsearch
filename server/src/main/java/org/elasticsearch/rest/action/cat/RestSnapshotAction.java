@@ -1,18 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.cat;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.TimeValue;
@@ -97,24 +96,6 @@ public class RestSnapshotAction extends AbstractCatAction {
 
     private Table buildTable(RestRequest req, GetSnapshotsResponse getSnapshotsResponse) {
         Table table = getTableWithHeader(req);
-
-        if (getSnapshotsResponse.isFailed()) {
-            ElasticsearchException causes = null;
-
-            for (ElasticsearchException e : getSnapshotsResponse.getFailures().values()) {
-                if (causes == null) {
-                    causes = e;
-                } else {
-                    causes.addSuppressed(e);
-                }
-            }
-            throw new ElasticsearchException(
-                "Repositories ["
-                    + Strings.collectionToCommaDelimitedString(getSnapshotsResponse.getFailures().keySet())
-                    + "] failed to retrieve snapshots",
-                causes
-            );
-        }
 
         for (SnapshotInfo snapshotStatus : getSnapshotsResponse.getSnapshots()) {
             table.startRow();

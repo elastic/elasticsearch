@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.aliases;
@@ -48,7 +49,7 @@ public class NetNewSystemIndexAliasIT extends ESIntegTestCase {
         }
         ensureGreen();
 
-        GetAliasesRequest getAliasesRequest = new GetAliasesRequest();
+        GetAliasesRequest getAliasesRequest = new GetAliasesRequest(TEST_REQUEST_TIMEOUT);
         GetAliasesResponse aliasResponse = indicesAdmin().getAliases(getAliasesRequest).get();
         assertThat(aliasResponse.getAliases().size(), is(0));
     }
@@ -88,7 +89,6 @@ public class NetNewSystemIndexAliasIT extends ESIntegTestCase {
                         .setPrimaryIndex(SYSTEM_INDEX_NAME)
                         .setDescription("Test system index")
                         .setOrigin(getClass().getName())
-                        .setVersionMetaKey("version")
                         .setMappings(builder)
                         .setSettings(SETTINGS)
                         .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)

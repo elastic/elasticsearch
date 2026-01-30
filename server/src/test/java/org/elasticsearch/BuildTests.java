@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch;
@@ -14,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -87,16 +87,6 @@ public class BuildTests extends ESTestCase {
         @SuppressWarnings("ResultOfMethodCallIgnored")
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> Build.Type.fromDisplayName(displayName, true));
         assertThat(e, hasToString(containsString("unexpected distribution type [" + displayName + "]; your distribution is broken")));
-    }
-
-    public void testSerializationQualifierBwc() throws IOException {
-        var randomBuild = new WriteableBuild(randomBuild());
-        var serializationVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_12_0);
-        var roundtrip = copyWriteable(randomBuild, writableRegistry(), WriteableBuild::new, serializationVersion);
-        assertThat(roundtrip.build.version(), equalTo(randomBuild.build.version()));
-        assertThat(roundtrip.build.qualifier(), equalTo(randomBuild.build.qualifier()));
-        assertThat(roundtrip.build.isSnapshot(), equalTo(randomBuild.build.isSnapshot()));
-        assertThat(roundtrip.build.displayString(), equalTo(randomBuild.build.displayString()));
     }
 
     private static Build randomBuild() {

@@ -20,7 +20,7 @@ import java.io.IOException;
 /**
  * Vector implementation that defers to an enclosed {@link $if(boolean)$Bit$else$$Type$$endif$Array}.
  * Does not take ownership of the array and does not adjust circuit breakers to account for it.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-BigArrayVector.java.st} instead.
  */
 public final class $Type$BigArrayVector extends AbstractVector implements $Type$Vector, Releasable {
 
@@ -119,6 +119,33 @@ $if(int)$
         }
         return max;
     }
+
+$elseif(boolean)$
+    /**
+     * Are all values {@code true}? This will scan all values to check and always answer accurately.
+     */
+    @Override
+    public boolean allTrue() {
+        for (int i = 0; i < getPositionCount(); i++) {
+            if (values.get(i) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Are all values {@code false}? This will scan all values to check and always answer accurately.
+     */
+    @Override
+    public boolean allFalse() {
+        for (int i = 0; i < getPositionCount(); i++) {
+            if (values.get(i)) {
+                return false;
+            }
+        }
+        return true;
+    }
 $endif$
 
     @Override
@@ -156,6 +183,32 @@ $endif$
         }
     $endif$
         return new $Type$BigArrayVector(filtered, positions.length, blockFactory);
+    }
+
+    @Override
+    public $Type$Block keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return new $Type$VectorBlock(this);
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return new $Type$VectorBlock(this);
+            }
+            return ($Type$Block) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        try ($Type$Block.Builder builder = blockFactory().new$Type$BlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (mask.getBoolean(p)) {
+                    builder.append$Type$(get$Type$(p));
+                } else {
+                    builder.appendNull();
+                }
+            }
+            return builder.build();
+        }
     }
 
     @Override

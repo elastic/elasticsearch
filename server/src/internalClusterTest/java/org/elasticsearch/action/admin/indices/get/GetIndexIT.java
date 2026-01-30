@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.get;
@@ -45,7 +46,7 @@ public class GetIndexIT extends ESIntegTestCase {
     }
 
     public void testSimple() {
-        GetIndexResponse response = indicesAdmin().prepareGetIndex().addIndices("idx").get();
+        GetIndexResponse response = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices("idx").get();
         String[] indices = response.indices();
         assertThat(indices, notNullValue());
         assertThat(indices.length, equalTo(1));
@@ -57,7 +58,7 @@ public class GetIndexIT extends ESIntegTestCase {
 
     public void testSimpleUnknownIndex() {
         try {
-            indicesAdmin().prepareGetIndex().addIndices("missing_idx").get();
+            indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices("missing_idx").get();
             fail("Expected IndexNotFoundException");
         } catch (IndexNotFoundException e) {
             assertThat(e.getMessage(), is("no such index [missing_idx]"));
@@ -65,7 +66,7 @@ public class GetIndexIT extends ESIntegTestCase {
     }
 
     public void testUnknownIndexWithAllowNoIndices() {
-        GetIndexResponse response = indicesAdmin().prepareGetIndex()
+        GetIndexResponse response = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
             .addIndices("missing_idx")
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
             .get();
@@ -76,7 +77,7 @@ public class GetIndexIT extends ESIntegTestCase {
     }
 
     public void testEmpty() {
-        GetIndexResponse response = indicesAdmin().prepareGetIndex().addIndices("empty_idx").get();
+        GetIndexResponse response = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices("empty_idx").get();
         String[] indices = response.indices();
         assertThat(indices, notNullValue());
         assertThat(indices.length, equalTo(1));
@@ -87,7 +88,10 @@ public class GetIndexIT extends ESIntegTestCase {
     }
 
     public void testSimpleMapping() {
-        GetIndexResponse response = runWithRandomFeatureMethod(indicesAdmin().prepareGetIndex().addIndices("idx"), Feature.MAPPINGS);
+        GetIndexResponse response = runWithRandomFeatureMethod(
+            indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices("idx"),
+            Feature.MAPPINGS
+        );
         String[] indices = response.indices();
         assertThat(indices, notNullValue());
         assertThat(indices.length, equalTo(1));
@@ -98,7 +102,10 @@ public class GetIndexIT extends ESIntegTestCase {
     }
 
     public void testSimpleAlias() {
-        GetIndexResponse response = runWithRandomFeatureMethod(indicesAdmin().prepareGetIndex().addIndices("idx"), Feature.ALIASES);
+        GetIndexResponse response = runWithRandomFeatureMethod(
+            indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices("idx"),
+            Feature.ALIASES
+        );
         String[] indices = response.indices();
         assertThat(indices, notNullValue());
         assertThat(indices.length, equalTo(1));
@@ -109,7 +116,10 @@ public class GetIndexIT extends ESIntegTestCase {
     }
 
     public void testSimpleSettings() {
-        GetIndexResponse response = runWithRandomFeatureMethod(indicesAdmin().prepareGetIndex().addIndices("idx"), Feature.SETTINGS);
+        GetIndexResponse response = runWithRandomFeatureMethod(
+            indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices("idx"),
+            Feature.SETTINGS
+        );
         String[] indices = response.indices();
         assertThat(indices, notNullValue());
         assertThat(indices.length, equalTo(1));
@@ -126,7 +136,7 @@ public class GetIndexIT extends ESIntegTestCase {
             features.add(randomFrom(Feature.values()));
         }
         GetIndexResponse response = runWithRandomFeatureMethod(
-            indicesAdmin().prepareGetIndex().addIndices("idx"),
+            indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices("idx"),
             features.toArray(new Feature[features.size()])
         );
         String[] indices = response.indices();
@@ -157,7 +167,7 @@ public class GetIndexIT extends ESIntegTestCase {
             features.add(randomFrom(Feature.values()));
         }
         GetIndexResponse response = runWithRandomFeatureMethod(
-            indicesAdmin().prepareGetIndex().addIndices("empty_idx"),
+            indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices("empty_idx"),
             features.toArray(new Feature[features.size()])
         );
         String[] indices = response.indices();
@@ -181,7 +191,7 @@ public class GetIndexIT extends ESIntegTestCase {
         for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY, SETTING_READ_ONLY_ALLOW_DELETE)) {
             try {
                 enableIndexBlock("idx", block);
-                GetIndexResponse response = indicesAdmin().prepareGetIndex()
+                GetIndexResponse response = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
                     .addIndices("idx")
                     .addFeatures(Feature.MAPPINGS, Feature.ALIASES)
                     .get();
@@ -199,7 +209,7 @@ public class GetIndexIT extends ESIntegTestCase {
         try {
             enableIndexBlock("idx", SETTING_BLOCKS_METADATA);
             assertBlocked(
-                indicesAdmin().prepareGetIndex().addIndices("idx").addFeatures(Feature.MAPPINGS, Feature.ALIASES),
+                indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices("idx").addFeatures(Feature.MAPPINGS, Feature.ALIASES),
                 INDEX_METADATA_BLOCK
             );
         } finally {

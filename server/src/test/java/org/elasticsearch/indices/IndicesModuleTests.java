@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
@@ -17,6 +18,7 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
+import org.elasticsearch.index.mapper.IndexModeFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -85,6 +87,7 @@ public class IndicesModuleTests extends ESTestCase {
         TimeSeriesIdFieldMapper.NAME,
         TimeSeriesRoutingHashFieldMapper.NAME,
         IndexFieldMapper.NAME,
+        IndexModeFieldMapper.NAME,
         SourceFieldMapper.NAME,
         IgnoredSourceFieldMapper.NAME,
         NestedPathFieldMapper.NAME,
@@ -97,7 +100,7 @@ public class IndicesModuleTests extends ESTestCase {
     public void testBuiltinMappers() {
         IndicesModule module = new IndicesModule(Collections.emptyList());
         {
-            IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersion.current());
+            IndexVersion version = IndexVersionUtils.randomVersionBetween(IndexVersions.V_8_0_0, IndexVersion.current());
             assertThat(
                 module.getMapperRegistry().getMapperParser("object", IndexVersion.current()),
                 instanceOf(ObjectMapper.TypeParser.class)
@@ -113,7 +116,6 @@ public class IndicesModuleTests extends ESTestCase {
         }
         {
             IndexVersion version = IndexVersionUtils.randomVersionBetween(
-                random(),
                 IndexVersions.V_7_0_0,
                 IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
             );
@@ -233,14 +235,14 @@ public class IndicesModuleTests extends ESTestCase {
 
     public void testFieldNamesIsLast() {
         IndicesModule module = new IndicesModule(Collections.emptyList());
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current());
+        IndexVersion version = IndexVersionUtils.randomVersion();
         List<String> fieldNames = new ArrayList<>(module.getMapperRegistry().getMetadataMapperParsers(version).keySet());
         assertEquals(FieldNamesFieldMapper.NAME, fieldNames.get(fieldNames.size() - 1));
     }
 
     public void testFieldNamesIsLastWithPlugins() {
         IndicesModule module = new IndicesModule(fakePlugins);
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current());
+        IndexVersion version = IndexVersionUtils.randomVersion();
         List<String> fieldNames = new ArrayList<>(module.getMapperRegistry().getMetadataMapperParsers(version).keySet());
         assertEquals(FieldNamesFieldMapper.NAME, fieldNames.get(fieldNames.size() - 1));
     }

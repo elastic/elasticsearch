@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.lucene.search.uhighlight;
@@ -33,7 +34,7 @@ class CustomFieldHighlighter extends FieldHighlighter {
     private final Locale breakIteratorLocale;
     private final int noMatchSize;
     private String fieldValue;
-    private final Integer queryMaxAnalyzedOffset;
+    private final QueryMaxAnalyzedOffset queryMaxAnalyzedOffset;
 
     CustomFieldHighlighter(
         String field,
@@ -46,7 +47,7 @@ class CustomFieldHighlighter extends FieldHighlighter {
         PassageFormatter passageFormatter,
         Comparator<Passage> passageSortComparator,
         int noMatchSize,
-        Integer queryMaxAnalyzedOffset
+        QueryMaxAnalyzedOffset queryMaxAnalyzedOffset
     ) {
         super(
             field,
@@ -112,7 +113,7 @@ class CustomFieldHighlighter extends FieldHighlighter {
     @Override
     protected Passage[] highlightOffsetsEnums(OffsetsEnum off) throws IOException {
         if (queryMaxAnalyzedOffset != null) {
-            off = new LimitedOffsetsEnum(off, queryMaxAnalyzedOffset);
+            off = new LimitedOffsetsEnum(off, queryMaxAnalyzedOffset.getNotNull());
         }
         return super.highlightOffsetsEnums(off);
     }

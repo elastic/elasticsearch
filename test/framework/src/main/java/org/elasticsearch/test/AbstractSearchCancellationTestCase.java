@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test;
@@ -25,7 +26,7 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.internal.ReaderContext;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
 import org.elasticsearch.tasks.TaskInfo;
 import org.junit.BeforeClass;
@@ -278,10 +279,10 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
     }
 
     public static class SearchShardBlockingPlugin extends Plugin {
-        private final AtomicReference<Consumer<ReaderContext>> runOnNewReaderContext = new AtomicReference<>();
+        private final AtomicReference<Consumer<SearchContext>> runOnPreQueryPhase = new AtomicReference<>();
 
-        public void setRunOnNewReaderContext(Consumer<ReaderContext> consumer) {
-            runOnNewReaderContext.set(consumer);
+        public void setRunOnPreQueryPhase(Consumer<SearchContext> consumer) {
+            runOnPreQueryPhase.set(consumer);
         }
 
         @Override
@@ -289,9 +290,9 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
             super.onIndexModule(indexModule);
             indexModule.addSearchOperationListener(new SearchOperationListener() {
                 @Override
-                public void onNewReaderContext(ReaderContext c) {
-                    if (runOnNewReaderContext.get() != null) {
-                        runOnNewReaderContext.get().accept(c);
+                public void onPreQueryPhase(SearchContext c) {
+                    if (runOnPreQueryPhase.get() != null) {
+                        runOnPreQueryPhase.get().accept(c);
                     }
                 }
             });

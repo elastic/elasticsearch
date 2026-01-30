@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -37,6 +38,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplierService;
@@ -970,9 +972,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             private AckedFakeThreadPoolMasterService masterService;
             private DisruptableClusterApplierService clusterApplierService;
             private ClusterService clusterService;
-            private FeatureService featureService;
             TransportService transportService;
-            private MasterHistoryService masterHistoryService;
             CoordinationDiagnosticsService coordinationDiagnosticsService;
             StableMasterHealthIndicatorService stableMasterHealthIndicatorService;
             private DisruptableMockTransport mockTransport;
@@ -1100,15 +1100,25 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         return new RecyclerBytesStreamOutput(clearableRecycler);
                     }
                 };
-                final Settings settings = nodeSettings.hasValue(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey())
-                    ? nodeSettings
-                    : Settings.builder()
-                        .put(nodeSettings)
-                        .putList(
-                            ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(),
-                            ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY)
-                        )
-                        .build(); // suppress auto-bootstrap
+
+                final var settingsBuilder = Settings.builder();
+                if (randomBoolean()) {
+                    // relax lag detector
+                    settingsBuilder.put(
+                        LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING.getKey(),
+                        randomFrom(TimeValue.ONE_HOUR, TimeValue.timeValueDays(100), TimeValue.ZERO, TimeValue.MINUS_ONE)
+                    );
+                }
+                settingsBuilder.put(nodeSettings);
+                if (nodeSettings.hasValue(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey()) == false) {
+                    // suppress auto-bootstrap
+                    settingsBuilder.putList(
+                        ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(),
+                        ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY)
+                    );
+                }
+                final var settings = settingsBuilder.build();
+
                 transportService = mockTransport.createTransportService(
                     settings,
                     threadPool,
@@ -1133,8 +1143,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     threadPool
                 );
                 clusterService = new ClusterService(settings, clusterSettings, masterService, clusterApplierService);
-                featureService = new FeatureService(List.of());
-                masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
+                MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
                 clusterService.setNodeConnectionsService(
                     new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService)
                 );
@@ -1142,7 +1151,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     (dn, cs) -> extraJoinValidators.forEach(validator -> validator.accept(dn, cs))
                 );
                 final AllocationService allocationService = ESAllocationTestCase.createAllocationService(Settings.EMPTY);
-                final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
+                final NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
                 final var coordinationServices = coordinatorStrategy.getCoordinationServices(
                     threadPool,
                     settings,
@@ -1172,7 +1181,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     coordinationServices.getLeaderHeartbeatService(),
                     coordinationServices.getPreVoteCollectorFactory(),
                     CompatibilityVersionsUtils.staticCurrent(),
-                    featureService
+                    new FeatureService(List.of()),
+                    clusterService
                 );
                 coordinationDiagnosticsService = new CoordinationDiagnosticsService(
                     clusterService,
@@ -1249,7 +1259,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     .roles(localNode.isMasterNode() && DiscoveryNode.isMasterNode(settings) ? ALL_ROLES_EXCEPT_VOTING_ONLY : emptySet())
                     .build();
                 try {
-                    return new ClusterNode(
+                    final var restartedNode = new ClusterNode(
                         nodeIndex,
                         newLocalNode,
                         (node, threadPool) -> createPersistedStateFromExistingState(
@@ -1262,6 +1272,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         settings,
                         nodeHealthService
                     );
+                    restartedNode.blackholedRegisterOperations.addAll(blackholedRegisterOperations);
+                    return restartedNode;
                 } finally {
                     clearableRecycler.clear();
                 }
@@ -2132,7 +2144,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                                 nodeEnvironment,
                                 xContentRegistry(),
                                 new ClusterSettings(writerSettings.build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                                currentTimeInMillisSupplier
+                                currentTimeInMillisSupplier,
+                                ESTestCase::randomBoolean
                             ).createWriter()
                         ) {
                             writer.writeFullStateAndCommit(

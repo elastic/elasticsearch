@@ -7,23 +7,16 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 
 import java.io.IOException;
-import java.util.List;
 
 public abstract class AbstractBinarySpatialFunctionSerializationTestCase<T extends BinarySpatialFunction> extends
     AbstractExpressionSerializationTests<T> {
 
     protected abstract T build(Source source, Expression left, Expression right);
-
-    @Override
-    protected final List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return BinarySpatialFunction.getNamedWriteables();
-    }
 
     @Override
     protected final T createTestInstance() {
@@ -44,10 +37,5 @@ public abstract class AbstractBinarySpatialFunctionSerializationTestCase<T exten
             right = randomValueOtherThan(right, AbstractExpressionSerializationTests::randomChild);
         }
         return build(source, left, right);
-    }
-
-    @Override
-    protected final boolean alwaysEmptySource() {
-        return true;
     }
 }

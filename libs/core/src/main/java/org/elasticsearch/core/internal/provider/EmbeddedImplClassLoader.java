@@ -1,12 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.core.internal.provider;
+
+import org.elasticsearch.core.Booleans;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -22,10 +25,8 @@ import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AccessController;
 import java.security.CodeSigner;
 import java.security.CodeSource;
-import java.security.PrivilegedAction;
 import java.security.SecureClassLoader;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -95,8 +96,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
     private final ClassLoader parent;
 
     static EmbeddedImplClassLoader getInstance(ClassLoader parent, String providerName) {
-        PrivilegedAction<EmbeddedImplClassLoader> pa = () -> new EmbeddedImplClassLoader(parent, getProviderPrefixes(parent, providerName));
-        return AccessController.doPrivileged(pa);
+        return new EmbeddedImplClassLoader(parent, getProviderPrefixes(parent, providerName));
     }
 
     private EmbeddedImplClassLoader(ClassLoader parent, Map<JarMeta, CodeSource> prefixToCodeBase) {
@@ -119,14 +119,12 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
     record Resource(InputStream inputStream, CodeSource codeSource) {}
 
     /** Searches for the named resource. Iterates over all prefixes. */
-    private Resource privilegedGetResourceOrNull(JarMeta jarMeta, String pkg, String filepath) {
-        return AccessController.doPrivileged((PrivilegedAction<Resource>) () -> {
-            InputStream is = findResourceInLoaderPkgOrNull(jarMeta, pkg, filepath, parent::getResourceAsStream);
-            if (is != null) {
-                return new Resource(is, prefixToCodeBase.get(jarMeta.prefix()));
-            }
-            return null;
-        });
+    private Resource getResourceOrNull(JarMeta jarMeta, String pkg, String filepath) {
+        InputStream is = findResourceInLoaderPkgOrNull(jarMeta, pkg, filepath, parent::getResourceAsStream);
+        if (is != null) {
+            return new Resource(is, prefixToCodeBase.get(jarMeta.prefix()));
+        }
+        return null;
     }
 
     @Override
@@ -147,7 +145,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
         String pkg = toPackageName(filepath);
         JarMeta jarMeta = packageToJarMeta.get(pkg);
         if (jarMeta != null) {
-            Resource res = privilegedGetResourceOrNull(jarMeta, pkg, filepath);
+            Resource res = getResourceOrNull(jarMeta, pkg, filepath);
             if (res != null) {
                 try (InputStream in = res.inputStream()) {
                     byte[] bytes = in.readAllBytes();
@@ -473,7 +471,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
         try (InputStream is = parent.getResourceAsStream(jarPrefix + "/META-INF/MANIFEST.MF")) {
             if (is != null) {
                 Manifest manifest = new Manifest(is);
-                return Boolean.parseBoolean(manifest.getMainAttributes().getValue(MULTI_RELEASE));
+                return Booleans.parseBooleanLenient(manifest.getMainAttributes().getValue(MULTI_RELEASE), false);
             }
         }
         return false;

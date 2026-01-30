@@ -139,7 +139,7 @@ public class MetricAggExtractor implements BucketExtractor {
                 return DateUtils.asDateTimeWithMillis(((Number) object).longValue(), zoneId);
             } else if (dataType.isInteger()) {
                 // MIN and MAX need to return the same type as field's and SUM a long for integral types, but ES returns them always as
-                // floating points -> convert them in the the SELECT pipeline, if needed
+                // floating points -> convert them in the SELECT pipeline, if needed
                 return convert(object, dataType);
             }
         }

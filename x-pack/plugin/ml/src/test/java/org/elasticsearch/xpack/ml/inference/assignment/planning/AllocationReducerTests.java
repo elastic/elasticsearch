@@ -181,7 +181,8 @@ public class AllocationReducerTests extends ESTestCase {
                 Priority.NORMAL,
                 randomNonNegativeLong(),
                 randomNonNegativeLong()
-            )
+            ),
+            null
         );
         allocationsByNode.entrySet()
             .stream()

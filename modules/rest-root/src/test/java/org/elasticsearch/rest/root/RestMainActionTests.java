@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.root;
@@ -24,6 +25,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -94,6 +96,6 @@ public class RestMainActionTests extends ESTestCase {
         }
         mainResponse.toXContent(responseBuilder, ToXContent.EMPTY_PARAMS);
         BytesReference xcontentBytes = BytesReference.bytes(responseBuilder);
-        assertEquals(xcontentBytes, response.content());
+        assertThat(response.content(), equalBytes(xcontentBytes));
     }
 }

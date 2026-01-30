@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -177,7 +176,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     YELLOW,
                     "Index Lifecycle Management is not running",
                     new SimpleHealthIndicatorDetails(Map.of("ilm_status", status, "policies", 1, "stagnating_indices", 0)),
-                    Collections.singletonList(
+                    List.of(
                         new HealthIndicatorImpact(
                             NAME,
                             IlmHealthIndicatorService.AUTOMATION_DISABLED_IMPACT_ID,
@@ -251,7 +250,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     YELLOW,
                     "Index Lifecycle Management is not running",
                     HealthIndicatorDetails.EMPTY,
-                    Collections.singletonList(
+                    List.of(
                         new HealthIndicatorImpact(
                             NAME,
                             IlmHealthIndicatorService.AUTOMATION_DISABLED_IMPACT_ID,

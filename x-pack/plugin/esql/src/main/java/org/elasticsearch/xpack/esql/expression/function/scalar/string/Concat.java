@@ -26,18 +26,15 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.unit.ByteSizeUnit.MB;
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader.readerFromPlanReader;
-import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter.writerFromPlanWriter;
 
 /**
  * Join strings.
@@ -63,16 +60,16 @@ public class Concat extends EsqlScalarFunction {
     private Concat(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
-            ((PlanStreamInput) in).readExpression(),
-            in.readCollectionAsList(readerFromPlanReader(PlanStreamInput::readExpression))
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteableCollectionAsList(Expression.class)
         );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        ((PlanStreamOutput) out).writeExpression(children().get(0));
-        out.writeCollection(children().subList(1, children().size()), writerFromPlanWriter(PlanStreamOutput::writeExpression));
+        out.writeNamedWriteable(children().get(0));
+        out.writeNamedWriteableCollection(children().subList(1, children().size()));
     }
 
     @Override
@@ -109,13 +106,13 @@ public class Concat extends EsqlScalarFunction {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        var values = children().stream().map(toEvaluator).toArray(ExpressionEvaluator.Factory[]::new);
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        var values = children().stream().map(toEvaluator::apply).toArray(ExpressionEvaluator.Factory[]::new);
         return new ConcatEvaluator.Factory(source(), context -> new BreakingBytesRefBuilder(context.breaker(), "concat"), values);
     }
 
     @Evaluator
-    static BytesRef process(@Fixed(includeInToString = false, build = true) BreakingBytesRefBuilder scratch, BytesRef[] values) {
+    static BytesRef process(@Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder scratch, BytesRef[] values) {
         scratch.grow(checkedTotalLength(values));
         scratch.clear();
         for (int i = 0; i < values.length; i++) {

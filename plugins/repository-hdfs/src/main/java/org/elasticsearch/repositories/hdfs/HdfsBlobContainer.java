@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.repositories.hdfs;
 
@@ -31,7 +32,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.hdfs.HdfsBlobStore.Operation;
 
 import java.io.FileNotFoundException;
-import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -112,9 +112,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         // HDFSPrivilegedInputSteam which will ensure that underlying methods will
         // be called with the proper privileges.
         try {
-            return store.execute(
-                fileContext -> new HDFSPrivilegedInputSteam(fileContext.open(new Path(path, blobName), bufferSize), securityContext)
-            );
+            return store.execute(fileContext -> fileContext.open(new Path(path, blobName), bufferSize));
         } catch (FileNotFoundException fnfe) {
             throw new NoSuchFileException("[" + blobName + "] blob not found");
         }
@@ -133,7 +131,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
                 // should direct the datanode to start on the appropriate block, at the
                 // appropriate target position.
                 fsInput.seek(position);
-                return Streams.limitStream(new HDFSPrivilegedInputSteam(fsInput, securityContext), length);
+                return Streams.limitStream(fsInput, length);
             });
         } catch (FileNotFoundException fnfe) {
             throw new NoSuchFileException("[" + blobName + "] blob not found");
@@ -221,6 +219,28 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
+    public void writeBlobAtomic(
+        OperationPurpose purpose,
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists
+    ) throws IOException {
+        final String tempBlob = FsBlobContainer.tempBlobName(blobName);
+        final Path tempBlobPath = new Path(path, tempBlob);
+        final Path blob = new Path(path, blobName);
+        store.execute((Operation<Void>) fileContext -> {
+            writeToPath(inputStream, blobSize, fileContext, tempBlobPath, EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK));
+            try {
+                fileContext.rename(tempBlobPath, blob, failIfAlreadyExists ? Options.Rename.NONE : Options.Rename.OVERWRITE);
+            } catch (org.apache.hadoop.fs.FileAlreadyExistsException faee) {
+                throw new FileAlreadyExistsException(blob.toString(), null, faee.getMessage());
+            }
+            return null;
+        });
+    }
+
+    @Override
     public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
         throws IOException {
         final String tempBlob = FsBlobContainer.tempBlobName(blobName);
@@ -259,6 +279,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
             while ((bytesRead = inputStream.read(buffer)) != -1) {
                 stream.write(buffer, 0, bytesRead);
             }
+            assert stream.size() == blobSize : "Expected to write [" + blobSize + "] bytes but wrote [" + stream.size() + "] bytes";
         }
     }
 
@@ -302,48 +323,6 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         return Collections.unmodifiableMap(map);
     }
 
-    /**
-     * Exists to wrap underlying InputStream methods that might make socket connections in
-     * doPrivileged blocks. This is due to the way that hdfs client libraries might open
-     * socket connections when you are reading from an InputStream.
-     */
-    private static class HDFSPrivilegedInputSteam extends FilterInputStream {
-
-        private final HdfsSecurityContext securityContext;
-
-        HDFSPrivilegedInputSteam(InputStream in, HdfsSecurityContext hdfsSecurityContext) {
-            super(in);
-            this.securityContext = hdfsSecurityContext;
-        }
-
-        public int read() throws IOException {
-            return securityContext.doPrivilegedOrThrow(in::read);
-        }
-
-        public int read(byte b[]) throws IOException {
-            return securityContext.doPrivilegedOrThrow(() -> in.read(b));
-        }
-
-        public int read(byte b[], int off, int len) throws IOException {
-            return securityContext.doPrivilegedOrThrow(() -> in.read(b, off, len));
-        }
-
-        public long skip(long n) throws IOException {
-            return securityContext.doPrivilegedOrThrow(() -> in.skip(n));
-        }
-
-        public int available() throws IOException {
-            return securityContext.doPrivilegedOrThrow(() -> in.available());
-        }
-
-        public synchronized void reset() throws IOException {
-            securityContext.doPrivilegedOrThrow(() -> {
-                in.reset();
-                return null;
-            });
-        }
-    }
-
     @Override
     public void compareAndExchangeRegister(
         OperationPurpose purpose,
@@ -352,6 +331,11 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         BytesReference updated,
         ActionListener<OptionalBytesReference> listener
     ) {
+        listener.onFailure(new UnsupportedOperationException("HDFS repositories do not support this operation"));
+    }
+
+    @Override
+    public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
         listener.onFailure(new UnsupportedOperationException("HDFS repositories do not support this operation"));
     }
 

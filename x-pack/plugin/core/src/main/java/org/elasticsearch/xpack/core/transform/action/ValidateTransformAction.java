@@ -14,6 +14,9 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
@@ -93,6 +96,11 @@ public class ValidateTransformAction extends ActionType<ValidateTransformAction.
         public int hashCode() {
             // the base class does not implement hashCode, therefore we need to hash timeout ourselves
             return Objects.hash(ackTimeout(), config, deferValidation);
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
         }
     }
 

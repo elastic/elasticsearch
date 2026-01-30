@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest;
@@ -29,6 +30,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 
 public class ChunkedRestResponseBodyPartTests extends ESTestCase {
 
@@ -66,7 +69,7 @@ public class ChunkedRestResponseBodyPartTests extends ESTestCase {
         }
         assertTrue(firstBodyPart.isLastPart());
 
-        assertEquals(bytesDirect, CompositeBytesReference.of(refsGenerated.toArray(new BytesReference[0])));
+        assertThat(CompositeBytesReference.of(refsGenerated.toArray(new BytesReference[0])), equalBytes(bytesDirect));
     }
 
     public void testFromTextChunks() throws IOException {
@@ -87,7 +90,7 @@ public class ChunkedRestResponseBodyPartTests extends ESTestCase {
                 writer.write(chunk);
             }
             writer.flush();
-            assertEquals(new BytesArray(outputStream.toByteArray()), chunkedBytes);
+            assertThat(chunkedBytes, equalBytes(new BytesArray(outputStream.toByteArray())));
         }
     }
 }

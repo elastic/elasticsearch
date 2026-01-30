@@ -1,9 +1,9 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
-  name 'x-pack-downsample'
-  description 'Elasticsearch Expanded Pack Plugin - Downsample'
-  classname 'org.elasticsearch.xpack.downsample.Downsample'
+  name = 'x-pack-downsample'
+  description = 'Elasticsearch Expanded Pack Plugin - Downsample'
+  classname ='org.elasticsearch.xpack.downsample.Downsample'
   extendedPlugins = ['x-pack-aggregate-metric']
 }
 
@@ -12,12 +12,16 @@ base {
 }
 
 dependencies {
-  compileOnly project(path: xpackModule('core'))
+  compileOnly project(xpackModule('core'))
   testImplementation project(':modules:data-streams')
-  testImplementation project(path: xpackModule('ilm'))
-  compileOnly project(path: xpackModule('mapper-aggregate-metric'))
+  testImplementation project(xpackModule('ilm'))
+  compileOnly project(xpackModule('analytics'))
+  compileOnly project(xpackModule('mapper-aggregate-metric'))
+  compileOnly project(xpackModule('mapper-exponential-histogram'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(xpackModule('ccr'))
+  testImplementation project(xpackModule('esql'))
+  testImplementation project(xpackModule('esql-core'))
 }
 
 addQaCheckDependencies(project)

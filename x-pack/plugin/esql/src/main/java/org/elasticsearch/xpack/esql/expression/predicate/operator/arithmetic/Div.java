@@ -11,23 +11,35 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.BinaryComparisonInversible;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.DIV;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 
-public class Div extends EsqlArithmeticOperation implements BinaryComparisonInversible {
+public class Div extends DenseVectorArithmeticOperation implements BinaryComparisonInversible {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Div", Div::new);
 
     private DataType type;
 
-    public Div(Source source, Expression left, Expression right) {
+    @FunctionInfo(operator = "/", returnType = { "double", "integer", "long", "unsigned_long", "dense_vector" }, description = """
+        Divide one value by another. For numeric operands, if either field is <<esql-multivalued-fields,multivalued>>
+        then the result is `null`.
+        note = "Division of two integer types will yield an integer result, rounding towards 0. "
+        + "If you need floating point division, <<esql-cast-operator>> one of the arguments to a `DOUBLE`.
+        For dense_vector operations, both arguments should be dense_vectors. Inequal vector dimensions generate null result.
+        """)
+    public Div(
+        Source source,
+        @Param(name = "lhs", description = "A numeric value.", type = { "double", "integer", "long", "unsigned_long" }) Expression left,
+        @Param(name = "rhs", description = "A numeric value.", type = { "double", "integer", "long", "unsigned_long" }) Expression right
+    ) {
         this(source, left, right, null);
     }
 
@@ -40,7 +52,8 @@ public class Div extends EsqlArithmeticOperation implements BinaryComparisonInve
             DivIntsEvaluator.Factory::new,
             DivLongsEvaluator.Factory::new,
             DivUnsignedLongsEvaluator.Factory::new,
-            DivDoublesEvaluator.Factory::new
+            DivDoublesEvaluator.Factory::new,
+            DenseVectorsEvaluator.DivFactory::new
         );
         this.type = type;
     }
@@ -52,7 +65,8 @@ public class Div extends EsqlArithmeticOperation implements BinaryComparisonInve
             DivIntsEvaluator.Factory::new,
             DivLongsEvaluator.Factory::new,
             DivUnsignedLongsEvaluator.Factory::new,
-            DivDoublesEvaluator.Factory::new
+            DivDoublesEvaluator.Factory::new,
+            DenseVectorsEvaluator.DivFactory::new
         );
     }
 

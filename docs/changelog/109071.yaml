@@ -1,5 +1,0 @@
-pr: 109071
-summary: Better handling of multiple rescorers clauses with LTR
-area: "Search"
-type: bug
-issues: []

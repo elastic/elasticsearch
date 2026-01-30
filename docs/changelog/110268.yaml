@@ -1,6 +1,0 @@
-pr: 110268
-summary: Disallow index.time_series.end_time setting from being set or updated in normal indices
-area: TSDB
-type: bug
-issues:
- - 110265

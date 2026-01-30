@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -22,6 +22,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
@@ -86,8 +87,6 @@ import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GEN
  */
 public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXContentObject {
 
-    private static final TransportVersion RUNTIME_MAPPINGS_INTRODUCED = TransportVersions.V_7_11_0;
-
     public static final int DEFAULT_SCROLL_SIZE = 1000;
 
     private static final int SECONDS_IN_MINUTE = 60;
@@ -102,7 +101,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("datafeeds");
-    public static String TYPE = "datafeed";
+    public static final String TYPE = "datafeed";
 
     /**
      * The field name used to specify document counts in Elasticsearch
@@ -341,9 +340,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     }
 
     public Optional<Tuple<TransportVersion, String>> minRequiredTransportVersion() {
-        return runtimeMappings.isEmpty()
-            ? Optional.empty()
-            : Optional.of(Tuple.tuple(RUNTIME_MAPPINGS_INTRODUCED, SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName()));
+        return Optional.empty();
     }
 
     /**
@@ -1055,6 +1052,10 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             if (indicesOptions == null) {
                 indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED;
             }
+            if (indicesOptions.resolveCrossProjectIndexExpression()) {
+                throw new ElasticsearchStatusException("Cross-project search is not enabled for Datafeeds", RestStatus.FORBIDDEN);
+            }
+
             return new DatafeedConfig(
                 id,
                 jobId,

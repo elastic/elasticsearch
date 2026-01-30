@@ -12,22 +12,31 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link ValuesLongAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class ValuesLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
-
-  public ValuesLongAggregatorFunctionSupplier(List<Integer> channels) {
-    this.channels = channels;
+  public ValuesLongAggregatorFunctionSupplier() {
   }
 
   @Override
-  public ValuesLongAggregatorFunction aggregator(DriverContext driverContext) {
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return ValuesLongAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return ValuesLongGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public ValuesLongAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
     return ValuesLongAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
-  public ValuesLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+  public ValuesLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      List<Integer> channels) {
     return ValuesLongGroupingAggregatorFunction.create(channels, driverContext);
   }
 

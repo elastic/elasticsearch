@@ -10,16 +10,16 @@ package org.elasticsearch.xpack.security.action.service;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Predicates;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountResponse;
 import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccount;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 
 import java.util.function.Predicate;

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -88,7 +89,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
         Metadata metadata = metaBuilder.build();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         for (int i = 0; i < indices; i++) {
-            routingTableBuilder.addAsNew(metadata.index("INDEX_" + i));
+            routingTableBuilder.addAsNew(metadata.getProject().index("INDEX_" + i));
         }
 
         RoutingTable initialRoutingTable = routingTableBuilder.build();
@@ -205,16 +206,16 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
 
         @Override
         public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
-            return getRandomDecision();
+            return getRandomDecision(allocation.isSimulating() == false || allocation.routingNodes().getRelocatingShardCount() > 0);
         }
 
-        private Decision getRandomDecision() {
+        private Decision getRandomDecision(boolean canThrottle) {
             if (alwaysSayYes) {
                 return Decision.YES;
             }
             return switch (random.nextInt(10)) {
                 case 9, 8, 7, 6, 5 -> Decision.NO;
-                case 4 -> Decision.THROTTLE;
+                case 4 -> canThrottle ? Decision.THROTTLE : Decision.YES;
                 case 3, 2, 1 -> Decision.YES;
                 default -> Decision.ALWAYS;
             };
@@ -222,12 +223,16 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
 
         @Override
         public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-            return getRandomDecision();
+            return getRandomDecision(
+                allocation.isSimulating() == false
+                    || allocation.routingNodes().getIncomingRecoveries(node.nodeId()) > 0
+                    || allocation.routingNodes().getOutgoingRecoveries(node.nodeId()) > 0
+            );
         }
 
         @Override
         public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-            return getRandomDecision();
+            return getRandomDecision(false); // throttle does not make sense for canRemain
         }
 
     }

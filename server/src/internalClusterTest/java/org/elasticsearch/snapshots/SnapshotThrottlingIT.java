@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots;
@@ -14,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.RepositoriesStats;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
@@ -58,8 +60,9 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
         long snapshotPause = 0L;
         long restorePause = 0L;
         for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
-            snapshotPause += repositoriesService.repository("test-repo").getSnapshotThrottleTimeInNanos();
-            restorePause += repositoriesService.repository("test-repo").getRestoreThrottleTimeInNanos();
+            final RepositoriesStats.SnapshotStats snapshotStats = repositoriesService.repository("test-repo").getSnapshotStats();
+            snapshotPause += snapshotStats.totalWriteThrottledNanos();
+            restorePause += snapshotStats.totalReadThrottledNanos();
         }
         cluster().wipeIndices("test2-idx");
         logger.warn("--> tested throttled repository with snapshot pause [{}] and restore pause [{}]", snapshotPause, restorePause);
@@ -140,7 +143,7 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
                 "snapshot speed over recovery speed",
                 "org.elasticsearch.repositories.blobstore.BlobStoreRepository",
                 Level.WARN,
-                "repository [test-repo] has a rate limit [max_snapshot_bytes_per_sec=1gb] per second which is above "
+                "repository [default/test-repo] has a rate limit [max_snapshot_bytes_per_sec=1gb] per second which is above "
                     + "the effective recovery rate limit [indices.recovery.max_bytes_per_sec=100mb] per second, thus the repository "
                     + "rate limit will be superseded by the recovery rate limit"
             );
@@ -151,7 +154,7 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
                 "snapshot restore speed over recovery speed",
                 "org.elasticsearch.repositories.blobstore.BlobStoreRepository",
                 Level.WARN,
-                "repository [test-repo] has a rate limit [max_restore_bytes_per_sec=2gb] per second which is above "
+                "repository [default/test-repo] has a rate limit [max_restore_bytes_per_sec=2gb] per second which is above "
                     + "the effective recovery rate limit [indices.recovery.max_bytes_per_sec=100mb] per second, thus the repository "
                     + "rate limit will be superseded by the recovery rate limit"
             );

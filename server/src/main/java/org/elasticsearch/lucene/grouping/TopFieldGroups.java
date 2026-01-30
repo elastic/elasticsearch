@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.lucene.grouping;
 
@@ -169,10 +170,10 @@ public final class TopFieldGroups extends TopFieldDocs {
             final TopFieldGroups shard = shardHits[shardIDX];
             // totalHits can be non-zero even if no hits were
             // collected, when searchAfter was used:
-            totalHitCount += shard.totalHits.value;
+            totalHitCount += shard.totalHits.value();
             // If any hit count is a lower bound then the merged
             // total hit count is a lower bound as well
-            if (shard.totalHits.relation == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO) {
+            if (shard.totalHits.relation() == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO) {
                 totalHitsRelation = TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
             }
             if (CollectionUtils.isEmpty(shard.scoreDocs) == false) {

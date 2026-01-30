@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.azureopenai.completion;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -128,6 +127,11 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
     }
 
     @Override
+    public String modelId() {
+        return null;
+    }
+
+    @Override
     public RateLimitSettings rateLimitSettings() {
         return rateLimitSettings;
     }
@@ -163,7 +167,7 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_AZURE_OPENAI_COMPLETIONS;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

@@ -8,6 +8,7 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -16,16 +17,18 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StartsWith}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StartsWithEvaluator.class);
+
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator str;
 
@@ -33,12 +36,14 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public StartsWithEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
       EvalOperator.ExpressionEvaluator prefix, DriverContext driverContext) {
+    this.source = source;
     this.str = str;
     this.prefix = prefix;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -58,34 +63,44 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += str.baseRamBytesUsed();
+    baseRamBytesUsed += prefix.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public BooleanBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock prefixBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef prefixScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (strBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (strBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (strBlock.getValueCount(p) != 1) {
-          if (strBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (prefixBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (prefixBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (prefixBlock.getValueCount(p) != 1) {
-          if (prefixBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendBoolean(StartsWith.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), prefixBlock.getBytesRef(prefixBlock.getFirstValueIndex(p), prefixScratch)));
+        BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch);
+        BytesRef prefix = prefixBlock.getBytesRef(prefixBlock.getFirstValueIndex(p), prefixScratch);
+        result.appendBoolean(StartsWith.process(str, prefix));
       }
       return result.build();
     }
@@ -97,7 +112,9 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
       BytesRef strScratch = new BytesRef();
       BytesRef prefixScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(p, StartsWith.process(strVector.getBytesRef(p, strScratch), prefixVector.getBytesRef(p, prefixScratch)));
+        BytesRef str = strVector.getBytesRef(p, strScratch);
+        BytesRef prefix = prefixVector.getBytesRef(p, prefixScratch);
+        result.appendBoolean(p, StartsWith.process(str, prefix));
       }
       return result.build();
     }
@@ -111,6 +128,13 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public void close() {
     Releasables.closeExpectNoException(str, prefix);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

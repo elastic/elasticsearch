@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.logstashbridge.ingest;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
 import org.elasticsearch.logstashbridge.script.ScriptServiceBridge;
@@ -14,34 +16,58 @@ import org.elasticsearch.logstashbridge.script.ScriptServiceBridge;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
-public class PipelineBridge extends StableBridgeAPI.Proxy<Pipeline> {
-    public static PipelineBridge wrap(final Pipeline pipeline) {
-        return new PipelineBridge(pipeline);
+/**
+ * A {@link StableBridgeAPI} for {@link Pipeline}
+ */
+public interface PipelineBridge extends StableBridgeAPI<Pipeline> {
+
+    String getId();
+
+    void execute(IngestDocumentBridge bridgedIngestDocument, BiConsumer<IngestDocumentBridge, Exception> bridgedHandler);
+
+    static PipelineBridge fromInternal(final Pipeline pipeline) {
+        return new ProxyInternal(pipeline);
     }
 
-    public static PipelineBridge create(
+    static PipelineBridge create(
         String id,
         Map<String, Object> config,
-        Map<String, ProcessorBridge.Factory> processorFactories,
+        Map<String, ProcessorFactoryBridge> processorFactories,
         ScriptServiceBridge scriptServiceBridge
     ) throws Exception {
-        return wrap(
-            Pipeline.create(id, config, StableBridgeAPI.unwrap(processorFactories), StableBridgeAPI.unwrapNullable(scriptServiceBridge))
+        return fromInternal(
+            Pipeline.create(
+                id,
+                config,
+                StableBridgeAPI.toInternal(processorFactories),
+                StableBridgeAPI.toInternalNullable(scriptServiceBridge),
+                ProjectId.DEFAULT
+            )
         );
     }
 
-    public PipelineBridge(final Pipeline delegate) {
-        super(delegate);
-    }
+    /**
+     * An implementation of {@link PipelineBridge} that proxies calls through to
+     * an internal {@link Pipeline}.
+     * @see StableBridgeAPI.ProxyInternal
+     */
+    class ProxyInternal extends StableBridgeAPI.ProxyInternal<Pipeline> implements PipelineBridge {
 
-    public String getId() {
-        return delegate.getId();
-    }
+        ProxyInternal(final Pipeline delegate) {
+            super(delegate);
+        }
 
-    public void execute(final IngestDocumentBridge ingestDocumentBridge, final BiConsumer<IngestDocumentBridge, Exception> handler) {
-        this.delegate.execute(
-            StableBridgeAPI.unwrapNullable(ingestDocumentBridge),
-            (unwrapped, e) -> handler.accept(IngestDocumentBridge.wrap(unwrapped), e)
-        );
+        @Override
+        public String getId() {
+            return internalDelegate.getId();
+        }
+
+        @Override
+        public void execute(final IngestDocumentBridge ingestDocumentBridge, final BiConsumer<IngestDocumentBridge, Exception> handler) {
+            this.internalDelegate.execute(
+                StableBridgeAPI.toInternalNullable(ingestDocumentBridge),
+                (ingestDocument, e) -> handler.accept(IngestDocumentBridge.fromInternalNullable(ingestDocument), e)
+            );
+        }
     }
 }

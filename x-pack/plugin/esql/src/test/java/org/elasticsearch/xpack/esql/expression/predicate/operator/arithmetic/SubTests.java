@@ -10,26 +10,42 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
+import org.elasticsearch.xpack.esql.session.Configuration;
+import org.hamcrest.Matchers;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.Period;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.temporal.TemporalAmount;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.function.BinaryOperator;
 import java.util.function.Supplier;
+import java.util.function.ToLongBiFunction;
 
-import static org.elasticsearch.xpack.esql.core.type.DateUtils.asDateTime;
-import static org.elasticsearch.xpack.esql.core.type.DateUtils.asMillis;
+import static org.elasticsearch.test.ReadableMatchers.matchesDateMillis;
+import static org.elasticsearch.test.ReadableMatchers.matchesDateNanos;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
+import static org.elasticsearch.xpack.esql.core.util.DateUtils.asMillis;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.ZERO_AS_UNSIGNED_LONG;
-import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.AbstractArithmeticTestCase.arithmeticExceptionOverflowCase;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.randomDenseVector;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
-public class SubTests extends AbstractScalarFunctionTestCase {
+public class SubTests extends AbstractConfigurationFunctionTestCase {
     public SubTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -79,75 +95,123 @@ public class SubTests extends AbstractScalarFunctionTestCase {
             );
           }) */
 
-        suppliers.add(new TestCaseSupplier("Datetime - Period", () -> {
+        // Double overflows
+        suppliers.addAll(
+            List.of(
+                new TestCaseSupplier(
+                    List.of(DataType.DOUBLE, DataType.DOUBLE),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(Double.MAX_VALUE, DataType.DOUBLE, "lhs"),
+                            new TestCaseSupplier.TypedData(-Double.MAX_VALUE, DataType.DOUBLE, "rhs")
+                        ),
+                        "SubDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                        DataType.DOUBLE,
+                        equalTo(null)
+                    ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                        .withWarning("Line 1:1: java.lang.ArithmeticException: not a finite double number: Infinity")
+                ),
+                new TestCaseSupplier(
+                    List.of(DataType.DOUBLE, DataType.DOUBLE),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(-Double.MAX_VALUE, DataType.DOUBLE, "lhs"),
+                            new TestCaseSupplier.TypedData(Double.MAX_VALUE, DataType.DOUBLE, "rhs")
+                        ),
+                        "SubDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                        DataType.DOUBLE,
+                        equalTo(null)
+                    ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                        .withWarning("Line 1:1: java.lang.ArithmeticException: not a finite double number: -Infinity")
+                )
+            )
+        );
+
+        suppliers.add(new TestCaseSupplier("Datetime - Period", List.of(DataType.DATETIME, DataType.DATE_PERIOD), () -> {
             long lhs = (Long) randomLiteral(DataType.DATETIME).value();
             Period rhs = (Period) randomLiteral(DataType.DATE_PERIOD).value();
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(lhs, DataType.DATETIME, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataType.DATE_PERIOD, "rhs")
+                    new TestCaseSupplier.TypedData(rhs, DataType.DATE_PERIOD, "rhs").forceLiteral()
                 ),
-                "SubDatetimesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                Matchers.startsWith("SubDatetimesEvaluator[datetime=Attribute[channel=0], temporalAmount="),
                 DataType.DATETIME,
-                equalTo(asMillis(asDateTime(lhs).minus(rhs)))
+                equalTo(asMillis(asDateTime(lhs, ZoneOffset.UTC).minus(rhs)))
             );
         }));
-        suppliers.add(new TestCaseSupplier("Period - Period", () -> {
+
+        BinaryOperator<Object> nanosResult = (lhs, rhs) -> {
+            try {
+                return subtractDatesAndTemporalAmount(lhs, rhs, SubTests::subtractNanos);
+            } catch (ArithmeticException e) {
+                return null;
+            }
+        };
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                nanosResult,
+                DataType.DATE_NANOS,
+                TestCaseSupplier.dateNanosCases(Instant.parse("1985-01-01T00:00:00Z"), DateUtils.MAX_NANOSECOND_INSTANT),
+                TestCaseSupplier.datePeriodCases(0, 0, 0, 10, 13, 32),
+                startsWith("SubDateNanosEvaluator[dateNanos=Attribute[channel=0], temporalAmount="),
+                (l, r) -> List.of(),
+                true
+            )
+        );
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                nanosResult,
+                DataType.DATE_NANOS,
+                TestCaseSupplier.dateNanosCases(Instant.parse("1985-01-01T00:00:00Z"), DateUtils.MAX_NANOSECOND_INSTANT),
+                TestCaseSupplier.timeDurationCases(0, 604800000L),
+                startsWith("SubDateNanosEvaluator[dateNanos=Attribute[channel=0], temporalAmount="),
+                (l, r) -> List.of(),
+                true
+            )
+        );
+
+        suppliers.add(new TestCaseSupplier("Period - Period", List.of(DataType.DATE_PERIOD, DataType.DATE_PERIOD), () -> {
             Period lhs = (Period) randomLiteral(DataType.DATE_PERIOD).value();
             Period rhs = (Period) randomLiteral(DataType.DATE_PERIOD).value();
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(lhs, DataType.DATE_PERIOD, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataType.DATE_PERIOD, "rhs")
+                    new TestCaseSupplier.TypedData(rhs, DataType.DATE_PERIOD, "rhs").forceLiteral()
                 ),
                 "Only folding possible, so there's no evaluator",
                 DataType.DATE_PERIOD,
                 equalTo(lhs.minus(rhs))
-            );
+            ).withoutEvaluator();
         }));
-        suppliers.add(new TestCaseSupplier("Datetime - Duration", () -> {
+        suppliers.add(new TestCaseSupplier("Datetime - Duration", List.of(DataType.DATETIME, DataType.TIME_DURATION), () -> {
             long lhs = (Long) randomLiteral(DataType.DATETIME).value();
             Duration rhs = (Duration) randomLiteral(DataType.TIME_DURATION).value();
             TestCaseSupplier.TestCase testCase = new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(lhs, DataType.DATETIME, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataType.TIME_DURATION, "rhs")
+                    new TestCaseSupplier.TypedData(rhs, DataType.TIME_DURATION, "rhs").forceLiteral()
                 ),
-                "SubDatetimesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                Matchers.startsWith("SubDatetimesEvaluator[datetime=Attribute[channel=0], temporalAmount="),
                 DataType.DATETIME,
-                equalTo(asMillis(asDateTime(lhs).minus(rhs)))
+                equalTo(asMillis(asDateTime(lhs, ZoneOffset.UTC).minus(rhs)))
             );
             return testCase;
         }));
-        suppliers.add(new TestCaseSupplier("Duration - Duration", () -> {
+        suppliers.add(new TestCaseSupplier("Duration - Duration", List.of(DataType.TIME_DURATION, DataType.TIME_DURATION), () -> {
             Duration lhs = (Duration) randomLiteral(DataType.TIME_DURATION).value();
             Duration rhs = (Duration) randomLiteral(DataType.TIME_DURATION).value();
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(lhs, DataType.TIME_DURATION, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataType.TIME_DURATION, "rhs")
+                    new TestCaseSupplier.TypedData(rhs, DataType.TIME_DURATION, "rhs").forceLiteral()
                 ),
                 "Only folding possible, so there's no evaluator",
                 DataType.TIME_DURATION,
                 equalTo(lhs.minus(rhs))
-            );
+            ).withoutEvaluator();
         }));
-        suppliers.add(new TestCaseSupplier("MV", () -> {
-            // Ensure we don't have an overflow
-            int rhs = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
-            int lhs = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
-            int lhs2 = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(List.of(lhs, lhs2), DataType.INTEGER, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataType.INTEGER, "rhs")
-                ),
-                "SubIntsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
-                DataType.INTEGER,
-                is(nullValue())
-            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                .withWarning("Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value");
-        }));
+
         // exact math arithmetic exceptions
         suppliers.add(
             arithmeticExceptionOverflowCase(
@@ -190,11 +254,175 @@ public class SubTests extends AbstractScalarFunctionTestCase {
             )
         );
 
+        suppliers.add(new TestCaseSupplier(List.of(DENSE_VECTOR, DENSE_VECTOR), () -> {
+            int dimensions = between(64, 128);
+            List<Float> left = randomDenseVector(dimensions);
+            List<Float> right = randomDenseVector(dimensions);
+            List<Float> expected = subVectors(left, right);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(left, DENSE_VECTOR, "vector1"),
+                    new TestCaseSupplier.TypedData(right, DENSE_VECTOR, "vector2")
+                ),
+                "SubDenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DENSE_VECTOR,
+                equalTo(expected)
+            );
+        }));
+
+        suppliers.add(new TestCaseSupplier(List.of(DENSE_VECTOR, DENSE_VECTOR), () -> {
+            List<Float> left = randomDenseVector(64);
+            List<Float> right = randomDenseVector(128);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(left, DENSE_VECTOR, "vector1"),
+                    new TestCaseSupplier.TypedData(right, DENSE_VECTOR, "vector2")
+                ),
+                "SubDenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DENSE_VECTOR,
+                equalTo(null)
+            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line 1:1: java.lang.IllegalArgumentException: dense_vector dimensions do not match");
+        }));
+
+        suppliers.add(new TestCaseSupplier(List.of(DENSE_VECTOR, DENSE_VECTOR), () -> {
+            List<Float> left = randomDenseVector(64);
+            List<Float> right = randomDenseVector(64);
+            left.set(32, -Float.MAX_VALUE);
+            right.set(32, Float.MAX_VALUE);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(left, DENSE_VECTOR, "vector1"),
+                    new TestCaseSupplier.TypedData(right, DENSE_VECTOR, "vector2")
+                ),
+                "SubDenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DENSE_VECTOR,
+                equalTo(null)
+            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line 1:1: java.lang.ArithmeticException: not a finite double number: -Infinity");
+        }));
+
+        // Set the timezone to UTC for test cases up to here
+        suppliers = TestCaseSupplier.mapTestCases(
+            suppliers,
+            tc -> tc.withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
+        );
+
+        // Date tests with timezones
+        // -5 to -4 at 2025-03-09T02:00:00-05:00
+        suppliers.addAll(suppliersForDate("2025-03-10T01:00:00-05:00", Period.ofDays(1), "Z", "2025-03-09T01:00:00-05:00"));
+        suppliers.addAll(suppliersForDate("2025-03-10T01:00:00-04:00", Period.ofDays(1), "America/New_York", "2025-03-09T01:00:00-05:00"));
+        // 24h should do nothing for timezones
+        suppliers.addAll(
+            suppliersForDate("2025-03-10T01:00:00-05:00", Duration.ofHours(24), "America/New_York", "2025-03-09T01:00:00-05:00")
+        );
+
+        suppliers = errorsForCasesWithoutExamples(anyNullIsNull(suppliers, (nullPosition, nullValueDataType, original) -> {
+            if (nullValueDataType == DataType.NULL) {
+                return original.getData().get(nullPosition == 0 ? 1 : 0).type();
+            }
+            return original.expectedType();
+        }, (nullPosition, nullData, original) -> {
+            if (DataType.isTemporalAmount(nullData.type())) {
+                return equalTo("LiteralsEvaluator[lit=null]");
+            }
+            return original;
+        }), SubTests::subErrorMessageString);
+
+        // Cannot use parameterSuppliersFromTypedDataWithDefaultChecks as error messages are non-trivial
         return parameterSuppliersFromTypedData(suppliers);
     }
 
+    private static String subErrorMessageString(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
+        if (types.get(1) == DataType.DATETIME) {
+            if (types.get(0).isNumeric() || DataType.isMillisOrNanos(types.get(0)) || types.get(0) == DENSE_VECTOR) {
+                return "[-] has arguments with incompatible types [" + types.get(0).typeName() + "] and [datetime]";
+            }
+            if (DataType.isNull(types.get(0))) {
+                return "[-] arguments are in unsupported order: cannot subtract a [DATETIME] value [datetime] from a [NULL] amount [null]";
+            }
+        }
+
+        try {
+            return typeErrorMessage(includeOrdinal, validPerPosition, types, (a, b) -> "date_nanos, datetime, numeric or dense_vector");
+        } catch (IllegalStateException e) {
+            // This means all the positional args were okay, so the expected error is from the combination
+            return "[-] has arguments with incompatible types [" + types.get(0).typeName() + "] and [" + types.get(1).typeName() + "]";
+        }
+    }
+
+    private static List<TestCaseSupplier> suppliersForDate(
+        String dateString,
+        TemporalAmount period,
+        String zoneIdString,
+        String expectedResultString
+    ) {
+        Instant inputDate = Instant.parse(dateString);
+        long dateAsMillis = DateUtils.toLongMillis(inputDate);
+        long dateAsNanos = DateUtils.toLong(inputDate);
+        DataType periodType = period instanceof Period ? DataType.DATE_PERIOD : DataType.TIME_DURATION;
+        ZoneId zoneId = ZoneId.of(zoneIdString);
+
+        return List.of(
+            new TestCaseSupplier(
+                "millis " + dateString + ", " + period + ", " + zoneIdString,
+                List.of(DataType.DATETIME, periodType),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(dateAsMillis, DataType.DATETIME, "date"),
+                        new TestCaseSupplier.TypedData(period, periodType, "period").forceLiteral()
+                    ),
+                    "SubDatetimesEvaluator[datetime=Attribute[channel=0], temporalAmount=" + period + ", zoneId=" + zoneId + "]",
+                    DataType.DATETIME,
+                    matchesDateMillis(expectedResultString)
+                ).withConfiguration(TEST_SOURCE, configurationForTimezone(zoneId))
+            ),
+            new TestCaseSupplier(
+                "nanos " + dateString + ", " + period + ", " + zoneIdString,
+                List.of(DataType.DATE_NANOS, periodType),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(dateAsNanos, DataType.DATE_NANOS, "date"),
+                        new TestCaseSupplier.TypedData(period, periodType, "period").forceLiteral()
+                    ),
+                    "SubDateNanosEvaluator[dateNanos=Attribute[channel=0], temporalAmount=" + period + ", zoneId=" + zoneId + "]",
+                    DataType.DATE_NANOS,
+                    matchesDateNanos(expectedResultString)
+                ).withConfiguration(TEST_SOURCE, configurationForTimezone(zoneId))
+            )
+        );
+    }
+
     @Override
-    protected Expression build(Source source, List<Expression> args) {
-        return new Sub(source, args.get(0), args.get(1));
+    protected Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration) {
+        return new Sub(source, args.get(0), args.get(1), configuration);
+    }
+
+    private static Object subtractDatesAndTemporalAmount(Object lhs, Object rhs, ToLongBiFunction<Instant, TemporalAmount> subtract) {
+        // this weird casting dance makes the expected value lambda symmetric
+        Instant date;
+        TemporalAmount period;
+        if (lhs instanceof Instant) {
+            date = (Instant) lhs;
+            period = (TemporalAmount) rhs;
+        } else {
+            date = (Instant) rhs;
+            period = (TemporalAmount) lhs;
+        }
+        return subtract.applyAsLong(date, period);
+    }
+
+    private static long subtractNanos(Instant date, TemporalAmount period) {
+        return DateUtils.toLong(
+            Instant.from(ZonedDateTime.ofInstant(date, org.elasticsearch.xpack.esql.core.util.DateUtils.UTC).minus(period))
+        );
+    }
+
+    private static List<Float> subVectors(List<Float> left, List<Float> right) {
+        List<Float> result = new ArrayList<>();
+        for (int i = 0; i < left.size(); i++) {
+            result.add(left.get(i) - right.get(i));
+        }
+        return result;
     }
 }

@@ -1,6 +1,0 @@
-pr: 109205
-summary: "ESQL: Fix `IpPrefix` function not handling correctly `ByteRefs`"
-area: ES|QL
-type: bug
-issues:
- - 109198

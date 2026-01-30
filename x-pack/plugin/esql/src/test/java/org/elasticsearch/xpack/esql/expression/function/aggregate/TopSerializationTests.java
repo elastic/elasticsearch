@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 
 import java.io.IOException;
-import java.util.List;
 
 public class TopSerializationTests extends AbstractExpressionSerializationTests<Top> {
     @Override
@@ -22,7 +20,8 @@ public class TopSerializationTests extends AbstractExpressionSerializationTests<
         Expression field = randomChild();
         Expression limit = randomChild();
         Expression order = randomChild();
-        return new Top(source, field, limit, order);
+        Expression outputField = randomBoolean() ? null : randomChild();
+        return new Top(source, field, limit, order, outputField);
     }
 
     @Override
@@ -31,16 +30,13 @@ public class TopSerializationTests extends AbstractExpressionSerializationTests<
         Expression field = instance.field();
         Expression limit = instance.limitField();
         Expression order = instance.orderField();
-        switch (between(0, 2)) {
+        Expression outputField = instance.outputField();
+        switch (between(0, 3)) {
             case 0 -> field = randomValueOtherThan(field, AbstractExpressionSerializationTests::randomChild);
             case 1 -> limit = randomValueOtherThan(limit, AbstractExpressionSerializationTests::randomChild);
             case 2 -> order = randomValueOtherThan(order, AbstractExpressionSerializationTests::randomChild);
+            case 3 -> outputField = randomValueOtherThan(outputField, () -> randomBoolean() ? null : randomChild());
         }
-        return new Top(source, field, limit, order);
-    }
-
-    @Override
-    protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return AggregateFunction.getNamedWriteables();
+        return new Top(source, field, limit, order, outputField);
     }
 }

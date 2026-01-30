@@ -1,58 +1,64 @@
 {
-  "indices.delete":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-delete-index.html",
-      "description":"Deletes an index."
+  "indices.delete": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-delete",
+      "description": "Delete indices"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/{index}",
-          "methods":[
+          "path": "/{index}",
+          "methods": [
             "DELETE"
           ],
-          "parts":{
-            "index":{
-              "type":"list",
-              "description":"A comma-separated list of indices to delete; use `_all` or `*` string to delete all indices"
+          "parts": {
+            "index": {
+              "type": "list",
+              "description": "A comma-separated list of indices to delete; use `_all` or `*` string to delete all indices"
             }
           }
         }
       ]
     },
-    "params":{
-      "timeout":{
-        "type":"time",
-        "description":"Explicit operation timeout"
+    "params": {
+      "timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout"
       },
-      "master_timeout":{
-        "type":"time",
-        "description":"Specify timeout for connection to master"
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Specify timeout for connection to master"
       },
-      "ignore_unavailable":{
-        "type":"boolean",
-        "description":"Ignore unavailable indexes (default: false)"
+      "ignore_unavailable": {
+        "type": "boolean",
+        "default": false,
+        "description": "Ignore unavailable indexes (default: false)"
       },
-      "allow_no_indices":{
-        "type":"boolean",
-        "description":"Ignore if a wildcard expression resolves to no concrete indices (default: false)"
+      "allow_no_indices": {
+        "type": "boolean",
+        "default": true,
+        "description": "Ignore if a wildcard expression resolves to no concrete indices (default: false)"
       },
-      "expand_wildcards":{
-        "type":"enum",
-        "options":[
+      "expand_wildcards": {
+        "type": "list",
+        "options": [
           "open",
           "closed",
           "hidden",
           "none",
           "all"
         ],
-        "default":"open,closed",
-        "description":"Whether wildcard expressions should get expanded to open, closed, or hidden indices"
+        "default": "open,closed",
+        "description": "Whether wildcard expressions should get expanded to open, closed, or hidden indices"
       }
     }
   }

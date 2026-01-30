@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.vectors;
@@ -73,7 +74,6 @@ public class KnnSearchRequestParserTests extends ESTestCase {
             () -> null,
             () -> null,
             () -> null,
-            () -> null,
             Collections::emptyList,
             () -> null,
             () -> null
@@ -110,9 +110,12 @@ public class KnnSearchRequestParserTests extends ESTestCase {
             .startObject(KnnSearchRequestParser.KNN_SECTION_FIELD.getPreferredName())
             .field(KnnSearch.FIELD_FIELD.getPreferredName(), knnSearch.field)
             .field(KnnSearch.K_FIELD.getPreferredName(), knnSearch.k)
-            .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), knnSearch.numCands)
-            .field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), knnSearch.queryVector)
-            .endObject();
+            .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), knnSearch.numCands);
+        if (knnSearch.visitPercentage != null) {
+            builder.field(KnnSearch.VISIT_PERCENTAGE_FIELD.getPreferredName(), knnSearch.visitPercentage);
+        }
+        builder.field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), knnSearch.queryVector);
+        builder.endObject();
 
         builder.field(SearchSourceBuilder._SOURCE_FIELD.getPreferredName(), "some-field");
         builder.endObject();
@@ -136,9 +139,12 @@ public class KnnSearchRequestParserTests extends ESTestCase {
             .startObject(KnnSearchRequestParser.KNN_SECTION_FIELD.getPreferredName())
             .field(KnnSearch.FIELD_FIELD.getPreferredName(), knnSearch.field)
             .field(KnnSearch.K_FIELD.getPreferredName(), knnSearch.k)
-            .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), knnSearch.numCands)
-            .field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), knnSearch.queryVector)
-            .endObject();
+            .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), knnSearch.numCands);
+        if (knnSearch.visitPercentage != null) {
+            builder.field(KnnSearch.VISIT_PERCENTAGE_FIELD.getPreferredName(), knnSearch.visitPercentage);
+        }
+        builder.field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), knnSearch.queryVector);
+        builder.endObject();
 
         builder.array(SearchSourceBuilder._SOURCE_FIELD.getPreferredName(), "field1", "field2", "field3");
         builder.endObject();
@@ -171,9 +177,8 @@ public class KnnSearchRequestParserTests extends ESTestCase {
             .field(KnnSearch.FIELD_FIELD.getPreferredName(), "field")
             .field(KnnSearch.K_FIELD.getPreferredName(), 100)
             .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), 80)
-            .field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), new float[] { 1.0f, 2.0f, 3.0f })
-            .endObject()
-            .endObject();
+            .field(KnnSearch.VISIT_PERCENTAGE_FIELD.getPreferredName(), 100.0f);
+        builder.field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), new float[] { 1.0f, 2.0f, 3.0f }).endObject().endObject();
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseSearchRequest(builder));
         assertThat(e.getMessage(), containsString("[num_candidates] cannot be less than [k]"));
@@ -187,12 +192,45 @@ public class KnnSearchRequestParserTests extends ESTestCase {
             .field(KnnSearch.FIELD_FIELD.getPreferredName(), "field")
             .field(KnnSearch.K_FIELD.getPreferredName(), 100)
             .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), 10002)
+            .field(KnnSearch.VISIT_PERCENTAGE_FIELD.getPreferredName(), 100.0f);
+        builder.field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), new float[] { 1.0f, 2.0f, 3.0f }).endObject().endObject();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseSearchRequest(builder));
+        assertThat(e.getMessage(), containsString("[num_candidates] cannot exceed [10000]"));
+    }
+
+    public void testVisitPercnetageLessThan0() throws IOException {
+        XContentType xContentType = randomFrom(XContentType.values());
+        XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())
+            .startObject()
+            .startObject(KnnSearchRequestParser.KNN_SECTION_FIELD.getPreferredName())
+            .field(KnnSearch.FIELD_FIELD.getPreferredName(), "field")
+            .field(KnnSearch.K_FIELD.getPreferredName(), 100)
+            .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), 1000)
+            .field(KnnSearch.VISIT_PERCENTAGE_FIELD.getPreferredName(), -100f)
             .field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), new float[] { 1.0f, 2.0f, 3.0f })
             .endObject()
             .endObject();
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseSearchRequest(builder));
-        assertThat(e.getMessage(), containsString("[num_candidates] cannot exceed [10000]"));
+        assertThat(e.getMessage(), containsString("[visit_percentage] must be between 0 and 100"));
+    }
+
+    public void testVisitPercentageGreaterThan100() throws IOException {
+        XContentType xContentType = randomFrom(XContentType.values());
+        XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())
+            .startObject()
+            .startObject(KnnSearchRequestParser.KNN_SECTION_FIELD.getPreferredName())
+            .field(KnnSearch.FIELD_FIELD.getPreferredName(), "field")
+            .field(KnnSearch.K_FIELD.getPreferredName(), 100)
+            .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), 1000)
+            .field(KnnSearch.VISIT_PERCENTAGE_FIELD.getPreferredName(), 1000f)
+            .field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), new float[] { 1.0f, 2.0f, 3.0f })
+            .endObject()
+            .endObject();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseSearchRequest(builder));
+        assertThat(e.getMessage(), containsString("[visit_percentage] must be between 0 and 100"));
     }
 
     public void testInvalidK() throws IOException {
@@ -203,9 +241,8 @@ public class KnnSearchRequestParserTests extends ESTestCase {
             .field(KnnSearch.FIELD_FIELD.getPreferredName(), "field")
             .field(KnnSearch.K_FIELD.getPreferredName(), 0)
             .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), 10)
-            .field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), new float[] { 1.0f, 2.0f, 3.0f })
-            .endObject()
-            .endObject();
+            .field(KnnSearch.VISIT_PERCENTAGE_FIELD.getPreferredName(), 100.0f);
+        builder.field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), new float[] { 1.0f, 2.0f, 3.0f }).endObject().endObject();
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseSearchRequest(builder));
         assertThat(e.getMessage(), containsString("[k] must be greater than 0"));
@@ -238,7 +275,8 @@ public class KnnSearchRequestParserTests extends ESTestCase {
 
         int k = randomIntBetween(1, 100);
         int numCands = randomIntBetween(k, 1000);
-        return new KnnSearch(field, vector, k, numCands);
+        Float visitPercentage = randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true);
+        return new KnnSearch(field, vector, k, numCands, visitPercentage);
     }
 
     private List<QueryBuilder> randomFilterQueries() {
@@ -260,9 +298,12 @@ public class KnnSearchRequestParserTests extends ESTestCase {
         builder.startObject(KnnSearchRequestParser.KNN_SECTION_FIELD.getPreferredName())
             .field(KnnSearch.FIELD_FIELD.getPreferredName(), knnSearch.field)
             .field(KnnSearch.K_FIELD.getPreferredName(), knnSearch.k)
-            .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), knnSearch.numCands)
-            .field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), knnSearch.queryVector)
-            .endObject();
+            .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), knnSearch.numCands);
+        if (knnSearch.visitPercentage != null) {
+            builder.field(KnnSearch.VISIT_PERCENTAGE_FIELD.getPreferredName(), knnSearch.visitPercentage);
+        }
+        builder.field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), knnSearch.queryVector);
+        builder.endObject();
 
         if (filters.isEmpty() == false) {
             builder.field(KnnSearchRequestParser.FILTER_FIELD.getPreferredName());

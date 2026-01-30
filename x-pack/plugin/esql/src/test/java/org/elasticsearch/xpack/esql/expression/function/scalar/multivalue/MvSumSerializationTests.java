@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTe
 
 import java.io.IOException;
 
-public class MvSumSerializationTests extends AbstractMvSerializationTests<MvSum> {
+public class MvSumSerializationTests extends AbstractExpressionSerializationTests<MvSum> {
     @Override
     protected MvSum createTestInstance() {
         return new MvSum(randomSource(), randomChild());
@@ -20,10 +20,5 @@ public class MvSumSerializationTests extends AbstractMvSerializationTests<MvSum>
     @Override
     protected MvSum mutateInstance(MvSum instance) throws IOException {
         return new MvSum(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
-    }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
     }
 }

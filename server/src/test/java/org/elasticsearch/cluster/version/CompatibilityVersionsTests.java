@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.version;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -27,17 +27,13 @@ public class CompatibilityVersionsTests extends ESTestCase {
     public void testEmptyVersionsList() {
         assertThat(
             CompatibilityVersions.minimumVersions(List.of()),
-            equalTo(new CompatibilityVersions(TransportVersions.MINIMUM_COMPATIBLE, Map.of()))
+            equalTo(new CompatibilityVersions(TransportVersion.minimumCompatible(), Map.of()))
         );
     }
 
     public void testMinimumTransportVersions() {
-        TransportVersion version1 = TransportVersionUtils.getNextVersion(TransportVersions.MINIMUM_COMPATIBLE, true);
-        TransportVersion version2 = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersionUtils.getNextVersion(version1, true),
-            TransportVersion.current()
-        );
+        TransportVersion version1 = TransportVersion.minimumCompatible();
+        TransportVersion version2 = TransportVersionUtils.randomCompatibleVersion();
 
         CompatibilityVersions compatibilityVersions1 = new CompatibilityVersions(version1, Map.of());
         CompatibilityVersions compatibilityVersions2 = new CompatibilityVersions(version2, Map.of());
@@ -79,12 +75,8 @@ public class CompatibilityVersionsTests extends ESTestCase {
      * complaint.
      */
     public void testMinimumsAreMerged() {
-        TransportVersion version1 = TransportVersionUtils.getNextVersion(TransportVersions.MINIMUM_COMPATIBLE, true);
-        TransportVersion version2 = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersionUtils.getNextVersion(version1, true),
-            TransportVersion.current()
-        );
+        TransportVersion version1 = TransportVersion.minimumCompatible();
+        TransportVersion version2 = TransportVersionUtils.randomCompatibleVersion();
 
         SystemIndexDescriptor.MappingsVersion v1 = new SystemIndexDescriptor.MappingsVersion(1, 1);
         SystemIndexDescriptor.MappingsVersion v2 = new SystemIndexDescriptor.MappingsVersion(2, 2);
@@ -101,7 +93,7 @@ public class CompatibilityVersionsTests extends ESTestCase {
 
     public void testPreventJoinClusterWithUnsupportedTransportVersion() {
         List<TransportVersion> transportVersions = IntStream.range(0, randomIntBetween(2, 10))
-            .mapToObj(i -> TransportVersionUtils.randomCompatibleVersion(random()))
+            .mapToObj(i -> TransportVersionUtils.randomCompatibleVersion(false))
             .toList();
         TransportVersion min = Collections.min(transportVersions);
         List<CompatibilityVersions> compatibilityVersions = transportVersions.stream()
@@ -110,21 +102,14 @@ public class CompatibilityVersionsTests extends ESTestCase {
 
         // should not throw
         CompatibilityVersions.ensureVersionsCompatibility(
-            new CompatibilityVersions(TransportVersionUtils.randomVersionBetween(random(), min, TransportVersion.current()), Map.of()),
+            new CompatibilityVersions(TransportVersionUtils.getNextVersion(min, true), Map.of()),
             compatibilityVersions
         );
 
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
             () -> CompatibilityVersions.ensureVersionsCompatibility(
-                new CompatibilityVersions(
-                    TransportVersionUtils.randomVersionBetween(
-                        random(),
-                        TransportVersionUtils.getFirstVersion(),
-                        TransportVersionUtils.getPreviousVersion(min)
-                    ),
-                    Map.of()
-                ),
+                new CompatibilityVersions(TransportVersionUtils.getPreviousVersion(min, true), Map.of()),
                 compatibilityVersions
             )
         );

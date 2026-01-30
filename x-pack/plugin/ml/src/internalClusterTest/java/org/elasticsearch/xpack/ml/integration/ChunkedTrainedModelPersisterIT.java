@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
@@ -57,6 +58,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.startsWith;
@@ -95,7 +97,12 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
         ChunkedTrainedModelPersister persister = new ChunkedTrainedModelPersister(
             trainedModelProvider,
             analyticsConfig,
-            new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class), true),
+            new DataFrameAnalyticsAuditor(
+                client(),
+                getInstanceFromNode(ClusterService.class),
+                TestIndexNameExpressionResolver.newInstance(),
+                true
+            ),
             (ex) -> {
                 throw new ElasticsearchException(ex);
             },
@@ -137,7 +144,7 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
 
         TrainedModelConfig storedConfig = getTrainedModelFuture.actionGet();
 
-        assertThat(storedConfig.getCompressedDefinition(), equalTo(compressedDefinition));
+        assertThat(storedConfig.getCompressedDefinition(), equalBytes(compressedDefinition));
         assertThat(storedConfig.getEstimatedOperations(), equalTo((long) modelSizeInfo.numOperations()));
         assertThat(storedConfig.getModelSize(), equalTo(modelSizeInfo.ramBytesUsed()));
         assertThat(storedConfig.getMetadata(), hasKey("total_feature_importance"));
@@ -167,7 +174,12 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
         ChunkedTrainedModelPersister persister = new ChunkedTrainedModelPersister(
             trainedModelProvider,
             analyticsConfig,
-            new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class), false),
+            new DataFrameAnalyticsAuditor(
+                client(),
+                getInstanceFromNode(ClusterService.class),
+                TestIndexNameExpressionResolver.newInstance(),
+                false
+            ),
             (ex) -> {
                 throw new ElasticsearchException(ex);
             },
@@ -208,7 +220,7 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
         trainedModelProvider.getTrainedModel(inferenceModelId, GetTrainedModelsAction.Includes.all(), null, getTrainedModelFuture);
 
         TrainedModelConfig storedConfig = getTrainedModelFuture.actionGet();
-        assertThat(storedConfig.getCompressedDefinition(), equalTo(compressedDefinition));
+        assertThat(storedConfig.getCompressedDefinition(), equalBytes(compressedDefinition));
         assertThat(storedConfig.getEstimatedOperations(), equalTo((long) modelSizeInfo.numOperations()));
         assertThat(storedConfig.getModelSize(), equalTo(modelSizeInfo.ramBytesUsed()));
         assertThat(storedConfig.getMetadata(), hasKey("total_feature_importance"));

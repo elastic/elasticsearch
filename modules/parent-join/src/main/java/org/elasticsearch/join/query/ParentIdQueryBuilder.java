@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.join.query;
@@ -16,10 +17,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -158,7 +159,7 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
         Joiner joiner = Joiner.getJoiner(context);
         if (joiner == null) {
             if (ignoreUnmapped) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             } else {
                 final String indexName = context.getIndexSettings().getIndex().getName();
                 throw new QueryShardException(context, "[" + NAME + "] no join field found for index [" + indexName + "]");
@@ -166,7 +167,7 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
         }
         if (joiner.childTypeExists(type) == false) {
             if (ignoreUnmapped) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             } else {
                 throw new QueryShardException(context, "[" + NAME + "] no relation found for child [" + type + "]");
             }
@@ -194,6 +195,6 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

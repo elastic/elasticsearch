@@ -1,5 +1,0 @@
-pr: 109672
-summary: Log repo UUID at generation/registration time
-area: Snapshot/Restore
-type: enhancement
-issues: []

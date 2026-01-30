@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -71,6 +73,11 @@ public class DoubleFieldMapperTests extends NumberFieldMapperTests {
          * range of valid values.
          */
         return randomBoolean() ? randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true) : randomFloat();
+    }
+
+    @Override
+    protected boolean supportsBulkDoubleBlockReading() {
+        return true;
     }
 
     public void testScriptAndPrecludedParameters() {
@@ -153,5 +160,17 @@ public class DoubleFieldMapperTests extends NumberFieldMapperTests {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         return new NumberSyntheticSourceSupport(Number::doubleValue, ignoreMalformed);
+    }
+
+    protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode sourceKeepMode) {
+        return new NumberSyntheticSourceSupportForKeepTests(Number::doubleValue, ignoreMalformed, sourceKeepMode);
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(
+            new SortShortcutSupport(this::minimalMapping, this::writeField, true),
+            new SortShortcutSupport(IndexVersion.fromId(5000099), this::minimalMapping, this::writeField, false)
+        );
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test;
@@ -161,6 +162,11 @@ public final class ExternalTestCluster extends TestCluster {
     }
 
     @Override
+    protected Client internalClient() {
+        return client;
+    }
+
+    @Override
     public int size() {
         return httpAddresses.length;
     }
@@ -188,7 +194,13 @@ public final class ExternalTestCluster extends TestCluster {
     @Override
     public void ensureEstimatedStats() {
         if (size() > 0) {
-            NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().clear().setBreaker(true).setIndices(true).get();
+            NodesStatsResponse nodeStats = internalClient().admin()
+                .cluster()
+                .prepareNodesStats()
+                .clear()
+                .setBreaker(true)
+                .setIndices(true)
+                .get();
             for (NodeStats stats : nodeStats.getNodes()) {
                 assertThat(
                     "Fielddata breaker not reset to 0 on node: " + stats.getNode(),

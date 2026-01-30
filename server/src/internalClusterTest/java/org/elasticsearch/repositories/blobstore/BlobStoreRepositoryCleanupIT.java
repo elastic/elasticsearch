@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.repositories.blobstore;
 
@@ -23,6 +24,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.getRepositoryDataBlobName;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.hamcrest.Matchers.containsString;
@@ -65,7 +67,10 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
         );
 
         logger.info("-->  ensure cleanup is still in progress");
-        final RepositoryCleanupInProgress cleanup = clusterAdmin().prepareState().get().getState().custom(RepositoryCleanupInProgress.TYPE);
+        final RepositoryCleanupInProgress cleanup = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .custom(RepositoryCleanupInProgress.TYPE);
         assertTrue(cleanup.hasCleanupInProgress());
 
         logger.info("-->  unblocking master node");
@@ -151,12 +156,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
                         createOldIndexNFuture,
                         () -> repository.blobStore()
                             .blobContainer(repository.basePath())
-                            .writeBlob(
-                                randomNonDataPurpose(),
-                                BlobStoreRepository.INDEX_FILE_PREFIX + generation,
-                                new BytesArray(new byte[1]),
-                                true
-                            )
+                            .writeBlob(randomNonDataPurpose(), getRepositoryDataBlobName(generation), new BytesArray(new byte[1]), true)
                     )
                 );
             createOldIndexNFuture.get();

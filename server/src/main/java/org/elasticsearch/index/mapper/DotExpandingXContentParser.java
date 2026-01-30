@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -13,6 +14,7 @@ import org.elasticsearch.xcontent.FilterXContentParser;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentSubParser;
 
 import java.io.IOException;
@@ -44,6 +46,11 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             if (in.currentToken() == Token.FIELD_NAME) {
                 expandDots(in);
             }
+        }
+
+        @Override
+        public XContentParser switchParser(XContentParser parser) throws IOException {
+            return new WrappingParser(parser, contentPath);
         }
 
         @Override
@@ -375,11 +382,35 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
     }
 
     @Override
+    public XContentString optimizedTextOrNull() throws IOException {
+        if (state == State.EXPANDING_START_OBJECT) {
+            throw new IllegalStateException("Can't get text on a " + currentToken() + " at " + getTokenLocation());
+        }
+        return super.optimizedTextOrNull();
+    }
+
+    @Override
+    public XContentString optimizedText() throws IOException {
+        if (state == State.EXPANDING_START_OBJECT) {
+            throw new IllegalStateException("Can't get text on a " + currentToken() + " at " + getTokenLocation());
+        }
+        return super.optimizedText();
+    }
+
+    @Override
     public String textOrNull() throws IOException {
         if (state == State.EXPANDING_START_OBJECT) {
             throw new IllegalStateException("Can't get text on a " + currentToken() + " at " + getTokenLocation());
         }
         return super.textOrNull();
+    }
+
+    @Override
+    public String text() throws IOException {
+        if (state == State.EXPANDING_START_OBJECT) {
+            throw new IllegalStateException("Can't get text on a " + currentToken() + " at " + getTokenLocation());
+        }
+        return super.text();
     }
 
     @Override

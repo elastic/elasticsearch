@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.transform.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.NoShardAvailableActionException;
@@ -30,15 +29,14 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -166,9 +164,6 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
             }
             if (shard.assignedToNode() && nodes.get(shard.currentNodeId()) != null) {
                 // special case: The minimum TransportVersion in the cluster is on an old version
-                if (clusterState.getMinTransportVersion().before(TransportVersions.V_8_2_0)) {
-                    throw new ActionNotFoundTransportException(GetCheckpointNodeAction.NAME);
-                }
 
                 String nodeId = shard.currentNodeId();
                 nodesAndShards.computeIfAbsent(nodeId, k -> new HashSet<>()).add(shard.shardId());

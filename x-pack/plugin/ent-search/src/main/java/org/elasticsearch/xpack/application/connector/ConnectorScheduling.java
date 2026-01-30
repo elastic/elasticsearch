@@ -222,7 +222,7 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(enabled);
-            out.writeString(interval.toString());
+            out.writeString(interval.expression());
         }
 
         @Override

@@ -1,23 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.query.functionscore;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -29,7 +27,6 @@ import java.util.Objects;
  * A function that computes a random score for the matched documents
  */
 public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScoreFunctionBuilder> {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RandomScoreFunctionBuilder.class);
 
     public static final String NAME = "random_score";
     private String field;
@@ -110,14 +107,6 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
         return this;
     }
 
-    /**
-     * Get the field to use for random number generation.
-     * @see #setField(String)
-     */
-    public String getField() {
-        return field;
-    }
-
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
@@ -147,17 +136,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
             // DocID-based random score generation
             return new RandomScoreFunction(hash(context.nowInMillis()), salt, null);
         } else {
-            String fieldName;
-            if (field == null) {
-                deprecationLogger.warn(
-                    DeprecationCategory.QUERIES,
-                    "seed_requires_field",
-                    "As of version 7.0 Elasticsearch will require that a [field] parameter is provided when a [seed] is set"
-                );
-                fieldName = IdFieldMapper.NAME;
-            } else {
-                fieldName = field;
-            }
+            final String fieldName = Objects.requireNonNullElse(field, SeqNoFieldMapper.NAME);
             if (context.isFieldMapped(fieldName) == false) {
                 if (context.hasMappings() == false) {
                     // no mappings: the index is empty anyway
@@ -182,7 +161,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 
     public static RandomScoreFunctionBuilder fromXContent(XContentParser parser) throws IOException, ParsingException {

@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.esql.evaluator.mapper;
 
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.util.ReflectionUtils;
+import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.planner.Layout;
 
 public abstract class ExpressionMapper<E extends Expression> {
@@ -19,5 +22,10 @@ public abstract class ExpressionMapper<E extends Expression> {
         typeToken = ReflectionUtils.detectSuperTypeForRuleLike(getClass());
     }
 
-    public abstract ExpressionEvaluator.Factory map(E expression, Layout layout);
+    public abstract ExpressionEvaluator.Factory map(
+        FoldContext foldCtx,
+        E expression,
+        Layout layout,
+        IndexedByShardId<? extends ShardContext> shardContexts
+    );
 }

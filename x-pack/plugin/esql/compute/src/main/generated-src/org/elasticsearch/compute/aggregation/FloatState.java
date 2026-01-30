@@ -12,15 +12,11 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * Aggregator state for a single float.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-State.java.st} instead.
  */
 final class FloatState implements AggregatorState {
     private float value;
     private boolean seen;
-
-    FloatState() {
-        this(0);
-    }
 
     FloatState(float init) {
         this.value = init;

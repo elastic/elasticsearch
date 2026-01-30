@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.errorquery;
@@ -15,10 +16,10 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -117,7 +118,7 @@ public class ErrorQueryBuilder extends AbstractQueryBuilder<ErrorQueryBuilder> {
             }
         }
         if (error == null) {
-            return new MatchAllDocsQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
 
         return new ErrorQuery(error, context);
@@ -165,7 +166,7 @@ public class ErrorQueryBuilder extends AbstractQueryBuilder<ErrorQueryBuilder> {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 
     static void sleep(long millis) {
@@ -189,7 +190,7 @@ public class ErrorQueryBuilder extends AbstractQueryBuilder<ErrorQueryBuilder> {
         ErrorQuery(IndexError error, SearchExecutionContext context) {
             this.indexError = error;
             this.sleepCompleted = false;
-            this.matchAllQuery = new MatchAllDocsQuery();
+            this.matchAllQuery = Queries.ALL_DOCS_INSTANCE;
 
             if (error.getShardIds() != null) {
                 boolean match = false;

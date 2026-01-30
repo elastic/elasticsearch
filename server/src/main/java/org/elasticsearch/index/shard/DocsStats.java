@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.shard;
@@ -13,13 +14,39 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.store.StoreStats;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+
 public class DocsStats implements Writeable, ToXContentFragment {
+
+    public static final ConstructingObjectParser<DocsStats, Void> PARSER = new ConstructingObjectParser<>(
+        "doc_stats",
+        true,
+        args -> (DocsStats) args[0]
+    );
+
+    protected static final ConstructingObjectParser<DocsStats, Void> DOC_STATS_PARSER = new ConstructingObjectParser<>(
+        "doc_stats_fields",
+        true,
+        args -> new DocsStats((long) args[0], (long) args[1], (long) args[2])
+    );
+
+    static {
+        PARSER.declareObject(constructorArg(), DOC_STATS_PARSER, new ParseField(Fields.DOCS));
+    }
+
+    static {
+        DOC_STATS_PARSER.declareLong(constructorArg(), new ParseField(Fields.COUNT));
+        DOC_STATS_PARSER.declareLong(constructorArg(), new ParseField(Fields.DELETED));
+        DOC_STATS_PARSER.declareLong(constructorArg(), new ParseField(Fields.TOTAL_SIZE_IN_BYTES));
+    }
 
     private long count = 0;
     private long deleted = 0;
@@ -106,5 +133,10 @@ public class DocsStats implements Writeable, ToXContentFragment {
         static final String DELETED = "deleted";
         static final String TOTAL_SIZE_IN_BYTES = "total_size_in_bytes";
         static final String TOTAL_SIZE = "total_size";
+    }
+
+    @Override
+    public String toString() {
+        return "DocStats{" + "count=" + count + ", deleted=" + deleted + ", totalSizeInBytes=" + totalSizeInBytes + '}';
     }
 }

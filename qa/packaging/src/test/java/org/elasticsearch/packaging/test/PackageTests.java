@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.packaging.test;
@@ -257,8 +258,8 @@ public class PackageTests extends PackagingTestCase {
                 final String nodesStatsResponse = makeRequest("https://localhost:9200/_nodes/stats");
                 assertThat(nodesStatsResponse, containsString("\"adjusted_total_in_bytes\":891289600"));
 
-                // 40% of 850MB
-                assertThat(sh.run("ps auwwx").stdout(), containsString("-Xms340m -Xmx340m"));
+                // 40% of (850MB - 100MB overhead) = 40% of 750MB
+                assertThat(sh.run("ps auwwx").stdout(), containsString("-Xms300m -Xmx300m"));
 
                 stopElasticsearch();
             });

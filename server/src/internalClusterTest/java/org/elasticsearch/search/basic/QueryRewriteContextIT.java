@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.basic;
 
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -100,7 +101,7 @@ public class QueryRewriteContextIT extends ESIntegTestCase {
 
         @Override
         protected Query doToQuery(SearchExecutionContext context) throws IOException {
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         }
 
         @Override
@@ -132,7 +133,7 @@ public class QueryRewriteContextIT extends ESIntegTestCase {
         final String[] indices = { "test1", "test2" };
         createIndex(indices);
 
-        assertAcked(indicesAdmin().prepareAliases().addAlias(indices, "alias"));
+        assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(indices, "alias"));
         assertResolvedIndices(prepareSearch(indices), Set.of(indices), Set.of(indices), r -> {});
         assertResolvedIndices(prepareSearch("test*"), Set.of("test*"), Set.of(indices), r -> {});
         assertResolvedIndices(prepareSearch("alias"), Set.of("alias"), Set.of(indices), r -> {});
@@ -153,8 +154,10 @@ public class QueryRewriteContextIT extends ESIntegTestCase {
     public void testResolvedIndices_TransportExplainAction() {
         final String[] indices = { "test1", "test2" };
         createIndex(indices);
-        assertAcked(indicesAdmin().prepareAliases().addAlias("test1", "alias1"));
-        assertAcked(indicesAdmin().prepareAliases().addAlias(indices, "alias2"));
+        assertAcked(
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test1", "alias1"),
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(indices, "alias2")
+        );
 
         assertResolvedIndices(client().prepareExplain("test1", "1"), Set.of("test1"), Set.of("test1"), r -> {});
         assertResolvedIndices(client().prepareExplain("alias1", "1"), Set.of("alias1"), Set.of("test1"), r -> {});
@@ -164,7 +167,7 @@ public class QueryRewriteContextIT extends ESIntegTestCase {
     public void testResolvedIndices_TransportValidateQueryAction() {
         final String[] indices = { "test1", "test2" };
         createIndex(indices);
-        assertAcked(indicesAdmin().prepareAliases().addAlias(indices, "alias"));
+        assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(indices, "alias"));
 
         Consumer<ValidateQueryResponse> responseAssertions = r -> {
             assertThat(r.getStatus(), equalTo(RestStatus.OK));

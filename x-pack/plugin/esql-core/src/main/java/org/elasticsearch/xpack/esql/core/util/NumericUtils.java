@@ -88,6 +88,18 @@ public abstract class NumericUtils {
         return l < 0 ? twosComplement(l) : LONG_MAX_PLUS_ONE_AS_BIGINTEGER.add(BigInteger.valueOf(l));
     }
 
+    /**
+     * Converts an unsigned long value "encoded" into a (signed) long.
+     * In case of overflow, an ArithmeticException is thrown.
+     */
+    public static long unsignedLongAsLongExact(long l) {
+        if (l < 0) {
+            return twosComplement(l);
+        }
+
+        throw new ArithmeticException(UNSIGNED_LONG_OVERFLOW);
+    }
+
     public static BigInteger unsignedLongAsBigInteger(long l) {
         return l < 0 ? BigInteger.valueOf(twosComplement(l)) : LONG_MAX_PLUS_ONE_AS_BIGINTEGER.add(BigInteger.valueOf(l));
     }
@@ -144,6 +156,19 @@ public abstract class NumericUtils {
             throw new ArithmeticException("not a finite double number: " + dbl);
         }
         return dbl;
+    }
+
+    /**
+     * Check if the provided float is both finite and a number (i.e. not Float.NaN).
+     * @param flt The float to verify.
+     * @return The input value.
+     * @throws ArithmeticException if the provided float is either infinite or not a number.
+     */
+    public static float asFiniteNumber(float flt) {
+        if (Double.isNaN(flt) || Double.isInfinite(flt)) {
+            throw new ArithmeticException("not a finite double number: " + flt);
+        }
+        return flt;
     }
 
     /**

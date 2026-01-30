@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelDeploymentAction
 
 import java.util.HashMap;
 
+import static org.elasticsearch.rest.RestResponseUtils.setUpXContentMock;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -30,10 +31,10 @@ public class RestUpdateTrainedModelDeploymentActionTests extends RestActionTestC
             assertThat(actionRequest, instanceOf(UpdateTrainedModelDeploymentAction.Request.class));
 
             var request = (UpdateTrainedModelDeploymentAction.Request) actionRequest;
-            assertEquals(request.getNumberOfAllocations(), 5);
+            assertEquals(request.getNumberOfAllocations().intValue(), 5);
 
             executeCalled.set(true);
-            return mock(CreateTrainedModelAssignmentAction.Response.class);
+            return setUpXContentMock(mock(CreateTrainedModelAssignmentAction.Response.class));
         }));
         var params = new HashMap<String, String>();
         params.put("number_of_allocations", "5");
@@ -53,10 +54,10 @@ public class RestUpdateTrainedModelDeploymentActionTests extends RestActionTestC
             assertThat(actionRequest, instanceOf(UpdateTrainedModelDeploymentAction.Request.class));
 
             var request = (UpdateTrainedModelDeploymentAction.Request) actionRequest;
-            assertEquals(request.getNumberOfAllocations(), 6);
+            assertEquals(request.getNumberOfAllocations().intValue(), 6);
 
             executeCalled.set(true);
-            return mock(CreateTrainedModelAssignmentAction.Response.class);
+            return setUpXContentMock(mock(CreateTrainedModelAssignmentAction.Response.class));
         }));
 
         final String content = """

@@ -35,7 +35,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 public class QueryUserIT extends SecurityInBasicRestTestCase {
 
-    private static final String READ_USERS_USER_AUTH_HEADER = "Basic cmVhZF91c2Vyc191c2VyOnJlYWQtdXNlcnMtcGFzc3dvcmQ=";
+    private static final String READ_SECURITY_USER_AUTH_HEADER = "Basic cmVhZF9zZWN1cml0eV91c2VyOnJlYWQtc2VjdXJpdHktcGFzc3dvcmQ=";
     private static final String TEST_USER_NO_READ_USERS_AUTH_HEADER = "Basic c2VjdXJpdHlfdGVzdF91c2VyOnNlY3VyaXR5LXRlc3QtcGFzc3dvcmQ=";
 
     private static final Set<String> reservedUsers = Set.of(
@@ -57,7 +57,7 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
             randomFrom("POST", "GET"),
             "/_security/_query/user" + (withProfileId ? "?with_profile_uid=true" : randomFrom("", "?with_profile_uid=false"))
         );
-        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, READ_USERS_USER_AUTH_HEADER));
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, READ_SECURITY_USER_AUTH_HEADER));
         return request;
     }
 
@@ -321,7 +321,7 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
 
         final String invalidSortName = randomFrom("email", "full_name");
         assertQueryError(
-            READ_USERS_USER_AUTH_HEADER,
+            READ_SECURITY_USER_AUTH_HEADER,
             400,
             Strings.format("{\"sort\":[\"%s\"]}", invalidSortName),
             Strings.format("sorting is not supported for field [%s]", invalidSortName)
@@ -338,7 +338,7 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
             putUserRequest.setJsonEntity("{\"enabled\": true}");
         }
 
-        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, READ_USERS_USER_AUTH_HEADER));
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, READ_SECURITY_USER_AUTH_HEADER));
         final Response response = client().performRequest(request);
         assertOK(response);
         final Map<String, Object> responseMap = responseAsMap(response);
@@ -363,7 +363,7 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
     }
 
     private void assertQueryError(int statusCode, String body) {
-        assertQueryError(READ_USERS_USER_AUTH_HEADER, statusCode, body);
+        assertQueryError(READ_SECURITY_USER_AUTH_HEADER, statusCode, body);
     }
 
     private void assertQueryError(String authHeader, int statusCode, String body) {

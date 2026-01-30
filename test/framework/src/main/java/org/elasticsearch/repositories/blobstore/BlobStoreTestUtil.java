@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.repositories.blobstore;
 
@@ -17,6 +18,8 @@ import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -29,7 +32,10 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.RetryingInputStream;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -64,9 +70,14 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.random;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.METADATA_BLOB_NAME_SUFFIX;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.METADATA_NAME_FORMAT;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.getRepositoryDataBlobName;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomValueOtherThan;
+import static org.elasticsearch.test.ESTestCase.randomValueOtherThanMany;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasKey;
@@ -113,7 +124,7 @@ public final class BlobStoreTestUtil {
                 assertIndexGenerations(blobContainer, latestGen);
                 final RepositoryData repositoryData;
                 try (
-                    InputStream blob = blobContainer.readBlob(randomNonDataPurpose(), BlobStoreRepository.INDEX_FILE_PREFIX + latestGen);
+                    InputStream blob = blobContainer.readBlob(randomNonDataPurpose(), getRepositoryDataBlobName(latestGen));
                     XContentParser parser = XContentType.JSON.xContent()
                         .createParser(XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE), blob)
                 ) {
@@ -179,8 +190,8 @@ public final class BlobStoreTestUtil {
                         final String shardId = Integer.toString(i);
                         assertThat(shardContainers, hasKey(shardId));
                         assertThat(
-                            shardContainers.get(shardId).listBlobsByPrefix(randomPurpose(), BlobStoreRepository.INDEX_FILE_PREFIX),
-                            hasKey(BlobStoreRepository.INDEX_FILE_PREFIX + generation)
+                            shardContainers.get(shardId).listBlobsByPrefix(randomPurpose(), BlobStoreRepository.SNAPSHOT_INDEX_PREFIX),
+                            hasKey(BlobStoreRepository.SNAPSHOT_INDEX_PREFIX + generation)
                         );
                     }
                 }
@@ -209,7 +220,7 @@ public final class BlobStoreTestUtil {
                 .listBlobsByPrefix(randomPurpose(), BlobStoreRepository.METADATA_PREFIX)
                 .keySet()
                 .stream()
-                .map(p -> p.replace(BlobStoreRepository.METADATA_PREFIX, "").replace(".dat", ""))
+                .map(p -> p.replace(BlobStoreRepository.METADATA_PREFIX, "").replace(METADATA_BLOB_NAME_SUFFIX, ""))
                 .collect(Collectors.toSet());
             final Set<String> indexMetaGenerationsExpected = new HashSet<>();
             final IndexId idx = repositoryData.getIndices().values().stream().filter(i -> i.getId().equals(indexId)).findFirst().get();
@@ -235,7 +246,7 @@ public final class BlobStoreTestUtil {
                 .keySet()
                 .stream()
                 .filter(p -> p.startsWith(prefix))
-                .map(p -> p.replace(prefix, "").replace(".dat", ""))
+                .map(p -> p.replace(prefix, "").replace(METADATA_BLOB_NAME_SUFFIX, ""))
                 .collect(Collectors.toSet());
             assertThat(foundSnapshotUUIDs, containsInAnyOrder(expectedSnapshotUUIDs.toArray(Strings.EMPTY_ARRAY)));
         }
@@ -292,11 +303,7 @@ public final class BlobStoreTestUtil {
                 assertThat(
                     indexContainer.listBlobs(randomPurpose()),
                     hasKey(
-                        String.format(
-                            Locale.ROOT,
-                            BlobStoreRepository.METADATA_NAME_FORMAT,
-                            repositoryData.indexMetaDataGenerations().indexMetaBlobId(snapshotId, indexId)
-                        )
+                        Strings.format(METADATA_NAME_FORMAT, repositoryData.indexMetaDataGenerations().indexMetaBlobId(snapshotId, indexId))
                     )
                 );
                 final IndexMetadata indexMetadata = repository.getSnapshotIndexMetaData(repositoryData, snapshotId, indexId);
@@ -333,7 +340,7 @@ public final class BlobStoreTestUtil {
                         assertThat(
                             shardPathContents.keySet()
                                 .stream()
-                                .filter(name -> name.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX))
+                                .filter(name -> name.startsWith(BlobStoreRepository.SNAPSHOT_INDEX_PREFIX))
                                 .count(),
                             lessThanOrEqualTo(2L)
                         );
@@ -391,18 +398,25 @@ public final class BlobStoreTestUtil {
     /**
      * Creates a mocked {@link ClusterService} for use in {@link BlobStoreRepository} related tests that mocks out all the necessary
      * functionality to make {@link BlobStoreRepository} work. Initializes the cluster state with a {@link RepositoriesMetadata} instance
-     * that contains the given {@code metadata}.
+     * that contains the given {@code repositoryMetadata}.
      *
-     * @param metadata RepositoryMetadata to initialize the cluster state with
+     * @param repositoryMetadata RepositoryMetadata to initialize the cluster state with
      * @return Mock ClusterService
      */
-    public static ClusterService mockClusterService(RepositoryMetadata metadata) {
+    public static ClusterService mockClusterService(ProjectId projectId, RepositoryMetadata repositoryMetadata) {
         return mockClusterService(
             ClusterState.builder(ClusterState.EMPTY_STATE)
                 .metadata(
-                    Metadata.builder()
+                    Metadata.builder(ClusterState.EMPTY_STATE.metadata())
                         .clusterUUID(UUIDs.randomBase64UUID(random()))
-                        .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(Collections.singletonList(metadata)))
+                        .put(
+                            ProjectMetadata.builder(projectId)
+                                .putCustom(
+                                    RepositoriesMetadata.TYPE,
+                                    new RepositoriesMetadata(Collections.singletonList(repositoryMetadata))
+                                )
+                                .build()
+                        )
                         .build()
                 )
                 .build()
@@ -448,11 +462,32 @@ public final class BlobStoreTestUtil {
             return null;
         }).when(clusterService).addStateApplier(any(ClusterStateApplier.class));
         when(clusterApplierService.threadPool()).thenReturn(threadPool);
+        Set<Setting<?>> settingSet = new HashSet<>();
+        settingSet.add(MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING);
+        ClusterSettings mockClusterSettings = new ClusterSettings(Settings.EMPTY, settingSet);
+        when(clusterService.getClusterSettings()).thenReturn(mockClusterSettings);
         return clusterService;
     }
 
     public static OperationPurpose randomPurpose() {
         return randomFrom(OperationPurpose.values());
+    }
+
+    /**
+     * Random {@link OperationPurpose} that will be retried by {@link RetryingInputStream}
+     */
+    public static OperationPurpose randomRetryingPurpose() {
+        return randomValueOtherThanMany(
+            purpose -> purpose != OperationPurpose.REPOSITORY_ANALYSIS == false,
+            BlobStoreTestUtil::randomPurpose
+        );
+    }
+
+    /**
+     * Random {@link OperationPurpose} that will be retried a finite number of times by {@link RetryingInputStream}
+     */
+    public static OperationPurpose randomFiniteRetryingPurpose() {
+        return randomValueOtherThanMany(purpose -> purpose == OperationPurpose.INDICES, BlobStoreTestUtil::randomRetryingPurpose);
     }
 
     public static OperationPurpose randomNonDataPurpose() {

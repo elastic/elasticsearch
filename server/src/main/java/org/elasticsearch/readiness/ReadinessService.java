@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.readiness;
@@ -17,13 +18,12 @@ import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.reservedstate.service.FileSettingsFeatures;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.transport.BindTransportException;
@@ -33,8 +33,6 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Collection;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -42,12 +40,18 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
+/**
+ * Opens a TCP server {@link #PORT} when Elasticsearch is ready to accept work.
+ * That port can be used as a readiness probe by external components, like a control plane.
+ */
 public class ReadinessService extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(ReadinessService.class);
 
+    private final ClusterService clusterService;
     private final Environment environment;
     private final CheckedSupplier<ServerSocketChannel, IOException> socketChannelFactory;
 
+    private volatile ClusterState lastClusterState = null;
     private volatile boolean active; // false;
     private volatile ServerSocketChannel serverChannel;
     // package private for testing
@@ -67,10 +71,10 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         Environment environment,
         CheckedSupplier<ServerSocketChannel, IOException> socketChannelFactory
     ) {
+        this.clusterService = clusterService;
         this.serverChannel = null;
         this.environment = environment;
         this.socketChannelFactory = socketChannelFactory;
-        clusterService.addListener(this);
     }
 
     // package private for testing
@@ -123,25 +127,20 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         int portNumber = PORT.get(settings);
         assert portNumber >= 0;
 
-        var socketAddress = AccessController.doPrivileged((PrivilegedAction<InetSocketAddress>) () -> {
-            try {
-                return socketAddress(InetAddress.getByName("0"), portNumber);
-            } catch (IOException e) {
-                throw new IllegalArgumentException("Failed to resolve readiness host address", e);
-            }
-        });
+        InetSocketAddress socketAddress;
+        try {
+            socketAddress = socketAddress(InetAddress.getByName("0"), portNumber);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to resolve readiness host address", e);
+        }
 
         try {
             serverChannel = socketChannelFactory.get();
-
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                try {
-                    serverChannel.bind(socketAddress);
-                } catch (IOException e) {
-                    throw new BindTransportException("Failed to bind to " + NetworkAddress.format(socketAddress), e);
-                }
-                return null;
-            });
+            try {
+                serverChannel.bind(socketAddress);
+            } catch (IOException e) {
+                throw new BindTransportException("Failed to bind to " + NetworkAddress.format(socketAddress), e);
+            }
 
             // First time bounding the socket, we notify any listeners
             if (boundSocket.get() == null) {
@@ -152,6 +151,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
                 for (BoundAddressListener listener : boundAddressListeners) {
                     listener.addressBound(boundAddress);
                 }
+                boundAddressListeners.clear();
             }
         } catch (Exception e) {
             throw new BindTransportException("Failed to open socket channel " + NetworkAddress.format(socketAddress), e);
@@ -162,8 +162,15 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     @Override
     protected void doStart() {
-        // Mark the service as active, we'll start the listener when ES is ready
+        clusterService.addListener(this);
+        // Mark the service as active, we'll start the tcp listener when ES is ready
+        // TODO: active shouldn't be necessary since we now add the listener once the service is started
         this.active = true;
+        if (clusterService.lifecycleState() == Lifecycle.State.STARTED) {
+            this.lastClusterState = clusterService.state();
+            checkReadyState(null, lastClusterState);
+        }
+        clusterService.addListener(this);
     }
 
     // package private for testing
@@ -181,14 +188,11 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
             assert serverChannel != null;
             try {
                 while (serverChannel.isOpen()) {
-                    AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                        try (SocketChannel channel = serverChannel.accept()) {} catch (IOException e) {
-                            logger.debug("encountered exception while responding to readiness check request", e);
-                        } catch (Exception other) {
-                            logger.warn("encountered unknown exception while responding to readiness check request", other);
-                        }
-                        return null;
-                    });
+                    try (SocketChannel channel = serverChannel.accept()) {} catch (IOException e) {
+                        logger.debug("encountered exception while responding to readiness check request", e);
+                    } catch (Exception other) {
+                        logger.warn("encountered unknown exception while responding to readiness check request", other);
+                    }
                 }
             } finally {
                 listenerThreadLatch.countDown();
@@ -236,9 +240,14 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        ClusterState clusterState = event.state();
+        checkReadyState(lastClusterState, event.state());
+        this.lastClusterState = event.state();
+    }
+
+    private void checkReadyState(ClusterState previousState, ClusterState clusterState) {
         Set<String> shutdownNodeIds = PluginShutdownService.shutdownNodes(clusterState);
-        boolean shuttingDown = shutdownNodeIds.contains(clusterState.nodes().getLocalNodeId());
+        String localNodeId = clusterState.nodes().getLocalNodeId();
+        boolean shuttingDown = localNodeId != null && shutdownNodeIds.contains(localNodeId);
 
         if (shuttingDown) {
             // only disable the probe and log if the probe is running
@@ -247,10 +256,10 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
                 logger.info("marking node as not ready because it's shutting down");
             }
         } else {
-            boolean masterElected = getReadinessState(clusterState, event.previousState(), this::isMasterElected, "masterElected");
+            boolean masterElected = getReadinessState(clusterState, previousState, this::isMasterElected, "masterElected");
             boolean fileSettingsApplied = getReadinessState(
                 clusterState,
-                event.previousState(),
+                previousState,
                 this::areFileSettingsApplied,
                 "fileSettingsApplied"
             );
@@ -265,7 +274,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         String description
     ) {
         boolean newStateValue = accessor.apply(clusterState);
-        boolean oldStateValue = accessor.apply(previousState);
+        boolean oldStateValue = previousState != null && accessor.apply(previousState);
         if (oldStateValue != newStateValue) {
             logger.info("readiness change: {}={}", description, newStateValue);
         }
@@ -279,22 +288,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     // protected to allow mock service to override
     protected boolean areFileSettingsApplied(ClusterState clusterState) {
         ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
-        if (fileSettingsMetadata == null) {
-            // In order to block readiness on file settings being applied, we need to know that the master node has written an initial
-            // version, or a marker that file settings don't exist. When upgrading from a version that did not have file settings, the
-            // current master node may not be the first node upgraded. To be safe, we wait to consider file settings application for
-            // readiness until the whole cluster supports file settings. Note that this only applies when no reserved state metadata
-            // exists, so either we are starting up a current cluster (and the feature will be found) or we are upgrading from
-            // a version before file settings existed (before 8.4).
-            return supportsFileSettings(clusterState) == false;
-        } else {
-            return fileSettingsMetadata.version().equals(ReservedStateMetadata.NO_VERSION) == false;
-        }
-    }
-
-    @SuppressForbidden(reason = "need to check file settings support on exact cluster state")
-    private static boolean supportsFileSettings(ClusterState clusterState) {
-        return clusterState.clusterFeatures().clusterHasFeature(FileSettingsFeatures.FILE_SETTINGS_SUPPORTED);
+        return fileSettingsMetadata != null && fileSettingsMetadata.version().equals(ReservedStateMetadata.NO_VERSION) == false;
     }
 
     private void setReady(boolean ready) {
@@ -314,8 +308,9 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         var b = boundAddress();
         if (b != null) {
             listener.addressBound(b);
+        } else {
+            boundAddressListeners.add(listener);
         }
-        boundAddressListeners.add(listener);
     }
 
     /**

@@ -8,13 +8,10 @@
 package org.elasticsearch.xpack.application.connector;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -33,8 +30,6 @@ import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
 public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
 
-    public static final NodeFeature CONNECTOR_TEMPLATES_FEATURE = new NodeFeature("elastic-connectors.templates");
-
     // This number must be incremented when we make changes to built-in templates.
     static final int REGISTRY_VERSION = 3;
 
@@ -50,11 +45,9 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
     public static final String ACCESS_CONTROL_INDEX_NAME_PATTERN = ".search-acl-filter-*";
     public static final String ACCESS_CONTROL_TEMPLATE_NAME = "search-acl-filter";
 
+    public static final String MANAGED_CONNECTOR_INDEX_PREFIX = "content-";
+
     // Pipeline constants
-
-    public static final String ENT_SEARCH_GENERIC_PIPELINE_NAME = "ent-search-generic-ingestion";
-    public static final String ENT_SEARCH_GENERIC_PIPELINE_FILE = "generic_ingestion_pipeline";
-
     public static final String SEARCH_DEFAULT_PIPELINE_NAME = "search-default-ingestion";
     public static final String SEARCH_DEFAULT_PIPELINE_FILE = "search_default_pipeline";
 
@@ -115,12 +108,6 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
     protected List<IngestPipelineConfig> getIngestPipelines() {
         return List.of(
             new JsonIngestPipelineConfig(
-                ENT_SEARCH_GENERIC_PIPELINE_NAME,
-                ROOT_RESOURCE_PATH + ENT_SEARCH_GENERIC_PIPELINE_FILE + ".json",
-                REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE
-            ),
-            new JsonIngestPipelineConfig(
                 SEARCH_DEFAULT_PIPELINE_NAME,
                 ROOT_RESOURCE_PATH + SEARCH_DEFAULT_PIPELINE_FILE + ".json",
                 REGISTRY_VERSION,
@@ -153,17 +140,13 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
         )
     );
 
-    private final FeatureService featureService;
-
     public ConnectorTemplateRegistry(
         ClusterService clusterService,
-        FeatureService featureService,
         ThreadPool threadPool,
         Client client,
         NamedXContentRegistry xContentRegistry
     ) {
         super(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry);
-        this.featureService = featureService;
     }
 
     @Override
@@ -185,10 +168,5 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
     protected boolean requiresMasterNode() {
         // Necessary to prevent conflicts in some mixed-cluster environments with pre-7.7 nodes
         return true;
-    }
-
-    @Override
-    protected boolean isClusterReady(ClusterChangedEvent event) {
-        return featureService.clusterHasFeature(event.state(), CONNECTOR_TEMPLATES_FEATURE);
     }
 }

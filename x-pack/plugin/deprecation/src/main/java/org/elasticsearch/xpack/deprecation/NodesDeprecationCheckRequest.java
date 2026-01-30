@@ -12,7 +12,7 @@ import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import java.util.Arrays;
 import java.util.Objects;
 
-public class NodesDeprecationCheckRequest extends BaseNodesRequest<NodesDeprecationCheckRequest> {
+public class NodesDeprecationCheckRequest extends BaseNodesRequest {
 
     public NodesDeprecationCheckRequest(String... nodesIds) {
         super(nodesIds);

@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTe
 
 import java.io.IOException;
 
-public class MvMedianSerializationTests extends AbstractMvSerializationTests<MvMedian> {
+public class MvMedianSerializationTests extends AbstractExpressionSerializationTests<MvMedian> {
     @Override
     protected MvMedian createTestInstance() {
         return new MvMedian(randomSource(), randomChild());
@@ -20,10 +20,5 @@ public class MvMedianSerializationTests extends AbstractMvSerializationTests<MvM
     @Override
     protected MvMedian mutateInstance(MvMedian instance) throws IOException {
         return new MvMedian(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
-    }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
     }
 }

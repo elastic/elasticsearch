@@ -1,6 +1,0 @@
-pr: 108517
-summary: Forward `indexServiceSafe` exception to listener
-area: Transform
-type: bug
-issues:
- - 108418

@@ -40,8 +40,8 @@ public class NamedDateTimeProcessor extends BaseDateTimeProcessor {
     }
 
     public static final String NAME = "ndt";
-    private static final DateTimeFormatter DAY_NAME_FORMATTER = DateTimeFormatter.ofPattern("EEEE", Locale.ROOT);
-    private static final DateTimeFormatter MONTH_NAME_FORMATTER = DateTimeFormatter.ofPattern("MMMM", Locale.ROOT);
+    private static final DateTimeFormatter DAY_NAME_FORMATTER = DateTimeFormatter.ofPattern("EEEE", Locale.ENGLISH);
+    private static final DateTimeFormatter MONTH_NAME_FORMATTER = DateTimeFormatter.ofPattern("MMMM", Locale.ENGLISH);
 
     private final NameExtractor extractor;
 

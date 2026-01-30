@@ -7,29 +7,26 @@
 
 package org.elasticsearch.xpack.esql.expression.function.grouping;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
-import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
-import java.util.List;
 
 public class BucketSerializationTests extends AbstractExpressionSerializationTests<Bucket> {
     @Override
-    protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return EsqlScalarFunction.getNamedWriteables();
+    protected Bucket createTestInstance() {
+        return createRandomBucket(configuration());
     }
 
-    @Override
-    protected Bucket createTestInstance() {
+    public static Bucket createRandomBucket(Configuration configuration) {
         Source source = randomSource();
         Expression field = randomChild();
         Expression buckets = randomChild();
         Expression from = randomChild();
         Expression to = randomChild();
-        return new Bucket(source, field, buckets, from, to);
+        return new Bucket(source, field, buckets, from, to, configuration);
     }
 
     @Override
@@ -45,6 +42,6 @@ public class BucketSerializationTests extends AbstractExpressionSerializationTes
             case 2 -> from = randomValueOtherThan(from, AbstractExpressionSerializationTests::randomChild);
             case 3 -> to = randomValueOtherThan(to, AbstractExpressionSerializationTests::randomChild);
         }
-        return new Bucket(source, field, buckets, from, to);
+        return new Bucket(source, field, buckets, from, to, configuration());
     }
 }

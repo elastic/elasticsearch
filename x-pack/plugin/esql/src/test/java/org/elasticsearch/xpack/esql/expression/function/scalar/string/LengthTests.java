@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -75,10 +74,6 @@ public class LengthTests extends AbstractScalarFunctionTestCase {
                 )
             )
         );
-    }
-
-    private Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {
-        return equalTo(UnicodeUtil.codePointCount((BytesRef) typedData.get(0).data()));
     }
 
     @Override

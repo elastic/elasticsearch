@@ -7,27 +7,20 @@
 
 package org.elasticsearch.xpack.security;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 
-import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MIGRATION_FRAMEWORK;
-import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ORIGIN_FEATURE;
-import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_ROLES_METADATA_FLATTENED;
-import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.VERSION_SECURITY_PROFILE_ORIGIN;
+import static org.elasticsearch.xpack.security.support.QueryableBuiltInRolesSynchronizer.QUERYABLE_BUILT_IN_ROLES_FEATURE;
 
 public class SecurityFeatures implements FeatureSpecification {
+    public static final NodeFeature CERTIFICATE_IDENTITY_FIELD_FEATURE = new NodeFeature("certificate_identity_field");
+
+    public static final NodeFeature SECURITY_STATS_ENDPOINT = new NodeFeature("security_stats_endpoint");
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(SECURITY_ROLES_METADATA_FLATTENED, SECURITY_MIGRATION_FRAMEWORK);
-    }
-
-    @Override
-    public Map<NodeFeature, Version> getHistoricalFeatures() {
-        return Map.of(SECURITY_PROFILE_ORIGIN_FEATURE, VERSION_SECURITY_PROFILE_ORIGIN);
+        return Set.of(QUERYABLE_BUILT_IN_ROLES_FEATURE, CERTIFICATE_IDENTITY_FIELD_FEATURE, SECURITY_STATS_ENDPOINT);
     }
 }

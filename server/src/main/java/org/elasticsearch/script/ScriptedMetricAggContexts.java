@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script;
@@ -169,8 +170,8 @@ public class ScriptedMetricAggContexts {
             CombineScript newInstance(Map<String, Object> params, Map<String, Object> state);
         }
 
-        public static String[] PARAMETERS = {};
-        public static ScriptContext<Factory> CONTEXT = new ScriptContext<>("aggs_combine", Factory.class);
+        public static final String[] PARAMETERS = {};
+        public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("aggs_combine", Factory.class);
     }
 
     public abstract static class ReduceScript {
@@ -197,6 +198,6 @@ public class ScriptedMetricAggContexts {
         }
 
         public static String[] PARAMETERS = {};
-        public static ScriptContext<Factory> CONTEXT = new ScriptContext<>("aggs_reduce", Factory.class);
+        public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("aggs_reduce", Factory.class);
     }
 }

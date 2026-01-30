@@ -1,15 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.store.BufferedChecksum;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutputHelper;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.zip.CRC32;
@@ -42,6 +45,27 @@ public final class BufferedChecksumStreamOutput extends StreamOutput {
     public void writeBytes(byte[] b, int offset, int length) throws IOException {
         out.writeBytes(b, offset, length);
         digest.update(b, offset, length);
+    }
+
+    @Override
+    public void writeString(String str) throws IOException {
+        // Have to update the digest with the bytes written.
+        // Not performance-critical: only used for sending translog operations during recovery.
+        StreamOutputHelper.writeString(str, this);
+    }
+
+    @Override
+    public void writeOptionalString(@Nullable String str) throws IOException {
+        // Have to update the digest with the bytes written.
+        // Not performance-critical: only used for sending translog operations during recovery.
+        StreamOutputHelper.writeOptionalString(str, this);
+    }
+
+    @Override
+    public void writeGenericString(String value) throws IOException {
+        // Have to update the digest with the bytes written.
+        // Not performance-critical: only used for sending translog operations during recovery.
+        StreamOutputHelper.writeGenericString(value, this);
     }
 
     @Override

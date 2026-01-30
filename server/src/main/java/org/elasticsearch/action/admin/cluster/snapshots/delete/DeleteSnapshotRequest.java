@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.delete;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
@@ -50,9 +50,7 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
         super(in);
         repository = in.readString();
         snapshots = in.readStringArray();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.DELETE_SNAPSHOTS_ASYNC_ADDED)) {
-            waitForCompletion = in.readBoolean();
-        }
+        waitForCompletion = in.readBoolean();
     }
 
     @Override
@@ -60,11 +58,7 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
         super.writeTo(out);
         out.writeString(repository);
         out.writeStringArray(snapshots);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.DELETE_SNAPSHOTS_ASYNC_ADDED)) {
-            out.writeBoolean(waitForCompletion);
-        } else {
-            assert waitForCompletion : "Using wait_for_completion parameter when it should have been disallowed";
-        }
+        out.writeBoolean(waitForCompletion);
     }
 
     @Override

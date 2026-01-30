@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
@@ -125,4 +126,20 @@ public class ArrayUtils {
             end--;
         }
     }
+
+    /**
+     * Reverse the {@code length} values on the array starting from {@code offset}.
+     */
+    public static void reverseArray(byte[] array, int offset, int length) {
+        int start = offset;
+        int end = offset + length;
+        while (start < end) {
+            final byte temp = array[start];
+            array[start] = array[end - 1];
+            array[end - 1] = temp;
+            start++;
+            end--;
+        }
+    }
+
 }

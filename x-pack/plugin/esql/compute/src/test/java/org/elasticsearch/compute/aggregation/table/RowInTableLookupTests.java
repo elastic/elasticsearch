@@ -16,7 +16,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.MockBlockFactory;
+import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;

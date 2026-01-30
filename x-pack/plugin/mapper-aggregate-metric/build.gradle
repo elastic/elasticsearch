@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -12,9 +10,9 @@ evaluationDependsOn(xpackModule('core'))
 apply plugin: 'elasticsearch.internal-es-plugin'
 
 esplugin {
-  name 'x-pack-aggregate-metric'
-  description 'Module for the aggregate_metric_double field type, which allows pre-aggregated fields to be stored as a single field'
-  classname 'org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin'
+  name = 'x-pack-aggregate-metric'
+  description = 'Module for the aggregate_metric_double field type, which allows pre-aggregated fields to be stored as a single field'
+  classname ='org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin'
   extendedPlugins = ['x-pack-core']
 }
 base {

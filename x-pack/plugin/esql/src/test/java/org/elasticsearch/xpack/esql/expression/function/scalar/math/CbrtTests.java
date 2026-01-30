@@ -72,7 +72,7 @@ public class CbrtTests extends AbstractScalarFunctionTestCase {
         );
         suppliers = anyNullIsNull(true, suppliers);
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     @Override

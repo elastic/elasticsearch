@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -186,7 +187,10 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
         @Nullable List<NodeAllocationResult> nodeDecisions
     ) {
         final Type decisionType = decision.type();
-        AllocationStatus allocationStatus = decisionType != Type.YES ? AllocationStatus.fromDecision(decisionType) : null;
+        AllocationStatus allocationStatus = switch (decisionType) {
+            case YES, NOT_PREFERRED -> null;
+            default -> AllocationStatus.fromDecision(decisionType);
+        };
         return new AllocateUnassignedDecision(assignedNode, nodeDecisions, allocationStatus, null, false, 0L, 0L);
     }
 
@@ -276,7 +280,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
                 TimeValue.timeValueMillis(remainingDelayInMillis)
             );
             case NO -> reuseStore ? Explanations.Allocation.EXISTING_STORES_FORBIDDEN : Explanations.Allocation.ALL_NODES_FORBIDDEN;
-            case WORSE_BALANCE, NO_ATTEMPT -> {
+            case WORSE_BALANCE, NO_ATTEMPT, NOT_PREFERRED -> {
                 assert false : getAllocationDecision();
                 yield getAllocationDecision().toString();
             }

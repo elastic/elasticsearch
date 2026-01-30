@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.simdvec;
 
-import org.apache.lucene.util.quantization.ScalarQuantizedVectorSimilarity;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
@@ -61,17 +61,9 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
         return "JDK=" + jdkVersion + ", os=" + osName + ", arch=" + arch;
     }
 
-    /** Computes the score using the Lucene implementation. */
-    public static float luceneScore(
-        VectorSimilarityType similarityFunc,
-        byte[] a,
-        byte[] b,
-        float correction,
-        float aOffsetValue,
-        float bOffsetValue
-    ) {
-        var scorer = ScalarQuantizedVectorSimilarity.fromVectorSimilarity(VectorSimilarityType.of(similarityFunc), correction, (byte) 7);
-        return scorer.score(a, aOffsetValue, b, bOffsetValue);
+    // Support for passing on-heap arrays/segments to native
+    protected static boolean supportsHeapSegments() {
+        return Runtime.version().feature() >= 22;
     }
 
     /** Converts a float value to a byte array. */

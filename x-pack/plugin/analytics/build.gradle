@@ -1,12 +1,18 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 esplugin {
-  name 'x-pack-analytics'
-  description 'Elasticsearch Expanded Pack Plugin - Analytics'
-  classname 'org.elasticsearch.xpack.analytics.AnalyticsPlugin'
+  name = 'x-pack-analytics'
+  description = 'Elasticsearch Expanded Pack Plugin - Analytics'
+  classname ='org.elasticsearch.xpack.analytics.AnalyticsPlugin'
   extendedPlugins = ['x-pack-core']
 }
 base {
@@ -14,14 +20,21 @@ base {
 }
 
 dependencies {
+  clusterModules project(':modules:aggregations')
+  clusterPlugins project(':x-pack:plugin:analytics')
+
   api 'org.apache.commons:commons-math3:3.6.1'
+  implementation(project(":libs:exponential-histogram"))
   compileOnly project(path: xpackModule('core'))
   compileOnly project(":server")
+
   testImplementation project(path: ':modules:aggregations')
+  testImplementation project(xpackModule('otel-data')) // for coerce compatibility tests
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(":libs:exponential-histogram")))
 }
 
-if (BuildParams.isSnapshotBuild() == false) {
+if (buildParams.snapshotBuild == false) {
   tasks.named("test").configure {
     systemProperty 'es.index_mode_feature_flag_registered', 'true'
   }

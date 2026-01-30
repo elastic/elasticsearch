@@ -14,6 +14,7 @@ import java.io.IOException;
 public class ScheduleTrigger implements Trigger {
 
     public static final String TYPE = "schedule";
+    public static final String TIMEZONE_FIELD = "timezone";
 
     private final Schedule schedule;
 
@@ -49,7 +50,13 @@ public class ScheduleTrigger implements Trigger {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject().field(schedule.type(), schedule, params).endObject();
+        builder.startObject();
+        if (schedule instanceof CronnableSchedule cronnableSchedule && cronnableSchedule.getTimeZone() != null) {
+            builder.field(TIMEZONE_FIELD, cronnableSchedule.getTimeZone().getId());
+        }
+
+        builder.field(schedule.type(), schedule, params);
+        return builder.endObject();
     }
 
     public static Builder builder(Schedule schedule) {

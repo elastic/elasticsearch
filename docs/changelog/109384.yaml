@@ -1,5 +1,0 @@
-pr: 109384
-summary: Fix serialising inference delete response
-area: Machine Learning
-type: bug
-issues: []

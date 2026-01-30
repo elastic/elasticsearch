@@ -119,9 +119,10 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
             response -> {
                 assertHitCount(response, 1);
                 assertSearchHits(response, "1");
-                assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(2));
-                assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1").toString(), equalTo("value1"));
-                assertThat(response.getHits().getAt(0).getSourceAsMap().get("id").toString(), equalTo("1"));
+                Map<String, Object> source = response.getHits().getAt(0).getSourceAsMap();
+                assertThat(source.size(), equalTo(2));
+                assertThat(source.get("field1").toString(), equalTo("value1"));
+                assertThat(source.get("id").toString(), equalTo("1"));
             }
         );
 
@@ -131,9 +132,10 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
             response -> {
                 assertHitCount(response, 1);
                 assertSearchHits(response, "2");
-                assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(2));
-                assertThat(response.getHits().getAt(0).getSourceAsMap().get("field2").toString(), equalTo("value2"));
-                assertThat(response.getHits().getAt(0).getSourceAsMap().get("id").toString(), equalTo("2"));
+                Map<String, Object> source = response.getHits().getAt(0).getSourceAsMap();
+                assertThat(source.size(), equalTo(2));
+                assertThat(source.get("field2").toString(), equalTo("value2"));
+                assertThat(source.get("id").toString(), equalTo("2"));
             }
         );
 
@@ -197,8 +199,9 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
             response -> {
                 assertHitCount(response, 1);
                 assertSearchHits(response, "2");
-                assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
-                assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1").toString(), equalTo("value2"));
+                Map<String, Object> source = response.getHits().getAt(0).getSourceAsMap();
+                assertThat(source.size(), equalTo(1));
+                assertThat(source.get("field1").toString(), equalTo("value2"));
             }
         );
 
@@ -228,9 +231,10 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                 response -> {
                     assertHitCount(response, 1);
                     assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-                    assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(2));
-                    assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1"), equalTo("value1"));
-                    assertThat(response.getHits().getAt(0).getSourceAsMap().get("id"), equalTo("1"));
+                    Map<String, Object> source = response.getHits().getAt(0).getSourceAsMap();
+                    assertThat(source.size(), equalTo(2));
+                    assertThat(source.get("field1"), equalTo("value1"));
+                    assertThat(source.get("id"), equalTo("1"));
                 }
             );
             assertResponse(
@@ -239,9 +243,10 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                 response -> {
                     assertHitCount(response, 1);
                     assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
-                    assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(2));
-                    assertThat(response.getHits().getAt(0).getSourceAsMap().get("field2"), equalTo("value2"));
-                    assertThat(response.getHits().getAt(0).getSourceAsMap().get("id"), equalTo("2"));
+                    Map<String, Object> source = response.getHits().getAt(0).getSourceAsMap();
+                    assertThat(source.size(), equalTo(2));
+                    assertThat(source.get("field2"), equalTo("value2"));
+                    assertThat(source.get("id"), equalTo("2"));
                 }
             );
 
@@ -254,8 +259,9 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                 response -> {
                     assertHitCount(response, 1);
                     assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
-                    assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
-                    assertThat(response.getHits().getAt(0).getSourceAsMap().get("id"), equalTo("2"));
+                    Map<String, Object> source = response.getHits().getAt(0).getSourceAsMap();
+                    assertThat(source.size(), equalTo(1));
+                    assertThat(source.get("id"), equalTo("2"));
                 }
             );
 
@@ -267,13 +273,15 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                 response -> {
                     assertHitCount(response, 2);
                     assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-                    assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(2));
-                    assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1"), equalTo("value1"));
-                    assertThat(response.getHits().getAt(0).getSourceAsMap().get("id"), equalTo("1"));
+                    Map<String, Object> source0 = response.getHits().getAt(0).getSourceAsMap();
+                    assertThat(source0.size(), equalTo(2));
+                    assertThat(source0.get("field1"), equalTo("value1"));
+                    assertThat(source0.get("id"), equalTo("1"));
                     assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
-                    assertThat(response.getHits().getAt(1).getSourceAsMap().size(), equalTo(2));
-                    assertThat(response.getHits().getAt(1).getSourceAsMap().get("field2"), equalTo("value2"));
-                    assertThat(response.getHits().getAt(1).getSourceAsMap().get("id"), equalTo("2"));
+                    Map<String, Object> source1 = response.getHits().getAt(1).getSourceAsMap();
+                    assertThat(source1.size(), equalTo(2));
+                    assertThat(source1.get("field2"), equalTo("value2"));
+                    assertThat(source1.get("id"), equalTo("2"));
                 }
             );
         }
@@ -287,28 +295,28 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
         {
             GetMappingsResponse getMappingsResponse = client().filterWithHeader(
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
-            ).admin().indices().prepareGetMappings("test").get();
+            ).admin().indices().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test").get();
             assertExpectedMetadataFields(getMappingsResponse.getMappings(), "field1");
         }
 
         {
             GetMappingsResponse getMappingsResponse = client().filterWithHeader(
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
-            ).admin().indices().prepareGetMappings("test").get();
+            ).admin().indices().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test").get();
             assertExpectedMetadataFields(getMappingsResponse.getMappings(), "field2");
         }
 
         {
             GetMappingsResponse getMappingsResponse = client().filterWithHeader(
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD))
-            ).admin().indices().prepareGetMappings("test").get();
+            ).admin().indices().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test").get();
             assertExpectedMetadataFields(getMappingsResponse.getMappings(), "field1");
         }
 
         {
             GetMappingsResponse getMappingsResponse = client().filterWithHeader(
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD))
-            ).admin().indices().prepareGetMappings("test").get();
+            ).admin().indices().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test").get();
             assertExpectedMetadataFields(getMappingsResponse.getMappings(), "field1", "field2");
         }
     }
@@ -321,25 +329,25 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
         {
             GetIndexResponse getIndexResponse = client().filterWithHeader(
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
-            ).admin().indices().prepareGetIndex().setIndices("test").get();
+            ).admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices("test").get();
             assertExpectedMetadataFields(getIndexResponse.getMappings(), "field1");
         }
         {
             GetIndexResponse getIndexResponse = client().filterWithHeader(
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
-            ).admin().indices().prepareGetIndex().setIndices("test").get();
+            ).admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices("test").get();
             assertExpectedMetadataFields(getIndexResponse.getMappings(), "field2");
         }
         {
             GetIndexResponse getIndexResponse = client().filterWithHeader(
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD))
-            ).admin().indices().prepareGetIndex().setIndices("test").get();
+            ).admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices("test").get();
             assertExpectedMetadataFields(getIndexResponse.getMappings(), "field1");
         }
         {
             GetIndexResponse getIndexResponse = client().filterWithHeader(
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD))
-            ).admin().indices().prepareGetIndex().setIndices("test").get();
+            ).admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices("test").get();
             assertExpectedMetadataFields(getIndexResponse.getMappings(), "field1", "field2");
         }
     }

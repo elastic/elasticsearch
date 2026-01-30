@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.server.cli;
@@ -141,7 +142,10 @@ public final class JvmOptionsParser {
         }
 
         final List<String> substitutedJvmOptions = substitutePlaceholders(jvmOptions, Collections.unmodifiableMap(substitutions));
-        final SystemMemoryInfo memoryInfo = new OverridableSystemMemoryInfo(substitutedJvmOptions, new DefaultSystemMemoryInfo());
+        final SystemMemoryInfo memoryInfo = new OverheadSystemMemoryInfo(
+            substitutedJvmOptions,
+            new OverridableSystemMemoryInfo(substitutedJvmOptions, new DefaultSystemMemoryInfo())
+        );
         substitutedJvmOptions.addAll(machineDependentHeap.determineHeapSettings(args.nodeSettings(), memoryInfo, substitutedJvmOptions));
         final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions, args.nodeSettings());
         final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions(args.nodeSettings(), cliSysprops);
@@ -268,13 +272,13 @@ public final class JvmOptionsParser {
      * and the following JVM options will not be accepted:
      * <ul>
      *     <li>
-     *         {@code 18:-Xlog:age*=trace,gc*,safepoint:file=logs/gc.log:utctime,pid,tags:filecount=32,filesize=64m}
+     *         {@code 18:-Xlog:age*=trace,gc*,safepoint:file=gc.log:utctime,pid,tags:filecount=32,filesize=64m}
      *     </li>
      *     <li>
-     *         {@code 18-:-Xlog:age*=trace,gc*,safepoint:file=logs/gc.log:utctime,pid,tags:filecount=32,filesize=64m}
+     *         {@code 18-:-Xlog:age*=trace,gc*,safepoint:file=gc.log:utctime,pid,tags:filecount=32,filesize=64m}
      *     </li>
      *     <li>
-     *         {@code 18-19:-Xlog:age*=trace,gc*,safepoint:file=logs/gc.log:utctime,pid,tags:filecount=32,filesize=64m}
+     *         {@code 18-19:-Xlog:age*=trace,gc*,safepoint:file=gc.log:utctime,pid,tags:filecount=32,filesize=64m}
      *     </li>
      * </ul>
      *

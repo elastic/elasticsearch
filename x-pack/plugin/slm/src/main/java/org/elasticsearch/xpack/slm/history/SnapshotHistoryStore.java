@@ -9,12 +9,15 @@ package org.elasticsearch.xpack.slm.history;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -62,8 +65,8 @@ public class SnapshotHistoryStore {
         }
         logger.trace("about to index snapshot history item in data stream [{}]: [{}]", SLM_HISTORY_DATA_STREAM, item);
         Metadata metadata = clusterService.state().getMetadata();
-        if (metadata.dataStreams().containsKey(SLM_HISTORY_DATA_STREAM) == false
-            && metadata.templatesV2().containsKey(SLM_TEMPLATE_NAME) == false) {
+        if (metadata.getProject().dataStreams().containsKey(SLM_HISTORY_DATA_STREAM) == false
+            && metadata.getProject().templatesV2().containsKey(SLM_TEMPLATE_NAME) == false) {
             logger.error(
                 () -> format(
                     "failed to index snapshot history item, data stream [%s] and template [%s] don't exist",
@@ -83,17 +86,30 @@ public class SnapshotHistoryStore {
                     SLM_HISTORY_DATA_STREAM,
                     item
                 );
-            }, exception -> {
-                logger.error(
+            },
+                exception -> logErrorOrWarning(
+                    logger,
+                    clusterService.state(),
                     () -> format("failed to index snapshot history item in data stream [%s]: [%s]", SLM_HISTORY_DATA_STREAM, item),
                     exception
-                );
-            }));
+                )
+            ));
         } catch (IOException exception) {
-            logger.error(
+            logErrorOrWarning(
+                logger,
+                clusterService.state(),
                 () -> format("failed to index snapshot history item in data stream [%s]: [%s]", SLM_HISTORY_DATA_STREAM, item),
                 exception
             );
+        }
+    }
+
+    // On node shutdown, some operations are expected to fail, we log a warning instead of error during node shutdown for those exceptions
+    public static void logErrorOrWarning(Logger logger, ClusterState clusterState, Supplier<?> failureMsgSupplier, Exception exception) {
+        if (PluginShutdownService.isLocalNodeShutdown(clusterState)) {
+            logger.warn(failureMsgSupplier, exception);
+        } else {
+            logger.error(failureMsgSupplier, exception);
         }
     }
 

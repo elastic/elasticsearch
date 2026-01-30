@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.allocation;
@@ -538,7 +539,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertEquals(AllocationDecision.NO, moveDecision.getAllocationDecision());
         assertEquals(Explanations.Move.NO, moveDecision.getExplanation());
         assertFalse(moveDecision.canRemain());
-        assertFalse(moveDecision.forceMove());
+        assertFalse(moveDecision.cannotRemainAndCanMove());
         assertFalse(moveDecision.canRebalanceCluster());
         assertNull(moveDecision.getClusterRebalanceDecision());
         assertNull(moveDecision.getTargetNode());
@@ -651,7 +652,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertEquals(AllocationDecision.NO, moveDecision.getAllocationDecision());
         assertEquals(Explanations.Rebalance.CANNOT_REBALANCE_CAN_ALLOCATE, moveDecision.getExplanation());
         assertTrue(moveDecision.canRemain());
-        assertFalse(moveDecision.forceMove());
+        assertFalse(moveDecision.cannotRemainAndCanMove());
         assertFalse(moveDecision.canRebalanceCluster());
         assertNotNull(moveDecision.getCanRemainDecision());
         assertNull(moveDecision.getTargetNode());
@@ -757,7 +758,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertEquals(AllocationDecision.NO, moveDecision.getAllocationDecision());
         assertEquals(Explanations.Rebalance.ALREADY_BALANCED, moveDecision.getExplanation());
         assertTrue(moveDecision.canRemain());
-        assertFalse(moveDecision.forceMove());
+        assertFalse(moveDecision.cannotRemainAndCanMove());
         assertTrue(moveDecision.canRebalanceCluster());
         assertNotNull(moveDecision.getCanRemainDecision());
         assertNull(moveDecision.getTargetNode());
@@ -855,7 +856,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertEquals(AllocationDecision.NO, moveDecision.getAllocationDecision());
         assertEquals(Explanations.Rebalance.ALREADY_BALANCED, moveDecision.getExplanation());
         assertTrue(moveDecision.canRemain());
-        assertFalse(moveDecision.forceMove());
+        assertFalse(moveDecision.cannotRemainAndCanMove());
         assertTrue(moveDecision.canRebalanceCluster());
         assertNotNull(moveDecision.getCanRemainDecision());
         assertNull(moveDecision.getTargetNode());
@@ -963,7 +964,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertEquals(AllocationDecision.NO, moveDecision.getAllocationDecision());
         assertEquals(Explanations.Rebalance.CANNOT_REBALANCE_CANNOT_ALLOCATE, moveDecision.getExplanation());
         assertTrue(moveDecision.canRemain());
-        assertFalse(moveDecision.forceMove());
+        assertFalse(moveDecision.cannotRemainAndCanMove());
         assertFalse(moveDecision.canRebalanceCluster());
         assertNotNull(moveDecision.getCanRemainDecision());
         assertNull(moveDecision.getTargetNode());
@@ -1053,7 +1054,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             logger.info("--> close the index, now the replica is stale");
             assertAcked(indicesAdmin().prepareClose("idx"));
 
-            final ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth("idx")
+            final ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "idx")
                 .setTimeout(TimeValue.timeValueSeconds(30))
                 .setWaitForActiveShards(ActiveShardCount.ONE)
                 .setWaitForNoInitializingShards(true)
@@ -1254,7 +1255,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         if (state == IndexMetadata.State.CLOSE) {
             assertAcked(indicesAdmin().prepareClose("idx"));
 
-            final ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth("idx")
+            final ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "idx")
                 .setTimeout(TimeValue.timeValueSeconds(30))
                 .setWaitForActiveShards(activeShardCount)
                 .setWaitForEvents(Priority.LANGUID)
@@ -1275,13 +1276,13 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
     }
 
     private String primaryNodeName() {
-        ClusterState clusterState = admin().cluster().prepareState().get().getState();
+        ClusterState clusterState = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         String nodeId = clusterState.getRoutingTable().index("idx").shard(0).primaryShard().currentNodeId();
         return clusterState.getRoutingNodes().node(nodeId).node().getName();
     }
 
     private DiscoveryNode replicaNode() {
-        ClusterState clusterState = admin().cluster().prepareState().get().getState();
+        ClusterState clusterState = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         String nodeId = clusterState.getRoutingTable().index("idx").shard(0).replicaShards().get(0).currentNodeId();
         return clusterState.getRoutingNodes().node(nodeId).node();
     }

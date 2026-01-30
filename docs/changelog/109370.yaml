@@ -1,6 +1,0 @@
-pr: 109370
-summary: Enable fallback synthetic source by default
-area: Mapping
-type: feature
-issues:
- - 106460

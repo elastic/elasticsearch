@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 
 import java.io.IOException;
-import java.util.List;
 
 public abstract class AbstractComparisonSerializationTests<T extends EsqlBinaryComparison> extends AbstractExpressionSerializationTests<T> {
     protected abstract T create(Source source, Expression left, Expression right);
@@ -33,10 +31,5 @@ public abstract class AbstractComparisonSerializationTests<T extends EsqlBinaryC
             right = randomValueOtherThan(instance.right(), AbstractExpressionSerializationTests::randomChild);
         }
         return create(instance.source(), left, right);
-    }
-
-    @Override
-    protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return EsqlBinaryComparison.getNamedWriteables();
     }
 }

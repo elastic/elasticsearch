@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.settings.put;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -56,9 +56,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         settings = readSettingsFromStream(in);
         preserveExisting = in.readBoolean();
         origin = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            reopen = in.readBoolean();
-        }
+        reopen = in.readBoolean();
     }
 
     public UpdateSettingsRequest() {
@@ -203,9 +201,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         settings.writeTo(out);
         out.writeBoolean(preserveExisting);
         out.writeString(origin);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeBoolean(reopen);
-        }
+        out.writeBoolean(reopen);
     }
 
     @Override

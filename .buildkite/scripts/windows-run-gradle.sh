@@ -2,4 +2,4 @@
 
 set -euo pipefail
 
-.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true $GRADLE_TASK
+.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true ${GRADLE_PARAMS:-} $GRADLE_TASK

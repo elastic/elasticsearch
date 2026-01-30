@@ -17,12 +17,10 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -31,6 +29,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -85,7 +84,6 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
         ThreadPool threadPool,
         RepositoriesService repositoriesService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         XPackLicenseState licenseState,
         SystemIndices systemIndices
     ) {
@@ -96,7 +94,6 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
             threadPool,
             actionFilters,
             MountSearchableSnapshotRequest::new,
-            indexNameExpressionResolver,
             RestoreSnapshotResponse::new,
             // Use SNAPSHOT_META pool since we are slow due to loading repository metadata in this action
             threadPool.executor(ThreadPool.Names.SNAPSHOT_META)

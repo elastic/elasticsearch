@@ -49,6 +49,14 @@ public class TransformContext {
     private volatile AuthorizationState authState;
     private volatile int pageSize = 0;
 
+    /**
+     * If the destination index is blocked (e.g. during a reindex), the Transform will fail to write to it.
+     * {@link TransformFailureHandler} will silence the error so the Transform automatically retries.
+     * Every time the Transform runs, it will check if the index is unblocked and reset this to false.
+     * Users can override this via the `_schedule_now` API.
+     */
+    private volatile boolean isWaitingForIndexToUnblock = false;
+
     // the checkpoint of this transform, storing the checkpoint until data indexing from source to dest is _complete_
     // Note: Each indexer run creates a new future checkpoint which becomes the current checkpoint only after the indexer run finished
     private final AtomicLong currentCheckpoint;
@@ -181,6 +189,14 @@ public class TransformContext {
 
     public void setShouldRecreateDestinationIndex(boolean shouldRecreateDestinationIndex) {
         this.shouldRecreateDestinationIndex = shouldRecreateDestinationIndex;
+    }
+
+    public boolean isWaitingForIndexToUnblock() {
+        return isWaitingForIndexToUnblock;
+    }
+
+    public void setIsWaitingForIndexToUnblock(boolean isWaitingForIndexToUnblock) {
+        this.isWaitingForIndexToUnblock = isWaitingForIndexToUnblock;
     }
 
     public AuthorizationState getAuthState() {

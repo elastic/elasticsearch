@@ -1,5 +1,0 @@
-pr: 109794
-summary: Provide document size reporter with `MapperService`
-area: Infra/Metrics
-type: bug
-issues: []

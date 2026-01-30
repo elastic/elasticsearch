@@ -7,12 +7,10 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 
 import java.io.IOException;
-import java.util.List;
 
 public class InsensitiveEqualsSerializationTests extends AbstractExpressionSerializationTests<InsensitiveEquals> {
     @Override
@@ -30,10 +28,5 @@ public class InsensitiveEqualsSerializationTests extends AbstractExpressionSeria
             right = randomValueOtherThan(instance.right(), AbstractExpressionSerializationTests::randomChild);
         }
         return new InsensitiveEquals(instance.source(), left, right);
-    }
-
-    @Override
-    protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(InsensitiveEquals.ENTRY);
     }
 }

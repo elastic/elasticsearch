@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.cat;
@@ -24,6 +25,7 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActionListener;
@@ -59,10 +61,9 @@ public class RestAllocationAction extends AbstractCatAction {
     @Override
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final String[] nodes = Strings.splitStringByCommaToArray(request.param("nodes", "data:true"));
-        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest(getMasterNodeTimeout(request));
         clusterStateRequest.clear().routingTable(true);
-        clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.masterNodeTimeout(getMasterNodeTimeout(request));
+        RestUtils.consumeDeprecatedLocalParameter(request);
 
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
@@ -70,8 +71,8 @@ public class RestAllocationAction extends AbstractCatAction {
                 NodesStatsRequest statsRequest = new NodesStatsRequest(nodes);
                 statsRequest.setIncludeShardsStats(false);
                 statsRequest.clear()
-                    .addMetric(NodesStatsRequestParameters.Metric.FS.metricName())
-                    .addMetric(NodesStatsRequestParameters.Metric.ALLOCATIONS.metricName())
+                    .addMetric(NodesStatsRequestParameters.Metric.FS)
+                    .addMetric(NodesStatsRequestParameters.Metric.ALLOCATIONS)
                     .indices(new CommonStatsFlags(CommonStatsFlags.Flag.Store));
 
                 client.admin().cluster().nodesStats(statsRequest, new RestResponseListener<>(channel) {

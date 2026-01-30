@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 #
-# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
-# or more contributor license agreements. Licensed under the Elastic License
-# 2.0 and the Server Side Public License, v 1; you may not use this file except
-# in compliance with, at your election, the Elastic License 2.0 or the Server
-# Side Public License, v 1.
+ # Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ # or more contributor license agreements. Licensed under the "Elastic License
+ # 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ # Public License v 1"; you may not use this file except in compliance with, at
+ # your election, the "Elastic License 2.0", the "GNU Affero General Public
+ # License v3.0 only", or the "Server Side Public License, v 1".
 #
 
 set -e
@@ -32,7 +33,7 @@ TEMP=$(mktemp -d)
 fetch_homebrew_artifact() {
   DIGEST=$(curl -sS --retry 3 -H "Accept: application/vnd.oci.image.index.v1+json" -H "Authorization: Bearer QQ==" \
       --location "https://ghcr.io/v2/homebrew/core/zstd/manifests/$VERSION" | jq -r \
-      ".manifests[] | select(.platform.os == \"darwin\" and .platform.architecture == \"$1\" and .platform.\"os.version\" == \"macOS 13\") | .annotations.\"sh.brew.bottle.digest\"")
+      ".manifests[] | select(.platform.os == \"darwin\" and .platform.architecture == \"$1\" and .platform.\"os.version\" == \"macOS 13.7\") | .annotations.\"sh.brew.bottle.digest\"")
 
   OUTPUT_FILE="$TEMP/zstd-$VERSION-darwin-$1.tar.gz"
   curl -sS --retry 3 -H "Authorization: Bearer QQ==" --output "$OUTPUT_FILE" --location "https://ghcr.io/v2/homebrew/core/zstd/blobs/sha256:$DIGEST"
@@ -70,7 +71,7 @@ build_linux_jar() {
   ARTIFACT="$TEMP/zstd-$VERSION-linux-$2.jar"
   OUTPUT_DIR="$TEMP/linux-$2"
   mkdir $OUTPUT_DIR
-  DOCKER_IMAGE=$(docker build --build-arg="ZSTD_VERSION=1.5.5" --file zstd.Dockerfile --platform $1 --quiet .)
+  DOCKER_IMAGE=$(docker build --build-arg="ZSTD_VERSION=${VERSION}" --file zstd.Dockerfile --platform $1 --quiet .)
   docker run --platform $1 $DOCKER_IMAGE > $OUTPUT_DIR/libzstd.so
   download_license $OUTPUT_DIR/LICENSE
   (cd $OUTPUT_DIR/../ && zip -rq - $(basename $OUTPUT_DIR)) > $ARTIFACT && rm -rf $OUTPUT_DIR
@@ -78,8 +79,8 @@ build_linux_jar() {
 }
 
 echo 'Building Linux jars...'
-LINUX_ARM_JAR=$(build_linux_jar "linux/amd64" "x86-64")
-LINUX_X86_JAR=$(build_linux_jar "linux/arm64" "aarch64")
+LINUX_ARM_JAR=$(build_linux_jar "linux/arm64" "aarch64")
+LINUX_X86_JAR=$(build_linux_jar "linux/amd64" "x86-64")
 
 build_windows_jar() {
   ARTIFACT="$TEMP/zstd-$VERSION-windows-x86-64.jar"

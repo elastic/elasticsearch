@@ -1,0 +1,6 @@
+pr: 136448
+summary: Add `m` alias for `minute` duration literal
+area: ES|QL
+type: enhancement
+issues:
+ - 135552

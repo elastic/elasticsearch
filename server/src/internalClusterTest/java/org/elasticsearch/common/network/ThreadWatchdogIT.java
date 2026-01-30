@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.network;
 
-import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -22,7 +24,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -42,7 +43,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -89,7 +89,7 @@ public class ThreadWatchdogIT extends ESIntegTestCase {
             return List.of(new RestHandler() {
                 @Override
                 public List<Route> routes() {
-                    return List.of(Route.builder(RestRequest.Method.POST, "_slow").build());
+                    return List.of(new Route(RestRequest.Method.POST, "_slow"));
                 }
 
                 @Override
@@ -102,26 +102,24 @@ public class ThreadWatchdogIT extends ESIntegTestCase {
     }
 
     private static void blockAndWaitForWatchdogLogs() {
-        final var threadName = Thread.currentThread().getName();
-        final var logsSeenLatch = new CountDownLatch(2);
-        final var warningSeen = new RunOnce(logsSeenLatch::countDown);
-        final var threadDumpSeen = new RunOnce(logsSeenLatch::countDown);
-        MockLog.assertThatLogger(() -> safeAwait(logsSeenLatch), ThreadWatchdog.class, new MockLog.LoggingExpectation() {
-            @Override
-            public void match(LogEvent event) {
-                final var formattedMessage = event.getMessage().getFormattedMessage();
-                if (formattedMessage.contains("the following threads are active but did not make progress in the preceding [100ms]:")
-                    && formattedMessage.contains(threadName)) {
-                    warningSeen.run();
-                }
-                if (formattedMessage.contains("hot threads dump due to active threads not making progress")) {
-                    threadDumpSeen.run();
-                }
-            }
-
-            @Override
-            public void assertMatched() {}
-        });
+        MockLog.awaitLogger(
+            () -> {},
+            ThreadWatchdog.class,
+            new MockLog.SeenEventExpectation(
+                "warning",
+                ThreadWatchdog.class.getCanonicalName(),
+                Level.WARN,
+                "*the following threads are active but did not make progress in the preceding [100ms]:*"
+                    + Thread.currentThread().getName()
+                    + "*"
+            ),
+            new MockLog.SeenEventExpectation(
+                "thread dump",
+                ThreadWatchdog.class.getCanonicalName(),
+                Level.WARN,
+                "*hot threads dump due to active threads not making progress*"
+            )
+        );
     }
 
     public void testThreadWatchdogHttpLogging() throws IOException {
@@ -140,7 +138,7 @@ public class ThreadWatchdogIT extends ESIntegTestCase {
             EmptyRequest::new,
             (request, channel, task) -> {
                 blockAndWaitForWatchdogLogs();
-                channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                channel.sendResponse(ActionResponse.Empty.INSTANCE);
             }
         );
 
@@ -152,7 +150,7 @@ public class ThreadWatchdogIT extends ESIntegTestCase {
                     new EmptyRequest(),
                     new ActionListenerResponseHandler<TransportResponse>(
                         l,
-                        in -> TransportResponse.Empty.INSTANCE,
+                        in -> ActionResponse.Empty.INSTANCE,
                         EsExecutors.DIRECT_EXECUTOR_SERVICE
                     )
                 )

@@ -10,7 +10,6 @@ import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -23,12 +22,13 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.NotEqualMessageBuilder;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.proto.CoreProtocol;
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
+import org.elasticsearch.xpack.sql.proto.SqlVersions;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.qa.ErrorsTestCase;
 import org.hamcrest.Matcher;
@@ -60,7 +60,6 @@ import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.Strings.hasText;
 import static org.elasticsearch.xpack.ql.TestUtils.getNumberOfSearchContexts;
-import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.COLUMNS_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.HEADER_NAME_ASYNC_ID;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.HEADER_NAME_ASYNC_PARTIAL;
@@ -76,6 +75,7 @@ import static org.elasticsearch.xpack.sql.proto.CoreProtocol.SQL_ASYNC_STATUS_RE
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.URL_PARAM_DELIMITER;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.URL_PARAM_FORMAT;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.WAIT_FOR_COMPLETION_TIMEOUT_NAME;
+import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.INTRODUCING_UNSIGNED_LONG;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -1159,7 +1159,8 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
     public void testPreventedUnsignedLongMaskedAccess() throws IOException {
         loadUnsignedLongTestData();
-        Version version = VersionUtils.randomVersionBetween(random(), null, VersionUtils.getPreviousVersion(INTRODUCING_UNSIGNED_LONG));
+        var preVersionCompat = SqlVersions.getAllVersions().stream().filter(v -> v.onOrAfter(INTRODUCING_UNSIGNED_LONG) == false).toList();
+        SqlVersion version = preVersionCompat.get(random().nextInt(preVersionCompat.size()));
         String query = query("SELECT unsigned_long::STRING FROM " + indexPattern("test")).version(version.toString()).toString();
         expectBadRequest(
             () -> runSql(new StringEntity(query, ContentType.APPLICATION_JSON), "", randomMode()),

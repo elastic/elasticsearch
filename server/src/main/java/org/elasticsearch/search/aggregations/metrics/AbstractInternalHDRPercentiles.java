@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.HdrHistogram.DoubleHistogram;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -58,14 +58,10 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
     protected AbstractInternalHDRPercentiles(StreamInput in) throws IOException {
         super(in);
         keys = in.readDoubleArray();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-            if (in.readBoolean()) {
-                state = decode(in);
-            } else {
-                state = null;
-            }
-        } else {
+        if (in.readBoolean()) {
             state = decode(in);
+        } else {
+            state = null;
         }
         keyed = in.readBoolean();
     }
@@ -87,18 +83,11 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(format);
         out.writeDoubleArray(keys);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-            if (this.state != null) {
-                out.writeBoolean(true);
-                encode(this.state, out);
-            } else {
-                out.writeBoolean(false);
-            }
+        if (this.state != null) {
+            out.writeBoolean(true);
+            encode(this.state, out);
         } else {
-            DoubleHistogram state = this.state != null ? this.state
-                : out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0) ? EMPTY_HISTOGRAM_ZERO_DIGITS
-                : EMPTY_HISTOGRAM_THREE_DIGITS;
-            encode(state, out);
+            out.writeBoolean(false);
         }
         out.writeBoolean(keyed);
     }

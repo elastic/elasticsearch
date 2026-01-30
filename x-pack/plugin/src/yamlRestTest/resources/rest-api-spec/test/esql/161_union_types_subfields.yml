@@ -4,7 +4,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ method, path, parameters, capabilities ]
-          capabilities: [ union_types ]
+          capabilities: [ union_types, union_types_remove_fields ]
       reason: "Union types introduced in 8.15.0"
       test_runner_features: [ capabilities, allowed_warnings_regex ]
 

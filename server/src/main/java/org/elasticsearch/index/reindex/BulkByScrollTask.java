@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.reindex;
@@ -56,6 +57,7 @@ public class BulkByScrollTask extends CancellableTask {
 
     private volatile LeaderBulkByScrollTaskState leaderState;
     private volatile WorkerBulkByScrollTaskState workerState;
+    private volatile boolean relocationRequested = false;
 
     public BulkByScrollTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
         super(id, type, action, description, parentTaskId, headers);
@@ -178,6 +180,26 @@ public class BulkByScrollTask extends CancellableTask {
         if (isWorker()) {
             workerState.handleCancel();
         }
+    }
+
+    /**
+     * Marks this task as requiring relocation to another node, e.g. because this node is about to shut down.
+     *
+     * <p>This method is fire-and-forget and does not guarantee that relocation actually happens. (That can depend on various factors, such
+     * as whether: the task considers itself eligible for relocation; whether a suitable new node is available; and whether the task is able
+     * to get to an appropriate point to stop work and trigger the relocation in time.)
+     */
+    public void requestRelocation() {
+        // N.B. This method can be called regardless of whether the feature flag that gates this work is enabled or not (see
+        // org.elasticsearch.reindex.ReindexPlugin#REINDEX_RESILIENCE_ENABLED}). If it is not, calling this method should have no effect.
+        relocationRequested = true;
+    }
+
+    /**
+     * Returns whether this task has been marked as requiring relocation to another node. See {@link #requestRelocation()}.
+     */
+    public boolean isRelocationRequested() {
+        return relocationRequested;
     }
 
     /**
@@ -352,7 +374,7 @@ public class BulkByScrollTask extends CancellableTask {
         public static final String THROTTLED_UNTIL_HR_FIELD = "throttled_until";
         public static final String SLICES_FIELD = "slices";
 
-        public static Set<String> FIELDS_SET = new HashSet<>();
+        public static final Set<String> FIELDS_SET = new HashSet<>();
         static {
             FIELDS_SET.add(SLICE_ID_FIELD);
             FIELDS_SET.add(TOTAL_FIELD);
@@ -773,7 +795,7 @@ public class BulkByScrollTask extends CancellableTask {
         private final Status status;
         private final Exception exception;
 
-        public static Set<String> EXPECTED_EXCEPTION_FIELDS = new HashSet<>();
+        public static final Set<String> EXPECTED_EXCEPTION_FIELDS = new HashSet<>();
         static {
             EXPECTED_EXCEPTION_FIELDS.add("type");
             EXPECTED_EXCEPTION_FIELDS.add("reason");

@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.downsample;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -35,7 +33,6 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardPersistentTaskState;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
 
@@ -48,7 +45,6 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
 
     public static final String DOWNSAMPLE_TASK_THREAD_POOL_NAME = "downsample_indexing";
     private static final int DOWNSAMPLE_TASK_THREAD_POOL_QUEUE_SIZE = 256;
-    public static final String DOWNSAMPLE_MIN_NUMBER_OF_REPLICAS_NAME = "downsample.min_number_of_replicas";
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
@@ -64,11 +60,10 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(DownsampleIndexerAction.INSTANCE, TransportDownsampleIndexerAction.class),
-            new ActionHandler<>(DownsampleAction.INSTANCE, TransportDownsampleAction.class),
-            new ActionHandler<>(
+            new ActionHandler(DownsampleAction.INSTANCE, TransportDownsampleAction.class),
+            new ActionHandler(
                 DownsampleShardPersistentTaskExecutor.DelegatingAction.INSTANCE,
                 DownsampleShardPersistentTaskExecutor.DelegatingAction.TA.class
             )
@@ -102,6 +97,7 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
             new DownsampleShardPersistentTaskExecutor(
                 client,
                 DownsampleShardTask.TASK_NAME,
+                clusterService.getSettings(),
                 threadPool.executor(DOWNSAMPLE_TASK_THREAD_POOL_NAME)
             )
         );
@@ -137,6 +133,6 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        return List.of(new DownsampleMetrics(services.telemetryProvider().getMeterRegistry()));
+        return List.of(DownsampleMetrics.class);
     }
 }

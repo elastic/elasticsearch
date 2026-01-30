@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.mustache;
 
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -18,9 +19,12 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -34,9 +38,11 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
     private static final Set<String> RESPONSE_PARAMS = Set.of(RestSearchAction.TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM);
 
     private final boolean allowExplicitIndex;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
     public RestMultiSearchTemplateAction(Settings settings) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
     }
 
     @Override
@@ -45,9 +51,7 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
             new Route(GET, "/_msearch/template"),
             new Route(POST, "/_msearch/template"),
             new Route(GET, "/{index}/_msearch/template"),
-            new Route(POST, "/{index}/_msearch/template"),
-            Route.builder(GET, "/{index}/{type}/_msearch/template").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(POST, "/{index}/{type}/_msearch/template").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+            new Route(POST, "/{index}/_msearch/template")
         );
     }
 
@@ -65,12 +69,19 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
     /**
      * Parses a {@link RestRequest} body and returns a {@link MultiSearchTemplateRequest}
      */
-    public static MultiSearchTemplateRequest parseRequest(RestRequest restRequest, boolean allowExplicitIndex) throws IOException {
-        if (restRequest.getRestApiVersion() == RestApiVersion.V_7 && restRequest.hasParam("type")) {
-            restRequest.param("type");
+    public MultiSearchTemplateRequest parseRequest(RestRequest restRequest, boolean allowExplicitIndex) throws IOException {
+        boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
+        MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
+
+        if (crossProjectEnabled && multiRequest.allowsCrossProject()) {
+            multiRequest.setProjectRouting(restRequest.param("project_routing"));
+            multiRequest.indicesOptions(
+                IndicesOptions.builder(multiRequest.indicesOptions())
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .build()
+            );
         }
 
-        MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
         if (restRequest.hasParam("max_concurrent_searches")) {
             multiRequest.maxConcurrentSearchRequests(restRequest.paramAsInt("max_concurrent_searches", 0));
         }
@@ -81,6 +92,24 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
             allowExplicitIndex,
             (searchRequest, bytes) -> {
                 SearchTemplateRequest searchTemplateRequest = SearchTemplateRequest.fromXContent(bytes);
+                /*
+                 * For multisearch requests, project_routing could appear within the request body as:
+                 * {"project_routing": ...}
+                 * {"id": ...}
+                 *
+                 * In such cases, it is picked up by MultiSearchRequest#readMultiLineFormat() and is associated with the
+                 * SearchRequest object that represents the corresponding msearch request. However, it could also erroneously
+                 * appear as:
+                 * {...}
+                 * {"project_routing": ..., "id": ...}
+                 *
+                 * This is because, the same parser is shared between _msearch/template and _search/template and the above
+                 * format is valid only for the latter. For this reason, we need to explicitly check if project_routing got
+                 * associated with the SearchTemplateRequest instead of SearchRequest and error out if needed.
+                 */
+                if (searchTemplateRequest.getProjectRouting() != null) {
+                    throw new IllegalArgumentException("Unknown key for a VALUE_STRING in [project_routing]");
+                }
                 if (searchTemplateRequest.getScript() != null) {
                     searchTemplateRequest.setRequest(searchRequest);
                     multiRequest.add(searchTemplateRequest);
@@ -88,14 +117,17 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
                     throw new IllegalArgumentException("Malformed search template");
                 }
                 RestSearchAction.validateSearchRequest(restRequest, searchRequest);
-            }
+            },
+            (k, v, r) -> false,
+            Optional.of(crossProjectEnabled),
+            multiRequest.getProjectRouting()
         );
         return multiRequest;
     }
 
     @Override
-    public boolean supportsContentStream() {
-        return true;
+    public boolean mediaTypesValid(RestRequest request) {
+        return super.mediaTypesValid(request) && XContentType.supportsDelimitedBulkRequests(request.getXContentType());
     }
 
     @Override

@@ -1,3 +1,9 @@
+setup:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+---
 keyword:
   - requires:
       cluster_features: ["gte_v8.4.0"]
@@ -7,9 +13,10 @@ keyword:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               kwd:
                 type: keyword
@@ -44,9 +51,10 @@ stored text:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               text:
                 type: text
@@ -83,8 +91,6 @@ stored keyword:
         index: test
         body:
           mappings:
-            _source:
-              mode: synthetic
             properties:
               kwd:
                 type: keyword
@@ -120,9 +126,10 @@ stored keyword without sibling fields:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               kwd:
                 type: keyword
@@ -165,9 +172,10 @@ force_synthetic_source_ok:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: stored
           mappings:
-            _source:
-              mode: stored
             properties:
               obj:
                 properties:
@@ -209,56 +217,6 @@ force_synthetic_source_ok:
           kwd: foo
 
 ---
-force_synthetic_source_bad_mapping:
-  - requires:
-      cluster_features: ["gte_v8.4.0"]
-      reason: introduced in 8.4.0
-
-  - do:
-      indices.create:
-        index: test
-        body:
-          settings:
-            number_of_shards: 1 # Use a single shard to get consistent error messages
-          mappings:
-            _source:
-              mode: stored
-            properties:
-              text:
-                type: text
-
-  - do:
-      index:
-        index:   test
-        id:      1
-        refresh: true
-        body:
-          text: foo
-
-  # When _source is used in the fetch the original _source is perfect
-  - do:
-      search:
-        index: test
-        body:
-          query:
-            ids:
-              values: [1]
-  - match:
-      hits.hits.0._source:
-        text: foo
-
-  # Forcing synthetic source fails because the mapping is invalid
-  - do:
-      catch: bad_request
-      search:
-        index: test
-        force_synthetic_source: true
-        body:
-          query:
-            ids:
-              values: [1]
-
----
 doc values keyword with ignore_above:
   - requires:
       cluster_features: ["gte_v8.5.0"]
@@ -268,9 +226,10 @@ doc values keyword with ignore_above:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               kwd:
                 type: keyword
@@ -336,9 +295,10 @@ stored keyword with ignore_above:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               kwd:
                 type: keyword
@@ -406,9 +366,10 @@ _source filtering:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               kwd:
                 type: keyword
@@ -447,9 +408,9 @@ _doc_count:
       indices.create:
         index: test
         body:
-          mappings:
-            _source:
-              mode: synthetic
+          settings:
+            index:
+              mapping.source.mode: synthetic
 
   - do:
       index:

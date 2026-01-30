@@ -9,9 +9,9 @@ package org.elasticsearch.index.engine.frozen;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
-import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
@@ -23,10 +23,10 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
@@ -109,14 +109,20 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
         private final int maxDoc;
         private final int numDocs;
         private final Map<String, PointValues> pointValuesMap;
+        private final Map<String, DocValuesSkipper> skipperMap;
         private final FieldInfos fieldInfos;
 
         private RewriteCachingLeafReader(LeafReader original) throws IOException {
             this.maxDoc = original.maxDoc();
             this.numDocs = original.numDocs();
             fieldInfos = original.getFieldInfos();
+            pointValuesMap = cachePointValues(original);
+            skipperMap = cacheDocValuesSkippers(original);
+        }
+
+        private static Map<String, PointValues> cachePointValues(LeafReader original) throws IOException {
             Map<String, PointValues> valuesMap = new HashMap<>();
-            for (FieldInfo info : fieldInfos) {
+            for (FieldInfo info : original.getFieldInfos()) {
                 if (info.getPointIndexDimensionCount() != 0) {
                     PointValues pointValues = original.getPointValues(info.name);
                     if (pointValues != null) { // might not be in this reader
@@ -171,7 +177,71 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
                     }
                 }
             }
-            pointValuesMap = valuesMap;
+            return valuesMap;
+        }
+
+        private static Map<String, DocValuesSkipper> cacheDocValuesSkippers(LeafReader original) throws IOException {
+            Map<String, DocValuesSkipper> valuesMap = new HashMap<>();
+            for (FieldInfo info : original.getFieldInfos()) {
+                DocValuesSkipper skipper = original.getDocValuesSkipper(info.name);
+                if (skipper != null) {
+                    long minValue = skipper.minValue();
+                    long maxValue = skipper.maxValue();
+                    int docCount = skipper.docCount();
+                    valuesMap.put(info.name, new DocValuesSkipper() {
+                        @Override
+                        public void advance(int target) {
+                            throw new UnsupportedOperationException();
+                        }
+
+                        @Override
+                        public int numLevels() {
+                            return 0;
+                        }
+
+                        @Override
+                        public int minDocID(int level) {
+                            throw new UnsupportedOperationException();
+                        }
+
+                        @Override
+                        public int maxDocID(int level) {
+                            throw new UnsupportedOperationException();
+                        }
+
+                        @Override
+                        public long minValue(int level) {
+                            return minValue;
+                        }
+
+                        @Override
+                        public long maxValue(int level) {
+                            return maxValue;
+                        }
+
+                        @Override
+                        public int docCount(int level) {
+                            return docCount;
+                        }
+
+                        @Override
+                        public long minValue() {
+                            return minValue;
+                        }
+
+                        @Override
+                        public long maxValue() {
+                            return maxValue;
+                        }
+
+                        @Override
+                        public int docCount() {
+                            return docCount;
+                        }
+                    });
+                }
+            }
+            return valuesMap;
         }
 
         @Override
@@ -215,6 +285,11 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
         }
 
         @Override
+        public DocValuesSkipper getDocValuesSkipper(String field) throws IOException {
+            return skipperMap.get(field);
+        }
+
+        @Override
         public FloatVectorValues getFloatVectorValues(String field) throws IOException {
             throw new UnsupportedOperationException();
         }
@@ -225,12 +300,12 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        public void searchNearestVectors(String field, float[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
+        public void searchNearestVectors(String field, float[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public void searchNearestVectors(String field, byte[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
+        public void searchNearestVectors(String field, byte[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
             throw new UnsupportedOperationException();
         }
 
@@ -258,11 +333,6 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        public Fields getTermVectors(int docId) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public TermVectors termVectors() throws IOException {
             throw new UnsupportedOperationException();
         }
@@ -280,11 +350,6 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
         @Override
         public int maxDoc() {
             return maxDoc;
-        }
-
-        @Override
-        public void document(int docID, StoredFieldVisitor visitor) {
-            throw new UnsupportedOperationException();
         }
 
         @Override

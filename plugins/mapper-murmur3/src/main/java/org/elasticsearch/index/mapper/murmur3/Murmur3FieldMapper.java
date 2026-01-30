@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.murmur3;
@@ -19,10 +20,10 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
-import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.murmur3.Murmur3DocValueField;
@@ -57,19 +58,23 @@ public class Murmur3FieldMapper extends FieldMapper {
             return new Murmur3FieldMapper(
                 leafName(),
                 new Murmur3FieldType(context.buildFullName(leafName()), stored.getValue(), meta.getValue()),
-                multiFieldsBuilder.build(this, context),
-                copyTo
+                builderParams(this, context)
             );
         }
     }
 
-    public static TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
 
     // this only exists so a check can be done to match the field type to using murmur3 hashing...
     public static class Murmur3FieldType extends MappedFieldType {
 
         private Murmur3FieldType(String name, boolean isStored, Map<String, String> meta) {
-            super(name, false, isStored, true, TextSearchInfo.NONE, meta);
+            super(name, IndexType.docValuesOnly(), isStored, meta);
+        }
+
+        @Override
+        public boolean isSearchable() {
+            return false;
         }
 
         @Override
@@ -80,7 +85,7 @@ public class Murmur3FieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, Murmur3DocValueField::new, isIndexed());
+            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, Murmur3DocValueField::new, indexType);
         }
 
         @Override
@@ -94,8 +99,8 @@ public class Murmur3FieldMapper extends FieldMapper {
         }
     }
 
-    protected Murmur3FieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+    protected Murmur3FieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams) {
+        super(simpleName, mappedFieldType, builderParams);
     }
 
     @Override

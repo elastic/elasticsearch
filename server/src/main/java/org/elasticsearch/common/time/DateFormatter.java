@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.time;
@@ -40,6 +41,13 @@ public interface DateFormatter {
     }
 
     /**
+     * Parse the given input into nanos-since-epoch.
+     */
+    default long parseNanos(String input) {
+        return DateUtils.toLong(DateFormatters.from(parse(input)).toInstant());
+    }
+
+    /**
      * Create a copy of this formatter that is configured to parse dates in the specified time zone
      *
      * @param zoneId The time zone to act on
@@ -69,6 +77,14 @@ public interface DateFormatter {
     default String formatMillis(long millis) {
         ZoneId zone = zone() != null ? zone() : ZoneOffset.UTC;
         return format(Instant.ofEpochMilli(millis).atZone(zone));
+    }
+
+    /**
+     * Return the given nanoseconds-since-epoch formatted with this format.
+     */
+    default String formatNanos(long nanos) {
+        ZoneId zone = zone() != null ? zone() : ZoneOffset.UTC;
+        return format(Instant.ofEpochMilli(nanos / 1_000_000).plusNanos(nanos % 1_000_000).atZone(zone));
     }
 
     /**

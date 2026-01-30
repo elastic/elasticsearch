@@ -34,7 +34,7 @@ public class Truncator {
         Setting.Property.Dynamic
     );
 
-    public static List<Setting<?>> getSettings() {
+    public static List<Setting<?>> getSettingsDefinitions() {
         return List.of(REDUCTION_PERCENTAGE_SETTING);
     }
 

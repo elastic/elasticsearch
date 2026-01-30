@@ -16,22 +16,21 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
@@ -84,20 +83,18 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
     private IpPrefix(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
-            ((PlanStreamInput) in).readExpression(),
-            ((PlanStreamInput) in).readExpression(),
-            ((PlanStreamInput) in).readExpression()
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class)
         );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        List<Expression> fields = children();
-        assert fields.size() == 3;
-        ((PlanStreamOutput) out).writeExpression(fields.get(0));
-        ((PlanStreamOutput) out).writeExpression(fields.get(1));
-        ((PlanStreamOutput) out).writeExpression(fields.get(2));
+        out.writeNamedWriteable(ipField);
+        out.writeNamedWriteable(prefixLengthV4Field);
+        out.writeNamedWriteable(prefixLengthV6Field);
     }
 
     @Override
@@ -123,7 +120,7 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var ipEvaluatorSupplier = toEvaluator.apply(ipField);
         var prefixLengthV4EvaluatorSupplier = toEvaluator.apply(prefixLengthV4Field);
         var prefixLengthV6EvaluatorSupplier = toEvaluator.apply(prefixLengthV6Field);
@@ -142,7 +139,7 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
         BytesRef ip,
         int prefixLengthV4,
         int prefixLengthV6,
-        @Fixed(includeInToString = false, build = true) BytesRef scratch
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch
     ) {
         if (prefixLengthV4 < 0 || prefixLengthV4 > 32) {
             throw new IllegalArgumentException("Prefix length v4 must be in range [0, 32], found " + prefixLengthV4);

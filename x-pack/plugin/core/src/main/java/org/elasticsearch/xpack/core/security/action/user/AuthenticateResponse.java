@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,19 +18,12 @@ import java.util.Objects;
 
 public class AuthenticateResponse extends ActionResponse implements ToXContent {
 
-    public static final TransportVersion VERSION_OPERATOR_FIELD = TransportVersions.V_8_10_X;
-
     private final Authentication authentication;
     private final boolean operator;
 
     public AuthenticateResponse(StreamInput in) throws IOException {
-        super(in);
         authentication = new Authentication(in);
-        if (in.getTransportVersion().onOrAfter(VERSION_OPERATOR_FIELD)) {
-            operator = in.readBoolean();
-        } else {
-            operator = false;
-        }
+        operator = in.readBoolean();
     }
 
     public AuthenticateResponse(Authentication authentication, boolean operator) {
@@ -51,9 +42,7 @@ public class AuthenticateResponse extends ActionResponse implements ToXContent {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         authentication.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(VERSION_OPERATOR_FIELD)) {
-            out.writeBoolean(operator);
-        }
+        out.writeBoolean(operator);
     }
 
     @Override

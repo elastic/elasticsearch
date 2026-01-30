@@ -12,4 +12,5 @@ package org.elasticsearch.xpack.core.esql;
  */
 public class EsqlAsyncActionNames {
     public static final String ESQL_ASYNC_GET_RESULT_ACTION_NAME = "indices:data/read/esql/async/get";
+    public static final String ESQL_ASYNC_STOP_ACTION_NAME = "indices:data/read/esql/async/stop";
 }

@@ -81,7 +81,7 @@ public class TopNFunctionTests extends ESTestCase {
             22.0d,
             12.0d,
             120.0d,
-            SubGroup.root("transaction.name", false).addCount("basket", 7L)
+            SubGroup.root("transaction.name").addCount("basket", 7L)
         );
         topNFunction.toXContent(actualRequest, ToXContent.EMPTY_PARAMS);
 
@@ -116,7 +116,7 @@ public class TopNFunctionTests extends ESTestCase {
             4.0d,
             23.2d,
             12.0d,
-            SubGroup.root("transaction.name", false).addCount("checkout", 4L).addCount("basket", 12L)
+            SubGroup.root("transaction.name").addCount("checkout", 4L).addCount("basket", 12L)
         );
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(topNFunction, (TopNFunction::copy));
     }

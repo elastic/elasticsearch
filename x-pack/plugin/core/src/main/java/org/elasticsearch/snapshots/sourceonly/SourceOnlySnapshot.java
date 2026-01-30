@@ -9,6 +9,7 @@ package org.elasticsearch.snapshots.sourceonly;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -216,9 +217,7 @@ public class SourceOnlySnapshot {
             Codec codec = si.getCodec();
             Directory sourceDir = si.dir;
             if (si.getUseCompoundFile()) {
-                sourceDir = new LinkedFilesDirectory.CloseMePleaseWrapper(
-                    codec.compoundFormat().getCompoundReader(sourceDir, si, IOContext.DEFAULT)
-                );
+                sourceDir = new LinkedFilesDirectory.CloseMePleaseWrapper(codec.compoundFormat().getCompoundReader(sourceDir, si));
                 toClose = sourceDir;
             }
             final String segmentSuffix = "";
@@ -254,6 +253,7 @@ public class SourceOnlySnapshot {
                             false,
                             IndexOptions.NONE,
                             DocValuesType.NONE,
+                            DocValuesSkipIndexType.NONE,
                             -1,
                             fieldInfo.attributes(),
                             0,

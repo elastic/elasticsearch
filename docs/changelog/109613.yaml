@@ -1,6 +1,0 @@
-pr: 109613
-summary: Consider `error_trace` supported by all endpoints
-area: Infra/REST API
-type: bug
-issues:
- - 109612

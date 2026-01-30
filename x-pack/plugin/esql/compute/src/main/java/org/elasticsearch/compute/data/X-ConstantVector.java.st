@@ -7,16 +7,20 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.ReleasableIterator;
+// end generated imports
 
 /**
  * Vector implementation that stores a constant $type$ value.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ConstantVector.java.st} instead.
  */
 final class Constant$Type$Vector extends AbstractVector implements $Type$Vector {
 
@@ -36,11 +40,15 @@ $endif$
 
     @Override
 $if(BytesRef)$
-    public BytesRef getBytesRef(int position, BytesRef ignore) {
+    public BytesRef getBytesRef(int position, BytesRef scratch) {
+        scratch.bytes = value.bytes;
+        scratch.offset = value.offset;
+        scratch.length = value.length;
+        return scratch;
 $else$
     public $type$ get$Type$(int position) {
-$endif$
         return value;
+$endif$
     }
 
     @Override
@@ -58,6 +66,49 @@ $endif$
     @Override
     public $Type$Vector filter(int... positions) {
         return blockFactory().newConstant$Type$Vector(value, positions.length);
+    }
+
+    @Override
+    public $Type$Block keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return new $Type$VectorBlock(this);
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return new $Type$VectorBlock(this);
+            }
+            return ($Type$Block) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+$if(BytesRef)$
+        IntBlock ordinals = null;
+        BytesRefVector bytes = null;
+        try {
+            try (IntVector unmaskedOrdinals = blockFactory().newConstantIntVector(0, getPositionCount())) {
+                ordinals = unmaskedOrdinals.keepMask(mask);
+            }
+            bytes = blockFactory().newConstantBytesRefVector(value, getPositionCount());
+            OrdinalBytesRefBlock result = new OrdinalBytesRefBlock(ordinals, bytes);
+            ordinals = null;
+            bytes = null;
+            return result;
+        } finally {
+            Releasables.close(ordinals, bytes);
+        }
+$else$
+        try ($Type$Block.Builder builder = blockFactory().new$Type$BlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (mask.getBoolean(p)) {
+                    builder.append$Type$(value);
+                } else {
+                    builder.appendNull();
+                }
+            }
+            return builder.build();
+        }
+$endif$
     }
 
     @Override
@@ -98,6 +149,23 @@ $if(int)$
     public int max() {
         return value;
     }
+
+$elseif(boolean)$
+    /**
+     * Are all values {@code true}? This will scan all values to check and always answer accurately.
+     */
+    @Override
+    public boolean allTrue() {
+        return value;
+    }
+
+    /**
+     * Are all values {@code false}? This will scan all values to check and always answer accurately.
+     */
+    @Override
+    public boolean allFalse() {
+        return value == false;
+    }
 $endif$
 
     @Override
@@ -110,14 +178,19 @@ $endif$
         return true;
     }
 
+    @Override
+    public $Type$Vector deepCopy(BlockFactory blockFactory) {
+        return blockFactory.newConstant$Type$Vector(value, getPositionCount());
+    }
+
 $if(BytesRef)$
-    public static long ramBytesUsed(BytesRef value) {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(value.bytes);
+    public static long ramBytesUsedWithLength(BytesRef value) {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + value.length);
     }
 
     @Override
     public long ramBytesUsed() {
-        return ramBytesUsed(value);
+        return ramBytesUsedWithLength(value);
     }
 
 $else$

@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -31,6 +33,36 @@ import static org.hamcrest.Matchers.is;
 
 public class AzureAiStudioChatCompletionTaskSettingsTests extends AbstractBWCWireSerializationTestCase<
     AzureAiStudioChatCompletionTaskSettings> {
+
+    public void testIsEmpty() {
+        var randomSettings = createRandom();
+        var stringRep = Strings.toString(randomSettings);
+        assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
+    }
+
+    public void testUpdatedTaskSettings() {
+        var initialSettings = createRandom();
+        var newSettings = createRandom();
+        var settingsMap = new HashMap<String, Object>();
+        if (newSettings.doSample() != null) settingsMap.put(DO_SAMPLE_FIELD, newSettings.doSample());
+        if (newSettings.temperature() != null) settingsMap.put(TEMPERATURE_FIELD, newSettings.temperature());
+        if (newSettings.topP() != null) settingsMap.put(TOP_P_FIELD, newSettings.topP());
+        if (newSettings.maxNewTokens() != null) settingsMap.put(MAX_NEW_TOKENS_FIELD, newSettings.maxNewTokens());
+
+        AzureAiStudioChatCompletionTaskSettings updatedSettings = (AzureAiStudioChatCompletionTaskSettings) initialSettings
+            .updatedTaskSettings(Collections.unmodifiableMap(settingsMap));
+
+        assertEquals(
+            newSettings.temperature() == null ? initialSettings.temperature() : newSettings.temperature(),
+            updatedSettings.temperature()
+        );
+        assertEquals(newSettings.topP() == null ? initialSettings.topP() : newSettings.topP(), updatedSettings.topP());
+        assertEquals(newSettings.doSample() == null ? initialSettings.doSample() : newSettings.doSample(), updatedSettings.doSample());
+        assertEquals(
+            newSettings.maxNewTokens() == null ? initialSettings.maxNewTokens() : newSettings.maxNewTokens(),
+            updatedSettings.maxNewTokens()
+        );
+    }
 
     public void testFromMap_AllValues() {
         var taskMap = getTaskSettingsMap(1.0, 2.0, true, 512);
@@ -199,7 +231,18 @@ public class AzureAiStudioChatCompletionTaskSettingsTests extends AbstractBWCWir
 
     @Override
     protected AzureAiStudioChatCompletionTaskSettings mutateInstance(AzureAiStudioChatCompletionTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, AzureAiStudioChatCompletionTaskSettingsTests::createRandom);
+        var temperature = instance.temperature();
+        var topP = instance.topP();
+        var doSample = instance.doSample();
+        var maxNewTokens = instance.maxNewTokens();
+        switch (randomInt(3)) {
+            case 0 -> temperature = randomValueOtherThan(temperature, ESTestCase::randomOptionalDouble);
+            case 1 -> topP = randomValueOtherThan(topP, ESTestCase::randomOptionalDouble);
+            case 2 -> doSample = doSample == null ? randomBoolean() : doSample == false;
+            case 3 -> maxNewTokens = randomValueOtherThan(maxNewTokens, ESTestCase::randomNonNegativeIntOrNull);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new AzureAiStudioChatCompletionTaskSettings(temperature, topP, doSample, maxNewTokens);
     }
 
     @Override
@@ -212,10 +255,10 @@ public class AzureAiStudioChatCompletionTaskSettingsTests extends AbstractBWCWir
 
     private static AzureAiStudioChatCompletionTaskSettings createRandom() {
         return new AzureAiStudioChatCompletionTaskSettings(
-            randomFrom(new Double[] { null, randomDouble() }),
-            randomFrom(new Double[] { null, randomDouble() }),
-            randomFrom(randomFrom(new Boolean[] { null, randomBoolean() })),
-            randomFrom(new Integer[] { null, randomNonNegativeInt() })
+            randomOptionalDouble(),
+            randomOptionalDouble(),
+            randomOptionalBoolean(),
+            randomNonNegativeIntOrNull()
         );
     }
 }

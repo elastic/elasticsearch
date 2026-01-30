@@ -20,7 +20,7 @@ public abstract class AbstractXpackFullClusterRestartTestCase extends Parameteri
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .version(getOldClusterTestVersion())
+        .version(OLD_CLUSTER_VERSION, isOldClusterDetachedVersion())
         .nodes(2)
         // some tests rely on the translog not being flushed
         .setting("indices.memory.shard_inactive_time", "60m")
@@ -36,7 +36,6 @@ public abstract class AbstractXpackFullClusterRestartTestCase extends Parameteri
         .keystore("xpack.watcher.encryption_key", Resource.fromClasspath("system_key"))
         .keystore("xpack.security.transport.ssl.secure_key_passphrase", "testnode")
         .feature(FeatureFlag.TIME_SERIES_MODE)
-        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
         .build();
 
     public AbstractXpackFullClusterRestartTestCase(FullClusterRestartUpgradeStatus upgradeStatus) {

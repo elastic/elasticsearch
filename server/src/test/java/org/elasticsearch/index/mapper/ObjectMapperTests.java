@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -134,7 +135,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testMergeEnabledForIndexTemplates() throws IOException {
-        MapperService mapperService = createMapperService(syntheticSourceMapping(b -> {}));
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {}));
         merge(mapperService, MergeReason.INDEX_TEMPLATE, mapping(b -> {
             b.startObject("object");
             {
@@ -164,30 +165,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         ObjectMapper objectMapper = mapper.mappers().objectMappers().get("object");
         assertNotNull(objectMapper);
         assertFalse(objectMapper.isEnabled());
-        assertTrue(objectMapper.subobjects());
-        assertFalse(objectMapper.storeArraySource());
-
-        // Setting 'enabled' to true is allowed, and updates the mapping.
-        update = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("properties")
-                .startObject("object")
-                .field("type", "object")
-                .field("enabled", true)
-                .field("subobjects", false)
-                .field(ObjectMapper.STORE_ARRAY_SOURCE_PARAM, true)
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-        mapper = mapperService.merge("type", new CompressedXContent(update), MergeReason.INDEX_TEMPLATE);
-
-        objectMapper = mapper.mappers().objectMappers().get("object");
-        assertNotNull(objectMapper);
-        assertTrue(objectMapper.isEnabled());
-        assertFalse(objectMapper.subobjects());
-        assertTrue(objectMapper.storeArraySource());
+        assertEquals(ObjectMapper.Subobjects.ENABLED, objectMapper.subobjects());
+        assertTrue(objectMapper.sourceKeepMode().isEmpty());
     }
 
     public void testFieldReplacementForIndexTemplates() throws IOException {
@@ -323,6 +302,40 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             () -> mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(secondUpdate), MergeReason.INDEX_TEMPLATE)
         );
         assertThat(e.getMessage(), containsString("can't merge a non object mapping [object.field1] with an object mapping"));
+    }
+
+    public void testFieldReplacementSubobjectsFalse() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("obj").field("type", "object").field("subobjects", false).startObject("properties");
+            {
+                b.startObject("my.field").field("type", "keyword").endObject();
+            }
+            b.endObject().endObject();
+        }));
+        DocumentMapper mapper = mapperService.documentMapper();
+        assertNull(mapper.mapping().getRoot().dynamic());
+        Mapping mergeWith = mapperService.parseMapping(
+            "_doc",
+            MergeReason.INDEX_TEMPLATE,
+            new CompressedXContent(BytesReference.bytes(topMapping(b -> {
+                b.startObject("properties").startObject("obj").field("type", "object").field("subobjects", false).startObject("properties");
+                {
+                    b.startObject("my.field").field("type", "long").endObject();
+                }
+                b.endObject().endObject().endObject();
+            })))
+        );
+
+        // Fails on mapping update.
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> mapper.mapping().merge(mergeWith, MergeReason.MAPPING_UPDATE, Long.MAX_VALUE)
+        );
+        assertEquals("mapper [obj.my.field] cannot be changed from type [keyword] to [long]", exception.getMessage());
+
+        // Passes on template merging.
+        Mapping merged = mapper.mapping().merge(mergeWith, MergeReason.INDEX_TEMPLATE, Long.MAX_VALUE);
+        assertThat(((ObjectMapper) merged.getRoot().getMapper("obj")).getMapper("my.field"), instanceOf(NumberFieldMapper.class));
     }
 
     public void testUnknownLegacyFields() throws Exception {
@@ -509,8 +522,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     public void testSyntheticSourceDocValuesEmpty() throws IOException {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> b.startObject("o").field("type", "object").endObject()));
         ObjectMapper o = (ObjectMapper) mapper.mapping().getRoot().getMapper("o");
-        assertThat(o.syntheticFieldLoader().docValuesLoader(null, null), nullValue());
-        assertThat(mapper.mapping().getRoot().syntheticFieldLoader().docValuesLoader(null, null), nullValue());
+        assertThat(o.syntheticFieldLoader(null).docValuesLoader(null, null), nullValue());
+        assertThat(mapper.mapping().getRoot().syntheticFieldLoader(null).docValuesLoader(null, null), nullValue());
     }
 
     /**
@@ -535,34 +548,40 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             b.endObject().endObject();
         }));
         ObjectMapper o = (ObjectMapper) mapper.mapping().getRoot().getMapper("o");
-        assertThat(o.syntheticFieldLoader().docValuesLoader(null, null), nullValue());
-        assertThat(mapper.mapping().getRoot().syntheticFieldLoader().docValuesLoader(null, null), nullValue());
+        assertThat(o.syntheticFieldLoader(null).docValuesLoader(null, null), nullValue());
+        assertThat(mapper.mapping().getRoot().syntheticFieldLoader(null).docValuesLoader(null, null), nullValue());
     }
 
     public void testStoreArraySourceinSyntheticSourceMode() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
-            b.startObject("o").field("type", "object").field(ObjectMapper.STORE_ARRAY_SOURCE_PARAM, true).endObject();
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("o").field("type", "object").field("synthetic_source_keep", "arrays").endObject();
+        })).documentMapper();
+        assertNotNull(mapper.mapping().getRoot().getMapper("o"));
+    }
+
+    public void testStoreArraySourceNoopInNonSyntheticSourceMode() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("o").field("type", "object").field("synthetic_source_keep", "arrays").endObject();
         }));
         assertNotNull(mapper.mapping().getRoot().getMapper("o"));
     }
 
-    public void testStoreArraySourceThrowsInNonSyntheticSourceMode() {
-        var exception = expectThrows(MapperParsingException.class, () -> createDocumentMapper(mapping(b -> {
-            b.startObject("o").field("type", "object").field(ObjectMapper.STORE_ARRAY_SOURCE_PARAM, true).endObject();
-        })));
-        assertEquals("Parameter [store_array_source] can only be set in synthetic source mode.", exception.getMessage());
-    }
-
     public void testNestedObjectWithMultiFieldsgetTotalFieldsCount() {
-        ObjectMapper.Builder mapperBuilder = new ObjectMapper.Builder("parent_size_1", Explicit.IMPLICIT_TRUE).add(
-            new ObjectMapper.Builder("child_size_2", Explicit.IMPLICIT_TRUE).add(
-                new TextFieldMapper.Builder("grand_child_size_3", createDefaultIndexAnalyzers(), false).addMultiField(
-                    new KeywordFieldMapper.Builder("multi_field_size_4", IndexVersion.current())
+        ObjectMapper.Builder mapperBuilder = new ObjectMapper.Builder("parent_size_1").add(
+            new ObjectMapper.Builder("child_size_2").add(
+                new TextFieldMapper.Builder("grand_child_size_3", createDefaultIndexAnalyzers()).addMultiField(
+                    new KeywordFieldMapper.Builder("multi_field_size_4", defaultIndexSettings())
                 )
                     .addMultiField(
-                        new TextFieldMapper.Builder("grand_child_size_5", createDefaultIndexAnalyzers(), false).addMultiField(
-                            new KeywordFieldMapper.Builder("multi_field_of_multi_field_size_6", IndexVersion.current())
-                        )
+                        new TextFieldMapper.Builder(
+                            "grand_child_size_5",
+                            IndexVersion.current(),
+                            null,
+                            createDefaultIndexAnalyzers(),
+                            false,
+                            true,
+                            true
+                        ).addMultiField(new KeywordFieldMapper.Builder("multi_field_of_multi_field_size_6", defaultIndexSettings(), true))
                     )
             )
         );
@@ -583,39 +602,45 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
     private ObjectMapper createObjectMapperWithAllParametersSet(CheckedConsumer<XContentBuilder, IOException> propertiesBuilder)
         throws IOException {
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("object");
             {
                 b.field("type", "object");
                 b.field("subobjects", false);
                 b.field("enabled", false);
                 b.field("dynamic", false);
-                b.field(ObjectMapper.STORE_ARRAY_SOURCE_PARAM, true);
+                b.field("synthetic_source_keep", "arrays");
                 b.startObject("properties");
                 propertiesBuilder.accept(b);
                 b.endObject();
             }
             b.endObject();
-        }));
+        })).documentMapper();
         return (ObjectMapper) mapper.mapping().getRoot().getMapper("object");
     }
 
     public void testFlatten() {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
-        ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Explicit.IMPLICIT_TRUE).add(
-            new ObjectMapper.Builder("child", Explicit.IMPLICIT_TRUE).add(
-                new KeywordFieldMapper.Builder("keyword2", IndexVersion.current())
-            )
-        ).add(new KeywordFieldMapper.Builder("keyword1", IndexVersion.current())).build(rootContext);
+        ObjectMapper objectMapper = new ObjectMapper.Builder("parent").add(
+            new ObjectMapper.Builder("child").add(new KeywordFieldMapper.Builder("keyword2", defaultIndexSettings()))
+        ).add(new KeywordFieldMapper.Builder("keyword1", defaultIndexSettings())).build(rootContext);
+        List<String> fields = objectMapper.asFlattenedFieldMappers(rootContext).stream().map(FieldMapper::fullPath).toList();
+        assertThat(fields, containsInAnyOrder("parent.keyword1", "parent.child.keyword2"));
+    }
+
+    public void testFlattenSubobjectsFalse() {
+        MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
+        ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Explicit.of(ObjectMapper.Subobjects.DISABLED)).add(
+            new ObjectMapper.Builder("child").add(new KeywordFieldMapper.Builder("keyword2", defaultIndexSettings()))
+        ).add(new KeywordFieldMapper.Builder("keyword1", defaultIndexSettings())).build(rootContext);
         List<String> fields = objectMapper.asFlattenedFieldMappers(rootContext).stream().map(FieldMapper::fullPath).toList();
         assertThat(fields, containsInAnyOrder("parent.keyword1", "parent.child.keyword2"));
     }
 
     public void testFlattenDynamicIncompatible() {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
-        ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Explicit.IMPLICIT_TRUE).add(
-            new ObjectMapper.Builder("child", Explicit.IMPLICIT_TRUE).dynamic(Dynamic.FALSE)
-        ).build(rootContext);
+        ObjectMapper objectMapper = new ObjectMapper.Builder("parent").add(new ObjectMapper.Builder("child").dynamic(Dynamic.FALSE))
+            .build(rootContext);
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -631,7 +656,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
     public void testFlattenEnabledFalse() {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
-        ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Explicit.IMPLICIT_TRUE).enabled(false).build(rootContext);
+        ObjectMapper objectMapper = new ObjectMapper.Builder("parent").enabled(false).build(rootContext);
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -646,7 +671,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
     public void testFlattenExplicitSubobjectsTrue() {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
-        ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Explicit.EXPLICIT_TRUE).build(rootContext);
+        ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Explicit.of(ObjectMapper.Subobjects.ENABLED)).build(rootContext);
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -657,5 +682,41 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 + "Auto-flattening [parent] failed because the value of [subobjects] is [true]",
             exception.getMessage()
         );
+    }
+
+    public void testFindParentMapper() {
+        MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
+
+        var rootBuilder = new RootObjectMapper.Builder("_doc");
+        rootBuilder.add(new KeywordFieldMapper.Builder("keyword", defaultIndexSettings()));
+
+        var child = new ObjectMapper.Builder("child");
+        child.add(new KeywordFieldMapper.Builder("keyword2", defaultIndexSettings()));
+        child.add(new KeywordFieldMapper.Builder("keyword.with.dot", defaultIndexSettings()));
+        var secondLevelChild = new ObjectMapper.Builder("child2");
+        secondLevelChild.add(new KeywordFieldMapper.Builder("keyword22", defaultIndexSettings()));
+        child.add(secondLevelChild);
+        rootBuilder.add(child);
+
+        var childWithDot = new ObjectMapper.Builder("childwith.dot");
+        childWithDot.add(new KeywordFieldMapper.Builder("keyword3", defaultIndexSettings()));
+        childWithDot.add(new KeywordFieldMapper.Builder("keyword4.with.dot", defaultIndexSettings()));
+        rootBuilder.add(childWithDot);
+
+        RootObjectMapper root = rootBuilder.build(rootContext);
+
+        assertEquals("_doc", root.findParentMapper("keyword").fullPath());
+        assertNull(root.findParentMapper("aa"));
+
+        assertEquals("child", root.findParentMapper("child.keyword2").fullPath());
+        assertEquals("child", root.findParentMapper("child.keyword.with.dot").fullPath());
+        assertNull(root.findParentMapper("child.long"));
+        assertNull(root.findParentMapper("child.long.hello"));
+        assertEquals("child.child2", root.findParentMapper("child.child2.keyword22").fullPath());
+
+        assertEquals("childwith.dot", root.findParentMapper("childwith.dot.keyword3").fullPath());
+        assertEquals("childwith.dot", root.findParentMapper("childwith.dot.keyword4.with.dot").fullPath());
+        assertNull(root.findParentMapper("childwith.dot.long"));
+        assertNull(root.findParentMapper("childwith.dot.long.hello"));
     }
 }

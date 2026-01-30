@@ -60,7 +60,7 @@ public final class CcrSettings {
      */
     public static final Setting<ByteSizeValue> RECOVERY_MAX_BYTES_PER_SECOND = Setting.byteSizeSetting(
         "ccr.indices.recovery.max_bytes_per_sec",
-        new ByteSizeValue(40, ByteSizeUnit.MB),
+        ByteSizeValue.of(40, ByteSizeUnit.MB),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -70,9 +70,9 @@ public final class CcrSettings {
      */
     public static final Setting<ByteSizeValue> RECOVERY_CHUNK_SIZE = Setting.byteSizeSetting(
         "ccr.indices.recovery.chunk_size",
-        new ByteSizeValue(1, ByteSizeUnit.MB),
-        new ByteSizeValue(1, ByteSizeUnit.KB),
-        new ByteSizeValue(1, ByteSizeUnit.GB),
+        ByteSizeValue.of(1, ByteSizeUnit.MB),
+        ByteSizeValue.of(1, ByteSizeUnit.KB),
+        ByteSizeValue.of(1, ByteSizeUnit.GB),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

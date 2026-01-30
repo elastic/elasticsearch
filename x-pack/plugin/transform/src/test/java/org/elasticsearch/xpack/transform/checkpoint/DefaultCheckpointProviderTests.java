@@ -22,7 +22,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
@@ -30,8 +29,9 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.MockLog.LoggingExpectation;
+import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ActionNotFoundTransportException;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -58,7 +58,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -231,51 +230,6 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         );
     }
 
-    public void testHandlingShardFailures() throws Exception {
-        var transformId = getTestName();
-        var indexName = "some-index";
-        TransformConfig transformConfig = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig(transformId)).setSource(
-            new SourceConfig(indexName)
-        ).build();
-
-        var remoteClusterResolver = mock(RemoteClusterResolver.class);
-        doReturn(new RemoteClusterResolver.ResolvedIndices(Collections.emptyMap(), Collections.singletonList(indexName))).when(
-            remoteClusterResolver
-        ).resolve(transformConfig.getSource().getIndex());
-
-        mockGetIndexResponse(indexName);
-        mockIndicesStatsResponse(indexName);
-        mockGetCheckpointAction();
-
-        var provider = new DefaultCheckpointProvider(
-            clock,
-            parentTaskClient,
-            remoteClusterResolver,
-            transformConfigManager,
-            transformAuditor,
-            transformConfig
-        );
-
-        var latch = new CountDownLatch(1);
-        provider.createNextCheckpoint(
-            null,
-            new LatchedActionListener<>(
-                ActionListener.wrap(
-                    response -> fail("This test case must fail"),
-                    e -> assertThat(
-                        e.getMessage(),
-                        startsWith(
-                            "Source has [7] failed shards, first shard failure: [some-index][3] failed, "
-                                + "reason [java.lang.Exception: something's wrong"
-                        )
-                    )
-                ),
-                latch
-            )
-        );
-        assertTrue(latch.await(1, TimeUnit.MILLISECONDS));
-    }
-
     private void mockGetIndexResponse(String indexName) {
         GetIndexResponse getIndexResponse = new GetIndexResponse(new String[] { indexName }, null, null, null, null, null);
         doAnswer(withResponse(getIndexResponse)).when(client).execute(eq(GetIndexAction.INSTANCE), any(), any());
@@ -289,14 +243,6 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
                 new DefaultShardOperationFailedException(indexName, 3, new Exception("something's wrong")) }
         ).when(indicesStatsResponse).getShardFailures();
         doAnswer(withResponse(indicesStatsResponse)).when(client).execute(eq(IndicesStatsAction.INSTANCE), any(), any());
-    }
-
-    private void mockGetCheckpointAction() {
-        doAnswer(invocationOnMock -> {
-            ActionListener<?> listener = invocationOnMock.getArgument(2);
-            listener.onFailure(new ActionNotFoundTransportException("This should fail."));
-            return null;
-        }).when(client).execute(eq(GetCheckpointAction.INSTANCE), any(), any());
     }
 
     public void testHandlingNoClusters() throws Exception {
@@ -358,13 +304,18 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         String transformId = getTestName();
         TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);
 
+        doAnswer(withMockConnection()).when(remoteClient1).getConnection(any(), any());
+        doAnswer(withMockConnection()).when(remoteClient2).getConnection(any(), any());
+        doAnswer(withMockConnection()).when(remoteClient3).getConnection(any(), any());
+
         GetCheckpointAction.Response checkpointResponse = new GetCheckpointAction.Response(Map.of("index-1", new long[] { 1L, 2L, 3L }));
         doAnswer(withResponse(checkpointResponse)).when(client).execute(eq(GetCheckpointAction.INSTANCE), any(), any());
 
         GetCheckpointAction.Response remoteCheckpointResponse = new GetCheckpointAction.Response(
             Map.of("index-1", new long[] { 4L, 5L, 6L, 7L, 8L })
         );
-        doAnswer(withResponse(remoteCheckpointResponse)).when(remoteClient1).execute(eq(GetCheckpointAction.REMOTE_TYPE), any(), any());
+        doAnswer(withRemoteResponse(remoteCheckpointResponse)).when(remoteClient1)
+            .execute(any(), eq(GetCheckpointAction.REMOTE_TYPE), any(), any());
 
         RemoteClusterResolver remoteClusterResolver = mock(RemoteClusterResolver.class);
 
@@ -401,18 +352,25 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         String transformId = getTestName();
         TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);
 
+        doAnswer(withMockConnection()).when(remoteClient1).getConnection(any(), any());
+        doAnswer(withMockConnection()).when(remoteClient2).getConnection(any(), any());
+        doAnswer(withMockConnection()).when(remoteClient3).getConnection(any(), any());
+
         GetCheckpointAction.Response remoteCheckpointResponse1 = new GetCheckpointAction.Response(
             Map.of("index-1", new long[] { 1L, 2L, 3L })
         );
-        doAnswer(withResponse(remoteCheckpointResponse1)).when(remoteClient1).execute(eq(GetCheckpointAction.REMOTE_TYPE), any(), any());
+        doAnswer(withRemoteResponse(remoteCheckpointResponse1)).when(remoteClient1)
+            .execute(any(), eq(GetCheckpointAction.REMOTE_TYPE), any(), any());
 
         GetCheckpointAction.Response remoteCheckpointResponse2 = new GetCheckpointAction.Response(
             Map.of("index-1", new long[] { 4L, 5L, 6L, 7L, 8L })
         );
-        doAnswer(withResponse(remoteCheckpointResponse2)).when(remoteClient2).execute(eq(GetCheckpointAction.REMOTE_TYPE), any(), any());
+        doAnswer(withRemoteResponse(remoteCheckpointResponse2)).when(remoteClient2)
+            .execute(any(), eq(GetCheckpointAction.REMOTE_TYPE), any(), any());
 
         GetCheckpointAction.Response remoteCheckpointResponse3 = new GetCheckpointAction.Response(Map.of("index-1", new long[] { 9L }));
-        doAnswer(withResponse(remoteCheckpointResponse3)).when(remoteClient3).execute(eq(GetCheckpointAction.REMOTE_TYPE), any(), any());
+        doAnswer(withRemoteResponse(remoteCheckpointResponse3)).when(remoteClient3)
+            .execute(any(), eq(GetCheckpointAction.REMOTE_TYPE), any(), any());
 
         RemoteClusterResolver remoteClusterResolver = mock(RemoteClusterResolver.class);
 
@@ -454,7 +412,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         return new DefaultCheckpointProvider(
             clock,
             parentTaskClient,
-            new RemoteClusterResolver(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            new RemoteClusterResolver(Settings.EMPTY, StubLinkedProjectConfigService.INSTANCE),
             transformConfigManager,
             transformAuditor,
             transformConfig
@@ -480,6 +438,22 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         return invocationOnMock -> {
             ActionListener<Response> listener = invocationOnMock.getArgument(2);
             listener.onResponse(response);
+            return null;
+        };
+    }
+
+    private static <Response> Answer<Response> withRemoteResponse(Response response) {
+        return invocationOnMock -> {
+            ActionListener<Response> listener = invocationOnMock.getArgument(3);
+            listener.onResponse(response);
+            return null;
+        };
+    }
+
+    private static Answer<Void> withMockConnection() {
+        return invocationOnMock -> {
+            ActionListener<Transport.Connection> listener = invocationOnMock.getArgument(1);
+            listener.onResponse(mock(Transport.Connection.class));
             return null;
         };
     }

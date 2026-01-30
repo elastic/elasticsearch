@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
@@ -27,6 +28,8 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 
 public class HttpTracerTests extends ESTestCase {
 
@@ -95,15 +98,15 @@ public class HttpTracerTests extends ESTestCase {
             .withContent(responseBody, null)
             .build();
 
-        assertEquals(
-            responseBody,
+        assertThat(
             ChunkedLoggingStreamTestUtils.getDecodedLoggedBody(
                 LogManager.getLogger(HTTP_BODY_TRACER_LOGGER),
                 Level.TRACE,
                 "[" + request.getRequestId() + "] request body",
                 ReferenceDocs.HTTP_TRACER,
                 () -> assertNotNull(tracer.maybeLogRequest(request, null))
-            )
+            ),
+            equalBytes(responseBody)
         );
     }
 }

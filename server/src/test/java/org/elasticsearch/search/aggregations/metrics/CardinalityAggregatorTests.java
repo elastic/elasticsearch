@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -19,17 +20,19 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.hash.MurmurHash3;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -37,6 +40,8 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngine;
@@ -48,7 +53,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.bucket.global.Global;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -126,7 +131,13 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         );
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
+        return new ScriptService(
+            Settings.EMPTY,
+            engines,
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 
     @Override
@@ -140,7 +151,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNoDocs() throws IOException {
-        testAggregation(new MatchAllDocsQuery(), iw -> {
+        testAggregation(Queries.ALL_DOCS_INSTANCE, iw -> {
             // Intentionally not writing any docs
         }, card -> {
             assertEquals(0.0, card.getValue(), 0);
@@ -155,7 +166,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         final String fieldName = "rangeField";
         MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType(fieldName, rangeType);
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field(fieldName);
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(singleton(range1)))));
             iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(singleton(range1)))));
             iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(singleton(range2)))));
@@ -167,7 +178,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNoMatchingField() throws IOException {
-        testAggregation(new MatchAllDocsQuery(), iw -> {
+        testAggregation(Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 1)));
         }, card -> {
@@ -216,11 +227,56 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    public void testVectorValueThrows() {
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("card_agg_name").field("vector_value");
+        final MappedFieldType mappedFieldTypes;
+        boolean isDense = randomBoolean();
+        if (isDense) {
+            mappedFieldTypes = new DenseVectorFieldMapper.DenseVectorFieldType(
+                "vector_value",
+                IndexVersion.current(),
+                DenseVectorFieldMapper.ElementType.FLOAT,
+                64,
+                true,
+                DenseVectorFieldMapper.VectorSimilarity.COSINE,
+                DenseVectorFieldMapper.VectorIndexType.FLAT.parseIndexOptions("vector_value", new HashMap<>(), IndexVersion.current()),
+                new HashMap<>(),
+                false
+            );
+        } else {
+            mappedFieldTypes = new SparseVectorFieldMapper.SparseVectorFieldType(
+                IndexVersion.current(),
+                "vector_value",
+                false,
+                new HashMap<>()
+            );
+        }
+
+        IllegalArgumentException exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
+                iw.addDocument(singleton(new SortedDocValuesField("vector_value", new BytesRef("one"))));
+                iw.addDocument(singleton(new SortedDocValuesField("unrelatedField", new BytesRef("two"))));
+                iw.addDocument(singleton(new SortedDocValuesField("str_value", new BytesRef("three"))));
+                iw.addDocument(singleton(new SortedDocValuesField("str_value", new BytesRef("one"))));
+            }, card -> {
+                assertEquals(2, card.getValue(), 0);
+                assertTrue(AggregationInspectionHelper.hasValue(card));
+            }, mappedFieldTypes)
+        );
+
+        if (isDense) {
+            assertEquals("Cardinality aggregation [card_agg_name] does not support vector fields", exception.getMessage());
+        } else {
+            assertEquals("[sparse_vector] fields do not support sorting, scripting or aggregating", exception.getMessage());
+        }
+    }
+
     public void testSingleValuedString() throws IOException {
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_value");
         final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_value");
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new SortedDocValuesField("str_value", new BytesRef("one"))));
             iw.addDocument(singleton(new SortedDocValuesField("unrelatedField", new BytesRef("two"))));
             iw.addDocument(singleton(new SortedDocValuesField("str_value", new BytesRef("three"))));
@@ -263,7 +319,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             );
         };
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), buildIndex, card -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, buildIndex, card -> {
             assertEquals(2, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
         }, mappedFieldTypes);
@@ -272,7 +328,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         aggregationBuilder.executionHint(null);
         debugTestCase(
             aggregationBuilder,
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             buildIndex,
             (InternalCardinality card, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                 assertEquals(2, card.getValue(), 0);
@@ -316,7 +372,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             }
         };
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), buildIndex, card -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, buildIndex, card -> {
             assertEquals(hll.cardinality(0), card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
         }, mappedFieldTypes);
@@ -346,7 +402,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             );
         };
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), buildIndex, card -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, buildIndex, card -> {
             assertEquals(2, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
         }, mappedFieldTypes);
@@ -355,7 +411,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         aggregationBuilder.executionHint(null);
         debugTestCase(
             aggregationBuilder,
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             buildIndex,
             (InternalCardinality card, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                 assertEquals(2, card.getValue(), 0);
@@ -380,7 +436,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, "_value", emptyMap()));
         final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_value");
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new SortedDocValuesField("str_value", new BytesRef("one"))));
             iw.addDocument(singleton(new SortedDocValuesField("unrelatedField", new BytesRef("two"))));
             iw.addDocument(singleton(new SortedDocValuesField("str_value", new BytesRef("three"))));
@@ -397,7 +453,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         );
         final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_value");
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new SortedDocValuesField("str_value", new BytesRef("one"))));
             iw.addDocument(singleton(new SortedDocValuesField("unrelatedField", new BytesRef("two"))));
             iw.addDocument(singleton(new SortedDocValuesField("str_value", new BytesRef("three"))));
@@ -414,7 +470,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         );
         final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_values");
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(
                 List.of(
                     new SortedSetDocValuesField("str_values", new BytesRef("one")),
@@ -456,7 +512,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, "_value", emptyMap()));
         final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_values");
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(
                 List.of(
                     new SortedSetDocValuesField("str_values", new BytesRef("one")),
@@ -497,7 +553,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_values");
         final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_values");
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(
                 List.of(
                     new SortedSetDocValuesField("str_values", new BytesRef("one")),
@@ -582,7 +638,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             );
         };
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), buildIndex, card -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, buildIndex, card -> {
             assertEquals(3, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
         }, mappedFieldTypes);
@@ -591,7 +647,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         aggregationBuilder.executionHint(null);
         debugTestCase(
             aggregationBuilder,
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             buildIndex,
             (InternalCardinality card, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                 assertEquals(3, card.getValue(), 0);
@@ -631,7 +687,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             }
         };
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), buildIndex, card -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, buildIndex, card -> {
             assertEquals(docs, card.getValue());
             assertTrue(AggregationInspectionHelper.hasValue(card));
         }, mappedFieldTypes);
@@ -640,7 +696,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
     public void testUnmappedMissingString() throws IOException {
         CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("number").missing("🍌🍌🍌");
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 8)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 9)));
@@ -653,7 +709,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
     public void testUnmappedMissingNumber() throws IOException {
         CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("number").missing(1234);
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 8)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 9)));
@@ -668,7 +724,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, "_value", emptyMap()));
         final MappedFieldType mappedFieldTypes = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 10)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("unrelatedField", 11)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 12)));
@@ -685,7 +741,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         );
         final MappedFieldType mappedFieldTypes = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 10)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("unrelatedField", 11)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 12)));
@@ -701,7 +757,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, "_value", emptyMap()));
         final MappedFieldType mappedFieldTypes = new NumberFieldMapper.NumberFieldType("numbers", NumberFieldMapper.NumberType.INTEGER);
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(List.of(new SortedNumericDocValuesField("numbers", 10), new SortedNumericDocValuesField("numbers", 12)));
             iw.addDocument(
                 List.of(new SortedNumericDocValuesField("unrelatedField", 11), new SortedNumericDocValuesField("unrelatedField", 12))
@@ -721,7 +777,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         );
         final MappedFieldType mappedFieldTypes = new NumberFieldMapper.NumberFieldType("numbers", NumberFieldMapper.NumberType.INTEGER);
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(List.of(new SortedNumericDocValuesField("numbers", 10), new SortedNumericDocValuesField("numbers", 12)));
             iw.addDocument(
                 List.of(new SortedNumericDocValuesField("unrelatedField", 11), new SortedNumericDocValuesField("unrelatedField", 12))
@@ -739,7 +795,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("number");
         final MappedFieldType mappedFieldTypes = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(List.of(new SortedNumericDocValuesField("number", 7), new SortedNumericDocValuesField("number", 8)));
             iw.addDocument(List.of(new SortedNumericDocValuesField("number", 7), new SortedNumericDocValuesField("number", 9)));
             iw.addDocument(List.of(new SortedNumericDocValuesField("number", 9), new SortedNumericDocValuesField("number", 8)));
@@ -763,7 +819,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(singleton(new NumericDocValuesField("number", (i + 1))));
             }
         }, topLevelAgg -> {
-            final Global global = (Global) topLevelAgg;
+            final SingleBucketAggregation global = (SingleBucketAggregation) topLevelAgg;
             assertNotNull(global);
             assertEquals("global", global.getName());
             assertEquals(numDocs * 2, global.getDocCount());
@@ -784,7 +840,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("number")
             .missing(new GeoPoint(42.39561, -71.13051));
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 8)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 9)));
@@ -841,7 +897,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_value");
         final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_value");
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(Collections.emptySet());
             iw.addDocument(Collections.emptySet());
             iw.addDocument(

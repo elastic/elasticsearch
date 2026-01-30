@@ -1,0 +1,52 @@
+//
+// PromQL queries that the parser should be able to process
+//
+
+// Queries extracted from queries-valid.promql that don't work yet due to missing functionality
+//
+// aggregations
+//
+sum without (foo) (some_metric);
+sum (some_metric) without (foo);
+topk(5, some_metric);
+count_values("value", some_metric);
+sum without(and, by, avg, count, alert, annotations)(some_metric);
+
+//
+// functions
+//
+time();
+floor(some_metric{foo!="bar"});
+round(some_metric);
+round(some_metric, 5);
+
+//
+// strings
+//
+"\a\b\f\n\r\t\v\\\" - \xFF\377\u1234\U00010111\U0001011111â˜º";
+'\a\b\f\n\r\t\v\\\' - \xFF\377\u1234\U00010111\U0001011111â˜º';
+`\a\b\f\n\r\t\v\\\"\' - \xFF\377\u1234\U00010111\U0001011111â˜º`;
+
+//
+// subqueries
+//
+sum without(and, by, avg, count, alert, annotations)(some_metric) [30m:10s];
+some_metric OFFSET 1m [10m:5s];
+some_metric @ 123 offset 1m [10m:5s];
+some_metric offset 1m @ 123 [10m:5s];
+some_metric[10m:5s] offset 1m @ 123;
+
+// check defined functions don't mask metrics
+info(rate(http_request_counter_total{}[5m]));
+info(http_request_counter_total{namespace="zzz"}, {foo="bar", bar="baz"});
+
+// nested math, added in Prometheus 3.4.0 / May 2025
+// https://github.com/prometheus/prometheus/pull/16249
+foo[-(10s-5s)+20s];
+foo[-10s+15s];
+foo offset (-1^2);
+foo[-2^2];
+foo[0+-2^2];
+(sum(foo));
+(sum(foo) by (bar));
+(sum by (bar) (foo));

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.threadpool;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestEsExecutors;
 import org.junit.After;
 import org.junit.Before;
 
@@ -64,7 +66,7 @@ public class EvilThreadPoolTests extends ESTestCase {
             "test",
             1,
             1,
-            EsExecutors.daemonThreadFactory("test"),
+            TestEsExecutors.testOnlyDaemonThreadFactory("test"),
             threadPool.getThreadContext(),
             randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK)
         );
@@ -84,7 +86,7 @@ public class EvilThreadPoolTests extends ESTestCase {
             10,
             TimeUnit.SECONDS,
             randomBoolean(),
-            EsExecutors.daemonThreadFactory("test"),
+            TestEsExecutors.testOnlyDaemonThreadFactory("test"),
             threadPool.getThreadContext()
         );
         try {
@@ -98,7 +100,7 @@ public class EvilThreadPoolTests extends ESTestCase {
     public void testExecutionErrorOnSinglePrioritizingThreadPoolExecutor() throws InterruptedException {
         final PrioritizedEsThreadPoolExecutor prioritizedExecutor = EsExecutors.newSinglePrioritizing(
             "test",
-            EsExecutors.daemonThreadFactory("test"),
+            TestEsExecutors.testOnlyDaemonThreadFactory("test"),
             threadPool.getThreadContext(),
             threadPool.scheduler()
         );
@@ -173,7 +175,7 @@ public class EvilThreadPoolTests extends ESTestCase {
             "test",
             1,
             1,
-            EsExecutors.daemonThreadFactory("test"),
+            TestEsExecutors.testOnlyDaemonThreadFactory("test"),
             threadPool.getThreadContext(),
             randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK)
         );
@@ -193,7 +195,7 @@ public class EvilThreadPoolTests extends ESTestCase {
             10,
             TimeUnit.SECONDS,
             randomBoolean(),
-            EsExecutors.daemonThreadFactory("test"),
+            TestEsExecutors.testOnlyDaemonThreadFactory("test"),
             threadPool.getThreadContext()
         );
         try {
@@ -207,7 +209,7 @@ public class EvilThreadPoolTests extends ESTestCase {
     public void testExecutionExceptionOnSinglePrioritizingThreadPoolExecutor() throws InterruptedException {
         final PrioritizedEsThreadPoolExecutor prioritizedExecutor = EsExecutors.newSinglePrioritizing(
             "test",
-            EsExecutors.daemonThreadFactory("test"),
+            TestEsExecutors.testOnlyDaemonThreadFactory("test"),
             threadPool.getThreadContext(),
             threadPool.scheduler()
         );

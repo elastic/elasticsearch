@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.azureopenai.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,7 +17,9 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.inference.InferenceUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService;
@@ -33,9 +34,9 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSION
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.API_VERSION;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.DEPLOYMENT_ID;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.RESOURCE_NAME;
@@ -50,18 +51,17 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
 
     public static final String NAME = "azure_openai_embeddings_service_settings";
 
-    static final String DIMENSIONS_SET_BY_USER = "dimensions_set_by_user";
     /**
      * Rate limit documentation can be found here:
      * Limits per region per model id
      * https://learn.microsoft.com/en-us/azure/ai-services/openai/quotas-limits
-     *
+     * <p>
      * How to change the limits
      * https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/quota?tabs=rest
-     *
+     * <p>
      * Blog giving some examples
      * https://techcommunity.microsoft.com/t5/fasttrack-for-azure/optimizing-azure-openai-a-guide-to-limits-quotas-and-best/ba-p/4076268
-     *
+     * <p>
      * According to the docs 1000 tokens per minute (TPM) = 6 requests per minute (RPM). The limits change depending on the region
      * and model. The lowest text embedding limit is 240K TPM, so we'll default to that.
      * Calculation: 240K TPM = 240 * 6 = 1440 requests per minute (used `eastus` and `Text-Embedding-Ada-002` as basis for the calculation).
@@ -88,8 +88,13 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
         String resourceName = extractRequiredString(map, RESOURCE_NAME, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String deploymentId = extractRequiredString(map, DEPLOYMENT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String apiVersion = extractRequiredString(map, API_VERSION, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
-        Integer maxTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
+        Integer dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        Integer maxTokens = extractOptionalPositiveInteger(
+            map,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
         SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,
@@ -99,13 +104,13 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
             context
         );
 
-        Boolean dimensionsSetByUser = extractOptionalBoolean(map, DIMENSIONS_SET_BY_USER, validationException);
+        Boolean dimensionsSetByUser = extractOptionalBoolean(map, ServiceFields.DIMENSIONS_SET_BY_USER, validationException);
 
         switch (context) {
             case REQUEST -> {
                 if (dimensionsSetByUser != null) {
                     validationException.addValidationError(
-                        ServiceUtils.invalidSettingError(DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
+                        ServiceUtils.invalidSettingError(ServiceFields.DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
                     );
                 }
                 dimensionsSetByUser = dims != null;
@@ -113,7 +118,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
             case PERSISTENT -> {
                 if (dimensionsSetByUser == null) {
                     validationException.addValidationError(
-                        ServiceUtils.missingSettingErrorMsg(DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
+                        InferenceUtils.missingSettingErrorMsg(ServiceFields.DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
                     );
                 }
             }
@@ -179,12 +184,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
         dimensionsSetByUser = in.readBoolean();
         maxInputTokens = in.readOptionalVInt();
         similarity = in.readOptionalEnum(SimilarityMeasure.class);
-
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
-            rateLimitSettings = new RateLimitSettings(in);
-        } else {
-            rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
-        }
+        rateLimitSettings = new RateLimitSettings(in);
     }
 
     private AzureOpenAiEmbeddingsServiceSettings(CommonFields fields) {
@@ -243,6 +243,11 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
     }
 
     @Override
+    public String modelId() {
+        return null;
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }
@@ -252,7 +257,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
         builder.startObject();
 
         toXContentFragmentOfExposedFields(builder, params);
-        builder.field(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
+        builder.field(ServiceFields.DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
 
         builder.endObject();
         return builder;
@@ -280,7 +285,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_AZURE_OPENAI_EMBEDDINGS;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -292,10 +297,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
         out.writeBoolean(dimensionsSetByUser);
         out.writeOptionalVInt(maxInputTokens);
         out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
-
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
-            rateLimitSettings.writeTo(out);
-        }
+        rateLimitSettings.writeTo(out);
     }
 
     @Override

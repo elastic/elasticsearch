@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless.phase;
@@ -11,6 +12,7 @@ package org.elasticsearch.painless.phase;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.PainlessError;
 import org.elasticsearch.painless.PainlessExplainError;
+import org.elasticsearch.painless.PainlessWrappedException;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.ScriptClassInfo.MethodArgument;
 import org.elasticsearch.painless.ir.BinaryImplNode;
@@ -414,6 +416,7 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
 
             for (Class<? extends Throwable> throwable : List.of(
                 PainlessError.class,
+                PainlessWrappedException.class,
                 LinkageError.class,
                 OutOfMemoryError.class,
                 StackOverflowError.class,

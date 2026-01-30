@@ -13,7 +13,6 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.document.DocumentField;
@@ -22,6 +21,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence;
@@ -220,10 +220,7 @@ public class SequenceSpecTests extends ESTestCase {
                 new TotalHits(eah.hits.size(), Relation.EQUAL_TO),
                 0.0f
             );
-            ActionListener.respondAndRelease(
-                l,
-                new SearchResponse(searchHits, null, null, false, false, null, 0, null, 0, 1, 0, 0, null, Clusters.EMPTY)
-            );
+            ActionListener.respondAndRelease(l, SearchResponseUtils.successfulResponse(searchHits));
         }
 
         @Override
@@ -277,7 +274,15 @@ public class SequenceSpecTests extends ESTestCase {
         );
 
         QueryClient testClient = new TestQueryClient();
-        TumblingWindow window = new TumblingWindow(testClient, criteria, null, matcher, Collections.emptyList());
+        TumblingWindow window = new TumblingWindow(
+            testClient,
+            criteria,
+            null,
+            matcher,
+            Collections.emptyList(),
+            randomBoolean(),
+            randomBoolean()
+        );
 
         // finally make the assertion at the end of the listener
         window.execute(ActionTestUtils.assertNoFailureListener(this::checkResults));

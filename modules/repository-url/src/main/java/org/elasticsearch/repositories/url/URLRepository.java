@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.url;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -23,9 +25,11 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.URIPattern;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -91,15 +95,17 @@ public class URLRepository extends BlobStoreRepository {
      * Constructs a read-only URL-based repository
      */
     public URLRepository(
+        @Nullable ProjectId projectId,
         RepositoryMetadata metadata,
         Environment environment,
         NamedXContentRegistry namedXContentRegistry,
         ClusterService clusterService,
         BigArrays bigArrays,
         RecoverySettings recoverySettings,
-        URLHttpClient.Factory httpClientFactory
+        URLHttpClient.Factory httpClientFactory,
+        SnapshotMetrics snapshotMetrics
     ) {
-        super(metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, BlobPath.EMPTY);
+        super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, BlobPath.EMPTY, snapshotMetrics);
 
         if (URL_SETTING.exists(metadata.settings()) == false && REPOSITORIES_URL_SETTING.exists(environment.settings()) == false) {
             throw new RepositoryException(metadata.name(), "missing url");
@@ -157,7 +163,7 @@ public class URLRepository extends BlobStoreRepository {
                 if (normalizedUrl == null) {
                     String logMessage = "The specified url [{}] doesn't start with any repository paths specified by the "
                         + "path.repo setting or by {} setting: [{}] ";
-                    logger.warn(logMessage, urlToCheck, ALLOWED_URLS_SETTING.getKey(), environment.repoFiles());
+                    logger.warn(logMessage, urlToCheck, ALLOWED_URLS_SETTING.getKey(), environment.repoDirs());
                     String exceptionMessage = "file url ["
                         + urlToCheck
                         + "] doesn't match any of the locations specified by path.repo or "

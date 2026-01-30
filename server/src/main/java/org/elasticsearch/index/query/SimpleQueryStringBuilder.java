@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -12,7 +13,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -91,8 +91,6 @@ public final class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQ
     /** Name for (de-)serialization. */
     public static final String NAME = "simple_query_string";
 
-    public static final TransportVersion TYPE_FIELD_ADDED_VERSION = TransportVersions.V_8_10_X;
-
     private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
     private static final ParseField ANALYZE_WILDCARD_FIELD = new ParseField("analyze_wildcard");
     private static final ParseField LENIENT_FIELD = new ParseField("lenient");
@@ -166,11 +164,7 @@ public final class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQ
         settings.fuzzyPrefixLength(in.readVInt());
         settings.fuzzyMaxExpansions(in.readVInt());
         settings.fuzzyTranspositions(in.readBoolean());
-        if (in.getTransportVersion().onOrAfter(TYPE_FIELD_ADDED_VERSION)) {
-            this.type = MultiMatchQueryBuilder.Type.readFromStream(in);
-        } else {
-            this.type = DEFAULT_TYPE;
-        }
+        this.type = MultiMatchQueryBuilder.Type.readFromStream(in);
     }
 
     @Override
@@ -193,9 +187,7 @@ public final class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQ
         out.writeVInt(settings.fuzzyPrefixLength());
         out.writeVInt(settings.fuzzyMaxExpansions());
         out.writeBoolean(settings.fuzzyTranspositions());
-        if (out.getTransportVersion().onOrAfter(TYPE_FIELD_ADDED_VERSION)) {
-            type.writeTo(out);
-        }
+        type.writeTo(out);
     }
 
     /** Returns the text to parse the query from. */
@@ -632,6 +624,6 @@ public final class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQ
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

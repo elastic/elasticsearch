@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.indices;
 
@@ -13,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedRunnable;
@@ -96,7 +98,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
             fail("should have thrown an exception during creation");
         } catch (Exception e) {
             assertTrue(e.getMessage().contains("failing on purpose"));
-            assertFalse(clusterAdmin().prepareState().get().getState().routingTable().hasIndex("failed"));
+            assertFalse(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().routingTable().hasIndex("failed"));
         }
     }
 
@@ -119,7 +121,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand("index1", 0, node1, node2));
         ensureGreen("index1");
 
-        var state = clusterAdmin().prepareState().get().getState();
+        var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         logger.info("Final routing is {}", state.getRoutingNodes().toString());
         var shard = state.routingTable().index("index1").shard(0).primaryShard();
         assertThat(shard, notNullValue());
@@ -127,7 +129,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         assertThat(state.nodes().get(shard.currentNodeId()).getName(), equalTo(node1));
     }
 
-    public void testRelocationFailureNotRetriedForever() {
+    public void testRelocationFailureNotRetriedForever() throws Exception {
         String node1 = internalCluster().startNode();
         createIndex("index1", 1, 0);
         ensureGreen("index1");
@@ -143,7 +145,17 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         updateIndexSettings(Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", node1), "index1");
         ensureGreen("index1");
 
-        var state = clusterAdmin().prepareState().get().getState();
+        var maxAttempts = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
+
+        // await all relocation attempts are exhausted
+        assertBusy(() -> {
+            var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            var shard = state.routingTable().index("index1").shard(0).primaryShard();
+            assertThat(shard, notNullValue());
+            assertThat(shard.relocationFailureInfo().failedRelocations(), equalTo(maxAttempts));
+        });
+        // ensure the shard remain started
+        var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         logger.info("Final routing is {}", state.getRoutingNodes().toString());
         var shard = state.routingTable().index("index1").shard(0).primaryShard();
         assertThat(shard, notNullValue());
@@ -166,7 +178,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
             fail("should have thrown an exception");
         } catch (ElasticsearchException e) {
             assertTrue(e.getMessage().contains("failing on purpose"));
-            ClusterStateResponse resp = clusterAdmin().prepareState().get();
+            ClusterStateResponse resp = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
             assertFalse(resp.getState().routingTable().indicesRouting().keySet().contains("failed"));
         }
 

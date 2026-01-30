@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.rank.context;
@@ -11,13 +12,9 @@ package org.elasticsearch.search.rank.context;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
-import org.elasticsearch.search.rank.feature.RankFeatureResult;
-import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.List;
 
 import static org.elasticsearch.search.SearchService.DEFAULT_FROM;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
@@ -32,11 +29,17 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
     protected final int size;
     protected final int from;
     protected final int rankWindowSize;
+    protected final boolean failuresAllowed;
 
-    public RankFeaturePhaseRankCoordinatorContext(int size, int from, int rankWindowSize) {
+    public RankFeaturePhaseRankCoordinatorContext(int size, int from, int rankWindowSize, boolean failuresAllowed) {
         this.size = size < 0 ? DEFAULT_SIZE : size;
         this.from = from < 0 ? DEFAULT_FROM : from;
         this.rankWindowSize = rankWindowSize;
+        this.failuresAllowed = failuresAllowed;
+    }
+
+    public boolean failuresAllowed() {
+        return failuresAllowed;
     }
 
     /**
@@ -47,12 +50,13 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
 
     /**
      * Preprocesses the provided documents: sorts them by score descending.
-     * @param originalDocs documents to process
+     *
+     * @param originalDocs   documents to process
+     * @param rerankedScores {@code true} if the document scores have been reranked
      */
-    protected RankFeatureDoc[] preprocess(RankFeatureDoc[] originalDocs) {
-        return Arrays.stream(originalDocs)
-            .sorted(Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed())
-            .toArray(RankFeatureDoc[]::new);
+    protected RankFeatureDoc[] preprocess(RankFeatureDoc[] originalDocs, boolean rerankedScores) {
+        Arrays.sort(originalDocs, Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed());
+        return originalDocs;
     }
 
     /**
@@ -63,54 +67,33 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
      * Once all the scores have been computed, we sort the results, perform any pagination needed, and then call the `onFinish` consumer
      * with the final array of {@link ScoreDoc} results.
      *
-     * @param rankSearchResults a list of rank feature results from each shard
+     * @param featureDocs       an array of rank feature results from each shard
      * @param rankListener      a rankListener to handle the global ranking result
      */
-    public void computeRankScoresForGlobalResults(
-        List<RankFeatureResult> rankSearchResults,
-        ActionListener<RankFeatureDoc[]> rankListener
-    ) {
-        // extract feature data from each shard rank-feature phase result
-        RankFeatureDoc[] featureDocs = extractFeatureDocs(rankSearchResults);
-
+    public void computeRankScoresForGlobalResults(RankFeatureDoc[] featureDocs, ActionListener<RankFeatureDoc[]> rankListener) {
         // generate the final `topResults` results, and pass them to fetch phase through the `rankListener`
-        if (featureDocs.length == 0) {
-            rankListener.onResponse(new RankFeatureDoc[0]);
-        } else {
-            computeScores(featureDocs, rankListener.delegateFailureAndWrap((listener, scores) -> {
-                for (int i = 0; i < featureDocs.length; i++) {
-                    featureDocs[i].score = scores[i];
-                }
-                listener.onResponse(featureDocs);
-            }));
-        }
+        computeScores(featureDocs, rankListener.delegateFailureAndWrap((listener, scores) -> {
+            for (int i = 0; i < featureDocs.length; i++) {
+                featureDocs[i].score = scores[i];
+            }
+            listener.onResponse(featureDocs);
+        }));
     }
 
     /**
      * Ranks the provided {@link RankFeatureDoc} array and paginates the results based on the `from` and `size` parameters. Filters out
      * documents that have a relevance score less than min_score.
+     *
      * @param rankFeatureDocs documents to process
+     * @param rerankedScores {@code true} if the document scores have been reranked
      */
-    public RankFeatureDoc[] rankAndPaginate(RankFeatureDoc[] rankFeatureDocs) {
-        RankFeatureDoc[] sortedDocs = preprocess(rankFeatureDocs);
+    public RankFeatureDoc[] rankAndPaginate(RankFeatureDoc[] rankFeatureDocs, boolean rerankedScores) {
+        RankFeatureDoc[] sortedDocs = preprocess(rankFeatureDocs, rerankedScores);
         RankFeatureDoc[] topResults = new RankFeatureDoc[Math.max(0, Math.min(size, sortedDocs.length - from))];
         for (int rank = 0; rank < topResults.length; ++rank) {
             topResults[rank] = sortedDocs[from + rank];
             topResults[rank].rank = from + rank + 1;
         }
         return topResults;
-    }
-
-    private RankFeatureDoc[] extractFeatureDocs(List<RankFeatureResult> rankSearchResults) {
-        List<RankFeatureDoc> docFeatures = new ArrayList<>();
-        for (RankFeatureResult rankFeatureResult : rankSearchResults) {
-            RankFeatureShardResult shardResult = rankFeatureResult.shardResult();
-            for (RankFeatureDoc rankFeatureDoc : shardResult.rankFeatureDocs) {
-                if (rankFeatureDoc.featureData != null) {
-                    docFeatures.add(rankFeatureDoc);
-                }
-            }
-        }
-        return docFeatures.toArray(new RankFeatureDoc[0]);
     }
 }

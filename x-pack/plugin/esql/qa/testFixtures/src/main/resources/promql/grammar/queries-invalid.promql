@@ -1,0 +1,325 @@
+//
+// Invalid PromQL queries that the parser should reject
+//
+// Extracted from https://github.com/prometheus/prometheus/blob/v3.5.0/promql/parser/parse_test.go
+//
+// The file contains the failing query on one line, terminated by ; followed by a potential error message that
+// starts with | and ends with ;
+// The error message is optional and is used to roughly validate the error is as expected.
+//
+//"";
+|no expression found in input;
+//"# just a comment\n\n";
+|no expression found in input;
+1+;
+|unexpected end of input;
+.;
+|unexpected character: '.';
+2.5.;
+|1:1: parse error: bad number or duration syntax: "2.5.";
+100..4;
+|1:1: parse error: bad number or duration syntax: "100..";
+0deadbeef;
+|bad number or duration syntax: "0de";
+1 /;
+|unexpected end of input;
+//1;
+//|unexpected op:*;
+(1));
+|unexpected right parenthesis ')';
+((1);
+|unclosed left parenthesis;
+999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999;
+|out of range;
+(;
+|unclosed left parenthesis;
+1 and 1;
+|set operator "and" not allowed in binary scalar expression;
+1 == 1;
+|1:3: parse error: comparisons between scalars must use BOOL modifier;
+1 or 1;
+|set operator "or" not allowed in binary scalar expression;
+1 unless 1;
+|set operator "unless" not allowed in binary scalar expression;
+1 !~ 1;
+|unexpected character after '!': '';
+1 = 1;
+|unexpected character after '=': '~';
+-"string";
+|unary expression only allowed on expressions of type scalar or instant vector, got "string";
+-test[5m];
+|unary expression only allowed on expressions of type scalar or instant vector, got "range vector";
+//test;
+//|unexpected op:*;
+1 offset 1d;
+|1:1: parse error: offset modifier must be preceded by an instant vector selector or range vector selector or a subquery;
+foo offset 1s offset 2s;
+|offset may not be set multiple times;
+a - on(b) ignoring(c) d;
+|1:11: parse error: unexpected <ignoring>;
+
+//
+// operators
+//
+foo and 1;
+|set operator "and" not allowed in binary scalar expression;
+1 and foo;
+|set operator "and" not allowed in binary scalar expression;
+foo or 1;
+|set operator "or" not allowed in binary scalar expression;
+1 or foo;
+|set operator "or" not allowed in binary scalar expression;
+foo unless 1;
+|set operator "unless" not allowed in binary scalar expression;
+1 unless foo;
+|set operator "unless" not allowed in binary scalar expression;
+1 or on(bar) foo;
+|vector matching only allowed between instant vectors;
+foo == on(bar) 10;
+|vector matching only allowed between instant vectors;
+foo + group_left(baz) bar;
+|unexpected <group_left>;
+foo and on(bar) group_left(baz) bar;
+|no grouping allowed for "and" operation;
+foo and on(bar) group_right(baz) bar;
+|no grouping allowed for "and" operation;
+foo or on(bar) group_left(baz) bar;
+|no grouping allowed for "or" operation;
+foo or on(bar) group_right(baz) bar;
+|no grouping allowed for "or" operation;
+foo unless on(bar) group_left(baz) bar;
+|no grouping allowed for "unless" operation;
+foo unless on(bar) group_right(baz) bar;
+|no grouping allowed for "unless" operation;
+http_requests{group="production"} + on(instance) group_left(job,instance) cpu_count{type="smp"};
+|label "instance" must not occur in ON and GROUP clause at once;
+foo + bool bar;
+|bool modifier can only be used on comparison operators;
+foo + bool 10;
+|bool modifier can only be used on comparison operators;
+foo and bool 10;
+|bool modifier can only be used on comparison operators;
+
+//
+// evaluation
+//
+foo @ +Inf;
+|1:1: parse error: timestamp out of bounds for @ modifier: +Inf;
+foo @ -Inf;
+|1:1: parse error: timestamp out of bounds for @ modifier: -Inf;
+foo @ NaN;
+|1:1: parse error: timestamp out of bounds for @ modifier: NaN;
+foo @ 9223372036854775808.000000;
+|1:1: parse error: timestamp out of bounds for @ modifier: 9223372036854775808.000000;
+foo @ -9223372036854775809.000000;
+|1:1: parse error: timestamp out of bounds for @ modifier: -9223372036854775809.000000;
+sum by ("foo)(some_metric{});
+|unterminated quoted string;
+
+//
+// selector
+//
+{;
+|unexpected end of input inside braces;
+};
+|unexpected character: '}';
+some{;
+|unexpected end of input inside braces;
+some};
+|unexpected character: '}';
+some_metric{a=b};
+|unexpected identifier "b" in label matching, expected string;
+some_metric{a:b="b"};
+|unexpected character inside braces: ':';
+foo{a"b"};
+|unexpected character inside braces: '';
+foo{a>="b"};
+|unexpected character inside braces: '>';
+some_metric{a="\xff"};
+|1:15: parse error: invalid UTF-8 rune;
+foo{gibberish};
+|unexpected "}" in label matching, expected label matching operator;
+foo{1};
+|unexpected character inside braces: '1';
+{};
+|vector selector must contain at least one non-empty matcher;
+{x=""};
+|vector selector must contain at least one non-empty matcher;
+{x=~".*"};
+|vector selector must contain at least one non-empty matcher;
+{x!~".+"};
+|vector selector must contain at least one non-empty matcher;
+{x!="a"};
+|vector selector must contain at least one non-empty matcher;
+foo{__name__="bar"};
+|metric name must not be set twice: "foo" or "bar";
+foo{__name__= =};
+|1:15: parse error: unexpected "=" in label matching, expected string;
+foo{,};
+|unexpected "," in label matching, expected identifier or "}";
+foo{__name__ == "bar"};
+|1:15: parse error: unexpected "=" in label matching, expected string;
+foo{__name__="bar" lol};
+|unexpected identifier "lol" in label matching, expected "," or "}";
+foo{"a"=};
+|unexpected "}" in label matching, expected string;
+
+//
+// range selector
+//
+foo[5mm];
+|bad number or duration syntax: "5mm";
+foo[5m1];
+|bad number or duration syntax: "5m1";
+foo[5m:1m1];
+|bad number or duration syntax: "1m1";
+foo[5y1hs];
+|unknown unit "hs" in duration "5y1hs";
+foo[5m1h];
+|not a valid duration string: "5m1h";
+foo[5m1m];
+|not a valid duration string: "5m1m";
+foo[0m];
+|duration must be greater than 0;
+foo["5m"];
+|1:5: parse error: unexpected <string> in matrix selector, expected number or duration;
+foo[];
+|unexpected "]" in subquery selector, expected number or duration;
+foo[-1];
+|duration must be greater than 0;
+some_metric[5m] OFFSET 1mm;
+|bad number or duration syntax: "1mm";
+some_metric[5m] OFFSET;
+|unexpected end of input in offset, expected number or duration;
+some_metric OFFSET 1m[5m];
+|1:22: parse error: no offset modifiers allowed before range;
+some_metric[5m] @;
+|1:18: parse error: unexpected end of input in @, expected timestamp;
+some_metric @ 1234 [5m];
+|1:20: parse error: no @ modifiers allowed before range;
+(foo + bar)[5m];
+|1:12: parse error: ranges only allowed for vector selectors;
+
+//
+// aggregations
+//
+sum without(==)(some_metric);
+|unexpected op:== in grouping opts, expected label;
+sum without(,)(some_metric);
+|unexpected "," in grouping opts, expected label;
+sum without(foo,,)(some_metric);
+|unexpected "," in grouping opts, expected label;
+sum some_metric by (test);
+|unexpected identifier "some_metric";
+sum (some_metric) by test;
+|unexpected identifier "test" in grouping opts;
+sum (some_metric) by test;
+|unexpected identifier "test" in grouping opts;
+sum () by (test);
+|no arguments for aggregate expression provided;
+MIN keep_common (some_metric);
+|1:5: parse error: unexpected identifier "keep_common";
+MIN (some_metric) keep_common;
+|unexpected identifier "keep_common";
+sum (some_metric) without (test) by (test);
+|unexpected <by>;
+sum without (test) (some_metric) by (test);
+|unexpected <by>;
+topk(some_metric);
+|wrong number of arguments for aggregate expression provided, expected 2, got 1;
+topk(some_metric,);
+|trailing commas not allowed in function call args;
+topk(some_metric, other_metric);
+|1:6: parse error: expected type scalar in aggregation parameter, got instant vector;
+count_values(5, other_metric);
+|1:14: parse error: expected type string in aggregation parameter, got scalar;
+rate(some_metric[5m]) @ 1234;
+|1:1: parse error: @ modifier must be preceded by an instant vector selector or range vector selector or a subquery;
+
+//
+// functions
+//
+floor();
+|expected 1 argument(s) in call to "floor", got 0;
+floor(some_metric, other_metric);
+|expected 1 argument(s) in call to "floor", got 2;
+floor(some_metric, 1);
+|expected 1 argument(s) in call to "floor", got 2;
+floor(1);
+|expected type instant vector in call to function "floor", got scalar;
+hour(some_metric, some_metric, some_metric);
+|expected at most 1 argument(s) in call to "hour", got 3;
+time(some_metric);
+|expected 0 argument(s) in call to "time", got 1;
+non_existent_function_far_bar();
+|unknown function with name "non_existent_function_far_bar";
+rate(some_metric);
+|expected type range vector in call to function "rate", got instant vector;
+label_replace(a, b, c\xff, d, .*);
+|1:23: parse error: invalid UTF-8 rune;
+-=;
+|unexpected "=";
+++-++-+-+-<;
+|unexpected <op:<>;
+e-+=/(0);
+|unexpected "=";
+a>b();
+|unknown function;
+rate(avg);
+|expected type range vector;
+(-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}--1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}--1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}--1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1-{}-1...;
+|1:3: parse error: vector selector must contain at least one non-empty matcher;
+
+//
+// strings
+//
+`\\``;
+```;
+|unterminated raw string;
+"\;
+|escape sequence not terminated;
+";
+|escape sequence not terminated;
+"\c";
+|unknown escape sequence U+0063 'c';
+"\x.";
+|illegal character U+002E '.' in escape sequence;
+
+//
+// subqueries
+//
+foo{bar="baz"}[;
+|unexpected end of input in duration expression;
+test[5d] OFFSET 10s [10m:5s];
+|1:1: parse error: subquery is only allowed on instant vector, got matrix;
+(foo + bar{nm="val"})[5m:][10m:5s];
+|1:1: parse error: subquery is only allowed on instant vector, got matrix;
+rate(food[1m])[1h] offset 1h;
+|1:15: parse error: ranges only allowed for vector selectors;
+rate(food[1m])[1h] @ 100;
+|1:15: parse error: ranges only allowed for vector selectors;
+
+//
+// preprocessor
+//
+start();
+|1:6: parse error: unexpected "(";
+end();
+|1:4: parse error: unexpected "(";
+info(rate(http_request_counter_total{}[5m]), target_info{foo="bar"});
+|1:46: parse error: expected label selectors only, got vector selector instead;
+
+// invalid math
+foo[5s/0d];
+|division by zero;
+foo offset (4d/0);
+|division by zero;
+foo[5s%0d];
+|modulo by zero;
+foo offset 9.5e10;
+|duration out of range;
+foo[9.5e10];
+|duration out of range;
+
+sum(rate(;
+|unclosed left parenthesis;

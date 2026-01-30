@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -64,11 +64,7 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
     public MedianAbsoluteDeviationAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         compression = in.readDouble();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            executionHint = in.readOptionalWriteable(TDigestExecutionHint::readFrom);
-        } else {
-            executionHint = TDigestExecutionHint.HIGH_ACCURACY;
-        }
+        executionHint = in.readOptionalWriteable(TDigestExecutionHint::readFrom);
     }
 
     protected MedianAbsoluteDeviationAggregationBuilder(
@@ -120,9 +116,7 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDouble(compression);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            out.writeOptionalWriteable(executionHint);
-        }
+        out.writeOptionalWriteable(executionHint);
     }
 
     @Override
@@ -182,6 +176,6 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

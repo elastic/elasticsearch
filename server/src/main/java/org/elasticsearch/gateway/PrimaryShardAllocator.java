@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gateway;
@@ -97,7 +98,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
 
         // don't create a new IndexSetting object for every shard as this could cause a lot of garbage
         // on cluster restart if we allocate a boat load of shards
-        final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(unassignedShard.index());
+        final IndexMetadata indexMetadata = allocation.metadata().indexMetadata(unassignedShard.index());
         final Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(unassignedShard.id());
         final boolean snapshotRestore = unassignedShard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT;
 
@@ -401,7 +402,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                 : allocation.deciders().canAllocate(shardRouting, node, allocation);
             DecidedNode decidedNode = new DecidedNode(nodeShardState, decision);
             (switch (decision.type()) {
-                case YES -> yesNodeShards;
+                case YES, NOT_PREFERRED -> yesNodeShards;
                 case THROTTLE -> throttledNodeShards;
                 case NO -> noNodeShards;
             }).add(decidedNode);

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.packaging.test;
@@ -98,6 +99,10 @@ public class DebPreservationTests extends PackagingTestCase {
         assertRemoved(distribution());
         installation = installPackage(sh, distribution());
         assertInstalled(distribution());
+
+        // The @Before hook that normally pins heap runs before installation is assigned in this test,
+        // so explicitly set it here to avoid CI oom-killed from auto heap sizing.
+        setHeap("1g");
 
         // Ensure ES is started
         Packages.runElasticsearchStartCommand(sh);

@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -47,18 +47,12 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
         memorySize = in.readVLong();
         evictions = in.readVLong();
         fields = in.readOptionalWriteable(FieldMemoryStats::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            long buildTimeMillis = in.readVLong();
-            Map<String, GlobalOrdinalsStats.GlobalOrdinalFieldStats> fieldGlobalOrdinalsStats = null;
-            if (in.readBoolean()) {
-                fieldGlobalOrdinalsStats = in.readMap(
-                    in1 -> new GlobalOrdinalsStats.GlobalOrdinalFieldStats(in1.readVLong(), in1.readVLong())
-                );
-            }
-            globalOrdinalsStats = new GlobalOrdinalsStats(buildTimeMillis, fieldGlobalOrdinalsStats);
-        } else {
-            globalOrdinalsStats = new GlobalOrdinalsStats(0, null);
+        long buildTimeMillis = in.readVLong();
+        Map<String, GlobalOrdinalsStats.GlobalOrdinalFieldStats> fieldGlobalOrdinalsStats = null;
+        if (in.readBoolean()) {
+            fieldGlobalOrdinalsStats = in.readMap(in1 -> new GlobalOrdinalsStats.GlobalOrdinalFieldStats(in1.readVLong(), in1.readVLong()));
         }
+        globalOrdinalsStats = new GlobalOrdinalsStats(buildTimeMillis, fieldGlobalOrdinalsStats);
     }
 
     public FieldDataStats(long memorySize, long evictions, @Nullable FieldMemoryStats fields, GlobalOrdinalsStats globalOrdinalsStats) {
@@ -110,17 +104,15 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
         out.writeVLong(memorySize);
         out.writeVLong(evictions);
         out.writeOptionalWriteable(fields);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeVLong(globalOrdinalsStats.buildTimeMillis);
-            if (globalOrdinalsStats.fieldGlobalOrdinalsStats != null) {
-                out.writeBoolean(true);
-                out.writeMap(globalOrdinalsStats.fieldGlobalOrdinalsStats, (out1, value) -> {
-                    out1.writeVLong(value.totalBuildingTime);
-                    out1.writeVLong(value.valueCount);
-                });
-            } else {
-                out.writeBoolean(false);
-            }
+        out.writeVLong(globalOrdinalsStats.buildTimeMillis);
+        if (globalOrdinalsStats.fieldGlobalOrdinalsStats != null) {
+            out.writeBoolean(true);
+            out.writeMap(globalOrdinalsStats.fieldGlobalOrdinalsStats, (out1, value) -> {
+                out1.writeVLong(value.totalBuildingTime);
+                out1.writeVLong(value.valueCount);
+            });
+        } else {
+            out.writeBoolean(false);
         }
     }
 

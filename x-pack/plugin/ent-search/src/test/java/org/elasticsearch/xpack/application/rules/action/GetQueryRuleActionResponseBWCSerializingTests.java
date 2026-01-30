@@ -8,18 +8,16 @@
 package org.elasticsearch.xpack.application.rules.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.rules.QueryRule;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.BWCVersions.getAllBWCVersions;
 import static org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils.randomQueryRule;
-import static org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase.getAllBWCVersions;
 
 public class GetQueryRuleActionResponseBWCSerializingTests extends AbstractBWCSerializationTestCase<GetQueryRuleAction.Response> {
     public QueryRule queryRule;
@@ -37,7 +35,7 @@ public class GetQueryRuleActionResponseBWCSerializingTests extends AbstractBWCSe
 
     @Override
     protected GetQueryRuleAction.Response mutateInstance(GetQueryRuleAction.Response instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new GetQueryRuleAction.Response(randomValueOtherThan(instance.queryRule(), () -> randomQueryRule()));
     }
 
     @Override
@@ -52,8 +50,6 @@ public class GetQueryRuleActionResponseBWCSerializingTests extends AbstractBWCSe
 
     @Override
     protected List<TransportVersion> bwcVersions() {
-        return getAllBWCVersions().stream()
-            .filter(v -> v.onOrAfter(TransportVersions.QUERY_RULE_CRUD_API_GET_DELETE))
-            .collect(Collectors.toList());
+        return getAllBWCVersions().stream().toList();
     }
 }

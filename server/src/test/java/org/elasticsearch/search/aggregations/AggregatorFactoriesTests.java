@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -262,9 +262,9 @@ public class AggregatorFactoriesTests extends ESTestCase {
         QueryRewriteContext context = new QueryRewriteContext(parserConfig(), null, () -> 0L);
         AggregatorFactories.Builder rewritten = builder.rewrite(context);
         CountDownLatch latch = new CountDownLatch(1);
-        context.executeAsyncActions(new ActionListener<Object>() {
+        context.executeAsyncActions(new ActionListener<>() {
             @Override
-            public void onResponse(Object response) {
+            public void onResponse(Void aVoid) {
                 assertNotSame(builder, rewritten);
                 Collection<AggregationBuilder> aggregatorFactories = rewritten.getAggregatorFactories();
                 assertEquals(1, aggregatorFactories.size());
@@ -289,9 +289,9 @@ public class AggregatorFactoriesTests extends ESTestCase {
         QueryRewriteContext context = new QueryRewriteContext(parserConfig(), null, () -> 0L);
         AggregatorFactories.Builder rewritten = builder.rewrite(context);
         CountDownLatch latch = new CountDownLatch(1);
-        context.executeAsyncActions(new ActionListener<Object>() {
+        context.executeAsyncActions(new ActionListener<>() {
             @Override
-            public void onResponse(Object response) {
+            public void onResponse(Void aVoid) {
                 assertNotSame(builder, rewritten);
                 PipelineAggregationBuilder rewrittenPipeline = rewritten.getPipelineAggregatorFactories().iterator().next();
                 assertThat(((RewrittenPipelineAggregationBuilder) rewrittenPipeline).setOnRewrite.get(), equalTo("rewritten"));
@@ -388,7 +388,7 @@ public class AggregatorFactoriesTests extends ESTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ZERO;
+            return TransportVersion.zero();
         }
 
         @Override

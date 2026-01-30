@@ -1,5 +1,0 @@
-pr: 110176
-summary: Fix trailing slash in two rollup specifications
-area: Rollup
-type: bug
-issues: []

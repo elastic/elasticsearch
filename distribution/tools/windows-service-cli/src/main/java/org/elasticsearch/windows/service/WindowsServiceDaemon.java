@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.windows.service;
@@ -42,8 +43,8 @@ class WindowsServiceDaemon extends EnvironmentAwareCommand {
     @Override
     public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
         // the Windows service daemon doesn't support secure settings implementations other than the keystore
-        try (var loadedSecrets = KeyStoreWrapper.bootstrap(env.configFile(), () -> new SecureString(new char[0]))) {
-            var args = new ServerArgs(false, true, null, loadedSecrets, env.settings(), env.configFile(), env.logsFile());
+        try (var loadedSecrets = KeyStoreWrapper.bootstrap(env.configDir(), () -> new SecureString(new char[0]))) {
+            var args = new ServerArgs(false, true, null, loadedSecrets, env.settings(), env.configDir(), env.logsDir());
             var tempDir = ServerProcessUtils.setupTempDir(processInfo);
             var jvmOptions = JvmOptionsParser.determineJvmOptions(args, processInfo, tempDir, new MachineDependentHeap());
             var serverProcessBuilder = new ServerProcessBuilder().withTerminal(terminal)

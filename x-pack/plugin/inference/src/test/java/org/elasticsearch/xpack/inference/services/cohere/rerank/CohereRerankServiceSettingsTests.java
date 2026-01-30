@@ -7,48 +7,63 @@
 
 package org.elasticsearch.xpack.inference.services.cohere.rerank;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
-import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.net.URI;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.is;
+import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
 
-public class CohereRerankServiceSettingsTests extends AbstractWireSerializingTestCase<CohereRerankServiceSettings> {
+public class CohereRerankServiceSettingsTests extends AbstractBWCWireSerializationTestCase<CohereRerankServiceSettings> {
+
+    private static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = TransportVersion.fromName("ml_inference_cohere_api_version");
+
     public static CohereRerankServiceSettings createRandom() {
-        var commonSettings = CohereServiceSettingsTests.createRandom();
+        return createRandom(randomFrom(new RateLimitSettings[] { null, RateLimitSettingsTests.createRandom() }));
+    }
 
-        return new CohereRerankServiceSettings(commonSettings);
+    public static CohereRerankServiceSettings createRandom(@Nullable RateLimitSettings rateLimitSettings) {
+        return new CohereRerankServiceSettings(
+            randomFrom(new String[] { null, Strings.format("http://%s.com", randomAlphaOfLength(8)) }),
+            randomAlphaOfLengthOrNull(10),
+            rateLimitSettings,
+            CohereServiceSettings.CohereApiVersion.V2
+        );
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-        var serviceSettings = new CohereRerankServiceSettings(
-            new CohereServiceSettings("url", SimilarityMeasure.COSINE, 5, 10, "model_id", new RateLimitSettings(3))
-        );
+        var url = "http://www.abc.com";
+        var model = "model";
+
+        var serviceSettings = new CohereRerankServiceSettings(url, model, null, CohereServiceSettings.CohereApiVersion.V2);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
-        // TODO we probably shouldn't allow configuring these fields for reranking
-        assertThat(xContentResult, is("""
-            {"url":"url","similarity":"cosine","dimensions":5,"max_input_tokens":10,"model_id":"model_id",""" + """
-            "rate_limit":{"requests_per_minute":3}}"""));
+
+        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
+            {
+                "url":"http://www.abc.com",
+                "model_id":"model",
+                "rate_limit": {
+                    "requests_per_minute": 10000
+                },
+                "api_version": "V2"
+            }
+            """));
     }
 
     @Override
@@ -63,15 +78,33 @@ public class CohereRerankServiceSettingsTests extends AbstractWireSerializingTes
 
     @Override
     protected CohereRerankServiceSettings mutateInstance(CohereRerankServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, CohereRerankServiceSettingsTests::createRandom);
+        URI uri = instance.uri();
+        var uriString = uri == null ? null : uri.toString();
+        var modelId = instance.modelId();
+        var rateLimitSettings = instance.rateLimitSettings();
+        var apiVersion = instance.apiVersion();
+        switch (randomInt(3)) {
+            case 0 -> uriString = randomValueOtherThan(uriString, () -> randomAlphaOfLengthOrNull(8));
+            case 1 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLengthOrNull(10));
+            case 2 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            case 3 -> apiVersion = randomValueOtherThan(apiVersion, () -> randomFrom(CohereServiceSettings.CohereApiVersion.values()));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new CohereRerankServiceSettings(uriString, modelId, rateLimitSettings, apiVersion);
     }
 
     @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
-        entries.addAll(InferenceNamedWriteablesProvider.getNamedWriteables());
-        return new NamedWriteableRegistry(entries);
+    protected CohereRerankServiceSettings mutateInstanceForVersion(CohereRerankServiceSettings instance, TransportVersion version) {
+        if (version.supports(ML_INFERENCE_COHERE_API_VERSION) == false) {
+            return new CohereRerankServiceSettings(
+                instance.uri(),
+                instance.modelId(),
+                instance.rateLimitSettings(),
+                CohereServiceSettings.CohereApiVersion.V1
+            );
+        }
+        return instance;
     }
 
     public static Map<String, Object> getServiceSettingsMap(@Nullable String url, @Nullable String model) {

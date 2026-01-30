@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery.plan;
@@ -18,24 +19,23 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.TransportGetShardSnapshotAction;
 import org.elasticsearch.action.support.ThreadedActionListener;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.StoreFileMetadata;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.ShardSnapshotInfo;
@@ -94,9 +94,7 @@ public class ShardSnapshotsService {
         logger.debug("Searching for peer recovery compatible snapshots in [{}]", repositories);
 
         GetShardSnapshotRequest request = GetShardSnapshotRequest.latestSnapshotInRepositories(
-            clusterService.state().getMinTransportVersion().onOrAfter(TransportVersions.SNAPSHOT_REQUEST_TIMEOUTS)
-                ? TimeValue.MINUS_ONE
-                : TimeValue.MAX_VALUE,
+            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
             shardId,
             repositories
         );

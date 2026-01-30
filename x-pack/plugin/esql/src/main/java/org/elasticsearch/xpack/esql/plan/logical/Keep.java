@@ -7,15 +7,15 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.List;
 import java.util.Objects;
 
-public class Keep extends Project {
+public class Keep extends Project implements TelemetryAware, Streaming, SortAgnostic {
 
     public Keep(Source source, LogicalPlan child, List<? extends NamedExpression> projections) {
         super(source, child, projections);
@@ -33,7 +33,7 @@ public class Keep extends Project {
 
     @Override
     public boolean expressionsResolved() {
-        return super.expressionsResolved();
+        return super.expressionsResolved(); // TODO: is this method needed?
     }
 
     @Override

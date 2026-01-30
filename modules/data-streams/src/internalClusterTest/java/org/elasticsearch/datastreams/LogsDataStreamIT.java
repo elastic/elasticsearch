@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.datastreams;
@@ -165,7 +166,7 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
             client(),
             "logs-composable-template",
             LOGS_OR_STANDARD_MAPPING,
-            Map.of("index.mode", "logs"),
+            Map.of("index.mode", "logsdb"),
             List.of("logs-*-*")
         );
         final String dataStreamName = generateDataStreamName("logs");
@@ -188,7 +189,7 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
         );
         createDataStream(client(), dataStreamName);
         for (int i = 0; i < randomIntBetween(5, 10); i++) {
-            final IndexMode indexMode = i % 2 == 0 ? IndexMode.LOGS : IndexMode.STANDARD;
+            final IndexMode indexMode = i % 2 == 0 ? IndexMode.LOGSDB : IndexMode.STANDARD;
             indexModes.add(indexMode);
             updateComposableIndexTemplate(
                 client(),
@@ -206,7 +207,7 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
     public void testIndexModeLogsAndTimeSeriesSwitching() throws IOException, ExecutionException, InterruptedException {
         final String dataStreamName = generateDataStreamName("custom");
         final List<String> indexPatterns = List.of("custom-*-*");
-        final Map<String, String> logsSettings = Map.of("index.mode", "logs");
+        final Map<String, String> logsSettings = Map.of("index.mode", "logsdb");
         final Map<String, String> timeSeriesSettings = Map.of("index.mode", "time_series", "index.routing_path", "host.name");
 
         putComposableIndexTemplate(client(), "custom-composable-template", LOGS_OR_STANDARD_MAPPING, logsSettings, indexPatterns);
@@ -221,13 +222,13 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
         rolloverDataStream(dataStreamName);
         indexLogOrStandardDocuments(client(), randomIntBetween(10, 20), randomIntBetween(32, 64), dataStreamName);
 
-        assertDataStreamBackingIndicesModes(dataStreamName, List.of(IndexMode.LOGS, IndexMode.TIME_SERIES, IndexMode.LOGS));
+        assertDataStreamBackingIndicesModes(dataStreamName, List.of(IndexMode.LOGSDB, IndexMode.TIME_SERIES, IndexMode.LOGSDB));
     }
 
     public void testInvalidIndexModeTimeSeriesSwitchWithoutRoutingPath() throws IOException, ExecutionException, InterruptedException {
         final String dataStreamName = generateDataStreamName("custom");
         final List<String> indexPatterns = List.of("custom-*-*");
-        final Map<String, String> logsSettings = Map.of("index.mode", "logs");
+        final Map<String, String> logsSettings = Map.of("index.mode", "logsdb");
         final Map<String, String> timeSeriesSettings = Map.of("index.mode", "time_series");
 
         putComposableIndexTemplate(client(), "custom-composable-template", LOGS_OR_STANDARD_MAPPING, logsSettings, indexPatterns);
@@ -249,7 +250,7 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
     public void testInvalidIndexModeTimeSeriesSwitchWithoutDimensions() throws IOException, ExecutionException, InterruptedException {
         final String dataStreamName = generateDataStreamName("custom");
         final List<String> indexPatterns = List.of("custom-*-*");
-        final Map<String, String> logsSettings = Map.of("index.mode", "logs");
+        final Map<String, String> logsSettings = Map.of("index.mode", "logsdb");
         final Map<String, String> timeSeriesSettings = Map.of("index.mode", "time_series", "index.routing_path", "host.name");
 
         putComposableIndexTemplate(client(), "custom-composable-template", LOGS_OR_STANDARD_MAPPING, logsSettings, indexPatterns);
@@ -277,16 +278,19 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
     }
 
     private void assertDataStreamBackingIndicesModes(final String dataStreamName, final List<IndexMode> modes) {
-        final GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+        final GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            new String[] { dataStreamName }
+        );
         final GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
             .actionGet();
         final DataStream dataStream = getDataStreamResponse.getDataStreams().get(0).getDataStream();
-        final DataStream.DataStreamIndices backingIndices = dataStream.getBackingIndices();
+        final DataStream.DataStreamIndices backingIndices = dataStream.getDataComponent();
         final Iterator<IndexMode> indexModesIterator = modes.iterator();
         assertThat(backingIndices.getIndices().size(), Matchers.equalTo(modes.size()));
         for (final Index index : backingIndices.getIndices()) {
             final GetSettingsResponse getSettingsResponse = indicesAdmin().getSettings(
-                new GetSettingsRequest().indices(index.getName()).includeDefaults(true)
+                new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(index.getName()).includeDefaults(true)
             ).actionGet();
             final Settings settings = getSettingsResponse.getIndexToSettings().get(index.getName());
             assertThat(settings.get("index.mode"), Matchers.equalTo(indexModesIterator.next().getName()));
@@ -362,7 +366,11 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
     }
 
     private void createDataStream(final Client client, final String dataStreamName) throws InterruptedException, ExecutionException {
-        final CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        final CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            dataStreamName
+        );
         final AcknowledgedResponse createDataStreamResponse = client.execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest)
             .get();
         assertThat(createDataStreamResponse.isAcknowledged(), is(true));

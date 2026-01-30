@@ -15,9 +15,9 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.engine.Engine;
@@ -55,16 +55,9 @@ import java.util.function.Function;
  * stats in order to obtain the number of reopens.
  */
 public final class FrozenEngine extends ReadOnlyEngine {
-    public static final Setting<Boolean> INDEX_FROZEN = Setting.boolSetting(
-        "index.frozen",
-        false,
-        Setting.Property.IndexScope,
-        Setting.Property.PrivateIndex
-    );
+
     private final SegmentsStats segmentsStats;
     private final DocsStats docsStats;
-    private final DenseVectorStats denseVectorStats;
-    private final SparseVectorStats sparseVectorStats;
     private volatile ElasticsearchDirectoryReader lastOpenedReader;
     private final ElasticsearchDirectoryReader canMatchReader;
     private final Object cacheIdentity = new Object();
@@ -95,8 +88,6 @@ public final class FrozenEngine extends ReadOnlyEngine {
                 fillSegmentStats(segmentReader, true, segmentsStats);
             }
             this.docsStats = docsStats(reader);
-            this.denseVectorStats = denseVectorStats(reader);
-            this.sparseVectorStats = sparseVectorStats(reader, null);
             canMatchReader = ElasticsearchDirectoryReader.wrap(
                 new RewriteCachingDirectoryReader(directory, reader.leaves(), null),
                 config.getShardId()
@@ -221,7 +212,11 @@ public final class FrozenEngine extends ReadOnlyEngine {
     }
 
     @Override
-    public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
+    public SearcherSupplier acquireSearcherSupplier(
+        Function<Searcher, Searcher> wrapper,
+        SearcherScope scope,
+        SplitShardCountSummary splitShardCountSummary
+    ) throws EngineException {
         final Store store = this.store;
         store.incRef();
         return new SearcherSupplier(wrapper) {
@@ -260,7 +255,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
             case "refresh_needed":
                 assert false : "refresh_needed is always false";
             case "segments":
-            case "segments_stats":
+            case SEGMENTS_STATS_SOURCE:
             case "completion_stats":
             case FIELD_RANGE_SEARCH_SOURCE: // special case for field_range - we use the cached point values reader
             case CAN_MATCH_SEARCH_SOURCE: // special case for can_match phase - we use the cached point values reader
@@ -334,13 +329,17 @@ public final class FrozenEngine extends ReadOnlyEngine {
     }
 
     @Override
-    public DenseVectorStats denseVectorStats() {
-        return denseVectorStats;
+    public DenseVectorStats denseVectorStats(MappingLookup mappingLookup) {
+        // We could cache the result on first call but dense vectors on frozen tier
+        // are very unlikely, so we just don't count them in the stats.
+        return new DenseVectorStats(0);
     }
 
     @Override
     public SparseVectorStats sparseVectorStats(MappingLookup mappingLookup) {
-        return sparseVectorStats;
+        // We could cache the result on first call but sparse vectors on frozen tier
+        // are very unlikely, so we just don't count them in the stats.
+        return new SparseVectorStats(0);
     }
 
     synchronized boolean isReaderOpen() {

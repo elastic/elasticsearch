@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http.netty4;
@@ -23,19 +24,22 @@ import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpMessage;
-import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.codec.http.HttpUtil;
+import io.netty.handler.flow.FlowControlHandler;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.timeout.ReadTimeoutException;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import io.netty.util.AttributeKey;
+import io.netty.util.ResourceLeakDetector;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.ThreadWatchdog;
@@ -43,6 +47,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.http.AbstractHttpServerTransport;
@@ -53,7 +58,8 @@ import org.elasticsearch.http.HttpServerChannel;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.rest.ChunkedZipResponse;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.AcceptChannelHandler;
 import org.elasticsearch.transport.netty4.NetUtils;
@@ -103,6 +109,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     private volatile ServerBootstrap serverBootstrap;
     private volatile SharedGroupFactory.SharedGroup sharedGroup;
 
+    private final TlsHandshakeThrottleManager tlsHandshakeThrottleManager;
+
     public Netty4HttpServerTransport(
         Settings settings,
         NetworkService networkService,
@@ -111,7 +119,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         Dispatcher dispatcher,
         ClusterSettings clusterSettings,
         SharedGroupFactory sharedGroupFactory,
-        Tracer tracer,
+        TelemetryProvider telemetryProvider,
         TLSConfig tlsConfig,
         @Nullable AcceptChannelHandler.AcceptPredicate acceptChannelPredicate,
         @Nullable HttpValidator httpValidator
@@ -124,7 +132,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             xContentRegistry,
             dispatcher,
             clusterSettings,
-            tracer
+            telemetryProvider
         );
         Netty4Utils.setAvailableProcessors(EsExecutors.allocatedProcessors(settings));
         NettyAllocator.logAllocatorDescriptionIfNeeded();
@@ -139,6 +147,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         this.maxCompositeBufferComponents = Netty4Plugin.SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS.get(settings);
 
         this.readTimeoutMillis = Math.toIntExact(SETTING_HTTP_READ_TIMEOUT.get(settings).getMillis());
+
+        this.tlsHandshakeThrottleManager = new TlsHandshakeThrottleManager(clusterSettings, telemetryProvider.getMeterRegistry());
 
         ByteSizeValue receivePredictor = Netty4Plugin.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE.get(settings);
         recvByteBufAllocator = new FixedRecvByteBufAllocator(receivePredictor.bytesAsInt());
@@ -161,9 +171,11 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     }
 
     @Override
-    protected void doStart() {
+    protected void startInternal() {
         boolean success = false;
         try {
+            tlsHandshakeThrottleManager.start();
+
             sharedGroup = sharedGroupFactory.getHttpGroup();
             serverBootstrap = new ServerBootstrap();
 
@@ -227,6 +239,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             if (acceptChannelPredicate != null) {
                 acceptChannelPredicate.setBoundAddress(boundAddress());
             }
+
             success = true;
         } finally {
             if (success == false) {
@@ -246,6 +259,9 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
     @Override
     protected void stopInternal() {
+        if (tlsHandshakeThrottleManager.lifecycleState() != Lifecycle.State.INITIALIZED) {
+            tlsHandshakeThrottleManager.stop();
+        }
         if (sharedGroup != null) {
             sharedGroup.shutdown();
             sharedGroup = null;
@@ -308,6 +324,9 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
+            // auto-read must be disabled all the time
+            ch.config().setAutoRead(false);
+
             Netty4HttpChannel nettyHttpChannel = new Netty4HttpChannel(ch);
             ch.attr(HTTP_CHANNEL_KEY).set(nettyHttpChannel);
             if (acceptChannelPredicate != null) {
@@ -322,10 +341,36 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                     );
             }
             if (tlsConfig.isTLSEnabled()) {
-                ch.pipeline().addLast("ssl", new SslHandler(tlsConfig.createServerSSLEngine()));
+                final var sslHandler = new SslHandler(tlsConfig.createServerSSLEngine());
+                final var tlsHandshakeThrottle = transport.tlsHandshakeThrottleManager.getThrottleForCurrentThread();
+
+                if (tlsHandshakeThrottle == null) {
+                    // throttling currently disabled
+                    ch.pipeline().addLast("ssl", sslHandler);
+                } else {
+                    final var handshakeCompletePromise = new SubscribableListener<Void>();
+                    ch.pipeline()
+                        // accumulate data until the initial handshake
+                        .addLast(
+                            "initial-tls-handshake-throttle",
+                            tlsHandshakeThrottle.newHandshakeThrottleHandler(handshakeCompletePromise)
+                        )
+                        // actually do the TLS processing
+                        .addLast("ssl", sslHandler)
+                        // watch for the completion of this channel's initial handshake at which point we can release one for another
+                        // channel
+                        .addLast(
+                            "initial-tls-handshake-completion-watcher",
+                            tlsHandshakeThrottle.newHandshakeCompletionWatcher(handshakeCompletePromise)
+                        );
+                }
             }
+            final var threadWatchdogActivityTracker = transport.threadWatchdog.getActivityTrackerForCurrentThread();
             ch.pipeline()
-                .addLast("chunked_writer", new Netty4WriteThrottlingHandler(transport.getThreadPool().getThreadContext()))
+                .addLast(
+                    "chunked_writer",
+                    new Netty4WriteThrottlingHandler(transport.getThreadPool().getThreadContext(), threadWatchdogActivityTracker)
+                )
                 .addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE);
             if (transport.readTimeoutMillis > 0) {
                 ch.pipeline().addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS));
@@ -351,6 +396,14 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             }
             decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
             ch.pipeline().addLast("decoder", decoder); // parses the HTTP bytes request into HTTP message pieces
+
+            // from this point in pipeline every handler must call ctx or channel #read() when ready to process next HTTP part
+            if (Assertions.ENABLED) {
+                // missing reads are hard to catch, but we can detect absence of reads within interval
+                long missingReadIntervalMs = 10_000;
+                ch.pipeline().addLast(new MissingReadDetector(transport.threadPool, missingReadIntervalMs));
+            }
+
             if (httpValidator != null) {
                 // runs a validation function on the first HTTP message piece which contains all the headers
                 // if validation passes, the pieces of that particular request are forwarded, otherwise they are discarded
@@ -363,9 +416,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                         )
                     );
             }
-            // combines the HTTP message pieces into a single full HTTP request (with headers and body)
-            final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.maxContentLength());
-            aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
+
             ch.pipeline()
                 .addLast("decoder_compress", new HttpContentDecompressor()) // this handles request body decompression
                 .addLast("encoder", new HttpResponseEncoder() {
@@ -380,20 +431,37 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                         return super.isContentAlwaysEmpty(msg);
                     }
                 })
-                .addLast("aggregator", aggregator);
+                .addLast(new Netty4HttpContentSizeHandler(decoder, handlingSettings.maxContentLength()));
+
             if (handlingSettings.compression()) {
-                ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.compressionLevel()));
+                ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.compressionLevel()) {
+                    @Override
+                    protected Result beginEncode(HttpResponse httpResponse, String acceptEncoding) throws Exception {
+                        if (ChunkedZipResponse.ZIP_CONTENT_TYPE.equals(httpResponse.headers().get("content-type"))) {
+                            return null;
+                        } else {
+                            return super.beginEncode(httpResponse, acceptEncoding);
+                        }
+                    }
+                });
             }
+            if (ResourceLeakDetector.isEnabled()) {
+                ch.pipeline().addLast(new Netty4LeakDetectionHandler());
+            }
+            ch.pipeline().addLast(new Netty4EmptyChunkHandler());
+            // See https://github.com/netty/netty/issues/15053: the combination of FlowControlHandler and HttpContentDecompressor above
+            // can emit multiple chunks per read, but HttpBody.Stream requires chunks to arrive one-at-a-time so until that issue is
+            // resolved we must add another flow controller here:
+            ch.pipeline().addLast(new FlowControlHandler());
             ch.pipeline()
                 .addLast(
                     "pipelining",
-                    new Netty4HttpPipeliningHandler(
-                        transport.pipeliningMaxEvents,
-                        transport,
-                        transport.threadWatchdog.getActivityTrackerForCurrentThread()
-                    )
+                    new Netty4HttpPipeliningHandler(transport.pipeliningMaxEvents, transport, threadWatchdogActivityTracker)
                 );
             transport.serverAcceptedChannel(nettyHttpChannel);
+
+            // make very first read call, since auto-read is disabled; following reads must come from the handlers
+            ch.read();
         }
 
         @Override

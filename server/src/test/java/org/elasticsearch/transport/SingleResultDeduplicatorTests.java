@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -109,7 +111,7 @@ public class SingleResultDeduplicatorTests extends ESTestCase {
                     "test",
                     threads,
                     0,
-                    EsExecutors.daemonThreadFactory("test"),
+                    TestEsExecutors.testOnlyDaemonThreadFactory("test"),
                     threadContext,
                     EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
                 );

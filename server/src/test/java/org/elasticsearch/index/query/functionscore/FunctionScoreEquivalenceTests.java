@@ -1,19 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.query.functionscore;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.search.RandomApproximationQuery;
 import org.apache.lucene.tests.search.SearchEquivalenceTestBase;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 
 public class FunctionScoreEquivalenceTests extends SearchEquivalenceTestBase {
@@ -42,7 +43,7 @@ public class FunctionScoreEquivalenceTests extends SearchEquivalenceTestBase {
         Query query = new TermQuery(term);
 
         FunctionScoreQuery fsq = new FunctionScoreQuery(query, Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY);
-        assertSameScores(new MatchNoDocsQuery(), fsq);
+        assertSameScores(Queries.NO_DOCS_INSTANCE, fsq);
     }
 
     public void testTwoPhaseMinScore() throws Exception {

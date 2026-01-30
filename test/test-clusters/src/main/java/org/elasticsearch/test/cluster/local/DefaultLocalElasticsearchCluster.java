@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.cluster.local;
@@ -17,7 +18,9 @@ import org.junit.runners.model.Statement;
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.List;
 import java.util.function.Supplier;
 
 public class DefaultLocalElasticsearchCluster<S extends LocalClusterSpec, H extends LocalClusterHandle> implements ElasticsearchCluster {
@@ -126,6 +129,12 @@ public class DefaultLocalElasticsearchCluster<S extends LocalClusterSpec, H exte
     }
 
     @Override
+    public List<String> getAvailableTransportEndpoints() {
+        checkHandle();
+        return handle.getAvailableTransportEndpoints();
+    }
+
+    @Override
     public String getTransportEndpoint(int index) {
         checkHandle();
         return handle.getTransportEndpoint(index);
@@ -159,6 +168,12 @@ public class DefaultLocalElasticsearchCluster<S extends LocalClusterSpec, H exte
     public InputStream getNodeLog(int index, LogType logType) {
         checkHandle();
         return handle.getNodeLog(index, logType);
+    }
+
+    @Override
+    public Path getNodeConfigPath(int index) {
+        checkHandle();
+        return handle.getNodeConfigPath(index);
     }
 
     @Override

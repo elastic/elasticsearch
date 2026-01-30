@@ -1,5 +1,0 @@
-pr: 109908
-summary: "Update checkpoints after post-replication actions, even on failure"
-area: CRUD
-type: bug
-issues: []

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.packaging.test;
@@ -56,6 +57,7 @@ import static org.elasticsearch.packaging.util.docker.Docker.chownWithPrivilegeE
 import static org.elasticsearch.packaging.util.docker.Docker.copyFromContainer;
 import static org.elasticsearch.packaging.util.docker.Docker.existsInContainer;
 import static org.elasticsearch.packaging.util.docker.Docker.findInContainer;
+import static org.elasticsearch.packaging.util.docker.Docker.getContainerId;
 import static org.elasticsearch.packaging.util.docker.Docker.getContainerLogs;
 import static org.elasticsearch.packaging.util.docker.Docker.getImageHealthcheck;
 import static org.elasticsearch.packaging.util.docker.Docker.getImageLabels;
@@ -95,10 +97,10 @@ import static org.junit.Assume.assumeTrue;
 /**
  * This class tests the Elasticsearch Docker images. We have several:
  * <ul>
- *     <li>The default image with a custom, small base image</li>
- *     <li>A UBI-based image</li>
+ *     <li>The default image UBI-based image</li>
  *     <li>Another UBI image for Iron Bank</li>
- *     <li>Images for Cloud</li>
+ *     <li>A WOLFI-based image</li>
+ *     <li>Image for Cloud</li>
  * </ul>
  */
 @ThreadLeakFilters(defaultFilters = true, filters = { HttpClientThreadsFilter.class })
@@ -122,13 +124,20 @@ public class DockerTests extends PackagingTestCase {
 
     @After
     public void teardownTest() {
-        removeContainer();
+        // Container cleanup is handled in PackagingTestCase.teardown() so that the TestWatcher
+        // can dump container logs before we remove the container on failures.
         rm(tempDir);
+    }
+
+    @Override
+    protected boolean shouldRemoveDockerContainerAfterTest() {
+        return true;
     }
 
     @Override
     protected void dumpDebug() {
         final Result containerLogs = getContainerLogs();
+        logger.warn("Container id for debug logs: " + getContainerId());
         logger.warn("Elasticsearch log stdout:\n" + containerLogs.stdout());
         logger.warn("Elasticsearch log stderr:\n" + containerLogs.stderr());
     }
@@ -167,10 +176,7 @@ public class DockerTests extends PackagingTestCase {
      * Checks that no plugins are initially active.
      */
     public void test020PluginsListWithNoPlugins() {
-        assumeTrue(
-            "Only applies to non-Cloud images",
-            distribution.packaging != Packaging.DOCKER_CLOUD && distribution().packaging != Packaging.DOCKER_CLOUD_ESS
-        );
+        assumeTrue("Only applies to non-Cloud images", distribution().packaging != Packaging.DOCKER_CLOUD_ESS);
 
         final Installation.Executables bin = installation.executables();
         final Result r = sh.run(bin.pluginTool + " list");
@@ -205,7 +211,9 @@ public class DockerTests extends PackagingTestCase {
         final String plugin = "analysis-icu";
         final Installation.Executables bin = installation.executables();
 
+        listPluginArchive().forEach(System.out::println);
         assertThat("Expected " + plugin + " to not be installed", listPlugins(), not(hasItems(plugin)));
+        assertThat("Expected " + plugin + " available in archive", listPluginArchive(), hasItems(containsString(plugin)));
 
         // Stuff the proxy settings with garbage, so any attempt to go out to the internet would fail
         sh.getEnv()
@@ -382,12 +390,14 @@ public class DockerTests extends PackagingTestCase {
     public void test040JavaUsesTheOsProvidedKeystore() {
         final String path = sh.run("realpath jdk/lib/security/cacerts").stdout();
 
-        if (distribution.packaging == Packaging.DOCKER_UBI || distribution.packaging == Packaging.DOCKER_IRON_BANK) {
+        if (distribution.packaging == Packaging.DOCKER || distribution.packaging == Packaging.DOCKER_IRON_BANK) {
             // In these images, the `cacerts` file ought to be a symlink here
             assertThat(path, equalTo("/etc/pki/ca-trust/extracted/java/cacerts"));
+        } else if (distribution.packaging == Packaging.DOCKER_WOLFI || distribution.packaging == Packaging.DOCKER_CLOUD_ESS) {
+            // In these images, the `cacerts` file ought to be a symlink here
+            assertThat(path, equalTo("/etc/ssl/certs/java/cacerts"));
         } else {
-            // Whereas on other images, it's a real file so the real path is the same
-            assertThat(path, equalTo("/usr/share/elasticsearch/jdk/lib/security/cacerts"));
+            fail("Unknown distribution: " + distribution.packaging);
         }
     }
 
@@ -1021,8 +1031,8 @@ public class DockerTests extends PackagingTestCase {
     public void test150MachineDependentHeap() throws Exception {
         final List<String> xArgs = machineDependentHeapTest("1536m", List.of());
 
-        // This is roughly 0.5 * 1536
-        assertThat(xArgs, hasItems("-Xms768m", "-Xmx768m"));
+        // This is roughly 0.5 * (1536 - 100) where 100 MB is the server-cli overhead
+        assertThat(xArgs, hasItems("-Xms718m", "-Xmx718m"));
     }
 
     /**
@@ -1033,12 +1043,12 @@ public class DockerTests extends PackagingTestCase {
     public void test151MachineDependentHeapWithSizeOverride() throws Exception {
         final List<String> xArgs = machineDependentHeapTest(
             "942m",
-            // 799014912 = 762m
-            List.of("-Des.total_memory_bytes=799014912")
+            // 799014912 = 762m, 52428800 = 50m
+            List.of("-Des.total_memory_bytes=799014912", "-Des.total_memory_overhead_bytes=52428800")
         );
 
-        // This is roughly 0.4 * 762, in particular it's NOT 0.4 * 942
-        assertThat(xArgs, hasItems("-Xms304m", "-Xmx304m"));
+        // This is roughly 0.4 * (762 - 50)
+        assertThat(xArgs, hasItems("-Xms284m", "-Xmx284m"));
     }
 
     private List<String> machineDependentHeapTest(final String containerMemory, final List<String> extraJvmOptions) throws Exception {
@@ -1109,8 +1119,8 @@ public class DockerTests extends PackagingTestCase {
      */
     public void test171AdditionalCliOptionsAreForwarded() throws Exception {
         assumeTrue(
-            "Does not apply to Cloud images, because they don't use the default entrypoint",
-            distribution.packaging != Packaging.DOCKER_CLOUD && distribution().packaging != Packaging.DOCKER_CLOUD_ESS
+            "Does not apply to Cloud ESS images, because they don't use the default entrypoint",
+            distribution().packaging != Packaging.DOCKER_CLOUD_ESS
         );
 
         runContainer(distribution(), builder().runArgs("bin/elasticsearch", "-Ecluster.name=kimchy").envVar("ELASTIC_PASSWORD", PASSWORD));
@@ -1122,25 +1132,25 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Check that the UBI images has the correct license information in the correct place.
+     * Check that the Docker images have the correct license information in the correct place.
      */
-    public void test200UbiImagesHaveLicenseDirectory() {
-        assumeTrue(distribution.packaging == Packaging.DOCKER_UBI);
+    public void test200ImagesHaveLicenseDirectory() {
+        assumeTrue(distribution.packaging != Packaging.DOCKER_IRON_BANK);
 
         final String[] files = sh.run("find /licenses -type f").stdout().split("\n");
         assertThat(files, arrayContaining("/licenses/LICENSE"));
 
         // UBI image doesn't contain `diff`
-        final String ubiLicense = sh.run("cat /licenses/LICENSE").stdout();
+        final String imageLicense = sh.run("cat /licenses/LICENSE").stdout();
         final String distroLicense = sh.run("cat /usr/share/elasticsearch/LICENSE.txt").stdout();
-        assertThat(ubiLicense, equalTo(distroLicense));
+        assertThat(imageLicense, equalTo(distroLicense));
     }
 
     /**
-     * Check that the UBI image has the expected labels
+     * Check that the images has the expected labels
      */
-    public void test210UbiLabels() throws Exception {
-        assumeTrue(distribution.packaging == Packaging.DOCKER_UBI);
+    public void test210Labels() throws Exception {
+        assumeTrue(distribution.packaging != Packaging.DOCKER_IRON_BANK);
 
         final Map<String, String> labels = getImageLabels(distribution);
 
@@ -1177,27 +1187,10 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Check that the Iron Bank image doesn't define extra labels
-     */
-    public void test310IronBankImageHasNoAdditionalLabels() throws Exception {
-        assumeTrue(distribution.packaging == Packaging.DOCKER_IRON_BANK);
-
-        final Map<String, String> labels = getImageLabels(distribution);
-
-        final Set<String> labelKeys = labels.keySet();
-
-        // We can't just assert that the labels map is empty, because it can inherit labels from its base.
-        // This is certainly the case when we build the Iron Bank image using a UBI base. It is unknown
-        // if that is true for genuine Iron Bank builds.
-        assertFalse(labelKeys.stream().anyMatch(l -> l.startsWith("org.label-schema.")));
-        assertFalse(labelKeys.stream().anyMatch(l -> l.startsWith("org.opencontainers.")));
-    }
-
-    /**
      * Check that the Cloud image contains the required Beats
      */
     public void test400CloudImageBundlesBeats() {
-        assumeTrue(distribution.packaging == Packaging.DOCKER_CLOUD || distribution.packaging == Packaging.DOCKER_CLOUD_ESS);
+        assumeTrue(distribution.packaging == Packaging.DOCKER_CLOUD_ESS);
 
         final List<String> contents = listContents("/opt");
         assertThat("Expected beats in /opt", contents, hasItems("filebeat", "metricbeat"));
@@ -1215,6 +1208,10 @@ public class DockerTests extends PackagingTestCase {
         return sh.run(bin.pluginTool + " list").stdout().lines().collect(Collectors.toList());
     }
 
+    private List<String> listPluginArchive() {
+        return sh.run("ls -lh /opt/plugins/archive").stdout().lines().collect(Collectors.toList());
+    }
+
     /**
      * Check that readiness listener works
      */
@@ -1226,13 +1223,11 @@ public class DockerTests extends PackagingTestCase {
             builder().envVar("readiness.port", "9399").envVar("xpack.security.enabled", "false").envVar("discovery.type", "single-node")
         );
         waitForElasticsearch(installation);
-        dumpDebug();
         // readiness may still take time as file settings are applied into cluster state (even non-existent file settings)
         assertBusy(() -> assertTrue(readinessProbe(9399)));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99508")
-    public void test600Interrupt() {
+    public void test600Interrupt() throws Exception {
         waitForElasticsearch(installation, "elastic", PASSWORD);
         final Result containerLogs = getContainerLogs();
 
@@ -1242,10 +1237,12 @@ public class DockerTests extends PackagingTestCase {
         final int maxPid = infos.stream().map(i -> i.pid()).max(Integer::compareTo).get();
 
         sh.run("bash -c 'kill -int " + maxPid + "'"); // send ctrl+c to all java processes
-        final Result containerLogsAfter = getContainerLogs();
 
-        assertThat("Container logs should contain stopping ...", containerLogsAfter.stdout(), containsString("stopping ..."));
-        assertThat("No errors stdout", containerLogsAfter.stdout(), not(containsString("java.security.AccessControlException:")));
-        assertThat("No errors stderr", containerLogsAfter.stderr(), not(containsString("java.security.AccessControlException:")));
+        assertBusy(() -> {
+            final Result containerLogsAfter = getContainerLogs();
+            assertThat("Container logs should contain stopping ...", containerLogsAfter.stdout(), containsString("stopping ..."));
+            assertThat("No errors stdout", containerLogsAfter.stdout(), not(containsString("java.security.AccessControlException:")));
+            assertThat("No errors stderr", containerLogsAfter.stderr(), not(containsString("java.security.AccessControlException:")));
+        });
     }
 }

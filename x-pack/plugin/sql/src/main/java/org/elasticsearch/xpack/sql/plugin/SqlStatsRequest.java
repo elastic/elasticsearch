@@ -10,14 +10,14 @@ package org.elasticsearch.xpack.sql.plugin;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 
 /**
  * Request to gather usage statistics
  */
-public class SqlStatsRequest extends BaseNodesRequest<SqlStatsRequest> {
+public class SqlStatsRequest extends BaseNodesRequest {
 
     private boolean includeStats;
 
@@ -38,7 +38,7 @@ public class SqlStatsRequest extends BaseNodesRequest<SqlStatsRequest> {
         return "sql_stats";
     }
 
-    static class NodeStatsRequest extends TransportRequest {
+    static class NodeStatsRequest extends AbstractTransportRequest {
         boolean includeStats;
 
         NodeStatsRequest(StreamInput in) throws IOException {

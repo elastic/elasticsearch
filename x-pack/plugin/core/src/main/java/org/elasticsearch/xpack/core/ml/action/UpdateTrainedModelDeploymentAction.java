@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -19,12 +20,14 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.ADAPTIVE_ALLOCATIONS;
 import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.MODEL_ID;
 import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.NUMBER_OF_ALLOCATIONS;
 
@@ -43,9 +46,19 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
 
         public static final ParseField TIMEOUT = new ParseField("timeout");
 
+        private static final TransportVersion UPDATE_TRAINED_MODEL_DEPLOYMENT_REQUEST_SOURCE = TransportVersion.fromName(
+            "inference_update_trained_model_deployment_request_source"
+        );
+
         static {
             PARSER.declareString(Request::setDeploymentId, MODEL_ID);
             PARSER.declareInt(Request::setNumberOfAllocations, NUMBER_OF_ALLOCATIONS);
+            PARSER.declareObjectOrNull(
+                Request::setAdaptiveAllocationsSettings,
+                (p, c) -> AdaptiveAllocationsSettings.PARSER.parse(p, c).build(),
+                AdaptiveAllocationsSettings.RESET_PLACEHOLDER,
+                ADAPTIVE_ALLOCATIONS
+            );
             PARSER.declareString((r, val) -> r.ackTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
         }
 
@@ -62,7 +75,9 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         }
 
         private String deploymentId;
-        private int numberOfAllocations;
+        private Integer numberOfAllocations;
+        private AdaptiveAllocationsSettings adaptiveAllocationsSettings;
+        private Source source = Source.API;
 
         private Request() {
             super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
@@ -76,7 +91,15 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         public Request(StreamInput in) throws IOException {
             super(in);
             deploymentId = in.readString();
-            numberOfAllocations = in.readVInt();
+            numberOfAllocations = in.readOptionalVInt();
+            adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
+            if (in.getTransportVersion().supports(UPDATE_TRAINED_MODEL_DEPLOYMENT_REQUEST_SOURCE)) {
+                source = in.readEnum(Source.class);
+            } else {
+                // we changed over from a boolean to an enum
+                // when it was a boolean, true came from adaptive allocations and false came from the rest api
+                source = in.readBoolean() ? Source.ADAPTIVE_ALLOCATIONS : Source.API;
+            }
         }
 
         public final void setDeploymentId(String deploymentId) {
@@ -87,26 +110,60 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
             return deploymentId;
         }
 
-        public void setNumberOfAllocations(int numberOfAllocations) {
+        public void setNumberOfAllocations(Integer numberOfAllocations) {
             this.numberOfAllocations = numberOfAllocations;
         }
 
-        public int getNumberOfAllocations() {
+        public Integer getNumberOfAllocations() {
             return numberOfAllocations;
+        }
+
+        public void setAdaptiveAllocationsSettings(AdaptiveAllocationsSettings adaptiveAllocationsSettings) {
+            this.adaptiveAllocationsSettings = adaptiveAllocationsSettings;
+        }
+
+        public boolean isInternal() {
+            return source == Source.INFERENCE_API || source == Source.ADAPTIVE_ALLOCATIONS;
+        }
+
+        public void setSource(Source source) {
+            this.source = source != null ? source : this.source;
+        }
+
+        public Source getSource() {
+            return source;
+        }
+
+        public AdaptiveAllocationsSettings getAdaptiveAllocationsSettings() {
+            return adaptiveAllocationsSettings;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(deploymentId);
-            out.writeVInt(numberOfAllocations);
+            out.writeOptionalVInt(numberOfAllocations);
+            out.writeOptionalWriteable(adaptiveAllocationsSettings);
+            if (out.getTransportVersion().supports(UPDATE_TRAINED_MODEL_DEPLOYMENT_REQUEST_SOURCE)) {
+                out.writeEnum(source);
+            } else {
+                // we changed over from a boolean to an enum
+                // when it was a boolean, true came from adaptive allocations and false came from the rest api
+                // treat "inference" as if it came from the api
+                out.writeBoolean(isInternal());
+            }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(MODEL_ID.getPreferredName(), deploymentId);
-            builder.field(NUMBER_OF_ALLOCATIONS.getPreferredName(), numberOfAllocations);
+            if (numberOfAllocations != null) {
+                builder.field(NUMBER_OF_ALLOCATIONS.getPreferredName(), numberOfAllocations);
+            }
+            if (adaptiveAllocationsSettings != null) {
+                builder.field(ADAPTIVE_ALLOCATIONS.getPreferredName(), adaptiveAllocationsSettings);
+            }
             builder.endObject();
             return builder;
         }
@@ -114,15 +171,30 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = new ActionRequestValidationException();
-            if (numberOfAllocations < 1) {
-                validationException.addValidationError("[" + NUMBER_OF_ALLOCATIONS + "] must be a positive integer");
+            if (numberOfAllocations != null) {
+                if (numberOfAllocations < 0 || (isInternal() == false && numberOfAllocations == 0)) {
+                    validationException.addValidationError("[" + NUMBER_OF_ALLOCATIONS + "] must be a positive integer");
+                }
+                if (isInternal() == false
+                    && adaptiveAllocationsSettings != null
+                    && adaptiveAllocationsSettings.getEnabled() == Boolean.TRUE) {
+                    validationException.addValidationError(
+                        "[" + NUMBER_OF_ALLOCATIONS + "] cannot be set if adaptive allocations is enabled"
+                    );
+                }
+            }
+            ActionRequestValidationException autoscaleException = adaptiveAllocationsSettings == null
+                ? null
+                : adaptiveAllocationsSettings.validate();
+            if (autoscaleException != null) {
+                validationException.addValidationErrors(autoscaleException.validationErrors());
             }
             return validationException.validationErrors().isEmpty() ? null : validationException;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(deploymentId, numberOfAllocations);
+            return Objects.hash(deploymentId, numberOfAllocations, adaptiveAllocationsSettings, source);
         }
 
         @Override
@@ -134,12 +206,21 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(deploymentId, other.deploymentId) && numberOfAllocations == other.numberOfAllocations;
+            return Objects.equals(deploymentId, other.deploymentId)
+                && Objects.equals(numberOfAllocations, other.numberOfAllocations)
+                && Objects.equals(adaptiveAllocationsSettings, other.adaptiveAllocationsSettings)
+                && source == other.source;
         }
 
         @Override
         public String toString() {
             return Strings.toString(this);
+        }
+
+        public enum Source {
+            API,
+            ADAPTIVE_ALLOCATIONS,
+            INFERENCE_API
         }
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -21,6 +22,7 @@ import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.KeywordDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -55,7 +57,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     public static final class LegacyIgnoredFieldType extends StringFieldType {
 
         private LegacyIgnoredFieldType() {
-            super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(NAME, IndexType.terms(true, false), true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -86,7 +88,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     public static final class IgnoredFieldType extends StringFieldType {
 
         private IgnoredFieldType() {
-            super(NAME, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(NAME, IndexType.terms(true, true), false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -96,7 +98,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(NAME);
+            return new BytesRefsFromOrdsBlockLoader(NAME);
         }
 
         @Override
@@ -139,10 +141,5 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 }

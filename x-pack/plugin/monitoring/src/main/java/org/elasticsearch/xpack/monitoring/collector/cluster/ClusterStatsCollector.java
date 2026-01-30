@@ -26,7 +26,7 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
@@ -93,7 +93,7 @@ public class ClusterStatsCollector extends Collector {
         final String clusterUuid = clusterUuid(clusterState);
         final String version = Build.current().version();
         final License license = licenseService.getLicense();
-        final List<XPackFeatureSet.Usage> xpackUsage = collect(
+        final List<XPackFeatureUsage> xpackUsage = collect(
             () -> client.execute(XPackUsageAction.INSTANCE, new XPackUsageRequest(getCollectionTimeout()))
                 .actionGet(getCollectionTimeout())
                 .getUsages()

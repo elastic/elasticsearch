@@ -1,6 +1,0 @@
-pr: 108764
-summary: ST_DISTANCE Function
-area: ES|QL
-type: enhancement
-issues:
-  - 108212

@@ -10,7 +10,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetItemResponse;
@@ -20,8 +19,12 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.license.LicenseUtils;
@@ -32,7 +35,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder;
-import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Item;
+import org.elasticsearch.xpack.searchbusinessrules.SpecifiedDocument;
 
 import java.io.IOException;
 import java.util.List;
@@ -49,7 +52,7 @@ import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.MAX
 /**
  * A query that will determine based on query context and configured query rules,
  * whether a query should be modified based on actions specified in matching rules.
- *
+ * <p>
  * This iteration will determine if a query should have pinned documents and if so,
  * modify the query accordingly to pin those documents.
  */
@@ -68,12 +71,12 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     private final Map<String, Object> matchCriteria;
     private final QueryBuilder organicQuery;
 
-    private final Supplier<List<String>> pinnedIdsSupplier;
-    private final Supplier<List<Item>> pinnedDocsSupplier;
+    private final Supplier<List<SpecifiedDocument>> pinnedDocsSupplier;
+    private final Supplier<List<SpecifiedDocument>> excludedDocsSupplier;
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_10_X;
+        return TransportVersion.minimumCompatible();
     }
 
     public RuleQueryBuilder(QueryBuilder organicQuery, Map<String, Object> matchCriteria, List<String> rulesetIds) {
@@ -84,23 +87,17 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         super(in);
         organicQuery = in.readNamedWriteable(QueryBuilder.class);
         matchCriteria = in.readGenericMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.RULE_QUERY_RENAME)) {
-            rulesetIds = in.readStringCollectionAsList();
-        } else {
-            rulesetIds = List.of(in.readString());
-            in.readOptionalStringCollectionAsList();
-            in.readOptionalCollectionAsList(Item::new);
-        }
-        pinnedIdsSupplier = null;
+        rulesetIds = in.readStringCollectionAsList();
         pinnedDocsSupplier = null;
+        excludedDocsSupplier = null;
     }
 
     private RuleQueryBuilder(
         QueryBuilder organicQuery,
         Map<String, Object> matchCriteria,
         List<String> rulesetIds,
-        Supplier<List<String>> pinnedIdsSupplier,
-        Supplier<List<Item>> pinnedDocsSupplier
+        Supplier<List<SpecifiedDocument>> pinnedDocsSupplier,
+        Supplier<List<SpecifiedDocument>> excludedDocsSupplier
 
     ) {
         if (organicQuery == null) {
@@ -124,29 +121,22 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         this.organicQuery = organicQuery;
         this.matchCriteria = matchCriteria;
         this.rulesetIds = rulesetIds;
-        this.pinnedIdsSupplier = pinnedIdsSupplier;
         this.pinnedDocsSupplier = pinnedDocsSupplier;
+        this.excludedDocsSupplier = excludedDocsSupplier;
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        if (pinnedIdsSupplier != null) {
-            throw new IllegalStateException("pinnedIdsSupplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
-        }
         if (pinnedDocsSupplier != null) {
             throw new IllegalStateException("pinnedDocsSupplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
+        }
+        if (excludedDocsSupplier != null) {
+            throw new IllegalStateException("excludedDocsSupplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
         }
 
         out.writeNamedWriteable(organicQuery);
         out.writeGenericMap(matchCriteria);
-
-        if (out.getTransportVersion().onOrAfter(TransportVersions.RULE_QUERY_RENAME)) {
-            out.writeStringCollection(rulesetIds);
-        } else {
-            out.writeString(rulesetIds.get(0));
-            out.writeOptionalStringCollection(null);
-            out.writeOptionalCollection(null);
-        }
+        out.writeStringCollection(rulesetIds);
     }
 
     public List<String> rulesetIds() {
@@ -176,18 +166,11 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         // NOTE: this is old query logic, as in 8.12.2+ and 8.13.0+ we will always rewrite this query
-        // into a pinned query or the organic query. This logic remains here for backwards compatibility
+        // into a pinned/boolean query or the organic query. This logic remains here for backwards compatibility
         // with coordinator nodes running versions 8.10.0 - 8.12.1.
-        List<String> pinnedIds = pinnedIdsSupplier != null ? pinnedIdsSupplier.get() : null;
-        List<Item> pinnedDocs = pinnedDocsSupplier != null ? pinnedDocsSupplier.get() : null;
-        if ((pinnedIds != null && pinnedIds.isEmpty() == false) && (pinnedDocs != null && pinnedDocs.isEmpty() == false)) {
-            throw new IllegalArgumentException("applied rules contain both pinned ids and pinned docs, only one of ids or docs is allowed");
-        }
-        if (pinnedIds != null && pinnedIds.isEmpty() == false) {
-            PinnedQueryBuilder pinnedQueryBuilder = new PinnedQueryBuilder(organicQuery, pinnedIds.toArray(new String[0]));
-            return pinnedQueryBuilder.toQuery(context);
-        } else if (pinnedDocs != null && pinnedDocs.isEmpty() == false) {
-            PinnedQueryBuilder pinnedQueryBuilder = new PinnedQueryBuilder(organicQuery, pinnedDocs.toArray(new Item[0]));
+        List<SpecifiedDocument> pinnedDocs = pinnedDocsSupplier != null ? pinnedDocsSupplier.get() : null;
+        if (pinnedDocs != null && pinnedDocs.isEmpty() == false) {
+            PinnedQueryBuilder pinnedQueryBuilder = new PinnedQueryBuilder(organicQuery, pinnedDocs.toArray(new SpecifiedDocument[0]));
             return pinnedQueryBuilder.toQuery(context);
         } else {
             return organicQuery.toQuery(context);
@@ -196,26 +179,43 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
-        if (pinnedIdsSupplier != null && pinnedDocsSupplier != null) {
-            List<String> identifiedPinnedIds = pinnedIdsSupplier.get();
-            List<Item> identifiedPinnedDocs = pinnedDocsSupplier.get();
-            if (identifiedPinnedIds == null || identifiedPinnedDocs == null) {
-                return this; // Not executed yet
-            } else if (identifiedPinnedIds.isEmpty() && identifiedPinnedDocs.isEmpty()) {
-                return organicQuery; // Nothing to pin here
-            } else if (identifiedPinnedIds.isEmpty() == false && identifiedPinnedDocs.isEmpty() == false) {
-                throw new IllegalArgumentException(
-                    "applied rules contain both pinned ids and pinned docs, only one of ids or docs is allowed"
-                );
-            } else if (identifiedPinnedIds.isEmpty() == false) {
-                return new PinnedQueryBuilder(organicQuery, truncateList(identifiedPinnedIds).toArray(new String[0]));
+
+        if (pinnedDocsSupplier != null && excludedDocsSupplier != null) {
+            List<SpecifiedDocument> identifiedPinnedDocs = pinnedDocsSupplier.get();
+            List<SpecifiedDocument> identifiedExcludedDocs = excludedDocsSupplier.get();
+
+            if (identifiedPinnedDocs == null || identifiedExcludedDocs == null) {
+                // Not executed yet
+                return this;
+            }
+
+            if (identifiedPinnedDocs.isEmpty() && identifiedExcludedDocs.isEmpty()) {
+                // Nothing to do, just return the organic query
+                return organicQuery;
+            }
+
+            if (identifiedPinnedDocs.isEmpty() == false && identifiedExcludedDocs.isEmpty()) {
+                // We have pinned IDs but nothing to exclude
+                return new PinnedQueryBuilder(organicQuery, truncateList(identifiedPinnedDocs).toArray(new SpecifiedDocument[0]));
+            }
+
+            if (identifiedPinnedDocs.isEmpty()) {
+                // We have excluded IDs but nothing to pin
+                QueryBuilder excludedDocsQueryBuilder = buildExcludedDocsQuery(identifiedExcludedDocs);
+                return new BoolQueryBuilder().must(organicQuery).mustNot(excludedDocsQueryBuilder);
             } else {
-                return new PinnedQueryBuilder(organicQuery, truncateList(identifiedPinnedDocs).toArray(new Item[0]));
+                // We have documents to both pin and exclude
+                QueryBuilder pinnedQuery = new PinnedQueryBuilder(
+                    organicQuery,
+                    truncateList(identifiedPinnedDocs).toArray(new SpecifiedDocument[0])
+                );
+                QueryBuilder excludedDocsQueryBuilder = buildExcludedDocsQuery(identifiedExcludedDocs);
+                return new BoolQueryBuilder().must(pinnedQuery).mustNot(excludedDocsQueryBuilder);
             }
         }
 
-        SetOnce<List<String>> pinnedIdsSetOnce = new SetOnce<>();
-        SetOnce<List<Item>> pinnedDocsSetOnce = new SetOnce<>();
+        SetOnce<List<SpecifiedDocument>> pinnedDocsSetOnce = new SetOnce<>();
+        SetOnce<List<SpecifiedDocument>> excludedDocsSetOnce = new SetOnce<>();
         AppliedQueryRules appliedRules = new AppliedQueryRules();
 
         // Identify matching rules and apply them as applicable
@@ -238,8 +238,15 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
                     for (MultiGetItemResponse item : multiGetResponse) {
                         String rulesetId = item.getId();
+                        // this usually happens when the system index does not exist because no query rules were created yet
+                        if (item.isFailed()) {
+                            listener.onFailure(item.getFailure().getFailure());
+                            return;
+                        }
+
                         GetResponse getResponse = item.getResponse();
 
+                        // this happens when an individual query ruleset cannot be found
                         if (getResponse.isExists() == false) {
                             listener.onFailure(new ResourceNotFoundException("query ruleset " + rulesetId + " not found"));
                             return;
@@ -255,17 +262,38 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
                         }
                     }
 
-                    pinnedIdsSetOnce.set(appliedRules.pinnedIds().stream().distinct().toList());
                     pinnedDocsSetOnce.set(appliedRules.pinnedDocs().stream().distinct().toList());
+                    excludedDocsSetOnce.set(appliedRules.excludedDocs().stream().distinct().toList());
                     listener.onResponse(null);
 
                 }, listener::onFailure)
             );
         });
 
-        return new RuleQueryBuilder(organicQuery, matchCriteria, this.rulesetIds, pinnedIdsSetOnce::get, pinnedDocsSetOnce::get).boost(
+        return new RuleQueryBuilder(organicQuery, matchCriteria, this.rulesetIds, pinnedDocsSetOnce::get, excludedDocsSetOnce::get).boost(
             this.boost
         ).queryName(this.queryName);
+    }
+
+    private QueryBuilder buildExcludedDocsQuery(List<SpecifiedDocument> identifiedExcludedDocs) {
+        QueryBuilder excludedDocsQueryBuilder;
+        if (identifiedExcludedDocs.stream().allMatch(item -> item.index() == null)) {
+            // Easy case - just add an ids query
+            excludedDocsQueryBuilder = QueryBuilders.idsQuery()
+                .addIds(identifiedExcludedDocs.stream().map(SpecifiedDocument::id).toArray(String[]::new));
+        } else {
+            // Here, we have to create Boolean queries for the _id and _index fields
+            excludedDocsQueryBuilder = QueryBuilders.boolQuery();
+            identifiedExcludedDocs.stream().map(item -> {
+                BoolQueryBuilder excludeQueryBuilder = QueryBuilders.boolQuery()
+                    .must(QueryBuilders.termQuery(IdFieldMapper.NAME, item.id()));
+                if (item.index() != null) {
+                    excludeQueryBuilder.must(QueryBuilders.termQuery(IndexFieldMapper.NAME, item.index()));
+                }
+                return excludeQueryBuilder;
+            }).forEach(excludeQueryBuilder -> ((BoolQueryBuilder) excludedDocsQueryBuilder).must(excludeQueryBuilder));
+        }
+        return excludedDocsQueryBuilder;
     }
 
     private List<?> truncateList(List<?> input) {
@@ -285,13 +313,13 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         return Objects.equals(rulesetIds, other.rulesetIds)
             && Objects.equals(matchCriteria, other.matchCriteria)
             && Objects.equals(organicQuery, other.organicQuery)
-            && Objects.equals(pinnedIdsSupplier, other.pinnedIdsSupplier)
-            && Objects.equals(pinnedDocsSupplier, other.pinnedDocsSupplier);
+            && Objects.equals(pinnedDocsSupplier, other.pinnedDocsSupplier)
+            && Objects.equals(excludedDocsSupplier, other.excludedDocsSupplier);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(rulesetIds, matchCriteria, organicQuery, pinnedIdsSupplier, pinnedDocsSupplier);
+        return Objects.hash(rulesetIds, matchCriteria, organicQuery, pinnedDocsSupplier, excludedDocsSupplier);
     }
 
     private static final ConstructingObjectParser<RuleQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
@@ -313,6 +341,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
             return new RuleQueryBuilder(organicQuery, matchCriteria, rulesetIds);
         }
     );
+
     static {
         PARSER.declareObject(constructorArg(), (p, c) -> parseInnerQueryBuilder(p), ORGANIC_QUERY_FIELD);
         PARSER.declareObject(constructorArg(), (p, c) -> p.map(), MATCH_CRITERIA_FIELD);

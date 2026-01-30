@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.aggregations.bucket.timeseries;
@@ -14,6 +15,7 @@ import org.elasticsearch.aggregations.bucket.timeseries.InternalTimeSeries.Inter
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -41,13 +43,13 @@ public class InternalTimeSeriesTests extends AggregationMultiBucketAggregationTe
         List<Map<String, Object>> keys = randomKeys(bucketKeys(randomIntBetween(1, 4)), numberOfBuckets);
         for (int j = 0; j < numberOfBuckets; j++) {
             long docCount = randomLongBetween(0, Long.MAX_VALUE / (20L * numberOfBuckets));
-            var builder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(null);
+            var routingPathFields = new RoutingPathFields(null);
             for (var entry : keys.get(j).entrySet()) {
-                builder.addString(entry.getKey(), (String) entry.getValue());
+                routingPathFields.addString(entry.getKey(), (String) entry.getValue());
             }
             try {
-                var key = builder.buildLegacyTsid().toBytesRef();
-                bucketList.add(new InternalBucket(key, docCount, aggregations, keyed));
+                var key = TimeSeriesIdFieldMapper.buildLegacyTsid(routingPathFields).toBytesRef();
+                bucketList.add(new InternalBucket(key, docCount, aggregations));
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -106,10 +108,10 @@ public class InternalTimeSeriesTests extends AggregationMultiBucketAggregationTe
         InternalTimeSeries first = new InternalTimeSeries(
             "ts",
             List.of(
-                new InternalBucket(new BytesRef("1"), 3, InternalAggregations.EMPTY, false),
-                new InternalBucket(new BytesRef("10"), 6, InternalAggregations.EMPTY, false),
-                new InternalBucket(new BytesRef("2"), 2, InternalAggregations.EMPTY, false),
-                new InternalBucket(new BytesRef("9"), 5, InternalAggregations.EMPTY, false)
+                new InternalBucket(new BytesRef("1"), 3, InternalAggregations.EMPTY),
+                new InternalBucket(new BytesRef("10"), 6, InternalAggregations.EMPTY),
+                new InternalBucket(new BytesRef("2"), 2, InternalAggregations.EMPTY),
+                new InternalBucket(new BytesRef("9"), 5, InternalAggregations.EMPTY)
             ),
             false,
             Map.of()
@@ -117,8 +119,8 @@ public class InternalTimeSeriesTests extends AggregationMultiBucketAggregationTe
         InternalTimeSeries second = new InternalTimeSeries(
             "ts",
             List.of(
-                new InternalBucket(new BytesRef("2"), 1, InternalAggregations.EMPTY, false),
-                new InternalBucket(new BytesRef("3"), 3, InternalAggregations.EMPTY, false)
+                new InternalBucket(new BytesRef("2"), 1, InternalAggregations.EMPTY),
+                new InternalBucket(new BytesRef("3"), 3, InternalAggregations.EMPTY)
             ),
             false,
             Map.of()
@@ -126,9 +128,9 @@ public class InternalTimeSeriesTests extends AggregationMultiBucketAggregationTe
         InternalTimeSeries third = new InternalTimeSeries(
             "ts",
             List.of(
-                new InternalBucket(new BytesRef("1"), 2, InternalAggregations.EMPTY, false),
-                new InternalBucket(new BytesRef("3"), 4, InternalAggregations.EMPTY, false),
-                new InternalBucket(new BytesRef("9"), 4, InternalAggregations.EMPTY, false)
+                new InternalBucket(new BytesRef("1"), 2, InternalAggregations.EMPTY),
+                new InternalBucket(new BytesRef("3"), 4, InternalAggregations.EMPTY),
+                new InternalBucket(new BytesRef("9"), 4, InternalAggregations.EMPTY)
             ),
             false,
             Map.of()

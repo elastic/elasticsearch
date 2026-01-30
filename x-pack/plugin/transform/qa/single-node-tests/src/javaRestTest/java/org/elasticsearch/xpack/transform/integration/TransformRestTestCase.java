@@ -39,9 +39,16 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public abstract class TransformRestTestCase extends TransformCommonRestTestCase {
-
     protected static final String TEST_PASSWORD = "x-pack-test-password";
     protected static final SecureString TEST_PASSWORD_SECURE_STRING = new SecureString(TEST_PASSWORD.toCharArray());
+
+    protected static final String TEST_USER_NAME = "transform_user";
+    protected static final String BASIC_AUTH_VALUE_TRANSFORM_USER = basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING);
+    protected static final String TEST_ADMIN_USER_NAME = "transform_admin";
+    protected static final String BASIC_AUTH_VALUE_TRANSFORM_ADMIN = basicAuthHeaderValue(
+        TEST_ADMIN_USER_NAME,
+        TEST_PASSWORD_SECURE_STRING
+    );
     private static final String BASIC_AUTH_VALUE_SUPER_USER = basicAuthHeaderValue("x_pack_rest_user", TEST_PASSWORD_SECURE_STRING);
 
     protected static final String REVIEWS_INDEX_NAME = "reviews";
@@ -244,6 +251,11 @@ public abstract class TransformRestTestCase extends TransformCommonRestTestCase 
     protected void createContinuousPivotReviewsTransform(String transformId, String transformIndex, String authHeader) throws IOException {
 
         // Set frequency high for testing
+        createContinuousPivotReviewsTransform(transformId, transformIndex, authHeader, "1s");
+    }
+
+    protected void createContinuousPivotReviewsTransform(String transformId, String transformIndex, String authHeader, String frequency)
+        throws IOException {
         String config = Strings.format("""
             {
               "dest": {
@@ -258,7 +270,7 @@ public abstract class TransformRestTestCase extends TransformCommonRestTestCase 
                   "delay": "15m"
                 }
               },
-              "frequency": "1s",
+              "frequency": "%s",
               "pivot": {
                 "group_by": {
                   "reviewer": {
@@ -275,7 +287,7 @@ public abstract class TransformRestTestCase extends TransformCommonRestTestCase 
                   }
                 }
               }
-            }""", transformIndex, REVIEWS_INDEX_NAME);
+            }""", transformIndex, REVIEWS_INDEX_NAME, frequency);
 
         createReviewsTransform(transformId, authHeader, null, config);
     }
@@ -405,7 +417,7 @@ public abstract class TransformRestTestCase extends TransformCommonRestTestCase 
         }
         updateTransformRequest.setJsonEntity(update);
 
-        client().performRequest(updateTransformRequest);
+        assertOKAndConsume(client().performRequest(updateTransformRequest));
     }
 
     protected void startTransform(String transformId) throws IOException {
@@ -583,6 +595,17 @@ public abstract class TransformRestTestCase extends TransformCommonRestTestCase 
         return transformConfig;
     }
 
+    @SuppressWarnings("unchecked")
+    protected Map<String, Object> getTransformConfig(String transformId, String authHeader, List<Map<String, String>> expectedErrors)
+        throws IOException {
+        Request getRequest = createRequestWithAuth("GET", getTransformEndpoint() + transformId, authHeader);
+        Map<String, Object> transforms = entityAsMap(client().performRequest(getRequest));
+        assertEquals(1, XContentMapValues.extractValue("count", transforms));
+        List<Map<String, String>> errors = (List<Map<String, String>>) XContentMapValues.extractValue("errors", transforms);
+        assertThat(errors, is(equalTo(expectedErrors)));
+        return ((List<Map<String, Object>>) transforms.get("transforms")).get(0);
+    }
+
     protected static String getTransformState(String transformId) throws IOException {
         Map<?, ?> transformStatsAsMap = getTransformStateAndStats(transformId);
         return transformStatsAsMap == null ? null : (String) XContentMapValues.extractValue("state", transformStatsAsMap);
@@ -624,9 +647,6 @@ public abstract class TransformRestTestCase extends TransformCommonRestTestCase 
     public void waitForTransform() throws Exception {
         ensureNoInitializingShards();
         logAudits();
-        if (preserveClusterUponCompletion() == false) {
-            adminClient().performRequest(new Request("POST", "/_features/_reset"));
-        }
     }
 
     @AfterClass

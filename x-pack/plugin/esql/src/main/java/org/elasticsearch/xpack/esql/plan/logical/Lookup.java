@@ -7,19 +7,21 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
-import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.io.IOException;
@@ -31,7 +33,9 @@ import java.util.Objects;
  * Looks up values from the associated {@code tables}.
  * The class is supposed to be substituted by a {@link Join}.
  */
-public class Lookup extends UnaryPlan {
+public class Lookup extends UnaryPlan implements SurrogateLogicalPlan, TelemetryAware, SortAgnostic {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Lookup", Lookup::new);
+
     private final Expression tableName;
     /**
      * References to the input fields to match against the {@link #localRelation}.
@@ -55,17 +59,18 @@ public class Lookup extends UnaryPlan {
         this.localRelation = localRelation;
     }
 
-    public Lookup(PlanStreamInput in) throws IOException {
-        super(Source.readFrom(in), in.readLogicalPlanNode());
-        this.tableName = in.readExpression();
+    public Lookup(StreamInput in) throws IOException {
+        super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class));
+        this.tableName = in.readNamedWriteable(Expression.class);
         this.matchFields = in.readNamedWriteableCollectionAsList(Attribute.class);
         this.localRelation = in.readBoolean() ? new LocalRelation(in) : null;
     }
 
-    public void writeTo(PlanStreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        out.writeLogicalPlanNode(child());
-        out.writeExpression(tableName);
+        out.writeNamedWriteable(child());
+        out.writeNamedWriteable(tableName);
         out.writeNamedWriteableCollection(matchFields);
         if (localRelation == null) {
             out.writeBoolean(false);
@@ -73,6 +78,11 @@ public class Lookup extends UnaryPlan {
             out.writeBoolean(true);
             localRelation.writeTo(out);
         }
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     public Expression tableName() {
@@ -85,6 +95,12 @@ public class Lookup extends UnaryPlan {
 
     public LocalRelation localRelation() {
         return localRelation;
+    }
+
+    @Override
+    public LogicalPlan surrogate() {
+        // left join between the main relation and the local, lookup relation
+        return new Join(source(), child(), localRelation, joinConfig());
     }
 
     public JoinConfig joinConfig() {
@@ -100,7 +116,7 @@ public class Lookup extends UnaryPlan {
                 }
             }
         }
-        return new JoinConfig(JoinType.LEFT, matchFields, leftFields, rightFields);
+        return new JoinConfig(JoinTypes.LEFT, leftFields, rightFields, null);
     }
 
     @Override
@@ -124,7 +140,7 @@ public class Lookup extends UnaryPlan {
             if (localRelation == null) {
                 throw new IllegalStateException("Cannot determine output of LOOKUP with unresolved table");
             }
-            lazyOutput = Join.computeOutput(child().output(), localRelation.output(), joinConfig());
+            lazyOutput = Expressions.asAttributes(Join.computeOutputExpressions(child().output(), localRelation.output(), joinConfig()));
         }
         return lazyOutput;
     }

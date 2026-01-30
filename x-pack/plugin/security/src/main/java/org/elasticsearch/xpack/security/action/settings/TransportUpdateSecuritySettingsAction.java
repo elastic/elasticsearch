@@ -17,15 +17,16 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -53,8 +54,7 @@ public class TransportUpdateSecuritySettingsAction extends TransportMasterNodeAc
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        MetadataUpdateSettingsService metadataUpdateSettingsService,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        MetadataUpdateSettingsService metadataUpdateSettingsService
     ) {
         super(
             UpdateSecuritySettingsAction.INSTANCE.name(),
@@ -63,13 +63,13 @@ public class TransportUpdateSecuritySettingsAction extends TransportMasterNodeAc
             threadPool,
             actionFilters,
             UpdateSecuritySettingsAction.Request::readFrom,
-            indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.updateSettingsService = metadataUpdateSettingsService;
     }
 
+    @FixForMultiProject(description = "Don't use default project id to update settings")
     @Override
     protected void masterOperation(
         Task task,
@@ -119,14 +119,14 @@ public class TransportUpdateSecuritySettingsAction extends TransportMasterNodeAc
     private Optional<UpdateSettingsClusterStateUpdateRequest> createUpdateSettingsRequest(
         String indexName,
         Settings settingsToUpdate,
-        TimeValue timeout,
-        TimeValue masterTimeout,
+        TimeValue ackTimeout,
+        TimeValue masterNodeTimeout,
         ClusterState state
     ) {
         if (settingsToUpdate.isEmpty()) {
             return Optional.empty();
         }
-        IndexAbstraction abstraction = state.metadata().getIndicesLookup().get(indexName);
+        IndexAbstraction abstraction = state.metadata().getProject().getIndicesLookup().get(indexName);
         if (abstraction == null) {
             throw new IllegalArgumentException("the [" + indexName + "] index is not in use on this system yet");
         }
@@ -136,10 +136,15 @@ public class TransportUpdateSecuritySettingsAction extends TransportMasterNodeAc
         }
 
         return Optional.of(
-            new UpdateSettingsClusterStateUpdateRequest().indices(new Index[] { writeIndex })
-                .settings(settingsToUpdate)
-                .ackTimeout(timeout)
-                .masterNodeTimeout(masterTimeout)
+            new UpdateSettingsClusterStateUpdateRequest(
+                Metadata.DEFAULT_PROJECT_ID,
+                masterNodeTimeout,
+                ackTimeout,
+                settingsToUpdate,
+                UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
+                UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REJECT,
+                writeIndex
+            )
         );
     }
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.snapshots;
 
@@ -75,9 +76,14 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         assertThat(FileSystemUtils.files(location).length, equalTo(numberOfFiles));
 
         logger.info("--> check that repository is really there");
-        ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().clear().setMetadata(true).get();
+        ClusterStateResponse clusterStateResponse = client.admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .clear()
+            .setMetadata(true)
+            .get();
         Metadata metadata = clusterStateResponse.getState().getMetadata();
-        RepositoriesMetadata repositoriesMetadata = metadata.custom(RepositoriesMetadata.TYPE);
+        RepositoriesMetadata repositoriesMetadata = metadata.getProject().custom(RepositoriesMetadata.TYPE);
         assertThat(repositoriesMetadata, notNullValue());
         assertThat(repositoriesMetadata.repository("test-repo-1"), notNullValue());
         assertThat(repositoriesMetadata.repository("test-repo-1").type(), equalTo("fs"));
@@ -86,9 +92,9 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         createRepository("test-repo-2", "fs");
 
         logger.info("--> check that both repositories are in cluster state");
-        clusterStateResponse = client.admin().cluster().prepareState().clear().setMetadata(true).get();
+        clusterStateResponse = client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).clear().setMetadata(true).get();
         metadata = clusterStateResponse.getState().getMetadata();
-        repositoriesMetadata = metadata.custom(RepositoriesMetadata.TYPE);
+        repositoriesMetadata = metadata.getProject().custom(RepositoriesMetadata.TYPE);
         assertThat(repositoriesMetadata, notNullValue());
         assertThat(repositoriesMetadata.repositories().size(), equalTo(2));
         assertThat(repositoriesMetadata.repository("test-repo-1"), notNullValue());
@@ -117,7 +123,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
                 .isAcknowledged(),
             equalTo(true)
         );
-        assertEquals(beforeStateUuid, client.admin().cluster().prepareState().clear().get().getState().stateUUID());
+        assertEquals(beforeStateUuid, client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).clear().get().getState().stateUUID());
 
         logger.info("--> delete repository test-repo-1");
         client.admin().cluster().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo-1").get();
@@ -298,7 +304,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> snapshot");
         final String index = "test-idx";
-        assertAcked(prepareCreate(index, 1, Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0)));
+        assertAcked(prepareCreate(index, 1, indexSettings(1, 0)));
         for (int i = 0; i < 10; i++) {
             indexDoc(index, Integer.toString(i), "foo", "bar" + i);
         }
@@ -482,7 +488,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         // We must wait for all the cleanup work to be enqueued (with the throttled runner at least) so we can be sure of exactly how it
         // will execute. The cleanup work is enqueued by the master service thread on completion of the cluster state update which increases
         // the root blob generation in the repo metadata, so it is sufficient to wait for another no-op task to run on the master service:
-        PlainActionFuture.get(fut -> clusterService.createTaskQueue("test", Priority.NORMAL, new SimpleBatchedExecutor<>() {
+        safeAwait(listener -> clusterService.createTaskQueue("test", Priority.NORMAL, new SimpleBatchedExecutor<>() {
             @Override
             public Tuple<ClusterState, Object> executeTask(ClusterStateTaskListener clusterStateTaskListener, ClusterState clusterState) {
                 return Tuple.tuple(clusterState, null);
@@ -490,9 +496,9 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
 
             @Override
             public void taskSucceeded(ClusterStateTaskListener clusterStateTaskListener, Object ignored) {
-                fut.onResponse(null);
+                listener.onResponse(null);
             }
-        }).submitTask("test", e -> fail(), null), 10, TimeUnit.SECONDS);
+        }).submitTask("test", e -> fail(), null));
 
         final IntSupplier queueLength = () -> threadPool.stats()
             .stats()
@@ -501,6 +507,12 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
             .findFirst()
             .orElseThrow()
             .queue();
+
+        // There is one task in the queue for computing and forking the cleanup work.
+        assertThat(queueLength.getAsInt(), equalTo(1));
+
+        safeAwait(barrier); // unblock the barrier thread and let it process the queue
+        safeAwait(barrier); // wait for the queue to be processed
 
         // There are indexCount (=3*snapshotPoolSize) index-deletion tasks, plus one for cleaning up the root metadata. However, the
         // throttled runner only enqueues one task per SNAPSHOT thread to start with, and then the eager runner adds another one. This shows

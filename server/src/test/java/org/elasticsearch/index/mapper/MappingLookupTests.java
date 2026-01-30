@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -26,6 +27,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -81,8 +83,8 @@ public class MappingLookupTests extends ESTestCase {
             "object",
             "object",
             Explicit.EXPLICIT_TRUE,
-            Explicit.IMPLICIT_TRUE,
-            Explicit.IMPLICIT_FALSE,
+            ObjectMapper.Defaults.SUBOBJECTS,
+            Optional.empty(),
             ObjectMapper.Dynamic.TRUE,
             Collections.singletonMap("object.subfield", fieldMapper)
         );
@@ -237,7 +239,7 @@ public class MappingLookupTests extends ESTestCase {
     static class FakeFieldType extends TermBasedFieldType {
 
         private FakeFieldType(String name) {
-            super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(name, IndexType.terms(true, true), false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -256,7 +258,7 @@ public class MappingLookupTests extends ESTestCase {
         final String indexedValue;
 
         FakeFieldMapper(FakeFieldType fieldType, String indexedValue) {
-            super(fieldType.name(), fieldType, MultiFields.empty(), CopyTo.empty());
+            super(fieldType.name(), fieldType, BuilderParams.empty());
             this.indexedValue = indexedValue;
         }
 

@@ -1,23 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -26,11 +23,8 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.rest.BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY;
 
 /**
  * Response object for {@link GetFieldMappingsRequest} API
@@ -49,18 +43,9 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
     }
 
     GetFieldMappingsResponse(StreamInput in) throws IOException {
-        super(in);
-        mappings = in.readImmutableMap(mapIn -> {
-            if (mapIn.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                int typesSize = mapIn.readVInt();
-                assert typesSize == 1 || typesSize == 0 : "Expected 0 or 1 types but got " + typesSize;
-                if (typesSize == 0) {
-                    return Collections.emptyMap();
-                }
-                mapIn.readString(); // type
-            }
-            return mapIn.readImmutableMap(inpt -> new FieldMappingMetadata(inpt.readString(), inpt.readBytesReference()));
-        });
+        mappings = in.readImmutableMap(
+            mapIn -> mapIn.readImmutableMap(inpt -> new FieldMappingMetadata(inpt.readString(), inpt.readBytesReference()))
+        );
     }
 
     /** returns the retrieved field mapping. The return map keys are index, field (as specified in the request). */
@@ -90,16 +75,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
             builder.startObject(indexEntry.getKey());
             builder.startObject(MAPPINGS.getPreferredName());
             if (indexEntry.getValue() != null) {
-                if (builder.getRestApiVersion() == RestApiVersion.V_7
-                    && params.paramAsBoolean(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY)) {
-                    if (indexEntry.getValue().size() > 0) {
-                        builder.startObject(MapperService.SINGLE_MAPPING_NAME);
-                        addFieldMappingsToBuilder(builder, params, indexEntry.getValue());
-                        builder.endObject();
-                    }
-                } else {
-                    addFieldMappingsToBuilder(builder, params, indexEntry.getValue());
-                }
+                addFieldMappingsToBuilder(builder, params, indexEntry.getValue());
             }
 
             builder.endObject();
@@ -147,10 +123,6 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(mappings, (outpt, map) -> {
-            if (outpt.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                outpt.writeVInt(1);
-                outpt.writeString(MapperService.SINGLE_MAPPING_NAME);
-            }
             outpt.writeMap(map, (o, v) -> {
                 o.writeString(v.fullName());
                 o.writeBytesReference(v.source);

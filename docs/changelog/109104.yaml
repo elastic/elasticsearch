@@ -1,6 +1,0 @@
-pr: 109104
-summary: Offload request to generic threadpool
-area: Machine Learning
-type: bug
-issues:
- - 109100

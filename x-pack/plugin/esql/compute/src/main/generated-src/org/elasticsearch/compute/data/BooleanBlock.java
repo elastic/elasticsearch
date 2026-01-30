@@ -7,19 +7,18 @@
 
 package org.elasticsearch.compute.data;
 
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
+// begin generated imports
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
+// end generated imports
 
 /**
  * Block that stores boolean values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Block.java.st} instead.
  */
 public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, BooleanVectorBlock, ConstantNullBlock, BooleanBigArrayBlock {
 
@@ -34,28 +33,58 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
      */
     boolean getBoolean(int valueIndex);
 
+    /**
+     * Checks if this block has the given value at position. If at this index we have a
+     * multivalue, then it returns true if any values match.
+     *
+     * @param position the index at which we should check the value(s)
+     * @param value the value to check against
+     */
+    default boolean hasValue(int position, boolean value) {
+        final var count = getValueCount(position);
+        final var startIndex = getFirstValueIndex(position);
+        for (int index = startIndex; index < startIndex + count; index++) {
+            if (value == getBoolean(index)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     BooleanVector asVector();
 
+    /**
+     * Convert this to a {@link BooleanVector "mask"} that's appropriate for
+     * passing to {@link #keepMask}. Null and multivalued positions will be
+     * converted to {@code false}.
+     */
+    ToMask toMask();
+
     @Override
     BooleanBlock filter(int... positions);
+
+    /**
+     * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default BooleanBlock deepCopy(BlockFactory blockFactory) {
+        try (BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(getPositionCount())) {
+            builder.copyFrom(this, 0, getPositionCount());
+            builder.mvOrdering(mvOrdering());
+            return builder.build();
+        }
+    }
+
+    @Override
+    BooleanBlock keepMask(BooleanVector mask);
 
     @Override
     ReleasableIterator<? extends BooleanBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     @Override
     BooleanBlock expand();
-
-    @Override
-    default String getWriteableName() {
-        return "BooleanBlock";
-    }
-
-    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "BooleanBlock", BooleanBlock::readFrom);
-
-    private static BooleanBlock readFrom(StreamInput in) throws IOException {
-        return readFrom((BlockStreamInput) in);
-    }
 
     static BooleanBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();
@@ -97,10 +126,10 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
         if (vector != null) {
             out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_BLOCK) && this instanceof BooleanArrayBlock b) {
+        } else if (this instanceof BooleanArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_ARRAY);
             b.writeArrayBlock(out);
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_BIG_ARRAY) && this instanceof BooleanBigArrayBlock b) {
+        } else if (this instanceof BooleanBigArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_BIG_ARRAY);
             b.writeArrayBlock(out);
         } else {
@@ -212,6 +241,14 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
          * {@code endExclusive} into this builder.
          */
         Builder copyFrom(BooleanBlock block, int beginInclusive, int endExclusive);
+
+        /**
+         * Copy the values in {@code block} at {@code position}. If this position
+         * has a single value, this'll copy a single value. If this positions has
+         * many values, it'll copy all of them. If this is {@code null}, then it'll
+         * copy the {@code null}.
+         */
+        Builder copyFrom(BooleanBlock block, int position);
 
         @Override
         Builder appendNull();

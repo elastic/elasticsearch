@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http.netty4;
@@ -18,9 +19,11 @@ import io.netty.handler.codec.compression.JdkZlibEncoder;
 import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
-import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpObject;
+import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
+import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.handler.ssl.SslCloseCompletionEvent;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.concurrent.Future;
@@ -70,6 +73,12 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     @Nullable
     private ChunkedWrite currentChunkedWrite;
 
+    /**
+     * HTTP request content stream for current request, it's null if there is no current request or request is fully-aggregated
+     */
+    @Nullable
+    private Netty4HttpRequestBodyStream currentRequestStream;
+
     /*
      * The current read and write sequence numbers. Read sequence numbers are attached to requests in the order they are read from the
      * channel, and then transferred to responses. A response is not written to the channel context until its sequence number matches the
@@ -108,25 +117,41 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
         activityTracker.startActivity();
+        boolean shouldRead = true;
         try {
-            assert msg instanceof FullHttpRequest : "Should have fully aggregated message already but saw [" + msg + "]";
-            final FullHttpRequest fullHttpRequest = (FullHttpRequest) msg;
-            final Netty4HttpRequest netty4HttpRequest;
-            if (fullHttpRequest.decoderResult().isFailure()) {
-                final Throwable cause = fullHttpRequest.decoderResult().cause();
-                final Exception nonError;
-                if (cause instanceof Error) {
-                    ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                    nonError = new Exception(cause);
+            if (msg instanceof HttpRequest request) {
+                final Netty4HttpRequest netty4HttpRequest;
+                if (request.decoderResult().isFailure()) {
+                    final Throwable cause = request.decoderResult().cause();
+                    final Exception nonError;
+                    if (cause instanceof Error) {
+                        ExceptionsHelper.maybeDieOnAnotherThread(cause);
+                        nonError = new Exception(cause);
+                    } else {
+                        nonError = (Exception) cause;
+                    }
+                    netty4HttpRequest = new Netty4HttpRequest(readSequence++, request, nonError);
                 } else {
-                    nonError = (Exception) cause;
+                    assert currentRequestStream == null : "current stream must be null for new request";
+                    var contentStream = new Netty4HttpRequestBodyStream(ctx, serverTransport.getThreadPool().getThreadContext());
+                    currentRequestStream = contentStream;
+                    netty4HttpRequest = new Netty4HttpRequest(readSequence++, request, contentStream);
+                    shouldRead = false;
                 }
-                netty4HttpRequest = new Netty4HttpRequest(readSequence++, fullHttpRequest, nonError);
+                handlePipelinedRequest(ctx, netty4HttpRequest);
             } else {
-                netty4HttpRequest = new Netty4HttpRequest(readSequence++, fullHttpRequest);
+                assert msg instanceof HttpContent : "expect HttpContent got " + msg;
+                assert currentRequestStream != null : "current stream must exists before handling http content";
+                shouldRead = false;
+                currentRequestStream.handleNettyContent((HttpContent) msg);
             }
-            handlePipelinedRequest(ctx, netty4HttpRequest);
         } finally {
+            if (msg instanceof LastHttpContent) {
+                currentRequestStream = null;
+            }
+            if (shouldRead) {
+                ctx.channel().eventLoop().execute(ctx::read);
+            }
             activityTracker.stopActivity();
         }
     }
@@ -136,7 +161,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         final Netty4HttpChannel channel = ctx.channel().attr(Netty4HttpServerTransport.HTTP_CHANNEL_KEY).get();
         boolean success = false;
         assert Transports.assertDefaultThreadContext(serverTransport.getThreadPool().getThreadContext());
-        assert Transports.assertTransportThread();
+        assert ctx.channel().eventLoop().inEventLoop();
         try {
             serverTransport.incomingRequest(pipelinedRequest, channel);
             success = true;
@@ -301,8 +326,8 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                                 Strings.format("failed to get continuation of HTTP response body for [%s], closing connection", channel),
                                 e
                             );
-                            channel.close().addListener(ignored -> {
-                                finishingWrite.combiner().add(channel.newFailedFuture(e));
+                            Netty4Utils.addListener(channel.close(), f -> {
+                                finishingWrite.combiner().add(f.channel().newFailedFuture(e));
                                 finishingWrite.combiner().finish(finishingWrite.onDone());
                             });
                             checkShutdown();
@@ -416,7 +441,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         final boolean isPartComplete = bodyPart.isPartComplete();
         final boolean isBodyComplete = isPartComplete && bodyPart.isLastPart();
         final ChannelFuture f = ctx.write(isBodyComplete ? new DefaultLastHttpContent(content) : new DefaultHttpContent(content));
-        f.addListener(ignored -> bytes.close());
+        Netty4Utils.addListener(f, ignored -> bytes.close());
         combiner.add(f);
         return isPartComplete;
     }

@@ -1,6 +1,0 @@
-pr: 109025
-summary: Introduce a setting controlling the activation of the `logs` index mode in logs@settings
-area: Logs
-type: feature
-issues:
- - 108762

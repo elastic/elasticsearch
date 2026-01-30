@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -34,6 +35,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
@@ -74,9 +76,19 @@ public class RootObjectMapper extends ObjectMapper {
         protected final Map<String, RuntimeField> runtimeFields = new HashMap<>();
         protected Explicit<Boolean> dateDetection = Defaults.DATE_DETECTION;
         protected Explicit<Boolean> numericDetection = Defaults.NUMERIC_DETECTION;
+        protected RootObjectMapperNamespaceValidator namespaceValidator;
 
-        public Builder(String name, Explicit<Boolean> subobjects) {
+        public Builder(String name) {
+            this(name, ObjectMapper.Defaults.SUBOBJECTS);
+        }
+
+        public Builder(String name, Explicit<Subobjects> subobjects) {
             super(name, subobjects);
+        }
+
+        public Builder addNamespaceValidator(RootObjectMapperNamespaceValidator namespaceValidator) {
+            this.namespaceValidator = namespaceValidator;
+            return this;
         }
 
         public Builder dynamicDateTimeFormatter(Collection<DateFormatter> dateTimeFormatters) {
@@ -111,14 +123,15 @@ public class RootObjectMapper extends ObjectMapper {
                 leafName(),
                 enabled,
                 subobjects,
-                storeArraySource,
+                sourceKeepMode,
                 dynamic,
                 buildMappers(context.createChildContext(null, dynamic)),
                 new HashMap<>(runtimeFields),
                 dynamicDateTimeFormatters,
                 dynamicTemplates,
                 dateDetection,
-                numericDetection
+                numericDetection,
+                namespaceValidator
             );
         }
     }
@@ -128,26 +141,34 @@ public class RootObjectMapper extends ObjectMapper {
     private final Explicit<Boolean> numericDetection;
     private final Explicit<DynamicTemplate[]> dynamicTemplates;
     private final Map<String, RuntimeField> runtimeFields;
+    private final RootObjectMapperNamespaceValidator namespaceValidator;
 
     RootObjectMapper(
         String name,
         Explicit<Boolean> enabled,
-        Explicit<Boolean> subobjects,
-        Explicit<Boolean> trackArraySource,
+        Explicit<Subobjects> subobjects,
+        Optional<SourceKeepMode> sourceKeepMode,
         Dynamic dynamic,
         Map<String, Mapper> mappers,
         Map<String, RuntimeField> runtimeFields,
         Explicit<DateFormatter[]> dynamicDateTimeFormatters,
         Explicit<DynamicTemplate[]> dynamicTemplates,
         Explicit<Boolean> dateDetection,
-        Explicit<Boolean> numericDetection
+        Explicit<Boolean> numericDetection,
+        RootObjectMapperNamespaceValidator namespaceValidator
     ) {
-        super(name, name, enabled, subobjects, trackArraySource, dynamic, mappers);
+        super(name, name, enabled, subobjects, sourceKeepMode, dynamic, mappers);
         this.runtimeFields = runtimeFields;
         this.dynamicTemplates = dynamicTemplates;
         this.dynamicDateTimeFormatters = dynamicDateTimeFormatters;
         this.dateDetection = dateDetection;
         this.numericDetection = numericDetection;
+        this.namespaceValidator = namespaceValidator == null ? new DefaultRootObjectMapperNamespaceValidator() : namespaceValidator;
+        if (sourceKeepMode.orElse(SourceKeepMode.NONE) == SourceKeepMode.ALL) {
+            throw new MapperParsingException(
+                "root object can't be configured with [" + Mapper.SYNTHETIC_SOURCE_KEEP_PARAM + ":" + SourceKeepMode.ALL + "]"
+            );
+        }
     }
 
     @Override
@@ -164,14 +185,15 @@ public class RootObjectMapper extends ObjectMapper {
             leafName(),
             enabled,
             subobjects,
-            storeArraySource,
+            sourceKeepMode,
             dynamic,
             Map.of(),
             Map.of(),
             dynamicDateTimeFormatters,
             dynamicTemplates,
             dateDetection,
-            numericDetection
+            numericDetection,
+            namespaceValidator
         );
     }
 
@@ -280,14 +302,15 @@ public class RootObjectMapper extends ObjectMapper {
             leafName(),
             mergeResult.enabled(),
             mergeResult.subObjects(),
-            mergeResult.trackArraySource(),
+            mergeResult.sourceKeepMode(),
             mergeResult.dynamic(),
             mergeResult.mappers(),
             Map.copyOf(runtimeFields),
             dynamicDateTimeFormatters,
             dynamicTemplates,
             dateDetection,
-            numericDetection
+            numericDetection,
+            namespaceValidator
         );
     }
 
@@ -442,8 +465,9 @@ public class RootObjectMapper extends ObjectMapper {
 
     public static RootObjectMapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
         throws MapperParsingException {
-        Explicit<Boolean> subobjects = parseSubobjects(node);
+        Explicit<Subobjects> subobjects = parseSubobjects(node);
         RootObjectMapper.Builder builder = new Builder(name, subobjects);
+        builder.addNamespaceValidator(parserContext.getNamespaceValidator());
         Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, Object> entry = iterator.next();
@@ -531,6 +555,16 @@ public class RootObjectMapper extends ObjectMapper {
 
     @Override
     public int getTotalFieldsCount() {
-        return mappers.values().stream().mapToInt(Mapper::getTotalFieldsCount).sum() + runtimeFields.size();
+        return super.getTotalFieldsCount() - 1 + runtimeFields.size();
+    }
+
+    /**
+     * Overrides in order to run the namespace validator first and then delegates to the
+     * standard validateSubField on the parent class
+     */
+    @Override
+    protected void validateSubField(Mapper mapper, MappingLookup mappers) {
+        namespaceValidator.validateNamespace(subobjects(), mapper.leafName());
+        super.validateSubField(mapper, mappers);
     }
 }

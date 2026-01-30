@@ -106,8 +106,8 @@ FROM employees
     long = TOP(salary_change.long, 1, "asc")
 ;
 
-date:date | double:double | integer:integer | long:long
-1985-02-18T00:00:00.000Z | -9.81 | 25324 | -9
+date:date                | double:double | integer:integer | long:long
+1985-02-18T00:00:00.000Z | -9.81         | 25324           | -9
 ;
 
 topAllTypesMax
@@ -120,8 +120,8 @@ FROM employees
     long = TOP(salary_change.long, 1, "desc")
 ;
 
-date:date | double:double | integer:integer | long:long
-1999-04-30T00:00:00.000Z | 14.74 | 74999 | 14
+date:date                | double:double | integer:integer | long:long
+1999-04-30T00:00:00.000Z | 14.74         | 74999           | 14
 ;
 
 topAscDesc
@@ -153,4 +153,281 @@ FROM employees
 
 integer:integer
 [5, 5]
+;
+
+topBooleans
+required_capability: agg_top
+required_capability: agg_top_boolean_support
+FROM employees
+| eval x = salary is not null
+| where emp_no > 10050
+| STATS
+    top_asc = TOP(still_hired, 2, "asc"),
+    min = TOP(still_hired, 1, "asc"),
+    top_desc = TOP(still_hired, 2, "desc"),
+    max = TOP(still_hired, 1, "desc"),
+    a = TOP(salary is not null, 2, "asc"),
+    b = TOP(x, 2, "asc"),
+    c = TOP(case(salary is null, true, false), 2, "asc"),
+    d = TOP(is_rehired, 2, "asc")
+;
+
+top_asc:boolean    | min:boolean | top_desc:boolean | max:boolean | a:boolean    | b:boolean    | c:boolean      | d:boolean
+[false, false]     | false       | [true, true]     | true        | [true, true] | [true, true] | [false, false] | [false, false]
+;
+
+topBooleansRow
+required_capability: agg_top
+required_capability: agg_top_boolean_support
+ROW constant = true, mv = [true, false]
+| STATS
+    constant_asc = TOP(constant, 2, "asc"),
+    constant_desc = TOP(constant, 2, "desc"),
+    mv_asc = TOP(mv, 2, "asc"),
+    mv_desc = TOP(mv, 2, "desc")
+;
+
+constant_asc:boolean | constant_desc:boolean | mv_asc:boolean | mv_desc:boolean
+true                 | true                  | [false, true]  | [true, false]
+;
+
+topIps
+required_capability: agg_top
+required_capability: agg_top_ip_support
+from hosts
+| eval x = ip0
+| where host > "alpha"
+| stats
+    a = TOP(ip0, 2, "desc"),
+    b = TOP(x, 2, "desc"),
+    c = TOP(case(host == "beta", ip0, ip1), 2, "desc");
+
+a:ip | b:ip | c:ip
+[fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9] | [fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9] | [fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9]
+;
+
+topIpsGrouping
+required_capability: agg_top
+required_capability: agg_top_ip_support
+from hosts
+| eval x = ip0
+| where host > "alpha"
+| stats
+    a = TOP(ip0, 2, "desc"),
+    b = TOP(x, 2, "desc"),
+    c = TOP(case(host == "beta", ip0, ip1), 2, "desc")
+    by host
+| sort host asc;
+
+a:ip | b:ip | c:ip | host:keyword
+[127.0.0.1, 127.0.0.1] | [127.0.0.1, 127.0.0.1] | [127.0.0.1, 127.0.0.1] | beta
+[fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9] | [fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9] | [fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9] | epsilon
+[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:feb9] | [fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:feb9] | [fe81::cae2:65ff:fece:feb9, 127.0.0.3] | gamma
+;
+
+topKeywords
+required_capability: agg_top
+required_capability: agg_top_string_support
+
+FROM employees
+| EVAL calc = SUBSTRING(last_name, 2)
+| STATS
+    first_name = TOP(first_name, 3, "asc"),
+    last_name = TOP(calc, 3, "asc"),
+    evil = TOP(CASE(languages <= 2, first_name, last_name), 3, "desc");
+
+     first_name:keyword      |   last_name:keyword   | evil:keyword
+[Alejandro, Amabile, Anneke] | [acello, addadi, aek] | [Zschoche, Zielinski, Zhongwei]
+;
+
+topKeywordsGrouping
+required_capability: agg_top
+required_capability: agg_top_string_support
+
+FROM employees
+| EVAL calc = SUBSTRING(last_name, 2)
+| STATS
+    first_name = TOP(first_name, 3, "asc"),
+    last_name = TOP(calc, 3, "asc"),
+    evil = TOP(CASE(languages <= 2, first_name, last_name), 3, "desc")
+  BY job_positions
+| SORT job_positions
+| LIMIT 3;
+
+     first_name:keyword      |     last_name:keyword     |          evil:keyword          | job_positions:keyword
+ [Arumugam, Bojan, Domenick] |   [acello, aine, akrucki] | [Zhongwei, Yinghua, Valdiodio] | Accountant
+[Alejandro, Charlene, Danel] | [andell, cAlpine, eistad] |      [Stamatiou, Sluis, Sidou] | Architect
+ [Basil, Breannda, Hidefumi] |  [aine, alabarba, ierman] |  [Tramer, Syrzycki, Stamatiou] | Business Analyst
+;
+
+topText
+required_capability: agg_top
+required_capability: agg_top_string_support
+required_capability: functions_never_emit_text
+# we don't need MATCH, but the loader for books.csv is busted in CsvTests
+required_capability: match_operator_colon
+
+FROM books
+| EVAL calc = TRIM(SUBSTRING(title, 2, 5))
+| STATS
+    title = TOP(title, 3, "desc"),
+    calc = TOP(calc, 3, "asc"),
+    evil = TOP(CASE(year < 1980, title, author), 3, "desc");
+
+title:keyword | calc:keyword | evil:keyword
+[Worlds of Exile and Illusion: Three Complete Novels of the Hainish Series in One Volume--Rocannon's World, Planet of Exile, City of Illusions, Woman-The Full Story: A Dynamic Celebration of Freedoms, Winter notes on summer impressions] | ["'Bria", "Gent", "HE UN"] | [William Faulkner, William Faulkner, William Faulkner]
+;
+
+topTextGrouping
+required_capability: agg_top
+required_capability: agg_top_string_support
+required_capability: functions_never_emit_text
+# we don't need MATCH, but the loader for books.csv is busted in CsvTests
+required_capability: match_operator_colon
+
+FROM books
+| EVAL calc = TRIM(SUBSTRING(title, 2, 5))
+| STATS
+    title = TOP(title, 3, "desc"),
+    calc = TOP(calc, 3, "asc"),
+    evil = TOP(CASE(year < 1980, title, author), 3, "desc")
+  BY author
+| SORT author
+| LIMIT 3;
+
+                                                                                                             title:keyword | calc:keyword | evil:keyword | author:text
+                                   A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings |  Tolk | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings | Agnes Perkins
+                                                    The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1) | he Lo |                                                                [J. R. R. Tolkien, Alan Lee] | Alan Lee
+A Gentle Creature and Other Stories: White Nights, A Gentle Creature, and The Dream of a Ridiculous Man (The World's Classics) |  Gent |                                        [W. J. Leatherbarrow, Fyodor Dostoevsky, Alan Myers] | Alan Myers
+;
+
+
+topWithOptionalOrder
+required_capability: agg_top
+required_capability: agg_top_with_optional_order_field
+
+FROM employees | STATS top_salaries = TOP(salary, 3);
+
+top_salaries:integer
+[25324, 25945, 25976]
+;
+
+
+outputFieldDesc
+required_capability: agg_top_with_output_field
+FROM employees
+| STATS youngest_employees = TOP(birth_date, 3, "desc"),
+        youngest_employees_salaries = TOP(birth_date, 3, "desc", salary)
+;
+
+youngest_employees:date                                                        | youngest_employees_salaries:integer
+[1965-01-03T00:00:00.000Z, 1964-10-18T00:00:00.000Z, 1964-06-11T00:00:00.000Z] | [37702, 25976, 45656]
+;
+
+outputFieldDescGrouping
+required_capability: agg_top_with_output_field
+FROM employees
+| STATS youngest_employees = TOP(birth_date, 3, "desc"),
+        youngest_employees_salaries = TOP(birth_date, 3, "desc", salary)
+  BY    gender
+| SORT gender
+| KEEP gender, youngest_employees, youngest_employees_salaries
+;
+
+gender:keyword | youngest_employees:datetime                                                    | youngest_employees_salaries:integer
+F              | [1964-10-18T00:00:00.000Z, 1964-06-02T00:00:00.000Z, 1963-03-21T00:00:00.000Z] | [25976, 56371, 43602]
+M              | [1965-01-03T00:00:00.000Z, 1964-06-11T00:00:00.000Z, 1964-04-18T00:00:00.000Z] | [37702, 45656, 46595]
+null           | [1963-06-07T00:00:00.000Z, 1963-06-01T00:00:00.000Z, 1961-05-02T00:00:00.000Z] | [48735, 45797, 61358]
+;
+
+outputFieldAsc
+required_capability: agg_top_with_output_field
+FROM employees
+| STATS oldest_employees = TOP(birth_date, 3, "asc"),
+        oldest_employees_salaries = TOP(birth_date, 3, "asc", salary)
+;
+
+oldest_employees:date                                                          | oldest_employees_salaries:integer
+[1952-02-27T00:00:00.000Z, 1952-04-19T00:00:00.000Z, 1952-05-15T00:00:00.000Z] | [71165, 66174, 54518]
+;
+
+outputFieldAscGrouping
+required_capability: agg_top_with_output_field
+FROM employees
+| STATS oldest_employees = TOP(birth_date, 3, "asc"),
+        oldest_employees_salaries = TOP(birth_date, 3, "asc", salary)
+  BY    gender
+| SORT gender
+| KEEP gender, oldest_employees, oldest_employees_salaries
+;
+
+gender:keyword | oldest_employees:datetime                                                      | oldest_employees_salaries:integer
+F              | [1952-04-19T00:00:00.000Z, 1952-05-15T00:00:00.000Z, 1952-06-13T00:00:00.000Z] | [66174, 54518, 62405]
+M              | [1952-02-27T00:00:00.000Z, 1952-07-08T00:00:00.000Z, 1952-11-13T00:00:00.000Z] | [71165, 48233, 31897]
+null           | [1953-01-23T00:00:00.000Z, 1953-11-07T00:00:00.000Z, 1954-06-19T00:00:00.000Z] | [73717, 31120, 56760]
+;
+
+outputFieldAscSameAsField
+required_capability: agg_top_with_output_field
+FROM employees
+| STATS oldest_employees = TOP(birth_date, 3, "asc"),
+        oldest_employees_dup = TOP(birth_date, 3, "asc", birth_date)
+;
+
+oldest_employees:date                                                          | oldest_employees_dup:date
+[1952-02-27T00:00:00.000Z, 1952-04-19T00:00:00.000Z, 1952-05-15T00:00:00.000Z] | [1952-02-27T00:00:00.000Z, 1952-04-19T00:00:00.000Z, 1952-05-15T00:00:00.000Z]
+;
+
+outputFieldOrderGrouping
+required_capability: agg_top_with_output_field
+
+FROM employees
+| EVAL birth_year = DATE_EXTRACT("year", birth_date)
+| STATS v = TOP(birth_year, 20, "asc", emp_no) BY birth_year
+| KEEP birth_year, v
+| SORT birth_year
+;
+
+birth_year:long | v:integer
+1952            | [10009, 10020, 10022, 10063, 10066, 10072, 10076, 10097]
+1953            | [10001, 10006, 10011, 10019, 10023, 10026, 10035, 10051, 10059, 10067, 10100]
+1954            | [10004, 10018, 10053, 10057, 10058, 10073, 10088, 10096]
+1955            | [10005, 10070, 10074, 10091]
+1956            | [10014, 10029, 10033, 10055, 10099]
+1957            | [10007, 10054, 10080, 10094]
+1958            | [10008, 10017, 10024, 10025, 10030, 10050, 10071]
+1959            | [10003, 10015, 10031, 10036, 10039, 10064, 10078, 10083, 10087]
+1960            | [10012, 10021, 10032, 10038, 10069, 10075, 10081, 10084]
+1961            | [10016, 10052, 10056, 10060, 10062, 10079, 10090, 10098]
+1962            | [10027, 10034, 10061, 10068, 10085, 10086]
+1963            | [10010, 10013, 10028, 10037, 10065, 10082, 10089]
+1964            | [10002, 10077, 10092, 10093]
+1965            | 10095
+null            | null
+;
+
+outputFieldAndShouldSurrogate
+required_capability: agg_top_with_output_field
+
+FROM employees
+| STATS
+    min_height = TOP(height, 1, "asc"),
+    max_height = TOP(height, 1, "desc")
+;
+
+min_height:double | max_height:double
+1.41              | 2.1
+;
+
+outputFieldAndShouldNotSurrogate
+required_capability: fix_agg_top_with_output_field_surrogate
+
+FROM employees
+| STATS
+    shortest_employee = TOP(height, 1, "asc", emp_no),
+    tallest_employee = TOP(height, 1, "desc", emp_no)
+;
+
+shortest_employee:integer | tallest_employee:integer
+10020                     | 10094
 ;

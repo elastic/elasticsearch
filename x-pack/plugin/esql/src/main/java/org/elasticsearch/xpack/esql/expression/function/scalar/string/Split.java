@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -26,11 +27,10 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
-import java.util.function.Function;
 
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
@@ -63,14 +63,14 @@ public class Split extends BinaryScalarFunction implements EvaluatorMapper {
     }
 
     private Split(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), ((PlanStreamInput) in).readExpression(), ((PlanStreamInput) in).readExpression());
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        ((PlanStreamOutput) out).writeExpression(str());
-        ((PlanStreamOutput) out).writeExpression(delim());
+        out.writeNamedWriteable(str());
+        out.writeNamedWriteable(delim());
     }
 
     @Override
@@ -103,8 +103,8 @@ public class Split extends BinaryScalarFunction implements EvaluatorMapper {
     }
 
     @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
+    public Object fold(FoldContext ctx) {
+        return EvaluatorMapper.super.fold(source(), ctx);
     }
 
     @Evaluator(extraName = "SingleByte")
@@ -112,7 +112,7 @@ public class Split extends BinaryScalarFunction implements EvaluatorMapper {
         BytesRefBlock.Builder builder,
         BytesRef str,
         @Fixed byte delim,
-        @Fixed(includeInToString = false, build = true) BytesRef scratch
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch
     ) {
         scratch.bytes = str.bytes;
         scratch.offset = str.offset;
@@ -142,7 +142,7 @@ public class Split extends BinaryScalarFunction implements EvaluatorMapper {
         BytesRefBlock.Builder builder,
         BytesRef str,
         BytesRef delim,
-        @Fixed(includeInToString = false, build = true) BytesRef scratch
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch
     ) {
         checkDelimiter(delim);
         process(builder, str, delim.bytes[delim.offset], scratch);
@@ -159,12 +159,12 @@ public class Split extends BinaryScalarFunction implements EvaluatorMapper {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var str = toEvaluator.apply(left());
         if (right().foldable() == false) {
             return new SplitVariableEvaluator.Factory(source(), str, toEvaluator.apply(right()), context -> new BytesRef());
         }
-        BytesRef delim = (BytesRef) right().fold();
+        BytesRef delim = (BytesRef) right().fold(toEvaluator.foldCtx());
         checkDelimiter(delim);
         return new SplitSingleByteEvaluator.Factory(source(), str, delim.bytes[delim.offset], context -> new BytesRef());
     }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health;
@@ -18,7 +19,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorServiceTests;
+import org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService;
+import org.elasticsearch.cluster.routing.allocation.shards.StatefulShardsAvailabilityHealthIndicatorServiceTests;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.Lifecycle;
@@ -27,6 +29,7 @@ import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.health.node.DiskHealthIndicatorService;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongGaugeMetric;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -50,9 +53,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_IMPACT_ID;
+import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_IMPACT_ID;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
+import static org.elasticsearch.health.node.DiskHealthIndicatorService.IMPACT_INGEST_UNAVAILABLE_ID;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
@@ -124,9 +130,9 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
 
         Map<String, Object> loggerResults = HealthPeriodicLogger.convertToLoggedFields(results);
 
-        // verify that the number of fields is the number of indicators + 4
-        // (for overall and for message, plus details for the two yellow indicators)
-        assertThat(loggerResults.size(), equalTo(results.size() + 4));
+        // verify that the number of fields is the number of indicators + 7
+        // (for overall and for message, plus details for the two yellow indicators, plus three impact)
+        assertThat(loggerResults.size(), equalTo(results.size() + 7));
 
         // test indicator status
         assertThat(loggerResults.get(makeHealthStatusString("master_is_stable")), equalTo("green"));
@@ -162,6 +168,17 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         assertThat(
             loggerResults.get(HealthPeriodicLogger.MESSAGE_FIELD),
             equalTo(String.format(Locale.ROOT, "health=%s [disk,shards_availability]", overallStatus.xContentValue()))
+        );
+
+        // test impact
+        assertThat(loggerResults.get(makeHealthImpactString(DiskHealthIndicatorService.NAME, IMPACT_INGEST_UNAVAILABLE_ID)), equalTo(true));
+        assertThat(
+            loggerResults.get(makeHealthImpactString(ShardsAvailabilityHealthIndicatorService.NAME, PRIMARY_UNASSIGNED_IMPACT_ID)),
+            equalTo(true)
+        );
+        assertThat(
+            loggerResults.get(makeHealthImpactString(ShardsAvailabilityHealthIndicatorService.NAME, REPLICA_UNASSIGNED_IMPACT_ID)),
+            equalTo(true)
         );
 
         // test empty results
@@ -419,16 +436,14 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
 
         // run it once, verify getHealth is called
-        {
-            Thread logHealthThread = new Thread(() -> testHealthPeriodicLogger.triggered(event));
-            logHealthThread.start();
-            // We wait to verify that the triggered even is in progress, then we block, so it will rename in progress
-            assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(1)));
-            // We try to log again while it's in progress, we expect this run to be skipped
-            assertFalse(testHealthPeriodicLogger.tryToLogHealth());
-            // Unblock the first execution
-            waitForSecondRun.countDown();
-        }
+        Thread logHealthThread = new Thread(() -> testHealthPeriodicLogger.triggered(event));
+        logHealthThread.start();
+        // We wait to verify that the triggered even is in progress, then we block, so it will rename in progress
+        assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(1)));
+        // We try to log again while it's in progress, we expect this run to be skipped
+        assertFalse(testHealthPeriodicLogger.tryToLogHealth());
+        // Unblock the first execution
+        waitForSecondRun.countDown();
 
         // run it again, verify getHealth is called, because we are calling the results listener
         {
@@ -436,6 +451,9 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
             testHealthPeriodicLogger.triggered(event);
             assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(2)));
         }
+
+        // Wait for the log thread to finish, to ensure it logs during this test and doesn't pollute other tests.
+        logHealthThread.join();
     }
 
     public void testTryToLogHealthConcurrencyControl() throws Exception {
@@ -468,11 +486,9 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
 
         // call it and verify that getHealth is called
-        {
-            Thread logHealthThread = new Thread(() -> testHealthPeriodicLogger.triggered(event));
-            logHealthThread.start();
-            assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(1)));
-        }
+        Thread logHealthThread = new Thread(() -> testHealthPeriodicLogger.triggered(event));
+        logHealthThread.start();
+        assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(1)));
 
         // run it again, verify that it's skipped because the other one is in progress
         {
@@ -487,6 +503,9 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
             testHealthPeriodicLogger.triggered(event);
             assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(2)));
         }
+
+        // Wait for the log thread to finish, to ensure it logs during this test and doesn't pollute other tests.
+        logHealthThread.join();
     }
 
     public void testTryToLogHealthConcurrencyControlWithException() throws Exception {
@@ -592,11 +611,9 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
             SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
 
             // call it and verify that getHealth is called
-            {
-                Thread logHealthThread = new Thread(() -> testHealthPeriodicLogger.triggered(event));
-                logHealthThread.start();
-                assertBusy(() -> assertTrue(testHealthPeriodicLogger.currentlyRunning()));
-            }
+            Thread logHealthThread = new Thread(() -> testHealthPeriodicLogger.triggered(event));
+            logHealthThread.start();
+            assertBusy(() -> assertTrue(testHealthPeriodicLogger.currentlyRunning()));
 
             // stop and close it
             {
@@ -609,6 +626,9 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
                 waitForCloseToBeTriggered.countDown();
                 assertBusy(() -> assertEquals(Lifecycle.State.CLOSED, testHealthPeriodicLogger.lifecycleState()));
             }
+
+            // Wait for the log thread to finish, to ensure it logs during this test and doesn't pollute other tests.
+            logHealthThread.join();
         }
     }
 
@@ -792,15 +812,38 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
                     1
                 )
             ),
-            null,
+            List.of(
+                new HealthIndicatorImpact(
+                    DiskHealthIndicatorService.NAME,
+                    IMPACT_INGEST_UNAVAILABLE_ID,
+                    2,
+                    "description",
+                    List.of(ImpactArea.INGEST)
+                )
+            ),
             null
         );
         var shardsAvailable = new HealthIndicatorResult(
             "shards_availability",
             YELLOW,
             null,
-            new SimpleHealthIndicatorDetails(ShardsAvailabilityHealthIndicatorServiceTests.addDefaults(Map.of())),
-            null,
+            new SimpleHealthIndicatorDetails(StatefulShardsAvailabilityHealthIndicatorServiceTests.addDefaults(Map.of())),
+            List.of(
+                new HealthIndicatorImpact(
+                    ShardsAvailabilityHealthIndicatorService.NAME,
+                    PRIMARY_UNASSIGNED_IMPACT_ID,
+                    2,
+                    "description",
+                    List.of(ImpactArea.SEARCH)
+                ),
+                new HealthIndicatorImpact(
+                    ShardsAvailabilityHealthIndicatorService.NAME,
+                    REPLICA_UNASSIGNED_IMPACT_ID,
+                    2,
+                    "description",
+                    List.of(ImpactArea.SEARCH)
+                )
+            ),
             null
         );
 
@@ -814,7 +857,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
             "shards_availability",
             GREEN,
             null,
-            new SimpleHealthIndicatorDetails(ShardsAvailabilityHealthIndicatorServiceTests.addDefaults(Map.of())),
+            new SimpleHealthIndicatorDetails(StatefulShardsAvailabilityHealthIndicatorServiceTests.addDefaults(Map.of())),
             null,
             null
         );
@@ -829,7 +872,9 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
             "shards_availability",
             RED,
             null,
-            new SimpleHealthIndicatorDetails(ShardsAvailabilityHealthIndicatorServiceTests.addDefaults(Map.of("unassigned_primaries", 1))),
+            new SimpleHealthIndicatorDetails(
+                StatefulShardsAvailabilityHealthIndicatorServiceTests.addDefaults(Map.of("unassigned_primaries", 1))
+            ),
             null,
             null
         );
@@ -843,6 +888,10 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
 
     private String makeHealthDetailsString(String key) {
         return String.format(Locale.ROOT, "%s.%s.details", HealthPeriodicLogger.HEALTH_FIELD_PREFIX, key);
+    }
+
+    private String makeHealthImpactString(String indicatorName, String impact) {
+        return String.format(Locale.ROOT, "%s.%s.%s.impacted", HealthPeriodicLogger.HEALTH_FIELD_PREFIX, indicatorName, impact);
     }
 
     private HealthPeriodicLogger createAndInitHealthPeriodicLogger(

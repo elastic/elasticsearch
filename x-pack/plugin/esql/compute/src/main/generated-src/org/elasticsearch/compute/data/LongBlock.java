@@ -7,19 +7,18 @@
 
 package org.elasticsearch.compute.data;
 
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
+// begin generated imports
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
+// end generated imports
 
 /**
  * Block that stores long values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Block.java.st} instead.
  */
 public sealed interface LongBlock extends Block permits LongArrayBlock, LongVectorBlock, ConstantNullBlock, LongBigArrayBlock {
 
@@ -34,28 +33,80 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
      */
     long getLong(int valueIndex);
 
+    /**
+     * Checks if this block has the given value at position. If at this index we have a
+     * multivalue, then it returns true if any values match.
+     *
+     * @param position the index at which we should check the value(s)
+     * @param value the value to check against
+     */
+    default boolean hasValue(int position, long value) {
+        final var count = getValueCount(position);
+        final var startIndex = getFirstValueIndex(position);
+        final var BINARYSEARCH_THRESHOLD = 16;
+        if (count > BINARYSEARCH_THRESHOLD && mvSortedAscending()) {
+            return binarySearch(this, position, count, value) >= 0;
+        }
+
+        for (int index = startIndex; index < startIndex + count; index++) {
+            if (value == getLong(index)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Perform a binary search on this block
+     *
+     * @param block to search in
+     * @param startIndex
+     * @param count number of positions to search beyond the startIndex
+     * @param value to search for
+     * @return position or negative number if not found
+     */
+    static int binarySearch(LongBlock block, int startIndex, int count, long value) {
+        int low = startIndex;
+        int high = count - 1;
+
+        while (low <= high) {
+            int mid = (low + high) >>> 1;
+            long midVal = block.getLong(mid);
+
+            if (midVal < value) low = mid + 1;
+            else if (midVal > value) high = mid - 1;
+            else return mid; // key found
+        }
+        return -(low + 1);  // key not found.
+    }
+
     @Override
     LongVector asVector();
 
     @Override
     LongBlock filter(int... positions);
 
+    /**
+     * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default LongBlock deepCopy(BlockFactory blockFactory) {
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(getPositionCount())) {
+            builder.copyFrom(this, 0, getPositionCount());
+            builder.mvOrdering(mvOrdering());
+            return builder.build();
+        }
+    }
+
+    @Override
+    LongBlock keepMask(BooleanVector mask);
+
     @Override
     ReleasableIterator<? extends LongBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     @Override
     LongBlock expand();
-
-    @Override
-    default String getWriteableName() {
-        return "LongBlock";
-    }
-
-    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "LongBlock", LongBlock::readFrom);
-
-    private static LongBlock readFrom(StreamInput in) throws IOException {
-        return readFrom((BlockStreamInput) in);
-    }
 
     static LongBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();
@@ -97,10 +148,10 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
         if (vector != null) {
             out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_BLOCK) && this instanceof LongArrayBlock b) {
+        } else if (this instanceof LongArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_ARRAY);
             b.writeArrayBlock(out);
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_BIG_ARRAY) && this instanceof LongBigArrayBlock b) {
+        } else if (this instanceof LongBigArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_BIG_ARRAY);
             b.writeArrayBlock(out);
         } else {
@@ -213,6 +264,14 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
          * {@code endExclusive} into this builder.
          */
         Builder copyFrom(LongBlock block, int beginInclusive, int endExclusive);
+
+        /**
+         * Copy the values in {@code block} at {@code position}. If this position
+         * has a single value, this'll copy a single value. If this positions has
+         * many values, it'll copy all of them. If this is {@code null}, then it'll
+         * copy the {@code null}.
+         */
+        Builder copyFrom(LongBlock block, int position);
 
         @Override
         Builder appendNull();

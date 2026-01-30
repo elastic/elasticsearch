@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.logging;
@@ -45,7 +46,7 @@ public class Loggers {
      */
     static final List<String> RESTRICTED_LOGGERS = NetworkTraceFlag.TRACE_ENABLED
         ? Collections.emptyList()
-        : List.of("org.apache.http", "com.amazonaws.request");
+        : List.of("org.apache.http", "com.amazonaws.request", "software.amazon.awssdk");
 
     public static final Setting<Level> LOG_DEFAULT_LEVEL_SETTING = new Setting<>(
         "logger.level",

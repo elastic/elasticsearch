@@ -1,5 +1,0 @@
-pr: 109636
-summary: "Ensure a lazy rollover request will rollover the target data stream once."
-area: Data streams
-type: bug
-issues: []

@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -27,8 +28,9 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS_SET_BY_USER;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
-import static org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -38,7 +40,7 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         var resourceName = randomAlphaOfLength(8);
         var deploymentId = randomAlphaOfLength(8);
         var apiVersion = randomAlphaOfLength(8);
-        Integer dims = randomBoolean() ? 1536 : null;
+        Integer dims = randomNonNegativeIntOrNull();
         Integer maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
         return new AzureOpenAiEmbeddingsServiceSettings(
             resourceName,
@@ -199,6 +201,92 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             thrownException.getMessage(),
             containsString(
                 Strings.format("Validation Failed: 1: [service_settings] does not allow the setting [%s];", DIMENSIONS_SET_BY_USER)
+            )
+        );
+    }
+
+    public void testFromMap_ThrowsException_WhenDimensionsAreZero() {
+        var resourceName = "this-resource";
+        var deploymentId = "this-deployment";
+        var apiVersion = "2024-01-01";
+        var dimensions = 0;
+
+        var settingsMap = getRequestAzureOpenAiServiceSettingsMap(resourceName, deploymentId, apiVersion, dimensions, null);
+
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> AzureOpenAiEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString("Validation Failed: 1: [service_settings] Invalid value [0]. [dimensions] must be a positive integer;")
+        );
+    }
+
+    public void testFromMap_ThrowsException_WhenDimensionsAreNegative() {
+        var resourceName = "this-resource";
+        var deploymentId = "this-deployment";
+        var apiVersion = "2024-01-01";
+        var dimensions = randomNegativeInt();
+
+        var settingsMap = getRequestAzureOpenAiServiceSettingsMap(resourceName, deploymentId, apiVersion, dimensions, null);
+
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> AzureOpenAiEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString(
+                Strings.format(
+                    "Validation Failed: 1: [service_settings] Invalid value [%d]. [dimensions] must be a positive integer;",
+                    dimensions
+                )
+            )
+        );
+    }
+
+    public void testFromMap_ThrowsException_WhenMaxInputTokensAreZero() {
+        var resourceName = "this-resource";
+        var deploymentId = "this-deployment";
+        var apiVersion = "2024-01-01";
+        var maxInputTokens = 0;
+
+        var settingsMap = getRequestAzureOpenAiServiceSettingsMap(resourceName, deploymentId, apiVersion, null, maxInputTokens);
+
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> AzureOpenAiEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString("Validation Failed: 1: [service_settings] Invalid value [0]. [max_input_tokens] must be a positive integer;")
+        );
+    }
+
+    public void testFromMap_ThrowsException_WhenMaxInputTokensAreNegative() {
+        var resourceName = "this-resource";
+        var deploymentId = "this-deployment";
+        var apiVersion = "2024-01-01";
+        var maxInputTokens = randomNegativeInt();
+
+        var settingsMap = getRequestAzureOpenAiServiceSettingsMap(resourceName, deploymentId, apiVersion, null, maxInputTokens);
+
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> AzureOpenAiEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString(
+                Strings.format(
+                    "Validation Failed: 1: [service_settings] Invalid value [%d]. [max_input_tokens] must be a positive integer;",
+                    maxInputTokens
+                )
             )
         );
     }
@@ -423,7 +511,36 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
 
     @Override
     protected AzureOpenAiEmbeddingsServiceSettings mutateInstance(AzureOpenAiEmbeddingsServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, AzureOpenAiEmbeddingsServiceSettingsTests::createRandom);
+        var resourceName = instance.resourceName();
+        var deploymentId = instance.deploymentId();
+        var apiVersion = instance.apiVersion();
+        var dimensions = instance.dimensions();
+        var dimensionsSetByUser = instance.dimensionsSetByUser();
+        var maxInputTokens = instance.maxInputTokens();
+        var similarity = instance.similarity();
+        var rateLimitSettings = instance.rateLimitSettings();
+        switch (randomInt(7)) {
+            case 0 -> resourceName = randomValueOtherThan(resourceName, () -> randomAlphaOfLength(8));
+            case 1 -> deploymentId = randomValueOtherThan(deploymentId, () -> randomAlphaOfLength(8));
+            case 2 -> apiVersion = randomValueOtherThan(apiVersion, () -> randomAlphaOfLength(8));
+            case 3 -> dimensions = randomValueOtherThan(dimensions, ESTestCase::randomNonNegativeIntOrNull);
+            case 4 -> dimensionsSetByUser = dimensionsSetByUser == false;
+            case 5 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 256), null));
+            case 6 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomSimilarityMeasure(), null));
+            case 7 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new AzureOpenAiEmbeddingsServiceSettings(
+            resourceName,
+            deploymentId,
+            apiVersion,
+            dimensions,
+            dimensionsSetByUser,
+            maxInputTokens,
+            similarity,
+            rateLimitSettings
+        );
     }
 
     public static Map<String, Object> getPersistentAzureOpenAiServiceSettingsMap(

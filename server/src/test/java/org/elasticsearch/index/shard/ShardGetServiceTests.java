@@ -1,26 +1,39 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.LiveVersionMapTestUtils;
+import org.elasticsearch.index.engine.TranslogOperationAsserter;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.get.ShardGetService;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.lookup.SourceFilter;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -33,6 +46,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ShardGetServiceTests extends IndexShardTestCase {
 
+    private GetResult getForUpdate(IndexShard indexShard, String id, long ifSeqNo, long ifPrimaryTerm) throws IOException {
+        return indexShard.getService().getForUpdate(id, ifSeqNo, ifPrimaryTerm, FetchSourceContext.FETCH_ALL_SOURCE);
+    }
+
     public void testGetForUpdate() throws IOException {
         Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
         IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
@@ -43,7 +60,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         long translogInMemorySegmentCountExpected = 0;
         Engine.IndexResult test = indexDoc(primary, "test", "0", "{\"foo\" : \"bar\"}");
         assertTrue(primary.getEngine().refreshNeeded());
-        GetResult testGet = primary.getService().getForUpdate("0", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
+        GetResult testGet = getForUpdate(primary, "0", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
         assertFalse(testGet.getFields().containsKey(RoutingFieldMapper.NAME));
         assertEquals(testGet.sourceRef().utf8ToString(), "{\"foo\" : \"bar\"}");
         assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
@@ -53,7 +70,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
 
         Engine.IndexResult test1 = indexDoc(primary, "1", "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
         assertTrue(primary.getEngine().refreshNeeded());
-        GetResult testGet1 = primary.getService().getForUpdate("1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
+        GetResult testGet1 = getForUpdate(primary, "1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
         assertEquals(testGet1.sourceRef().utf8ToString(), "{\"foo\" : \"baz\"}");
         assertTrue(testGet1.getFields().containsKey(RoutingFieldMapper.NAME));
         assertEquals("foobar", testGet1.getFields().get(RoutingFieldMapper.NAME).getValue());
@@ -69,19 +86,19 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         // now again from the reader
         Engine.IndexResult test2 = indexDoc(primary, "1", "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
         assertTrue(primary.getEngine().refreshNeeded());
-        testGet1 = primary.getService().getForUpdate("1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
+        testGet1 = getForUpdate(primary, "1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
         assertEquals(testGet1.sourceRef().utf8ToString(), "{\"foo\" : \"baz\"}");
         assertTrue(testGet1.getFields().containsKey(RoutingFieldMapper.NAME));
         assertEquals("foobar", testGet1.getFields().get(RoutingFieldMapper.NAME).getValue());
         assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
 
         final long primaryTerm = primary.getOperationPrimaryTerm();
-        testGet1 = primary.getService().getForUpdate("1", test2.getSeqNo(), primaryTerm);
+        testGet1 = getForUpdate(primary, "1", test2.getSeqNo(), primaryTerm);
         assertEquals(testGet1.sourceRef().utf8ToString(), "{\"foo\" : \"baz\"}");
         assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
 
-        expectThrows(VersionConflictEngineException.class, () -> primary.getService().getForUpdate("1", test2.getSeqNo() + 1, primaryTerm));
-        expectThrows(VersionConflictEngineException.class, () -> primary.getService().getForUpdate("1", test2.getSeqNo(), primaryTerm + 1));
+        expectThrows(VersionConflictEngineException.class, () -> getForUpdate(primary, "1", test2.getSeqNo() + 1, primaryTerm));
+        expectThrows(VersionConflictEngineException.class, () -> getForUpdate(primary, "1", test2.getSeqNo(), primaryTerm + 1));
         closeShards(primary);
     }
 
@@ -91,7 +108,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             """;
         boolean noSource = randomBoolean();
         String sourceOptions = noSource ? "\"enabled\": false" : randomBoolean() ? "\"excludes\": [\"fo*\"]" : "\"includes\": [\"ba*\"]";
-        runGetFromTranslogWithOptions(docToIndex, sourceOptions, noSource ? "" : "{\"bar\":\"bar\"}", "\"text\"", "foo", false);
+        runGetFromTranslogWithOptions(docToIndex, sourceOptions, null, noSource ? "" : "{\"bar\":\"bar\"}", "\"text\"", "foo", false);
     }
 
     public void testGetFromTranslogWithLongSourceMappingOptionsAndStoredFields() throws IOException {
@@ -100,7 +117,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             """;
         boolean noSource = randomBoolean();
         String sourceOptions = noSource ? "\"enabled\": false" : randomBoolean() ? "\"excludes\": [\"fo*\"]" : "\"includes\": [\"ba*\"]";
-        runGetFromTranslogWithOptions(docToIndex, sourceOptions, noSource ? "" : "{\"bar\":42}", "\"long\"", 7L, false);
+        runGetFromTranslogWithOptions(docToIndex, sourceOptions, null, noSource ? "" : "{\"bar\":42}", "\"long\"", 7L, false);
     }
 
     public void testGetFromTranslogWithSyntheticSource() throws IOException {
@@ -109,10 +126,8 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             """;
         String expectedFetchedSource = """
             {"bar":42,"foo":7}""";
-        String sourceOptions = """
-            "mode": "synthetic"
-            """;
-        runGetFromTranslogWithOptions(docToIndex, sourceOptions, expectedFetchedSource, "\"long\"", 7L, true);
+        var settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        runGetFromTranslogWithOptions(docToIndex, "", settings, expectedFetchedSource, "\"long\"", 7L, true);
     }
 
     public void testGetFromTranslogWithDenseVector() throws IOException {
@@ -126,12 +141,45 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 "foo": "foo"
             }
             """, Arrays.toString(vector));
-        runGetFromTranslogWithOptions(docToIndex, "\"enabled\": true", docToIndex, "\"text\"", "foo", "\"dense_vector\"", false);
+        runGetFromTranslogWithOptions(
+            docToIndex,
+            "\"enabled\": true",
+            Settings.builder().put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), false).build(),
+            docToIndex,
+            "\"text\"",
+            "foo",
+            "\"dense_vector\"",
+            false
+        );
+    }
+
+    public void testGetFromTranslogWithSyntheticVector() throws IOException {
+        float[] vector = new float[2048];
+        for (int i = 0; i < vector.length; i++) {
+            vector[i] = randomByte();
+        }
+        String docToIndex = Strings.format("""
+            {
+                "bar": %s,
+                "foo": "foo"
+            }
+            """, Arrays.toString(vector));
+        runGetFromTranslogWithOptions(
+            docToIndex,
+            "\"enabled\": true",
+            Settings.builder().put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true).build(),
+            docToIndex,
+            "\"text\"",
+            "foo",
+            "\"dense_vector\"",
+            true
+        );
     }
 
     private void runGetFromTranslogWithOptions(
         String docToIndex,
         String sourceOptions,
+        Settings settings,
         String expectedResult,
         String fieldType,
         Object expectedFooVal,
@@ -140,6 +188,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         runGetFromTranslogWithOptions(
             docToIndex,
             sourceOptions,
+            settings,
             expectedResult,
             fieldType,
             expectedFooVal,
@@ -151,28 +200,29 @@ public class ShardGetServiceTests extends IndexShardTestCase {
     private void runGetFromTranslogWithOptions(
         String docToIndex,
         String sourceOptions,
+        Settings additionalSettings,
         String expectedResult,
         String fieldTypeFoo,
         Object expectedFooVal,
         String fieldTypeBar,
         boolean sourceOnlyFetchCreatesInMemoryReader
     ) throws IOException {
-        IndexMetadata metadata = IndexMetadata.builder("test")
-            .putMapping(Strings.format("""
-                {
-                  "properties": {
-                    "foo": {
-                      "type": %s,
-                      "store": true
-                    },
-                    "bar": { "type": %s }
-                  },
-                  "_source": { %s }
-                  }
-                }""", fieldTypeFoo, fieldTypeBar, sourceOptions))
-            .settings(indexSettings(IndexVersion.current(), 1, 1))
-            .primaryTerm(0, 1)
-            .build();
+        var indexSettingsBuilder = indexSettings(IndexVersion.current(), 1, 1);
+        if (additionalSettings != null) {
+            indexSettingsBuilder.put(additionalSettings);
+        }
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping(Strings.format("""
+            {
+              "properties": {
+                "foo": {
+                  "type": %s,
+                  "store": true
+                },
+                "bar": { "type": %s }
+              },
+              "_source": { %s }
+              }
+            }""", fieldTypeFoo, fieldTypeBar, sourceOptions)).settings(indexSettingsBuilder).primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, EngineTestCase.randomReaderWrapper());
         recoverShardFromStore(primary);
         LongSupplier translogInMemorySegmentCount = ((InternalEngine) primary.getEngine()).translogInMemorySegmentsCount::get;
@@ -180,19 +230,28 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         Engine.IndexResult res = indexDoc(primary, "test", "0", docToIndex);
         assertTrue(res.isCreated());
         assertTrue(primary.getEngine().refreshNeeded());
-        GetResult testGet = primary.getService().getForUpdate("0", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
+        GetResult testGet = getForUpdate(primary, "0", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
         assertFalse(testGet.getFields().containsKey(RoutingFieldMapper.NAME));
         assertFalse(testGet.getFields().containsKey("foo"));
         assertFalse(testGet.getFields().containsKey("bar"));
-        assertThat(testGet.sourceRef() == null ? "" : testGet.sourceRef().utf8ToString(), equalTo(expectedResult));
+        var asserter = TranslogOperationAsserter.withEngineConfig(primary.getEngine().getEngineConfig());
+        if (testGet.sourceRef() == null) {
+            assertThat("", equalTo(expectedResult));
+        } else {
+            asserter.assertSameIndexOperation(toIndexOp(testGet.sourceRef().utf8ToString()), toIndexOp(expectedResult));
+        }
         try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
             assertEquals(searcher.getIndexReader().maxDoc(), 1); // we refreshed
         }
 
         indexDoc(primary, "1", docToIndex, XContentType.JSON, "foobar");
         assertTrue(primary.getEngine().refreshNeeded());
-        GetResult testGet1 = primary.getService().getForUpdate("1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
-        assertEquals(testGet1.sourceRef() == null ? "" : testGet1.sourceRef().utf8ToString(), expectedResult);
+        GetResult testGet1 = getForUpdate(primary, "1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
+        if (testGet1.sourceRef() == null) {
+            assertThat("", equalTo(expectedResult));
+        } else {
+            asserter.assertSameIndexOperation(toIndexOp(testGet1.sourceRef().utf8ToString()), toIndexOp(expectedResult));
+        }
         assertTrue(testGet1.getFields().containsKey(RoutingFieldMapper.NAME));
         assertFalse(testGet.getFields().containsKey("foo"));
         assertFalse(testGet.getFields().containsKey("bar"));
@@ -212,8 +271,22 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         Engine.IndexResult test2 = indexDoc(primary, "2", docToIndex, XContentType.JSON, "foobar");
         assertTrue(primary.getEngine().refreshNeeded());
         GetResult testGet2 = primary.getService()
-            .get("2", new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
-        assertEquals(testGet2.sourceRef() == null ? "" : testGet2.sourceRef().utf8ToString(), expectedResult);
+            .get(
+                "2",
+                null,
+                new String[] { "foo" },
+                true,
+                1,
+                VersionType.INTERNAL,
+                FetchSourceContext.FETCH_SOURCE,
+                false,
+                SplitShardCountSummary.UNSET
+            );
+        if (testGet2.sourceRef() == null) {
+            assertThat("", equalTo(expectedResult));
+        } else {
+            asserter.assertSameIndexOperation(toIndexOp(testGet2.sourceRef().utf8ToString()), toIndexOp(expectedResult));
+        }
         assertTrue(testGet2.getFields().containsKey(RoutingFieldMapper.NAME));
         assertTrue(testGet2.getFields().containsKey("foo"));
         assertEquals(expectedFooVal, testGet2.getFields().get("foo").getValue());
@@ -227,8 +300,22 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         }
 
         testGet2 = primary.getService()
-            .get("2", new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
-        assertEquals(testGet2.sourceRef() == null ? "" : testGet2.sourceRef().utf8ToString(), expectedResult);
+            .get(
+                "2",
+                null,
+                new String[] { "foo" },
+                true,
+                1,
+                VersionType.INTERNAL,
+                FetchSourceContext.FETCH_SOURCE,
+                false,
+                SplitShardCountSummary.UNSET
+            );
+        if (testGet2.sourceRef() == null) {
+            assertThat("", equalTo(expectedResult));
+        } else {
+            asserter.assertSameIndexOperation(toIndexOp(testGet2.sourceRef().utf8ToString()), toIndexOp(expectedResult));
+        }
         assertTrue(testGet2.getFields().containsKey(RoutingFieldMapper.NAME));
         assertTrue(testGet2.getFields().containsKey("foo"));
         assertEquals(expectedFooVal, testGet2.getFields().get("foo").getValue());
@@ -249,7 +336,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         Engine.IndexResult indexResult = indexDoc(shard, "some_type", "0", "{\"foo\" : \"bar\"}");
         assertTrue(indexResult.isCreated());
 
-        GetResult getResult = shard.getService().getForUpdate("0", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
+        GetResult getResult = getForUpdate(shard, "0", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
         assertTrue(getResult.isExists());
 
         closeShards(shard);
@@ -288,7 +375,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         PlainActionFuture<Engine.FlushResult> flushFuture = new PlainActionFuture<>();
         engine.flush(true, true, flushFuture);
         var flushResult = flushFuture.actionGet();
-        assertTrue(flushResult.flushPerformed());
+        assertFalse(flushResult.skippedDueToCollision());
         assertThat(flushResult.generation(), equalTo(lastUnsafeGeneration + 1));
         assertThat(engine.getLastUnsafeSegmentGenerationForGets(), equalTo(lastUnsafeGeneration));
         // No longer in translog
@@ -305,7 +392,17 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertNull(getResult);
         // But normal get would still work!
         getResult = primary.getService()
-            .get(indexResult.getId(), new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
+            .get(
+                indexResult.getId(),
+                null,
+                new String[] { "foo" },
+                true,
+                1,
+                VersionType.INTERNAL,
+                FetchSourceContext.FETCH_SOURCE,
+                false,
+                SplitShardCountSummary.UNSET
+            );
         assertNotNull(getResult);
         assertTrue(getResult.isExists());
         assertEquals(engine.getLastUnsafeSegmentGenerationForGets(), lastUnsafeGeneration);
@@ -346,5 +443,100 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertFalse(LiveVersionMapTestUtils.isUnsafe(map));
 
         closeShards(primary);
+    }
+
+    public void testShouldExcludeInferenceFieldsFromSource() {
+        for (int i = 0; i < 100; i++) {
+            ExcludeInferenceFieldsTestScenario scenario = new ExcludeInferenceFieldsTestScenario();
+            assertThat(
+                ShardGetService.shouldExcludeInferenceFieldsFromSource(scenario.fetchSourceContext),
+                equalTo(scenario.shouldExcludeInferenceFields())
+            );
+        }
+    }
+
+    Translog.Index toIndexOp(String source) throws IOException {
+        XContentParser parser = createParser(XContentType.JSON.xContent(), source);
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.copyCurrentStructure(parser);
+        return new Translog.Index(
+            "1",
+            0,
+            1,
+            1,
+            new BytesArray(org.elasticsearch.common.Strings.toString(builder)),
+            null,
+            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP
+        );
+    }
+
+    private static class ExcludeInferenceFieldsTestScenario {
+        private final FetchSourceContext fetchSourceContext;
+
+        private ExcludeInferenceFieldsTestScenario() {
+            this.fetchSourceContext = generateRandomFetchSourceContext();
+        }
+
+        private boolean shouldExcludeInferenceFields() {
+            if (fetchSourceContext != null) {
+                if (fetchSourceContext.fetchSource() == false) {
+                    return true;
+                }
+
+                SourceFilter filter = fetchSourceContext.filter();
+                if (filter != null) {
+                    if (Arrays.asList(filter.getExcludes()).contains(InferenceMetadataFieldsMapper.NAME)) {
+                        return true;
+                    } else if (filter.getIncludes().length > 0) {
+                        return Arrays.asList(filter.getIncludes()).contains(InferenceMetadataFieldsMapper.NAME) == false;
+                    }
+                }
+
+                Boolean excludeInferenceFieldsExplicit = fetchSourceContext.excludeInferenceFields();
+                if (excludeInferenceFieldsExplicit != null) {
+                    return excludeInferenceFieldsExplicit;
+                }
+            }
+
+            return true;
+        }
+
+        private static FetchSourceContext generateRandomFetchSourceContext() {
+            FetchSourceContext fetchSourceContext = switch (randomIntBetween(0, 4)) {
+                case 0 -> FetchSourceContext.FETCH_SOURCE;
+                case 1 -> FetchSourceContext.FETCH_ALL_SOURCE;
+                case 2 -> FetchSourceContext.FETCH_ALL_SOURCE_EXCLUDE_INFERENCE_FIELDS;
+                case 3 -> FetchSourceContext.DO_NOT_FETCH_SOURCE;
+                case 4 -> null;
+                default -> throw new IllegalStateException("Unhandled randomized case");
+            };
+
+            if (fetchSourceContext != null && fetchSourceContext.fetchSource()) {
+                String[] includes = null;
+                String[] excludes = null;
+                if (randomBoolean()) {
+                    // Randomly include a non-existent field to test explicit inclusion handling
+                    String field = randomBoolean() ? InferenceMetadataFieldsMapper.NAME : randomIdentifier();
+                    includes = new String[] { field };
+                }
+                if (randomBoolean()) {
+                    // Randomly exclude a non-existent field to test implicit inclusion handling
+                    String field = randomBoolean() ? InferenceMetadataFieldsMapper.NAME : randomIdentifier();
+                    excludes = new String[] { field };
+                }
+
+                if (includes != null || excludes != null) {
+                    fetchSourceContext = FetchSourceContext.of(
+                        fetchSourceContext.fetchSource(),
+                        fetchSourceContext.excludeVectors(),
+                        fetchSourceContext.excludeInferenceFields(),
+                        includes,
+                        excludes
+                    );
+                }
+            }
+
+            return fetchSourceContext;
+        }
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -23,7 +24,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -59,7 +59,6 @@ public class LagDetector {
     public static final Setting<TimeValue> CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING = Setting.timeSetting(
         "cluster.follower_lag.timeout",
         TimeValue.timeValueMillis(90000),
-        TimeValue.timeValueMillis(1),
         Setting.Property.NodeScope
     );
 
@@ -114,19 +113,22 @@ public class LagDetector {
         if (laggingTrackers.isEmpty()) {
             logger.trace("lag detection for version {} is unnecessary: {}", version, appliedStateTrackersByNode.values());
         } else {
-            logger.debug("starting lag detector for version {}: {}", version, laggingTrackers);
+            if (clusterStateApplicationTimeout.millis() <= 0) {
+                logger.debug("lag detector for version {} skipped: {}", version, laggingTrackers);
+            } else {
+                logger.debug("starting lag detector for version {}: {}", version, laggingTrackers);
+                threadPool.scheduleUnlessShuttingDown(clusterStateApplicationTimeout, clusterCoordinationExecutor, new Runnable() {
+                    @Override
+                    public void run() {
+                        laggingTrackers.forEach(t -> t.checkForLag(version));
+                    }
 
-            threadPool.scheduleUnlessShuttingDown(clusterStateApplicationTimeout, clusterCoordinationExecutor, new Runnable() {
-                @Override
-                public void run() {
-                    laggingTrackers.forEach(t -> t.checkForLag(version));
-                }
-
-                @Override
-                public String toString() {
-                    return "lag detector for version " + version + " on " + laggingTrackers;
-                }
-            });
+                    @Override
+                    public String toString() {
+                        return "lag detector for version " + version + " on " + laggingTrackers;
+                    }
+                });
+            }
         }
     }
 
@@ -270,9 +272,7 @@ public class LagDetector {
                     @Override
                     public void onResponse(Releasable releasable) {
                         boolean success = false;
-                        final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-                        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
-                            threadContext.markAsSystemContext();
+                        try (var ignored = transportService.getThreadPool().getThreadContext().newEmptySystemContext()) {
                             client.execute(
                                 TransportNodesHotThreadsAction.TYPE,
                                 new NodesHotThreadsRequest(

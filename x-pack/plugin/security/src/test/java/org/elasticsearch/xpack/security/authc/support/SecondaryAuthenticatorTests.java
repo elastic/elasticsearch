@@ -14,12 +14,15 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
@@ -67,6 +70,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -87,6 +91,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
     private SecurityContext securityContext;
     private TokenService tokenService;
     private Client client;
+    private MockBytesRefRecycler bytesRefRecycler;
 
     @Before
     public void setupMocks() throws Exception {
@@ -130,7 +135,19 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
 
         securityContext = new SecurityContext(settings, threadContext);
 
-        tokenService = new TokenService(settings, clock, client, licenseState, securityContext, securityIndex, tokensIndex, clusterService);
+        bytesRefRecycler = new MockBytesRefRecycler();
+
+        tokenService = new TokenService(
+            settings,
+            clock,
+            client,
+            licenseState,
+            securityContext,
+            securityIndex,
+            tokensIndex,
+            clusterService,
+            bytesRefRecycler
+        );
         final ApiKeyService apiKeyService = new ApiKeyService(
             settings,
             clock,
@@ -139,7 +156,8 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
             clusterService,
             mock(CacheInvalidatorRegistry.class),
             threadPool,
-            MeterRegistry.NOOP
+            MeterRegistry.NOOP,
+            mock(FeatureService.class)
         );
         final ServiceAccountService serviceAccountService = mock(ServiceAccountService.class);
         doAnswer(invocationOnMock -> {
@@ -159,14 +177,16 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
             apiKeyService,
             serviceAccountService,
             OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE,
+            mock(),
             MeterRegistry.NOOP
         );
         authenticator = new SecondaryAuthenticator(securityContext, authenticationService, auditTrail);
     }
 
     @After
-    public void cleanupMocks() throws Exception {
+    public void cleanupMocks() {
         threadPool.shutdownNow();
+        Releasables.closeExpectNoException(bytesRefRecycler);
     }
 
     public void testAuthenticateTransportRequestIsANoOpIfHeaderIsMissing() throws Exception {
@@ -192,7 +212,11 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
         authenticator.authenticate(AuthenticateAction.NAME, request, future);
 
-        final ElasticsearchSecurityException ex = expectThrows(ElasticsearchSecurityException.class, future::actionResult);
+        final ElasticsearchSecurityException ex = expectThrows(
+            ExecutionException.class,
+            ElasticsearchSecurityException.class,
+            future::result
+        );
         assertThat(ex, TestMatchers.throwableWithMessage(Matchers.containsString("secondary user")));
         assertThat(ex.getCause(), TestMatchers.throwableWithMessage(Matchers.containsString("credentials")));
     }
@@ -203,7 +227,11 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
         authenticator.authenticateAndAttachToContext(request, future);
 
-        final ElasticsearchSecurityException ex = expectThrows(ElasticsearchSecurityException.class, future::actionResult);
+        final ElasticsearchSecurityException ex = expectThrows(
+            ExecutionException.class,
+            ElasticsearchSecurityException.class,
+            future::result
+        );
         assertThat(ex, TestMatchers.throwableWithMessage(Matchers.containsString("secondary user")));
         assertThat(ex.getCause(), TestMatchers.throwableWithMessage(Matchers.containsString("credentials")));
 
@@ -287,7 +315,11 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
             future.onFailure(e);
         }));
 
-        final ElasticsearchSecurityException ex = expectThrows(ElasticsearchSecurityException.class, future::actionResult);
+        final ElasticsearchSecurityException ex = expectThrows(
+            ExecutionException.class,
+            ElasticsearchSecurityException.class,
+            future::result
+        );
 
         assertThat(ex, TestMatchers.throwableWithMessage(Matchers.containsString("secondary user")));
         assertThat(ex.getCause(), TestMatchers.throwableWithMessage(Matchers.containsString(user)));
@@ -321,7 +353,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
         authenticator.authenticate(AuthenticateAction.NAME, request, future);
 
-        final SecondaryAuthentication secondaryAuthentication = future.actionResult();
+        final SecondaryAuthentication secondaryAuthentication = future.result();
         assertThat(secondaryAuthentication, Matchers.notNullValue());
         assertThat(secondaryAuthentication.getAuthentication(), Matchers.notNullValue());
         assertThat(secondaryAuthentication.getAuthentication().getEffectiveSubject().getUser(), equalTo(user));

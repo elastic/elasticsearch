@@ -1,5 +1,0 @@
-pr: 108333
-summary: Allow `read_slm` to call GET /_slm/status
-area: ILM+SLM
-type: bug
-issues: []

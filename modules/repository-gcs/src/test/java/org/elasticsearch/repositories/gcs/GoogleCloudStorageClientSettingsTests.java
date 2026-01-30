@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.repositories.gcs;
 
-import com.google.api.services.storage.StorageScopes;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 
 import org.apache.http.HttpRequest;
@@ -22,17 +22,16 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -42,10 +41,12 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSetting
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CONNECT_TIMEOUT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.MAX_RETRIES_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.PROJECT_ID_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.getClientSettings;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.loadCredential;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageTestUtilities.randomCredential;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
@@ -124,7 +125,8 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             READ_TIMEOUT_SETTING.getDefault(Settings.EMPTY),
             APPLICATION_NAME_SETTING.getDefault(Settings.EMPTY),
             new URI(""),
-            null
+            null,
+            MAX_RETRIES_SETTING.getDefault(Settings.EMPTY)
         );
         assertEquals(credential.getProjectId(), googleCloudStorageClientSettings.getProjectId());
     }
@@ -141,7 +143,8 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             READ_TIMEOUT_SETTING.getDefault(Settings.EMPTY),
             APPLICATION_NAME_SETTING.getDefault(Settings.EMPTY),
             new URI(""),
-            proxy
+            proxy,
+            MAX_RETRIES_SETTING.getDefault(Settings.EMPTY)
         );
         assertEquals(proxy, googleCloudStorageClientSettings.getProxy());
     }
@@ -189,8 +192,78 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             var proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), proxyServer.getPort()));
             ServiceAccountCredentials credentials = loadCredential(settings, clientName, proxy);
             assertNotNull(credentials);
-            assertEquals("proxy_access_token", SocketAccess.doPrivilegedIOException(credentials::refreshAccessToken).getTokenValue());
+            assertEquals("proxy_access_token", credentials.refreshAccessToken().getTokenValue());
         }
+    }
+
+    public void testEqualsAndHashCode() throws Exception {
+        final var clientName = randomIdentifier();
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            randomClient(clientName, Settings.builder(), new MockSecureSettings(), new ArrayList<>(), false),
+            this::copySettings,
+            s -> this.mutateSettings(clientName, s)
+        );
+    }
+
+    private GoogleCloudStorageClientSettings copySettings(GoogleCloudStorageClientSettings original) {
+        return new GoogleCloudStorageClientSettings(
+            original.getCredential().toBuilder().build(),
+            original.getHost(),
+            original.getProjectId(),
+            original.getConnectTimeout(),
+            original.getReadTimeout(),
+            original.getApplicationName(),
+            original.getTokenUri(),
+            original.getProxy(),
+            original.getMaxRetries()
+        );
+    }
+
+    private GoogleCloudStorageClientSettings mutateSettings(String clientName, GoogleCloudStorageClientSettings original) {
+        ServiceAccountCredentials credential = original.getCredential();
+        String host = original.getHost();
+        String projectId = original.getProjectId();
+        TimeValue connectTimeout = original.getConnectTimeout();
+        TimeValue readTimeout = original.getReadTimeout();
+        String applicationName = original.getApplicationName();
+        URI tokenUri = original.getTokenUri();
+        Proxy proxy = original.getProxy();
+        int maxRetries = original.getMaxRetries();
+        switch (randomIntBetween(0, 8)) {
+            case 0 -> credential = randomValueOtherThan(original.getCredential(), () -> {
+                try {
+                    return randomCredential(clientName).v1();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            case 1 -> host = randomValueOtherThan(original.getHost(), GoogleCloudStorageClientSettingsTests::getRandomEndpoint);
+            case 2 -> projectId = randomValueOtherThan(original.getProjectId(), ESTestCase::randomIdentifier);
+            case 3 -> connectTimeout = randomValueOtherThan(
+                original.getConnectTimeout(),
+                GoogleCloudStorageClientSettingsTests::randomTimeout
+            );
+            case 4 -> readTimeout = randomValueOtherThan(original.getReadTimeout(), GoogleCloudStorageClientSettingsTests::randomTimeout);
+            case 5 -> applicationName = randomValueOtherThan(original.getApplicationName(), ESTestCase::randomIdentifier);
+            case 6 -> tokenUri = randomValueOtherThan(original.getTokenUri(), () -> URI.create(randomAlphaOfLengthBetween(1, 100)));
+            case 7 -> proxy = randomValueOtherThan(
+                original.getProxy(),
+                () -> new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), randomIntBetween(49152, 65535)))
+            );
+            case 8 -> maxRetries = randomValueOtherThan(original.getMaxRetries(), () -> randomIntBetween(0, 5));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new GoogleCloudStorageClientSettings(
+            credential,
+            host,
+            projectId,
+            connectTimeout,
+            readTimeout,
+            applicationName,
+            tokenUri,
+            proxy,
+            maxRetries
+        );
     }
 
     /** Generates a given number of GoogleCloudStorageClientSettings along with the Settings to build them from **/
@@ -226,6 +299,16 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
         final MockSecureSettings secureSettings,
         final List<Setting<?>> deprecationWarnings
     ) throws Exception {
+        return randomClient(clientName, settings, secureSettings, deprecationWarnings, true);
+    }
+
+    private static GoogleCloudStorageClientSettings randomClient(
+        final String clientName,
+        final Settings.Builder settings,
+        final MockSecureSettings secureSettings,
+        final List<Setting<?>> deprecationWarnings,
+        final boolean allowNullProjectId
+    ) throws Exception {
 
         final Tuple<ServiceAccountCredentials, byte[]> credentials = randomCredential(clientName);
         final ServiceAccountCredentials credential = credentials.v1();
@@ -233,21 +316,14 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
 
         String endpoint;
         if (randomBoolean()) {
-            endpoint = randomFrom(
-                "http://www.elastic.co",
-                "http://metadata.google.com:88/oauth",
-                "https://www.googleapis.com",
-                "https://www.elastic.co:443",
-                "http://localhost:8443",
-                "https://www.googleapis.com/oauth/token"
-            );
+            endpoint = getRandomEndpoint();
             settings.put(ENDPOINT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), endpoint);
         } else {
             endpoint = ENDPOINT_SETTING.getDefault(Settings.EMPTY);
         }
 
         String projectId;
-        if (randomBoolean()) {
+        if (allowNullProjectId == false || randomBoolean()) {
             projectId = randomAlphaOfLength(5);
             settings.put(PROJECT_ID_SETTING.getConcreteSettingForNamespace(clientName).getKey(), projectId);
         } else {
@@ -279,6 +355,13 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             applicationName = APPLICATION_NAME_SETTING.getDefault(Settings.EMPTY);
         }
 
+        int maxRetries;
+        if (randomBoolean()) {
+            maxRetries = randomIntBetween(0, 5);
+        } else {
+            maxRetries = MAX_RETRIES_SETTING.getDefault(Settings.EMPTY);
+        }
+
         return new GoogleCloudStorageClientSettings(
             credential,
             endpoint,
@@ -287,34 +370,20 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             readTimeout,
             applicationName,
             new URI(""),
-            null
+            null,
+            maxRetries
         );
     }
 
-    /** Generates a random GoogleCredential along with its corresponding Service Account file provided as a byte array **/
-    private static Tuple<ServiceAccountCredentials, byte[]> randomCredential(final String clientName) throws Exception {
-        final KeyPair keyPair = KeyPairGenerator.getInstance("RSA").generateKeyPair();
-        final ServiceAccountCredentials.Builder credentialBuilder = ServiceAccountCredentials.newBuilder();
-        credentialBuilder.setClientId("id_" + clientName);
-        credentialBuilder.setClientEmail(clientName);
-        credentialBuilder.setProjectId("project_id_" + clientName);
-        credentialBuilder.setPrivateKey(keyPair.getPrivate());
-        credentialBuilder.setPrivateKeyId("private_key_id_" + clientName);
-        credentialBuilder.setScopes(Collections.singleton(StorageScopes.DEVSTORAGE_FULL_CONTROL));
-        URI tokenServerUri = URI.create("http://localhost/oauth2/token");
-        credentialBuilder.setTokenServerUri(tokenServerUri);
-        final String encodedPrivateKey = Base64.getEncoder().encodeToString(keyPair.getPrivate().getEncoded());
-        final String serviceAccount = Strings.format("""
-            {
-              "type": "service_account",
-              "project_id": "project_id_%s",
-              "private_key_id": "private_key_id_%s",
-              "private_key": "-----BEGIN PRIVATE KEY-----\\n%s\\n-----END PRIVATE KEY-----\\n",
-              "client_email": "%s",
-              "client_id": "id_%s",
-              "token_uri": "%s"
-            }""", clientName, clientName, encodedPrivateKey, clientName, clientName, tokenServerUri);
-        return Tuple.tuple(credentialBuilder.build(), serviceAccount.getBytes(StandardCharsets.UTF_8));
+    private static String getRandomEndpoint() {
+        return randomFrom(
+            "http://www.elastic.co",
+            "http://metadata.google.com:88/oauth",
+            "https://www.googleapis.com",
+            "https://www.elastic.co:443",
+            "http://localhost:8443",
+            "https://www.googleapis.com/oauth/token"
+        );
     }
 
     private static TimeValue randomTimeout() {

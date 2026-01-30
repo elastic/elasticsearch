@@ -20,16 +20,20 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -73,7 +77,11 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
             stepNull ? null : randomAlphaOfLength(10),
             stepNull ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
-            randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo("")
+            randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
+            randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo(""),
+            randomBoolean(),
+            // We don't mutate any fields from this point onwards as we don't (de)serialize them, as the action is run on the local node
+            null
         );
     }
 
@@ -99,20 +107,25 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
                 randomBoolean() ? null : randomAlphaOfLength(10),
                 randomBoolean() ? null : randomAlphaOfLength(10),
                 randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
-                randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo("")
+                randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
+                randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo(""),
+                randomBoolean(),
+                randomBoolean() ? null : randomAlphaOfLength(10)
             )
         );
         assertThat(exception.getMessage(), startsWith("managed index response must have complete step details"));
         assertThat(exception.getMessage(), containsString("=null"));
     }
 
-    public void testIndexAges() {
+    public void testIndexAges() throws IOException {
         IndexLifecycleExplainResponse unmanagedExplainResponse = randomUnmanagedIndexExplainResponse();
         assertThat(unmanagedExplainResponse.getLifecycleDate(), is(nullValue()));
         assertThat(unmanagedExplainResponse.getAge(System::currentTimeMillis), is(TimeValue.MINUS_ONE));
 
         assertThat(unmanagedExplainResponse.getIndexCreationDate(), is(nullValue()));
         assertThat(unmanagedExplainResponse.getTimeSinceIndexCreation(System::currentTimeMillis), is(nullValue()));
+
+        assertAgeInMillisXContentAbsentForUnmanagedResponse(unmanagedExplainResponse);
 
         IndexLifecycleExplainResponse managedExplainResponse = IndexLifecycleExplainResponse.newManagedIndexResponse(
             "indexName",
@@ -132,6 +145,9 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
             null,
             null,
             null,
+            null,
+            null,
+            false,
             null
         );
         assertThat(managedExplainResponse.getLifecycleDate(), is(notNullValue()));
@@ -149,6 +165,46 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
             is(equalTo(TimeValue.timeValueMillis(now - managedExplainResponse.getIndexCreationDate())))
         );
         assertThat(managedExplainResponse.getTimeSinceIndexCreation(() -> 0L), is(equalTo(TimeValue.ZERO)));
+
+        long expectedAgeInMillisForThisCase = Math.max(0L, now - managedExplainResponse.getLifecycleDate());
+        assertAgeInMillisXContent(managedExplainResponse, expectedAgeInMillisForThisCase, now);
+    }
+
+    protected void assertAgeInMillisXContent(
+        final IndexLifecycleExplainResponse managedExplainResponse,
+        final long expectedAgeInMillis,
+        final long now
+    ) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        managedExplainResponse.nowSupplier = () -> now;
+        try (builder) {
+            managedExplainResponse.toXContent(builder, ToXContentObject.EMPTY_PARAMS);
+        }
+        final String json = Strings.toString(builder);
+
+        try (XContentParser parser = createParser(builder.contentType().xContent(), json)) {
+            Map<String, Object> parsedMap = parser.map();
+
+            assertThat(parsedMap, hasKey("age_in_millis"));
+            final long actualParsedAgeInMillis = ((Number) parsedMap.get("age_in_millis")).longValue();
+            assertThat(actualParsedAgeInMillis, equalTo((Number) expectedAgeInMillis));
+        }
+    }
+
+    protected void assertAgeInMillisXContentAbsentForUnmanagedResponse(final IndexLifecycleExplainResponse unmanagedExplainResponse)
+        throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        try (builder) {
+            unmanagedExplainResponse.toXContent(builder, ToXContentObject.EMPTY_PARAMS);
+        }
+        final String json = Strings.toString(builder);
+
+        try (XContentParser parser = createParser(builder.contentType().xContent(), json)) {
+            Map<String, Object> parsedMap = parser.map();
+
+            assertThat(parsedMap, not(hasKey("age_in_millis")));
+        }
+
     }
 
     @Override
@@ -191,42 +247,33 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
         String shrinkIndexName = instance.getShrinkIndexName();
         boolean managed = instance.managedByILM();
         BytesReference stepInfo = instance.getStepInfo();
+        BytesReference previousStepInfo = instance.getPreviousStepInfo();
         PhaseExecutionInfo phaseExecutionInfo = instance.getPhaseExecutionInfo();
+        boolean skip = instance.getSkip();
+
         if (managed) {
-            switch (between(0, 14)) {
-                case 0:
-                    index = index + randomAlphaOfLengthBetween(1, 5);
-                    break;
-                case 1:
-                    policy = policy + randomAlphaOfLengthBetween(1, 5);
-                    break;
-                case 2:
+            switch (between(0, 16)) {
+                case 0 -> index += randomAlphaOfLengthBetween(1, 5);
+                case 1 -> policy += randomAlphaOfLengthBetween(1, 5);
+                case 2 -> {
                     phase = randomAlphaOfLengthBetween(1, 5);
                     action = randomAlphaOfLengthBetween(1, 5);
                     step = randomAlphaOfLengthBetween(1, 5);
-                    break;
-                case 3:
-                    phaseTime = randomValueOtherThan(phaseTime, () -> randomLongBetween(0, 100000));
-                    break;
-                case 4:
-                    actionTime = randomValueOtherThan(actionTime, () -> randomLongBetween(0, 100000));
-                    break;
-                case 5:
-                    stepTime = randomValueOtherThan(stepTime, () -> randomLongBetween(0, 100000));
-                    break;
-                case 6:
+                }
+                case 3 -> phaseTime = randomValueOtherThan(phaseTime, () -> randomLongBetween(0, 100000));
+                case 4 -> actionTime = randomValueOtherThan(actionTime, () -> randomLongBetween(0, 100000));
+                case 5 -> stepTime = randomValueOtherThan(stepTime, () -> randomLongBetween(0, 100000));
+                case 6 -> {
                     if (Strings.hasLength(failedStep) == false) {
                         failedStep = randomAlphaOfLength(10);
                     } else if (randomBoolean()) {
-                        failedStep = failedStep + randomAlphaOfLengthBetween(1, 5);
+                        failedStep += randomAlphaOfLengthBetween(1, 5);
                     } else {
                         failedStep = null;
                     }
-                    break;
-                case 7:
-                    policyTime = randomValueOtherThan(policyTime, () -> randomLongBetween(0, 100000));
-                    break;
-                case 8:
+                }
+                case 7 -> policyTime = randomValueOtherThan(policyTime, () -> randomLongBetween(0, 100000));
+                case 8 -> {
                     if (Strings.hasLength(stepInfo) == false) {
                         stepInfo = new BytesArray(randomByteArrayOfLength(100));
                     } else if (randomBoolean()) {
@@ -237,31 +284,37 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
                     } else {
                         stepInfo = null;
                     }
-                    break;
-                case 9:
-                    phaseExecutionInfo = randomValueOtherThan(
-                        phaseExecutionInfo,
-                        () -> PhaseExecutionInfoTests.randomPhaseExecutionInfo("")
-                    );
-                    break;
-                case 10:
+                }
+                case 9 -> {
+                    if (Strings.hasLength(previousStepInfo) == false) {
+                        previousStepInfo = new BytesArray(randomByteArrayOfLength(100));
+                    } else if (randomBoolean()) {
+                        previousStepInfo = randomValueOtherThan(
+                            previousStepInfo,
+                            () -> new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString())
+                        );
+                    } else {
+                        previousStepInfo = null;
+                    }
+                }
+                case 10 -> phaseExecutionInfo = randomValueOtherThan(
+                    phaseExecutionInfo,
+                    () -> PhaseExecutionInfoTests.randomPhaseExecutionInfo("")
+                );
+                case 11 -> {
                     return IndexLifecycleExplainResponse.newUnmanagedIndexResponse(index);
-                case 11:
+                }
+                case 12 -> {
                     isAutoRetryableError = true;
                     failedStepRetryCount = randomValueOtherThan(failedStepRetryCount, () -> randomInt(10));
-                    break;
-                case 12:
-                    repositoryName = randomValueOtherThan(repositoryName, () -> randomAlphaOfLengthBetween(5, 10));
-                    break;
-                case 13:
-                    snapshotName = randomValueOtherThan(snapshotName, () -> randomAlphaOfLengthBetween(5, 10));
-                    break;
-                case 14:
-                    shrinkIndexName = randomValueOtherThan(shrinkIndexName, () -> randomAlphaOfLengthBetween(5, 10));
-                    break;
-                default:
-                    throw new AssertionError("Illegal randomisation branch");
+                }
+                case 13 -> repositoryName = randomValueOtherThan(repositoryName, () -> randomAlphaOfLengthBetween(5, 10));
+                case 14 -> snapshotName = randomValueOtherThan(snapshotName, () -> randomAlphaOfLengthBetween(5, 10));
+                case 15 -> shrinkIndexName = randomValueOtherThan(shrinkIndexName, () -> randomAlphaOfLengthBetween(5, 10));
+                case 16 -> skip = skip == false;
+                default -> throw new AssertionError("Illegal randomisation branch");
             }
+
             return IndexLifecycleExplainResponse.newManagedIndexResponse(
                 index,
                 indexCreationDate,
@@ -280,7 +333,11 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
                 snapshotName,
                 shrinkIndexName,
                 stepInfo,
-                phaseExecutionInfo
+                previousStepInfo,
+                phaseExecutionInfo,
+                skip,
+                // We don't mutate any fields from this point onwards as we don't (de)serialize them, as the action is run on the local node
+                instance.getForceMergeCloneIndexName()
             );
         } else {
             return switch (between(0, 1)) {
@@ -293,7 +350,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
 
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-            Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, MockAction.NAME, MockAction::new))
+            List.of(new NamedWriteableRegistry.Entry(LifecycleAction.class, MockAction.NAME, MockAction::new))
         );
     }
 

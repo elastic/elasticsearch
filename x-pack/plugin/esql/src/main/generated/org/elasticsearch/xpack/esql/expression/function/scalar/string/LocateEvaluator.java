@@ -8,6 +8,7 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -16,16 +17,18 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Locate}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class LocateEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LocateEvaluator.class);
+
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator str;
 
@@ -35,14 +38,16 @@ public final class LocateEvaluator implements EvalOperator.ExpressionEvaluator {
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public LocateEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
       EvalOperator.ExpressionEvaluator substr, EvalOperator.ExpressionEvaluator start,
       DriverContext driverContext) {
+    this.source = source;
     this.str = str;
     this.substr = substr;
     this.start = start;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -68,46 +73,58 @@ public final class LocateEvaluator implements EvalOperator.ExpressionEvaluator {
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += str.baseRamBytesUsed();
+    baseRamBytesUsed += substr.baseRamBytesUsed();
+    baseRamBytesUsed += start.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public IntBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock substrBlock,
       IntBlock startBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef substrScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (strBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (strBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (strBlock.getValueCount(p) != 1) {
-          if (strBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (substrBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (substrBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (startBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (substrBlock.getValueCount(p) != 1) {
-          if (substrBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        if (startBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (startBlock.getValueCount(p) != 1) {
-          if (startBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendInt(Locate.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), substrBlock.getBytesRef(substrBlock.getFirstValueIndex(p), substrScratch), startBlock.getInt(startBlock.getFirstValueIndex(p))));
+        BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch);
+        BytesRef substr = substrBlock.getBytesRef(substrBlock.getFirstValueIndex(p), substrScratch);
+        int start = startBlock.getInt(startBlock.getFirstValueIndex(p));
+        result.appendInt(Locate.process(str, substr, start));
       }
       return result.build();
     }
@@ -119,7 +136,10 @@ public final class LocateEvaluator implements EvalOperator.ExpressionEvaluator {
       BytesRef strScratch = new BytesRef();
       BytesRef substrScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(p, Locate.process(strVector.getBytesRef(p, strScratch), substrVector.getBytesRef(p, substrScratch), startVector.getInt(p)));
+        BytesRef str = strVector.getBytesRef(p, strScratch);
+        BytesRef substr = substrVector.getBytesRef(p, substrScratch);
+        int start = startVector.getInt(p);
+        result.appendInt(p, Locate.process(str, substr, start));
       }
       return result.build();
     }
@@ -133,6 +153,13 @@ public final class LocateEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(str, substr, start);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -18,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -55,19 +58,24 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
+        static final TransportVersion PREVIEW_AS_INDEX_REQUEST = TransportVersion.fromName("transform_preview_as_index_request");
         private final TransformConfig config;
+        private final boolean previewAsIndexRequest;
 
-        public Request(TransformConfig config, TimeValue timeout) {
+        public Request(TransformConfig config, TimeValue timeout, boolean previewAsIndexRequest) {
             super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, timeout);
             this.config = config;
+            this.previewAsIndexRequest = previewAsIndexRequest;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.config = new TransformConfig(in);
+            this.previewAsIndexRequest = in.getTransportVersion().supports(PREVIEW_AS_INDEX_REQUEST) ? in.readBoolean() : false;
         }
 
-        public static Request fromXContent(final XContentParser parser, TimeValue timeout) throws IOException {
+        public static Request fromXContent(final XContentParser parser, TimeValue timeout, boolean previewAsIndexRequest)
+            throws IOException {
             Map<String, Object> content = parser.map();
             // dest.index is not required for _preview, so we just supply our own
             Map<String, String> tempDestination = new HashMap<>();
@@ -89,7 +97,7 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
                     XContentType.JSON
                 )
             ) {
-                return new Request(TransformConfig.fromXContent(newParser, null, false), timeout);
+                return new Request(TransformConfig.fromXContent(newParser, null, false), timeout, previewAsIndexRequest);
             }
         }
 
@@ -115,15 +123,29 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
             return config;
         }
 
+        public boolean previewAsIndexRequest() {
+            return previewAsIndexRequest;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             this.config.writeTo(out);
+            if (out.getTransportVersion().supports(PREVIEW_AS_INDEX_REQUEST)) {
+                out.writeBoolean(previewAsIndexRequest);
+            } else if (previewAsIndexRequest) {
+                throw new ElasticsearchStatusException(
+                    "Cannot send a _preview request with "
+                        + TransformField.PREVIEW_AS_INDEX_REQUEST.getPreferredName()
+                        + " to an outdated node. Please upgrade the node to 9.3.0+ and try again.",
+                    RestStatus.BAD_REQUEST
+                );
+            }
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(config);
+            return Objects.hash(config, previewAsIndexRequest);
         }
 
         @Override
@@ -135,7 +157,7 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(config, other.config);
+            return Objects.equals(config, other.config) && (previewAsIndexRequest == other.previewAsIndexRequest);
         }
 
         @Override
@@ -168,10 +190,6 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
 
         public List<Map<String, Object>> getDocs() {
             return docs;
-        }
-
-        public TransformDestIndexSettings getGeneratedDestIndexSettings() {
-            return generatedDestIndexSettings;
         }
 
         @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.engine;
@@ -18,6 +19,7 @@ import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -42,6 +44,10 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
         return appliedOperations.get();
     }
 
+    public TranslogHandler(MapperService mapperService) {
+        this.mapperService = mapperService;
+    }
+
     public TranslogHandler(NamedXContentRegistry xContentRegistry, IndexSettings indexSettings) {
         SimilarityService similarityService = new SimilarityService(indexSettings, null, emptyMap());
         MapperRegistry mapperRegistry = new IndicesModule(emptyList()).getMapperRegistry();
@@ -58,7 +64,9 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
             query -> {
                 throw new UnsupportedOperationException("The bitset filter cache is not available in translog operations");
             },
-            MapperMetrics.NOOP
+            MapperMetrics.NOOP,
+            null,
+            null
         );
     }
 
@@ -92,7 +100,12 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
                 final Translog.Index index = (Translog.Index) operation;
                 final Engine.Index engineIndex = IndexShard.prepareIndex(
                     mapperService,
-                    new SourceToParse(index.id(), index.source(), XContentHelper.xContentType(index.source()), index.routing()),
+                    new SourceToParse(
+                        Uid.decodeId(index.uid()),
+                        index.source(),
+                        XContentHelper.xContentType(index.source()),
+                        index.routing()
+                    ),
                     index.seqNo(),
                     index.primaryTerm(),
                     index.version(),
@@ -109,7 +122,7 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
             case DELETE -> {
                 final Translog.Delete delete = (Translog.Delete) operation;
                 return IndexShard.prepareDelete(
-                    delete.id(),
+                    Uid.decodeId(delete.uid()),
                     delete.seqNo(),
                     delete.primaryTerm(),
                     delete.version(),

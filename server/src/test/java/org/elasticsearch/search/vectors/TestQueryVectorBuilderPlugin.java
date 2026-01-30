@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.vectors;
@@ -26,9 +27,9 @@ import java.util.Objects;
 /**
  * A SearchPlugin to exercise query vector builder
  */
-class TestQueryVectorBuilderPlugin implements SearchPlugin {
+public class TestQueryVectorBuilderPlugin implements SearchPlugin {
 
-    static class TestQueryVectorBuilder implements QueryVectorBuilder {
+    public static class TestQueryVectorBuilder implements QueryVectorBuilder {
         private static final String NAME = "test_query_vector_builder";
 
         private static final ParseField QUERY_VECTOR = new ParseField("query_vector");
@@ -44,13 +45,13 @@ class TestQueryVectorBuilderPlugin implements SearchPlugin {
             PARSER.declareFloatArray(ConstructingObjectParser.constructorArg(), QUERY_VECTOR);
         }
 
-        private List<Float> vectorToBuild;
+        private final List<Float> vectorToBuild;
 
-        TestQueryVectorBuilder(List<Float> vectorToBuild) {
+        public TestQueryVectorBuilder(List<Float> vectorToBuild) {
             this.vectorToBuild = vectorToBuild;
         }
 
-        TestQueryVectorBuilder(float[] expected) {
+        public TestQueryVectorBuilder(float[] expected) {
             this.vectorToBuild = new ArrayList<>(expected.length);
             for (float f : expected) {
                 vectorToBuild.add(f);

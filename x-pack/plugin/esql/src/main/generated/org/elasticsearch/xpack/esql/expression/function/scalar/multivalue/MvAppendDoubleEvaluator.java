@@ -6,21 +6,24 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvAppend}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class MvAppendDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvAppendDoubleEvaluator.class);
+
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator field1;
 
@@ -28,12 +31,14 @@ public final class MvAppendDoubleEvaluator implements EvalOperator.ExpressionEva
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public MvAppendDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator field1,
       EvalOperator.ExpressionEvaluator field2, DriverContext driverContext) {
+    this.source = source;
     this.field1 = field1;
     this.field2 = field2;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -43,6 +48,14 @@ public final class MvAppendDoubleEvaluator implements EvalOperator.ExpressionEva
         return eval(page.getPositionCount(), field1Block, field2Block);
       }
     }
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += field1.baseRamBytesUsed();
+    baseRamBytesUsed += field2.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock field1Block, DoubleBlock field2Block) {
@@ -73,6 +86,13 @@ public final class MvAppendDoubleEvaluator implements EvalOperator.ExpressionEva
   @Override
   public void close() {
     Releasables.closeExpectNoException(field1, field2);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

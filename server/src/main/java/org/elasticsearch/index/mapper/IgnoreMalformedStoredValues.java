@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -25,6 +26,9 @@ import static java.util.Collections.emptyList;
  * {@code _source}.
  */
 public abstract class IgnoreMalformedStoredValues {
+
+    public static final String IGNORE_MALFORMED_FIELD_NAME_SUFFIX = "._ignore_malformed";
+
     /**
      * Creates a stored field that stores malformed data to be used in synthetic source.
      * Name of the stored field is original name of the field with added conventional suffix.
@@ -79,6 +83,11 @@ public abstract class IgnoreMalformedStoredValues {
      */
     public abstract void write(XContentBuilder b) throws IOException;
 
+    /**
+     * Remove stored values for this document and return to clean state to process next document.
+     */
+    public abstract void reset();
+
     private static final Empty EMPTY = new Empty();
 
     private static class Empty extends IgnoreMalformedStoredValues {
@@ -94,6 +103,9 @@ public abstract class IgnoreMalformedStoredValues {
 
         @Override
         public void write(XContentBuilder b) throws IOException {}
+
+        @Override
+        public void reset() {}
     }
 
     private static class Stored extends IgnoreMalformedStoredValues {
@@ -107,7 +119,7 @@ public abstract class IgnoreMalformedStoredValues {
 
         @Override
         public Stream<Map.Entry<String, SourceLoader.SyntheticFieldLoader.StoredFieldLoader>> storedFieldLoaders() {
-            return Stream.of(Map.entry(name(fieldName), values -> this.values = values));
+            return Stream.of(Map.entry(name(fieldName), newValues -> values = newValues));
         }
 
         @Override
@@ -124,11 +136,16 @@ public abstract class IgnoreMalformedStoredValues {
                     b.value(v);
                 }
             }
+            reset();
+        }
+
+        @Override
+        public void reset() {
             values = emptyList();
         }
     }
 
     public static String name(String fieldName) {
-        return fieldName + "._ignore_malformed";
+        return fieldName + IGNORE_MALFORMED_FIELD_NAME_SUFFIX;
     }
 }

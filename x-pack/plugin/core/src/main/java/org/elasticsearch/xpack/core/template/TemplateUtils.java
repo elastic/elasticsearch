@@ -85,7 +85,7 @@ public class TemplateUtils {
      * @param currentVersion The current version to check against
      */
     public static boolean checkTemplateExistsAndVersionIsGTECurrentVersion(String templateName, ClusterState state, long currentVersion) {
-        ComposableIndexTemplate templateMetadata = state.metadata().templatesV2().get(templateName);
+        ComposableIndexTemplate templateMetadata = state.metadata().getProject().templatesV2().get(templateName);
         if (templateMetadata == null) {
             return false;
         }

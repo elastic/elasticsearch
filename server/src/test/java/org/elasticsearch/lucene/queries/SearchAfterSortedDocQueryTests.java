@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.lucene.queries;
@@ -17,7 +18,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -29,6 +29,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.search.QueryUtils;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -90,7 +91,7 @@ public class SearchAfterSortedDocQueryTests extends ESTestCase {
                 FieldDoc after = (FieldDoc) topDocs.scoreDocs[topDocs.scoreDocs.length - 1];
                 topDocs = searcher.search(new SearchAfterSortedDocQuery(sort, after), step, sort);
             } else {
-                topDocs = searcher.search(new MatchAllDocsQuery(), step, sort);
+                topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, step, sort);
             }
             i += step;
             for (ScoreDoc topDoc : topDocs.scoreDocs) {

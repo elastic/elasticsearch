@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.telemetry.apm;
@@ -91,14 +92,7 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
             APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING,
             APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING,
             APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING,
-            APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES,
-            // The settings below are deprecated and are currently kept as fallback.
-            APMAgentSettings.TRACING_APM_SECRET_TOKEN_SETTING,
-            APMAgentSettings.TRACING_APM_API_KEY_SETTING,
-            APMAgentSettings.TRACING_APM_ENABLED_SETTING,
-            APMAgentSettings.TRACING_APM_NAMES_INCLUDE_SETTING,
-            APMAgentSettings.TRACING_APM_NAMES_EXCLUDE_SETTING,
-            APMAgentSettings.TRACING_APM_SANITIZE_FIELD_NAMES
+            APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES
         );
     }
 }

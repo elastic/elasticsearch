@@ -10,15 +10,13 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
 
 import java.util.List;
@@ -34,34 +32,25 @@ public class NowTests extends AbstractConfigurationFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(
-            List.of(
-                new TestCaseSupplier(
-                    "Now Test",
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(),
-                        matchesPattern("LiteralsEvaluator\\[lit=.*\\]"),
-                        DataType.DATETIME,
-                        equalTo(EsqlTestUtils.TEST_CFG.now().toInstant().toEpochMilli())
-                    )
-                )
-            )
-        );
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, List.of(new TestCaseSupplier("Now Test", List.of(), () -> {
+            var configuration = ConfigurationTestUtils.randomConfigurationBuilder().query(TestCaseSupplier.TEST_SOURCE.text()).build();
+            return new TestCaseSupplier.TestCase(
+                List.of(),
+                matchesPattern("LiteralsEvaluator\\[lit=.*]"),
+                DataType.DATETIME,
+                equalTo(configuration.now().toEpochMilli())
+            ).withConfiguration(TestCaseSupplier.TEST_SOURCE, configuration);
+        })));
     }
 
     @Override
-    protected Expression buildWithConfiguration(Source source, List<Expression> args, EsqlConfiguration configuration) {
+    protected Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration) {
         return new Now(Source.EMPTY, configuration);
     }
 
     @Override
-    protected void assertSimpleWithNulls(List<Object> data, Block value, int nullBlock) {
-        assertThat(((LongBlock) value).asVector().getLong(0), equalTo(EsqlTestUtils.TEST_CFG.now().toInstant().toEpochMilli()));
-    }
-
-    @Override
     protected Matcher<Object> allNullsMatcher() {
-        return equalTo(EsqlTestUtils.TEST_CFG.now().toInstant().toEpochMilli());
+        return equalTo(testCase.getConfiguration().now().toEpochMilli());
     }
 
 }

@@ -18,7 +18,7 @@ import java.io.Reader;
  */
 public class MlStandardTokenizer extends AbstractMlTokenizer {
 
-    public static String NAME = "ml_standard";
+    public static final String NAME = "ml_standard";
 
     private int putBackChar = -1;
 

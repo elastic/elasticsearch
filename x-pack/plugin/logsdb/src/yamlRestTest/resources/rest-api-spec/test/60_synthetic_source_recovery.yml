@@ -1,0 +1,261 @@
+---
+synthetic recovery for synthetic source mode index:
+  - requires:
+      cluster_features: [ "mapper.synthetic_recovery_source" ]
+      reason: requires synthetic recovery source
+
+  - do:
+      indices.create:
+        index: test_synthetic_recovery
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+
+  - do:
+      indices.get_settings:
+        index: test_synthetic_recovery
+        include_defaults: true
+
+  - match: { test_synthetic_recovery.settings.index.mapping.source.mode: synthetic }
+  - match: { test_synthetic_recovery.defaults.index.recovery.use_synthetic_source: "true" }
+
+---
+synthetic recovery for stored source mode index:
+  - requires:
+      cluster_features: [ "mapper.synthetic_recovery_source" ]
+      reason: requires synthetic recovery source
+
+  - do:
+      indices.create:
+        index: test_stored_recovery
+        body:
+          settings:
+            index:
+              mapping.source.mode: stored
+
+  - do:
+      indices.get_settings:
+        index: test_stored_recovery
+        include_defaults: true
+
+  - match: { test_stored_recovery.settings.index.mapping.source.mode: stored }
+  - match: { test_stored_recovery.defaults.index.recovery.use_synthetic_source: "false" }
+
+---
+synthetic recovery for disabled source mode index:
+  - requires:
+      cluster_features: [ "mapper.synthetic_recovery_source" ]
+      reason: requires synthetic recovery source
+
+  - do:
+      indices.create:
+        index: test_disabled_recovery
+        body:
+          settings:
+            index:
+              mapping.source.mode: disabled
+
+  - do:
+      indices.get_settings:
+        index: test_disabled_recovery
+        include_defaults: true
+
+  - match: { test_disabled_recovery.settings.index.mapping.source.mode: disabled }
+  - match: { test_disabled_recovery.defaults.index.recovery.use_synthetic_source: "false" }
+
+---
+synthetic recovery for standard index:
+  - requires:
+      cluster_features: [ "mapper.synthetic_recovery_source" ]
+      reason: requires synthetic recovery source
+
+  - do:
+      indices.create:
+        index: test_standard_index_recovery
+        body:
+          settings:
+            index:
+              mode: standard
+
+  - do:
+      indices.get_settings:
+        index: test_standard_index_recovery
+        include_defaults: true
+
+  - match: { test_standard_index_recovery.defaults.index.recovery.use_synthetic_source: "false" }
+
+---
+synthetic recovery for logsdb index:
+  - requires:
+      cluster_features: [ "mapper.synthetic_recovery_source" ]
+      reason: requires synthetic recovery source
+
+  - do:
+      indices.create:
+        index: test_logsdb_index_recovery
+        body:
+          settings:
+            index:
+              mode: logsdb
+
+  - do:
+      indices.get_settings:
+        index: test_logsdb_index_recovery
+        include_defaults: true
+
+  - match: { test_logsdb_index_recovery.defaults.index.recovery.use_synthetic_source: "true" }
+
+---
+synthetic recovery for time_series index:
+  - requires:
+      cluster_features: [ "mapper.synthetic_recovery_source" ]
+      reason: requires synthetic recovery source
+
+  - do:
+      indices.create:
+        index: test_time_series_index_recovery
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ keyword ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+                time_series_dimension: true
+
+  - do:
+      indices.get_settings:
+        index: test_time_series_index_recovery
+        include_defaults: true
+
+  - match: { test_time_series_index_recovery.defaults.index.recovery.use_synthetic_source: "true" }
+
+---
+override synthetic recovery for synthetic source mode index:
+  - requires:
+      cluster_features: [ "mapper.synthetic_recovery_source" ]
+      reason: requires synthetic recovery source
+
+  - do:
+      indices.create:
+        index: test_synthetic_recovery_override
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+              recovery.use_synthetic_source: false
+
+  - do:
+      indices.get_settings:
+        index: test_synthetic_recovery_override
+        include_defaults: true
+
+  - match: { test_synthetic_recovery_override.settings.index.mapping.source.mode: synthetic }
+  - match: { test_synthetic_recovery_override.settings.index.recovery.use_synthetic_source: "false" }
+
+---
+override synthetic recovery for stored source mode index:
+  - requires:
+      cluster_features: [ "mapper.synthetic_recovery_source" ]
+      reason: requires synthetic recovery source
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_stored_recovery_override
+        body:
+          settings:
+            index:
+              mapping.source.mode: stored
+              recovery.use_synthetic_source: true
+
+---
+override synthetic recovery for disabled source mode index:
+  - requires:
+      cluster_features: [ "mapper.synthetic_recovery_source" ]
+      reason: requires synthetic recovery source
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_disabled_recovery_override
+        body:
+          settings:
+            index:
+              mapping.source.mode: disabled
+              recovery.use_synthetic_source: true
+
+---
+override synthetic recovery for standard index:
+  - requires:
+      cluster_features: [ "mapper.synthetic_recovery_source" ]
+      reason: requires synthetic recovery source
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_standard_index_recovery_override
+        body:
+          settings:
+            index:
+              mode: standard
+              recovery.use_synthetic_source: true
+
+---
+override synthetic recovery for logsdb index:
+  - requires:
+      cluster_features: [ "mapper.synthetic_recovery_source" ]
+      reason: requires synthetic recovery source
+
+  - do:
+      indices.create:
+        index: test_logsdb_index_recovery_override
+        body:
+          settings:
+            index:
+              mode: logsdb
+              recovery.use_synthetic_source: false
+
+  - do:
+      indices.get_settings:
+        index: test_logsdb_index_recovery_override
+        include_defaults: true
+
+  - match: { test_logsdb_index_recovery_override.settings.index.recovery.use_synthetic_source: "false" }
+
+---
+override synthetic recovery for time_series index:
+  - requires:
+      cluster_features: [ "mapper.synthetic_recovery_source" ]
+      reason: requires synthetic recovery source
+
+  - do:
+      indices.create:
+        index: test_time_series_index_recovery_override
+        body:
+          settings:
+            index:
+              mode: time_series
+              recovery.use_synthetic_source: false
+              routing_path: [ keyword ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+                time_series_dimension: true
+
+  - do:
+      indices.get_settings:
+        index: test_time_series_index_recovery_override
+        include_defaults: true
+
+  - match: { test_time_series_index_recovery_override.settings.index.recovery.use_synthetic_source: "false" }

@@ -16,12 +16,12 @@ import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.StoreKeyConfig;
 import org.elasticsearch.common.ssl.StoredCertificate;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.transport.TransportService;

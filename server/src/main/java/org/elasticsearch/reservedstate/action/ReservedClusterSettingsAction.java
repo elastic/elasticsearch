@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reservedstate.action;
@@ -11,6 +12,7 @@ package org.elasticsearch.reservedstate.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsUpdater;
@@ -58,13 +60,16 @@ public class ReservedClusterSettingsAction implements ReservedClusterStateHandle
         toDelete.removeAll(newSettings.keys());
         toDelete.forEach(k -> newSettings.put(k, (String) null));
 
-        final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = new ClusterUpdateSettingsRequest();
+        final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = new ClusterUpdateSettingsRequest(
+            RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+            RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT
+        );
         clusterUpdateSettingsRequest.persistentSettings(newSettings);
         return clusterUpdateSettingsRequest;
     }
 
     @Override
-    public TransformState transform(Object input, TransformState prevState) {
+    public TransformState transform(Map<String, Object> input, TransformState prevState) {
         ClusterUpdateSettingsRequest request = prepare(input, prevState.keys());
 
         // allow empty requests, this is how we clean up settings
@@ -86,6 +91,11 @@ public class ReservedClusterSettingsAction implements ReservedClusterStateHandle
             .collect(Collectors.toSet());
 
         return new TransformState(state, currentKeys);
+    }
+
+    @Override
+    public ClusterState remove(TransformState prevState) throws Exception {
+        return transform(Map.of(), prevState).state();
     }
 
     @Override

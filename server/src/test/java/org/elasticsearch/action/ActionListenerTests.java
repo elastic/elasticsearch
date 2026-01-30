@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action;
 
@@ -23,11 +24,11 @@ import org.hamcrest.Matcher;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsString;
@@ -308,25 +309,13 @@ public class ActionListenerTests extends ESTestCase {
         });
         assertThat(listener.toString(), equalTo("notifyOnce[inner-listener]"));
 
-        final var threads = new Thread[between(1, 10)];
-        final var startBarrier = new CyclicBarrier(threads.length);
-        for (int i = 0; i < threads.length; i++) {
-            threads[i] = new Thread(() -> {
-                safeAwait(startBarrier);
-                if (randomBoolean()) {
-                    listener.onResponse(null);
-                } else {
-                    listener.onFailure(new RuntimeException("test"));
-                }
-            });
-        }
-
-        for (Thread thread : threads) {
-            thread.start();
-        }
-        for (Thread thread : threads) {
-            thread.join();
-        }
+        startInParallel(between(1, 10), i -> {
+            if (randomBoolean()) {
+                listener.onResponse(null);
+            } else {
+                listener.onFailure(new RuntimeException("test"));
+            }
+        });
 
         assertTrue(completed.get());
     }
@@ -622,16 +611,26 @@ public class ActionListenerTests extends ESTestCase {
         );
     }
 
-    public void testReleaseAfter() {
-        runReleaseAfterTest(true, false);
-        runReleaseAfterTest(true, true);
-        runReleaseAfterTest(false, false);
+    public void testReleaseBefore() {
+        runReleaseListenerTest(true, false, (delegate, releasable) -> ActionListener.releaseBefore(releasable, delegate));
+        runReleaseListenerTest(true, true, (delegate, releasable) -> ActionListener.releaseBefore(releasable, delegate));
+        runReleaseListenerTest(false, false, (delegate, releasable) -> ActionListener.releaseBefore(releasable, delegate));
     }
 
-    private static void runReleaseAfterTest(boolean successResponse, final boolean throwFromOnResponse) {
+    public void testReleaseAfter() {
+        runReleaseListenerTest(true, false, ActionListener::releaseAfter);
+        runReleaseListenerTest(true, true, ActionListener::releaseAfter);
+        runReleaseListenerTest(false, false, ActionListener::releaseAfter);
+    }
+
+    private static void runReleaseListenerTest(
+        boolean successResponse,
+        final boolean throwFromOnResponse,
+        BiFunction<ActionListener<Void>, Releasable, ActionListener<Void>> releaseListenerProvider
+    ) {
         final AtomicBoolean released = new AtomicBoolean();
         final String description = randomAlphaOfLength(10);
-        final ActionListener<Void> l = ActionListener.releaseAfter(new ActionListener<>() {
+        final ActionListener<Void> l = releaseListenerProvider.apply(new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
                 if (throwFromOnResponse) {

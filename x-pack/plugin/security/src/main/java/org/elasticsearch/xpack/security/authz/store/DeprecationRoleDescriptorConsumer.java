@@ -10,8 +10,9 @@ package org.elasticsearch.xpack.security.authz.store;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -20,7 +21,9 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexComponentSelectorPredicate;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
 
 import java.time.ZoneOffset;
@@ -69,21 +72,28 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
 
     private final DeprecationLogger deprecationLogger;
     private final ClusterService clusterService;
+    private final ProjectResolver projectResolver;
     private final ThreadPool threadPool;
     private final Object mutex;
     private final Queue<RoleDescriptor> workQueue;
     private boolean workerBusy;
     private final Set<String> dailyRoleCache;
 
-    public DeprecationRoleDescriptorConsumer(ClusterService clusterService, ThreadPool threadPool) {
-        this(clusterService, threadPool, DeprecationLogger.getLogger(DeprecationRoleDescriptorConsumer.class));
+    public DeprecationRoleDescriptorConsumer(ClusterService clusterService, ProjectResolver projectResolver, ThreadPool threadPool) {
+        this(clusterService, projectResolver, threadPool, DeprecationLogger.getLogger(DeprecationRoleDescriptorConsumer.class));
     }
 
     // package-private for testing
-    DeprecationRoleDescriptorConsumer(ClusterService clusterService, ThreadPool threadPool, DeprecationLogger deprecationLogger) {
-        this.deprecationLogger = deprecationLogger;
+    DeprecationRoleDescriptorConsumer(
+        ClusterService clusterService,
+        ProjectResolver projectResolver,
+        ThreadPool threadPool,
+        DeprecationLogger deprecationLogger
+    ) {
         this.clusterService = clusterService;
+        this.projectResolver = projectResolver;
         this.threadPool = threadPool;
+        this.deprecationLogger = deprecationLogger;
         this.mutex = new Object();
         this.workQueue = new LinkedList<>();
         this.workerBusy = false;
@@ -158,7 +168,8 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
     }
 
     private void logDeprecatedPermission(RoleDescriptor roleDescriptor) {
-        final SortedMap<String, IndexAbstraction> aliasOrIndexMap = clusterService.state().metadata().getIndicesLookup();
+        final ProjectMetadata metadata = projectResolver.getProjectMetadata(clusterService.state());
+        final SortedMap<String, IndexAbstraction> aliasOrIndexMap = metadata.getIndicesLookup();
         final Map<String, Set<String>> privilegesByAliasMap = new HashMap<>();
         // sort answer by alias for tests
         final SortedMap<String, Set<String>> privilegesByIndexMap = new TreeMap<>();
@@ -179,27 +190,40 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
             }
         }
         // compute privileges Automaton for each alias and for each of the indices it points to
-        final Map<String, Automaton> indexAutomatonMap = new HashMap<>();
+        final Map<String, Set<IndexPrivilege>> indexPrivilegeMap = new HashMap<>();
         for (Map.Entry<String, Set<String>> privilegesByAlias : privilegesByAliasMap.entrySet()) {
             final String aliasName = privilegesByAlias.getKey();
             final Set<String> aliasPrivilegeNames = privilegesByAlias.getValue();
-            final Automaton aliasPrivilegeAutomaton = IndexPrivilege.get(aliasPrivilegeNames).getAutomaton();
+            final Set<IndexPrivilege> aliasPrivileges = IndexPrivilege.resolveBySelectorAccess(aliasPrivilegeNames);
             final SortedSet<String> inferiorIndexNames = new TreeSet<>();
-            // check if the alias grants superiors privileges than the indices it points to
-            for (Index index : aliasOrIndexMap.get(aliasName).getIndices()) {
-                final Set<String> indexPrivileges = privilegesByIndexMap.get(index.getName());
-                // null iff the index does not have *any* privilege
-                if (indexPrivileges != null) {
-                    // compute automaton once per index no matter how many times it is pointed to
-                    final Automaton indexPrivilegeAutomaton = indexAutomatonMap.computeIfAbsent(
-                        index.getName(),
-                        i -> IndexPrivilege.get(indexPrivileges).getAutomaton()
-                    );
-                    if (false == Operations.subsetOf(indexPrivilegeAutomaton, aliasPrivilegeAutomaton)) {
+            for (var aliasPrivilege : aliasPrivileges) {
+                // TODO implement failures handling in a follow-up
+                if (aliasPrivilege.getSelectorPredicate() == IndexComponentSelectorPredicate.FAILURES) {
+                    continue;
+                }
+                final Automaton aliasPrivilegeAutomaton = aliasPrivilege.getAutomaton();
+                // check if the alias grants superiors privileges than the indices it points to
+                for (Index index : aliasOrIndexMap.get(aliasName).getIndices()) {
+                    final Set<String> indexPrivileges = privilegesByIndexMap.get(index.getName());
+                    // null iff the index does not have *any* privilege
+                    if (indexPrivileges != null) {
+                        // compute privilege set once per index no matter how many times it is pointed to
+                        final Set<IndexPrivilege> indexPrivilegeSet = indexPrivilegeMap.computeIfAbsent(
+                            index.getName(),
+                            i -> IndexPrivilege.resolveBySelectorAccess(indexPrivileges)
+                        );
+                        for (var indexPrivilege : indexPrivilegeSet) {
+                            // TODO implement failures handling in a follow-up
+                            if (indexPrivilege.getSelectorPredicate() == IndexComponentSelectorPredicate.FAILURES) {
+                                continue;
+                            }
+                            if (false == Automatons.subsetOf(indexPrivilege.getAutomaton(), aliasPrivilegeAutomaton)) {
+                                inferiorIndexNames.add(index.getName());
+                            }
+                        }
+                    } else {
                         inferiorIndexNames.add(index.getName());
                     }
-                } else {
-                    inferiorIndexNames.add(index.getName());
                 }
             }
             // log inferior indices for this role, for this alias

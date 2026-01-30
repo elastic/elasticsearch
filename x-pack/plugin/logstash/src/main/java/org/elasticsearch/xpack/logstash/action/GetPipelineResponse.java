@@ -28,7 +28,6 @@ public class GetPipelineResponse extends ActionResponse implements ToXContentObj
     }
 
     public GetPipelineResponse(StreamInput in) throws IOException {
-        super(in);
         this.pipelines = in.readMap(StreamInput::readBytesReference);
     }
 

@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.reroute;
 
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
@@ -47,31 +49,41 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_PARAM;
  */
 public class ClusterRerouteRequestTests extends ESTestCase {
     private static final int ROUNDS = 30;
+    private final ProjectId projectId = randomProjectIdOrDefault();
     private final List<Supplier<AllocationCommand>> RANDOM_COMMAND_GENERATORS = List.of(
-        () -> new AllocateReplicaAllocationCommand(randomAlphaOfLengthBetween(2, 10), between(0, 1000), randomAlphaOfLengthBetween(2, 10)),
+        () -> new AllocateReplicaAllocationCommand(
+            randomAlphaOfLengthBetween(2, 10),
+            between(0, 1000),
+            randomAlphaOfLengthBetween(2, 10),
+            projectId
+        ),
         () -> new AllocateEmptyPrimaryAllocationCommand(
             randomAlphaOfLengthBetween(2, 10),
             between(0, 1000),
             randomAlphaOfLengthBetween(2, 10),
-            randomBoolean()
+            randomBoolean(),
+            projectId
         ),
         () -> new AllocateStalePrimaryAllocationCommand(
             randomAlphaOfLengthBetween(2, 10),
             between(0, 1000),
             randomAlphaOfLengthBetween(2, 10),
-            randomBoolean()
+            randomBoolean(),
+            projectId
         ),
         () -> new CancelAllocationCommand(
             randomAlphaOfLengthBetween(2, 10),
             between(0, 1000),
             randomAlphaOfLengthBetween(2, 10),
-            randomBoolean()
+            randomBoolean(),
+            projectId
         ),
         () -> new MoveAllocationCommand(
             randomAlphaOfLengthBetween(2, 10),
             between(0, 1000),
             randomAlphaOfLengthBetween(2, 10),
-            randomAlphaOfLengthBetween(2, 10)
+            randomAlphaOfLengthBetween(2, 10),
+            projectId
         )
     );
     private final NamedWriteableRegistry namedWriteableRegistry;
@@ -179,7 +191,7 @@ public class ClusterRerouteRequestTests extends ESTestCase {
 
     private ClusterRerouteRequest roundTripThroughRestRequest(ClusterRerouteRequest original) throws IOException {
         RestRequest restRequest = toRestRequest(original);
-        return RestClusterRerouteAction.createRequest(restRequest);
+        return RestClusterRerouteAction.createRequest(restRequest, projectId);
     }
 
     private RestRequest toRestRequest(ClusterRerouteRequest original) throws IOException {

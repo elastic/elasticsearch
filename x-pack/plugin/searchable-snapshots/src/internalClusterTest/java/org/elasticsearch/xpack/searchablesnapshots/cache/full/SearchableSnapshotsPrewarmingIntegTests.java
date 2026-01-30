@@ -45,6 +45,7 @@ import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -67,7 +68,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -146,7 +146,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
             docsPerIndex.put(indexName, nbDocs);
         }
 
-        final Path repositoryPath = node().getEnvironment().resolveRepoFile(randomAlphaOfLength(10));
+        final Path repositoryPath = node().getEnvironment().resolveRepoDir(randomAlphaOfLength(10));
         final Settings.Builder repositorySettings = Settings.builder().put("location", repositoryPath);
         if (randomBoolean()) {
             repositorySettings.put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
@@ -241,7 +241,8 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                     assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
                     assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHits(true), docsPerIndex.get(indexName));
 
-                    final GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings(indexName).get();
+                    final GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
+                        .get();
                     assertThat(getSettingsResponse.getSetting(indexName, SNAPSHOT_CACHE_ENABLED_SETTING.getKey()), equalTo("true"));
                     assertThat(getSettingsResponse.getSetting(indexName, SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey()), equalTo("true"));
 
@@ -450,11 +451,20 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            RepositoriesMetrics repositoriesMetrics
+            RepositoriesMetrics repositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
         ) {
             return Collections.singletonMap(
                 "tracking",
-                (metadata) -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings) {
+                (projectId, metadata) -> new FsRepository(
+                    projectId,
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings
+                ) {
 
                     @Override
                     protected BlobStore createBlobStore() throws Exception {
@@ -464,12 +474,6 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                                 @Override
                                 public BlobContainer blobContainer(BlobPath path) {
                                     return new TrackingFilesBlobContainer(delegate.blobContainer(path));
-                                }
-
-                                @Override
-                                public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames)
-                                    throws IOException {
-                                    delegate.deleteBlobsIgnoringIfNotExists(purpose, blobNames);
                                 }
 
                                 @Override

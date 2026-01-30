@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -191,12 +190,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         this.version = in.readBoolean() ? MlConfigVersion.readVersion(in) : null;
         this.allowLazyStart = in.readBoolean();
         this.maxNumThreads = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            Map<String, Object> readMeta = in.readGenericMap();
-            this.meta = readMeta == null ? null : Collections.unmodifiableMap(readMeta);
-        } else {
-            this.meta = null;
-        }
+        Map<String, Object> readMeta = in.readGenericMap();
+        this.meta = readMeta == null ? null : Collections.unmodifiableMap(readMeta);
     }
 
     public String getId() {
@@ -258,7 +253,11 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         builder.field(ID.getPreferredName(), id);
         if (params.paramAsBoolean(EXCLUDE_GENERATED, false) == false) {
             if (createTime != null) {
-                builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
+                builder.timestampFieldsFromUnixEpochMillis(
+                    CREATE_TIME.getPreferredName(),
+                    CREATE_TIME.getPreferredName() + "_string",
+                    createTime.toEpochMilli()
+                );
             }
             if (version != null) {
                 builder.field(VERSION.getPreferredName(), version);
@@ -319,9 +318,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         }
         out.writeBoolean(allowLazyStart);
         out.writeVInt(maxNumThreads);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeGenericMap(meta);
-        }
+        out.writeGenericMap(meta);
     }
 
     @Override

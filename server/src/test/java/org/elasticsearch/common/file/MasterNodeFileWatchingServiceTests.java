@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.file;
@@ -25,8 +26,14 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -37,7 +44,7 @@ public class MasterNodeFileWatchingServiceTests extends ESTestCase {
     static final DiscoveryNode localNode = DiscoveryNodeUtils.create("local-node");
     MasterNodeFileWatchingService testService;
     Path watchedFile;
-    Runnable fileChangedCallback;
+    Consumer<Path> fileChangedCallback;
 
     @Before
     public void setupTestService() throws IOException {
@@ -47,17 +54,55 @@ public class MasterNodeFileWatchingServiceTests extends ESTestCase {
             .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.MASTER_ROLE.roleName())
             .build();
         when(clusterService.getSettings()).thenReturn(settings);
-        fileChangedCallback = () -> {};
-        testService = new MasterNodeFileWatchingService(clusterService, watchedFile) {
+        fileChangedCallback = f -> {};
+        testService = new MasterNodeFileWatchingService(clusterService, watchedFile.getParent()) {
 
             @Override
-            protected void processFileChanges() throws InterruptedException, ExecutionException, IOException {
-                fileChangedCallback.run();
+            protected void processFileChanges(Path file) throws InterruptedException, ExecutionException, IOException {
+                fileChangedCallback.accept(file);
             }
 
             @Override
-            protected void processInitialFileMissing() throws InterruptedException, ExecutionException, IOException {
+            protected void processInitialFilesMissing() throws InterruptedException, ExecutionException, IOException {
                 // file always exists, but we don't care about the missing case for master node behavior
+            }
+
+            // the following methods are a workaround to ensure exclusive access for files
+            // required by child watchers; this is required because we only check the caller's module
+            // not the entire stack
+            @Override
+            protected boolean filesExists(Path path) {
+                return Files.exists(path);
+            }
+
+            @Override
+            protected boolean filesIsDirectory(Path path) {
+                return Files.isDirectory(path);
+            }
+
+            @Override
+            protected boolean filesIsSymbolicLink(Path path) {
+                return Files.isSymbolicLink(path);
+            }
+
+            @Override
+            protected <A extends BasicFileAttributes> A filesReadAttributes(Path path, Class<A> clazz) throws IOException {
+                return Files.readAttributes(path, clazz);
+            }
+
+            @Override
+            protected Stream<Path> filesList(Path dir) throws IOException {
+                return Files.list(dir);
+            }
+
+            @Override
+            protected Path filesSetLastModifiedTime(Path path, FileTime time) throws IOException {
+                return Files.setLastModifiedTime(path, time);
+            }
+
+            @Override
+            protected InputStream filesNewInputStream(Path path) throws IOException {
+                return Files.newInputStream(path);
             }
         };
         testService.start();

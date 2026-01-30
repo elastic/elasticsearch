@@ -1,0 +1,31 @@
+---
+"Test basic response with invalid credentials":
+
+  - skip:
+      features: headers
+
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF91c2VyOndyb25nLXBhc3N3b3Jk" # invalid credentials
+      info: {}
+      catch: unauthorized
+
+  - match:
+      error.root_cause.0.type: security_exception
+
+---
+"Test bulk response with invalid credentials":
+
+  - skip:
+      features: headers
+
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF91c2VyOndyb25nLXBhc3N3b3Jk" # invalid credentials
+      bulk:
+        body: |
+          {"index": {}}
+          {}
+      catch: unauthorized
+  - match:
+      error.root_cause.0.type: security_exception

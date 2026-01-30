@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference;
 
+import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.InferenceString.DataType;
 import org.elasticsearch.inference.TaskType;
 
 import java.io.IOException;
@@ -15,36 +17,32 @@ import java.util.Map;
 
 public class MockDenseInferenceServiceIT extends InferenceBaseRestTest {
 
-    @SuppressWarnings("unchecked")
     public void testMockService() throws IOException {
         String inferenceEntityId = "test-mock";
-        var putModel = putModel(inferenceEntityId, mockDenseServiceModelConfig(), TaskType.TEXT_EMBEDDING);
+        var putModel = putModel(inferenceEntityId, mockTextEmbeddingServiceModelConfig(), TaskType.TEXT_EMBEDDING);
         var model = getModels(inferenceEntityId, TaskType.TEXT_EMBEDDING).get(0);
 
         for (var modelMap : List.of(putModel, model)) {
-            assertEquals(inferenceEntityId, modelMap.get("model_id"));
+            assertEquals(inferenceEntityId, modelMap.get("inference_id"));
             assertEquals(TaskType.TEXT_EMBEDDING, TaskType.fromString((String) modelMap.get("task_type")));
             assertEquals("text_embedding_test_service", modelMap.get("service"));
         }
 
         List<String> input = List.of(randomAlphaOfLength(10));
-        var inference = inferOnMockService(inferenceEntityId, input);
+        var inference = infer(inferenceEntityId, input);
         assertNonEmptyInferenceResults(inference, 1, TaskType.TEXT_EMBEDDING);
         // Same input should return the same result
-        assertEquals(inference, inferOnMockService(inferenceEntityId, input));
+        assertEquals(inference, infer(inferenceEntityId, input));
         // Different input values should not
-        assertNotEquals(
-            inference,
-            inferOnMockService(inferenceEntityId, randomValueOtherThan(input, () -> List.of(randomAlphaOfLength(10))))
-        );
+        assertNotEquals(inference, infer(inferenceEntityId, randomValueOtherThan(input, () -> List.of(randomAlphaOfLength(10)))));
     }
 
     public void testMockServiceWithMultipleInputs() throws IOException {
         String inferenceEntityId = "test-mock-with-multi-inputs";
-        putModel(inferenceEntityId, mockDenseServiceModelConfig(), TaskType.TEXT_EMBEDDING);
+        putModel(inferenceEntityId, mockTextEmbeddingServiceModelConfig(), TaskType.TEXT_EMBEDDING);
 
         // The response is randomly generated, the input can be anything
-        var inference = inferOnMockService(
+        var inference = infer(
             inferenceEntityId,
             TaskType.TEXT_EMBEDDING,
             List.of(randomAlphaOfLength(5), randomAlphaOfLength(10), randomAlphaOfLength(15))
@@ -53,10 +51,53 @@ public class MockDenseInferenceServiceIT extends InferenceBaseRestTest {
         assertNonEmptyInferenceResults(inference, 3, TaskType.TEXT_EMBEDDING);
     }
 
+    public void testMockService_withEmbeddingTask() throws IOException {
+        String inferenceEntityId = "test-mock-embedding";
+        var putModel = putModel(inferenceEntityId, mockEmbeddingServiceModelConfig(), TaskType.EMBEDDING);
+        var model = getModels(inferenceEntityId, TaskType.EMBEDDING).getFirst();
+
+        for (var modelMap : List.of(putModel, model)) {
+            assertEquals(inferenceEntityId, modelMap.get("inference_id"));
+            assertEquals(TaskType.EMBEDDING, TaskType.fromString((String) modelMap.get("task_type")));
+            assertEquals("text_embedding_test_service", modelMap.get("service"));
+        }
+
+        var input = List.of(new InferenceString(DataType.TEXT, randomAlphaOfLength(10)));
+        var inference = embedding(inferenceEntityId, input);
+        assertNonEmptyInferenceResults(inference, 1, TaskType.EMBEDDING);
+        // Same input should return the same result
+        assertEquals(inference, embedding(inferenceEntityId, input));
+        // Different input values should not
+        assertNotEquals(
+            inference,
+            embedding(
+                inferenceEntityId,
+                randomValueOtherThan(input, () -> List.of(new InferenceString(DataType.TEXT, randomAlphaOfLength(10))))
+            )
+        );
+    }
+
+    public void testMockServiceWithMultipleInputs_withEmbeddingTask() throws IOException {
+        String inferenceEntityId = "test-mock-with-multi-inputs-embedding";
+        putModel(inferenceEntityId, mockEmbeddingServiceModelConfig(), TaskType.EMBEDDING);
+
+        // The response is randomly generated, the input can be anything
+        var inference = embedding(
+            inferenceEntityId,
+            List.of(
+                new InferenceString(DataType.IMAGE, randomAlphaOfLength(5)),
+                new InferenceString(DataType.TEXT, randomAlphaOfLength(10)),
+                new InferenceString(DataType.TEXT, randomAlphaOfLength(15))
+            )
+        );
+
+        assertNonEmptyInferenceResults(inference, 3, TaskType.EMBEDDING);
+    }
+
     @SuppressWarnings("unchecked")
     public void testMockService_DoesNotReturnSecretsInGetResponse() throws IOException {
         String inferenceEntityId = "test-mock";
-        var putModel = putModel(inferenceEntityId, mockDenseServiceModelConfig(), TaskType.TEXT_EMBEDDING);
+        var putModel = putModel(inferenceEntityId, mockTextEmbeddingServiceModelConfig(), TaskType.TEXT_EMBEDDING);
         var model = getModels(inferenceEntityId, TaskType.TEXT_EMBEDDING).get(0);
 
         var serviceSettings = (Map<String, Object>) model.get("service_settings");

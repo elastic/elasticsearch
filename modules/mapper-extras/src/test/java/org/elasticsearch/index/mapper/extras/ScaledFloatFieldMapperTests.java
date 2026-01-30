@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.extras;
@@ -18,6 +19,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapperTests;
@@ -30,7 +32,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.hamcrest.Matcher;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -38,7 +39,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -46,8 +46,6 @@ import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notANumber;
 
 public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
 
@@ -77,6 +75,11 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
         checker.registerUpdateCheck(b -> b.field("coerce", false), m -> assertFalse(((ScaledFloatFieldMapper) m).coerce()));
+    }
+
+    @Override
+    protected boolean supportsBulkDoubleBlockReading() {
+        return true;
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {
@@ -337,7 +340,8 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         }));
         var ft = (ScaledFloatFieldMapper.ScaledFloatFieldType) mapperService.fieldType("field");
         assertThat(ft.getMetricType(), equalTo(randomMetricType));
-        assertThat(ft.isIndexed(), is(false));
+        assertTrue(ft.hasDocValues());
+        assertFalse(ft.indexType().hasDenseIndex());
     }
 
     @Override
@@ -367,6 +371,23 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         return new ScaledFloatSyntheticSourceSupport(ignoreMalformed);
     }
 
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode sourceKeepMode) {
+        return new ScaledFloatSyntheticSourceSupport(ignoreMalformed) {
+            @Override
+            public SyntheticSourceExample example(int maxVals) {
+                var example = super.example(maxVals);
+                // Need the expectedForSyntheticSource as inputValue since MapperTestCase#testSyntheticSourceKeepArrays
+                // uses the inputValue as both the input and expected.
+                return new SyntheticSourceExample(
+                    example.expectedForSyntheticSource(),
+                    example.expectedForSyntheticSource(),
+                    example.mapping()
+                );
+            }
+        };
+    }
+
     private static class ScaledFloatSyntheticSourceSupport implements SyntheticSourceSupport {
         private final boolean ignoreMalformedEnabled;
         private final double scalingFactor = randomDoubleBetween(0, Double.MAX_VALUE, false);
@@ -381,9 +402,9 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
             if (randomBoolean()) {
                 Value v = generateValue();
                 if (v.malformedOutput == null) {
-                    return new SyntheticSourceExample(v.input, v.output, roundDocValues(v.output), this::mapping);
+                    return new SyntheticSourceExample(v.input, v.output, this::mapping);
                 }
-                return new SyntheticSourceExample(v.input, v.malformedOutput, null, this::mapping);
+                return new SyntheticSourceExample(v.input, v.malformedOutput, this::mapping);
             }
             List<Value> values = randomList(1, maxValues, this::generateValue);
             List<Object> in = values.stream().map(Value::input).toList();
@@ -395,9 +416,7 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
             List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput).toList();
             Object out = outList.size() == 1 ? outList.get(0) : outList;
 
-            List<Double> outBlockList = outputFromDocValues.stream().map(this::roundDocValues).sorted().toList();
-            Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
-            return new SyntheticSourceExample(in, out, outBlock, this::mapping);
+            return new SyntheticSourceExample(in, out, this::mapping);
         }
 
         private record Value(Object input, Double output, Object malformedOutput) {}
@@ -441,16 +460,6 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
             return decoded;
         }
 
-        private double roundDocValues(double d) {
-            // Special case due to rounding, see implementation.
-            if (Math.abs(d) == Double.MAX_VALUE) {
-                return d;
-            }
-
-            long encoded = Math.round(d * scalingFactor);
-            return encoded * (1 / scalingFactor);
-        }
-
         private void mapping(XContentBuilder b) throws IOException {
             b.field("type", "scaled_float");
             b.field("scaling_factor", scalingFactor);
@@ -470,23 +479,8 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
 
         @Override
         public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
-            return List.of(
-                new SyntheticSourceInvalidExample(
-                    equalTo("field [field] of type [scaled_float] doesn't support synthetic source because it doesn't have doc values"),
-                    b -> b.field("type", "scaled_float").field("scaling_factor", 10).field("doc_values", false)
-                )
-            );
+            return List.of();
         }
-    }
-
-    @Override
-    protected Function<Object, Object> loadBlockExpected() {
-        return v -> (Number) v;
-    }
-
-    @Override
-    protected Matcher<?> blockItemMatcher(Object expected) {
-        return "NaN".equals(expected) ? notANumber() : equalTo(expected);
     }
 
     @Override
@@ -531,7 +525,13 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
 
     public void testEncodeDecodeExactScalingFactor() {
         double v = randomValue();
-        assertThat(encodeDecode(1 / v, v), equalTo(1 / v));
+        double expected = 1 / v;
+        // We don't produce infinities while decoding. See #testDecodeHandlingInfinity().
+        if (Double.isInfinite(expected)) {
+            var sign = expected == Double.POSITIVE_INFINITY ? 1 : -1;
+            expected = sign * Double.MAX_VALUE;
+        }
+        assertThat(encodeDecode(1 / v, v), equalTo(expected));
     }
 
     /**
@@ -648,5 +648,13 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
 
     private static double randomValue() {
         return randomBoolean() ? randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true) : randomFloat();
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(
+            // TODO doubles currently disable pruning, can we re-enable?
+            new SortShortcutSupport(this::minimalMapping, this::writeField, false)
+        );
     }
 }

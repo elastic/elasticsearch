@@ -29,7 +29,7 @@ public record ResolvedEnrichPolicy(
             in.readString(),
             in.readStringCollectionAsList(),
             in.readMap(StreamInput::readString),
-            in.readMap(EsField::new)
+            in.readMap(EsField::readFrom)
         );
     }
 
@@ -45,7 +45,17 @@ public record ResolvedEnrichPolicy(
              * There are lots of subtypes of ESField, but we always write the field
              * as though it were the base class.
              */
-            (o, v) -> new EsField(v.getName(), v.getDataType(), v.getProperties(), v.isAggregatable(), v.isAlias()).writeTo(o)
+            (o, v) -> {
+                var field = new EsField(
+                    v.getName(),
+                    v.getDataType(),
+                    v.getProperties(),
+                    v.isAggregatable(),
+                    v.isAlias(),
+                    v.getTimeSeriesFieldType()
+                );
+                field.writeTo(o);
+            }
         );
     }
 }

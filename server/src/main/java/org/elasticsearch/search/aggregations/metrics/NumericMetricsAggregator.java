@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -74,13 +75,13 @@ public abstract class NumericMetricsAggregator extends MetricsAggregator {
         public final LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub)
             throws IOException {
             final SortedNumericDoubleValues values = valuesSource.doubleValues(aggCtx.getLeafReaderContext());
-            final NumericDoubleValues singleton = FieldData.unwrapSingleton(values);
+            final DoubleValues singleton = FieldData.unwrapSingleton(values);
             return singleton != null ? getLeafCollector(singleton, sub) : getLeafCollector(values, sub);
         }
 
         protected abstract LeafBucketCollector getLeafCollector(SortedNumericDoubleValues values, LeafBucketCollector sub);
 
-        protected abstract LeafBucketCollector getLeafCollector(NumericDoubleValues values, LeafBucketCollector sub);
+        protected abstract LeafBucketCollector getLeafCollector(DoubleValues values, LeafBucketCollector sub);
     }
 
     public abstract static class MultiValue extends NumericMetricsAggregator {
@@ -130,12 +131,12 @@ public abstract class NumericMetricsAggregator extends MetricsAggregator {
         public final LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub)
             throws IOException {
             final SortedNumericDoubleValues values = valuesSource.doubleValues(aggCtx.getLeafReaderContext());
-            final NumericDoubleValues singleton = FieldData.unwrapSingleton(values);
+            final DoubleValues singleton = FieldData.unwrapSingleton(values);
             return singleton != null ? getLeafCollector(singleton, sub) : getLeafCollector(values, sub);
         }
 
         protected abstract LeafBucketCollector getLeafCollector(SortedNumericDoubleValues values, LeafBucketCollector sub);
 
-        protected abstract LeafBucketCollector getLeafCollector(NumericDoubleValues values, LeafBucketCollector sub);
+        protected abstract LeafBucketCollector getLeafCollector(DoubleValues values, LeafBucketCollector sub);
     }
 }

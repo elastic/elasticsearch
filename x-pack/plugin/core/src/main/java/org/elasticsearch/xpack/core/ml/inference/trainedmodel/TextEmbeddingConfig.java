@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -29,7 +28,7 @@ public class TextEmbeddingConfig implements NlpConfig {
 
     public static final String NAME = "text_embedding";
 
-    public static ParseField EMBEDDING_SIZE = new ParseField("embedding_size");
+    public static final ParseField EMBEDDING_SIZE = new ParseField("embedding_size");
 
     public static TextEmbeddingConfig fromXContentStrict(XContentParser parser) {
         return STRICT_PARSER.apply(parser, null);
@@ -114,11 +113,7 @@ public class TextEmbeddingConfig implements NlpConfig {
         vocabularyConfig = new VocabularyConfig(in);
         tokenization = in.readNamedWriteable(Tokenization.class);
         resultsField = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            embeddingSize = in.readOptionalVInt();
-        } else {
-            embeddingSize = null;
-        }
+        embeddingSize = in.readOptionalVInt();
     }
 
     @Override
@@ -146,9 +141,7 @@ public class TextEmbeddingConfig implements NlpConfig {
         vocabularyConfig.writeTo(out);
         out.writeNamedWriteable(tokenization);
         out.writeOptionalString(resultsField);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeOptionalVInt(embeddingSize);
-        }
+        out.writeOptionalVInt(embeddingSize);
     }
 
     @Override
@@ -180,7 +173,7 @@ public class TextEmbeddingConfig implements NlpConfig {
 
     @Override
     public TransportVersion getMinimalSupportedTransportVersion() {
-        return TransportVersions.V_8_0_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

@@ -1,0 +1,512 @@
+####################################################################################################
+# The test data contains multi-value points, some are single valued and others contain two points.
+# We will test the same queries against all both representations to ensure they all work the same.
+####################################################################################################
+
+spatialMultiValuePointsStats
+required_capability: spatial_points_from_source
+
+FROM multivalue_points
+| MV_EXPAND location
+| STATS c=COUNT(*) BY id
+| KEEP id, c
+| SORT id
+;
+
+id:l | c:long
+0    | 2
+1    | 2
+2    | 1
+3    | 2
+4    | 2
+5    | 2
+6    | 2
+7    | 2
+8    | 2
+9    | 1
+10   | 2
+11   | 3
+12   | 3
+;
+
+spatialRelationPolygon
+required_capability: st_intersects
+required_capability: st_contains_within
+required_capability: st_disjoint
+required_capability: spatial_predicates_support_multivalues
+
+FROM multivalue_points
+| EVAL polygon=TO_GEOSHAPE("POLYGON ((-10 -10, -10 10, 10 10, 10 -10, -10 -10))")
+| EVAL st_intersects=ST_INTERSECTS(location, polygon)
+| EVAL st_within=ST_WITHIN(location, polygon)
+| EVAL st_disjoint=ST_DISJOINT(location, polygon)
+| KEEP id, intersects, within, st_intersects, st_within, st_disjoint, centroid, location
+| SORT id
+;
+
+id:l | intersects:boolean | within:boolean | st_intersects:boolean | st_within:boolean | st_disjoint:boolean | centroid:geo_point | location:geo_point
+0    | true               | true           | true                  | true              | false               | "POINT(0.0 5.0)"   | ["POINT(5 5)", "POINT(-5 5)"]
+1    | true               | true           | true                  | true              | false               | "POINT(0.5 0.5)"   | ["POINT(0 1)","POINT(1 0)"]
+2    | true               | true           | true                  | true              | false               | "POINT(9.0 9.0)"   | "POINT(9 9)"
+3    | true               | true           | true                  | true              | false               | "POINT(0.0 0.0)"   | ["POINT(-9 -9)","POINT(9 9)"]
+4    | true               | false          | true                  | false             | false               | "POINT(10.0 10.0)" | ["POINT(5 5)", "POINT(15 15)"]
+5    | true               | false          | true                  | false             | false               | "POINT(5.5 5.5)"   | ["POINT(0 0)","POINT(11 11)"]
+6    | true               | false          | true                  | false             | false               | "POINT(0.0 -5.0)"  | ["POINT(-9 -19)","POINT(9 9)"]
+7    | false              | false          | false                 | false             | true                | "POINT(10.0 10.0)" | ["POINT(5 15)", "POINT(15 5)"]
+8    | false              | false          | false                 | false             | true                | "POINT(5.5 5.5)"   | ["POINT(0 11)","POINT(11 0)"]
+9    | false              | false          | false                 | false             | true                | "POINT(19.0 9.0)"  | "POINT(19 9)"
+10   | false              | false          | false                 | false             | true                | "POINT(5.0 -5.0)"  | ["POINT(-9 -19)","POINT(19 9)"]
+11   | true               | false          | true                  | false             | false               | "POINT(0.0 0.0)"   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"]
+12   | true               | false          | true                  | false             | false               | "POINT(0.0 0.0)"   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"]
+;
+
+spatialDistance
+required_capability: st_distance
+required_capability: spatial_distance_supports_multivalues
+
+FROM multivalue_points
+| EVAL distance_origin=ST_DISTANCE(location, TO_GEOPOINT("POINT(0 0)"))
+| EVAL distance_subset=ST_DISTANCE(location, subset)
+| EVAL distance_disjoint=ST_DISTANCE(location, disjoint)
+| EVAL distance_far=ST_DISTANCE(location, TO_GEOPOINT("POINT(55 55)"))
+| KEEP id, distance_origin, distance_subset, distance_disjoint, distance_far, location, subset, disjoint
+| SORT id
+;
+
+id:l | distance_origin:d  | distance_subset:d | distance_disjoint:d | distance_far:d    | location:geo_point                               | subset:geo_point               | disjoint:geo_point
+0    | 785768.2986429982  | 0.0               | 7114305.127148048   | 7114305.127148048 | ["POINT(5 5)", "POINT(-5 5)"]                    | "POINT(5 5)"                   |  ["POINT(55 55)", "POINT(65 65)"]
+1    | 111195.07310665186 | 0.0               | 7775410.295475619   | 7775410.295475619 | ["POINT(0 1)","POINT(1 0)"]                      | "POINT(0 1)"                   |  ["POINT(55 55)", "POINT(65 65)"]
+2    | 1412359.654429245  | 0.0               | 6511042.96320646    | 6511042.96320646  | "POINT(9 9)"                                     | "POINT(9 9)"                   |  ["POINT(55 55)", "POINT(65 65)"]
+3    | 1412359.654429245  | 0.0               | 6511042.96320646    | 6511042.96320646  | ["POINT(-9 -9)","POINT(9 9)"]                    | "POINT(-9 -9)"                 |  ["POINT(55 55)", "POINT(65 65)"]
+4    | 785768.2986429982  | 0.0               | 5612483.563947934   | 5612483.563947934 | ["POINT(5 5)", "POINT(15 15)"]                   | "POINT(5 5)"                   |  ["POINT(55 55)", "POINT(65 65)"]
+5    | 0.0                | 0.0               | 6210584.082742179   | 6210584.082742179 | ["POINT(0 0)","POINT(11 11)"]                    | "POINT(0 0)"                   |  ["POINT(55 55)", "POINT(65 65)"]
+6    | 1412359.654429245  | 0.0               | 6511042.96320646    | 6511042.96320646  | ["POINT(-9 -19)","POINT(9 9)"]                   | "POINT(-9 -19)"                |  ["POINT(55 55)", "POINT(65 65)"]
+7    | 1756128.8127267    | 0.0               | 6157935.487780502   | 6157935.487780502 | ["POINT(5 15)", "POINT(15 5)"]                   | "POINT(5 15)"                  |  ["POINT(55 55)", "POINT(65 65)"]
+8    | 1223145.8694147274 | 0.0               | 6823348.604540896   | 6823348.604540896 | ["POINT(0 11)","POINT(11 0)"]                    | "POINT(0 11)"                  |  ["POINT(55 55)", "POINT(65 65)"]
+9    | 2329806.5462053656 | 0.0               | 6014935.534393433   | 6014935.534393433 | "POINT(19 9)"                                    | "POINT(19 9)"                  |  ["POINT(55 55)", "POINT(65 65)"]
+10   | 2329806.5462053656 | 0.0               | 6014935.534393433   | 6014935.534393433 | ["POINT(-9 -19)","POINT(19 9)"]                  | "POINT(-9 -19)"                |  ["POINT(55 55)", "POINT(65 65)"]
+11   | 0.0                | 0.0               | 0.0                 | 0.0               | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"] | ["POINT(0 0)", "POINT(55 55)"] |  ["POINT(55 55)", "POINT(65 65)"]
+12   | 0.0                | 0.0               | 0.0                 | 0.0               | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"] | ["POINT(0 0)", "POINT(55 54)"] |  ["POINT(55 55)", "POINT(65 65)"]
+;
+
+whereSpatialDistanceTwoFields
+required_capability: st_distance
+required_capability: spatial_distance_supports_multivalues
+
+FROM multivalue_points
+| WHERE ST_DISTANCE(location, disjoint) < 6200000
+| KEEP id, location
+| SORT id
+;
+
+id:l | location:geo_point
+4    | ["POINT(5 5)", "POINT(15 15)"]
+7    | ["POINT(5 15)", "POINT(15 5)"]
+9    | "POINT(19 9)"
+10   | ["POINT(-9 -19)","POINT(19 9)"]
+11   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"]
+12   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"]
+;
+
+whereSpatialDistanceKeyword
+required_capability: st_distance
+required_capability: spatial_distance_supports_multivalues
+
+FROM multivalue_points
+| EVAL lk=lk::geo_point
+| WHERE ST_DISTANCE(lk, disjoint) < 6200000
+| KEEP id, location
+| SORT id
+;
+
+id:l | location:geo_point
+4    | ["POINT(5 5)", "POINT(15 15)"]
+7    | ["POINT(5 15)", "POINT(15 5)"]
+9    | "POINT(19 9)"
+10   | ["POINT(-9 -19)","POINT(19 9)"]
+11   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"]
+12   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"]
+;
+
+spatialDistanceFilterTwoFieldStats
+required_capability: st_distance
+required_capability: spatial_distance_supports_multivalues
+
+FROM multivalue_points
+| EVAL distance_disjoint=ST_DISTANCE(location, disjoint)
+| WHERE distance_disjoint > 0
+| EVAL kkm = TO_INTEGER(distance_disjoint / 1000000)
+| STATS c=COUNT(*) BY kkm
+| SORT kkm ASC
+;
+
+c:long | kkm:integer
+5      | 6
+5      | 7
+1      | 8
+;
+
+whereIntersectsPolygon
+required_capability: st_intersects
+
+FROM multivalue_points
+| WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON ((-10 -10, -10 10, 10 10, 10 -10, -10 -10))"))
+| KEEP id, intersects, within, centroid, location
+| SORT id
+;
+
+id:l | intersects:boolean | within:boolean | centroid:geo_point | location:geo_point
+0    | true               | true           | "POINT(0.0 5.0)"   | ["POINT(5 5)", "POINT(-5 5)"]
+1    | true               | true           | "POINT(0.5 0.5)"   | ["POINT(0 1)","POINT(1 0)"]
+2    | true               | true           | "POINT(9.0 9.0)"   | "POINT(9 9)"
+3    | true               | true           | "POINT(0.0 0.0)"   | ["POINT(-9 -9)","POINT(9 9)"]
+4    | true               | false          | "POINT(10.0 10.0)" | ["POINT(5 5)", "POINT(15 15)"]
+5    | true               | false          | "POINT(5.5 5.5)"   | ["POINT(0 0)","POINT(11 11)"]
+6    | true               | false          | "POINT(0.0 -5.0)"  | ["POINT(-9 -19)","POINT(9 9)"]
+11   | true               | false          | "POINT(0.0 0.0)"   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"]
+12   | true               | false          | "POINT(0.0 0.0)"   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"]
+;
+
+whereIntersectsPolygonStats
+required_capability: st_intersects
+
+FROM multivalue_points
+| WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON ((-10 -10, -10 10, 10 10, 10 -10, -10 -10))")) | STATS c=COUNT(*)
+;
+
+c:l
+9
+;
+
+whereWithinPolygon
+required_capability: st_contains_within
+
+FROM multivalue_points
+| WHERE ST_WITHIN(location, TO_GEOSHAPE("POLYGON ((-10 -10, -10 10, 10 10, 10 -10, -10 -10))"))
+| KEEP id, intersects, within, centroid, location
+| SORT id
+;
+
+id:l | intersects:boolean | within:boolean | centroid:geo_point | location:geo_point
+0    | true               | true           | "POINT(0.0 5.0)"   | ["POINT(5 5)", "POINT(-5 5)"]
+1    | true               | true           | "POINT(0.5 0.5)"   | ["POINT(0 1)","POINT(1 0)"]
+2    | true               | true           | "POINT(9.0 9.0)"   | "POINT(9 9)"
+3    | true               | true           | "POINT(0.0 0.0)"   | ["POINT(-9 -9)","POINT(9 9)"]
+;
+
+whereWithinPolygonStats
+required_capability: st_contains_within
+
+FROM multivalue_points
+| WHERE ST_WITHIN(location, TO_GEOSHAPE("POLYGON ((-10 -10, -10 10, 10 10, 10 -10, -10 -10))")) | STATS c=COUNT(*)
+;
+
+c:l
+4
+;
+
+whereWithinContainsMultiPoint
+required_capability: st_contains_within
+required_capability: spatial_predicates_support_multivalues
+
+FROM multivalue_points
+| WHERE ST_WITHIN(location, TO_GEOSHAPE("MULTIPOINT(-55 -55, 0 0, 55 55)"))
+| EVAL within=ST_WITHIN(location, TO_GEOSHAPE("MULTIPOINT(-55 -55, 0 0, 55 55)"))
+| EVAL contains=ST_CONTAINS(location, TO_GEOSHAPE("MULTIPOINT(-55 -55, 0 0, 55 55)"))
+| KEEP id, within, contains, centroid, location
+| SORT id
+;
+
+id:l | within:boolean | contains:boolean | centroid:geo_point | location:geo_point
+11   | true           | true             | "POINT(0.0 0.0)"   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"]
+12   | true           | true             | "POINT(0.0 0.0)"   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"]
+;
+
+whereWithinPolygonStats
+required_capability: st_contains_within
+
+FROM multivalue_points
+| WHERE ST_WITHIN(location, TO_GEOSHAPE("POLYGON ((-10 -10, -10 10, 10 10, 10 -10, -10 -10))")) | STATS c=COUNT(*)
+;
+
+c:l
+4
+;
+
+literalPointContainsPoint
+required_capability: st_contains_within
+
+ROW location = TO_GEOPOINT("POINT(5 5)")
+| EVAL contains=ST_CONTAINS(location, TO_GEOPOINT("POINT(5 5)"))
+| EVAL within=ST_WITHIN(location, TO_GEOPOINT("POINT(5 5)"))
+;
+
+location:geo_point | contains:boolean | within:boolean
+"POINT(5 5)"       | true             | true
+;
+
+literalMultiPointContainsMultiPoint
+required_capability: st_contains_within
+
+ROW location = TO_GEOSHAPE("MULTIPOINT(5 5, -5 -5)")
+| EVAL contains=ST_CONTAINS(location, TO_GEOSHAPE("MULTIPOINT(-5 -5, 5 5)"))
+| EVAL within=ST_WITHIN(location, TO_GEOSHAPE("MULTIPOINT(-5 -5, 5 5)"))
+;
+
+location:geo_shape       | contains:boolean | within:boolean
+"MULTIPOINT(5 5, -5 -5)" | true             | true
+;
+
+literalPointCollectionContainsPointCollection
+required_capability: st_contains_within
+
+ROW location = TO_GEOSHAPE("GEOMETRYCOLLECTION(POINT(5 5), POINT(-5 -5))")
+| EVAL contains=ST_CONTAINS(location, TO_GEOSHAPE("GEOMETRYCOLLECTION(POINT(-5 -5), POINT(5 5))"))
+| EVAL within=ST_WITHIN(location, TO_GEOSHAPE("GEOMETRYCOLLECTION(POINT(-5 -5), POINT(5 5))"))
+;
+
+location:geo_shape                             | contains:boolean | within:boolean
+"GEOMETRYCOLLECTION(POINT(5 5), POINT(-5 -5))" | true             | true
+;
+
+literalPointArrayContainsPointCollection
+required_capability: st_contains_within
+required_capability: spatial_predicates_support_multivalues
+
+ROW location = ["POINT(5 5)", "POINT(-5 -5))"]
+| EVAL location = TO_GEOPOINT(location)
+| EVAL contains=ST_CONTAINS(location, TO_GEOSHAPE("GEOMETRYCOLLECTION(POINT(-5 -5), POINT(5 5))"))
+| EVAL within=ST_WITHIN(location, TO_GEOSHAPE("GEOMETRYCOLLECTION(POINT(-5 -5), POINT(5 5))"))
+;
+
+location:geo_point              | contains:boolean | within:boolean
+["POINT(5 5)", "POINT(-5 -5))"] | true             | true
+;
+
+literalGeometryCollection
+required_capability: st_intersects
+required_capability: st_contains_within
+required_capability: st_disjoint
+
+ROW locations = TO_GEOSHAPE("GEOMETRYCOLLECTION(POINT(5 5),POINT(-5 5),POINT(0 1),POINT(1 0),POINT(9 9),POINT(-9 -9),POINT(9 9),POINT(5 5),POINT(15 15),POINT(0 0),POINT(11 11),POINT(-9 -19),POINT(9 9),POINT(5 15),POINT(15 5),POINT(0 11),POINT(11 0),POINT(19 9),POINT(-9 -19),POINT(19 9))")
+| EVAL st_intersects=ST_INTERSECTS(locations, TO_GEOSHAPE("POLYGON ((-10 -10, -10 10, 10 10, 10 -10, -10 -10))"))
+| EVAL st_contains_one=ST_CONTAINS(locations, TO_GEOPOINT("POINT(0 0)"))
+| EVAL st_contains_none=ST_CONTAINS(locations, TO_GEOPOINT("POINT(-5 -5)"))
+| EVAL st_contains_all=ST_CONTAINS(locations, locations)
+| EVAL st_within_small=ST_WITHIN(locations, TO_GEOSHAPE("POLYGON ((-10 -10, -10 10, 10 10, 10 -10, -10 -10))"))
+| EVAL st_within_big=ST_WITHIN(locations, TO_GEOSHAPE("POLYGON ((-20 -20, -20 20, 20 20, 20 -20, -20 -20))"))
+| EVAL st_disjoint=ST_DISJOINT(locations, TO_GEOSHAPE("POLYGON ((-10 -10, -10 10, 10 10, 10 -10, -10 -10))"))
+| KEEP st_intersects, st_contains_one, st_contains_none, st_contains_all, st_within_small, st_within_big, st_disjoint
+;
+
+st_intersects:boolean | st_contains_one:boolean | st_contains_none:boolean | st_contains_all:boolean | st_within_small:boolean | st_within_big:boolean | st_disjoint:boolean
+true                  | true                    | false                    | true                    | false                   | true                  | false
+;
+
+literalMultiPoint
+required_capability: st_intersects
+required_capability: st_contains_within
+required_capability: st_disjoint
+
+ROW locations = TO_GEOSHAPE("MULTIPOINT(5 5,-5 5,0 1,1 0,9 9,-9 -9,9 9,5 5,15 15,0 0,11 11,-9 -19,9 9,5 15,15 5,0 11,11 0,19 9,-9 -19,19 9)")
+| EVAL st_intersects=ST_INTERSECTS(locations, TO_GEOSHAPE("POLYGON ((-10 -10, -10 10, 10 10, 10 -10, -10 -10))"))
+| EVAL st_contains_one=ST_CONTAINS(locations, TO_GEOPOINT("POINT(0 0)"))
+| EVAL st_contains_none=ST_CONTAINS(locations, TO_GEOPOINT("POINT(-5 -5)"))
+| EVAL st_contains_all=ST_CONTAINS(locations, locations)
+| EVAL st_within_small=ST_WITHIN(locations, TO_GEOSHAPE("POLYGON ((-10 -10, -10 10, 10 10, 10 -10, -10 -10))"))
+| EVAL st_within_big=ST_WITHIN(locations, TO_GEOSHAPE("POLYGON ((-20 -20, -20 20, 20 20, 20 -20, -20 -20))"))
+| EVAL st_disjoint=ST_DISJOINT(locations, TO_GEOSHAPE("POLYGON ((-10 -10, -10 10, 10 10, 10 -10, -10 -10))"))
+| KEEP st_intersects, st_contains_one, st_contains_none, st_contains_all, st_within_small, st_within_big, st_disjoint
+;
+
+st_intersects:boolean | st_contains_one:boolean | st_contains_none:boolean | st_contains_all:boolean | st_within_small:boolean | st_within_big:boolean | st_disjoint:boolean
+true                  | true                    | false                    | true                    | false                   | true                  | false
+;
+
+literalPointArray
+required_capability: st_intersects
+required_capability: st_contains_within
+required_capability: st_disjoint
+required_capability: spatial_predicates_support_multivalues
+
+ROW locations = ["POINT(5 5)","POINT(-5 5)","POINT(0 1)","POINT(1 0)","POINT(9 9)","POINT(-9 -9)","POINT(9 9)","POINT(5 5)","POINT(15 15)","POINT(0 0)","POINT(11 11)","POINT(-9 -19)","POINT(9 9)","POINT(5 15)","POINT(15 5)","POINT(0 11)","POINT(11 0)","POINT(19 9)","POINT(-9 -19)","POINT(19 9))"]
+| EVAL locations = TO_GEOPOINT(locations)
+| EVAL st_intersects=ST_INTERSECTS(locations, TO_GEOSHAPE("POLYGON ((-10 -10, -10 10, 10 10, 10 -10, -10 -10))"))
+| EVAL st_contains_one=ST_CONTAINS(locations, TO_GEOPOINT("POINT(0 0)"))
+| EVAL st_contains_none=ST_CONTAINS(locations, TO_GEOPOINT("POINT(-5 -5)"))
+| EVAL st_contains_all=ST_CONTAINS(locations, locations)
+| EVAL st_within_small=ST_WITHIN(locations, TO_GEOSHAPE("POLYGON ((-10 -10, -10 10, 10 10, 10 -10, -10 -10))"))
+| EVAL st_within_big=ST_WITHIN(locations, TO_GEOSHAPE("POLYGON ((-20 -20, -20 20, 20 20, 20 -20, -20 -20))"))
+| EVAL st_disjoint=ST_DISJOINT(locations, TO_GEOSHAPE("POLYGON ((-10 -10, -10 10, 10 10, 10 -10, -10 -10))"))
+| KEEP st_intersects, st_contains_one, st_contains_none, st_contains_all, st_within_small, st_within_big, st_disjoint
+;
+
+st_intersects:boolean | st_contains_one:boolean | st_contains_none:boolean | st_contains_all:boolean | st_within_small:boolean | st_within_big:boolean | st_disjoint:boolean
+true                  | true                    | false                    | true                    | false                   | true                  | false
+;
+
+spatialRelationMultiValuePointsFields
+required_capability: st_intersects
+required_capability: st_contains_within
+required_capability: spatial_predicates_support_multivalues
+
+FROM multivalue_points
+| EVAL contains_ab = ST_CONTAINS(location, subset), contains_ba = ST_CONTAINS(subset, location)
+| EVAL within_ab   =   ST_WITHIN(location, subset), within_ba   =   ST_WITHIN(subset, location)
+| KEEP id, contains_ab, contains_ba, within_ab, within_ba, location, subset
+| SORT id
+;
+
+id:l | contains_ab:boolean | contains_ba:boolean | within_ab:boolean  | within_ba:boolean | location:geo_point                | subset:geo_point
+0    | true                | false               | false              | true              | ["POINT(5 5)", "POINT(-5 5)"]     | "POINT(5 5)"
+1    | true                | false               | false              | true              | ["POINT(0 1)","POINT(1 0)"]       | "POINT(0 1)"
+2    | true                | true                | true               | true              | "POINT(9 9)"                      | "POINT(9 9)"
+3    | true                | false               | false              | true              | ["POINT(-9 -9)","POINT(9 9)"]     | "POINT(-9 -9)"
+4    | true                | false               | false              | true              | ["POINT(5 5)", "POINT(15 15)"]    | "POINT(5 5)"
+5    | true                | false               | false              | true              | ["POINT(0 0)","POINT(11 11)"]     | "POINT(0 0)"
+6    | true                | false               | false              | true              | ["POINT(-9 -19)","POINT(9 9)"]    | "POINT(-9 -19)"
+7    | true                | false               | false              | true              | ["POINT(5 15)", "POINT(15 5)"]    | "POINT(5 15)"
+8    | true                | false               | false              | true              | ["POINT(0 11)","POINT(11 0)"]     | "POINT(0 11)"
+9    | true                | true                | true               | true              | "POINT(19 9)"                     | "POINT(19 9)"
+10   | true                | false               | false              | true              | ["POINT(-9 -19)","POINT(19 9)"]   | "POINT(-9 -19)"
+11   | true                | false               | false              | true              | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"] | ["POINT(0 0)", "POINT(55 55)"]
+12   | false               | false               | false              | false             | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"] | ["POINT(0 0)", "POINT(55 54)"]
+;
+
+whereIntersectsMultiValuePointsFields
+required_capability: st_intersects
+required_capability: spatial_predicates_support_multivalues
+
+FROM multivalue_points
+| WHERE ST_INTERSECTS(location, subset)
+| KEEP id, location, subset
+| SORT id
+;
+
+id:l | location:geo_point                | subset:geo_point
+0    | ["POINT(5 5)", "POINT(-5 5)"]     | "POINT(5 5)"
+1    | ["POINT(0 1)","POINT(1 0)"]       | "POINT(0 1)"
+2    | "POINT(9 9)"                      | "POINT(9 9)"
+3    | ["POINT(-9 -9)","POINT(9 9)"]     | "POINT(-9 -9)"
+4    | ["POINT(5 5)", "POINT(15 15)"]    | "POINT(5 5)"
+5    | ["POINT(0 0)","POINT(11 11)"]     | "POINT(0 0)"
+6    | ["POINT(-9 -19)","POINT(9 9)"]    | "POINT(-9 -19)"
+7    | ["POINT(5 15)", "POINT(15 5)"]    | "POINT(5 15)"
+8    | ["POINT(0 11)","POINT(11 0)"]     | "POINT(0 11)"
+9    | "POINT(19 9)"                     | "POINT(19 9)"
+10   | ["POINT(-9 -19)","POINT(19 9)"]   | "POINT(-9 -19)"
+11   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"] | ["POINT(0 0)", "POINT(55 55)"]
+12   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"] | ["POINT(0 0)", "POINT(55 54)"]
+;
+
+whereIntersectsMultiValuePointsStatsFields
+required_capability: st_intersects
+required_capability: spatial_predicates_support_multivalues
+
+FROM multivalue_points
+| WHERE ST_INTERSECTS(location, subset) | STATS c=COUNT(*)
+;
+
+c:l
+13
+;
+
+whereContainsMultiValuePointsFields
+required_capability: st_contains_within
+required_capability: spatial_predicates_support_multivalues
+
+FROM multivalue_points
+| WHERE ST_CONTAINS(location, subset)
+| KEEP id, location, subset
+| SORT id
+;
+
+id:l | location:geo_point                | subset:geo_point
+0    | ["POINT(5 5)", "POINT(-5 5)"]     | "POINT(5 5)"
+1    | ["POINT(0 1)","POINT(1 0)"]       | "POINT(0 1)"
+2    | "POINT(9 9)"                      | "POINT(9 9)"
+3    | ["POINT(-9 -9)","POINT(9 9)"]     | "POINT(-9 -9)"
+4    | ["POINT(5 5)", "POINT(15 15)"]    | "POINT(5 5)"
+5    | ["POINT(0 0)","POINT(11 11)"]     | "POINT(0 0)"
+6    | ["POINT(-9 -19)","POINT(9 9)"]    | "POINT(-9 -19)"
+7    | ["POINT(5 15)", "POINT(15 5)"]    | "POINT(5 15)"
+8    | ["POINT(0 11)","POINT(11 0)"]     | "POINT(0 11)"
+9    | "POINT(19 9)"                     | "POINT(19 9)"
+10   | ["POINT(-9 -19)","POINT(19 9)"]   | "POINT(-9 -19)"
+11   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"] | ["POINT(0 0)", "POINT(55 55)"]
+;
+
+whereContainsMultiValuePointsStatsFields
+required_capability: st_contains_within
+required_capability: spatial_predicates_support_multivalues
+
+FROM multivalue_points
+| WHERE ST_CONTAINS(location, subset) | STATS c=COUNT(*)
+;
+
+c:l
+12
+;
+
+whereContainsMultiValuePointsStatsFieldsCentroid
+required_capability: st_contains_within
+required_capability: spatial_predicates_support_multivalues
+
+FROM multivalue_points
+| WHERE ST_CONTAINS(location, subset)
+| STATS c=COUNT(*), outer=ST_CENTROID_AGG(location), inner=ST_CENTROID_AGG(subset)
+;
+
+c:l | outer:geo_point                               | inner:geo_point
+12  | "POINT (4.391304308386601 3.086956503558094)" | "POINT (5.461538461538462 4.846153846153846)"
+;
+
+whereWithinMultiValuePointsFields
+required_capability: st_contains_within
+required_capability: spatial_predicates_support_multivalues
+
+FROM multivalue_points
+| WHERE ST_WITHIN(subset, location)
+| KEEP id, location, subset
+| SORT id
+;
+
+id:l | location:geo_point                | subset:geo_point
+0    | ["POINT(5 5)", "POINT(-5 5)"]     | "POINT(5 5)"
+1    | ["POINT(0 1)","POINT(1 0)"]       | "POINT(0 1)"
+2    | "POINT(9 9)"                      | "POINT(9 9)"
+3    | ["POINT(-9 -9)","POINT(9 9)"]     | "POINT(-9 -9)"
+4    | ["POINT(5 5)", "POINT(15 15)"]    | "POINT(5 5)"
+5    | ["POINT(0 0)","POINT(11 11)"]     | "POINT(0 0)"
+6    | ["POINT(-9 -19)","POINT(9 9)"]    | "POINT(-9 -19)"
+7    | ["POINT(5 15)", "POINT(15 5)"]    | "POINT(5 15)"
+8    | ["POINT(0 11)","POINT(11 0)"]     | "POINT(0 11)"
+9    | "POINT(19 9)"                     | "POINT(19 9)"
+10   | ["POINT(-9 -19)","POINT(19 9)"]   | "POINT(-9 -19)"
+11   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"] | ["POINT(0 0)", "POINT(55 55)"]
+;
+
+whereWithinMultiValuePointsStatsFields
+required_capability: st_contains_within
+required_capability: spatial_predicates_support_multivalues
+
+FROM multivalue_points
+| WHERE ST_WITHIN(subset, location) | STATS c=COUNT(*)
+;
+
+c:l
+12
+;
+
+whereWithinMultiValuePointsStatsFieldsCentroid
+required_capability: st_contains_within
+required_capability: spatial_predicates_support_multivalues
+
+FROM multivalue_points
+| WHERE ST_WITHIN(subset, location)
+| STATS c=COUNT(*), inner=ST_CENTROID_AGG(subset), outer=ST_CENTROID_AGG(location)
+;
+
+c:l | inner:geo_point                               | outer:geo_point
+12  | "POINT (5.461538432595821 4.846153828100516)" | "POINT (4.391304347826087 3.0869565217391304)"
+;

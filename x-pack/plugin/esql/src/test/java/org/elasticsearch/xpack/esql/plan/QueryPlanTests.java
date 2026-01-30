@@ -11,13 +11,14 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 
 import java.util.ArrayList;
@@ -26,6 +27,7 @@ import java.util.List;
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalsOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
@@ -42,7 +44,7 @@ public class QueryPlanTests extends ESTestCase {
 
         assertEquals(Limit.class, transformed.getClass());
         Limit l = (Limit) transformed;
-        assertEquals(24, l.limit().fold());
+        assertEquals(24, l.limit().fold(FoldContext.small()));
     }
 
     public void testTransformWithExpressionTree() throws Exception {
@@ -53,7 +55,7 @@ public class QueryPlanTests extends ESTestCase {
         assertEquals(OrderBy.class, transformed.getClass());
         OrderBy order = (OrderBy) transformed;
         assertEquals(Limit.class, order.child().getClass());
-        assertEquals(24, ((Limit) order.child()).limit().fold());
+        assertEquals(24, ((Limit) order.child()).limit().fold(FoldContext.small()));
     }
 
     public void testTransformWithExpressionTopLevelInCollection() throws Exception {
@@ -76,19 +78,20 @@ public class QueryPlanTests extends ESTestCase {
     }
 
     public void testForEachWithExpressionTopLevel() throws Exception {
-        Alias one = new Alias(EMPTY, "one", of(42));
+        FieldAttribute one = fieldAttribute();
+        Alias oneAliased = new Alias(EMPTY, "one", one);
         FieldAttribute two = fieldAttribute();
 
-        Project project = new Project(EMPTY, relation(), asList(one, two));
+        Project project = new Project(EMPTY, relation(), asList(oneAliased, two));
 
         List<Object> list = new ArrayList<>();
-        project.forEachExpression(Literal.class, l -> {
-            if (l.fold().equals(42)) {
-                list.add(l.fold());
+        project.forEachExpression(FieldAttribute.class, l -> {
+            if (l.semanticEquals(one)) {
+                list.add(l);
             }
         });
 
-        assertEquals(singletonList(one.child().fold()), list);
+        assertEquals(singletonList(one), list);
     }
 
     public void testForEachWithExpressionTree() throws Exception {
@@ -97,12 +100,12 @@ public class QueryPlanTests extends ESTestCase {
 
         List<Object> list = new ArrayList<>();
         o.forEachExpressionDown(Literal.class, l -> {
-            if (l.fold().equals(42)) {
-                list.add(l.fold());
+            if (l.value().equals(42)) {
+                list.add(l.value());
             }
         });
 
-        assertEquals(singletonList(limit.limit().fold()), list);
+        assertEquals(singletonList(limit.limit().fold(FoldContext.small())), list);
     }
 
     public void testForEachWithExpressionTopLevelInCollection() throws Exception {
@@ -121,26 +124,30 @@ public class QueryPlanTests extends ESTestCase {
         assertEquals(singletonList(one), list);
     }
 
+    // TODO: duplicate of testForEachWithExpressionTopLevel, let's remove it.
+    // (Also a duplicate in the original ql package.)
     public void testForEachWithExpressionTreeInCollection() throws Exception {
-        Alias one = new Alias(EMPTY, "one", of(42));
+        FieldAttribute one = fieldAttribute();
+        Alias oneAliased = new Alias(EMPTY, "one", one);
         FieldAttribute two = fieldAttribute();
 
-        Project project = new Project(EMPTY, relation(), asList(one, two));
+        Project project = new Project(EMPTY, relation(), asList(oneAliased, two));
 
         List<Object> list = new ArrayList<>();
-        project.forEachExpression(Literal.class, l -> {
-            if (l.fold().equals(42)) {
-                list.add(l.fold());
+        project.forEachExpression(FieldAttribute.class, l -> {
+            if (l.semanticEquals(one)) {
+                list.add(l);
             }
         });
 
-        assertEquals(singletonList(one.child().fold()), list);
+        assertEquals(singletonList(one), list);
     }
 
     public void testPlanExpressions() {
-        Alias one = new Alias(EMPTY, "one", of(42));
+        FieldAttribute one = fieldAttribute();
+        Alias oneAliased = new Alias(EMPTY, "one", one);
         FieldAttribute two = fieldAttribute();
-        Project project = new Project(EMPTY, relation(), asList(one, two));
+        Project project = new Project(EMPTY, relation(), asList(oneAliased, two));
 
         assertThat(Expressions.names(project.expressions()), contains("one", two.name()));
     }
@@ -148,7 +155,7 @@ public class QueryPlanTests extends ESTestCase {
     public void testPlanReferences() {
         var one = fieldAttribute("one", INTEGER);
         var two = fieldAttribute("two", INTEGER);
-        var add = new Add(EMPTY, one, two);
+        var add = new Add(EMPTY, one, two, TEST_CFG);
         var field = fieldAttribute("field", INTEGER);
 
         var filter = new Filter(EMPTY, relation(), equalsOf(field, add));

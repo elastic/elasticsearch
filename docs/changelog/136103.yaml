@@ -1,0 +1,5 @@
+pr: 136103
+summary: Enable the TEXT_EMBEDDING function in non-snapshot build
+area: ES|QL
+type: feature
+issues: []

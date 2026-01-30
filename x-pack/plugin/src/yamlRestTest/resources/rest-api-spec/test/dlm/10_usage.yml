@@ -1,9 +1,12 @@
 ---
 "Test data stream lifecycle usage stats":
   - requires:
-      cluster_features: "gte_v8.11.0"
-      reason: "the data stream lifecycle stats were updated to the usage api in 8.11"
-      test_runner_features: "allowed_warnings"
+      reason: "Global retention telemetry was added in 8.16+"
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: GET
+          path: /_xpack/usage
+          capabilities: [ 'global_retention_telemetry' ]
 
   - do:
       xpack.usage: {}
@@ -12,9 +15,19 @@
   - match: { data_lifecycle.enabled: true }
   - match: { data_lifecycle.count: 0 }
   - match: { data_lifecycle.default_rollover_used: true }
-  - match: { data_lifecycle.retention.minimum_millis: 0 }
-  - match: { data_lifecycle.retention.maximum_millis: 0 }
-  - match: { data_lifecycle.retention.average_millis: 0 }
+
+  - match: { data_lifecycle.data_retention.configured_data_streams: 0 }
+  - is_false: data_lifecycle.data_retention.minimum_millis
+  - is_false: data_lifecycle.data_retention.maximum_millis
+  - is_false: data_lifecycle.data_retention.average_millis
+
+  - match: { data_lifecycle.effective_retention.retained_data_streams: 0 }
+  - is_false: data_lifecycle.effective_retention.minimum_millis
+  - is_false: data_lifecycle.effective_retention.maximum_millis
+  - is_false: data_lifecycle.effective_retention.average_millis
+
+  - match: { data_lifecycle.global_retention.max.defined: false }
+  - match: { data_lifecycle.global_retention.default.defined: false }
 
   - do:
       allowed_warnings:
@@ -89,9 +102,15 @@
   - match: { data_lifecycle.enabled: true }
   - match: { data_lifecycle.count: 2 }
   - match: { data_lifecycle.default_rollover_used: true }
-  - match: { data_lifecycle.retention.minimum_millis: 432000000 }
-  - match: { data_lifecycle.retention.maximum_millis: 864000000 }
-  - match: { data_lifecycle.retention.average_millis: 648000000 }
+  - match: { data_lifecycle.data_retention.configured_data_streams: 2 }
+  - match: { data_lifecycle.data_retention.minimum_millis: 432000000 }
+  - match: { data_lifecycle.data_retention.maximum_millis: 864000000 }
+  - match: { data_lifecycle.data_retention.average_millis: 648000000 }
+
+  - match: { data_lifecycle.effective_retention.retained_data_streams: 2 }
+  - match: { data_lifecycle.effective_retention.minimum_millis: 432000000 }
+  - match: { data_lifecycle.data_retention.maximum_millis: 864000000 }
+  - match: { data_lifecycle.data_retention.average_millis: 648000000 }
 
   - do:
       indices.delete_data_stream:
@@ -106,6 +125,13 @@
   - match: { data_lifecycle.enabled: true }
   - match: { data_lifecycle.count: 1 }
   - match: { data_lifecycle.default_rollover_used: true }
-  - match: { data_lifecycle.retention.minimum_millis: 432000000 }
-  - match: { data_lifecycle.retention.maximum_millis: 432000000 }
-  - match: { data_lifecycle.retention.average_millis: 432000000 }
+
+  - match: { data_lifecycle.data_retention.configured_data_streams: 1 }
+  - match: { data_lifecycle.data_retention.minimum_millis: 432000000 }
+  - match: { data_lifecycle.data_retention.maximum_millis: 432000000 }
+  - match: { data_lifecycle.data_retention.average_millis: 432000000 }
+
+  - match: { data_lifecycle.effective_retention.retained_data_streams: 1 }
+  - match: { data_lifecycle.effective_retention.minimum_millis: 432000000 }
+  - match: { data_lifecycle.effective_retention.maximum_millis: 432000000 }
+  - match: { data_lifecycle.effective_retention.average_millis: 432000000 }

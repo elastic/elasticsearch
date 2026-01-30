@@ -2,6 +2,9 @@
 setup:
   - skip:
       features: headers
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       cluster.health:
@@ -13,14 +16,15 @@ Filter single field:
       indices.create:
         index: index_fls
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
               secret:
-                type: keyword
+                type: match_only_text
 
   - do:
       bulk:
@@ -70,14 +74,272 @@ Filter single field:
   - is_false: "hits.hits.0._source.secret"
 
 ---
+match_only_text field type grant all except secret field:
+  - do:
+      indices.create:
+        index: index_fls
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              name:
+                type: keyword
+              secret:
+                type: match_only_text
+
+  - do:
+      bulk:
+        index: index_fls
+        refresh: true
+        body:
+          - '{"create": { }}'
+          - '{"name": "A", "secret":"squirrel"}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "index_fls" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "*" ]
+                    except: [ "secret" ]
+  - match: { name: "test-fls" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser...
+  - do:
+      search:
+        index: index_fls
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.secret: squirrel }
+
+  # With FLS API Key
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: index_fls
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.hits.0._source.name: A }
+  - is_false: "hits.hits.0._source.secret"
+
+---
+match_only_text field type grant name field:
+  - do:
+      indices.create:
+        index: index_fls
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              name:
+                type: match_only_text
+              secret:
+                type: match_only_text
+
+  - do:
+      bulk:
+        index: index_fls
+        refresh: true
+        body:
+          - '{"create": { }}'
+          - '{"name": "A", "secret":"squirrel"}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "index_fls" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "name" ]
+  - match: { name: "test-fls" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser...
+  - do:
+      search:
+        index: index_fls
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.secret: squirrel }
+
+  # With FLS API Key
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: index_fls
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.hits.0._source.name: A }
+  - is_false: "hits.hits.0._source.secret"
+
+---
+keyword field type with ignore_above:
+  - do:
+      indices.create:
+        index: index_fls
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              name:
+                type: keyword
+              secret:
+                type: keyword
+                ignore_above: 3
+
+  - do:
+      bulk:
+        index: index_fls
+        refresh: true
+        body:
+          - '{"create": { }}'
+          - '{"name": "A", "secret":"squirrel"}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "index_fls" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "*" ]
+                    except: [ "secret" ]
+  - match: { name: "test-fls" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser...
+  - do:
+      search:
+        index: index_fls
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.secret: squirrel }
+
+  # With FLS API Key
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: index_fls
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.hits.0._source.name: A }
+  - is_false: "hits.hits.0._source.secret"
+
+---
+long field type with ignore_malformed:
+  - do:
+      indices.create:
+        index: index_fls
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              name:
+                type: keyword
+              secret:
+                type: long
+                ignore_malformed: true
+
+  - do:
+      bulk:
+        index: index_fls
+        refresh: true
+        body:
+          - '{"create": { }}'
+          - '{"name": "A", "secret":"squirrel"}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "index_fls" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "*" ]
+                    except: [ "secret" ]
+  - match: { name: "test-fls" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser...
+  - do:
+      search:
+        index: index_fls
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.secret: squirrel }
+
+  # With FLS API Key
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: index_fls
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.hits.0._source.name: A }
+  - is_false: "hits.hits.0._source.secret"
+
+---
 Filter fields in object:
   - do:
       indices.create:
         index: index_fls
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -142,9 +404,10 @@ Fields under a disabled object - uses _ignored_source:
       indices.create:
         index: index_fls
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -236,12 +499,11 @@ Dynamic fields beyond limit - uses _ignored_source:
           settings:
             index:
               mapping:
+                source.mode: synthetic
                 total_fields:
                   ignore_dynamic_beyond_limit: true
                   limit: 2
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -301,9 +563,10 @@ Field with ignored_malformed:
       indices.create:
         index: index_fls
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword

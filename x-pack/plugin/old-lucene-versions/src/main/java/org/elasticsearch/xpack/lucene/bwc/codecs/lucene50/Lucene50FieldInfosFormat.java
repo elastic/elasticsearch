@@ -23,6 +23,7 @@ import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -103,6 +104,7 @@ public final class Lucene50FieldInfosFormat extends FieldInfosFormat {
                             storePayloads,
                             indexOptions,
                             docValuesType,
+                            DocValuesSkipIndexType.NONE,
                             dvGen,
                             attributes,
                             0,

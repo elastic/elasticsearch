@@ -10,6 +10,7 @@ import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -18,11 +19,11 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link TopIntAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorImplementer} instead.
  */
 public final class TopIntAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("topList", ElementType.INT)  );
+      new IntermediateStateDesc("top", ElementType.INT)  );
 
   private final DriverContext driverContext;
 
@@ -35,7 +36,7 @@ public final class TopIntAggregatorFunction implements AggregatorFunction {
   private final boolean ascending;
 
   public TopIntAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-                                  TopIntAggregator.SingleState state, int limit, boolean ascending) {
+      TopIntAggregator.SingleState state, int limit, boolean ascending) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
@@ -43,8 +44,8 @@ public final class TopIntAggregatorFunction implements AggregatorFunction {
     this.ascending = ascending;
   }
 
-  public static TopIntAggregatorFunction create(DriverContext driverContext,
-                                                List<Integer> channels, int limit, boolean ascending) {
+  public static TopIntAggregatorFunction create(DriverContext driverContext, List<Integer> channels,
+      int limit, boolean ascending) {
     return new TopIntAggregatorFunction(driverContext, channels, TopIntAggregator.initSingle(driverContext.bigArrays(), limit, ascending), limit, ascending);
   }
 
@@ -58,31 +59,82 @@ public final class TopIntAggregatorFunction implements AggregatorFunction {
   }
 
   @Override
-  public void addRawInput(Page page) {
-    IntBlock block = page.getBlock(channels.get(0));
-    IntVector vector = block.asVector();
-    if (vector != null) {
-      addRawVector(vector);
+  public void addRawInput(Page page, BooleanVector mask) {
+    if (mask.allFalse()) {
+      // Entire page masked away
+    } else if (mask.allTrue()) {
+      addRawInputNotMasked(page);
     } else {
-      addRawBlock(block);
+      addRawInputMasked(page, mask);
     }
   }
 
-  private void addRawVector(IntVector vector) {
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      TopIntAggregator.combine(state, vector.getInt(i));
+  private void addRawInputMasked(Page page, BooleanVector mask) {
+    IntBlock vBlock = page.getBlock(channels.get(0));
+    IntVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      addRawBlock(vBlock, mask);
+      return;
+    }
+    addRawVector(vVector, mask);
+  }
+
+  private void addRawInputNotMasked(Page page) {
+    IntBlock vBlock = page.getBlock(channels.get(0));
+    IntVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      addRawBlock(vBlock);
+      return;
+    }
+    addRawVector(vVector);
+  }
+
+  private void addRawVector(IntVector vVector) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      int vValue = vVector.getInt(valuesPosition);
+      TopIntAggregator.combine(state, vValue);
     }
   }
 
-  private void addRawBlock(IntBlock block) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
-      if (block.isNull(p)) {
+  private void addRawVector(IntVector vVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        TopIntAggregator.combine(state, block.getInt(i));
+      int vValue = vVector.getInt(valuesPosition);
+      TopIntAggregator.combine(state, vValue);
+    }
+  }
+
+  private void addRawBlock(IntBlock vBlock) {
+    for (int p = 0; p < vBlock.getPositionCount(); p++) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
+        continue;
+      }
+      int vStart = vBlock.getFirstValueIndex(p);
+      int vEnd = vStart + vValueCount;
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        int vValue = vBlock.getInt(vOffset);
+        TopIntAggregator.combine(state, vValue);
+      }
+    }
+  }
+
+  private void addRawBlock(IntBlock vBlock, BooleanVector mask) {
+    for (int p = 0; p < vBlock.getPositionCount(); p++) {
+      if (mask.getBoolean(p) == false) {
+        continue;
+      }
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
+        continue;
+      }
+      int vStart = vBlock.getFirstValueIndex(p);
+      int vEnd = vStart + vValueCount;
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        int vValue = vBlock.getInt(vOffset);
+        TopIntAggregator.combine(state, vValue);
       }
     }
   }
@@ -91,13 +143,13 @@ public final class TopIntAggregatorFunction implements AggregatorFunction {
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block topListUncast = page.getBlock(channels.get(0));
-    if (topListUncast.areAllValuesNull()) {
+    Block topUncast = page.getBlock(channels.get(0));
+    if (topUncast.areAllValuesNull()) {
       return;
     }
-    IntBlock topList = (IntBlock) topListUncast;
-    assert topList.getPositionCount() == 1;
-    TopIntAggregator.combineIntermediate(state, topList);
+    IntBlock top = (IntBlock) topUncast;
+    assert top.getPositionCount() == 1;
+    TopIntAggregator.combineIntermediate(state, top);
   }
 
   @Override

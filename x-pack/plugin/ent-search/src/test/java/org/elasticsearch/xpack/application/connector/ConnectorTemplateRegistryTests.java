@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.application.connector;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -23,15 +22,15 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -41,7 +40,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.application.EnterpriseSearchFeatures;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
@@ -81,8 +79,7 @@ public class ConnectorTemplateRegistryTests extends ESTestCase {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        FeatureService featureService = new FeatureService(List.of(new EnterpriseSearchFeatures()));
-        registry = new ConnectorTemplateRegistry(clusterService, featureService, threadPool, client, NamedXContentRegistry.EMPTY);
+        registry = new ConnectorTemplateRegistry(clusterService, threadPool, client, NamedXContentRegistry.EMPTY);
     }
 
     @After
@@ -136,10 +133,7 @@ public class ConnectorTemplateRegistryTests extends ESTestCase {
         ClusterChangedEvent event = createClusterChangedEvent(
             Collections.emptyMap(),
             Collections.emptyMap(),
-            Collections.singletonMap(
-                ConnectorTemplateRegistry.ENT_SEARCH_GENERIC_PIPELINE_NAME,
-                ConnectorTemplateRegistry.REGISTRY_VERSION
-            ),
+            Collections.singletonMap(ConnectorTemplateRegistry.SEARCH_DEFAULT_PIPELINE_NAME, ConnectorTemplateRegistry.REGISTRY_VERSION),
             Collections.emptyMap(),
             nodes
         );
@@ -173,10 +167,7 @@ public class ConnectorTemplateRegistryTests extends ESTestCase {
                 ConnectorTemplateRegistry.CONNECTOR_TEMPLATE_NAME + "-settings",
                 ConnectorTemplateRegistry.REGISTRY_VERSION - 1
             ),
-            Collections.singletonMap(
-                ConnectorTemplateRegistry.ENT_SEARCH_GENERIC_PIPELINE_NAME,
-                ConnectorTemplateRegistry.REGISTRY_VERSION
-            ),
+            Collections.singletonMap(ConnectorTemplateRegistry.SEARCH_DEFAULT_PIPELINE_NAME, ConnectorTemplateRegistry.REGISTRY_VERSION),
             Collections.emptyMap(),
             nodes
         );
@@ -193,10 +184,7 @@ public class ConnectorTemplateRegistryTests extends ESTestCase {
         ClusterChangedEvent event = createClusterChangedEvent(
             Collections.emptyMap(),
             Collections.singletonMap(ConnectorTemplateRegistry.CONNECTOR_TEMPLATE_NAME + "-mappings", null),
-            Collections.singletonMap(
-                ConnectorTemplateRegistry.ENT_SEARCH_GENERIC_PIPELINE_NAME,
-                ConnectorTemplateRegistry.REGISTRY_VERSION
-            ),
+            Collections.singletonMap(ConnectorTemplateRegistry.SEARCH_DEFAULT_PIPELINE_NAME, ConnectorTemplateRegistry.REGISTRY_VERSION),
             Collections.emptyMap(),
             nodes
         );
@@ -310,25 +298,6 @@ public class ConnectorTemplateRegistryTests extends ESTestCase {
         assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getIngestPipelines().size())));
     }
 
-    public void testThatNothingIsInstalledWhenAllNodesAreNotUpdated() {
-        DiscoveryNode updatedNode = DiscoveryNodeUtils.create("updatedNode");
-        DiscoveryNode outdatedNode = DiscoveryNodeUtils.create("outdatedNode", ESTestCase.buildNewFakeTransportAddress(), Version.V_8_9_0);
-        DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .localNodeId("updatedNode")
-            .masterNodeId("updatedNode")
-            .add(updatedNode)
-            .add(outdatedNode)
-            .build();
-
-        client.setVerifier((a, r, l) -> {
-            fail("if some cluster mode are not updated to at least v.8.10.0 nothing should happen");
-            return null;
-        });
-
-        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), nodes);
-        registry.clusterChanged(event);
-    }
-
     // -------------
 
     /**
@@ -342,7 +311,7 @@ public class ConnectorTemplateRegistryTests extends ESTestCase {
         };
 
         VerifyingClient(ThreadPool threadPool) {
-            super(threadPool);
+            super(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext()));
         }
 
         @Override
@@ -509,16 +478,15 @@ public class ConnectorTemplateRegistryTests extends ESTestCase {
             .collect(Collectors.toMap(Map.Entry::getKey, e -> new LifecyclePolicyMetadata(e.getValue(), Collections.emptyMap(), 1, 1)));
         IndexLifecycleMetadata ilmMeta = new IndexLifecycleMetadata(existingILMMeta, OperationMode.RUNNING);
 
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .indexTemplates(composableTemplates)
+            .componentTemplates(componentTemplates)
+            .putCustom(IngestMetadata.TYPE, ingestMetadata)
+            .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
+            .build();
         return ClusterState.builder(new ClusterName("test"))
-            .metadata(
-                Metadata.builder()
-                    .indexTemplates(composableTemplates)
-                    .componentTemplates(componentTemplates)
-                    .transientSettings(Settings.EMPTY)
-                    .putCustom(IngestMetadata.TYPE, ingestMetadata)
-                    .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
-                    .build()
-            )
+            // We need to ensure only one project is present in the cluster state to simplify the assertions in these tests.
+            .metadata(Metadata.builder().projectMetadata(Map.of(project.id(), project)).build())
             .blocks(new ClusterBlocks.Builder().build())
             .nodes(nodes)
             .build();

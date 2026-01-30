@@ -16,6 +16,7 @@ import org.elasticsearch.common.logging.internal.LevelUtil;
 
 /**
  * Writer that just uses one of the standard log4j loggers.
+ * TODO: Convert this class to use ES Logger API.
  */
 public class Log4jActionWriter implements ActionLogWriter {
 

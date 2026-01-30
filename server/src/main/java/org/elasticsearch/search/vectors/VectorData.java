@@ -258,15 +258,16 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
 
     /**
      * Decodes an encoded string (hex or base64) to VectorData based on the element type and dimensions.
-     * Uses dimensions to disambiguate between hex and base64 when both are valid.
+     * Hex encoding produces byte vectors
+     * Base64 encoding is supported for all element types with proper byte interpretation.
      *
      * @param encoded the encoded vector string
      * @param elementType the element type (BYTE, FLOAT, BFLOAT16, BIT)
-     * @param dims the expected dimensions (can be null if unknown)
+     * @param dims the expected dimensions
      * @return the decoded VectorData
      * @throws IllegalArgumentException if the string cannot be decoded or doesn't match expected dimensions
      */
-    public static VectorData decodeQueryVector(String encoded, ElementType elementType, Integer dims) {
+    public static VectorData decodeQueryVector(String encoded, ElementType elementType, int dims) {
         byte[] hexBytes = tryParseHex(encoded);
         byte[] base64Bytes = tryParseBase64(encoded);
 
@@ -274,8 +275,13 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
             throw invalidEncodedVector();
         }
 
-        // Prefer hex if it matches expected dimensions
-        if (hexBytes != null && matchesExpectedHexLength(hexBytes.length, elementType, dims)) {
+        // Prefer hex if it matches expected dimensions (hex always produces byte[])
+        if (hexBytes != null && hexBytes.length == dims) {
+            return VectorData.fromBytes(hexBytes);
+        }
+
+        // For BIT element type, check hex with bit dimensions
+        if (elementType == ElementType.BIT && hexBytes != null && hexBytes.length == dims / Byte.SIZE) {
             return VectorData.fromBytes(hexBytes);
         }
 
@@ -309,18 +315,7 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
         }
     }
 
-    private static boolean matchesExpectedHexLength(int length, ElementType elementType, Integer dims) {
-        return dims == null || length == getNumBytesForElementType(elementType, dims);
-    }
-
-    private static boolean matchesExpectedBase64Length(int length, ElementType elementType, Integer dims) {
-        if (dims == null) {
-            return switch (elementType) {
-                case BYTE, BIT -> true;
-                case FLOAT -> length % Float.BYTES == 0;
-                case BFLOAT16 -> length % Float.BYTES == 0 || length % BFloat16.BYTES == 0;
-            };
-        }
+    private static boolean matchesExpectedBase64Length(int length, ElementType elementType, int dims) {
         return switch (elementType) {
             case BYTE, BIT -> length == getNumBytesForElementType(elementType, dims);
             case FLOAT -> length == dims * Float.BYTES;
@@ -337,7 +332,7 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
         };
     }
 
-    private static VectorData decodeBase64Vector(byte[] base64Bytes, ElementType elementType, Integer dims) {
+    private static VectorData decodeBase64Vector(byte[] base64Bytes, ElementType elementType, int dims) {
         return switch (elementType) {
             case BYTE, BIT -> VectorData.fromBytes(base64Bytes);
             case FLOAT -> decodeFloatVector(base64Bytes);
@@ -345,14 +340,9 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
         };
     }
 
-    private static VectorData decodeBase64BFloat16Vector(byte[] base64Bytes, Integer dims) {
-        // When dims is known, prefer bfloat16 if it matches exactly, otherwise float
-        if (dims != null) {
-            return base64Bytes.length == dims * BFloat16.BYTES ? decodeBFloat16Vector(base64Bytes) : decodeFloatVector(base64Bytes);
-        }
-        // When dims is unknown, prefer float encoding if compatible
-        // Avoiding accidentally interpreting BFloat16 data as Float.
-        return base64Bytes.length % Float.BYTES == 0 ? decodeFloatVector(base64Bytes) : decodeBFloat16Vector(base64Bytes);
+    private static VectorData decodeBase64BFloat16Vector(byte[] base64Bytes, int dims) {
+        // Prefer bfloat16 if it matches exactly, otherwise float
+        return base64Bytes.length == dims * BFloat16.BYTES ? decodeBFloat16Vector(base64Bytes) : decodeFloatVector(base64Bytes);
     }
 
     private static IllegalArgumentException invalidEncodedVector() {

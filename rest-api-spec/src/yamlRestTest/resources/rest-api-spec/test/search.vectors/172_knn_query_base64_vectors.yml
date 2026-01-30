@@ -401,3 +401,62 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "1" }
   - match: { hits.hits.0.fields.name.0: "doc1" }
+
+---
+"kNN query on empty index with dynamic dims returns empty results":
+  # Create an index with dynamic dimensions (dims not specified) and no documents
+  - do:
+      indices.create:
+        index: knn_empty_dynamic_dims_index
+        body:
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                index: true
+                similarity: l2_norm
+
+  # Array-based query returns empty results (MatchNoDocsQuery)
+  - do:
+      search:
+        index: knn_empty_dynamic_dims_index
+        body:
+          query:
+            knn:
+              field: vector
+              query_vector: [0.1, 0.2, 0.3]
+              k: 1
+              num_candidates: 1
+
+  - match: { hits.total.value: 0 }
+  - length: { hits.hits: 0 }
+
+  # Base64 encoded query also returns empty results (consistent behavior)
+  - do:
+      search:
+        index: knn_empty_dynamic_dims_index
+        body:
+          query:
+            knn:
+              field: vector
+              query_vector: "PczMzT5MzM0+mZma"
+              k: 1
+              num_candidates: 1
+
+  - match: { hits.total.value: 0 }
+  - length: { hits.hits: 0 }
+
+  # Hex encoded query also returns empty results
+  - do:
+      search:
+        index: knn_empty_dynamic_dims_index
+        body:
+          query:
+            knn:
+              field: vector
+              query_vector: "0a141e"
+              k: 1
+              num_candidates: 1
+
+  - match: { hits.total.value: 0 }
+  - length: { hits.hits: 0 }

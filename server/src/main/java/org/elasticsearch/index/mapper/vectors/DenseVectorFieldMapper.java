@@ -2755,6 +2755,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
                 );
             }
+            if (dims == null) {
+                return new MatchNoDocsQuery("No data has been indexed for field [" + name() + "]");
+            }
             VectorData resolvedQueryVector = resolveQueryVector(queryVector);
             Query knnQuery = switch (element.elementType()) {
                 case BYTE -> createExactKnnByteQuery(resolvedQueryVector.asByteVector());
@@ -2823,10 +2826,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
                 );
             }
-            VectorData resolvedQueryVector = resolveQueryVector(queryVector);
             if (dims == null) {
                 return new MatchNoDocsQuery("No data has been indexed for field [" + name() + "]");
             }
+            VectorData resolvedQueryVector = resolveQueryVector(queryVector);
             KnnSearchStrategy knnSearchStrategy = heuristic.getKnnSearchStrategy();
             hnswEarlyTermination &= canApplyPatienceQuery();
             return switch (getElementType()) {

@@ -792,8 +792,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TaskType.SPARSE_EMBEDDING,
                     ElasticInferenceService.NAME,
                     new ElasticInferenceServiceSparseEmbeddingsServiceSettings(nameSparse, null, null),
-                    EmptyTaskSettings.INSTANCE,
-                    EmptySecretSettings.INSTANCE,
                     new ElasticInferenceServiceComponents(url),
                     ChunkingSettingsBuilder.DEFAULT_SETTINGS,
                     DEFAULT_ENDPOINT_METADATA
@@ -904,7 +902,12 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
-                new EndpointMetadata.Heuristics(List.of(), StatusHeuristic.fromString(status), TEST_RELEASE_DATE_PARSED, TEST_END_OF_LIFE_DATE_PARSED),
+                new EndpointMetadata.Heuristics(
+                    List.of(),
+                    StatusHeuristic.fromString(status),
+                    TEST_RELEASE_DATE_PARSED,
+                    TEST_END_OF_LIFE_DATE_PARSED
+                ),
                 new EndpointMetadata.Internal(fingerprint, ENDPOINT_VERSION),
                 null
             )
@@ -1176,12 +1179,15 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             TaskType.SPARSE_EMBEDDING,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceSparseEmbeddingsServiceSettings(name, null, null),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.fromMap(chunkingSettings),
             new EndpointMetadata(
-                new EndpointMetadata.Heuristics(List.of(), StatusHeuristic.fromString(status), TEST_RELEASE_DATE_PARSED, TEST_END_OF_LIFE_DATE_PARSED),
+                new EndpointMetadata.Heuristics(
+                    List.of(),
+                    StatusHeuristic.fromString(status),
+                    TEST_RELEASE_DATE_PARSED,
+                    TEST_END_OF_LIFE_DATE_PARSED
+                ),
                 new EndpointMetadata.Internal(null, ENDPOINT_VERSION),
                 null
             )
@@ -1241,7 +1247,12 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.fromMap(chunkingSettings),
             new EndpointMetadata(
-                new EndpointMetadata.Heuristics(List.of(), StatusHeuristic.fromString(status), TEST_RELEASE_DATE_PARSED, TEST_END_OF_LIFE_DATE_PARSED),
+                new EndpointMetadata.Heuristics(
+                    List.of(),
+                    StatusHeuristic.fromString(status),
+                    TEST_RELEASE_DATE_PARSED,
+                    TEST_END_OF_LIFE_DATE_PARSED
+                ),
                 new EndpointMetadata.Internal(null, ENDPOINT_VERSION),
                 null
             )
@@ -1281,12 +1292,15 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             TaskType.SPARSE_EMBEDDING,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceSparseEmbeddingsServiceSettings(name, null, null),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.fromMap(Map.of()),
             new EndpointMetadata(
-                new EndpointMetadata.Heuristics(List.of(), StatusHeuristic.fromString(status), TEST_RELEASE_DATE_PARSED, TEST_END_OF_LIFE_DATE_PARSED),
+                new EndpointMetadata.Heuristics(
+                    List.of(),
+                    StatusHeuristic.fromString(status),
+                    TEST_RELEASE_DATE_PARSED,
+                    TEST_END_OF_LIFE_DATE_PARSED
+                ),
                 new EndpointMetadata.Internal(null, ENDPOINT_VERSION),
                 null
             )

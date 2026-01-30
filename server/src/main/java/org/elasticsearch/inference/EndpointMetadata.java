@@ -34,12 +34,12 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, @Nullab
 
     public static final EndpointMetadata EMPTY = new EndpointMetadata(Heuristics.EMPTY, Internal.EMPTY, null);
 
-    static final String METADATA = "metadata";
+    public static final String METADATA = "metadata";
+    public static final String HEURISTICS = "heuristics";
+    public static final String INTERNAL = "internal";
+    public static final String NAME = "name";
 
     private static final String INCLUDE_INTERNAL_FIELDS = "include_internal_fields";
-    private static final String HEURISTICS = "heuristics";
-    private static final String INTERNAL = "internal";
-    private static final String NAME = "name";
 
     private static final ConstructingObjectParser<EndpointMetadata, Void> PARSER = new ConstructingObjectParser<>(
         "endpoint_metadata_fields",

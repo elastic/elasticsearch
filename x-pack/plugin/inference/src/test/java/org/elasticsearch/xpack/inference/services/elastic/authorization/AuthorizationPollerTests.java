@@ -11,8 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.EmptySecretSettings;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.TaskId;
@@ -243,8 +241,6 @@ public class AuthorizationPollerTests extends ESTestCase {
             TaskType.SPARSE_EMBEDDING,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelName, null, null),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS
         );

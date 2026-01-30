@@ -18,6 +18,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.StatusHeuristic;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.inference.common.parser.DateParser;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
@@ -31,8 +32,6 @@ import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInfere
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 
-import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -45,6 +44,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.inference.services.elastic.authorization.EndpointSchemaMigration.ENDPOINT_VERSION;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint.END_OF_LIFE_DATE;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint.RELEASE_DATE;
 
 /**
  * Transforms the response from {@link ElasticInferenceServiceAuthorizationRequestHandler} into a format
@@ -150,20 +151,9 @@ public class ElasticInferenceServiceAuthorizationModel {
         return new EndpointMetadata.Heuristics(
             authorizedEndpoint.properties() != null ? List.copyOf(authorizedEndpoint.properties()) : List.of(),
             StatusHeuristic.fromString(authorizedEndpoint.status()),
-            getLocalDate(authorizedEndpoint.releaseDate()),
-            getLocalDate(authorizedEndpoint.endOfLifeDate())
+            DateParser.parseLocalDate(authorizedEndpoint.releaseDate(), RELEASE_DATE, ""),
+            DateParser.parseLocalDate(authorizedEndpoint.endOfLifeDate(), END_OF_LIFE_DATE, "")
         );
-    }
-
-    private static LocalDate getLocalDate(String dateString) {
-        try {
-            if (dateString == null) {
-                return null;
-            }
-            return LocalDate.parse(dateString);
-        } catch (DateTimeParseException e) {
-            throw new IllegalArgumentException(e);
-        }
     }
 
     private static EndpointMetadata.Internal getInternalFields(
@@ -200,8 +190,6 @@ public class ElasticInferenceServiceAuthorizationModel {
             TaskType.SPARSE_EMBEDDING,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceSparseEmbeddingsServiceSettings(authorizedEndpoint.modelName(), null, null),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             components,
             ChunkingSettingsBuilder.fromMap(getChunkingSettingsMap(getConfigurationOrEmpty(authorizedEndpoint))),
             endpointMetadata

@@ -12,10 +12,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.EndpointMetadata;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -26,6 +28,7 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
@@ -344,7 +347,8 @@ public class ElasticInferenceService extends SenderService {
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        @Nullable EndpointMetadata endpointMetadata
     ) {
         return switch (taskType) {
             case SPARSE_EMBEDDING -> new ElasticInferenceServiceSparseEmbeddingsModel(
@@ -352,11 +356,10 @@ public class ElasticInferenceService extends SenderService {
                 taskType,
                 NAME,
                 serviceSettings,
-                taskSettings,
-                secretSettings,
                 elasticInferenceServiceComponents,
                 context,
-                chunkingSettings
+                chunkingSettings,
+                endpointMetadata
             );
             case CHAT_COMPLETION, COMPLETION -> new ElasticInferenceServiceCompletionModel(
                 inferenceEntityId,
@@ -366,7 +369,8 @@ public class ElasticInferenceService extends SenderService {
                 taskSettings,
                 secretSettings,
                 elasticInferenceServiceComponents,
-                context
+                context,
+                endpointMetadata
             );
             case RERANK -> new ElasticInferenceServiceRerankModel(
                 inferenceEntityId,
@@ -387,19 +391,19 @@ public class ElasticInferenceService extends SenderService {
                 secretSettings,
                 elasticInferenceServiceComponents,
                 context,
-                chunkingSettings
+                chunkingSettings,
+                endpointMetadata
             );
             default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
         };
     }
 
     @Override
-    public Model parsePersistedConfigWithSecrets(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> config,
-        Map<String, Object> secrets
-    ) {
+    public Model parsePersistedConfigWithSecrets(UnparsedModel unparsedModel) {
+        var config = unparsedModel.settings();
+        var secrets = unparsedModel.secrets();
+        var taskType = unparsedModel.taskType();
+
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
@@ -410,13 +414,24 @@ public class ElasticInferenceService extends SenderService {
         }
 
         return createModelFromPersistent(
-            inferenceEntityId,
+            unparsedModel.inferenceEntityId(),
             taskType,
             serviceSettingsMap,
             taskSettingsMap,
             chunkingSettings,
-            secretSettingsMap
+            secretSettingsMap,
+            unparsedModel.endpointMetadata()
         );
+    }
+
+    @Override
+    public Model parsePersistedConfigWithSecrets(
+        String inferenceEntityId,
+        TaskType taskType,
+        Map<String, Object> config,
+        Map<String, Object> secrets
+    ) {
+        throw new UnsupportedOperationException(Strings.format("[%s] requires an unparsed model"));
     }
 
     @Override
@@ -443,7 +458,8 @@ public class ElasticInferenceService extends SenderService {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
-        @Nullable Map<String, Object> secretSettings
+        @Nullable Map<String, Object> secretSettings,
+        EndpointMetadata endpointMetadata
     ) {
         return createModel(
             inferenceEntityId,
@@ -453,7 +469,8 @@ public class ElasticInferenceService extends SenderService {
             chunkingSettings,
             secretSettings,
             elasticInferenceServiceComponents,
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.PERSISTENT,
+            endpointMetadata
         );
     }
 

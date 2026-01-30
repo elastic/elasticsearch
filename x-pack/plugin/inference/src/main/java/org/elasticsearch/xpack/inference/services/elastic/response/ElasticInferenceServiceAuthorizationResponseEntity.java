@@ -82,13 +82,14 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
         @Nullable String fingerprint
     ) implements Writeable, ToXContentObject {
 
+        public static final String RELEASE_DATE = "release_date";
+        public static final String END_OF_LIFE_DATE = "end_of_life_date";
+
         private static final String ID = "id";
         private static final String MODEL_NAME = "model_name";
         private static final String TASK_TYPE = "task_types";
         private static final String STATUS = "status";
         private static final String PROPERTIES = "properties";
-        private static final String RELEASE_DATE = "release_date";
-        private static final String END_OF_LIFE_DATE = "end_of_life_date";
         private static final String CONFIGURATION = "configuration";
         private static final String KIBANA_CONNECTOR_NAME = "kibana_connector_name";
         private static final String FINGERPRINT = "fingerprint";

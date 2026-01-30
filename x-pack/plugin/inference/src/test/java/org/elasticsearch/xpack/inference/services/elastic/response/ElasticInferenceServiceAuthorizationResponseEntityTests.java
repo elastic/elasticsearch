@@ -308,8 +308,6 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             TaskType.SPARSE_EMBEDDING,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceSparseEmbeddingsServiceSettings(ELSER_V2_MODEL_NAME, null, null),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
             new SentenceBoundaryChunkingSettings(250, 1),
             new EndpointMetadata(
@@ -590,12 +588,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
-                new EndpointMetadata.Heuristics(
-                    List.of(),
-                    StatusHeuristic.fromString("preview"),
-                    LocalDate.parse("2024-05-01"),
-                    null
-                ),
+                new EndpointMetadata.Heuristics(List.of(), StatusHeuristic.fromString("preview"), LocalDate.parse("2024-05-01"), null),
                 new EndpointMetadata.Internal("fingerprint567", ENDPOINT_VERSION),
                 "Jina Reranker V2"
             )

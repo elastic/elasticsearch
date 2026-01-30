@@ -41,7 +41,8 @@ public class MatchTailDocsQuery extends Query {
                     @Override
                     public Scorer get(long leadCost) {
                         int maxDoc = context.reader().maxDoc();
-                        return new ConstantScoreScorer(boost, scoreMode, DocIdSetIterator.range(maxDoc - size, maxDoc));
+                        int numDocs = context.reader().numDocs();
+                        return new ConstantScoreScorer(boost, scoreMode, DocIdSetIterator.range(numDocs - size, maxDoc));
                     }
 
                     @Override

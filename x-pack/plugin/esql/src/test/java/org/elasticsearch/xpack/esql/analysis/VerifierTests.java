@@ -73,6 +73,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ML_INFERENCE_SAGEMAKER_CHAT_COMPLETION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
@@ -3325,7 +3326,9 @@ public class VerifierTests extends ESTestCase {
     public void testSubqueryInFromWithNewDataTypes() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         // pick a transport version that does not support dense_vector
-        TransportVersion transportVersion = TransportVersionUtils.getPreviousVersion(ESQL_DENSE_VECTOR_CREATED_VERSION);
+        TransportVersion transportVersion = TransportVersionUtils.getPreviousVersion(
+            Build.current().isSnapshot() ? ML_INFERENCE_SAGEMAKER_CHAT_COMPLETION : ESQL_DENSE_VECTOR_CREATED_VERSION
+        );
         String errorMessage = errorOnExactTransportVersion("""
             FROM (FROM colors | WHERE knn(rgb_vector, "007800")), (FROM languages) metadata _score
             | sort _score desc, color asc

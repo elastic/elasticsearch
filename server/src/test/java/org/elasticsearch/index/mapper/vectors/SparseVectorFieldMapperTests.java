@@ -97,13 +97,13 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         Set<IndexVersion> supported = new HashSet<>();
         // versions 7.x are "supported" but deprecated
         supported.addAll(KnownIndexVersions.ALL_VERSIONS.subSet(IndexVersions.V_7_0_0, true, IndexVersions.V_8_0_0, false));
-        supported.addAll(KnownIndexVersions.ALL_VERSIONS.tailSet(IndexVersions.FIRST_DETACHED_INDEX_VERSION, true));
+        supported.addAll(KnownIndexVersions.ALL_VERSIONS.tailSet(NEW_SPARSE_VECTOR, true));
         return supported;
     }
 
     @Override
     protected Set<IndexVersion> getUnsupportedVersions() {
-        return KnownIndexVersions.ALL_VERSIONS.subSet(IndexVersions.V_8_0_0, true, IndexVersions.FIRST_DETACHED_INDEX_VERSION, false);
+        return KnownIndexVersions.ALL_VERSIONS.subSet(IndexVersions.V_8_0_0, true, IndexVersions.FIRST_DETACHED_INDEX_VERSION, true);
     }
 
     @Override

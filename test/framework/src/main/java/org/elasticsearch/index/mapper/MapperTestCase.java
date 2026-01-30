@@ -88,6 +88,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -1755,7 +1756,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         Set<IndexVersion> supportedVersions = getSupportedVersions();
         for (int i = 0; i < Math.min(supportedVersions.size(), 100); i++) {
             IndexVersion indexVersion = randomFrom(supportedVersions);
-            MapperService mapperService = createMapperService(indexVersion, fieldMapping(this::minimalMapping));
+            try {
+                MapperService mapperService = createMapperService(indexVersion, fieldMapping(this::minimalMapping));
+            } catch (MapperException e) {
+                throw new MapperException(String.format(Locale.ROOT, "failed on version=%s msg=%s", indexVersion, e.getMessage()), e);
+            }
             assertWarningsForIndexVersion(indexVersion);
         }
     }

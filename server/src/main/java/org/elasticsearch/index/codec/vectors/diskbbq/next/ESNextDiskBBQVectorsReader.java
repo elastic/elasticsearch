@@ -825,7 +825,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
                 } else {
                     queryQuantizer.quantizeQueryIfNecessary();
                     final float maxScore;
-                    if (docsToBulkScore < BULK_SIZE / 2) {
+                    if (docsToBulkScore < tailSize / 2) {
                         maxScore = scoreIndividually(tailSize);
                     } else {
                         maxScore = osqVectorsScorer.scoreBulk(

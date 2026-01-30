@@ -73,11 +73,10 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
             }
 
             default -> {
+                // Malformed values are excluded
+                return null;
             }
         }
-
-        // Malformed values are excluded
-        return null;
     }
 
     /**
@@ -93,10 +92,9 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
                 return bd.toBigIntegerExact();
             } catch (NumberFormatException | ArithmeticException ex2) {
                 // not a valid number
+                return null;
             }
         }
-
-        return null;
     }
 
     protected abstract T convert(Number value, Map<String, Object> fieldMapping);

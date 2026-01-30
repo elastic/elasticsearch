@@ -25,7 +25,7 @@ public class CountingStreamOutput extends StreamOutput {
         size = 0L;
     }
 
-    /** returns how many bytes would have been written  */
+    /** returns how many bytes would have been written -- TODO replace with position() from StreamOutput interface  */
     public long size() {
         return size;
     }
@@ -38,6 +38,11 @@ public class CountingStreamOutput extends StreamOutput {
     @Override
     public void writeBytes(byte[] b, int offset, int length) {
         size += length;
+    }
+
+    @Override
+    public long position() {
+        return size;
     }
 
     @Override

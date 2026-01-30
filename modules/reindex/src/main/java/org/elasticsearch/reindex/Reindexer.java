@@ -59,7 +59,6 @@ import org.elasticsearch.script.ReindexMetadata;
 import org.elasticsearch.script.ReindexScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -92,7 +91,7 @@ public class Reindexer {
     private final ScriptService scriptService;
     private final ReindexSslConfig reindexSslConfig;
     private final ReindexMetrics reindexMetrics;
-    private final CrossProjectModeDecider crossProjectModeDecider;
+    private final boolean supportsCrossProjectSearch;
 
     Reindexer(
         ClusterService clusterService,
@@ -101,6 +100,7 @@ public class Reindexer {
         ThreadPool threadPool,
         ScriptService scriptService,
         ReindexSslConfig reindexSslConfig,
+        boolean supportsCrossProjectSearch,
         @Nullable ReindexMetrics reindexMetrics
     ) {
         this.clusterService = clusterService;
@@ -109,8 +109,8 @@ public class Reindexer {
         this.threadPool = threadPool;
         this.scriptService = scriptService;
         this.reindexSslConfig = reindexSslConfig;
+        this.supportsCrossProjectSearch = supportsCrossProjectSearch;
         this.reindexMetrics = reindexMetrics;
-        this.crossProjectModeDecider = new CrossProjectModeDecider(clusterService.getSettings());
     }
 
     public void initTask(BulkByScrollTask task, ReindexRequest request, ActionListener<Void> listener) {
@@ -120,7 +120,7 @@ public class Reindexer {
     public void execute(BulkByScrollTask task, ReindexRequest request, Client bulkClient, ActionListener<BulkByScrollResponse> listener) {
         long startTime = System.nanoTime();
 
-        if (request.getRemoteInfo() == null && crossProjectModeDecider.crossProjectEnabled()) {
+        if (request.getRemoteInfo() == null && supportsCrossProjectSearch) {
             logger.info("--> enable CPS for search request");
             request.getSearchRequest()
                 .indicesOptions(

@@ -28,6 +28,7 @@ import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -73,6 +74,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             client,
             transportService,
             sslConfig,
+            true,
             reindexMetrics
         );
     }
@@ -90,6 +92,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         Client client,
         TransportService transportService,
         ReindexSslConfig sslConfig,
+        boolean supportsCrossProjectSearch,
         @Nullable ReindexMetrics reindexMetrics
     ) {
         super(name, transportService, actionFilters, ReindexRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -101,7 +104,16 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             projectResolver,
             autoCreateIndex
         );
-        this.reindexer = new Reindexer(clusterService, projectResolver, client, threadPool, scriptService, sslConfig, reindexMetrics);
+        this.reindexer = new Reindexer(
+            clusterService,
+            projectResolver,
+            client,
+            threadPool,
+            scriptService,
+            sslConfig,
+            supportsCrossProjectSearch && new CrossProjectModeDecider(settings).crossProjectEnabled(),
+            reindexMetrics
+        );
     }
 
     @Override

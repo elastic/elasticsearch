@@ -25,10 +25,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
@@ -144,33 +142,33 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
         IndexMetadata indexMetadata,
         NotPreferredPredicate notPreferredPredicate
     ) {
-        final Set<DiscoveryNode> eligibleNodes = new HashSet<>();
+        int eligibleNodes = 0;
         int totalShards = 0;
         String nomenclature = EMPTY;
 
         if (node.node().getRoles().contains(INDEX_ROLE)) {
-            collectEligibleNodes(allocation, eligibleNodes, INDEX_ROLE);
+            eligibleNodes = countEligibleNodes(allocation, INDEX_ROLE);
             // Primary shards only.
             totalShards = allocation.getClusterState().routingTable(projectId).index(index).size();
             nomenclature = "index";
         } else if (node.node().getRoles().contains(SEARCH_ROLE)) {
-            collectEligibleNodes(allocation, eligibleNodes, SEARCH_ROLE);
+            eligibleNodes = countEligibleNodes(allocation, SEARCH_ROLE);
             // Replicas only.
             totalShards = indexMetadata.getNumberOfShards() * indexMetadata.getNumberOfReplicas();
             nomenclature = "search";
         }
 
-        if (eligibleNodes.isEmpty()) {
+        if (eligibleNodes == 0) {
             // It's possible if a cluster is shutting down, we might have no non-shutting down search nodes
             return allocation.decision(Decision.YES, NAME, "There are no eligible nodes available.");
         }
         assert totalShards > 0;
-        final double idealAllocation = Math.ceil((double) totalShards / eligibleNodes.size());
+        final double idealAllocation = Math.ceil((double) totalShards / eligibleNodes);
 
         // Adding the excess shards before division ensures that with tolerance 1 we get:
         // 2 shards, 2 nodes, allow 2 on each
         // 3 shards, 2 nodes, allow 2 on each etc.
-        final int threshold = Math.ceilDiv(totalShards + indexBalanceConstraintSettings.getExcessShards(), eligibleNodes.size());
+        final int threshold = Math.ceilDiv(totalShards + indexBalanceConstraintSettings.getExcessShards(), eligibleNodes);
         final int currentAllocation = node.numberOfOwningShardsForIndex(index);
 
         if (notPreferredPredicate.test(currentAllocation, threshold)) {
@@ -178,7 +176,7 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
                 "There are [%d] eligible nodes in the [%s] tier for assignment of [%d] shards in index [%s]. Ideally no more than [%.0f] "
                     + "shard would be assigned per node (the index balance excess shards setting is [%d]). This node is already assigned"
                     + " [%d] shards of the index.",
-                eligibleNodes.size(),
+                eligibleNodes,
                 nomenclature,
                 totalShards,
                 index,
@@ -206,12 +204,14 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
         boolean test(int currentAllocation, int threshold);
     }
 
-    private void collectEligibleNodes(RoutingAllocation allocation, Set<DiscoveryNode> eligibleNodes, DiscoveryNodeRole role) {
+    private int countEligibleNodes(RoutingAllocation allocation, DiscoveryNodeRole role) {
+        int eligibleNodes = 0;
         for (DiscoveryNode discoveryNode : allocation.nodes()) {
             if (discoveryNode.getRoles().contains(role) && allocation.metadata().nodeShutdowns().contains(discoveryNode.getId()) == false) {
-                eligibleNodes.add(discoveryNode);
+                eligibleNodes++;
             }
         }
+        return eligibleNodes;
     }
 
     private void setClusterRequireFilters(Map<String, List<String>> filters) {

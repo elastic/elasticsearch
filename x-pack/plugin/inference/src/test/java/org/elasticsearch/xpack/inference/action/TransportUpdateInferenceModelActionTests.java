@@ -125,13 +125,13 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     }
 
     public void testMasterOperation_RuntimeExceptionThrown_ThrowsSameException() {
-        var exceptionMessage = "Model not found";
-        mockGetModelWithSecretsToFailWithException(new RuntimeException(exceptionMessage));
+        var simulatedException = new RuntimeException("Model not found");
+        mockGetModelWithSecretsToFailWithException(simulatedException);
 
         var listener = callMasterOperationWithActionFuture();
 
-        var exception = expectThrows(RuntimeException.class, () -> listener.actionGet(TimeValue.timeValueSeconds(5)));
-        assertThat(exception.getMessage(), sameInstance(exceptionMessage));
+        var actualException = expectThrows(RuntimeException.class, () -> listener.actionGet(TimeValue.timeValueSeconds(5)));
+        assertThat(actualException, sameInstance(simulatedException));
     }
 
     public void testMasterOperation_NullReturned_ThrowsElasticsearchStatusException() {
@@ -221,17 +221,17 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         mockServiceInferCallToReturnDenseEmbeddingFloatResults();
         mockUpdateModelWithEmbeddingDetailsToReturnSameModel();
 
-        var exceptionMessage = "update failed";
+        var simulatedException = new RuntimeException("update failed");
         doAnswer(invocationOnMock -> {
             ActionListener<Boolean> listener = invocationOnMock.getArgument(2);
-            listener.onFailure(new RuntimeException(exceptionMessage));
+            listener.onFailure(simulatedException);
             return Void.TYPE;
         }).when(mockModelRegistry).updateModelTransaction(any(GoogleVertexAiEmbeddingsModel.class), eq(model), any());
 
         var listener = callMasterOperationWithActionFuture();
 
-        var exception = expectThrows(RuntimeException.class, () -> listener.actionGet(TimeValue.timeValueSeconds(5)));
-        assertThat(exception.getMessage(), is(exceptionMessage));
+        var actualException = expectThrows(RuntimeException.class, () -> listener.actionGet(TimeValue.timeValueSeconds(5)));
+        assertThat(actualException, sameInstance(simulatedException));
     }
 
     public void testMasterOperation_UpdateModelTransactionReturnedFalse_ThrowsElasticsearchStatusException() {

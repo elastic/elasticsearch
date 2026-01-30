@@ -24,6 +24,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
 import org.elasticsearch.core.Nullable;
@@ -44,39 +45,32 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.IntFunction;
+import java.util.function.BiFunction;
 
 /**
  * Generates a list of Lucene queries based on the input block.
+ * Each QueryList stores a channel offset to extract the correct Block from the Page.
  */
 public abstract class QueryList implements LookupEnrichQueryGenerator {
-    protected final SearchExecutionContext searchExecutionContext;
     protected final AliasFilter aliasFilter;
     protected final MappedFieldType field;
-    protected final Block block;
+    protected final int channelOffset; // Channel index in the input Page
     @Nullable
     protected final OnlySingleValueParams onlySingleValueParams;
 
-    protected QueryList(
-        MappedFieldType field,
-        SearchExecutionContext searchExecutionContext,
-        AliasFilter aliasFilter,
-        Block block,
-        OnlySingleValueParams onlySingleValueParams
-    ) {
-        this.searchExecutionContext = searchExecutionContext;
+    protected QueryList(MappedFieldType field, AliasFilter aliasFilter, int channelOffset, OnlySingleValueParams onlySingleValueParams) {
         this.aliasFilter = aliasFilter;
         this.field = field;
-        this.block = block;
+        this.channelOffset = channelOffset;
         this.onlySingleValueParams = onlySingleValueParams;
     }
 
     /**
-     * Returns the number of positions in this query list
+     * Returns the number of positions in this query list (same as input block position count).
      */
     @Override
-    public int getPositionCount() {
-        return block.getPositionCount();
+    public int getPositionCount(Page inputPage) {
+        return inputPage.getBlock(channelOffset).getPositionCount();
     }
 
     /**
@@ -89,8 +83,9 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
     public abstract QueryList onlySingleValues(Warnings warnings, String multiValueWarningMessage);
 
     @Override
-    public final Query getQuery(int position) {
-        final int valueCount = block.getValueCount(position);
+    public final Query getQuery(int position, Page inputPage, SearchExecutionContext searchExecutionContext) {
+        Block inputBlock = inputPage.getBlock(channelOffset);
+        final int valueCount = inputBlock.getValueCount(position);
         if (onlySingleValueParams != null && valueCount != 1) {
             if (valueCount > 1) {
                 onlySingleValueParams.warnings.registerException(
@@ -99,9 +94,9 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
             }
             return null;
         }
-        final int firstValueIndex = block.getFirstValueIndex(position);
+        final int firstValueIndex = inputBlock.getFirstValueIndex(position);
 
-        Query query = doGetQuery(position, firstValueIndex, valueCount);
+        Query query = doGetQuery(position, firstValueIndex, valueCount, inputBlock, searchExecutionContext);
 
         if (aliasFilter != null && aliasFilter != AliasFilter.EMPTY) {
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
@@ -115,7 +110,7 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
         }
 
         if (onlySingleValueParams != null) {
-            query = wrapSingleValueQuery(query);
+            query = wrapSingleValueQuery(query, searchExecutionContext);
         }
 
         return query;
@@ -125,9 +120,15 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
      * Returns the query at the given position.
      */
     @Nullable
-    public abstract Query doGetQuery(int position, int firstValueIndex, int valueCount);
+    public abstract Query doGetQuery(
+        int position,
+        int firstValueIndex,
+        int valueCount,
+        Block inputBlock,
+        SearchExecutionContext searchExecutionContext
+    );
 
-    private Query wrapSingleValueQuery(Query query) {
+    private Query wrapSingleValueQuery(Query query, SearchExecutionContext searchExecutionContext) {
         assert onlySingleValueParams != null : "Requested to wrap single value query without single value params";
 
         SingleValueMatchQuery singleValueQuery = new SingleValueMatchQuery(
@@ -155,74 +156,44 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
     }
 
     /**
-     * Returns a function that reads values from the given block. The function
-     * takes the offset of the value to read and returns the value as an {@link Object}.
+     * Returns a function that reads values from a block given its element type.
+     * The function takes the block and offset, and returns the value as an {@link Object}.
      */
-    public static IntFunction<Object> createBlockValueReader(Block block) {
-        return switch (block.elementType()) {
-            case BOOLEAN -> {
-                BooleanBlock booleanBlock = (BooleanBlock) block;
-                yield booleanBlock::getBoolean;
-            }
-            case BYTES_REF -> offset -> {
-                BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
-                return bytesRefBlock.getBytesRef(offset, new BytesRef());
-            };
-            case DOUBLE -> {
-                DoubleBlock doubleBlock = ((DoubleBlock) block);
-                yield doubleBlock::getDouble;
-            }
-            case FLOAT -> {
-                FloatBlock floatBlock = ((FloatBlock) block);
-                yield floatBlock::getFloat;
-            }
-            case LONG -> {
-                LongBlock intBlock = (LongBlock) block;
-                yield intBlock::getLong;
-            }
-            case INT -> {
-                IntBlock intBlock = (IntBlock) block;
-                yield intBlock::getInt;
-            }
-            case NULL -> offset -> null;
+    public static BiFunction<Block, Integer, Object> createBlockValueReaderForType(ElementType elementType) {
+        return switch (elementType) {
+            case BOOLEAN -> (block, offset) -> ((BooleanBlock) block).getBoolean(offset);
+            case BYTES_REF -> (block, offset) -> ((BytesRefBlock) block).getBytesRef(offset, new BytesRef());
+            case DOUBLE -> (block, offset) -> ((DoubleBlock) block).getDouble(offset);
+            case FLOAT -> (block, offset) -> ((FloatBlock) block).getFloat(offset);
+            case LONG -> (block, offset) -> ((LongBlock) block).getLong(offset);
+            case INT -> (block, offset) -> ((IntBlock) block).getInt(offset);
+            case NULL -> (block, offset) -> null;
             case DOC -> throw new IllegalArgumentException("can't read values from [doc] block");
             case COMPOSITE -> throw new IllegalArgumentException("can't read values from [composite] block");
             case AGGREGATE_METRIC_DOUBLE -> throw new IllegalArgumentException("can't read values from [aggregate metric double] block");
             case EXPONENTIAL_HISTOGRAM -> throw new IllegalArgumentException("can't read values from [exponential histogram] block");
             case TDIGEST -> throw new IllegalArgumentException("can't read values from [tdigest] block");
             case LONG_RANGE -> throw new IllegalArgumentException("can't read values from [long range] block");
-            case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
+            case UNKNOWN -> (block, offset) -> { throw new IllegalArgumentException("can't read values from [" + block + "]"); };
         };
     }
 
     /**
-     * Returns a list of term queries for the given field and the input block
-     * using only the {@link ElementType} of the {@link Block} to determine the
-     * query.
+     * Returns a list of term queries for the given field and element type.
      */
-    public static QueryList rawTermQueryList(
-        MappedFieldType field,
-        SearchExecutionContext searchExecutionContext,
-        AliasFilter aliasFilter,
-        Block block
-    ) {
-        return new TermQueryList(field, searchExecutionContext, aliasFilter, block, null, createBlockValueReader(block));
+    public static QueryList rawTermQueryList(MappedFieldType field, AliasFilter aliasFilter, int channelOffset, ElementType elementType) {
+        return new TermQueryList(field, aliasFilter, channelOffset, null, createBlockValueReaderForType(elementType));
     }
 
     /**
-     * Returns a list of term queries for the given field and the input block of
-     * {@code ip} field values.
+     * Returns a list of term queries for the given field for IP values.
      */
-    public static QueryList ipTermQueryList(
-        MappedFieldType field,
-        SearchExecutionContext searchExecutionContext,
-        AliasFilter aliasFilter,
-        BytesRefBlock block
-    ) {
+    public static QueryList ipTermQueryList(MappedFieldType field, AliasFilter aliasFilter, int channelOffset) {
         BytesRef scratch = new BytesRef();
         byte[] ipBytes = new byte[InetAddressPoint.BYTES];
-        return new TermQueryList(field, searchExecutionContext, aliasFilter, block, null, offset -> {
-            final var bytes = block.getBytesRef(offset, scratch);
+        return new TermQueryList(field, aliasFilter, channelOffset, null, (block, offset) -> {
+            BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
+            final var bytes = bytesRefBlock.getBytesRef(offset, scratch);
             if (ipBytes.length != bytes.length) {
                 // Lucene only support 16-byte IP addresses, even IPv4 is encoded in 16 bytes
                 throw new IllegalStateException("Cannot decode IP field from bytes of length " + bytes.length);
@@ -233,64 +204,45 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
     }
 
     /**
-     * Returns a list of term queries for the given field and the input block of
-     * {@code date} field values.
+     * Returns a list of term queries for the given field for date values.
      */
-    public static QueryList dateTermQueryList(
-        MappedFieldType field,
-        SearchExecutionContext searchExecutionContext,
-        AliasFilter aliasFilter,
-        LongBlock block
-    ) {
+    public static QueryList dateTermQueryList(MappedFieldType field, AliasFilter aliasFilter, int channelOffset) {
         return new TermQueryList(
             field,
-            searchExecutionContext,
             aliasFilter,
-            block,
+            channelOffset,
             null,
             field instanceof RangeFieldMapper.RangeFieldType rangeFieldType
-                ? offset -> rangeFieldType.dateTimeFormatter().formatMillis(block.getLong(offset))
-                : block::getLong
+                ? (block, offset) -> rangeFieldType.dateTimeFormatter().formatMillis(((LongBlock) block).getLong(offset))
+                : (block, offset) -> ((LongBlock) block).getLong(offset)
         );
     }
 
     /**
-     * Returns a list of term queries for the given field and the input block of
-     * {@code date_nanos} field values.
+     * Returns a list of term queries for the given field for date_nanos values.
      */
-    public static QueryList dateNanosTermQueryList(
-        MappedFieldType field,
-        SearchExecutionContext searchExecutionContext,
-        AliasFilter aliasFilter,
-        LongBlock block
-    ) {
-        return new DateNanosQueryList(field, searchExecutionContext, aliasFilter, block, null);
+    public static QueryList dateNanosTermQueryList(MappedFieldType field, AliasFilter aliasFilter, int channelOffset) {
+        return new DateNanosQueryList(field, aliasFilter, channelOffset, null);
     }
 
     /**
-     * Returns a list of geo_shape queries for the given field and the input block.
+     * Returns a list of geo_shape queries for the given field.
      */
-    public static QueryList geoShapeQueryList(
-        MappedFieldType field,
-        SearchExecutionContext searchExecutionContext,
-        AliasFilter aliasFilter,
-        Block block
-    ) {
-        return new GeoShapeQueryList(field, searchExecutionContext, aliasFilter, block, null);
+    public static QueryList geoShapeQueryList(MappedFieldType field, AliasFilter aliasFilter, int channelOffset) {
+        return new GeoShapeQueryList(field, aliasFilter, channelOffset, null);
     }
 
     private static class TermQueryList extends QueryList {
-        private final IntFunction<Object> blockValueReader;
+        private final BiFunction<Block, Integer, Object> blockValueReader;
 
         private TermQueryList(
             MappedFieldType field,
-            SearchExecutionContext searchExecutionContext,
             AliasFilter aliasFilter,
-            Block block,
+            int channelOffset,
             OnlySingleValueParams onlySingleValueParams,
-            IntFunction<Object> blockValueReader
+            BiFunction<Block, Integer, Object> blockValueReader
         ) {
-            super(field, searchExecutionContext, aliasFilter, block, onlySingleValueParams);
+            super(field, aliasFilter, channelOffset, onlySingleValueParams);
             this.blockValueReader = blockValueReader;
         }
 
@@ -298,23 +250,28 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
         public TermQueryList onlySingleValues(Warnings warnings, String multiValueWarningMessage) {
             return new TermQueryList(
                 field,
-                searchExecutionContext,
                 aliasFilter,
-                block,
+                channelOffset,
                 new OnlySingleValueParams(warnings, multiValueWarningMessage),
                 blockValueReader
             );
         }
 
         @Override
-        public Query doGetQuery(int position, int firstValueIndex, int valueCount) {
+        public Query doGetQuery(
+            int position,
+            int firstValueIndex,
+            int valueCount,
+            Block inputBlock,
+            SearchExecutionContext searchExecutionContext
+        ) {
             return switch (valueCount) {
                 case 0 -> null;
-                case 1 -> field.termQuery(blockValueReader.apply(firstValueIndex), searchExecutionContext);
+                case 1 -> field.termQuery(blockValueReader.apply(inputBlock, firstValueIndex), searchExecutionContext);
                 default -> {
                     final List<Object> terms = new ArrayList<>(valueCount);
                     for (int i = 0; i < valueCount; i++) {
-                        final Object value = blockValueReader.apply(firstValueIndex + i);
+                        final Object value = blockValueReader.apply(inputBlock, firstValueIndex + i);
                         terms.add(value);
                     }
                     yield field.termsQuery(terms, searchExecutionContext);
@@ -324,24 +281,21 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
     }
 
     private static class DateNanosQueryList extends QueryList {
-        protected final IntFunction<Long> blockValueReader;
         private final DateFieldMapper.DateFieldType dateFieldType;
 
         private DateNanosQueryList(
             MappedFieldType field,
-            SearchExecutionContext searchExecutionContext,
             AliasFilter aliasFilter,
-            LongBlock block,
+            int channelOffset,
             OnlySingleValueParams onlySingleValueParams
         ) {
-            super(field, searchExecutionContext, aliasFilter, block, onlySingleValueParams);
+            super(field, aliasFilter, channelOffset, onlySingleValueParams);
             if (field instanceof RangeFieldMapper.RangeFieldType rangeFieldType) {
                 // TODO: do this validation earlier
                 throw new IllegalArgumentException(
                     "DateNanosQueryList does not support range fields [" + rangeFieldType + "]: " + field.name()
                 );
             }
-            this.blockValueReader = block::getLong;
             if (field instanceof DateFieldMapper.DateFieldType dateFieldType) {
                 // Validate that the field is a date_nanos field
                 // TODO: Consider allowing date_nanos to match normal datetime fields
@@ -360,103 +314,102 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
 
         @Override
         public DateNanosQueryList onlySingleValues(Warnings warnings, String multiValueWarningMessage) {
-            return new DateNanosQueryList(
-                field,
-                searchExecutionContext,
-                aliasFilter,
-                (LongBlock) block,
-                new OnlySingleValueParams(warnings, multiValueWarningMessage)
-            );
+            return new DateNanosQueryList(field, aliasFilter, channelOffset, new OnlySingleValueParams(warnings, multiValueWarningMessage));
         }
 
         @Override
-        public Query doGetQuery(int position, int firstValueIndex, int valueCount) {
-            return switch (valueCount) {
-                case 0 -> null;
-                case 1 -> dateFieldType.equalityQuery(blockValueReader.apply(firstValueIndex), searchExecutionContext);
-                default -> {
-                    // The following code is a slight simplification of the DateFieldMapper.termsQuery method
-                    final Set<Long> values = new HashSet<>(valueCount);
-                    BooleanQuery.Builder builder = new BooleanQuery.Builder();
-                    for (int i = 0; i < valueCount; i++) {
-                        final Long value = blockValueReader.apply(firstValueIndex + i);
-                        if (values.contains(value)) {
-                            continue; // Skip duplicates
+        public Query doGetQuery(
+            int position,
+            int firstValueIndex,
+            int valueCount,
+            Block inputBlock,
+            SearchExecutionContext searchExecutionContext
+        ) {
+            // DateNanosQueryList is only created for DATE_NANOS input types, which are always LongBlock
+            if (inputBlock instanceof LongBlock longBlock) {
+                return switch (valueCount) {
+                    case 0 -> null;
+                    case 1 -> dateFieldType.equalityQuery(longBlock.getLong(firstValueIndex), searchExecutionContext);
+                    default -> {
+                        // The following code is a slight simplification of the DateFieldMapper.termsQuery method
+                        final Set<Long> values = new HashSet<>(valueCount);
+                        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+                        for (int i = 0; i < valueCount; i++) {
+                            final Long value = longBlock.getLong(firstValueIndex + i);
+                            if (values.contains(value)) {
+                                continue; // Skip duplicates
+                            }
+                            values.add(value);
+                            builder.add(dateFieldType.equalityQuery(value, searchExecutionContext), BooleanClause.Occur.SHOULD);
                         }
-                        values.add(value);
-                        builder.add(dateFieldType.equalityQuery(value, searchExecutionContext), BooleanClause.Occur.SHOULD);
+                        yield new ConstantScoreQuery(builder.build());
                     }
-                    yield new ConstantScoreQuery(builder.build());
-                }
-            };
+                };
+            } else {
+                throw new IllegalArgumentException(
+                    "DateNanosQueryList expects LongBlock input, but got: " + inputBlock.elementType() + " block"
+                );
+            }
         }
     }
 
     private static class GeoShapeQueryList extends QueryList {
         private final BytesRef scratch = new BytesRef();
-        private final IntFunction<Geometry> blockValueReader;
-        private final IntFunction<Query> shapeQuery;
 
         private GeoShapeQueryList(
             MappedFieldType field,
-            SearchExecutionContext searchExecutionContext,
             AliasFilter aliasFilter,
-            Block block,
+            int channelOffset,
             OnlySingleValueParams onlySingleValueParams
         ) {
-            super(field, searchExecutionContext, aliasFilter, block, onlySingleValueParams);
-
-            this.blockValueReader = blockToGeometry(block);
-            this.shapeQuery = shapeQuery();
+            super(field, aliasFilter, channelOffset, onlySingleValueParams);
         }
 
         @Override
         public GeoShapeQueryList onlySingleValues(Warnings warnings, String multiValueWarningMessage) {
-            return new GeoShapeQueryList(
-                field,
-                searchExecutionContext,
-                aliasFilter,
-                block,
-                new OnlySingleValueParams(warnings, multiValueWarningMessage)
-            );
+            return new GeoShapeQueryList(field, aliasFilter, channelOffset, new OnlySingleValueParams(warnings, multiValueWarningMessage));
         }
 
         @Override
-        public Query doGetQuery(int position, int firstValueIndex, int valueCount) {
+        public Query doGetQuery(
+            int position,
+            int firstValueIndex,
+            int valueCount,
+            Block inputBlock,
+            SearchExecutionContext searchExecutionContext
+        ) {
             return switch (valueCount) {
                 case 0 -> null;
-                case 1 -> shapeQuery.apply(firstValueIndex);
+                case 1 -> {
+                    Geometry geometry = blockToGeometry(inputBlock, firstValueIndex);
+                    yield shapeQuery(geometry, searchExecutionContext);
+                }
                 // TODO: support multiple values
                 default -> throw new IllegalArgumentException("can't read multiple Geometry values from a single position");
             };
         }
 
-        private IntFunction<Geometry> blockToGeometry(Block block) {
+        private Geometry blockToGeometry(Block block, int offset) {
             return switch (block.elementType()) {
-                case LONG -> offset -> {
+                case LONG -> {
                     var encoded = ((LongBlock) block).getLong(offset);
-                    return new Point(
+                    yield new Point(
                         GeoEncodingUtils.decodeLongitude((int) encoded),
                         GeoEncodingUtils.decodeLatitude((int) (encoded >>> 32))
                     );
-                };
-                case BYTES_REF -> offset -> {
+                }
+                case BYTES_REF -> {
                     var wkb = ((BytesRefBlock) block).getBytesRef(offset, scratch);
-                    return WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes, wkb.offset, wkb.length);
-                };
-                case NULL -> offset -> null;
+                    yield WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes, wkb.offset, wkb.length);
+                }
+                case NULL -> null;
                 default -> throw new IllegalArgumentException("can't read Geometry values from [" + block.elementType() + "] block");
             };
         }
 
-        private IntFunction<Query> shapeQuery() {
+        private Query shapeQuery(Geometry geometry, SearchExecutionContext searchExecutionContext) {
             if (field instanceof GeoShapeQueryable geoShapeQueryable) {
-                return offset -> geoShapeQueryable.geoShapeQuery(
-                    searchExecutionContext,
-                    field.name(),
-                    ShapeRelation.INTERSECTS,
-                    blockValueReader.apply(offset)
-                );
+                return geoShapeQueryable.geoShapeQuery(searchExecutionContext, field.name(), ShapeRelation.INTERSECTS, geometry);
             }
             // TODO: Support cartesian ShapeQueryable
             throw new IllegalArgumentException("Unsupported field type for geo_match ENRICH: " + field.typeName());

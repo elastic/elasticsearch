@@ -17,8 +17,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.action.ActionLogWriterProvider;
 import org.elasticsearch.common.logging.action.ActionLogger;
-import org.elasticsearch.common.logging.action.Log4jActionWriter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
@@ -90,7 +90,8 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
         NamedWriteableRegistry registry,
         Client client,
         BigArrays bigArrays,
-        ActionLoggingFieldsProvider fieldProvider
+        ActionLoggingFieldsProvider fieldProvider,
+        ActionLogWriterProvider logWriterProvider
     ) {
         super(EqlSearchAction.NAME, transportService, actionFilters, EqlSearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
@@ -118,7 +119,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
             EqlLogContext.TYPE,
             clusterService.getClusterSettings(),
             new EqlLogProducer(),
-            new Log4jActionWriter(EqlLogProducer.LOGGER_NAME),
+            logWriterProvider,
             fieldProvider
         );
     }

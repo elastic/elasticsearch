@@ -82,6 +82,7 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.logging.action.ActionLogWriterProvider;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -940,7 +941,8 @@ public class SnapshotResiliencyTestHelper {
                         new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                         client,
                         usageService,
-                        new IndicesServiceTests.TestActionActionLoggingFieldsProvider()
+                        new IndicesServiceTests.TestActionActionLoggingFieldsProvider(),
+                        ActionLogWriterProvider.NOOP
                     )
                 );
                 actions.put(

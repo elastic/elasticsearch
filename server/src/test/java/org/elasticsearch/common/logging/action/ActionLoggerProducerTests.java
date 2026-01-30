@@ -31,6 +31,11 @@ public class ActionLoggerProducerTests extends ESTestCase {
             public ActionLogMessage produce(Level level, ActionLoggerContext ctx, ActionLoggingFields additionalFields) {
                 return produceCommon(level, ctx, additionalFields);
             }
+
+            @Override
+            public String loggerName() {
+                return "testLogger";
+            }
         };
     }
 

@@ -22,4 +22,9 @@ public class EsqlLogProducer implements ActionLoggerProducer<EsqlLogContext> {
         msg.put("query", context.getQuery());
         return msg;
     }
+
+    @Override
+    public String loggerName() {
+        return LOGGER_NAME;
+    }
 }

@@ -27,6 +27,8 @@ public interface ActionLoggerProducer<Context extends ActionLoggerContext> {
         return defaultLevel;
     }
 
+    String loggerName();
+
     /**
      * Produces a {@link ActionLogMessage} with common fields.
      */

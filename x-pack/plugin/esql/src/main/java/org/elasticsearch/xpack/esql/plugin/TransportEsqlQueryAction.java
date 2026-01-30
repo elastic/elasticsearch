@@ -20,8 +20,8 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.action.ActionLogWriterProvider;
 import org.elasticsearch.common.logging.action.ActionLogger;
-import org.elasticsearch.common.logging.action.Log4jActionWriter;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
@@ -120,7 +120,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         NamedWriteableRegistry registry,
         IndexNameExpressionResolver indexNameExpressionResolver,
         UsageService usageService,
-        ActionLoggingFieldsProvider fieldProvider
+        ActionLoggingFieldsProvider fieldProvider,
+        ActionLogWriterProvider logWriterProvider
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -203,7 +204,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             EsqlLogContext.TYPE,
             clusterService.getClusterSettings(),
             new EsqlLogProducer(),
-            new Log4jActionWriter(EsqlLogProducer.LOGGER_NAME),
+            logWriterProvider,
             fieldProvider
         );
 

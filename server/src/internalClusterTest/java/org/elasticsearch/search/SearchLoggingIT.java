@@ -12,8 +12,6 @@ package org.elasticsearch.search;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.LogEvent;
-import org.apache.logging.log4j.message.MapMessage;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -23,6 +21,7 @@ import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchLogProducer;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
@@ -65,6 +64,9 @@ import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.elasticsearch.test.AbstractSearchCancellationTestCase.ScriptedBlockPlugin.SEARCH_BLOCK_SCRIPT_NAME;
+import static org.elasticsearch.test.ActionLoggingUtils.assertMessageFailure;
+import static org.elasticsearch.test.ActionLoggingUtils.assertMessageSuccess;
+import static org.elasticsearch.test.ActionLoggingUtils.getMessageData;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -74,7 +76,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
     static AccumulatingMockAppender appender;
@@ -119,14 +120,6 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
 
     private static final String INDEX_NAME = "test_index";
 
-    @SuppressWarnings("unchecked")
-    private Map<String, String> getMessageData(LogEvent event) {
-        assertNotNull(event);
-        assertThat(event.getMessage(), instanceOf(MapMessage.class));
-
-        return ((MapMessage<?, String>) event.getMessage()).getData();
-    }
-
     // Test _search
     public void testSearchLog() {
         setupIndex();
@@ -136,12 +129,8 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             assertSearchHitsWithoutFailures(prepareSearch().setQuery(simpleQueryStringQuery("fox")), "1");
             var event = appender.getLastEventAndReset();
             Map<String, String> message = getMessageData(event);
-            assertThat(message.get("success"), equalTo("true"));
-            assertThat(message.get("type"), equalTo("search"));
+            assertMessageSuccess(message, "search", "fox");
             assertThat(message.get("hits"), equalTo("1"));
-            assertThat(Long.valueOf(message.get("took")), greaterThan(0L));
-            assertThat(Long.valueOf(message.get("took_millis")), greaterThanOrEqualTo(0L));
-            assertThat(message.get("query"), containsString("fox"));
             assertThat(message.get("indices"), equalTo(""));
         }
 
@@ -150,12 +139,8 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             assertSearchHitsWithoutFailures(prepareSearch(INDEX_NAME).setQuery(matchQuery("field1", "quick")), "1", "2", "3");
             var event = appender.getLastEventAndReset();
             Map<String, String> message = getMessageData(event);
-            assertThat(message.get("success"), equalTo("true"));
-            assertThat(message.get("type"), equalTo("search"));
+            assertMessageSuccess(message, "search", "quick");
             assertThat(message.get("hits"), equalTo("3"));
-            assertThat(Long.valueOf(message.get("took")), greaterThan(0L));
-            assertThat(Long.valueOf(message.get("took_millis")), greaterThanOrEqualTo(0L));
-            assertThat(message.get("query"), containsString("quick"));
             assertThat(message.get("indices"), equalTo(INDEX_NAME));
         }
     }
@@ -175,15 +160,9 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         );
         var event = appender.getLastEventAndReset();
         Map<String, String> message = getMessageData(event);
-        assertThat(message.get("success"), equalTo("false"));
-        assertThat(message.get("type"), equalTo("search"));
+        assertMessageFailure(message, "search", "quick brown", SearchPhaseExecutionException.class, "all shards failed");
         assertThat(message.get("hits"), equalTo("0"));
-        assertThat(Long.valueOf(message.get("took")), greaterThan(0L));
-        assertThat(Long.valueOf(message.get("took_millis")), greaterThanOrEqualTo(0L));
-        assertThat(message.get("query"), containsString("quick brown"));
         assertThat(message.get("indices"), equalTo(INDEX_NAME));
-        assertThat(message.get("error.type"), equalTo("org.elasticsearch.action.search.SearchPhaseExecutionException"));
-        assertThat(message.get("error.message"), equalTo("all shards failed"));
     }
 
     public void testSearchCancel() throws Exception {
@@ -201,14 +180,9 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         ensureSearchWasCancelled(searchResponse);
         var event = appender.getLastEventAndReset();
         Map<String, String> message = getMessageData(event);
-        assertThat(message.get("success"), equalTo("false"));
-        assertThat(message.get("type"), equalTo("search"));
+        assertMessageFailure(message, "search", "mockscript", SearchPhaseExecutionException.class, null);
         assertThat(message.get("hits"), equalTo("0"));
-        assertThat(Long.valueOf(message.get("took")), greaterThan(0L));
-        assertThat(Long.valueOf(message.get("took_millis")), greaterThanOrEqualTo(0L));
-        assertThat(message.get("query"), containsString("mockscript"));
         assertThat(message.get("indices"), equalTo("test"));
-        assertThat(message.get("error.type"), equalTo("org.elasticsearch.action.search.SearchPhaseExecutionException"));
     }
 
     public void testMultiSearch() {
@@ -250,12 +224,8 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             );
             var event = appender.getLastEventAndReset();
             Map<String, String> message = getMessageData(event);
-            assertThat(message.get("success"), equalTo("true"));
-            assertThat(message.get("type"), equalTo("search"));
+            assertMessageSuccess(message, "search", "fox");
             assertThat(message.get("hits"), equalTo("1"));
-            assertThat(Long.valueOf(message.get("took")), greaterThan(0L));
-            assertThat(Long.valueOf(message.get("took_millis")), greaterThanOrEqualTo(0L));
-            assertThat(message.get("query"), containsString("fox"));
             assertThat(message.get("indices"), equalTo(INDEX_NAME));
         } finally {
             response.decRef();

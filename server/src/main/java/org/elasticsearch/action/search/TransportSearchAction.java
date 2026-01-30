@@ -60,8 +60,8 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.action.ActionLogWriterProvider;
 import org.elasticsearch.common.logging.action.ActionLogger;
-import org.elasticsearch.common.logging.action.Log4jActionWriter;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -205,7 +205,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchResponseMetrics searchResponseMetrics,
         Client client,
         UsageService usageService,
-        ActionLoggingFieldsProvider fieldProvider
+        ActionLoggingFieldsProvider fieldProvider,
+        ActionLogWriterProvider logWriterProvider
     ) {
         super(TYPE.name(), transportService, actionFilters, SearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -241,7 +242,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             "search",
             clusterService.getClusterSettings(),
             new SearchLogProducer(clusterService.getClusterSettings(), indexNameExpressionResolver.getSystemNamePredicate()),
-            new Log4jActionWriter(SearchLogProducer.LOGGER_NAME),
+            logWriterProvider,
             fieldProvider
         );
     }

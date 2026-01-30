@@ -9,11 +9,22 @@
 
 package org.elasticsearch.test;
 
+import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.message.MapMessage;
 import org.elasticsearch.common.settings.Settings;
+
+import java.util.Map;
 
 import static org.elasticsearch.action.search.SearchLogProducer.SEARCH_LOGGER_LOG_SYSTEM;
 import static org.elasticsearch.common.logging.action.ActionLogger.ACTION_LOGGER_ENABLED;
 import static org.elasticsearch.test.ESIntegTestCase.updateClusterSettings;
+import static org.elasticsearch.test.ESTestCase.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.junit.Assert.assertNotNull;
 
 public class ActionLoggingUtils {
 
@@ -45,5 +56,41 @@ public class ActionLoggingUtils {
         var builder = Settings.builder();
         builder.put(SEARCH_LOGGER_LOG_SYSTEM.getKey(), (String) null);
         updateClusterSettings(builder);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static Map<String, String> getMessageData(LogEvent event) {
+        assertNotNull(event);
+        assertThat(event.getMessage(), instanceOf(MapMessage.class));
+
+        return ((MapMessage<?, String>) event.getMessage()).getData();
+    }
+
+    public static void assertMessageSuccess(Map<String, String> message, String type, String query) {
+        assertThat(message.get("success"), equalTo("true"));
+        assertThat(message.get("type"), equalTo(type));
+        assertThat(Long.valueOf(message.get("took")), greaterThan(0L));
+        assertThat(Long.valueOf(message.get("took_millis")), greaterThanOrEqualTo(0L));
+        assertThat(message.get("query"), containsString(query));
+    }
+
+    public static void assertMessageFailure(
+        Map<String, String> message,
+        String type,
+        String query,
+        Class<? extends Throwable> exception,
+        String errorMessage
+    ) {
+        assertThat(message.get("success"), equalTo("false"));
+        assertThat(message.get("type"), equalTo(type));
+        assertThat(Long.valueOf(message.get("took")), greaterThan(0L));
+        assertThat(Long.valueOf(message.get("took_millis")), greaterThanOrEqualTo(0L));
+        assertThat(message.get("query"), containsString(query));
+        if (errorMessage != null) {
+            assertThat(message.get("error.message"), containsString(errorMessage));
+        }
+        if (exception != null) {
+            assertThat(message.get("error.type"), equalTo(exception.getName()));
+        }
     }
 }

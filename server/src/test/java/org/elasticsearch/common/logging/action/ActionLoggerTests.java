@@ -48,8 +48,10 @@ public class ActionLoggerTests extends ESTestCase {
         loggingFields = mock(ActionLoggingFields.class);
 
         when(fieldProvider.create(any())).thenReturn(loggingFields);
+        var writerProvider = mock(ActionLogWriterProvider.class);
+        when(writerProvider.getWriter(loggerName)).thenReturn(writer);
 
-        actionLogger = new ActionLogger<>(loggerName, clusterSettings, producer, writer, fieldProvider);
+        actionLogger = new ActionLogger<>(loggerName, clusterSettings, producer, writerProvider, fieldProvider);
     }
 
     private ActionLogMessage randomMessage(Level level) {

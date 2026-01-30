@@ -67,6 +67,11 @@ public class SearchLogProducer implements ActionLoggerProducer<SearchLogContext>
         return defaultLevel;
     }
 
+    @Override
+    public String loggerName() {
+        return LOGGER_NAME;
+    }
+
     public void setLogSystemSearches(boolean logSystemSearches) {
         this.logSystemSearches = logSystemSearches;
     }

@@ -70,11 +70,11 @@ public class ActionLogger<Context extends ActionLoggerContext> {
         String name,
         ClusterSettings settings,
         ActionLoggerProducer<Context> producer,
-        ActionLogWriter writer,
+        ActionLogWriterProvider writerProvider,
         ActionLoggingFieldsProvider fieldsProvider
     ) {
         this.producer = producer;
-        this.writer = writer;
+        this.writer = writerProvider.getWriter(producer.loggerName());
         var context = new ActionLoggingFieldsContext(true);
         // Initialize
         this.additionalFields = fieldsProvider.create(context);

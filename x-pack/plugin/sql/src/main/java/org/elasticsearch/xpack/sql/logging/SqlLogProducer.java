@@ -23,4 +23,9 @@ public class SqlLogProducer implements ActionLoggerProducer<SqlLogContext> {
         msg.put("rows", context.getRows());
         return msg;
     }
+
+    @Override
+    public String loggerName() {
+        return LOGGER_NAME;
+    }
 }

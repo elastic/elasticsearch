@@ -24,4 +24,9 @@ public class EqlLogProducer implements ActionLoggerProducer<EqlLogContext> {
         msg.put("hits", context.getHits());
         return msg;
     }
+
+    @Override
+    public String loggerName() {
+        return LOGGER_NAME;
+    }
 }

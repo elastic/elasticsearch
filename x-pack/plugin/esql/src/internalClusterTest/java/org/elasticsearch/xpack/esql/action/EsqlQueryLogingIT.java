@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
-import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ActionLoggingUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -21,11 +20,10 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import static org.elasticsearch.test.ActionLoggingUtils.assertMessageFailure;
+import static org.elasticsearch.test.ActionLoggingUtils.assertMessageSuccess;
+import static org.elasticsearch.test.ActionLoggingUtils.getMessageData;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class EsqlQueryLogingIT extends AbstractEsqlIntegTestCase {
     static AccumulatingMockAppender appender;
@@ -77,34 +75,20 @@ public class EsqlQueryLogingIT extends AbstractEsqlIntegTestCase {
         assertFailedQuery(
             "FROM index-* | EVAL a = count(*) | LIMIT 100",
             "aggregate function [count(*)] not allowed outside STATS command",
-            VerificationException.class.getName()
+            VerificationException.class
         );
     }
 
     private void assertQuery(String query) {
         try (var resp = run(query)) {
-            assertNotNull(appender.lastEvent());
-            var message = (ESLogMessage) appender.getLastEventAndReset().getMessage();
-            var data = message.getIndexedReadOnlyStringMap();
-            assertThat(message.get("success"), equalTo("true"));
-            assertThat(message.get("type"), equalTo("esql"));
-            assertThat(data.getValue("took"), greaterThan(0L));
-            assertThat(data.getValue("took_millis"), greaterThanOrEqualTo(0L));
-            assertThat(message.get("query"), equalTo(query));
+            var message = getMessageData(appender.getLastEventAndReset());
+            assertMessageSuccess(message, "esql", query);
         }
     }
 
-    private void assertFailedQuery(String query, String expectedMessage, String expectedException) {
+    private void assertFailedQuery(String query, String expectedMessage, Class<? extends Throwable> expectedException) {
         expectThrows(VerificationException.class, () -> run(query));
-        assertNotNull(appender.lastEvent());
-        var message = (ESLogMessage) appender.getLastEventAndReset().getMessage();
-        var data = message.getIndexedReadOnlyStringMap();
-        assertThat(message.get("success"), equalTo("false"));
-        assertThat(message.get("type"), equalTo("esql"));
-        assertThat(data.getValue("took"), greaterThan(0L));
-        assertThat(data.getValue("took_millis"), greaterThanOrEqualTo(0L));
-        assertThat(message.get("query"), equalTo(query));
-        assertThat(message.get("error.message"), containsString(expectedMessage));
-        assertThat(message.get("error.type"), equalTo(expectedException));
+        var message = getMessageData(appender.getLastEventAndReset());
+        assertMessageFailure(message, "esql", query, expectedException, expectedMessage);
     }
 }

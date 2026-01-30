@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
-import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ActionLoggingUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.VerificationException;
@@ -24,11 +23,11 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import static org.elasticsearch.test.ActionLoggingUtils.assertMessageFailure;
+import static org.elasticsearch.test.ActionLoggingUtils.assertMessageSuccess;
+import static org.elasticsearch.test.ActionLoggingUtils.getMessageData;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class SqlLoggingIT extends AbstractSqlIntegTestCase {
@@ -81,32 +80,18 @@ public class SqlLoggingIT extends AbstractSqlIntegTestCase {
             .get();
         assertThat(response.size(), equalTo(2L));
         assertThat(response.columns(), hasSize(2));
-        assertNotNull(appender.lastEvent());
         assertThat(appender.events.size(), equalTo(1));
-        var message = (ESLogMessage) appender.getLastEventAndReset().getMessage();
-        var data = message.getIndexedReadOnlyStringMap();
-        assertThat(message.get("success"), equalTo("true"));
-        assertThat(message.get("type"), equalTo("sql"));
-        assertThat(data.getValue("took"), greaterThan(0L));
-        assertThat(data.getValue("took_millis"), greaterThanOrEqualTo(0L));
-        assertThat(message.get("query"), equalTo(query));
+        var message = getMessageData(appender.getLastEventAndReset());
+        assertMessageSuccess(message, "sql", query);
         assertThat(message.get("rows"), equalTo("2"));
     }
 
     public void testSqlFailureLogging() {
         String query = "SELECT data, count FROM test ORDER BY count";
         expectThrows(VerificationException.class, () -> new SqlQueryRequestBuilder(client()).query(query).get());
-        assertNotNull(appender.lastEvent());
         assertThat(appender.events.size(), equalTo(1));
-        var message = (ESLogMessage) appender.getLastEventAndReset().getMessage();
-        var data = message.getIndexedReadOnlyStringMap();
-        assertThat(message.get("success"), equalTo("false"));
-        assertThat(message.get("type"), equalTo("sql"));
-        assertThat(data.getValue("took"), greaterThan(0L));
-        assertThat(data.getValue("took_millis"), greaterThanOrEqualTo(0L));
-        assertThat(message.get("query"), equalTo(query));
+        var message = getMessageData(appender.getLastEventAndReset());
+        assertMessageFailure(message, "sql", query, VerificationException.class, "Unknown index [test]");
         assertThat(message.get("rows"), equalTo("0"));
-        assertThat(message.get("error.message"), containsString("Unknown index [test]"));
-        assertThat(message.get("error.type"), equalTo(VerificationException.class.getName()));
     }
 }

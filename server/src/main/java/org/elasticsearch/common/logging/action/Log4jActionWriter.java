@@ -19,6 +19,7 @@ import org.elasticsearch.common.logging.internal.LevelUtil;
  * TODO: Convert this class to use ES Logger API.
  */
 public class Log4jActionWriter implements ActionLogWriter {
+    public static final ActionLogWriterProvider PROVIDER = Log4jActionWriter::new;
 
     private final Logger logger;
 

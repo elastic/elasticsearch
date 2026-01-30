@@ -11,8 +11,8 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
-import org.apache.logging.log4j.message.MapMessage;
 import org.elasticsearch.action.search.SearchLogProducer;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.core.TimeValue;
@@ -31,12 +31,11 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.hamcrest.Matchers.containsString;
+import static org.elasticsearch.test.ActionLoggingUtils.assertMessageFailure;
+import static org.elasticsearch.test.ActionLoggingUtils.assertMessageSuccess;
+import static org.elasticsearch.test.ActionLoggingUtils.getMessageData;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class AsyncSearchLoggingIT extends AsyncSearchIntegTestCase {
     static AccumulatingMockAppender appender;
@@ -73,14 +72,6 @@ public class AsyncSearchLoggingIT extends AsyncSearchIntegTestCase {
 
     private static final String INDEX_NAME = "test_index";
 
-    @SuppressWarnings("unchecked")
-    private Map<String, String> getMessageData(LogEvent event) {
-        assertNotNull(event);
-        assertThat(event.getMessage(), instanceOf(MapMessage.class));
-
-        return ((MapMessage<?, String>) event.getMessage()).getData();
-    }
-
     private List<LogEvent> getNonSystemEvents() {
         return appender.events.stream().filter(event -> {
             Map<String, String> message = getMessageData(event);
@@ -106,12 +97,8 @@ public class AsyncSearchLoggingIT extends AsyncSearchIntegTestCase {
         var events = getNonSystemEvents();
         assertThat(events, hasSize(1));
         Map<String, String> message = getMessageData(events.getFirst());
-        assertThat(message.get("success"), equalTo("true"));
-        assertThat(message.get("type"), equalTo("search"));
+        assertMessageSuccess(message, "search", "quick");
         assertThat(message.get("hits"), equalTo("3"));
-        assertThat(Long.valueOf(message.get("took")), greaterThan(0L));
-        assertThat(Long.valueOf(message.get("took_millis")), greaterThanOrEqualTo(0L));
-        assertThat(message.get("query"), containsString("quick"));
         assertThat(message.get("indices"), equalTo(INDEX_NAME));
     }
 
@@ -133,15 +120,9 @@ public class AsyncSearchLoggingIT extends AsyncSearchIntegTestCase {
         var events = getNonSystemEvents();
         assertThat(events, hasSize(1));
         Map<String, String> message = getMessageData(events.getFirst());
-        assertThat(message.get("success"), equalTo("false"));
-        assertThat(message.get("type"), equalTo("search"));
+        assertMessageFailure(message, "search", "throw", SearchPhaseExecutionException.class, "all shards failed");
         assertThat(message.get("hits"), equalTo("0"));
-        assertThat(Long.valueOf(message.get("took")), greaterThan(0L));
-        assertThat(Long.valueOf(message.get("took_millis")), greaterThanOrEqualTo(0L));
-        assertThat(message.get("query"), containsString("throw"));
         assertThat(message.get("indices"), equalTo(INDEX_NAME));
-        assertThat(message.get("error.type"), equalTo("org.elasticsearch.action.search.SearchPhaseExecutionException"));
-        assertThat(message.get("error.message"), equalTo("all shards failed"));
     }
 
     private void setupIndex() {

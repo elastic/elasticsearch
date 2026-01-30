@@ -14,8 +14,8 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.action.ActionLogWriterProvider;
 import org.elasticsearch.common.logging.action.ActionLogger;
-import org.elasticsearch.common.logging.action.Log4jActionWriter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -90,7 +90,8 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
         PlanExecutor planExecutor,
         SqlLicenseChecker sqlLicenseChecker,
         BigArrays bigArrays,
-        ActionLoggingFieldsProvider fieldProvider
+        ActionLoggingFieldsProvider fieldProvider,
+        ActionLogWriterProvider logWriterProvider
     ) {
         super(SqlQueryAction.NAME, transportService, actionFilters, SqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
@@ -119,7 +120,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
             SqlLogContext.TYPE,
             clusterService.getClusterSettings(),
             new SqlLogProducer(),
-            new Log4jActionWriter(SqlLogProducer.LOGGER_NAME),
+            logWriterProvider,
             fieldProvider
         );
     }

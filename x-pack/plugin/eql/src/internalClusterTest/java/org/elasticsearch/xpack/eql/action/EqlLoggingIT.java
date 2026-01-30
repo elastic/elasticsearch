@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
-import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -26,12 +25,12 @@ import org.junit.BeforeClass;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.test.ActionLoggingUtils.assertMessageFailure;
+import static org.elasticsearch.test.ActionLoggingUtils.assertMessageSuccess;
+import static org.elasticsearch.test.ActionLoggingUtils.getMessageData;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
 public class EqlLoggingIT extends AbstractEqlIntegTestCase {
@@ -78,15 +77,8 @@ public class EqlLoggingIT extends AbstractEqlIntegTestCase {
         EqlSearchResponse response = client().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.isRunning(), is(false));
         assertThat(response.isPartial(), is(false));
-        assertNotNull(appender.lastEvent());
-        assertThat(appender.events.size(), equalTo(1));
-        var message = (ESLogMessage) appender.getLastEventAndReset().getMessage();
-        var data = message.getIndexedReadOnlyStringMap();
-        assertThat(message.get("success"), equalTo("true"));
-        assertThat(message.get("type"), equalTo("eql"));
-        assertThat(data.getValue("took"), greaterThan(0L));
-        assertThat(data.getValue("took_millis"), greaterThanOrEqualTo(0L));
-        assertThat(message.get("query"), equalTo(query));
+        var message = getMessageData(appender.getLastEventAndReset());
+        assertMessageSuccess(message, "eql", query);
         assertThat(message.get("indices"), equalTo("test"));
         assertThat(message.get("hits"), equalTo(success ? "1" : "0"));
     }
@@ -99,19 +91,11 @@ public class EqlLoggingIT extends AbstractEqlIntegTestCase {
             .waitForCompletionTimeout(TimeValue.THIRTY_SECONDS);
 
         expectThrows(Exception.class, () -> client().execute(EqlSearchAction.INSTANCE, request).get());
-        assertNotNull(appender.lastEvent());
         assertThat(appender.events.size(), equalTo(1));
-        var message = (ESLogMessage) appender.getLastEventAndReset().getMessage();
-        var data = message.getIndexedReadOnlyStringMap();
-        assertThat(message.get("success"), equalTo("false"));
-        assertThat(message.get("type"), equalTo("eql"));
-        assertThat(data.getValue("took"), greaterThan(0L));
-        assertThat(data.getValue("took_millis"), greaterThanOrEqualTo(0L));
-        assertThat(message.get("query"), equalTo(query));
+        var message = getMessageData(appender.getLastEventAndReset());
+        assertMessageFailure(message, "eql", query, IndexNotFoundException.class, "Unknown index [test]");
         assertThat(message.get("indices"), equalTo("test"));
         assertThat(message.get("hits"), equalTo("0"));
-        assertThat(message.get("error.message"), containsString("Unknown index [test]"));
-        assertThat(message.get("error.type"), equalTo(IndexNotFoundException.class.getName()));
     }
 
     private void prepareIndex() throws Exception {

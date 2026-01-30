@@ -9,11 +9,8 @@
 
 package org.elasticsearch.common.logging.action;
 
-/**
- * Generic writer interface to record a log message.
- */
-public interface ActionLogWriter {
-    ActionLogWriter NOOP = (m) -> {};
+public interface ActionLogWriterProvider {
+    ActionLogWriterProvider NOOP = (n) -> ActionLogWriter.NOOP;
 
-    void write(ActionLogMessage message);
+    ActionLogWriter getWriter(String loggerName);
 }

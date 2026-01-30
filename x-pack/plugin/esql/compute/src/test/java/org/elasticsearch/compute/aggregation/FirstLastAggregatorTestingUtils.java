@@ -22,7 +22,7 @@ import java.util.Set;
 
 import static org.elasticsearch.compute.aggregation.GroupingAggregatorFunctionTestCase.matchingGroups;
 
-public class AllFirstAllLastTestingUtils {
+public class FirstLastAggregatorTestingUtils {
 
     /**
      * Processes the input pages for the given group, and feeds the unpacked data into the manual aggregator.
@@ -68,7 +68,7 @@ public class AllFirstAllLastTestingUtils {
     }
 
     /**
-     * This class servers as a manual aggregator for ALL_FIRST/ALL_LAST aggregator functions, that is used as the ground truth
+     * This class servers as a manual aggregator for FIRST/LAST aggregator functions, that is used as the ground truth
      * during unit tests.
      */
     static class GroundTruthFirstLastAggregator {

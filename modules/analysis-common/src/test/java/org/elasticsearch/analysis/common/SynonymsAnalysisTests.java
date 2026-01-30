@@ -25,12 +25,8 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -54,8 +50,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class SynonymsAnalysisTests extends ESTestCase {
     private IndexAnalyzers indexAnalyzers;
@@ -595,17 +589,6 @@ public class SynonymsAnalysisTests extends ESTestCase {
     }
 
     private static CommonAnalysisPlugin createCommonAnalysisPlugin(ThreadPool threadPool) {
-        IndicesService indicesService = mock(IndicesService.class);
-        when(indicesService.getCircuitBreakerService()).thenReturn(new NoneCircuitBreakerService());
-
-        Plugin.PluginServices pluginServices = mock(Plugin.PluginServices.class);
-        when(pluginServices.indicesService()).thenReturn(indicesService);
-        when(pluginServices.client()).thenReturn(new NoOpClient(threadPool));
-
-        CommonAnalysisPlugin plugin = new CommonAnalysisPlugin();
-        plugin.createComponents(pluginServices);
-
-        return plugin;
+        return new TestCommonAnalysisPluginBuilder(threadPool).build();
     }
-
 }

@@ -1367,6 +1367,7 @@ false                   | {"min":138.0\,"max":669.0\,"sum":5211.0\,"value_count"
 ;
 
 GroupingOnScalarFunction
+required_capability: ts_command_v0
 required_capability: ts_command_group_on_aliases
 TS k8s
 | STATS m = max(max_over_time(network.cost)) by pod = to_upper(pod), bucket = bucket(@timestamp,5minute)

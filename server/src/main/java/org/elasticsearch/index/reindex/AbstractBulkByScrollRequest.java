@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -45,6 +46,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     public static final int AUTO_SLICES = 0;
     public static final String AUTO_SLICES_VALUE = "auto";
     private static final int DEFAULT_SLICES = 1;
+    private static final TransportVersion REINDEX_RELOCATION_RESUME = TransportVersion.fromName("reindex_relocation_resume");
 
     /**
      * The search to be executed.
@@ -105,6 +107,12 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      */
     private int slices = DEFAULT_SLICES;
 
+    /**
+     * Resume information for continuing a task from a previous run.
+     */
+    @Nullable
+    private ResumeInfo resumeInfo;
+
     public AbstractBulkByScrollRequest(StreamInput in) throws IOException {
         super(in);
         searchRequest = new SearchRequest(in);
@@ -117,6 +125,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         maxRetries = in.readVInt();
         requestsPerSecond = in.readFloat();
         slices = in.readVInt();
+        if (in.getTransportVersion().supports(REINDEX_RELOCATION_RESUME)) {
+            resumeInfo = in.readOptionalWriteable(ResumeInfo::new);
+        }
     }
 
     /**
@@ -402,6 +413,21 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     }
 
     /**
+     * Sets resumption data to continue from a previously-acquired scroll ID.
+     */
+    public Self setResumeInfo(ResumeInfo resumeInfo) {
+        this.resumeInfo = Objects.requireNonNull(resumeInfo);
+        return self();
+    }
+
+    /**
+     * Returns the resumption information for this request, if any.
+     */
+    public Optional<ResumeInfo> getResumeInfo() {
+        return Optional.ofNullable(resumeInfo);
+    }
+
+    /**
      * Build a new request for a slice of the parent request.
      */
     public abstract Self forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices);
@@ -455,6 +481,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         out.writeVInt(maxRetries);
         out.writeFloat(requestsPerSecond);
         out.writeVInt(slices);
+        if (out.getTransportVersion().supports(REINDEX_RELOCATION_RESUME)) {
+            out.writeOptionalWriteable(resumeInfo);
+        }
     }
 
     /**

@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
@@ -45,6 +46,7 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.core.TimeValue.ZERO;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
 import static org.elasticsearch.reindex.remote.RemoteResponseParsers.MAIN_ACTION_PARSER;
@@ -83,6 +85,14 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                 RejectAwareActionListener.withResponseHandler(searchListener, r -> onStartResponse(searchListener, r))
             );
         }));
+    }
+
+    @Override
+    public void resume(AbstractBulkByScrollRequest.WorkerResumeInfo resumeInfo) {
+        assert resumeInfo instanceof AbstractBulkByScrollRequest.ScrollWorkerResumeInfo;
+        var scrollResumeInfo = (AbstractBulkByScrollRequest.ScrollWorkerResumeInfo) resumeInfo;
+        setScroll(scrollResumeInfo.scrollId());
+        startNextScroll(ZERO);
     }
 
     void lookupRemoteVersion(RejectAwareActionListener<Version> listener) {

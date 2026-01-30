@@ -74,6 +74,8 @@ public abstract class ScrollableHitSource {
         doStart(createRetryListener(this::doStart));
     }
 
+    public abstract void resume(AbstractBulkByScrollRequest.WorkerResumeInfo resumeInfo);
+
     private RetryListener createRetryListener(Consumer<RejectAwareActionListener<Response>> retryHandler) {
         Consumer<RejectAwareActionListener<Response>> countingRetryHandler = listener -> {
             countSearchRetry.run();

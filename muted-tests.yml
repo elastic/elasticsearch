@@ -333,6 +333,9 @@ tests:
 - class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
   method: testOptionalColumnAtATimeReader
   issue: https://github.com/elastic/elasticsearch/issues/141529
+- class: org.elasticsearch.indices.recovery.IndexRecoveryIT
+  method: testSourceThrottling
+  issue: https://github.com/elastic/elasticsearch/issues/141548
 
 # Examples:
 #

@@ -104,6 +104,8 @@ public class HistogramUnionStateTests extends ESTestCase {
             assertThat(state.quantile(0.5), equalTo(Double.NaN));
             assertThat(state.quantile(1.0), equalTo(Double.NaN));
             assertThat(state.centroids().isEmpty(), equalTo(true));
+            assertThat(state.getMin(), equalTo(Double.POSITIVE_INFINITY));
+            assertThat(state.getMax(), equalTo(Double.NEGATIVE_INFINITY));
         }
     }
 
@@ -120,6 +122,8 @@ public class HistogramUnionStateTests extends ESTestCase {
             if (ref.size() == 0) {
                 assertThat(union.quantile(0.5), equalTo(Double.NaN));
                 assertThat(union.cdf(0.0), equalTo(Double.NaN));
+                assertThat(union.getMin(), equalTo(Double.POSITIVE_INFINITY));
+                assertThat(union.getMax(), equalTo(Double.NEGATIVE_INFINITY));
 
                 // only test quantiles if we have enough values to ignore the noise
             } else if (union.size() > 1000) {
@@ -141,6 +145,18 @@ public class HistogramUnionStateTests extends ESTestCase {
                     assertThat(actual, greaterThanOrEqualTo(expected_lower));
                     assertThat(actual, lessThanOrEqualTo(expected_upper));
                 }
+
+                // Verify min/max with relative error tolerance
+                double refMin = ref.getMin();
+                double refMax = ref.getMax();
+                double actualMin = union.getMin();
+                double actualMax = union.getMax();
+
+                double minRelativeError = Math.abs(refMin - actualMin) / Math.max(1, Math.abs(refMin));
+                double maxRelativeError = Math.abs(refMax - actualMax) / Math.max(1, Math.abs(refMax));
+
+                assertThat("min relative error", minRelativeError, lessThan(0.1));
+                assertThat("max relative error", maxRelativeError, lessThan(0.1));
             }
         }
     }

@@ -181,6 +181,28 @@ public class HistogramUnionState implements Releasable, Accountable {
         }
     }
 
+    public final double getMin() {
+        double min = Double.POSITIVE_INFINITY;
+        if (tDigestState != null) {
+            min = Math.min(min, tDigestState.getMin());
+        }
+        if (exponentialHistogramState != null) {
+            min = Math.min(min, exponentialHistogramState.getMin());
+        }
+        return min;
+    }
+
+    public final double getMax() {
+        double max = Double.NEGATIVE_INFINITY;
+        if (tDigestState != null) {
+            max = Math.max(max, tDigestState.getMax());
+        }
+        if (exponentialHistogramState != null) {
+            max = Math.max(max, exponentialHistogramState.getMax());
+        }
+        return max;
+    }
+
     @Override
     public long ramBytesUsed() {
         long result = SHALLOW_SIZE;

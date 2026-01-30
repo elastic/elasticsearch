@@ -15,7 +15,9 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.stringCases;
 import static org.hamcrest.Matchers.equalTo;
@@ -30,7 +32,7 @@ public abstract class AbstractMatchFullTextFunctionTests extends AbstractFunctio
         AbstractMatchFullTextFunctionTests.addNonNumericCases(suppliers);
         AbstractMatchFullTextFunctionTests.addQueryAsStringTestCases(suppliers);
         AbstractMatchFullTextFunctionTests.addStringTestCases(suppliers);
-        return suppliers;
+        return addNullFieldTestCases(suppliers);
     }
 
     private static void addNonNumericCases(List<TestCaseSupplier> suppliers) {
@@ -353,6 +355,45 @@ public abstract class AbstractMatchFullTextFunctionTests extends AbstractFunctio
                 );
             }
         }
+    }
+
+    /**
+     * Adds test cases with null field (first argument) to the provided list of suppliers.
+     * This creates copies of existing test cases but with the field parameter set to null,
+     * which tests how full-text functions handle missing/null fields.
+     *
+     * @param suppliers the list of test case suppliers to augment
+     * @return the same list with additional null-field test cases added
+     */
+    public static List<TestCaseSupplier> addNullFieldTestCases(List<TestCaseSupplier> suppliers) {
+        List<TestCaseSupplier> nullFieldCases = new ArrayList<>();
+
+        Set<List<DataType>> uniqueSignatures = new HashSet<>();
+        for (TestCaseSupplier supplier : suppliers) {
+            boolean firstTimeSeenSignature = uniqueSignatures.add(supplier.types());
+            // Add a single null field case per unique signature, similar to AbstractFunctionTestCase.anyNullIsNull
+            if (firstTimeSeenSignature == false) {
+                continue;
+            }
+            // Create a new test case supplier with null as the first argument (field)
+            List<DataType> types = new ArrayList<>(supplier.types());
+            types.set(0, DataType.NULL);
+            TestCaseSupplier nullFieldCase = new TestCaseSupplier(supplier.name() + " with null field", types, () -> {
+                TestCaseSupplier.TestCase original = supplier.supplier().get();
+                List<TestCaseSupplier.TypedData> modifiedData = new ArrayList<>(original.getData());
+
+                // Replace the first argument (field) with null
+                TestCaseSupplier.TypedData originalField = modifiedData.get(0);
+                modifiedData.set(0, new TestCaseSupplier.TypedData(null, DataType.NULL, originalField.name()));
+
+                // Return a test case that expects null result since field is null
+                return new TestCaseSupplier.TestCase(modifiedData, original.evaluatorToString(), DataType.BOOLEAN, equalTo(null));
+            });
+            nullFieldCases.add(nullFieldCase);
+        }
+
+        suppliers.addAll(nullFieldCases);
+        return suppliers;
     }
 
     public final void testLiteralExpressions() {

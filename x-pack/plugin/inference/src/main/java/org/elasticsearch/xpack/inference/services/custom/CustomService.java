@@ -22,6 +22,7 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -33,7 +34,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
-import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
@@ -108,7 +109,7 @@ public class CustomService extends SenderService implements RerankingInferenceSe
             Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
             ChunkingSettings chunkingSettings = null;
-            if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+            if (TaskType.SPARSE_EMBEDDING.equals(taskType) || TaskType.TEXT_EMBEDDING.equals(taskType)) {
                 chunkingSettings = ChunkingSettingsBuilder.fromMap(
                     removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
                 );
@@ -154,7 +155,7 @@ public class CustomService extends SenderService implements RerankingInferenceSe
             case RERANK -> RerankParameters.of(new QueryAndDocsInputs("test query", List.of("test input")));
             case COMPLETION -> CompletionParameters.of(new ChatCompletionInput(List.of("test input")));
             case TEXT_EMBEDDING, SPARSE_EMBEDDING -> EmbeddingParameters.of(
-                new EmbeddingsInput(List.of("test input"), null),
+                new EmbeddingsInput(() -> List.of(new InferenceStringGroup("test input")), null),
                 model.getServiceSettings().getInputTypeTranslator()
             );
             default -> throw new IllegalStateException(
@@ -241,7 +242,7 @@ public class CustomService extends SenderService implements RerankingInferenceSe
     }
 
     private static ChunkingSettings extractPersistentChunkingSettings(Map<String, Object> config, TaskType taskType) {
-        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+        if (TaskType.SPARSE_EMBEDDING.equals(taskType) || TaskType.TEXT_EMBEDDING.equals(taskType)) {
             /*
              * There's a sutle difference between how the chunking settings are parsed for the request context vs the persistent context.
              * For persistent context, to support backwards compatibility, if the chunking settings are not present, removeFromMap will

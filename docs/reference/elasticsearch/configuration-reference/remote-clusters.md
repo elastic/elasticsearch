@@ -77,3 +77,77 @@ To use [proxy mode](docs-content://deploy-manage/remote-clusters/remote-clusters
 
 `cluster.remote.<cluster_alias>.server_name`
 :   An optional hostname string which is sent in the `server_name` field of the TLS Server Name Indication extension if [TLS is enabled](docs-content://deploy-manage/security/secure-cluster-communications.md#encrypt-internode-communication). The TLS transport will fail to open remote connections if this field is not a valid hostname as defined by the TLS SNI specification.
+
+## Remote cluster strong identity verification settings [remote-cluster-signing-settings]
+```{applies_to}
+deployment:
+  stack: preview 9.3
+```
+
+The following settings are used to sign and verify cross-cluster API key requests when using the [API key-based security model](docs-content://deploy-manage/remote-clusters/security-models.md#api-key). These settings enable certificate-based signatures on cross-cluster requests to provide additional security by validating that requests originate from trusted clusters.
+
+### Strong identity verification settings [remote-cluster-signature-verification]
+
+The following global settings are used on the remote cluster to verify signatures from incoming cross-cluster requests. At least one of 
+`cluster.remote.signing.certificate_authorities` or `cluster.remote.signing.truststore.path` must be configured to enable signature verification.
+
+`cluster.remote.signing.certificate_authorities` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported onElastic Cloud Hosted")
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) List of paths to PEM encoded certificate files that should be trusted when verifying signatures from cross-cluster requests. These certificates are used to establish trust with the signing certificates presented by querying clusters. You cannot use this setting and `cluster.remote.signing.truststore.path` at 
+the same time.
+
+`cluster.remote.signing.truststore.path` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported onElastic Cloud Hosted")
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The path for the truststore that contains the certificates to trust when verifying signatures. It must be either a Java keystore (jks) or a PKCS#12 file. You cannot use this setting and `cluster.remote.signing.certificate_authorities` at the same time.
+
+`cluster.remote.signing.truststore.secure_password` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   ([Secure](docs-content://deploy-manage/security/secure-settings.md)) The password for the truststore specified by `cluster.remote.signing.truststore.path`.
+
+`cluster.remote.signing.truststore.algorithm` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The algorithm for the truststore. Defaults to `SunX509`.
+
+`cluster.remote.signing.truststore.type` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The format of the truststore file. It must be either `jks` or `PKCS12`. If the file name ends in ".p12", ".pfx", or "pkcs12", the default is `PKCS12`. Otherwise, it defaults to `jks`.
+
+`cluster.remote.signing.diagnose.trust` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Controls whether to output diagnostic messages for signature verification trust failures. If this is `true` (the default), a message will be printed to the {{es}} log whenever a cross-cluster signature verification is rejected due to a failure to establish trust. This diagnostic message contains information that can be used to determine the cause of the failure and assist with resolving the problem. Set to `false` to disable these messages.
+
+
+### Request signing settings [remote-cluster-request-signing]
+
+The following per-cluster settings are used on the local cluster to sign outgoing cross-cluster requests per-cluster alias. A private key and certificate must be configured for each remote cluster that requires signing requests.
+
+
+#### PEM encoded files [remote-cluster-signing-pem-files]
+
+When using PEM encoded files for signing, use the following settings:
+
+`cluster.remote.<cluster_alias>.signing.key` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The path to a PEM encoded file containing the private key used to sign cross-cluster requests to the remote cluster. You cannot use this setting and `cluster.remote.<cluster_alias>.signing.keystore.path` at the same time.
+
+`cluster.remote.<cluster_alias>.signing.key.secure_passphrase` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   ([Secure](docs-content://deploy-manage/security/secure-settings.md)) The passphrase that is used to decrypt the private key specified by `cluster.remote.<cluster_alias>.signing.key`. Because the key might not be encrypted, this value is optional.
+
+`cluster.remote.<cluster_alias>.signing.certificate` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The path for the PEM encoded certificate (or certificate chain) that is associated with the signing key. This certificate is sent as part of the signature and must be trusted by the remote cluster's `cluster.remote.signing.certificate_authorities` or `cluster.remote.signing.truststore.path` configuration. This setting can be used only if `cluster.remote.<cluster_alias>.signing.key` is set.
+
+
+#### Java keystore files [remote-cluster-signing-keystore-files]
+
+When using Java keystore files (JKS) for signing, which contain the private key and certificate, use the following settings:
+
+`cluster.remote.<cluster_alias>.signing.keystore.path` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The path for the keystore file that contains the private key and certificate used to sign cross-cluster requests. It must be either a Java keystore (jks) or a PKCS#12 file. You cannot use this setting and `cluster.remote.<cluster_alias>.signing.key` at the same time.
+
+`cluster.remote.<cluster_alias>.signing.keystore.type` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported onElastic Cloud Hosted")
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The format of the keystore file. It must be either `jks` or `PKCS12`. If the keystore path ends in ".p12", ".pfx", or ".pkcs12", this setting defaults to `PKCS12`. Otherwise, it defaults to `jks`.
+
+`cluster.remote.<cluster_alias>.signing.keystore.alias` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The alias of the key within the keystore that should be used for signing cross-cluster requests. If the keystore contains more than one private key, this setting must be specified.
+
+`cluster.remote.<cluster_alias>.signing.keystore.secure_password` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   ([Secure](docs-content://deploy-manage/security/secure-settings.md)) The password for the keystore specified by `cluster.remote.<cluster_alias>.signing.keystore.path`.
+
+`cluster.remote.<cluster_alias>.signing.keystore.secure_key_password` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   ([Secure](docs-content://deploy-manage/security/secure-settings.md)) The password for the key in the keystore specified by `cluster.remote.<cluster_alias>.signing.keystore.path`. Defaults to the keystore password.
+
+`cluster.remote.<cluster_alias>.signing.keystore.algorithm` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The algorithm for the keystore. Defaults to the default algorithm for the Java KeyManagerFactory.

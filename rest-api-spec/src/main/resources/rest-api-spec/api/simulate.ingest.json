@@ -44,8 +44,12 @@
         "description": "The pipeline id to preprocess incoming documents with if no pipeline is given for a particular document"
       },
       "merge_type": {
-        "type": "string",
-        "description": "The mapping merge type if mapping overrides are being provided in mapping_addition. The allowed values are one of index or template. The index option merges mappings the way they would be merged into an existing index. The template option merges mappings the way they would be merged into a template.",
+        "type": "enum",
+        "description": "The mapping merge type if mapping overrides are being provided in mapping_addition.\nThe allowed values are one of index or template.\nThe index option merges mappings the way they would be merged into an existing index.\nThe template option merges mappings the way they would be merged into a template.",
+        "options": [
+          "index",
+          "template"
+        ],
         "default": "index"
       }
     },

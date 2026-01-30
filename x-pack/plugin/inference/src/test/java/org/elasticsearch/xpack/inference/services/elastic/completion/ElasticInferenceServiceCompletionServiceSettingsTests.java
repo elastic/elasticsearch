@@ -44,7 +44,7 @@ public class ElasticInferenceServiceCompletionServiceSettingsTests extends Abstr
     @Override
     protected ElasticInferenceServiceCompletionServiceSettings mutateInstance(ElasticInferenceServiceCompletionServiceSettings instance)
         throws IOException {
-        return randomValueOtherThan(instance, ElasticInferenceServiceCompletionServiceSettingsTests::createRandom);
+        return new ElasticInferenceServiceCompletionServiceSettings(randomValueOtherThan(instance.modelId(), () -> randomAlphaOfLength(4)));
     }
 
     public void testFromMap() {

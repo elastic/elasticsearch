@@ -52,17 +52,19 @@ class ResultBuilderForDoc implements ResultBuilder {
         boolean success = false;
         IntVector shardsVector = null;
         IntVector segmentsVector = null;
+        IntVector docsVector = null;
+
         try {
             shardsVector = blockFactory.newIntArrayVector(shards, position);
             segmentsVector = blockFactory.newIntArrayVector(segments, position);
-            var docsVector = blockFactory.newIntArrayVector(docs, position);
+            docsVector = blockFactory.newIntArrayVector(docs, position);
             var docsBlock = DocVector.withoutIncrementingShardRefCounts(encoder.refCounteds(), shardsVector, segmentsVector, docsVector)
                 .asBlock();
             success = true;
             return docsBlock;
         } finally {
             if (success == false) {
-                Releasables.closeExpectNoException(shardsVector, segmentsVector);
+                Releasables.closeExpectNoException(shardsVector, segmentsVector, docsVector);
             }
         }
     }

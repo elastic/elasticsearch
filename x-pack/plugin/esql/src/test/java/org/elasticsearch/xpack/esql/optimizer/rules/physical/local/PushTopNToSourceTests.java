@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PLANNER_SETTINGS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
@@ -604,7 +605,6 @@ public class PushTopNToSourceTests extends ESTestCase {
                 Source.EMPTY,
                 this.index,
                 indexMode,
-                Map.of(),
                 attributes,
                 null,
                 List.of(),
@@ -648,7 +648,7 @@ public class PushTopNToSourceTests extends ESTestCase {
             }
 
             public Expression add(Expression left, Expression right) {
-                return new Add(Source.EMPTY, left, right);
+                return new Add(Source.EMPTY, left, right, TEST_CFG);
             }
 
             public Expression distance(String left, String right) {

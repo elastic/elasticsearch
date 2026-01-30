@@ -136,7 +136,11 @@ public class CustomTaskSettingsTests extends AbstractBWCWireSerializationTestCas
 
     @Override
     protected CustomTaskSettings mutateInstance(CustomTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, CustomTaskSettingsTests::createRandom);
+        Map<String, Object> parameters = randomValueOtherThan(
+            instance.getParameters(),
+            () -> randomMap(0, 5, () -> tuple(randomAlphaOfLength(5), randomAlphaOfLength(5)))
+        );
+        return new CustomTaskSettings(parameters);
     }
 
     public static Map<String, Object> getTaskSettingsMap(@Nullable Map<String, Object> parameters) {

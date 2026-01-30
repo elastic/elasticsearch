@@ -30,8 +30,8 @@ GET sales/_search
   }
 }
 ```
-%  TEST[setup:sales]
-%  TEST[s/_search/_search\?filter_path=aggregations/]
+% TEST[setup:sales]
+% TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
 
@@ -88,8 +88,8 @@ GET sales/_search
   }
 }
 ```
-%  TEST[setup:sales]
-%  TEST[s/_search/_search\?filter_path=aggregations/]
+% TEST[setup:sales]
+% TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
 
@@ -141,8 +141,8 @@ GET sales/_search
   }
 }
 ```
-%  TEST[setup:sales]
-%  TEST[s/_search/_search\?filter_path=aggregations/]
+% TEST[setup:sales]
+% TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
 
@@ -208,8 +208,8 @@ GET sales/_search
   }
 }
 ```
-%  TEST[setup:sales]
-%  TEST[s/_search/_search\?filter_path=aggregations/]
+% TEST[setup:sales]
+% TEST[s/_search/_search\?filter_path=aggregations/]
 
 ## Sub Aggregations [_sub_aggregations_2]
 
@@ -239,8 +239,8 @@ GET sales/_search
   }
 }
 ```
-%  TEST[setup:sales]
-%  TEST[s/_search/_search\?filter_path=aggregations/]
+% TEST[setup:sales]
+% TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
 

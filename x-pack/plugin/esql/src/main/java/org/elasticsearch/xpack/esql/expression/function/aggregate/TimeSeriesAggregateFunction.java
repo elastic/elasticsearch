@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 
 import java.io.IOException;
@@ -24,10 +25,16 @@ import java.util.function.Supplier;
  * Extends {@link AggregateFunction} to support aggregation per time_series,
  * such as {@link Rate} or {@link MaxOverTime}.
  */
-public abstract class TimeSeriesAggregateFunction extends AggregateFunction {
+public abstract class TimeSeriesAggregateFunction extends AggregateFunction implements OptionalArgument {
 
-    protected TimeSeriesAggregateFunction(Source source, Expression field, Expression filter, List<? extends Expression> parameters) {
-        super(source, field, filter, parameters);
+    protected TimeSeriesAggregateFunction(
+        Source source,
+        Expression field,
+        Expression filter,
+        Expression window,
+        List<? extends Expression> parameters
+    ) {
+        super(source, field, filter, window, parameters);
     }
 
     protected TimeSeriesAggregateFunction(StreamInput in) throws IOException {

@@ -649,4 +649,12 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
     private static double randomValue() {
         return randomBoolean() ? randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true) : randomFloat();
     }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(
+            // TODO doubles currently disable pruning, can we re-enable?
+            new SortShortcutSupport(this::minimalMapping, this::writeField, false)
+        );
+    }
 }

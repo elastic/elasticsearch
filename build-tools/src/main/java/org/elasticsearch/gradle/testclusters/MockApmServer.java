@@ -9,8 +9,11 @@
 
 package org.elasticsearch.gradle.testclusters;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.util.LRUMap;
+import com.fasterxml.jackson.databind.util.LookupCache;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -28,7 +31,9 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -48,6 +53,8 @@ import javax.annotation.concurrent.NotThreadSafe;
 public class MockApmServer {
     private static final Logger logger = Logging.getLogger(MockApmServer.class);
     private static final org.slf4j.Logger log = LoggerFactory.getLogger(MockApmServer.class);
+    private static final LookupCache<String, String> transactionCache = new LRUMap(16, 16);
+
     private final Pattern metricFilter;
     private final Pattern transactionFilter;
     private final Pattern transactionExcludesFilter;
@@ -107,8 +114,26 @@ public class MockApmServer {
     }
 
     class RootHandler implements HttpHandler {
+        // checked by APM agent to identify the APM server version to adjust its behavior accordingly
+        private static final String FAKE_VERSION = """
+            {
+              "build_date": "2021-12-18T19:59:06Z",
+              "build_sha": "24fe620eeff5a19e2133c940c7e5ce1ceddb1445",
+              "publish_ready": true,
+              "version": "9.0.0"
+            }
+            """;
+
         public void handle(HttpExchange t) {
             try {
+                if ("GET".equals(t.getRequestMethod()) && "/".equals(t.getRequestURI().getPath())) {
+                    t.sendResponseHeaders(200, FAKE_VERSION.length());
+                    try (OutputStream os = t.getResponseBody()) {
+                        os.write(FAKE_VERSION.getBytes());
+                    }
+                    return;
+                }
+
                 InputStream body = t.getRequestBody();
                 if (metricFilter == null && transactionFilter == null) {
                     logRequestBody(body);
@@ -136,22 +161,28 @@ public class MockApmServer {
             ObjectMapper mapper = new ObjectMapper();
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(body))) {
                 String line;
-                String tier = null;
-                String node = null;
+                String nodeMetadata = null;
+
+                List<JsonNode> spans = new ArrayList<>();
 
                 while ((line = reader.readLine()) != null) {
                     var jsonNode = mapper.readTree(line);
 
                     if (jsonNode.has("metadata")) {
-                        node = jsonNode.path("metadata").path("service").path("node").path("configured_name").asText(null);
-                        tier = jsonNode.path("metadata").path("labels").path("node_tier").asText(null);
+                        nodeMetadata = jsonNode.path("metadata").path("service").path("node").path("configured_name").asText(null);
+                        var tier = jsonNode.path("metadata").path("labels").path("node_tier").asText(null);
+                        nodeMetadata += tier != null ? "/" + tier : "";
+
                     } else if (transactionFilter != null && jsonNode.has("transaction")) {
                         var transaction = jsonNode.get("transaction");
                         var name = transaction.get("name").asText();
                         if (transactionFilter.matcher(name).matches()
                             && (transactionExcludesFilter == null || transactionExcludesFilter.matcher(name).matches() == false)) {
-                            logger.lifecycle("Transaction [{}/{}]: {}", node, tier, transaction);
+                            transactionCache.put(transaction.get("id").asText(), name);
+                            logger.lifecycle("Transaction {} [{}]: {}", name, nodeMetadata, transaction);
                         }
+                    } else if (jsonNode.has("span")) {
+                        spans.add(jsonNode.get("span")); // make sure to record all transactions first
                     } else if (metricFilter != null && jsonNode.has("metricset")) {
                         var metricset = jsonNode.get("metricset");
                         var samples = (ObjectNode) metricset.get("samples");
@@ -161,8 +192,18 @@ public class MockApmServer {
                             }
                         }
                         if (samples.isEmpty() == false) {
-                            logger.lifecycle("Metricset [{}/{}]", node, tier, metricset);
+                            logger.lifecycle("Metricset [{}]: {}", nodeMetadata, metricset);
                         }
+                    }
+                }
+
+                // emit only spans for previously matched transactions using the transaction cache
+                for (var span : spans) {
+                    var name = span.get("name").asText();
+                    var transactionId = span.get("transaction_id").asText();
+                    var transactionName = transactionCache.get(transactionId);
+                    if (transactionName != null) {
+                        logger.lifecycle("Span {} of {} [{}]: {}", name, transactionName, nodeMetadata, span);
                     }
                 }
             }

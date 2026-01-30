@@ -124,8 +124,8 @@ GET /exams/_search
   }
 }
 ```
-%  TEST[setup:exams]
-%  TEST[s/_search/_search?filter_path=aggregations/]
+% TEST[setup:exams]
+% TEST[s/_search/_search?filter_path=aggregations/]
 
 ## Missing value [_missing_value_9]
 

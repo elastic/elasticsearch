@@ -54,7 +54,7 @@
         "description": "Whether to ignore if a wildcard indices expression resolves into no concrete indices. (This includes `_all` string or when no indices have been specified)"
       },
       "expand_wildcards": {
-        "type": "enum",
+        "type": "list",
         "options": [
           "open",
           "closed",
@@ -82,10 +82,6 @@
         "type": "boolean",
         "default": true,
         "description": "Include empty fields in result"
-      },
-      "project_routing": {
-        "type": "string",
-        "description": "A Lucene query using project metadata tags to limit which projects to search, such as _alias:_origin or _alias:*pr*. Only supported in serverless."
       }
     },
     "body": {

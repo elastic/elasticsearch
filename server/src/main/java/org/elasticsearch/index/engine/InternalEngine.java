@@ -231,6 +231,8 @@ public class InternalEngine extends Engine {
 
     private final ByteSizeValue totalDiskSpace;
 
+    private final boolean useTsdbSyntheticId;
+
     protected static final String REAL_TIME_GET_REFRESH_SOURCE = "realtime_get";
     protected static final String UNSAFE_VERSION_MAP_REFRESH_SOURCE = "unsafe_version_map";
 
@@ -243,6 +245,12 @@ public class InternalEngine extends Engine {
     InternalEngine(EngineConfig engineConfig, int maxDocs, BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier) {
         super(engineConfig);
         this.maxDocs = maxDocs;
+        if (engineConfig.getIndexSettings().useTimeSeriesSyntheticId()) {
+            logger.info("using TSDB with synthetic id");
+            useTsdbSyntheticId = true;
+        } else {
+            useTsdbSyntheticId = false;
+        }
         this.relativeTimeInNanosSupplier = config().getRelativeTimeInNanosSupplier();
         this.lastFlushTimestamp = relativeTimeInNanosSupplier.getAsLong(); // default to creation timestamp
         this.liveVersionMapArchive = createLiveVersionMapArchive();
@@ -1059,7 +1067,13 @@ public class InternalEngine extends Engine {
                 directoryReader -> {
                     if (engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
                         assert engineConfig.getLeafSorter() == DataStream.TIMESERIES_LEAF_READERS_SORTER;
-                        return VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, op.uid(), op.id(), loadSeqNo);
+                        return VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(
+                            directoryReader,
+                            op.uid(),
+                            op.id(),
+                            loadSeqNo,
+                            useTsdbSyntheticId
+                        );
                     } else {
                         return VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, op.uid(), loadSeqNo);
                     }
@@ -1434,6 +1448,7 @@ public class InternalEngine extends Engine {
         index.parsedDoc().updateSeqID(index.seqNo(), index.primaryTerm());
         index.parsedDoc().version().setLongValue(plan.versionForIndexing);
         try {
+            logDocumentsDetails(index.docs(), index.id(), index.uid());
             if (plan.addStaleOpToLucene) {
                 addStaleDocs(index.docs(), indexWriter);
             } else if (plan.useLuceneUpdateDocument) {
@@ -1465,6 +1480,14 @@ public class InternalEngine extends Engine {
                 return new IndexResult(ex, Versions.MATCH_ANY, index.primaryTerm(), index.seqNo(), index.id());
             } else {
                 throw ex;
+            }
+        }
+    }
+
+    private void logDocumentsDetails(List<LuceneDocument> docs, String id, BytesRef uid) {
+        if (useTsdbSyntheticId && logger.isTraceEnabled()) {
+            for (var doc : docs) {
+                logger.trace("indexing document [id: {}, uid: {}]:\n{}\r\n", id, uid, doc.getFields());
             }
         }
     }
@@ -1842,7 +1865,10 @@ public class InternalEngine extends Engine {
         try {
             final ParsedDocument tombstone = ParsedDocument.deleteTombstone(
                 engineConfig.getIndexSettings().seqNoIndexOptions(),
-                delete.id()
+                engineConfig.getIndexSettings().useDocValuesSkipper(),
+                useTsdbSyntheticId,
+                delete.id(),
+                delete.uid()
             );
             assert tombstone.docs().size() == 1 : "Tombstone doc should have single doc [" + tombstone + "]";
             tombstone.updateSeqID(delete.seqNo(), delete.primaryTerm());
@@ -1851,6 +1877,7 @@ public class InternalEngine extends Engine {
             assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null
                 : "Delete tombstone document but _tombstone field is not set [" + doc + " ]";
             doc.add(softDeletesField);
+            logDocumentsDetails(List.of(doc), delete.id(), delete.uid());
             if (plan.addStaleOpToLucene || plan.currentlyDeleted) {
                 indexWriter.addDocument(doc);
             } else {
@@ -2788,7 +2815,7 @@ public class InternalEngine extends Engine {
             new SoftDeletesRetentionMergePolicy(
                 Lucene.SOFT_DELETES_FIELD,
                 () -> softDeletesPolicy.getRetentionQuery(engineConfig.getIndexSettings().seqNoIndexOptions()),
-                new PrunePostingsMergePolicy(mergePolicy, IdFieldMapper.NAME)
+                useTsdbSyntheticId ? mergePolicy : new PrunePostingsMergePolicy(mergePolicy, IdFieldMapper.NAME)
             )
         );
         if (SHUFFLE_FORCE_MERGE) {

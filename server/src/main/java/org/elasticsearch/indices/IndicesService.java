@@ -85,6 +85,7 @@ import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.MetadataStateFormat;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.CloseUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -92,7 +93,6 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
@@ -106,6 +106,7 @@ import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
@@ -187,6 +188,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -282,7 +284,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final PostRecoveryMerger postRecoveryMerger;
     private final List<SearchOperationListener> searchOperationListeners;
     private final QueryRewriteInterceptor queryRewriteInterceptor;
-    final SlowLogFieldProvider slowLogFieldProvider; // pkg-private for testingå
+    final ActionLoggingFieldsProvider loggingFieldsProvider; // pkg-private for testingå
     private final IndexingStatsSettings indexStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
     private final MergeMetrics mergeMetrics;
@@ -412,7 +414,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.timestampFieldMapperService = new TimestampFieldMapperService(settings, threadPool, this);
         this.postRecoveryMerger = new PostRecoveryMerger(settings, threadPool.executor(ThreadPool.Names.FORCE_MERGE), this::getShardOrNull);
         this.searchOperationListeners = builder.searchOperationListener;
-        this.slowLogFieldProvider = builder.slowLogFieldProvider;
+        this.loggingFieldsProvider = builder.loggingFieldsProvider;
         this.indexStatsSettings = new IndexingStatsSettings(clusterService.getClusterSettings());
         this.searchStatsSettings = new SearchStatsSettings(clusterService.getClusterSettings());
     }
@@ -520,33 +522,40 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     static Map<Index, List<IndexShardStats>> statsByShard(final IndicesService indicesService, final CommonStatsFlags flags) {
+        Map<ShardId, Long> shardIdToSharedRam = IndicesQueryCache.getSharedRamSizeForAllShards(indicesService);
         final Map<Index, List<IndexShardStats>> statsByShard = new HashMap<>();
-
         for (final IndexService indexService : indicesService) {
             for (final IndexShard indexShard : indexService) {
+                // get the shared ram for this shard id (or zero if there's nothing in the map)
                 try {
-                    final IndexShardStats indexShardStats = indicesService.indexShardStats(indicesService, indexShard, flags);
-
+                    final IndexShardStats indexShardStats = indicesService.indexShardStats(
+                        indicesService,
+                        indexShard,
+                        flags,
+                        () -> shardIdToSharedRam.getOrDefault(indexShard.shardId(), 0L)
+                    );
                     if (indexShardStats == null) {
                         continue;
                     }
-
                     if (statsByShard.containsKey(indexService.index()) == false) {
                         statsByShard.put(indexService.index(), arrayAsArrayList(indexShardStats));
                     } else {
                         statsByShard.get(indexService.index()).add(indexShardStats);
                     }
                 } catch (IllegalIndexShardStateException | AlreadyClosedException e) {
-                    // we can safely ignore illegal state on ones that are closing for example
                     logger.trace(() -> format("%s ignoring shard stats", indexShard.shardId()), e);
                 }
             }
         }
-
         return statsByShard;
     }
 
-    IndexShardStats indexShardStats(final IndicesService indicesService, final IndexShard indexShard, final CommonStatsFlags flags) {
+    IndexShardStats indexShardStats(
+        final IndicesService indicesService,
+        final IndexShard indexShard,
+        final CommonStatsFlags flags,
+        final Supplier<Long> precomputedSharedRam
+    ) {
         if (indexShard.routingEntry() == null) {
             return null;
         }
@@ -571,7 +580,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 new ShardStats(
                     indexShard.routingEntry(),
                     indexShard.shardPath(),
-                    CommonStats.getShardLevelStats(indicesService.getIndicesQueryCache(), indexShard, flags),
+                    CommonStats.getShardLevelStats(indicesService.getIndicesQueryCache(), indexShard, flags, precomputedSharedRam),
                     commitStats,
                     seqNoStats,
                     retentionLeaseStats,
@@ -801,7 +810,7 @@ public class IndicesService extends AbstractLifecycleComponent
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
             recoveryStateFactories,
-            slowLogFieldProvider,
+            loggingFieldsProvider,
             mapperMetrics,
             searchOperationListeners,
             indexStatsSettings,
@@ -834,8 +843,7 @@ public class IndicesService extends AbstractLifecycleComponent
             idFieldMappers.apply(idxSettings.getMode()),
             valuesSourceRegistry,
             indexFoldersDeletionListeners,
-            snapshotCommitSuppliers,
-            queryRewriteInterceptor
+            snapshotCommitSuppliers
         );
     }
 
@@ -901,7 +909,7 @@ public class IndicesService extends AbstractLifecycleComponent
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
             recoveryStateFactories,
-            slowLogFieldProvider,
+            loggingFieldsProvider,
             mapperMetrics,
             searchOperationListeners,
             indexStatsSettings,
@@ -909,7 +917,17 @@ public class IndicesService extends AbstractLifecycleComponent
             mergeMetrics
         );
         pluginsService.forEach(p -> p.onIndexModule(indexModule));
-        return indexModule.newIndexMapperService(clusterService, parserConfig, mapperRegistry, scriptService);
+        // If an IndexService with a DocumentMapper already exists for this index, reuse its DocumentMapper to avoid parsing/merging
+        // mappings again, which can be expensive for large mappings.
+        final DocumentMapper documentMapper = Optional.ofNullable(indexService(indexMetadata.getIndex()))
+            .map(IndexService::mapperService)
+            .map(MapperService::documentMapper)
+            // There's a chance that the mapping from the existing IndexService is different from the one in the provided IndexMetadata,
+            // because both are updated non-atomically when a new cluster state is applied. Since reusing the DocumentMapper is merely an
+            // optimization, we only do so when we are sure they are the same.
+            .filter(dm -> indexMetadata.mapping() != null && dm.mappingSource() == indexMetadata.mapping().source())
+            .orElse(null);
+        return indexModule.newIndexMapperService(clusterService, parserConfig, mapperRegistry, scriptService, documentMapper);
     }
 
     /**
@@ -1853,7 +1871,9 @@ public class IndicesService extends AbstractLifecycleComponent
         ResolvedIndices resolvedIndices,
         PointInTimeBuilder pit,
         final Boolean ccsMinimizeRoundTrips,
-        final boolean isExplain
+        final boolean isExplain,
+        final boolean isProfile,
+        final boolean allowPartialSearchResults
     ) {
         return new QueryRewriteContext(
             parserConfig,
@@ -1865,7 +1885,9 @@ public class IndicesService extends AbstractLifecycleComponent
             pit,
             queryRewriteInterceptor,
             ccsMinimizeRoundTrips,
-            isExplain
+            isExplain,
+            isProfile,
+            allowPartialSearchResults
         );
     }
 

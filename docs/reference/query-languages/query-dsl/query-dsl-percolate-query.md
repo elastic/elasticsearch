@@ -50,7 +50,7 @@ PUT /my-index-000001/_doc/1?refresh
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 Match a document to the registered percolator queries:
 
@@ -67,7 +67,7 @@ GET /my-index-000001/_search
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 The above request will yield the following response:
 
@@ -107,7 +107,7 @@ The above request will yield the following response:
   }
 }
 ```
-%  TESTRESPONSE[s/"took": 13,/"took": "$body.took",/]
+% TESTRESPONSE[s/"took": 13,/"took": "$body.took",/]
 
 1. The query with id `1` matches our document.
 2. The `_percolator_document_slot` field indicates which document has matched with this query. Useful when percolating multiple document simultaneously.
@@ -177,7 +177,7 @@ GET /my-index-000001/_search
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 At index time terms are extracted from the percolator query and the percolator can often determine whether a query matches just by looking at those extracted terms. However, computing scores requires to deserialize each matching query and run it against the percolated document, which is a much more expensive operation. Hence if computing scores is not required the `percolate` query should be wrapped in a `constant_score` query or a `bool` query’s filter clause.
 
@@ -214,7 +214,7 @@ GET /my-index-000001/_search
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 1. The documents array contains 4 documents that are going to be percolated at the same time.
 
@@ -255,7 +255,7 @@ GET /my-index-000001/_search
   }
 }
 ```
-%  TESTRESPONSE[s/"took": 13,/"took": "$body.took",/]
+% TESTRESPONSE[s/"took": 13,/"took": "$body.took",/]
 
 1. The `_percolator_document_slot` indicates that the first, second and last documents specified in the `percolate` query are matching with this query.
 
@@ -277,7 +277,7 @@ PUT /my-index-000001/_doc/2
   "message" : "A new bonsai tree in the office"
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 Index response:
 
@@ -312,7 +312,7 @@ GET /my-index-000001/_search
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 1. The version is optional, but useful in certain cases. We can ensure that we are trying to percolate the document we just have indexed. A change may be made after we have indexed, and if that is the case the search request would fail with a version conflict error.
 
@@ -341,7 +341,7 @@ PUT /my-index-000001/_doc/3?refresh
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 Save another query:
 
@@ -355,7 +355,7 @@ PUT /my-index-000001/_doc/4?refresh
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 Execute a search request with the `percolate` query and highlighting enabled:
 
@@ -377,7 +377,7 @@ GET /my-index-000001/_search
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 This will yield the following response.
 
@@ -442,7 +442,7 @@ This will yield the following response.
   }
 }
 ```
-%  TESTRESPONSE[s/"took": 7,/"took": "$body.took",/]
+% TESTRESPONSE[s/"took": 7,/"took": "$body.took",/]
 
 1. The terms from each query have been highlighted in the document.
 
@@ -480,7 +480,7 @@ GET /my-index-000001/_search
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 The slightly different response:
 
@@ -531,7 +531,7 @@ The slightly different response:
   }
 }
 ```
-%  TESTRESPONSE[s/"took": 13,/"took": "$body.took",/]
+% TESTRESPONSE[s/"took": 13,/"took": "$body.took",/]
 
 1. The highlight fields have been prefixed with the document slot they belong to, in order to know which highlight field belongs to what document.
 
@@ -571,7 +571,7 @@ PUT /my-index-000001/_doc/5?refresh
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 ```console
 GET /my-index-000001/_search
@@ -597,7 +597,7 @@ GET /my-index-000001/_search
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 ```console-result
 {
@@ -655,7 +655,7 @@ GET /my-index-000001/_search
   }
 }
 ```
-%  TESTRESPONSE[s/"took": 55,/"took": "$body.took",/]
+% TESTRESPONSE[s/"took": 55,/"took": "$body.took",/]
 
 1. The first document matched only the first sub-query.
 2. The second document matched only the second sub-query.
@@ -696,7 +696,7 @@ GET /my-index-000001/_search
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 1. The `name` parameter will be used to identify which percolator document slots belong to what `percolate` query.
 
@@ -741,7 +741,7 @@ The above search request returns a response similar to this:
   }
 }
 ```
-%  TESTRESPONSE[s/"took": 13,/"took": "$body.took",/]
+% TESTRESPONSE[s/"took": 13,/"took": "$body.took",/]
 
 1. The `_percolator_document_slot_query1` percolator slot field indicates that these matched slots are from the `percolate` query with `_name` parameter set to `query1`.
 

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.IndicesRequest.CrossProjectCandidate;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -36,7 +37,10 @@ import java.util.TreeMap;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.EsqlQueryRequest implements CompositeIndicesRequest {
+public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.EsqlQueryRequest
+    implements
+        CompositeIndicesRequest,
+        CrossProjectCandidate {
 
     public static TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
     public static TimeValue DEFAULT_WAIT_FOR_COMPLETION = TimeValue.timeValueSeconds(1);
@@ -59,23 +63,27 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private boolean onSnapshotBuild = Build.current().isSnapshot();
     private boolean acceptedPragmaRisks = false;
     private Boolean allowPartialResults = null;
+    private String projectRouting;
 
     /**
      * "Tables" provided in the request for use with things like {@code LOOKUP}.
      */
     private final Map<String, Map<String, Column>> tables = new TreeMap<>();
 
-    public static EsqlQueryRequest syncEsqlQueryRequest() {
-        return new EsqlQueryRequest(false);
+    public static EsqlQueryRequest syncEsqlQueryRequest(String query) {
+        return new EsqlQueryRequest(false, query);
     }
 
-    public static EsqlQueryRequest asyncEsqlQueryRequest() {
-        return new EsqlQueryRequest(true);
+    public static EsqlQueryRequest asyncEsqlQueryRequest(String query) {
+        return new EsqlQueryRequest(true, query);
     }
 
-    private EsqlQueryRequest(boolean async) {
+    private EsqlQueryRequest(boolean async, String query) {
         this.async = async;
+        this.query = query;
     }
+
+    public EsqlQueryRequest() {}
 
     public EsqlQueryRequest(StreamInput in) throws IOException {
         super(in);
@@ -89,12 +97,6 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         }
 
         if (onSnapshotBuild == false) {
-            if (timeZone != null) {
-                validationException = addValidationError(
-                    "[" + RequestXContent.TIME_ZONE_FIELD + "] only allowed in snapshot builds",
-                    validationException
-                );
-            }
             if (pragmas.isEmpty() == false && acceptedPragmaRisks == false) {
                 validationException = addValidationError(
                     "[" + RequestXContent.PRAGMA_FIELD + "] only allowed in snapshot builds",
@@ -111,8 +113,6 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return validationException;
     }
 
-    public EsqlQueryRequest() {}
-
     public EsqlQueryRequest query(String query) {
         this.query = query;
         return this;
@@ -127,8 +127,9 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return async;
     }
 
-    public void columnar(boolean columnar) {
+    public EsqlQueryRequest columnar(boolean columnar) {
         this.columnar = columnar;
+        return this;
     }
 
     public boolean columnar() {
@@ -139,20 +140,23 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
      * Enable profiling, sacrificing performance to return information about
      * what operations are taking the most time.
      */
-    public void profile(boolean profile) {
+    public EsqlQueryRequest profile(boolean profile) {
         this.profile = profile;
+        return this;
     }
 
-    public void includeCCSMetadata(Boolean include) {
+    public EsqlQueryRequest includeCCSMetadata(Boolean include) {
         this.includeCCSMetadata = include;
+        return this;
     }
 
     public Boolean includeCCSMetadata() {
         return includeCCSMetadata;
     }
 
-    public void includeExecutionMetadata(Boolean include) {
+    public EsqlQueryRequest includeExecutionMetadata(Boolean include) {
         this.includeExecutionMetadata = include;
+        return this;
     }
 
     public Boolean includeExecutionMetadata() {
@@ -213,24 +217,27 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return waitForCompletionTimeout;
     }
 
-    public void waitForCompletionTimeout(TimeValue waitForCompletionTimeout) {
+    public EsqlQueryRequest waitForCompletionTimeout(TimeValue waitForCompletionTimeout) {
         this.waitForCompletionTimeout = waitForCompletionTimeout;
+        return this;
     }
 
     public TimeValue keepAlive() {
         return keepAlive;
     }
 
-    public void keepAlive(TimeValue keepAlive) {
+    public EsqlQueryRequest keepAlive(TimeValue keepAlive) {
         this.keepAlive = keepAlive;
+        return this;
     }
 
     public boolean keepOnCompletion() {
         return keepOnCompletion;
     }
 
-    public void keepOnCompletion(boolean keepOnCompletion) {
+    public EsqlQueryRequest keepOnCompletion(boolean keepOnCompletion) {
         this.keepOnCompletion = keepOnCompletion;
+        return this;
     }
 
     /**
@@ -308,5 +315,19 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     void acceptedPragmaRisks(boolean accepted) {
         this.acceptedPragmaRisks = accepted;
+    }
+
+    public EsqlQueryRequest projectRouting(String projectRouting) {
+        this.projectRouting = projectRouting;
+        return this;
+    }
+
+    public String projectRouting() {
+        return projectRouting;
+    }
+
+    @Override
+    public boolean allowsCrossProject() {
+        return true;
     }
 }

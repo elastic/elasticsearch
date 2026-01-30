@@ -192,6 +192,11 @@ public class ReservedComposableIndexTemplateAction
     }
 
     @Override
+    public ClusterState remove(ProjectId projectId, TransformState prevState) throws Exception {
+        return transform(projectId, ComponentsAndComposables.EMPTY, prevState).state();
+    }
+
+    @Override
     public ComponentsAndComposables fromXContent(XContentParser parser) throws IOException {
         List<PutComponentTemplateAction.Request> componentTemplates = new ArrayList<>();
         List<TransportPutComposableIndexTemplateAction.Request> composableTemplates = new ArrayList<>();
@@ -233,5 +238,7 @@ public class ReservedComposableIndexTemplateAction
     record ComponentsAndComposables(
         List<PutComponentTemplateAction.Request> componentTemplates,
         List<TransportPutComposableIndexTemplateAction.Request> composableTemplates
-    ) {}
+    ) {
+        static final ComponentsAndComposables EMPTY = new ComponentsAndComposables(List.of(), List.of());
+    }
 }

@@ -75,9 +75,8 @@ public class TransportPutSampleConfigurationAction extends AcknowledgedTransport
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
-        // throws IndexNotFoundException if any index does not exist or more than one index is resolved
         try {
-            indexNameExpressionResolver.concreteIndexNames(state, request);
+            SamplingService.throwIndexNotFoundExceptionIfNotDataStreamOrIndex(indexNameExpressionResolver, projectResolver, state, request);
         } catch (IndexNotFoundException e) {
             listener.onFailure(e);
             return;

@@ -57,6 +57,7 @@ import java.util.Set;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.parseIndexNameCounter;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
+import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -100,6 +101,7 @@ public class IndexMetadataTests extends ESTestCase {
 
         IndexMetadata metadata = IndexMetadata.builder("foo")
             .settings(indexSettings(numShard, numberOfReplicas).put("index.version.created", 1))
+            .transportVersion(TransportVersion.current())
             .creationDate(randomLong())
             .primaryTerm(0, 2)
             .setRoutingNumShards(32)
@@ -151,6 +153,7 @@ public class IndexMetadataTests extends ESTestCase {
         );
         assertEquals(metadata.hashCode(), fromXContentMeta.hashCode());
 
+        assertEquals(metadata.getTransportVersion(), fromXContentMeta.getTransportVersion());
         assertEquals(metadata.getNumberOfReplicas(), fromXContentMeta.getNumberOfReplicas());
         assertEquals(metadata.getNumberOfShards(), fromXContentMeta.getNumberOfShards());
         assertEquals(metadata.getCreationVersion(), fromXContentMeta.getCreationVersion());
@@ -178,6 +181,7 @@ public class IndexMetadataTests extends ESTestCase {
             assertEquals(metadata, deserialized);
             assertEquals(metadata.hashCode(), deserialized.hashCode());
 
+            assertEquals(metadata.getTransportVersion(), deserialized.getTransportVersion());
             assertEquals(metadata.getNumberOfReplicas(), deserialized.getNumberOfReplicas());
             assertEquals(metadata.getNumberOfShards(), deserialized.getNumberOfShards());
             assertEquals(metadata.getCreationVersion(), deserialized.getCreationVersion());
@@ -214,6 +218,7 @@ public class IndexMetadataTests extends ESTestCase {
 
         IndexMetadata metadata = IndexMetadata.builder("foo")
             .settings(indexSettings(numShard, numberOfReplicas).put("index.version.created", 1))
+            .transportVersion(TransportVersion.current())
             .creationDate(randomLong())
             .primaryTerm(0, 2)
             .setRoutingNumShards(32)
@@ -282,6 +287,7 @@ public class IndexMetadataTests extends ESTestCase {
             fromXContentMeta
         );
         assertEquals(metadata.hashCode(), fromXContentMeta.hashCode());
+        assertEquals(metadata.getTransportVersion(), fromXContentMeta.getTransportVersion());
         assertEquals(metadata.getNumberOfReplicas(), fromXContentMeta.getNumberOfReplicas());
         assertEquals(metadata.getNumberOfShards(), fromXContentMeta.getNumberOfShards());
         assertEquals(metadata.getCreationVersion(), fromXContentMeta.getCreationVersion());
@@ -301,9 +307,14 @@ public class IndexMetadataTests extends ESTestCase {
     }
 
     public void testSelectShrinkShards() {
+        int version = randomBoolean()
+            ? randomIntBetween(IndexVersions.MOD_ROUTING_FUNCTION.id(), IndexVersion.current().id())
+            : randomIntBetween(IndexVersions.FIRST_DETACHED_INDEX_VERSION.id(), IndexVersions.MOD_ROUTING_FUNCTION.id() - 1);
+        boolean postModRoutingFunction = version >= IndexVersions.MOD_ROUTING_FUNCTION.id();
+
         int numberOfReplicas = randomIntBetween(0, 10);
         IndexMetadata metadata = IndexMetadata.builder("foo")
-            .settings(indexSettings(32, numberOfReplicas).put("index.version.created", 1))
+            .settings(indexSettings(32, numberOfReplicas).put("index.version.created", version))
             .creationDate(randomLong())
             .build();
         Set<ShardId> shardIds = IndexMetadata.selectShrinkShards(0, metadata, 8);
@@ -311,29 +322,29 @@ public class IndexMetadataTests extends ESTestCase {
             shardIds,
             Sets.newHashSet(
                 new ShardId(metadata.getIndex(), 0),
-                new ShardId(metadata.getIndex(), 1),
-                new ShardId(metadata.getIndex(), 2),
-                new ShardId(metadata.getIndex(), 3)
+                new ShardId(metadata.getIndex(), postModRoutingFunction ? 8 : 1),
+                new ShardId(metadata.getIndex(), postModRoutingFunction ? 16 : 2),
+                new ShardId(metadata.getIndex(), postModRoutingFunction ? 24 : 3)
             )
         );
         shardIds = IndexMetadata.selectShrinkShards(1, metadata, 8);
         assertEquals(
             shardIds,
             Sets.newHashSet(
-                new ShardId(metadata.getIndex(), 4),
-                new ShardId(metadata.getIndex(), 5),
-                new ShardId(metadata.getIndex(), 6),
-                new ShardId(metadata.getIndex(), 7)
+                new ShardId(metadata.getIndex(), postModRoutingFunction ? 1 : 4),
+                new ShardId(metadata.getIndex(), postModRoutingFunction ? 9 : 5),
+                new ShardId(metadata.getIndex(), postModRoutingFunction ? 17 : 6),
+                new ShardId(metadata.getIndex(), postModRoutingFunction ? 25 : 7)
             )
         );
         shardIds = IndexMetadata.selectShrinkShards(7, metadata, 8);
         assertEquals(
             shardIds,
             Sets.newHashSet(
-                new ShardId(metadata.getIndex(), 28),
-                new ShardId(metadata.getIndex(), 29),
-                new ShardId(metadata.getIndex(), 30),
-                new ShardId(metadata.getIndex(), 31)
+                new ShardId(metadata.getIndex(), postModRoutingFunction ? 7 : 28),
+                new ShardId(metadata.getIndex(), postModRoutingFunction ? 15 : 29),
+                new ShardId(metadata.getIndex(), postModRoutingFunction ? 23 : 30),
+                new ShardId(metadata.getIndex(), postModRoutingFunction ? 31 : 31)
             )
         );
 
@@ -373,17 +384,21 @@ public class IndexMetadataTests extends ESTestCase {
     }
 
     public void testSelectSplitShard() {
+        int version = randomBoolean()
+            ? IndexVersions.MOD_ROUTING_FUNCTION.id()
+            : randomIntBetween(IndexVersions.FIRST_DETACHED_INDEX_VERSION.id(), IndexVersions.MOD_ROUTING_FUNCTION.id() - 1);
+        boolean postModRoutingFunction = version >= IndexVersions.MOD_ROUTING_FUNCTION.id();
         IndexMetadata metadata = IndexMetadata.builder("foo")
-            .settings(indexSettings(2, 0).put("index.version.created", 1))
+            .settings(indexSettings(2, 0).put("index.version.created", version))
             .creationDate(randomLong())
             .setRoutingNumShards(4)
             .build();
         ShardId shardId = IndexMetadata.selectSplitShard(0, metadata, 4);
         assertEquals(0, shardId.getId());
         shardId = IndexMetadata.selectSplitShard(1, metadata, 4);
-        assertEquals(0, shardId.getId());
+        assertEquals(postModRoutingFunction ? 1 : 0, shardId.getId());
         shardId = IndexMetadata.selectSplitShard(2, metadata, 4);
-        assertEquals(1, shardId.getId());
+        assertEquals(postModRoutingFunction ? 0 : 1, shardId.getId());
         shardId = IndexMetadata.selectSplitShard(3, metadata, 4);
         assertEquals(1, shardId.getId());
 
@@ -679,6 +694,104 @@ public class IndexMetadataTests extends ESTestCase {
         Map<String, InferenceFieldMetadata> dynamicFields = randomInferenceFields();
         IndexMetadata idxMeta2 = IndexMetadata.builder(idxMeta1).putInferenceFields(dynamicFields).build();
         assertThat(idxMeta2.getInferenceFields(), equalTo(dynamicFields));
+    }
+
+    public void testGetMatchingInferenceFields() {
+        final String inferenceField1 = "inference-field-1";
+        final String inferenceField2 = "inference-field-2";
+        final String inferenceField3 = "inference-field-3";
+        final Map<String, InferenceFieldMetadata> inferenceFields = Map.of(
+            inferenceField1,
+            randomInferenceFieldMetadata(inferenceField1),
+            inferenceField2,
+            randomInferenceFieldMetadata(inferenceField2),
+            inferenceField3,
+            randomInferenceFieldMetadata(inferenceField3)
+        );
+
+        Settings.Builder settings = indexSettings(IndexVersion.current(), randomIntBetween(1, 8), 0);
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).putInferenceFields(inferenceFields).build();
+
+        final Map<String, Float> fieldPatternMap = Map.of(inferenceField1, 1.5f, "inference-field-*", 2.0f, "*-field-3", 1.75f);
+
+        // Explicit matches only
+        assertThat(
+            indexMetadata.getMatchingInferenceFields(fieldPatternMap, false, false),
+            equalTo(Map.of(inferenceFields.get(inferenceField1), 1.5f))
+        );
+
+        // Resolve wildcards
+        assertThat(
+            indexMetadata.getMatchingInferenceFields(fieldPatternMap, true, false),
+            equalTo(
+                Map.of(
+                    inferenceFields.get(inferenceField1),
+                    3.0f,
+                    inferenceFields.get(inferenceField2),
+                    2.0f,
+                    inferenceFields.get(inferenceField3),
+                    3.5f
+                )
+            )
+        );
+    }
+
+    public void testGetMatchingInferenceFieldsUsingDefaultFields() {
+        final String inferenceField1 = "inference-field-1";
+        final String inferenceField2 = "inference-field-2";
+        final String inferenceField3 = "inference-field-3";
+        final Map<String, InferenceFieldMetadata> inferenceFields = Map.of(
+            inferenceField1,
+            randomInferenceFieldMetadata(inferenceField1),
+            inferenceField2,
+            randomInferenceFieldMetadata(inferenceField2),
+            inferenceField3,
+            randomInferenceFieldMetadata(inferenceField3)
+        );
+
+        Settings.Builder index1Settings = indexSettings(IndexVersion.current(), randomIntBetween(1, 8), 0).putList(
+            DEFAULT_FIELD_SETTING.getKey(),
+            List.of(inferenceField1 + "^1.5", "inference-field-*^2.0", "*-field-3^1.75")
+        );
+        IndexMetadata index1Metadata = IndexMetadata.builder("test1").settings(index1Settings).putInferenceFields(inferenceFields).build();
+
+        Settings.Builder index2Settings = indexSettings(IndexVersion.current(), randomIntBetween(1, 8), 0);
+        IndexMetadata index2Metadata = IndexMetadata.builder("test2").settings(index2Settings).putInferenceFields(inferenceFields).build();
+
+        // Explicit matches only
+        assertThat(
+            index1Metadata.getMatchingInferenceFields(Map.of(), false, true),
+            equalTo(Map.of(inferenceFields.get(inferenceField1), 1.5f))
+        );
+        assertThat(index2Metadata.getMatchingInferenceFields(Map.of(), false, true), equalTo(Map.of()));
+
+        // Resolve wildcards
+        assertThat(
+            index1Metadata.getMatchingInferenceFields(Map.of(), true, true),
+            equalTo(
+                Map.of(
+                    inferenceFields.get(inferenceField1),
+                    3.0f,
+                    inferenceFields.get(inferenceField2),
+                    2.0f,
+                    inferenceFields.get(inferenceField3),
+                    3.5f
+                )
+            )
+        );
+        assertThat(
+            index2Metadata.getMatchingInferenceFields(Map.of(), true, true),
+            equalTo(
+                Map.of(
+                    inferenceFields.get(inferenceField1),
+                    1.0f,
+                    inferenceFields.get(inferenceField2),
+                    1.0f,
+                    inferenceFields.get(inferenceField3),
+                    1.0f
+                )
+            )
+        );
     }
 
     public void testReshardingBWCSerialization() throws IOException {

@@ -15,6 +15,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -106,6 +107,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.isA;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -218,7 +220,7 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
             settingsMap.putAll(Map.of(ServiceFields.SIMILARITY, SIMILARITY.toString(), ServiceFields.DIMENSIONS, DIMENSIONS));
 
             if (parseContext == ConfigurationParseContext.PERSISTENT) {
-                settingsMap.put(OpenAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER, DIMENSIONS_SET_BY_USER);
+                settingsMap.put(ServiceFields.DIMENSIONS_SET_BY_USER, DIMENSIONS_SET_BY_USER);
             }
         }
 
@@ -572,6 +574,58 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
         }
     }
 
+    public void testInfer_ReturnsErrorWhenCallingInfer_WithChatCompletion() throws IOException {
+        var sender = mock(HttpRequestSender.class);
+        doAnswer(invocation -> {
+            ActionListener<Void> listener = invocation.getArgument(0);
+            listener.onResponse(null);
+            return Void.TYPE;
+        }).when(sender).startAsynchronously(any());
+
+        var s = mock(HttpRequestSender.Factory.class);
+        when(s.createSender()).thenReturn(sender);
+
+        try (var service = new OpenAiService(s, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+
+            var endpointId = "endpoint_id";
+            var model = OpenAiChatCompletionModelTests.createModelWithTaskType(
+                endpointId,
+                getUrl(webServer),
+                "org",
+                "secret",
+                "model",
+                "user",
+                TaskType.CHAT_COMPLETION
+            );
+
+            var listener = new PlainActionFuture<InferenceServiceResults>();
+            service.infer(
+                model,
+                null,
+                null,
+                null,
+                List.of("abc"),
+                false,
+                new HashMap<>(),
+                InputType.INTERNAL_INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(
+                exception.getMessage(),
+                containsString(
+                    Strings.format(
+                        "The task type for the inference entity is chat_completion, "
+                            + "please use the _inference/chat_completion/%s/_stream URL",
+                        endpointId
+                    )
+                )
+            );
+        }
+    }
+
     public void testUnifiedCompletionInfer() throws Exception {
         // The escapes are because the streaming response must be on a single line
         String responseJson = """
@@ -628,7 +682,8 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
             InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent("""
                 {"id":"12345","choices":[{"delta":{"content":"hello, world"},"finish_reason":"stop","index":0}],""" + """
                 "model":"gpt-4o-mini","object":"chat.completion.chunk",""" + """
-                "usage":{"completion_tokens":28,"prompt_tokens":16,"total_tokens":44}}""");
+                "usage":{"completion_tokens":28,"prompt_tokens":16,"total_tokens":44,""" + """
+                "prompt_tokens_details":{"cached_tokens":0}}}""");
         }
     }
 
@@ -993,6 +1048,28 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
         var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", (ChunkingSettings) null);
 
         testChunkedInfer(model);
+    }
+
+    public void testChunkedInfer_noInputs() throws IOException {
+        var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", (ChunkingSettings) null);
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            service.chunkedInfer(
+                model,
+                null,
+                List.of(),
+                new HashMap<>(),
+                InputType.INTERNAL_INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var results = listener.actionGet(TIMEOUT);
+            assertThat(results, empty());
+            assertThat(webServer.requests(), empty());
+        }
     }
 
     private void testChunkedInfer(OpenAiEmbeddingsModel model) throws IOException {

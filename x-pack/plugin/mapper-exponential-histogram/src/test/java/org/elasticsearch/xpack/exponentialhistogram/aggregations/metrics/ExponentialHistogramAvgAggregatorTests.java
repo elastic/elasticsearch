@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.exponentialhistogram.aggregations.metrics;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -23,6 +23,7 @@ import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.exponentialhistogram.ExponentialHistogramFieldMapper;
+import org.elasticsearch.xpack.exponentialhistogram.aggregations.ExponentialHistogramAggregatorTestCase;
 import org.elasticsearch.xpack.exponentialhistogram.aggregations.support.ExponentialHistogramValuesSourceType;
 
 import java.io.IOException;
@@ -47,7 +48,7 @@ public class ExponentialHistogramAvgAggregatorTests extends ExponentialHistogram
         long expectedCount = histograms.stream().mapToLong(ExponentialHistogram::valueCount).sum();
         double expectedAvg = expectedSum / expectedCount;
 
-        testCase(new MatchAllDocsQuery(), iw -> histograms.forEach(histo -> addHistogramDoc(iw, FIELD_NAME, histo)), avg -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> histograms.forEach(histo -> addHistogramDoc(iw, FIELD_NAME, histo)), avg -> {
             if (expectedCount > 0) {
                 assertThat(avg.value(), closeTo(expectedAvg, 0.0001d));
                 assertThat(AggregationInspectionHelper.hasValue(avg), equalTo(true));
@@ -58,7 +59,7 @@ public class ExponentialHistogramAvgAggregatorTests extends ExponentialHistogram
     }
 
     public void testNoDocs() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             // Intentionally not writing any docs
         }, avg -> {
             assertThat(avg.value(), equalTo(Double.NaN));
@@ -68,7 +69,7 @@ public class ExponentialHistogramAvgAggregatorTests extends ExponentialHistogram
 
     public void testNoMatchingField() throws IOException {
         List<ExponentialHistogram> histograms = createRandomHistograms(10);
-        testCase(new MatchAllDocsQuery(), iw -> histograms.forEach(histo -> addHistogramDoc(iw, "wrong_field", histo)), avg -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> histograms.forEach(histo -> addHistogramDoc(iw, "wrong_field", histo)), avg -> {
             assertThat(avg.value(), equalTo(Double.NaN));
             assertThat(AggregationInspectionHelper.hasValue(avg), equalTo(false));
         });
@@ -108,7 +109,7 @@ public class ExponentialHistogramAvgAggregatorTests extends ExponentialHistogram
 
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalAvg> verify)
         throws IOException {
-        var fieldType = new ExponentialHistogramFieldMapper.ExponentialHistogramFieldType(FIELD_NAME, Collections.emptyMap());
+        var fieldType = new ExponentialHistogramFieldMapper.ExponentialHistogramFieldType(FIELD_NAME, Collections.emptyMap(), null);
         AggregationBuilder aggregationBuilder = createAggBuilderForTypeTest(fieldType, FIELD_NAME);
         testCase(buildIndex, verify, new AggTestConfig(aggregationBuilder, fieldType).withQuery(query));
     }

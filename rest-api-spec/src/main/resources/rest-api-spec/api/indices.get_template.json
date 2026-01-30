@@ -6,6 +6,10 @@
     },
     "stability": "stable",
     "visibility": "public",
+    "deprecated": {
+      "version": "7.8.0",
+      "description": "Legacy index templates are deprecated in favor of composable templates"
+    },
     "headers": {
       "accept": [
         "application/json"
@@ -45,7 +49,10 @@
         "description": "Timeout for waiting for new cluster state in case it is blocked"
       },
       "local": {
-        "deprecated": true,
+        "deprecated": {
+          "version": "9.0.0",
+          "description": "This parameter is a no-op and templates are always retrieved locally."
+        },
         "type": "boolean",
         "default": false,
         "description": "Return local information, do not retrieve the state from master node (default: false)"

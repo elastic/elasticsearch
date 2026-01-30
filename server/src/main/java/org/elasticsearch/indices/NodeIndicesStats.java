@@ -10,7 +10,6 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.NodeStatsLevel;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
@@ -64,7 +63,6 @@ import static java.util.Objects.requireNonNull;
  */
 public class NodeIndicesStats implements Writeable, ChunkedToXContent {
 
-    private static final TransportVersion VERSION_SUPPORTING_STATS_BY_INDEX = TransportVersions.V_8_5_0;
     private static final TransportVersion NODES_STATS_SUPPORTS_MULTI_PROJECT = TransportVersion.fromName(
         "nodes_stats_supports_multi_project"
     );
@@ -90,11 +88,7 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
             statsByShard.put(index, indexShardStats);
         }
 
-        if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_STATS_BY_INDEX)) {
-            statsByIndex = in.readMap(Index::new, CommonStats::new);
-        } else {
-            statsByIndex = new HashMap<>();
-        }
+        statsByIndex = in.readMap(Index::new, CommonStats::new);
 
         if (in.getTransportVersion().supports(NODES_STATS_SUPPORTS_MULTI_PROJECT)) {
             projectsByIndex = in.readMap(Index::new, ProjectId::readFrom);
@@ -243,9 +237,7 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
     public void writeTo(StreamOutput out) throws IOException {
         stats.writeTo(out);
         out.writeMap(statsByShard, StreamOutput::writeWriteable, StreamOutput::writeCollection);
-        if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_STATS_BY_INDEX)) {
-            out.writeMap(statsByIndex);
-        }
+        out.writeMap(statsByIndex);
         if (out.getTransportVersion().supports(NODES_STATS_SUPPORTS_MULTI_PROJECT)) {
             out.writeMap(projectsByIndex);
         }

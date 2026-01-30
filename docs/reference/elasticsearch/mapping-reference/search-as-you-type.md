@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Search-as-you-type"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-as-you-type.html
@@ -116,9 +119,9 @@ GET my-index-000001/_search
   }
 }
 ```
-%  TESTRESPONSE[s/"took" : 44/"took" : $body.took/]
-%  TESTRESPONSE[s/"max_score" : 0.8630463/"max_score" : $body.hits.max_score/]
-%  TESTRESPONSE[s/"_score" : 0.8630463/"_score" : $body.hits.hits.0._score/]
+% TESTRESPONSE[s/"took" : 44/"took" : $body.took/]
+% TESTRESPONSE[s/"max_score" : 0.8630463/"max_score" : $body.hits.max_score/]
+% TESTRESPONSE[s/"_score" : 0.8630463/"_score" : $body.hits.hits.0._score/]
 
 To search for documents that strictly match the query terms in order, or to search using other properties of phrase queries, use a [`match_phrase_prefix` query](/reference/query-languages/query-dsl/query-dsl-match-query-phrase-prefix.md) on the root field. A [`match_phrase` query](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) can also be used if the last term should be matched exactly, and not as a prefix. Using phrase queries may be less efficient than using the `match_bool_prefix` query.
 

@@ -14,10 +14,10 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
@@ -43,6 +43,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -85,7 +86,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         MATCH_ALL {
             @Override
             List<LuceneSliceQueue.QueryAndTags> queryAndExtra() {
-                return List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of()));
+                return List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of()));
             }
 
             @Override
@@ -466,7 +467,8 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         public BlockLoader blockLoader(
             String name,
             boolean asUnsupportedSource,
-            MappedFieldType.FieldExtractPreference fieldExtractPreference
+            MappedFieldType.FieldExtractPreference fieldExtractPreference,
+            BlockLoaderFunctionConfig blockLoaderFunctionConfig
         ) {
             throw new UnsupportedOperationException();
         }

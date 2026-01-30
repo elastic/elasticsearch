@@ -7,7 +7,7 @@ applies_to:
 
 # Retrieve inner hits [inner-hits]
 
-The [parent-join](/reference/elasticsearch/mapping-reference/parent-join.md) and [nested](/reference/elasticsearch/mapping-reference/nested.md) features allow the return of documents that have matches in a different scope. In the parent/child case, parent documents are returned based on matches in child documents or child documents are returned based on matches in parent documents. In the nested case, documents are returned based on matches in nested inner objects.
+Use the [search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search) with the `inner_hits` parameter to retrieve the exact nested or parent/child documents that caused each search hit to match. The [parent-join](/reference/elasticsearch/mapping-reference/parent-join.md) and [nested](/reference/elasticsearch/mapping-reference/nested.md) features allow the return of documents that have matches in a different scope. In the parent/child case, parent documents are returned based on matches in child documents or child documents are returned based on matches in parent documents. In the nested case, documents are returned based on matches in nested inner objects.
 
 In both cases, the actual matches in the different scopes that caused a document to be returned are hidden. In many cases, it’s very useful to know which inner nested objects (in the case of nested) or children/parent documents (in the case of parent/child) caused certain information to be returned. The inner hits feature can be used for this. This feature returns per search hit in the search response additional nested hits that caused a search hit to match in a different scope.
 
@@ -510,5 +510,5 @@ An example of a response snippet that could be generated from the above search r
   }
 }
 ```
-%  TESTRESPONSE[s/"_source": \.\.\./"_source": $body.hits.hits.0._source/]
-%  TESTRESPONSE[s/\.\.\./"timed_out": false, "took": $body.took, "_shards": $body._shards/]
+% TESTRESPONSE[s/"_source": \.\.\./"_source": $body.hits.hits.0._source/]
+% TESTRESPONSE[s/\.\.\./"timed_out": false, "took": $body.took, "_shards": $body._shards/]

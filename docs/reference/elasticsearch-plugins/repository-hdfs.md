@@ -1,6 +1,11 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/plugins/current/repository-hdfs.html
+applies_to:
+  stack: ga
+  serverless: unavailable
+products:
+  - id: elasticsearch
 ---
 
 # Hadoop HDFS repository plugin [repository-hdfs]

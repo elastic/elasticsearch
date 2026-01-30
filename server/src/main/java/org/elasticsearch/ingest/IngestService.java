@@ -109,7 +109,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.core.UpdateForV10.Owner.DATA_MANAGEMENT;
 
 /**
  * Holder class for several ingest related services.
@@ -174,15 +173,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     public static MatcherWatchdog createGrokThreadWatchdog(Environment env, ThreadPool threadPool) {
         final Settings settings = env.settings();
-        final BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler = createScheduler(threadPool);
-        long intervalMillis = IngestSettings.GROK_WATCHDOG_INTERVAL.get(settings).getMillis();
-        long maxExecutionTimeMillis = IngestSettings.GROK_WATCHDOG_INTERVAL.get(settings).getMillis();
-        return MatcherWatchdog.newInstance(
-            intervalMillis,
-            maxExecutionTimeMillis,
-            threadPool.relativeTimeInMillisSupplier(),
-            scheduler::apply
-        );
+        long maxExecutionTimeMillis = IngestSettings.GROK_WATCHDOG_MAX_EXECUTION_TIME.get(settings).getMillis();
+        return MatcherWatchdog.newInstance(maxExecutionTimeMillis);
     }
 
     /**
@@ -841,7 +833,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
     }
 
-    @UpdateForV10(owner = DATA_MANAGEMENT) // Change deprecation log for special characters in name to a failure
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // Change deprecation log for special characters in name to a failure
     void validatePipeline(
         Map<DiscoveryNode, IngestInfo> ingestInfos,
         ProjectId projectId,
@@ -992,7 +984,20 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         }
                         final int slot = i;
                         final Releasable ref = refs.acquire();
-                        final IngestDocument ingestDocument = newIngestDocument(indexRequest);
+                        final IngestDocument ingestDocument;
+                        try {
+                            ingestDocument = newIngestDocument(indexRequest);
+                        } catch (Exception e) {
+                            // Document parsing failed (e.g. invalid JSON). Handle this gracefully
+                            // by marking this document as failed and continuing with other documents.
+                            final long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
+                            totalMetrics.postIngest(ingestTimeInNanos);
+                            totalMetrics.ingestFailed();
+                            ref.close();
+                            i++;
+                            onFailure.apply(slot, e, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
+                            continue;
+                        }
                         final Metadata originalDocumentMetadata = ingestDocument.getMetadata().clone();
                         // the document listener gives us three-way logic: a document can fail processing (1), or it can
                         // be successfully processed. a successfully processed document can be kept (2) or dropped (3).
@@ -1040,14 +1045,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             }
                         );
 
-                        executePipelines(
-                            pipelines,
-                            indexRequest,
-                            ingestDocument,
-                            adaptedResolveFailureStore,
-                            documentListener,
-                            originalDocumentMetadata
-                        );
+                        executePipelines(pipelines, indexRequest, ingestDocument, adaptedResolveFailureStore, documentListener);
                         assert actionRequest.index() != null;
 
                         i++;
@@ -1166,8 +1164,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final IndexRequest indexRequest,
         final IngestDocument ingestDocument,
         final Function<String, Boolean> resolveFailureStore,
-        final ActionListener<IngestPipelinesExecutionResult> listener,
-        final Metadata originalDocumentMetadata
+        final ActionListener<IngestPipelinesExecutionResult> listener
     ) {
         assert pipelines.hasNext();
         PipelineSlot slot = pipelines.next();
@@ -1353,14 +1350,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
 
                 if (newPipelines.hasNext()) {
-                    executePipelines(newPipelines, indexRequest, ingestDocument, resolveFailureStore, listener, originalDocumentMetadata);
+                    executePipelines(newPipelines, indexRequest, ingestDocument, resolveFailureStore, listener);
                 } else {
                     /*
                      * At this point, all pipelines have been executed, and we are about to overwrite ingestDocument with the results.
                      * This is our chance to sample with both the original document and all changes.
                      */
                     haveAttemptedSampling.set(true);
-                    attemptToSampleData(project, indexRequest, ingestDocument, originalDocumentMetadata);
+                    attemptToSampleData(project, indexRequest, ingestDocument);
                     updateIndexRequestSource(indexRequest, ingestDocument);
                     cacheRawTimestamp(indexRequest, ingestDocument);
                     listener.onResponse(IngestPipelinesExecutionResult.SUCCESSFUL_RESULT); // document succeeded!
@@ -1369,7 +1366,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         } catch (Exception e) {
             if (haveAttemptedSampling.get() == false) {
                 // It is possible that an exception happened after we sampled. We do not want to sample the same document twice.
-                attemptToSampleData(project, indexRequest, ingestDocument, originalDocumentMetadata);
+                attemptToSampleData(project, indexRequest, ingestDocument);
             }
             logger.debug(
                 () -> format("failed to execute pipeline [%s] for document [%s/%s]", pipelineId, indexRequest.index(), indexRequest.id()),
@@ -1379,18 +1376,13 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
     }
 
-    private void attemptToSampleData(
-        ProjectMetadata projectMetadata,
-        IndexRequest indexRequest,
-        IngestDocument ingestDocument,
-        Metadata originalDocumentMetadata
-    ) {
-        if (samplingService != null && samplingService.atLeastOneSampleConfigured()) {
+    private void attemptToSampleData(ProjectMetadata projectMetadata, IndexRequest indexRequest, IngestDocument ingestDocument) {
+        if (samplingService != null && samplingService.atLeastOneSampleConfigured(projectMetadata)) {
             /*
              * We need both the original document and the fully updated document for sampling, so we make a copy of the original
              * before overwriting it here. We can discard it after sampling.
              */
-            samplingService.maybeSample(projectMetadata, originalDocumentMetadata.getIndex(), indexRequest, ingestDocument);
+            samplingService.maybeSample(projectMetadata, indexRequest, ingestDocument);
 
         }
     }

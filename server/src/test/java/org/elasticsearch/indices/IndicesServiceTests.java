@@ -41,19 +41,21 @@ import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.LocalAllocateDangledIndices;
 import org.elasticsearch.gateway.MetaStateWriterUtils;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
+import org.elasticsearch.index.ActionLoggingFields;
+import org.elasticsearch.index.ActionLoggingFieldsContext;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.SlowLogFieldProvider;
-import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -105,6 +107,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -206,62 +210,40 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public static class TestSlowLogFieldProvider implements SlowLogFieldProvider {
-
+    public static class TestActionActionLoggingFieldsProvider implements ActionLoggingFieldsProvider {
         private static Map<String, String> fields = Map.of();
 
         static void setFields(Map<String, String> fields) {
-            TestSlowLogFieldProvider.fields = fields;
+            TestActionActionLoggingFieldsProvider.fields = fields;
         }
 
         @Override
-        public SlowLogFields create() {
-            return new SlowLogFields() {
+        public ActionLoggingFields create(ActionLoggingFieldsContext context) {
+            return new ActionLoggingFields(context) {
                 @Override
-                public Map<String, String> indexFields() {
-                    return fields;
-                }
-
-                @Override
-                public Map<String, String> searchFields() {
+                public Map<String, String> logFields() {
                     return fields;
                 }
             };
         }
-
-        @Override
-        public SlowLogFields create(IndexSettings indexSettings) {
-            return create();
-        }
-
     }
 
-    public static class TestAnotherSlowLogFieldProvider implements SlowLogFieldProvider {
+    public static class TestAnotherActionActionLoggingFieldsProvider implements ActionLoggingFieldsProvider {
 
         private static Map<String, String> fields = Map.of();
 
         static void setFields(Map<String, String> fields) {
-            TestAnotherSlowLogFieldProvider.fields = fields;
+            TestAnotherActionActionLoggingFieldsProvider.fields = fields;
         }
 
         @Override
-        public SlowLogFields create() {
-            return new SlowLogFields() {
+        public ActionLoggingFields create(ActionLoggingFieldsContext context) {
+            return new ActionLoggingFields(context) {
                 @Override
-                public Map<String, String> indexFields() {
-                    return fields;
-                }
-
-                @Override
-                public Map<String, String> searchFields() {
+                public Map<String, String> logFields() {
                     return fields;
                 }
             };
-        }
-
-        @Override
-        public SlowLogFields create(IndexSettings indexSettings) {
-            return create();
         }
     }
 
@@ -613,14 +595,18 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
                 shardStats.add(successfulShardStats);
 
-                when(mockIndicesService.indexShardStats(mockIndicesService, shard, CommonStatsFlags.ALL)).thenReturn(successfulShardStats);
+                when(mockIndicesService.indexShardStats(eq(mockIndicesService), eq(shard), eq(CommonStatsFlags.ALL), any())).thenReturn(
+                    successfulShardStats
+                );
             } else {
-                when(mockIndicesService.indexShardStats(mockIndicesService, shard, CommonStatsFlags.ALL)).thenThrow(expectedException);
+                when(mockIndicesService.indexShardStats(eq(mockIndicesService), eq(shard), eq(CommonStatsFlags.ALL), any())).thenThrow(
+                    expectedException
+                );
             }
         }
 
-        when(mockIndicesService.iterator()).thenReturn(Collections.singleton(indexService).iterator());
-        when(indexService.iterator()).thenReturn(shards.iterator());
+        when(mockIndicesService.iterator()).thenAnswer(invocation -> Collections.singleton(indexService).iterator());
+        when(indexService.iterator()).thenAnswer(unused -> shards.iterator());
         when(indexService.index()).thenReturn(index);
 
         // real one, which has a logger defined
@@ -835,38 +821,34 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testLoadSlowLogFieldProvider() {
-        TestSlowLogFieldProvider.setFields(Map.of("key1", "value1"));
-        TestAnotherSlowLogFieldProvider.setFields(Map.of("key2", "value2"));
+        TestActionActionLoggingFieldsProvider.setFields(Map.of("key1", "value1"));
+        TestAnotherActionActionLoggingFieldsProvider.setFields(Map.of("key2", "value2"));
 
         var indicesService = getIndicesService();
-        SlowLogFieldProvider fieldProvider = indicesService.slowLogFieldProvider;
-        SlowLogFields fields = fieldProvider.create(null);
+        ActionLoggingFieldsProvider fieldProvider = indicesService.loggingFieldsProvider;
+        ActionLoggingFields fields = fieldProvider.create(new ActionLoggingFieldsContext());
 
         // The map of fields from the two providers are merged to a single map of fields
-        assertEquals(Map.of("key1", "value1", "key2", "value2"), fields.searchFields());
-        assertEquals(Map.of("key1", "value1", "key2", "value2"), fields.indexFields());
+        assertEquals(Map.of("key1", "value1", "key2", "value2"), fields.logFields());
 
-        TestSlowLogFieldProvider.setFields(Map.of("key1", "value1"));
-        TestAnotherSlowLogFieldProvider.setFields(Map.of("key1", "value2"));
+        TestActionActionLoggingFieldsProvider.setFields(Map.of("key1", "value1"));
+        TestAnotherActionActionLoggingFieldsProvider.setFields(Map.of("key1", "value2"));
 
         // There is an overlap of field names, since this isn't deterministic and probably a
         // programming error (two providers provide the same field) throw an exception
-        assertThrows(IllegalStateException.class, fields::searchFields);
-        assertThrows(IllegalStateException.class, fields::indexFields);
+        assertThrows(IllegalStateException.class, fields::logFields);
 
-        TestSlowLogFieldProvider.setFields(Map.of("key1", "value1"));
-        TestAnotherSlowLogFieldProvider.setFields(Map.of());
+        TestActionActionLoggingFieldsProvider.setFields(Map.of("key1", "value1"));
+        TestAnotherActionActionLoggingFieldsProvider.setFields(Map.of());
 
         // One provider has no fields
-        assertEquals(Map.of("key1", "value1"), fields.searchFields());
-        assertEquals(Map.of("key1", "value1"), fields.indexFields());
+        assertEquals(Map.of("key1", "value1"), fields.logFields());
 
-        TestSlowLogFieldProvider.setFields(Map.of());
-        TestAnotherSlowLogFieldProvider.setFields(Map.of());
+        TestActionActionLoggingFieldsProvider.setFields(Map.of());
+        TestAnotherActionActionLoggingFieldsProvider.setFields(Map.of());
 
         // Both providers have no fields
-        assertEquals(Map.of(), fields.searchFields());
-        assertEquals(Map.of(), fields.indexFields());
+        assertEquals(Map.of(), fields.logFields());
     }
 
     public void testWithTempIndexServiceHandlesExistingIndex() throws Exception {
@@ -882,6 +864,76 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             assertEquals(createdIndexService.index(), indexService.index());
             return null;
         });
+    }
+
+    /**
+     * Tests that the mapper service created for validation reuses the existing document mapper from the index service (if present).
+     */
+    public void testMapperServiceForValidationReusesExistingDocumentMapper() throws IOException {
+        IndicesService indicesService = getIndicesService();
+
+        IndexMetadata initialIndexMetadata = IndexMetadata.builder("test")
+            .settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 0))
+            .build();
+        IndexService indexService = indicesService.createIndex(initialIndexMetadata, List.of(), randomBoolean());
+
+        IndexMetadata newIndexMetadata = IndexMetadata.builder(initialIndexMetadata)
+            .mappingVersion(initialIndexMetadata.getMappingVersion() + 1)
+            .putMapping("""
+                {
+                  "_doc":{
+                    "properties": {
+                      "@timestamp": {
+                        "type": "date"
+                      }
+                    }
+                  }
+                }""")
+            .build();
+        indexService.updateMapping(initialIndexMetadata, newIndexMetadata);
+
+        assertNotNull(indexService.mapperService());
+        DocumentMapper existingDocumentMapper = indexService.mapperService().documentMapper();
+        assertNotNull(existingDocumentMapper);
+        // Create the mapper service with the same index metadata that we used to update the mapping to ensure the document mapper is reused
+        DocumentMapper temporaryDocumentMapper = indicesService.createIndexMapperServiceForValidation(newIndexMetadata).documentMapper();
+        assertNotNull(temporaryDocumentMapper);
+        assertSame(existingDocumentMapper, temporaryDocumentMapper);
+    }
+
+    /**
+     * Tests that we only reuse the existing document mapper from the index service if the mapping is unchanged.
+     */
+    public void testMapperServiceForValidationChecksMapping() throws IOException {
+        IndicesService indicesService = getIndicesService();
+
+        IndexMetadata initialIndexMetadata = IndexMetadata.builder("test")
+            .settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 0))
+            .build();
+        IndexService indexService = indicesService.createIndex(initialIndexMetadata, List.of(), randomBoolean());
+
+        IndexMetadata newIndexMetadata = IndexMetadata.builder(initialIndexMetadata)
+            .mappingVersion(initialIndexMetadata.getMappingVersion() + 1)
+            .putMapping("""
+                {
+                  "_doc":{
+                    "properties": {
+                      "@timestamp": {
+                        "type": "date"
+                      }
+                    }
+                  }
+                }""")
+            .build();
+        indexService.updateMapping(initialIndexMetadata, newIndexMetadata);
+
+        assertNotNull(indexService.mapperService());
+        DocumentMapper existingDocumentMapper = indexService.mapperService().documentMapper();
+        assertNotNull(existingDocumentMapper);
+        // Create the mapper service with the initial index metadata to ensure the document mapper is NOT reused as the mapping is different
+        DocumentMapper temporaryDocumentMapper = indicesService.createIndexMapperServiceForValidation(initialIndexMetadata)
+            .documentMapper();
+        assertNull(temporaryDocumentMapper);
     }
 
     private Set<ResolvedExpression> resolvedExpressions(String... expressions) {

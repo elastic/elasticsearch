@@ -38,7 +38,8 @@ import java.util.Map;
 public class TransportFieldUsageAction extends TransportBroadcastByNodeAction<
     FieldUsageStatsRequest,
     FieldUsageStatsResponse,
-    FieldUsageShardResponse> {
+    FieldUsageShardResponse,
+    Void> {
 
     private final IndicesService indicesService;
     private final ProjectResolver projectResolver;
@@ -94,6 +95,7 @@ public class TransportFieldUsageAction extends TransportBroadcastByNodeAction<
         FieldUsageStatsRequest request,
         ShardRouting shardRouting,
         Task task,
+        Void nodeContext,
         ActionListener<FieldUsageShardResponse> listener
     ) {
         ActionListener.completeWith(listener, () -> {

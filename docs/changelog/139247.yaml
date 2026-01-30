@@ -1,0 +1,5 @@
+pr: 139247
+summary: Add TDigest histogram as metric to time series data streams
+area: "TSDB"
+type: enhancement
+issues: []

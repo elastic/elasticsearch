@@ -73,9 +73,13 @@
         "description": "Optional parameter to specify the Grok pattern that should be used to extract fields from messages in a semi-structured text file"
       },
       "ecs_compatibility": {
-        "type": "string",
-        "default": "disabled",
-        "description": "Optional parameter to specify the compatibility mode with ECS Grok patterns - may be either 'v1' or 'disabled'"
+        "type": "enum",
+        "description": "The mode of compatibility with ECS compliant Grok patterns.\nUse this parameter to specify whether to use ECS Grok patterns instead of legacy ones when the structure finder creates a Grok pattern.\nThis setting primarily has an impact when a whole message Grok pattern such as `%{CATALINALOG}` matches the input.\nIf the structure finder identifies a common structure but has no idea of the meaning then generic field names such as `path`, `ipaddress`, `field1`, and `field2` are used in the `grok_pattern` output.\nThe intention in that situation is that a user who knows the meanings will rename the fields before using them.",
+        "options": [
+          "disabled",
+          "v1"
+        ],
+        "default": "disabled"
       },
       "timestamp_field": {
         "type": "string",

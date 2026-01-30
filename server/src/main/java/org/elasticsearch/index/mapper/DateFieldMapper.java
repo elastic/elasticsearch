@@ -46,6 +46,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedNumericIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -399,9 +400,14 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         private IndexType indexType(String fullFieldName) {
-            boolean hasDocValuesSkipper = shouldUseDocValuesSkipper(indexSettings, docValues.getValue(), fullFieldName);
-            if (hasDocValuesSkipper) {
+            if (shouldUseDocValuesSkipper(indexSettings, docValues.getValue(), fullFieldName)) {
                 return IndexType.skippers();
+            }
+            if (index.get() == false && docValues.get()) {
+                if (indexSettings.useDocValuesSkipper()
+                    && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)) {
+                    return IndexType.skippers();
+                }
             }
             if (indexCreatedVersion.isLegacyIndexVersion()) {
                 return IndexType.archivedPoints();
@@ -840,9 +846,10 @@ public final class DateFieldMapper extends FieldMapper {
                 }
                 for (LeafReaderContext ctx : leaves) {
                     DocValuesSkipper skipper = ctx.reader().getDocValuesSkipper(name());
-                    assert skipper != null : "no skipper for field:" + name() + " and reader:" + reader;
-                    minValue = Long.min(minValue, skipper.minValue());
-                    maxValue = Long.max(maxValue, skipper.maxValue());
+                    if (skipper != null) {
+                        minValue = Long.min(minValue, skipper.minValue());
+                        maxValue = Long.max(maxValue, skipper.maxValue());
+                    }
                 }
                 return isFieldWithinQuery(minValue, maxValue, from, to, includeLower, includeUpper, timeZone, dateParser, context, name());
             }
@@ -892,7 +899,7 @@ public final class DateFieldMapper extends FieldMapper {
                     ++fromInclusive;
                 }
                 // we set the time range filter from during rewrite, because this may be the only time we ever parse it,
-                // in case the shard if filtered out and does not run the query phase or all its docs are within the bounds.
+                // in case the shard gets filtered out and does not run the query phase or all its docs are within the bounds.
                 context.setTimeRangeFilterFromMillis(fieldName, fromInclusive, resolution);
             }
 
@@ -927,7 +934,7 @@ public final class DateFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues()) {
-                return new BlockDocValuesReader.LongsBlockLoader(name());
+                return new LongsBlockLoader(name());
             }
 
             // Multi fields don't have fallback synthetic source.
@@ -1006,7 +1013,7 @@ public final class DateFieldMapper extends FieldMapper {
                     name(),
                     resolution.numericType(),
                     resolution.getDefaultToScriptFieldFactory(),
-                    indexType.hasPoints()
+                    indexType
                 );
             }
 
@@ -1100,7 +1107,7 @@ public final class DateFieldMapper extends FieldMapper {
      * Determines whether the doc values skipper (sparse index) should be used for the {@code @timestamp} field.
      * <p>
      * The doc values skipper is enabled only if {@code index.mapping.use_doc_values_skipper} is set to {@code true},
-     * the index was created on or after {@link IndexVersions#REENABLED_TIMESTAMP_DOC_VALUES_SPARSE_INDEX}, and the
+     * the index was created on or after {@link IndexVersions#SKIPPERS_ENABLED_BY_DEFAULT}, and the
      * field has doc values enabled. Additionally, the index mode must be {@link IndexMode#LOGSDB} or {@link IndexMode#TIME_SERIES}, and
      * the index sorting configuration must include the {@code @timestamp} field.
      *
@@ -1109,10 +1116,8 @@ public final class DateFieldMapper extends FieldMapper {
      * @param fullFieldName  The full name of the field being checked, expected to be {@code @timestamp}.
      * @return {@code true} if the doc values skipper should be used, {@code false} otherwise.
      */
-
     private static boolean shouldUseDocValuesSkipper(IndexSettings indexSettings, boolean hasDocValues, final String fullFieldName) {
-        return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.REENABLED_TIMESTAMP_DOC_VALUES_SPARSE_INDEX)
-            && indexSettings.useDocValuesSkipper()
+        return indexSettings.useDocValuesSkipper()
             && hasDocValues
             && (IndexMode.LOGSDB.equals(indexSettings.getMode()) || IndexMode.TIME_SERIES.equals(indexSettings.getMode()))
             && indexSettings.getIndexSortConfig() != null

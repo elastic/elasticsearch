@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/subobjects.html
 ---
@@ -104,6 +107,10 @@ PUT my-index-000001/_doc/metric_1
 The `subobjects` setting for existing fields and the top-level mapping definition cannot be updated.
 
 ## Auto-flattening object mappings [subobjects-auto-flattening]
+
+::::{warning}
+Object fields of type `nested` don't work when wrapped by an object field that is configured with `subobjects: false`.
+::::
 
 It is generally recommended to define the properties of an object that is configured with `subobjects: false` with dotted field names (as shown in the first example). However, it is also possible to define these properties as sub-objects in the mappings. In that case, the mapping will be automatically flattened before it is stored. This makes it easier to re-use existing mappings without having to re-write them.
 

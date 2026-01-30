@@ -26,13 +26,13 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper;
-import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.spatial.XYQueriesUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -243,7 +243,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (blContext.fieldExtractPreference() == DOC_VALUES && hasDocValues()) {
-                return new BlockDocValuesReader.LongsBlockLoader(name());
+                return new LongsBlockLoader(name());
             }
 
             // Multi fields don't have fallback synthetic source.s

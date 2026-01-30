@@ -10,6 +10,4 @@ package org.elasticsearch.xpack.esql.core.plugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 
-public class EsqlCorePlugin extends Plugin implements ExtensiblePlugin {
-
-}
+public class EsqlCorePlugin extends Plugin implements ExtensiblePlugin {}

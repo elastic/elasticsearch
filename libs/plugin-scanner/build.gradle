@@ -20,8 +20,8 @@ dependencies {
   api project(':libs:plugin-api')
   api project(":libs:x-content")
 
-  api 'org.ow2.asm:asm:9.8'
-  api 'org.ow2.asm:asm-tree:9.8'
+  api 'org.ow2.asm:asm:9.9'
+  api 'org.ow2.asm:asm-tree:9.9'
 
   testImplementation "junit:junit:${versions.junit}"
   testImplementation(project(":test:framework")) {

@@ -1,5 +1,0 @@
-pr: 135838
-summary: Remove rate limit field from services API for EIS
-area: Machine Learning
-type: bug
-issues: []

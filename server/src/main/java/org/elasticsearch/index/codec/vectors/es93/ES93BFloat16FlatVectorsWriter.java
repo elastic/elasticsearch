@@ -23,7 +23,6 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
-import org.apache.lucene.codecs.lucene95.OffHeapFloatVectorValues;
 import org.apache.lucene.codecs.lucene95.OrdToDocDISIReaderConfiguration;
 import org.apache.lucene.index.DocsWithFieldSet;
 import org.apache.lucene.index.FieldInfo;
@@ -46,6 +45,7 @@ import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 
 import java.io.Closeable;
@@ -58,6 +58,7 @@ import java.util.List;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.elasticsearch.index.codec.vectors.es93.ES93BFloat16FlatVectorsFormat.DIRECT_MONOTONIC_BLOCK_SHIFT;
 
+@SuppressForbidden(reason = "Lucene classes")
 public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
 
     private static final long SHALLOW_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ES93BFloat16FlatVectorsWriter.class);
@@ -83,7 +84,6 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
             ES93BFloat16FlatVectorsFormat.VECTOR_DATA_EXTENSION
         );
 
-        boolean success = false;
         try {
             meta = state.directory.createOutput(metaFileName, state.context);
             vectorData = state.directory.createOutput(vectorDataFileName, state.context);
@@ -102,11 +102,9 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
-            success = true;
-        } finally {
-            if (success == false) {
-                IOUtils.closeWhileHandlingException(this);
-            }
+        } catch (Throwable t) {
+            IOUtils.closeWhileHandlingException(this);
+            throw t;
         }
     }
 
@@ -224,10 +222,10 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
         long vectorDataOffset = vectorData.alignFilePointer(BFloat16.BYTES);
         IndexOutput tempVectorData = segmentWriteState.directory.createTempOutput(vectorData.getName(), "temp", segmentWriteState.context);
         IndexInput vectorDataInput = null;
-        boolean success = false;
+        DocsWithFieldSet docsWithField = null;
         try {
             // write the vector data to a temporary file
-            DocsWithFieldSet docsWithField = switch (fieldInfo.getVectorEncoding()) {
+            docsWithField = switch (fieldInfo.getVectorEncoding()) {
                 case FLOAT32 -> writeVectorData(tempVectorData, MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState));
                 case BYTE -> throw new UnsupportedOperationException("ES92BFloat16FlatVectorsWriter only supports float vectors");
             };
@@ -246,33 +244,27 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
             CodecUtil.retrieveChecksum(vectorDataInput);
             long vectorDataLength = vectorData.getFilePointer() - vectorDataOffset;
             writeMeta(fieldInfo, segmentWriteState.segmentInfo.maxDoc(), vectorDataOffset, vectorDataLength, docsWithField);
-            success = true;
-            final IndexInput finalVectorDataInput = vectorDataInput;
-            final RandomVectorScorerSupplier randomVectorScorerSupplier = vectorsScorer.getRandomVectorScorerSupplier(
-                fieldInfo.getVectorSimilarityFunction(),
-                new OffHeapFloatVectorValues.DenseOffHeapVectorValues(
-                    fieldInfo.getVectorDimension(),
-                    docsWithField.cardinality(),
-                    finalVectorDataInput,
-                    fieldInfo.getVectorDimension() * BFloat16.BYTES,
-                    vectorsScorer,
-                    fieldInfo.getVectorSimilarityFunction()
-                )
-            );
-            return new FlatCloseableRandomVectorScorerSupplier(() -> {
-                IOUtils.close(finalVectorDataInput);
-                segmentWriteState.directory.deleteFile(tempVectorData.getName());
-            }, docsWithField.cardinality(), randomVectorScorerSupplier);
-        } finally {
-            if (success == false) {
-                IOUtils.closeWhileHandlingException(vectorDataInput, tempVectorData);
-                try {
-                    segmentWriteState.directory.deleteFile(tempVectorData.getName());
-                } catch (Exception e) {
-                    // ignore
-                }
-            }
+        } catch (Throwable t) {
+            IOUtils.closeWhileHandlingException(vectorDataInput, tempVectorData);
+            org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(segmentWriteState.directory, tempVectorData.getName());
+            throw t;
         }
+        final IndexInput finalVectorDataInput = vectorDataInput;
+        final RandomVectorScorerSupplier randomVectorScorerSupplier = vectorsScorer.getRandomVectorScorerSupplier(
+            fieldInfo.getVectorSimilarityFunction(),
+            new OffHeapBFloat16VectorValues.DenseOffHeapVectorValues(
+                fieldInfo.getVectorDimension(),
+                docsWithField.cardinality(),
+                finalVectorDataInput,
+                fieldInfo.getVectorDimension() * BFloat16.BYTES,
+                vectorsScorer,
+                fieldInfo.getVectorSimilarityFunction()
+            )
+        );
+        return new FlatCloseableRandomVectorScorerSupplier(() -> {
+            IOUtils.close(finalVectorDataInput);
+            segmentWriteState.directory.deleteFile(tempVectorData.getName());
+        }, docsWithField.cardinality(), randomVectorScorerSupplier);
     }
 
     private void writeMeta(FieldInfo field, int maxDoc, long vectorDataOffset, long vectorDataLength, DocsWithFieldSet docsWithField)

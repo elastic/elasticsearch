@@ -93,7 +93,6 @@ import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
-import org.elasticsearch.plugins.internal.rewriter.MockQueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -245,8 +244,7 @@ public class IndexModuleTests extends ESTestCase {
             module.indexSettings().getMode().idFieldMapperWithoutFieldData(),
             null,
             indexDeletionListener,
-            emptyMap(),
-            new MockQueryRewriteInterceptor()
+            emptyMap()
         );
     }
 
@@ -260,7 +258,7 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-            mock(SlowLogFieldProvider.class),
+            mock(ActionLoggingFieldsProvider.class),
             MapperMetrics.NOOP,
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
@@ -291,7 +289,7 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-            mock(SlowLogFieldProvider.class),
+            mock(ActionLoggingFieldsProvider.class),
             MapperMetrics.NOOP,
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
@@ -320,7 +318,7 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-            mock(SlowLogFieldProvider.class),
+            mock(ActionLoggingFieldsProvider.class),
             MapperMetrics.NOOP,
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
@@ -677,7 +675,7 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             recoveryStateFactories,
-            mock(SlowLogFieldProvider.class),
+            mock(ActionLoggingFieldsProvider.class),
             MapperMetrics.NOOP,
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
@@ -703,7 +701,7 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-            mock(SlowLogFieldProvider.class),
+            mock(ActionLoggingFieldsProvider.class),
             MapperMetrics.NOOP,
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
@@ -809,7 +807,7 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-            mock(SlowLogFieldProvider.class),
+            mock(ActionLoggingFieldsProvider.class),
             MapperMetrics.NOOP,
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),

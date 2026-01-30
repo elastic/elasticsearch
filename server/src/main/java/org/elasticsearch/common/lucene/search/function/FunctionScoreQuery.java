@@ -197,6 +197,14 @@ public class FunctionScoreQuery extends Query {
         return combineFunction;
     }
 
+    public ScoreMode getScoreMode() {
+        return scoreMode;
+    }
+
+    public Float getMaxBoost() {
+        return maxBoost;
+    }
+
     @Override
     public void visit(QueryVisitor visitor) {
         // Highlighters must visit the child query to extract terms

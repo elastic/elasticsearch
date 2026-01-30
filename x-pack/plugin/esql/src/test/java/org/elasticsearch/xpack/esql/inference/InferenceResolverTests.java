@@ -113,7 +113,7 @@ public class InferenceResolverTests extends ESTestCase {
 
     private void assertCollectInferenceIds(String query, List<String> expectedInferenceIds) {
         InferenceResolver inferenceResolver = inferenceResolver();
-        List<String> inferenceIds = inferenceResolver.collectInferenceIds(new EsqlParser().createStatement(query));
+        List<String> inferenceIds = inferenceResolver.collectInferenceIds(EsqlParser.INSTANCE.parseQuery(query));
         assertThat(inferenceIds, containsInAnyOrder(expectedInferenceIds.toArray(new String[0])));
     }
 

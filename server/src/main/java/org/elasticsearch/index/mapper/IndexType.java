@@ -9,6 +9,11 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.DocValuesSkipIndexType;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
+
 import java.util.Objects;
 
 /**
@@ -116,6 +121,25 @@ public final class IndexType {
             return NONE;
         }
         return new IndexType(isIndexed, false, false, false, hasDocValues, false);
+    }
+
+    /**
+     * @return a terms-based IndexType from a lucene FieldType
+     */
+    public static IndexType terms(FieldType fieldType) {
+        if (fieldType.indexOptions() == IndexOptions.NONE) {
+            if (fieldType.docValuesType() == DocValuesType.NONE) {
+                return NONE;
+            }
+            if (fieldType.docValuesSkipIndexType() == DocValuesSkipIndexType.NONE) {
+                return docValuesOnly();
+            }
+            return skippers();
+        }
+        if (fieldType.docValuesType() == DocValuesType.NONE) {
+            return terms(true, false);
+        }
+        return terms(true, true);
     }
 
     /**

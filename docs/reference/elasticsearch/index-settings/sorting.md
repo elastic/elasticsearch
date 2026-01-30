@@ -176,8 +176,8 @@ This time, Elasticsearch will not try to count the number of documents and will 
   "timed_out": false
 }
 ```
-%  TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]
-%  TESTRESPONSE[s/"took": 20,/"took": "$body.took",/]
+% TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]
+% TESTRESPONSE[s/"took": 20,/"took": "$body.took",/]
 
 1. The total number of hits matching the query is unknown because of early termination.
 

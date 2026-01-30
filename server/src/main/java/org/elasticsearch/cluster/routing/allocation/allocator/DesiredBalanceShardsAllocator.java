@@ -90,6 +90,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private final Set<String> processedNodeShutdowns = new HashSet<>();
     private final NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator;
     private final DesiredBalanceMetrics desiredBalanceMetrics;
+    private final AllocationBalancingRoundMetrics balancingRoundMetrics;
     /**
      * Manages balancer round results in order to report on the balancer activity in a configurable manner.
      */
@@ -121,7 +122,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         DesiredBalanceReconcilerAction reconciler,
         NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator,
         ShardAllocationExplainer shardAllocationExplainer,
-        DesiredBalanceMetrics desiredBalanceMetrics
+        DesiredBalanceMetrics desiredBalanceMetrics,
+        AllocationBalancingRoundMetrics balancingRoundMetrics
     ) {
         this(
             delegateAllocator,
@@ -130,7 +132,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             new DesiredBalanceComputer(clusterSettings, threadPool, delegateAllocator, shardAllocationExplainer),
             reconciler,
             nodeAllocationStatsAndWeightsCalculator,
-            desiredBalanceMetrics
+            desiredBalanceMetrics,
+            balancingRoundMetrics
         );
     }
 
@@ -141,11 +144,17 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         DesiredBalanceComputer desiredBalanceComputer,
         DesiredBalanceReconcilerAction reconciler,
         NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator,
-        DesiredBalanceMetrics desiredBalanceMetrics
+        DesiredBalanceMetrics desiredBalanceMetrics,
+        AllocationBalancingRoundMetrics balancingRoundMetrics
     ) {
         this.desiredBalanceMetrics = desiredBalanceMetrics;
+        this.balancingRoundMetrics = balancingRoundMetrics;
         this.nodeAllocationStatsAndWeightsCalculator = nodeAllocationStatsAndWeightsCalculator;
-        this.balancerRoundSummaryService = new AllocationBalancingRoundSummaryService(threadPool, clusterService.getClusterSettings());
+        this.balancerRoundSummaryService = new AllocationBalancingRoundSummaryService(
+            threadPool,
+            clusterService.getClusterSettings(),
+            balancingRoundMetrics
+        );
         this.delegateAllocator = delegateAllocator;
         this.threadPool = threadPool;
         this.reconciler = reconciler;
@@ -246,8 +255,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     }
 
     @Override
-    public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
-        return delegateAllocator.decideShardAllocation(shard, allocation);
+    public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+        return delegateAllocator.explainShardAllocation(shard, allocation);
     }
 
     @Override

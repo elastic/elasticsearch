@@ -21,6 +21,8 @@ module org.elasticsearch.compute {
     requires org.elasticsearch.geo;
     requires org.elasticsearch.xcore;
     requires hppc;
+    requires org.elasticsearch.exponentialhistogram;
+    requires org.elasticsearch.swisshash;
 
     exports org.elasticsearch.compute;
     exports org.elasticsearch.compute.aggregation;

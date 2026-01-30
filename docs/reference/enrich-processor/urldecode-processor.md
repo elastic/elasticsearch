@@ -29,5 +29,5 @@ $$$urldecode-options$$$
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 

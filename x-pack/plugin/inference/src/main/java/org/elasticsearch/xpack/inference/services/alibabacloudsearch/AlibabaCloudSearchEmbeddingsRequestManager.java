@@ -73,7 +73,7 @@ public class AlibabaCloudSearchEmbeddingsRequestManager extends AlibabaCloudSear
     ) {
         EmbeddingsInput input = inferenceInputs.castTo(EmbeddingsInput.class);
 
-        List<String> docsInput = input.getInputs();
+        List<String> docsInput = input.getTextInputs();
         InputType inputType = input.getInputType();
 
         AlibabaCloudSearchEmbeddingsRequest request = new AlibabaCloudSearchEmbeddingsRequest(account, docsInput, inputType, model);

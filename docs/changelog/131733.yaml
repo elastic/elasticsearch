@@ -1,5 +1,0 @@
-pr: 131733
-summary: Replace `RoundTo` linear search evaluator with manual evaluators
-area: ES|QL
-type: enhancement
-issues: []

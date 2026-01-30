@@ -14,6 +14,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block.MvOrdering;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.util.BitSet;
 
@@ -432,8 +434,31 @@ public class BlockFactory {
         return b;
     }
 
+    /**
+     * Create a {@link IntVector} that includes a range of integers from startInclusive (inclusive) to endExclusive (exclusive).
+     */
+    public IntVector newIntRangeVector(int startInclusive, int endExclusive) {
+        IntRangeVector v = new IntRangeVector(this, startInclusive, endExclusive);
+        adjustBreaker(v.ramBytesUsed());
+        return v;
+    }
+
     public AggregateMetricDoubleBlockBuilder newAggregateMetricDoubleBlockBuilder(int estimatedSize) {
         return new AggregateMetricDoubleBlockBuilder(estimatedSize, this);
+    }
+
+    public final AggregateMetricDoubleBlock newAggregateMetricDoubleBlock(
+        Block minBlock,
+        Block maxBlock,
+        Block sumBlock,
+        Block countBlock
+    ) {
+        return new AggregateMetricDoubleArrayBlock(
+            (DoubleBlock) minBlock,
+            (DoubleBlock) maxBlock,
+            (DoubleBlock) sumBlock,
+            (IntBlock) countBlock
+        );
     }
 
     public final AggregateMetricDoubleBlock newConstantAggregateMetricDoubleBlock(
@@ -467,6 +492,57 @@ public class BlockFactory {
         }
     }
 
+    public BlockLoader.Block newAggregateMetricDoubleBlockFromDocValues(
+        DoubleBlock minBlock,
+        DoubleBlock maxBlock,
+        DoubleBlock sumBlock,
+        IntBlock countBlock
+    ) {
+        return new AggregateMetricDoubleArrayBlock(minBlock, maxBlock, sumBlock, countBlock);
+    }
+
+    public ExponentialHistogramBlockBuilder newExponentialHistogramBlockBuilder(int estimatedSize) {
+        return new ExponentialHistogramBlockBuilder(estimatedSize, this);
+    }
+
+    public TDigestBlockBuilder newTDigestBlockBuilder(int estimatedSize) {
+        return new TDigestBlockBuilder(estimatedSize, this);
+    }
+
+    public final ExponentialHistogramBlock newConstantExponentialHistogramBlock(ExponentialHistogram value, int positionCount) {
+        return ExponentialHistogramArrayBlock.createConstant(value, positionCount, this);
+    }
+
+    public final TDigestBlock newConstantTDigestBlock(TDigestHolder value, int positions) {
+        return TDigestArrayBlock.createConstant(value, positions, this);
+    }
+
+    public final TDigestBlock newConstantTDigestBlockWith(TDigestHolder value, int positions) {
+        // TODO: how is the "with" variant meant to be different?
+        return TDigestArrayBlock.createConstant(value, positions, this);
+    }
+
+    public BlockLoader.Block newExponentialHistogramBlockFromDocValues(
+        DoubleBlock minima,
+        DoubleBlock maxima,
+        DoubleBlock sums,
+        DoubleBlock valueCounts,
+        DoubleBlock zeroThresholds,
+        BytesRefBlock encodedHistograms
+    ) {
+        return new ExponentialHistogramArrayBlock(minima, maxima, sums, valueCounts, zeroThresholds, encodedHistograms);
+    }
+
+    public BlockLoader.Block newTDigestBlockFromDocValues(
+        BytesRefBlock encodedDigests,
+        DoubleBlock minima,
+        DoubleBlock maxima,
+        DoubleBlock sums,
+        LongBlock counts
+    ) {
+        return new TDigestArrayBlock(encodedDigests, minima, maxima, sums, counts);
+    }
+
     public final AggregateMetricDoubleBlock newAggregateMetricDoubleBlock(
         double[] minValues,
         double[] maxValues,
@@ -481,10 +557,33 @@ public class BlockFactory {
         return new AggregateMetricDoubleArrayBlock(min, max, sum, count);
     }
 
+    public LongRangeBlockBuilder newLongRangeBlockBuilder(int estimatedSize) {
+        return new LongRangeBlockBuilder(estimatedSize, this);
+    }
+
+    public LongRangeBlock newConstantLongRangeBlock(LongRangeBlockBuilder.LongRange value, int positions) {
+        try (var builder = newLongRangeBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                if (value.from() == null) {
+                    builder.from().appendNull();
+                } else {
+                    builder.from().appendLong(value.from());
+                }
+                if (value.to() == null) {
+                    builder.to().appendNull();
+                } else {
+                    builder.to().appendLong(value.to());
+                }
+            }
+            return builder.build();
+        }
+    }
+
     /**
      * Returns the maximum number of bytes that a Block should be backed by a primitive array before switching to using BigArrays.
      */
     public long maxPrimitiveArrayBytes() {
         return maxPrimitiveArrayBytes;
     }
+
 }

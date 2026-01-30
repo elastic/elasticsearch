@@ -70,7 +70,7 @@ POST my-index-000001/_analyze
   "text": "My credit card is 123-456-789"
 }
 ```
-%  TEST[s/\$1//]
+% TEST[s/\$1//]
 
 The above example produces the following terms:
 
@@ -155,7 +155,7 @@ GET my-index-000001/_search
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 The output from the above is:
 
@@ -193,7 +193,7 @@ The output from the above is:
   }
 }
 ```
-%  TESTRESPONSE[s/"took".*/"took": "$body.took",/]
+% TESTRESPONSE[s/"took".*/"took": "$body.took",/]
 
 1. Note the incorrect highlight.
 

@@ -20,7 +20,7 @@ import java.io.IOException;
  * This class provides the structure for writing vectors in bulk, with specific
  * implementations for different bit sizes strategies.
  */
-public abstract class DiskBBQBulkWriter {
+public abstract sealed class DiskBBQBulkWriter {
     protected final int bulkSize;
     protected final IndexOutput out;
 
@@ -29,12 +29,49 @@ public abstract class DiskBBQBulkWriter {
         this.out = out;
     }
 
+    /**
+     * Bulk write vectors to disk. Tail vectors are not block encoded.
+     * @param qvv quantized vector values
+     * @param docsWriter docs writer
+     * @throws IOException if writing fails
+     */
     public abstract void writeVectors(QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter) throws IOException;
 
-    public static class OneBitDiskBBQBulkWriter extends DiskBBQBulkWriter {
-        private final OptimizedScalarQuantizer.QuantizationResult[] corrections;
+    /**
+     * Factory method to create a DiskBBQBulkWriter based on the bit size.
+     * @param bitSize the bit size of the quantized vectors
+     * @param bulkSize the number of vectors to write in bulk
+     * @param out the IndexOutput to write to
+     * @return a DiskBBQBulkWriter instance
+     */
+    public static DiskBBQBulkWriter fromBitSize(int bitSize, int bulkSize, IndexOutput out) {
+        return fromBitSize(bitSize, bulkSize, out, false);
+    }
 
-        public OneBitDiskBBQBulkWriter(int bulkSize, IndexOutput out) {
+    /**
+     * Factory method to create a DiskBBQBulkWriter based on the bit size.
+     * @param bitSize the bit size of the quantized vectors
+     * @param bulkSize the number of vectors to write in bulk
+     * @param out the IndexOutput to write to
+     * @param blockEncodeTailVectors whether to block encode tail vectors
+     * @return a DiskBBQBulkWriter instance
+     */
+    public static DiskBBQBulkWriter fromBitSize(int bitSize, int bulkSize, IndexOutput out, boolean blockEncodeTailVectors) {
+        return switch (bitSize) {
+            case 1, 2, 4 -> blockEncodeTailVectors
+                ? new SmallBitEncodedDiskBBQBulkWriter(bulkSize, out)
+                : new SmallBitDiskBBQBulkWriter(bulkSize, out);
+            case 7 -> blockEncodeTailVectors
+                ? new LargeBitEncodedDiskBBQBulkWriter(bulkSize, out)
+                : new LargeBitDiskBBQBulkWriter(bulkSize, out);
+            default -> throw new IllegalArgumentException("Unsupported bit size: " + bitSize);
+        };
+    }
+
+    private static non-sealed class SmallBitDiskBBQBulkWriter extends DiskBBQBulkWriter {
+        protected final OptimizedScalarQuantizer.QuantizationResult[] corrections;
+
+        private SmallBitDiskBBQBulkWriter(int bulkSize, IndexOutput out) {
             super(bulkSize, out);
             this.corrections = new OptimizedScalarQuantizer.QuantizationResult[bulkSize];
         }
@@ -57,16 +94,17 @@ public abstract class DiskBBQBulkWriter {
             if (i < qvv.count() && docsWriter != null) {
                 docsWriter.accept(i);
             }
-            // write tail
+
             for (; i < qvv.count(); ++i) {
                 byte[] qv = qvv.next();
                 OptimizedScalarQuantizer.QuantizationResult correction = qvv.getCorrections();
                 out.writeBytes(qv, qv.length);
                 writeCorrection(correction);
             }
+
         }
 
-        private void writeCorrections(OptimizedScalarQuantizer.QuantizationResult[] corrections) throws IOException {
+        void writeCorrections(OptimizedScalarQuantizer.QuantizationResult[] corrections) throws IOException {
             for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
                 out.writeInt(Float.floatToIntBits(correction.lowerInterval()));
             }
@@ -93,10 +131,10 @@ public abstract class DiskBBQBulkWriter {
         }
     }
 
-    public static class SevenBitDiskBBQBulkWriter extends DiskBBQBulkWriter {
-        private final OptimizedScalarQuantizer.QuantizationResult[] corrections;
+    private static non-sealed class LargeBitDiskBBQBulkWriter extends DiskBBQBulkWriter {
+        protected final OptimizedScalarQuantizer.QuantizationResult[] corrections;
 
-        public SevenBitDiskBBQBulkWriter(int bulkSize, IndexOutput out) {
+        private LargeBitDiskBBQBulkWriter(int bulkSize, IndexOutput out) {
             super(bulkSize, out);
             this.corrections = new OptimizedScalarQuantizer.QuantizationResult[bulkSize];
         }
@@ -113,16 +151,17 @@ public abstract class DiskBBQBulkWriter {
                 }
                 writeCorrections(corrections);
             }
-            // write tail
+
             for (; i < qvv.count(); ++i) {
                 byte[] qv = qvv.next();
                 OptimizedScalarQuantizer.QuantizationResult correction = qvv.getCorrections();
                 out.writeBytes(qv, qv.length);
                 writeCorrection(correction);
             }
+
         }
 
-        private void writeCorrections(OptimizedScalarQuantizer.QuantizationResult[] corrections) throws IOException {
+        void writeCorrections(OptimizedScalarQuantizer.QuantizationResult[] corrections) throws IOException {
             for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
                 out.writeInt(Float.floatToIntBits(correction.lowerInterval()));
             }
@@ -142,6 +181,76 @@ public abstract class DiskBBQBulkWriter {
             out.writeInt(Float.floatToIntBits(correction.upperInterval()));
             out.writeInt(Float.floatToIntBits(correction.additionalCorrection()));
             out.writeInt(correction.quantizedComponentSum());
+        }
+    }
+
+    private static class LargeBitEncodedDiskBBQBulkWriter extends LargeBitDiskBBQBulkWriter {
+
+        private LargeBitEncodedDiskBBQBulkWriter(int bulkSize, IndexOutput out) {
+            super(bulkSize, out);
+        }
+
+        @Override
+        public void writeVectors(QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter) throws IOException {
+            int limit = qvv.count() - bulkSize + 1;
+            int i = 0;
+            for (; i < limit; i += bulkSize) {
+                for (int j = 0; j < bulkSize; j++) {
+                    byte[] qv = qvv.next();
+                    corrections[j] = qvv.getCorrections();
+                    out.writeBytes(qv, qv.length);
+                }
+                writeCorrections(corrections);
+            }
+            // write tail
+            OptimizedScalarQuantizer.QuantizationResult[] tailCorrections = new OptimizedScalarQuantizer.QuantizationResult[qvv.count()
+                - i];
+            int j = 0;
+            for (; i < qvv.count(); ++i) {
+                byte[] qv = qvv.next();
+                tailCorrections[j] = qvv.getCorrections();
+                out.writeBytes(qv, qv.length);
+                j++;
+            }
+            writeCorrections(tailCorrections);
+        }
+    }
+
+    private static class SmallBitEncodedDiskBBQBulkWriter extends SmallBitDiskBBQBulkWriter {
+
+        private SmallBitEncodedDiskBBQBulkWriter(int bulkSize, IndexOutput out) {
+            super(bulkSize, out);
+        }
+
+        @Override
+        public void writeVectors(QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter) throws IOException {
+            int limit = qvv.count() - bulkSize + 1;
+            int i = 0;
+            for (; i < limit; i += bulkSize) {
+                if (docsWriter != null) {
+                    docsWriter.accept(i);
+                }
+                for (int j = 0; j < bulkSize; j++) {
+                    byte[] qv = qvv.next();
+                    corrections[j] = qvv.getCorrections();
+                    out.writeBytes(qv, qv.length);
+                }
+                writeCorrections(corrections);
+            }
+            // write tail
+            if (i < qvv.count() && docsWriter != null) {
+                docsWriter.accept(i);
+            }
+            OptimizedScalarQuantizer.QuantizationResult[] tailCorrections = new OptimizedScalarQuantizer.QuantizationResult[qvv.count()
+                - i];
+            int j = 0;
+            for (; i < qvv.count(); ++i) {
+                byte[] qv = qvv.next();
+                tailCorrections[j] = qvv.getCorrections();
+                out.writeBytes(qv, qv.length);
+                j++;
+            }
+            writeCorrections(tailCorrections);
         }
     }
 }

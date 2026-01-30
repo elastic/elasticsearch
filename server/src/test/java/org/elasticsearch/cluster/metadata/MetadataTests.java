@@ -828,6 +828,7 @@ public class MetadataTests extends ESTestCase {
                 "indices": {
                   "index-1": {
                     "version": 1,
+                    "transport_version": "0",
                     "mapping_version": 1,
                     "settings_version": 1,
                     "aliases_version": 1,
@@ -862,6 +863,7 @@ public class MetadataTests extends ESTestCase {
                   },
                   "index-2": {
                     "version": 1,
+                    "transport_version": "0",
                     "mapping_version": 1,
                     "settings_version": 1,
                     "aliases_version": 1,
@@ -1163,11 +1165,7 @@ public class MetadataTests extends ESTestCase {
 
     public void testOldestIndexVersionAllProjects() {
         final int numProjects = between(1, 5);
-        final List<IndexVersion> indexVersions = randomList(
-            numProjects,
-            numProjects,
-            () -> IndexVersionUtils.randomCompatibleVersion(random())
-        );
+        final List<IndexVersion> indexVersions = randomList(numProjects, numProjects, () -> IndexVersionUtils.randomCompatibleVersion());
 
         final Map<ProjectId, ProjectMetadata> projectMetadataMap = new HashMap<>();
         for (int i = 0; i < numProjects; i++) {

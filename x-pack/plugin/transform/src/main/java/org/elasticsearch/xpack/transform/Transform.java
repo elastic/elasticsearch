@@ -44,6 +44,7 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry.Entry;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -197,7 +198,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         var originClient = new OriginSettingClient(client, TRANSFORM_ORIGIN);
         originClient.execute(
             SetTransformUpgradeModeAction.INSTANCE,
-            new SetUpgradeModeActionRequest(true),
+            new SetUpgradeModeActionRequest(HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT, HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT, true),
             listener.delegateFailureAndWrap((l, r) -> l.onResponse(Map.of("already_in_upgrade_mode", false)))
         );
     }
@@ -214,7 +215,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         var originClient = new OriginSettingClient(client, TRANSFORM_ORIGIN);
         originClient.execute(
             SetTransformUpgradeModeAction.INSTANCE,
-            new SetUpgradeModeActionRequest(false),
+            new SetUpgradeModeActionRequest(HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT, HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT, false),
             listener.delegateFailureAndWrap((l, r) -> l.onResponse(r.isAcknowledged()))
         );
     }
@@ -317,7 +318,16 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         var clusterStateListener = new TransformClusterStateListener(clusterService, client);
         var transformNode = new TransformNode(clusterStateListener);
 
-        transformServices.set(new TransformServices(configManager, checkpointService, auditor, scheduler, transformNode));
+        transformServices.set(
+            new TransformServices(
+                configManager,
+                checkpointService,
+                auditor,
+                scheduler,
+                transformNode,
+                new CrossProjectModeDecider(settings)
+            )
+        );
 
         var transformMeterRegistry = TransformMeterRegistry.create(services.telemetryProvider().getMeterRegistry());
         transformConfigAutoMigration.set(
@@ -450,7 +460,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             }
             client.execute(
                 SetResetModeAction.INSTANCE,
-                SetResetModeActionRequest.disabled(true),
+                SetResetModeActionRequest.disabled(masterNodeTimeout, true),
                 ActionListener.wrap(resetSuccess -> finalListener.onResponse(success), resetFailure -> {
                     logger.error("failed to disable reset mode after otherwise successful transform reset", resetFailure);
                     finalListener.onFailure(
@@ -465,7 +475,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         },
             failure -> client.execute(
                 SetResetModeAction.INSTANCE,
-                SetResetModeActionRequest.disabled(false),
+                SetResetModeActionRequest.disabled(masterNodeTimeout, false),
                 ActionListener.wrap(resetSuccess -> finalListener.onFailure(failure), resetFailure -> {
                     logger.error(TransformMessages.getMessage(FAILED_TO_UNSET_RESET_MODE, "a failed feature reset"), resetFailure);
                     Exception ex = new ElasticsearchException(
@@ -549,7 +559,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             client.execute(StopTransformAction.INSTANCE, stopTransformsRequest, afterStoppingTransforms);
         }, finalListener::onFailure);
 
-        client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.enabled(), afterResetModeSet);
+        client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.enabled(masterNodeTimeout), afterResetModeSet);
     }
 
     @Override

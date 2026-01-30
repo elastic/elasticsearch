@@ -27,10 +27,14 @@ import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.compute.operator.HashAggregationOperator;
+import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
@@ -54,6 +58,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
@@ -151,7 +156,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
     public void testRowWithFilter() {
         long value = randomLongBetween(0, Long.MAX_VALUE);
-        try (EsqlQueryResponse response = run(syncEsqlQueryRequest().query("ROW " + value).filter(randomQueryFilter()))) {
+        try (EsqlQueryResponse response = run(syncEsqlQueryRequest("ROW " + value).filter(randomQueryFilter()))) {
             assertEquals(List.of(List.of(value)), getValuesList(response));
         }
     }
@@ -161,7 +166,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         expectThrows(
             VerificationException.class,
             containsString("Unknown column [x]"),
-            () -> run(syncEsqlQueryRequest().query("ROW " + value + " | EVAL x==NULL").filter(randomQueryFilter()))
+            () -> run(syncEsqlQueryRequest("ROW " + value + " | EVAL x==NULL").filter(randomQueryFilter()))
         );
     }
 
@@ -885,11 +890,10 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         long to = randomBoolean() ? Long.MAX_VALUE : randomLongBetween(from, from + 1000);
         QueryBuilder filter = new RangeQueryBuilder("val").from(from, true).to(to, true);
         try (
-            EsqlQueryResponse results = EsqlQueryRequestBuilder.newSyncEsqlQueryRequestBuilder(client())
-                .query(command)
-                .filter(filter)
-                .pragmas(randomPragmas())
-                .get()
+            EsqlQueryResponse results = client().execute(
+                EsqlQueryAction.INSTANCE,
+                syncEsqlQueryRequest(command).filter(filter).pragmas(randomPragmas())
+            ).get()
         ) {
             logger.info(results);
             OptionalDouble avg = docs.values().stream().filter(v -> from <= v && v <= to).mapToLong(n -> n).average();
@@ -1116,7 +1120,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         // Selectors must be outside of date math expressions or else they trip up the selector parsing
         testCases.put("<test-{now/d}::failures>", "Invalid index name [<test-{now/d}], must not contain the following characters [");
         // Only one selector separator is allowed per expression
-        testCases.put("::::data", "mismatched input '::' expecting {QUOTED_STRING, UNQUOTED_SOURCE}");
+        testCases.put("::::data", "mismatched input '::' expecting {QUOTED_STRING, '(', UNQUOTED_SOURCE}");
         // Suffix case is not supported because there is no component named with the empty string
         testCases.put("index::", "missing UNQUOTED_SOURCE at '|'");
 
@@ -1973,7 +1977,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             pragmaSettings.put("data_partitioning", "doc");
             pragmas = new QueryPragmas(pragmaSettings.build());
         }
-        try (EsqlQueryResponse resp = run(syncEsqlQueryRequest().query("FROM test-script | SORT k1 | LIMIT " + numDocs).pragmas(pragmas))) {
+        try (EsqlQueryResponse resp = run(syncEsqlQueryRequest("FROM test-script | SORT k1 | LIMIT " + numDocs).pragmas(pragmas))) {
             List<Object> k1Column = Iterators.toList(resp.column(0));
             assertThat(k1Column, equalTo(LongStream.range(0L, numDocs).boxed().toList()));
             List<Object> k2Column = Iterators.toList(resp.column(1));
@@ -1986,6 +1990,67 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 val += 10000.0;
             }
             assertThat(meterColumn, equalTo(expectedMeterColumn));
+        }
+    }
+
+    public void testAggregationEmitPartialResultPeriodically() {
+        String index = "test-agg";
+        createIndex(index, indexSettings(1, 0).build());
+        int numHosts = 20;
+        for (int h = 0; h < numHosts; h++) {
+            int numDocs = 10;
+            String host = "host-" + h;
+            for (int t = 0; t < numDocs; t++) {
+                Map<String, Object> doc = new HashMap<>();
+                doc.put("v", randomInt());
+                doc.put("host", host);
+                doc.put("t", t);
+                index(index, UUIDs.base64UUID(), doc);
+            }
+        }
+        client().admin().indices().prepareForceMerge(index).setMaxNumSegments(1).get();
+        refresh(index);
+        Settings pragma = Settings.builder()
+            .put(QueryPragmas.TASK_CONCURRENCY.getKey(), "1")
+            .put(QueryPragmas.PAGE_SIZE.getKey(), 1)
+            .put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getKey(), 5)
+            .put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getKey(), 0.1)
+            .build();
+
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("FROM " + index + " | STATS sum(v) BY host, t");
+        request.profile(true);
+        request.pragmas(new QueryPragmas(pragma));
+        request.acceptedPragmaRisks(true);
+        // enable partial periodic emit because of low keys threshold and uniqueness threshold
+        try (var result = run(request)) {
+            EsqlQueryResponse.Profile profile = result.profile();
+            List<DriverProfile> dataNodes = profile.drivers().stream().filter(d -> d.description().contains("data")).toList();
+            assertThat(dataNodes, hasSize(1));
+            List<OperatorStatus> hashOperator = dataNodes.get(0)
+                .operators()
+                .stream()
+                .filter(o -> o.status() instanceof HashAggregationOperator.Status)
+                .toList();
+            assertThat(hashOperator, hasSize(1));
+            HashAggregationOperator.Status partialAgg = (HashAggregationOperator.Status) hashOperator.get(0).status();
+            assertThat(partialAgg.emitCount(), greaterThan(4L));
+        }
+        // disable partial periodic emit because of high uniqueness threshold
+        pragma = Settings.builder().put(pragma).put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getKey(), 0.5).build();
+        request.pragmas(new QueryPragmas(pragma));
+        try (var result = run(request)) {
+            EsqlQueryResponse.Profile profile = result.profile();
+            List<DriverProfile> dataNodes = profile.drivers().stream().filter(d -> d.description().contains("data")).toList();
+            assertThat(dataNodes, hasSize(1));
+            List<OperatorStatus> hashOperator = dataNodes.get(0)
+                .operators()
+                .stream()
+                .filter(o -> o.status() instanceof HashAggregationOperator.Status)
+                .toList();
+            assertThat(hashOperator, hasSize(1));
+            HashAggregationOperator.Status partialAgg = (HashAggregationOperator.Status) hashOperator.get(0).status();
+            assertThat(partialAgg.emitCount(), greaterThan(1L));
         }
     }
 

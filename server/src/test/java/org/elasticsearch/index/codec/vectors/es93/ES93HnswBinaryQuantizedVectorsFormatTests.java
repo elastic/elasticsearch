@@ -24,8 +24,8 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
-import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.BaseHnswVectorsFormatTestCase;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -34,27 +34,27 @@ import java.util.concurrent.ExecutorService;
 import static java.lang.String.format;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasToString;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.oneOf;
 
 public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
 
-    boolean useBFloat16() {
-        return false;
-    }
-
     @Override
     protected KnnVectorsFormat createFormat() {
-        return new ES93HnswBinaryQuantizedVectorsFormat(useBFloat16(), random().nextBoolean());
+        return new ES93HnswBinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, random().nextBoolean());
     }
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth) {
-        return new ES93HnswBinaryQuantizedVectorsFormat(maxConn, beamWidth, useBFloat16(), random().nextBoolean());
+        return new ES93HnswBinaryQuantizedVectorsFormat(
+            maxConn,
+            beamWidth,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            random().nextBoolean()
+        );
     }
 
     @Override
@@ -62,7 +62,7 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseHnswVectorsFo
         return new ES93HnswBinaryQuantizedVectorsFormat(
             maxConn,
             beamWidth,
-            useBFloat16(),
+            DenseVectorFieldMapper.ElementType.FLOAT,
             random().nextBoolean(),
             numMergeWorkers,
             service
@@ -76,23 +76,19 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseHnswVectorsFo
             Locale.ROOT,
             expected,
             "ES93BinaryQuantizedVectorsFormat(name=ES93BinaryQuantizedVectorsFormat, rawVectorFormat=%s,"
-                + " scorer=ES818BinaryFlatVectorsScorer(nonQuantizedDelegate={}()))"
+                + " scorer=ES818BinaryFlatVectorsScorer(nonQuantizedDelegate={}))"
         );
         expected = format(Locale.ROOT, expected, "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)");
-        if (useBFloat16()) {
-            expected = format(
-                Locale.ROOT,
-                expected,
-                "ES93BFloat16FlatVectorsFormat(name=ES93BFloat16FlatVectorsFormat, flatVectorScorer={}())"
-            );
-        } else {
-            expected = format(Locale.ROOT, expected, "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer={}())");
-        }
-        String defaultScorer = expected.replaceAll("\\{}", "DefaultFlatVectorScorer");
-        String memSegScorer = expected.replaceAll("\\{}", "Lucene99MemorySegmentFlatVectorsScorer");
+        expected = format(
+            Locale.ROOT,
+            expected,
+            "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=ES93FlatVectorScorer(delegate={}))"
+        );
+        String defaultScorer = expected.replaceAll("\\{}", "DefaultFlatVectorScorer()");
+        String memSegScorer = expected.replaceAll("\\{}", "Lucene99MemorySegmentFlatVectorsScorer()");
 
         KnnVectorsFormat format = createFormat(10, 20, 1, null);
-        assertThat(format, hasToString(either(startsWith(defaultScorer)).or(startsWith(memSegScorer))));
+        assertThat(format, hasToString(oneOf(defaultScorer, memSegScorer)));
     }
 
     public void testSimpleOffHeapSize() throws IOException {
@@ -114,7 +110,7 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseHnswVectorsFo
                 aMapWithSize(3),
                 hasEntry("vex", 1L),
                 hasEntry(equalTo("veb"), greaterThan(0L)),
-                hasEntry("vec", (long) vector.length * (useBFloat16() ? BFloat16.BYTES : Float.BYTES))
+                hasEntry("vec", (long) vector.length * Float.BYTES)
             )
             : allOf(aMapWithSize(2), hasEntry("vex", 1L), hasEntry(equalTo("veb"), greaterThan(0L)));
 

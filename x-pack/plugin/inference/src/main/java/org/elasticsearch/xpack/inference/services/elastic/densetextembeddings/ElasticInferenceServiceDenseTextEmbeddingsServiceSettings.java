@@ -42,6 +42,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
         ElasticInferenceServiceRateLimitServiceSettings {
 
     public static final String NAME = "elastic_inference_service_dense_embeddings_service_settings";
+    public static final DenseVectorFieldMapper.ElementType SUPPORTED_ELEMENT_TYPE = DenseVectorFieldMapper.ElementType.FLOAT;
 
     private static final TransportVersion ML_INFERENCE_ELASTIC_DENSE_TEXT_EMBEDDINGS_ADDED = TransportVersion.fromName(
         "ml_inference_elastic_dense_text_embeddings_added"
@@ -134,7 +135,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
 
     @Override
     public DenseVectorFieldMapper.ElementType elementType() {
-        return DenseVectorFieldMapper.ElementType.FLOAT;
+        return SUPPORTED_ELEMENT_TYPE;
     }
 
     public RateLimitSettings getRateLimitSettings() {
@@ -149,14 +150,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
     @Override
     public XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
         builder.field(MODEL_ID, modelId);
-        rateLimitSettings.toXContent(builder, params);
-
-        return builder;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
 
         if (similarity != null) {
             builder.field(SIMILARITY, similarity);
@@ -169,6 +162,15 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
         if (maxInputTokens != null) {
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         }
+
+        rateLimitSettings.toXContent(builder, params);
+
+        return builder;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
 
         toXContentFragmentOfExposedFields(builder, params);
 

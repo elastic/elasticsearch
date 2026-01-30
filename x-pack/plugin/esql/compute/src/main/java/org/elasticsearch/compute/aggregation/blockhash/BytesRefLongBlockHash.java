@@ -12,7 +12,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.BytesRefArray;
-import org.elasticsearch.common.util.LongLongHash;
+import org.elasticsearch.common.util.LongLongHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
@@ -32,13 +32,14 @@ import org.elasticsearch.core.Releasables;
 /**
  * Maps a {@link LongBlock} column paired with a {@link BytesRefBlock} column to group ids.
  */
-final class BytesRefLongBlockHash extends BlockHash {
+public final class BytesRefLongBlockHash extends BlockHash {
     private final int bytesChannel;
     private final int longsChannel;
     private final boolean reverseOutput;
     private final int emitBatchSize;
     private final BytesRefBlockHash bytesHash;
-    private final LongLongHash finalHash;
+    private final LongLongHashTable finalHash;
+    private long minLongKey = Long.MAX_VALUE;
 
     BytesRefLongBlockHash(BlockFactory blockFactory, int bytesChannel, int longsChannel, boolean reverseOutput, int emitBatchSize) {
         super(blockFactory);
@@ -52,7 +53,7 @@ final class BytesRefLongBlockHash extends BlockHash {
         try {
             bytesHash = new BytesRefBlockHash(bytesChannel, blockFactory);
             this.bytesHash = bytesHash;
-            this.finalHash = new LongLongHash(1, blockFactory.bigArrays());
+            this.finalHash = HashImplFactory.newLongLongHash(blockFactory);
             success = true;
         } finally {
             if (success == false) {
@@ -104,7 +105,7 @@ final class BytesRefLongBlockHash extends BlockHash {
         final int[] ords = new int[positions];
         int lastByte = bytesHashes.getInt(0);
         long lastLong = longsVector.getLong(0);
-        ords[0] = Math.toIntExact(hashOrdToGroup(finalHash.add(lastByte, lastLong)));
+        ords[0] = Math.toIntExact(hashOrdToGroup(addGroup(lastByte, lastLong)));
         boolean constant = true;
         if (bytesHashes.isConstant()) {
             for (int i = 1; i < positions; i++) {
@@ -112,7 +113,7 @@ final class BytesRefLongBlockHash extends BlockHash {
                 if (nextLong == lastLong) {
                     ords[i] = ords[i - 1];
                 } else {
-                    ords[i] = Math.toIntExact(hashOrdToGroup(finalHash.add(lastByte, nextLong)));
+                    ords[i] = Math.toIntExact(hashOrdToGroup(addGroup(lastByte, nextLong)));
                     lastLong = nextLong;
                     constant = false;
                 }
@@ -124,7 +125,7 @@ final class BytesRefLongBlockHash extends BlockHash {
                 if (nextByte == lastByte && nextLong == lastLong) {
                     ords[i] = ords[i - 1];
                 } else {
-                    ords[i] = Math.toIntExact(hashOrdToGroup(finalHash.add(nextByte, nextLong)));
+                    ords[i] = Math.toIntExact(hashOrdToGroup(addGroup(nextByte, nextLong)));
                     lastByte = nextByte;
                     lastLong = nextLong;
                     constant = false;
@@ -161,12 +162,15 @@ final class BytesRefLongBlockHash extends BlockHash {
                 }
                 // TODO: make takeOwnershipOf work?
                 BytesRefArray bytes = BytesRefArray.deepCopy(bytesHash.hash.getBytesRefs());
+                BytesRefVector dict = null;
+
                 try {
-                    var dict = blockFactory.newBytesRefArrayVector(bytes, Math.toIntExact(bytes.size()));
+                    dict = blockFactory.newBytesRefArrayVector(bytes, Math.toIntExact(bytes.size()));
                     bytes = null; // transfer ownership to dict
                     k1 = new OrdinalBytesRefBlock(ordinals.build(), dict);
+                    dict = null;  // transfer ownership to k1
                 } finally {
-                    Releasables.closeExpectNoException(bytes);
+                    Releasables.closeExpectNoException(bytes, dict);
                 }
                 k2 = longs.build();
             } finally {
@@ -204,6 +208,31 @@ final class BytesRefLongBlockHash extends BlockHash {
         }
     }
 
+    public long getBytesRefKeyFromGroup(long groupId) {
+        return finalHash.getKey1(groupId);
+    }
+
+    public long getLongKeyFromGroup(long groupId) {
+        return finalHash.getKey2(groupId);
+    }
+
+    public long getGroupId(long bytesKey, long longKey) {
+        return finalHash.find(bytesKey, longKey);
+    }
+
+    public long addGroup(long bytesKey, long longKey) {
+        minLongKey = Math.min(minLongKey, longKey);
+        return finalHash.add(bytesKey, longKey);
+    }
+
+    public long numGroups() {
+        return finalHash.size();
+    }
+
+    public long getMinLongKey() {
+        return minLongKey;
+    }
+
     @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
         return new SeenGroupIds.Range(0, Math.toIntExact(finalHash.size())).seenGroupIds(bigArrays);
@@ -211,7 +240,12 @@ final class BytesRefLongBlockHash extends BlockHash {
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(0, Math.toIntExact(finalHash.size()), blockFactory);
+        return blockFactory.newIntRangeVector(0, Math.toIntExact(finalHash.size()));
+    }
+
+    @Override
+    public int numKeys() {
+        return Math.toIntExact(finalHash.size());
     }
 
     @Override

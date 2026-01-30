@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Flattened"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/flattened.html
@@ -155,9 +158,9 @@ POST my-index-000001/_search
   }
 }
 ```
-%  TESTRESPONSE[s/"took": 2/"took": $body.took/]
-%  TESTRESPONSE[s/"max_score" : 1.0/"max_score" : $body.hits.max_score/]
-%  TESTRESPONSE[s/"_score" : 1.0/"_score" : $body.hits.hits.0._score/]
+% TESTRESPONSE[s/"took": 2/"took": $body.took/]
+% TESTRESPONSE[s/"max_score" : 1.0/"max_score" : $body.hits.max_score/]
+% TESTRESPONSE[s/"_score" : 1.0/"_score" : $body.hits.hits.0._score/]
 
 You can also use a [Painless script](docs-content://explore-analyze/scripting/modules-scripting-painless.md) to retrieve values from sub-fields of flattened fields. Instead of including `doc['<field_name>'].value` in your Painless script, use `doc['<field_name>.<sub-field_name>'].value`. For example, if you have a flattened field called `label` with a `release` sub-field, your Painless script would be `doc['labels.release'].value`.
 

@@ -234,7 +234,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
 
     protected Settings createTestIndexSettings() {
         // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
-        IndexVersion indexVersionCreated = randomBoolean() ? IndexVersion.current() : IndexVersionUtils.randomCompatibleVersion(random());
+        IndexVersion indexVersionCreated = randomBoolean() ? IndexVersion.current() : IndexVersionUtils.randomCompatibleVersion();
         return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexVersionCreated).build();
     }
 
@@ -504,7 +504,9 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 idxSettings.getMode().idFieldMapperWithoutFieldData(),
                 ScriptCompiler.NONE,
                 bitsetFilterCache::getBitSetProducer,
-                MapperMetrics.NOOP
+                MapperMetrics.NOOP,
+                null,
+                null
             );
             IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, new IndexFieldDataCache.Listener() {
             });
@@ -641,6 +643,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 null,
                 createMockQueryRewriteInterceptor(),
                 null,
+                false,
                 false
             );
         }

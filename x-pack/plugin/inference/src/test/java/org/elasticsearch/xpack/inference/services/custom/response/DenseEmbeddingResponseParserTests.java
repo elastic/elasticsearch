@@ -345,6 +345,12 @@ public class DenseEmbeddingResponseParserTests extends AbstractBWCWireSerializat
 
     @Override
     protected DenseEmbeddingResponseParser mutateInstance(DenseEmbeddingResponseParser instance) throws IOException {
-        return randomValueOtherThan(instance, DenseEmbeddingResponseParserTests::createRandom);
+        if (randomBoolean()) {
+            var textEmbeddingPath = randomValueOtherThan(instance.getTextEmbeddingsPath(), () -> "$." + randomAlphaOfLength(5));
+            return new DenseEmbeddingResponseParser(textEmbeddingPath, instance.getEmbeddingType());
+        } else {
+            var embeddingType = randomValueOtherThan(instance.getEmbeddingType(), () -> randomFrom(CustomServiceEmbeddingType.values()));
+            return new DenseEmbeddingResponseParser(instance.getTextEmbeddingsPath(), embeddingType);
+        }
     }
 }

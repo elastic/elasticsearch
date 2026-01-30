@@ -54,7 +54,7 @@ public class IrateTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Irate(source, args.get(0), args.get(1));
+        return new Irate(source, args.get(0), args.get(1), AggregateFunction.NO_WINDOW);
     }
 
     @Override

@@ -49,7 +49,9 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
         SearchTask task,
         SearchResponse.Clusters clusters,
         Client client,
-        SearchResponseMetrics searchResponseMetrics
+        SearchResponseMetrics searchResponseMetrics,
+        Map<String, Object> searchRequestAttributes,
+        boolean pitRelocationEnabled
     ) {
         super(
             "dfs",
@@ -69,7 +71,9 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
             new ArraySearchPhaseResults<>(shardsIts.size()),
             request.getMaxConcurrentShardRequests(),
             clusters,
-            searchResponseMetrics
+            searchResponseMetrics,
+            searchRequestAttributes,
+            pitRelocationEnabled
         );
         this.queryPhaseResultConsumer = queryPhaseResultConsumer;
         addReleasable(queryPhaseResultConsumer);

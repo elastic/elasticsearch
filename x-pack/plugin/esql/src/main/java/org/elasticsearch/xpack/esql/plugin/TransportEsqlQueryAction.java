@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsage;
@@ -26,6 +27,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -55,8 +57,10 @@ import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.session.Result;
+import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -168,9 +172,10 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             projectResolver,
             indexNameExpressionResolver,
             usageService,
-            new InferenceService(client),
+            new InferenceService(client, clusterService),
             blockFactoryProvider,
-            new PlannerSettings(clusterService)
+            new PlannerSettings(clusterService),
+            new CrossProjectModeDecider(clusterService.getSettings())
         );
 
         this.computeService = new ComputeService(
@@ -237,12 +242,13 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         if (request.allowPartialResults() == null) {
             request.allowPartialResults(defaultAllowPartialResults);
         }
+        TransportVersion localMinimumVersion = clusterService.state().getMinTransportVersion();
         EsqlFlags flags = computeService.createFlags();
         String sessionId = sessionID(task);
         // async-query uses EsqlQueryTask, so pull the EsqlExecutionInfo out of the task
         // sync query uses CancellableTask which does not have EsqlExecutionInfo, so create one
         EsqlExecutionInfo executionInfo = getOrCreateExecutionInfo(task, request);
-        PlanRunner planRunner = (plan, configuration, foldCtx, resultListener) -> computeService.execute(
+        PlanRunner planRunner = (plan, configuration, foldCtx, planTimeProfile, resultListener) -> computeService.execute(
             sessionId,
             (CancellableTask) task,
             flags,
@@ -250,11 +256,13 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             configuration,
             foldCtx,
             executionInfo,
+            planTimeProfile,
             resultListener
         );
         planExecutor.esql(
             request,
             sessionId,
+            localMinimumVersion,
             new AnalyzerSettings(
                 resultTruncationMaxSize,
                 resultTruncationDefaultSize,
@@ -292,7 +300,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private void recordCCSTelemetry(Task task, EsqlExecutionInfo executionInfo, EsqlQueryRequest request, @Nullable Exception exception) {
-        if (executionInfo.isCrossClusterSearch() == false) {
+        if (executionInfo.isCrossClusterSearch() == false
+            && executionInfo.includeExecutionMetadata() != EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS) {
             return;
         }
 
@@ -329,7 +338,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 remotesCount.getAndIncrement();
             }
         });
-        assert remotesCount.get() > 0 : "Got cross-cluster search telemetry without any remote clusters";
+        if (remotesCount.get() == 0) {
+            return;
+        }
         usageBuilder.setRemotesCount(remotesCount.get());
         usageService.getEsqlUsageHolder().updateUsage(usageBuilder.build());
     }
@@ -352,25 +363,28 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private EsqlExecutionInfo createEsqlExecutionInfo(EsqlQueryRequest request) {
         if (request.includeCCSMetadata() != null && request.includeExecutionMetadata() != null) {
             throw new VerificationException(
-                "Both [include_execution_metadata] and [include_ccs_metadata] query parameters are set. "
-                    + "Use only [include_execution_metadata]"
+                "Both [include_execution_metadata] and [include_ccs_metadata] query parameters are set. Use only one"
             );
         }
 
-        Boolean includeCcsMetadata = request.includeExecutionMetadata();
-        if (includeCcsMetadata == null) {
-            // include_ccs_metadata is considered only if include_execution_metadata is not set
-            includeCcsMetadata = Boolean.TRUE.equals(request.includeCCSMetadata());
+        EsqlExecutionInfo.IncludeExecutionMetadata includeExecutionMetadata;
+        if (Boolean.TRUE.equals(request.includeExecutionMetadata())) {
+            includeExecutionMetadata = EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS;
+        } else if (Boolean.TRUE.equals(request.includeCCSMetadata())) {
+            includeExecutionMetadata = EsqlExecutionInfo.IncludeExecutionMetadata.CCS_ONLY;
+        } else {
+            includeExecutionMetadata = EsqlExecutionInfo.IncludeExecutionMetadata.NEVER;
         }
         Boolean allowPartialResults = request.allowPartialResults() != null ? request.allowPartialResults() : defaultAllowPartialResults;
         return new EsqlExecutionInfo(
             clusterAlias -> remoteClusterService.shouldSkipOnFailure(clusterAlias, allowPartialResults),
-            includeCcsMetadata
+            includeExecutionMetadata
         );
     }
 
-    private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, boolean profileEnabled, Result result) {
-        List<ColumnInfoImpl> columns = result.schema().stream().map(c -> {
+    private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, boolean profileEnabled, Versioned<Result> result) {
+        var innerResult = result.inner();
+        List<ColumnInfoImpl> columns = innerResult.schema().stream().map(c -> {
             List<String> originalTypes;
             if (c instanceof UnsupportedAttribute ua) {
                 // Sort the original types so they are easier to test against and prettier.
@@ -382,32 +396,42 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             return new ColumnInfoImpl(c.name(), c.dataType().outputType(), originalTypes);
         }).toList();
         EsqlQueryResponse.Profile profile = profileEnabled
-            ? new EsqlQueryResponse.Profile(result.completionInfo().driverProfiles(), result.completionInfo().planProfiles())
+            ? new EsqlQueryResponse.Profile(
+                innerResult.completionInfo().driverProfiles(),
+                innerResult.completionInfo().planProfiles(),
+                result.minimumVersion()
+            )
             : null;
         if (task instanceof EsqlQueryTask asyncTask && request.keepOnCompletion()) {
             String asyncExecutionId = asyncTask.getExecutionId().getEncoded();
             return new EsqlQueryResponse(
                 columns,
-                result.pages(),
-                result.completionInfo().documentsFound(),
-                result.completionInfo().valuesLoaded(),
+                innerResult.pages(),
+                innerResult.completionInfo().documentsFound(),
+                innerResult.completionInfo().valuesLoaded(),
                 profile,
                 request.columnar(),
                 asyncExecutionId,
                 false,
                 request.async(),
-                result.executionInfo()
+                result.inner().configuration().zoneId(),
+                task.getStartTime(),
+                ((EsqlQueryTask) task).getExpirationTimeMillis(),
+                innerResult.executionInfo()
             );
         }
         return new EsqlQueryResponse(
             columns,
-            result.pages(),
-            result.completionInfo().documentsFound(),
-            result.completionInfo().valuesLoaded(),
+            innerResult.pages(),
+            innerResult.completionInfo().documentsFound(),
+            innerResult.completionInfo().valuesLoaded(),
             profile,
             request.columnar(),
             request.async(),
-            result.executionInfo()
+            result.inner().configuration().zoneId(),
+            task.getStartTime(),
+            threadPool.absoluteTimeInMillis() + request.keepAlive().millis(),
+            innerResult.executionInfo()
         );
     }
 
@@ -472,6 +496,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             asyncExecutionId,
             true, // is_running
             true, // isAsync
+            ZoneOffset.UTC,
+            task.getStartTime(),
+            task.getExpirationTimeMillis(),
             task.executionInfo()
         );
     }

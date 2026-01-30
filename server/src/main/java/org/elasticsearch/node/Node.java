@@ -278,9 +278,6 @@ public class Node implements Closeable {
         logger.info("starting ...");
         pluginLifecycleComponents.forEach(LifecycleComponent::start);
 
-        if (ReadinessService.enabled(environment)) {
-            injector.getInstance(ReadinessService.class).start();
-        }
         injector.getInstance(MappingUpdatedAction.class).setClient(client);
         injector.getInstance(IndicesService.class).start();
         injector.getInstance(IndicesClusterStateService.class).start();
@@ -289,6 +286,10 @@ public class Node implements Closeable {
         injector.getInstance(RepositoriesService.class).start();
         injector.getInstance(SearchService.class).start();
         injector.getInstance(FsHealthService.class).start();
+        injector.getInstance(NodeMetrics.class).start();
+        injector.getInstance(IndicesMetrics.class).start();
+        injector.getInstance(HealthPeriodicLogger.class).start();
+        injector.getInstance(SamplingService.class).start();
         nodeService.getMonitorService().start();
 
         final ClusterService clusterService = injector.getInstance(ClusterService.class);
@@ -398,6 +399,8 @@ public class Node implements Closeable {
                         latch.countDown();
                     }
                 }, state -> state.nodes().getMasterNodeId() != null, initialStateTimeout);
+                var shutdownService = injector.getInstance(ShutdownPrepareService.class);
+                shutdownService.addShutdownHook("cancel-cluster-join", latch::countDown);
 
                 try {
                     latch.await();
@@ -405,10 +408,21 @@ public class Node implements Closeable {
                     Thread.currentThread().interrupt();
                     throw new ElasticsearchTimeoutException("Interrupted while waiting for initial discovery state");
                 }
+
+                if (shutdownService.isShuttingDown()) {
+                    // shutdown started in the middle of startup, so bail early
+                    logger.info("shutdown began while waiting for initial discovery state");
+                    return this;
+                }
             }
         }
 
+        // ------- DO NOT ADD NEW START CALLS BELOW HERE -------
+
         injector.getInstance(HttpServerTransport.class).start();
+        if (ReadinessService.enabled(environment)) {
+            injector.getInstance(ReadinessService.class).start();
+        }
 
         if (WRITE_PORTS_FILE_SETTING.get(settings())) {
             TransportService transport = injector.getInstance(TransportService.class);
@@ -425,12 +439,6 @@ public class Node implements Closeable {
                 writePortsFile("remote_cluster", transport.boundRemoteAccessAddress());
             }
         }
-
-        injector.getInstance(NodeMetrics.class).start();
-        injector.getInstance(IndicesMetrics.class).start();
-        injector.getInstance(HealthPeriodicLogger.class).start();
-        injector.getInstance(SamplingService.class).start();
-
         logger.info("started {}", transportService.getLocalNode());
 
         pluginsService.filterPlugins(ClusterPlugin.class).forEach(ClusterPlugin::onNodeStarted);
@@ -594,8 +602,7 @@ public class Node implements Closeable {
      * logic should use Node Shutdown, see {@link org.elasticsearch.cluster.metadata.NodesShutdownMetadata}.
      */
     public void prepareForClose() {
-        injector.getInstance(ShutdownPrepareService.class)
-            .prepareForShutdown(injector.getInstance(TransportService.class).getTaskManager());
+        injector.getInstance(ShutdownPrepareService.class).prepareForShutdown();
     }
 
     /**

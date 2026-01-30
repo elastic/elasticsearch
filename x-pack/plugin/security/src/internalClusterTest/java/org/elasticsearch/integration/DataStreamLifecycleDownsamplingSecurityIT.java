@@ -121,16 +121,11 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         String dataStreamName = "metrics-foo";
 
         DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
-            .downsampling(
+            .downsamplingMethod(randomSamplingMethod())
+            .downsamplingRounds(
                 List.of(
-                    new DataStreamLifecycle.DownsamplingRound(
-                        TimeValue.timeValueMillis(0),
-                        new DownsampleConfig(new DateHistogramInterval("5m"))
-                    ),
-                    new DataStreamLifecycle.DownsamplingRound(
-                        TimeValue.timeValueSeconds(10),
-                        new DownsampleConfig(new DateHistogramInterval("10m"))
-                    )
+                    new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(0), new DateHistogramInterval("5m")),
+                    new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueSeconds(10), new DateHistogramInterval("10m"))
                 )
             )
             .buildTemplate();
@@ -408,19 +403,22 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         logger.info("-> Indexed [{}] documents. Dropped [{}] duplicates.", docsIndexed, duplicates);
     }
 
+    private static DownsampleConfig.SamplingMethod randomSamplingMethod() {
+        if (between(0, DownsampleConfig.SamplingMethod.values().length) == 0) {
+            return null;
+        } else {
+            return randomFrom(DownsampleConfig.SamplingMethod.values());
+        }
+    }
+
     public static class SystemDataStreamWithDownsamplingConfigurationPlugin extends Plugin implements SystemIndexPlugin {
 
         public static final DataStreamLifecycle.Template LIFECYCLE = DataStreamLifecycle.dataLifecycleBuilder()
-            .downsampling(
+            .downsamplingMethod(randomSamplingMethod())
+            .downsamplingRounds(
                 List.of(
-                    new DataStreamLifecycle.DownsamplingRound(
-                        TimeValue.timeValueMillis(0),
-                        new DownsampleConfig(new DateHistogramInterval("5m"))
-                    ),
-                    new DataStreamLifecycle.DownsamplingRound(
-                        TimeValue.timeValueSeconds(10),
-                        new DownsampleConfig(new DateHistogramInterval("10m"))
-                    )
+                    new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(0), new DateHistogramInterval("5m")),
+                    new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueSeconds(10), new DateHistogramInterval("10m"))
                 )
             )
             .buildTemplate();

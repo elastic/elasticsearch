@@ -77,6 +77,14 @@ public class SparseEmbeddingResponseParser extends BaseCustomResponseParser {
         return builder;
     }
 
+    String getTokenPath() {
+        return tokenPath;
+    }
+
+    String getWeightPath() {
+        return weightPath;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

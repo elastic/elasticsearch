@@ -40,6 +40,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -104,6 +105,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -752,6 +754,7 @@ public class Security extends Plugin
             return createComponents(
                 services.client(),
                 services.threadPool(),
+                services.bigArrays(),
                 services.clusterService(),
                 services.featureService(),
                 services.resourceWatcherService(),
@@ -762,7 +765,8 @@ public class Security extends Plugin
                 services.telemetryProvider(),
                 new PersistentTasksService(services.clusterService(), services.threadPool(), services.client()),
                 services.linkedProjectConfigService(),
-                services.projectResolver()
+                services.projectResolver(),
+                services.projectRoutingResolver()
             );
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
@@ -773,6 +777,7 @@ public class Security extends Plugin
     Collection<Object> createComponents(
         Client client,
         ThreadPool threadPool,
+        BigArrays bigArrays,
         ClusterService clusterService,
         FeatureService featureService,
         ResourceWatcherService resourceWatcherService,
@@ -783,7 +788,8 @@ public class Security extends Plugin
         TelemetryProvider telemetryProvider,
         PersistentTasksService persistentTasksService,
         LinkedProjectConfigService linkedProjectConfigService,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        ProjectRoutingResolver projectRoutingResolver
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
@@ -836,7 +842,8 @@ public class Security extends Plugin
             securityContext.get(),
             systemIndices.getMainIndexManager(),
             systemIndices.getTokenIndexManager(),
-            clusterService
+            clusterService,
+            bigArrays.bytesRefRecycler()
         );
         this.tokenService.set(tokenService);
         components.add(tokenService);
@@ -1146,6 +1153,7 @@ public class Security extends Plugin
         if (authorizationDenialMessages.get() == null) {
             authorizationDenialMessages.set(new AuthorizationDenialMessages.Default());
         }
+        final var authorizedProjectsResolver = getCustomAuthorizedProjectsResolverOrDefault(extensionComponents);
         final AuthorizationService authzService = new AuthorizationService(
             settings,
             allRolesStore,
@@ -1164,14 +1172,16 @@ public class Security extends Plugin
             authorizationDenialMessages.get(),
             linkedProjectConfigService,
             projectResolver,
-            getCustomAuthorizedProjectsResolverOrDefault(extensionComponents),
-            new CrossProjectModeDecider(settings)
+            authorizedProjectsResolver,
+            new CrossProjectModeDecider(settings),
+            projectRoutingResolver
         );
 
         components.add(nativeRolesStore); // used by roles actions
         components.add(reservedRolesStore); // used by roles actions
         components.add(allRolesStore); // for SecurityInfoTransportAction and clear roles cache
         components.add(authzService);
+        components.add(new PluginComponentBinding<>(AuthorizedProjectsResolver.class, authorizedProjectsResolver));
 
         final SecondaryAuthenticator secondaryAuthenticator = new SecondaryAuthenticator(
             securityContext.get(),
@@ -1634,6 +1644,7 @@ public class Security extends Plugin
         settingsList.add(TokenService.TOKEN_EXPIRATION);
         settingsList.add(TokenService.DELETE_INTERVAL);
         settingsList.add(TokenService.DELETE_TIMEOUT);
+        settingsList.add(ProfileService.MAX_SIZE_SETTING);
         settingsList.addAll(SSLConfigurationSettings.getProfileSettings());
         settingsList.add(ApiKeyService.STORED_HASH_ALGO_SETTING);
         settingsList.add(ApiKeyService.DELETE_TIMEOUT);
@@ -1643,6 +1654,8 @@ public class Security extends Plugin
         settingsList.add(ApiKeyService.CACHE_MAX_KEYS_SETTING);
         settingsList.add(ApiKeyService.CACHE_TTL_SETTING);
         settingsList.add(ApiKeyService.DOC_CACHE_TTL_SETTING);
+        settingsList.add(ApiKeyService.CERTIFICATE_IDENTITY_PATTERN_CACHE_TTL_SETTING);
+        settingsList.add(ApiKeyService.CERTIFICATE_IDENTITY_PATTERN_CACHE_MAX_KEYS_SETTING);
         settingsList.add(NativePrivilegeStore.CACHE_MAX_APPLICATIONS_SETTING);
         settingsList.add(NativePrivilegeStore.CACHE_TTL_SETTING);
         settingsList.add(OPERATOR_PRIVILEGES_ENABLED);
@@ -2023,9 +2036,9 @@ public class Security extends Plugin
             }
         });
 
-        Set<String> foundProviders = new HashSet<>();
+        Set<SecurityProvider> foundProviders = new HashSet<>();
         for (Provider provider : java.security.Security.getProviders()) {
-            foundProviders.add(provider.getName().toLowerCase(Locale.ROOT));
+            foundProviders.add(new SecurityProvider(provider.getName().toLowerCase(Locale.ROOT), provider.getVersionStr()));
             if (logger.isTraceEnabled()) {
                 logger.trace("Security Provider: " + provider.getName() + ", Version: " + provider.getVersionStr());
                 provider.entrySet().forEach(entry -> { logger.trace("\t" + entry.getKey()); });
@@ -2037,7 +2050,7 @@ public class Security extends Plugin
         if (requiredProviders != null && requiredProviders.isEmpty() == false) {
             List<String> unsatisfiedProviders = requiredProviders.stream()
                 .map(s -> s.toLowerCase(Locale.ROOT))
-                .filter(element -> foundProviders.contains(element) == false)
+                .filter(element -> foundProviders.stream().noneMatch(prov -> prov.test(element)))
                 .toList();
 
             if (unsatisfiedProviders.isEmpty() == false) {
@@ -2055,6 +2068,19 @@ public class Security extends Plugin
                 sb.append(++index).append(": ").append(error).append(";\n");
             }
             throw new IllegalArgumentException(sb.toString());
+        }
+    }
+
+    record SecurityProvider(String name, String version) {
+        boolean test(String secProvPattern) {
+            int i = secProvPattern.indexOf(':');
+            if (i < 0) {
+                return name.equals(secProvPattern);
+            } else {
+                String provName = secProvPattern.substring(0, i);
+                String provVersion = secProvPattern.substring(i + 1);
+                return name.equals(provName) && Regex.simpleMatch(provVersion, version);
+            }
         }
     }
 
@@ -2442,7 +2468,7 @@ public class Security extends Plugin
         future.actionGet();
     }
 
-    public Map<String, String> getAuthContextForSlowLog() {
+    public Map<String, String> getAuthContextForLogging() {
         if (this.securityContext.get() != null && this.securityContext.get().getAuthentication() != null) {
             Authentication authentication = this.securityContext.get().getAuthentication();
             Map<String, String> authContext;

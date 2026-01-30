@@ -58,6 +58,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "Unbounded SORT not supported yet",
         "The field names are too complex to process", // field_caps problem
         "must be \\[any type except counter types\\]", // TODO refine the generation of count()
+        "INLINE STATS cannot be used after an explicit or implicit LIMIT command",
+        "sub-plan execution results too large",  // INLINE STATS limitations
 
         // Awaiting fixes for query failure
         "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,
@@ -65,22 +67,31 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "Plan \\[ProjectExec\\[\\[<no-fields>.* optimized incorrectly due to missing references",
         "The incoming YAML document exceeds the limit:", // still to investigate, but it seems to be specific to the test framework
         "Data too large", // Circuit breaker exceptions eg. https://github.com/elastic/elasticsearch/issues/130072
-        "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/131509
         "long overflow", // https://github.com/elastic/elasticsearch/issues/135759
-        "cannot be cast to class", // https://github.com/elastic/elasticsearch/issues/133992
         "can't find input for", // https://github.com/elastic/elasticsearch/issues/136596
-        "unexpected byte", // https://github.com/elastic/elasticsearch/issues/136598
-        "Rule execution limit", // https://github.com/elastic/elasticsearch/issues/136599
-        "Output has changed from", // https://github.com/elastic/elasticsearch/issues/136797
+        "out of bounds for length", // https://github.com/elastic/elasticsearch/issues/136851
+        "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/138231
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
 
-        // TS-command tests
+        // TS-command tests (acceptable errors)
         "time-series.*the first aggregation.*is not allowed",
         "count_star .* can't be used with TS command",
         "time_series aggregate.* can only be used with the TS command",
-        "implicit time-series aggregation function .* doesn't support type .*"
+        "implicit time-series aggregation function",
+        "INLINE STATS .* can only be used after STATS when used with TS command",
+        "cannot group by a metric field .* in a time-series aggregation",
+        "@timestamp field of type date or date_nanos",
+        "which was either not present in the source index, or has been dropped or renamed",
+        "second argument of .* must be \\[date_nanos or datetime\\], found value \\[@timestamp\\] type \\[.*\\]",
+        "expected named expression for grouping; got ",
+        "Time-series aggregations require direct use of @timestamp which was not found. If @timestamp was renamed in EVAL, "
+            + "use the original @timestamp field instead.", // https://github.com/elastic/elasticsearch/issues/140607
+
+        // Ts-command errors awaiting fixes
+        "Output has changed from \\[.*\\] to \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/134794
+        "Invalid call to dataType on an unresolved object \\?@timestamp" // https://github.com/elastic/elasticsearch/issues/140606
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()
@@ -159,12 +170,36 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     return currentSchema;
                 }
 
+                @Override
+                public void clearCommandHistory() {
+                    previousCommands = new ArrayList<>();
+                    previousResult = null;
+                }
+
                 boolean continueExecuting;
                 List<Column> currentSchema;
-                final List<CommandGenerator.CommandDescription> previousCommands = new ArrayList<>();
+                List<CommandGenerator.CommandDescription> previousCommands = new ArrayList<>();
                 QueryExecuted previousResult;
             };
-            EsqlQueryGenerator.generatePipeline(MAX_DEPTH, sourceCommand(), mappingInfo, exec, requiresTimeSeries(), this);
+            try {
+                EsqlQueryGenerator.generatePipeline(MAX_DEPTH, sourceCommand(), mappingInfo, exec, requiresTimeSeries(), this);
+            } catch (Exception e) {
+                // query failures are AssertionErrors, if we get here it's an unexpected exception in the query generation
+                boolean knownError = false;
+                for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
+                    if (isAllowedError(e.getMessage(), allowedError)) {
+                        knownError = true;
+                        break;
+                    }
+                }
+                if (knownError == false) {
+                    StringBuilder message = new StringBuilder();
+                    message.append("Generative tests, error generating new command \n");
+                    message.append("Previous query: \n");
+                    message.append(exec.previousResult.query());
+                    fail(e, message.toString());
+                }
+            }
         }
     }
 
@@ -261,7 +296,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     private List<String> availableIndices() throws IOException {
-        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false, requiresTimeSeries()).stream()
+        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false, requiresTimeSeries(), false, false, false, false).stream()
             .filter(x -> x.requiresInferenceEndpoint() == false)
             .map(x -> x.indexName())
             .toList();

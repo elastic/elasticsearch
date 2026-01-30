@@ -28,7 +28,7 @@ public class TextEsFieldTests extends AbstractEsFieldTypeTests<TextEsField> {
     }
 
     @Override
-    protected TextEsField mutate(TextEsField instance) {
+    protected TextEsField mutateInstance(TextEsField instance) {
         String name = instance.getName();
         Map<String, EsField> properties = instance.getProperties();
         boolean hasDocValues = instance.isAggregatable();

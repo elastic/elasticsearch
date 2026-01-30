@@ -10,18 +10,11 @@
 package org.elasticsearch.action.admin.indices.sampling;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -93,38 +86,13 @@ public class GetSampleActionIT extends ESIntegTestCase {
         assertThrows(ResourceNotFoundException.class, () -> client().execute(GetSampleAction.INSTANCE, request).actionGet());
     }
 
-    @SuppressWarnings("deprecation")
     private void addSamplingConfig(String indexName, int maxSamples) throws Exception {
-        /*
-         * Note: The following code writes a sampling config directly to the cluster state. It can be replaced with a call to the action
-         * that does this once that action exists.
-         */
-        final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
-        clusterService.submitUnbatchedStateUpdateTask("blocking-task", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(
-                    currentState.metadata().getProject(ProjectId.DEFAULT)
-                );
-                SamplingMetadata samplingMetadata = new SamplingMetadata(
-                    Map.of(indexName, new SamplingConfiguration(1.0d, maxSamples, null, null, null))
-                );
-                projectMetadataBuilder.putCustom(SamplingMetadata.TYPE, samplingMetadata);
-                ClusterState newState = new ClusterState.Builder(currentState).putProjectMetadata(projectMetadataBuilder).build();
-                return newState;
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assert false : e.getMessage();
-            }
-        });
-        awaitClusterState(state -> {
-            SamplingMetadata samplingMetadata = clusterService.state()
-                .metadata()
-                .getProject(ProjectId.DEFAULT)
-                .custom(SamplingMetadata.TYPE);
-            return samplingMetadata != null && samplingMetadata.getIndexToSamplingConfigMap().get(indexName) != null;
-        });
+        SamplingConfiguration samplingConfiguration = new SamplingConfiguration(1.0d, maxSamples, null, null, null);
+        client().execute(
+            PutSampleConfigurationAction.INSTANCE,
+            new PutSampleConfigurationAction.Request(samplingConfiguration, TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS).indices(
+                indexName
+            )
+        ).actionGet();
     }
 }

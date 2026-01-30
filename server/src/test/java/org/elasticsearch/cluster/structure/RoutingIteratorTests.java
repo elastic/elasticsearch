@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.RotationShardShuffler;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.SearchShardRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardShuffler;
@@ -385,7 +386,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
 
-        List<ShardIterator> shardIterators = operationRouting.searchShards(project, new String[] { "test" }, null, "_shards:0");
+        List<SearchShardRouting> shardIterators = operationRouting.searchShards(project, new String[] { "test" }, null, "_shards:0");
         assertThat(shardIterators.size(), equalTo(1));
         assertThat(shardIterators.iterator().next().shardId().id(), equalTo(0));
 
@@ -411,7 +412,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
 
         shardIterators = operationRouting.searchShards(project, new String[] { "test" }, null, "_shards:0|_prefer_nodes:node1,node2");
         assertThat(shardIterators.size(), equalTo(1));
-        Iterator<ShardIterator> iterator = shardIterators.iterator();
+        Iterator<SearchShardRouting> iterator = shardIterators.iterator();
         final ShardIterator it = iterator.next();
         assertThat(it.shardId().id(), equalTo(0));
         final String firstNodeId = it.nextOrNull().currentNodeId();

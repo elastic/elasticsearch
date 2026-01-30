@@ -1,5 +1,0 @@
-pr: 136649
-summary: Fix append processor `ignore_empty_values` edge case
-area: Ingest Node
-type: bug
-issues: []

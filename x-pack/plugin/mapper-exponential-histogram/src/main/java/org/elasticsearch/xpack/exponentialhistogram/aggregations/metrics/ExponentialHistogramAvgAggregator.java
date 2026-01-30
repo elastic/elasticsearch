@@ -22,13 +22,13 @@ import org.elasticsearch.search.aggregations.metrics.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
 import org.elasticsearch.xpack.exponentialhistogram.aggregations.support.ExponentialHistogramValuesSource;
-import org.elasticsearch.xpack.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
 
 import java.io.IOException;
 import java.util.Map;
 
-final class ExponentialHistogramAvgAggregator extends NumericMetricsAggregator.SingleValue {
+public final class ExponentialHistogramAvgAggregator extends NumericMetricsAggregator.SingleValue {
 
     private final ExponentialHistogramValuesSource.ExponentialHistogram valuesSource;
     private final DocValueFormat format;
@@ -37,7 +37,7 @@ final class ExponentialHistogramAvgAggregator extends NumericMetricsAggregator.S
     private DoubleArray sums;
     private DoubleArray compensations;
 
-    ExponentialHistogramAvgAggregator(
+    public ExponentialHistogramAvgAggregator(
         String name,
         ValuesSourceConfig valuesSourceConfig,
         AggregationContext context,

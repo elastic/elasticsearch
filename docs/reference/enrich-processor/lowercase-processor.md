@@ -29,5 +29,5 @@ $$$lowercase-options$$$
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 

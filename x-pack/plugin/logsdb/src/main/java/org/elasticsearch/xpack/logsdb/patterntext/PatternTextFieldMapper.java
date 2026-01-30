@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.logsdb.patterntext;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -19,8 +20,10 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.BinaryDocValuesSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -29,7 +32,6 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingParserContext;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.StringStoredFieldFieldLoader;
 import org.elasticsearch.index.mapper.TextParams;
@@ -88,21 +90,23 @@ public class PatternTextFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends BuilderWithSyntheticSourceContext {
+    public static class Builder extends TextFamilyBuilder {
 
         private final IndexSettings indexSettings;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final Parameter<String> indexOptions = patternTextIndexOptions(m -> ((PatternTextFieldMapper) m).indexOptions);
         private final Parameter<NamedAnalyzer> analyzer;
         private final Parameter<Boolean> disableTemplating;
+        private final IndexVersion indexCreatedVersion;
+        private final boolean useBinaryDocValuesForRawText;
 
         public Builder(String name, MappingParserContext context) {
             this(
                 name,
                 context.indexVersionCreated(),
                 context.getIndexSettings(),
-                SourceFieldMapper.isSynthetic(context.getIndexSettings()),
-                context.isWithinMultiField()
+                context.isWithinMultiField(),
+                useBinaryDocValuesForRawText(context.getIndexSettings())
             );
         }
 
@@ -110,13 +114,19 @@ public class PatternTextFieldMapper extends FieldMapper {
             String name,
             IndexVersion indexCreatedVersion,
             IndexSettings indexSettings,
-            boolean isSyntheticSourceEnabled,
-            boolean isWithinMultiField
+            boolean isWithinMultiField,
+            boolean useBinaryDocValuesForRawText
         ) {
-            super(name, indexCreatedVersion, isSyntheticSourceEnabled, isWithinMultiField);
+            super(name, indexCreatedVersion, isWithinMultiField);
             this.indexSettings = indexSettings;
             this.analyzer = analyzerParam(name, m -> ((PatternTextFieldMapper) m).analyzer);
             this.disableTemplating = disableTemplatingParameter(indexSettings);
+            this.indexCreatedVersion = indexCreatedVersion;
+            this.useBinaryDocValuesForRawText = useBinaryDocValuesForRawText;
+        }
+
+        private boolean useBinaryDocValuesForArgsColumn() {
+            return indexCreatedVersion.onOrAfter(IndexVersions.PATTERN_TEXT_ARGS_IN_BINARY_DOC_VALUES);
         }
 
         @Override
@@ -134,7 +144,9 @@ public class PatternTextFieldMapper extends FieldMapper {
                 disableTemplating.getValue(),
                 meta.getValue(),
                 context.isSourceSynthetic(),
-                isWithinMultiField()
+                isWithinMultiField(),
+                useBinaryDocValuesForArgsColumn(),
+                useBinaryDocValuesForRawText
             );
         }
 
@@ -181,7 +193,7 @@ public class PatternTextFieldMapper extends FieldMapper {
          * associated index setting, which is set from the current license status.
          */
         private static Parameter<Boolean> disableTemplatingParameter(IndexSettings indexSettings) {
-            boolean forceDisable = indexSettings.getValue(DISABLE_TEMPLATING_SETTING);
+            boolean forceDisable = DISABLE_TEMPLATING_SETTING.get(indexSettings.getSettings());
             return Parameter.boolParam(
                 "disable_templating",
                 false,
@@ -205,9 +217,7 @@ public class PatternTextFieldMapper extends FieldMapper {
             BuilderParams builderParams = builderParams(this, context);
             var templateIdMapper = KeywordFieldMapper.Builder.buildWithDocValuesSkipper(
                 patternTextFieldType.templateIdFieldName(leafName()),
-                indexSettings.getMode(),
-                indexCreatedVersion(),
-                true,
+                indexSettings,
                 isWithinMultiField()
             ).indexed(false).build(context);
             return new PatternTextFieldMapper(leafName(), fieldType, patternTextFieldType, builderParams, this, templateIdMapper);
@@ -222,6 +232,8 @@ public class PatternTextFieldMapper extends FieldMapper {
     private final String indexOptions;
     private final FieldType fieldType;
     private final KeywordFieldMapper templateIdMapper;
+    private final boolean useBinaryDocValueArgs;
+    private final boolean useBinaryDocValuesForRawText;
 
     private PatternTextFieldMapper(
         String simpleName,
@@ -240,6 +252,8 @@ public class PatternTextFieldMapper extends FieldMapper {
         this.indexSettings = builder.indexSettings;
         this.indexOptions = builder.indexOptions.getValue();
         this.templateIdMapper = templateIdMapper;
+        this.useBinaryDocValueArgs = builder.useBinaryDocValuesForArgsColumn();
+        this.useBinaryDocValuesForRawText = builder.useBinaryDocValuesForRawText;
     }
 
     @Override
@@ -249,13 +263,8 @@ public class PatternTextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(
-            leafName(),
-            indexCreatedVersion,
-            indexSettings,
-            fieldType().isSyntheticSourceEnabled(),
-            fieldType().isWithinMultiField()
-        ).init(this);
+        return new Builder(leafName(), indexCreatedVersion, indexSettings, fieldType().isWithinMultiField(), useBinaryDocValuesForRawText)
+            .init(this);
     }
 
     @Override
@@ -285,7 +294,7 @@ public class PatternTextFieldMapper extends FieldMapper {
         context.doc().add(new Field(fieldType().name(), value, fieldType));
 
         if (fieldType().disableTemplating()) {
-            context.doc().add(new StoredField(fieldType().storedNamed(), new BytesRef(value)));
+            storePatternAsRawText(context, value);
             return;
         }
 
@@ -295,8 +304,8 @@ public class PatternTextFieldMapper extends FieldMapper {
         // Add template_id doc_values
         context.doc().add(templateIdMapper.buildKeywordField(new BytesRef(parts.templateId())));
 
-        if (parts.useStoredField()) {
-            context.doc().add(new StoredField(fieldType().storedNamed(), new BytesRef(value)));
+        if (parts.useBinaryDocValuesForRawText()) {
+            storePatternAsRawText(context, value);
         } else {
             // Add template doc_values
             context.doc().add(new SortedSetDocValuesField(fieldType().templateFieldName(), new BytesRef(parts.template())));
@@ -308,9 +317,34 @@ public class PatternTextFieldMapper extends FieldMapper {
             // Add args doc_values
             if (parts.args().isEmpty() == false) {
                 String remainingArgs = Arg.encodeRemainingArgs(parts);
-                context.doc().add(new SortedSetDocValuesField(fieldType().argsFieldName(), new BytesRef(remainingArgs)));
+                if (useBinaryDocValueArgs) {
+                    context.doc().add(new BinaryDocValuesField(fieldType().argsFieldName(), new BytesRef(remainingArgs)));
+                } else {
+                    context.doc().add(new SortedSetDocValuesField(fieldType().argsFieldName(), new BytesRef(remainingArgs)));
+                }
             }
         }
+    }
+
+    /**
+     * Store the value as a raw text field, without analyzing it. This can happen when templating is disabled or when the value is too long
+     * to be analyzed.
+     *
+     * Values may be stored in binary doc values or in stored fields, both of which don't have the same length limitations as regular doc
+     * values do.
+     */
+    private void storePatternAsRawText(DocumentParserContext context, final String value) {
+        if (useBinaryDocValuesForRawText) {
+            context.doc().add(new BinaryDocValuesField(fieldType().storedNamed(), new BytesRef(value)));
+        } else {
+            // for bwc, store in stored fields
+            context.doc().add(new StoredField(fieldType().storedNamed(), new BytesRef(value)));
+        }
+    }
+
+    private static boolean useBinaryDocValuesForRawText(IndexSettings indexSettings) {
+        return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STORE_PATTERN_TEXT_FIELDS_IN_BINARY_DOC_VALUES)
+            && indexSettings.useTimeSeriesDocValuesFormat();
     }
 
     @Override
@@ -335,6 +369,17 @@ public class PatternTextFieldMapper extends FieldMapper {
 
     private SourceLoader.SyntheticFieldLoader getSyntheticFieldLoader() {
         if (fieldType().disableTemplating()) {
+            if (useBinaryDocValuesForRawText) {
+                return new BinaryDocValuesSyntheticFieldLoader(fieldType().storedNamed()) {
+                    @Override
+                    protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
+                        // pattern text fields are not multi-valued, so there is no special encoding here unlike other fields that use
+                        // binary doc values. As a result, we don't need to much and this function remains simple
+                        b.field(leafName(), value.utf8ToString());
+                    }
+                };
+            }
+
             return new StringStoredFieldFieldLoader(fieldType().storedNamed(), fieldType().name(), leafName()) {
                 @Override
                 protected void write(XContentBuilder b, Object value) throws IOException {
@@ -348,7 +393,7 @@ public class PatternTextFieldMapper extends FieldMapper {
             fullPath(),
             new PatternTextSyntheticFieldLoaderLayer(
                 fieldType().name(),
-                leafReader -> PatternTextCompositeValues.from(leafReader, fieldType())
+                leafReader -> PatternTextFallbackDocValues.from(leafReader, fieldType())
             )
         );
     }

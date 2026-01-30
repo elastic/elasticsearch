@@ -89,8 +89,8 @@ POST /sales/_search?size=0
   }
 }
 ```
-%  TEST[setup:sales]
-%  TEST[catch:bad_request]
+% TEST[setup:sales]
+% TEST[catch:bad_request]
 
 ```js
 {
@@ -172,8 +172,8 @@ POST /sales/_search?size=0
   }
 }
 ```
-%  TEST[setup:sales]
-%  TEST[catch:bad_request]
+% TEST[setup:sales]
+% TEST[catch:bad_request]
 
 ```js
 {

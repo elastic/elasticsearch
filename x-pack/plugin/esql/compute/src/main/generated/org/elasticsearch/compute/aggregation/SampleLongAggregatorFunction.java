@@ -148,7 +148,7 @@ public final class SampleLongAggregatorFunction implements AggregatorFunction {
     }
     BytesRefBlock sample = (BytesRefBlock) sampleUncast;
     assert sample.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
+    BytesRef sampleScratch = new BytesRef();
     SampleLongAggregator.combineIntermediate(state, sample);
   }
 

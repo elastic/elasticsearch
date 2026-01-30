@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.cohere;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
@@ -32,7 +31,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
-import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
@@ -333,7 +332,7 @@ public class CohereService extends SenderService implements RerankingInferenceSe
     /**
      * Returns the default similarity measure for the embedding type.
      * Cohere embeddings are expected to be normalized to unit vectors, but due to floating point precision issues,
-     * our check ({@link DenseVectorFieldMapper#isNotUnitVector(float)}) often fails.
+     * our check ({@link DenseVectorFieldMapper.Element#isUnitVector(float)}) often fails.
      * Therefore, we use cosine similarity to ensure compatibility.
      *
      * @return The default similarity measure.
@@ -347,7 +346,7 @@ public class CohereService extends SenderService implements RerankingInferenceSe
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

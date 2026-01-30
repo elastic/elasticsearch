@@ -89,7 +89,7 @@ The processor produces:
   ]
 }
 ```
-%  TESTRESPONSE[s/\.\.\./"_index":"_index","_id":"_id","_version":"-3","_ingest":{"timestamp":$body.docs.0.doc._ingest.timestamp},/]
+% TESTRESPONSE[s/\.\.\./"_index":"_index","_id":"_id","_version":"-3","_ingest":{"timestamp":$body.docs.0.doc._ingest.timestamp},/]
 
 
 ## Access metadata fields [script-processor-access-metadata-fields]
@@ -143,5 +143,5 @@ The processor changes the document’s `_index` to `fr-catalog` from `generic-in
   ]
 }
 ```
-%  TESTRESPONSE[s/\.\.\./"_id":"_id","_version":"-3","_ingest":{"timestamp":$body.docs.0.doc._ingest.timestamp},/]
+% TESTRESPONSE[s/\.\.\./"_id":"_id","_version":"-3","_ingest":{"timestamp":$body.docs.0.doc._ingest.timestamp},/]
 

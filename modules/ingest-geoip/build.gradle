@@ -99,4 +99,6 @@ artifacts {
 tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("ingest_geoip/40_geoip_databases/Test adding, getting, and removing geoip databases",
     "get databases behavior began returning more results in 8.16")
+  task.skipTest("ingest_geoip/60_ip_location_databases/Test adding, getting, and removing ip location databases",
+    "get databases behavior began returning more results in 9.2.1")
 })

@@ -32,6 +32,20 @@
           }
         }
       ]
+    },
+    "params": {
+      "expand_wildcards": {
+        "type": "list",
+        "description": "Whether to expand wildcard expressions to concrete data stream names that are open, closed or both.",
+        "default": "open,closed",
+        "options": [
+          "all",
+          "closed",
+          "hidden",
+          "none",
+          "open"
+        ]
+      }
     }
   }
 }

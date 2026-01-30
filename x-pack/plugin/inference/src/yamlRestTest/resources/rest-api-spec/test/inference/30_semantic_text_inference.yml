@@ -1424,31 +1424,17 @@ setup:
 
 ---
 "Get _inference_fields via _source_includes":
-  - requires:
-      cluster_features: "semantic_text.inference_metadata_fields.enabled_by_default"
-      reason: Test requires the inference metadata fields format
-
-  - do:
-      indices.create:
-        index: dest-index
-        body:
-          mappings:
-            properties:
-              field1:
-                type: semantic_text
-                inference_id: dense-inference-id
-
   - do:
       index:
-        index: dest-index
+        index: test-index
         id: doc_1
         body:
-          field1: "value1"
+          sparse_field: "value1"
         refresh: true
 
   - do:
       get:
-        index: dest-index
+        index: test-index
         id: doc_1
         _source_includes: _inference_fields
 

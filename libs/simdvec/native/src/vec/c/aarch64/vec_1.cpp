@@ -865,10 +865,13 @@ static inline void dot_int2_int4_inner_bulk(
     f32_t* results
 ) {
     int c = 0;
+    int bit_length = length/2;
     // TODO: specialised implementation
     for (; c < count; c++) {
         const int8_t* a0 = a + mapper(c, offsets) * pitch;
-        results[c] = (f32_t)vec_dot_int2_int4(a0, query, length);
+        int64_t lower = dot_int1_int4_inner(a, query, bit_length);
+        int64_t upper = dot_int1_int4_inner(a + bit_length, query, bit_length);
+        results[c] = (f32_t)(lower + (upper << 1));
     }
 }
 

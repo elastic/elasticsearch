@@ -738,6 +738,7 @@ static inline void dot_int2_int4_inner_bulk(
     f32_t* results
 ) {
     const int lines_to_fetch = length / CACHE_LINE_SIZE + 1;
+    const int bit_length = length/2;
     int c = 0;
 
     const int8_t* a0 = safe_mapper_offset<int8_t, 0, mapper>(a, pitch, offsets, count);
@@ -754,8 +755,13 @@ static inline void dot_int2_int4_inner_bulk(
         prefetch(next_a0, lines_to_fetch);
         prefetch(next_a1, lines_to_fetch);
 
-        results[c + 0] = (f32_t)vec_dot_int2_int4(a0, query, length);
-        results[c + 1] = (f32_t)vec_dot_int2_int4(a1, query, length);
+        int64_t lower0 = dot_int1_int4_inner(a0, query, bit_length);
+        int64_t lower1 = dot_int1_int4_inner(a1, query, bit_length);
+        int64_t upper0 = dot_int1_int4_inner(a0 + length/2, query, length/2);
+        int64_t upper1 = dot_int1_int4_inner(a1 + length/2, query, length/2);
+
+        results[c + 0] = (f32_t)(lower0 + (upper0 << 1));
+        results[c + 1] = (f32_t)(lower1 + (upper1 << 1));
 
         a0 = next_a0;
         a1 = next_a1;
@@ -764,7 +770,9 @@ static inline void dot_int2_int4_inner_bulk(
     // Tail-handling: remaining vectors
     for (; c < count; c++) {
         const int8_t* a0 = a + mapper(c, offsets) * pitch;
-        results[c] = (f32_t)vec_dot_int2_int4(a0, query, length);
+        int64_t lower = dot_int1_int4_inner(a0, query, length/2);
+        int64_t upper = dot_int1_int4_inner(a0 + length/2, query, length/2);
+        results[c] = (f32_t)(lower + (upper << 1));
     }
 }
 

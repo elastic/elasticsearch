@@ -1056,7 +1056,6 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         }
     }
 
-    @Repeat(iterations = 100)
     public void testGetResultPartialResultsFalseOnRunningSearchDoesNotIncludePartialResults() throws Exception {
         Map<String, Object> testClusterInfo = setupTwoClusters();
         String localIndex = (String) testClusterInfo.get("local.index");

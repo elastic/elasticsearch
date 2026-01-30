@@ -12,6 +12,12 @@ Known issues are significant defects or limitations that may impact your impleme
 <!-- :::{include} _snippets/9.3.0/known-issues.md
 ::: -->
 
+:::{changelog} /changelog/new/bundles
+:subsections:
+:type: known-issue
+:config: /docs/changelog.yml
+:::
+
 ## 9.2.4 [elasticsearch-9.2.4-known-issues]
 
 * Upgrading from 9.1.10 to 9.2.4 may cause the following error:

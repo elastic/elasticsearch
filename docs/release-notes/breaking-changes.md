@@ -15,6 +15,12 @@ If you are migrating from a version prior to version 9.0, you must first upgrade
 <!-- :::{include} _snippets/9.3.0/breaking-changes.md
 ::: -->
 
+:::{changelog} /changelog/new/bundles
+:subsections:
+:type: breaking-change
+:config: /docs/changelog.yml
+:::
+
 ## 9.2.4 [elasticsearch-9.2.4-breaking-changes]
 
 There are no breaking changes associated with this release.

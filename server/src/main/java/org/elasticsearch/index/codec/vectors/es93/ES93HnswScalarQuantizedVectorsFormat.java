@@ -11,7 +11,6 @@ package org.elasticsearch.index.codec.vectors.es93;
 
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
-import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.ScalarQuantizedVectorScorer;
@@ -42,7 +41,7 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
     private static final float MAXIMUM_CONFIDENCE_INTERVAL = 1f;
 
     static final FlatVectorsScorer flatVectorScorer = new ES93ScalarQuantizedVectorsFormat.ESQuantizedFlatVectorsScorer(
-        new ScalarQuantizedVectorScorer(FlatVectorScorerUtil.getLucene99FlatVectorsScorer())
+        new ScalarQuantizedVectorScorer(ES93FlatVectorScorer.INSTANCE)
     );
 
     private final FlatVectorsFormat rawVectorFormat;

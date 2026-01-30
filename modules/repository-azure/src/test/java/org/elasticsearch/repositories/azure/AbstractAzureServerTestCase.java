@@ -219,9 +219,7 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
     protected String getEndpointForServer(HttpServer server, String accountName) {
         InetSocketAddress address = server.getAddress();
         // Use "localhost" for loopback addresses to work around Azure SDK's inability to parse bracketed IPv6 addresses
-        String host = address.getAddress().isLoopbackAddress()
-            ? "localhost"
-            : InetAddresses.toUriString(address.getAddress());
+        String host = address.getAddress().isLoopbackAddress() ? "localhost" : InetAddresses.toUriString(address.getAddress());
         return "http://" + host + ":" + address.getPort() + "/" + accountName;
     }
 

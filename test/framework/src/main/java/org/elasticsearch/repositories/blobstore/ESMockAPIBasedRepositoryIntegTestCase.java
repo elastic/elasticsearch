@@ -270,9 +270,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         InetSocketAddress address = httpServer.getAddress();
         // Use "localhost" for loopback addresses to avoid issues with IPv6 addresses
         // in URLs that some SDKs (like Azure) cannot properly parse
-        String host = address.getAddress().isLoopbackAddress()
-            ? "localhost"
-            : InetAddresses.toUriString(address.getAddress());
+        String host = address.getAddress().isLoopbackAddress() ? "localhost" : InetAddresses.toUriString(address.getAddress());
         return host + ":" + address.getPort();
     }
 

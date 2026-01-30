@@ -123,9 +123,7 @@ public class RetryTests extends ESIntegTestCase {
             TransportAddress address = masterNode.getInfo(HttpInfo.class).getAddress().publishAddress();
             // For IPv6 addresses, we need to use toUriString which wraps in brackets, matching the whitelist format [::1]:*
             InetAddress inetAddress = address.address().getAddress();
-            String host = inetAddress instanceof Inet6Address
-                ? InetAddresses.toUriString(inetAddress)
-                : inetAddress.getHostAddress();
+            String host = inetAddress instanceof Inet6Address ? InetAddresses.toUriString(inetAddress) : inetAddress.getHostAddress();
             RemoteInfo remote = new RemoteInfo(
                 "http",
                 host,

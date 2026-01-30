@@ -21,7 +21,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.TransportInfo;
 
 import java.net.Inet4Address;
-import java.net.Inet6Address;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;

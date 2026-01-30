@@ -32,7 +32,9 @@ public class DockerAvailability {
     private static final boolean EXCLUDED_OS = isExcludedOs();
     private static final boolean DOCKER_PROBING_SUCCESSFUL = isDockerAvailable();
     private static final boolean CI = Boolean.parseBoolean(System.getProperty("CI", "false"));
-    private static final boolean DISABLE_DOCKER_TESTS = Boolean.parseBoolean(Optional.ofNullable(System.getenv("DISABLE_DOCKER_TESTS")).orElse("false"));
+    private static final boolean DISABLE_DOCKER_TESTS = Boolean.parseBoolean(
+        Optional.ofNullable(System.getenv("DISABLE_DOCKER_TESTS")).orElse("false")
+    );
     private static final String DOCKER_ON_LINUX_EXCLUSIONS_FILE = ".ci/dockerOnLinuxExclusions";
 
     static void assumeDockerIsAvailable() {

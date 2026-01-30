@@ -19,6 +19,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
 import org.ietf.jgss.GSSException;
 
+import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.PrivilegedActionException;
@@ -26,8 +27,6 @@ import java.text.ParseException;
 import java.util.Base64;
 
 import javax.security.auth.login.LoginException;
-
-import java.net.InetAddress;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -42,10 +41,7 @@ public class SimpleKdcLdapServerTests extends KerberosTestCase {
         assertTrue(Files.exists(workDir.resolve("p1p2.keytab")));
         try (
             LDAPConnection ldapConn = LdapUtils.privilegedConnect(
-                () -> new LDAPConnection(
-                    InetAddress.getLoopbackAddress().getHostAddress(),
-                    simpleKdcLdapServer.getLdapListenPort()
-                )
+                () -> new LDAPConnection(InetAddress.getLoopbackAddress().getHostAddress(), simpleKdcLdapServer.getLdapListenPort())
             );
         ) {
             assertThat(ldapConn.isConnected(), is(true));

@@ -96,15 +96,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
             host = "[" + host + "]";
         }
 
-        String ldapUrl = new LDAPURL(
-            protocol,
-            host,
-            ldapServer.getListenPort(protocol),
-            null,
-            null,
-            null,
-            null
-        ).toString();
+        String ldapUrl = new LDAPURL(protocol, host, ldapServer.getListenPort(protocol), null, null, null, null).toString();
         String groupSearchBase = "o=sevenSeas";
         String userTemplates = "cn={0},ou=people,o=sevenSeas";
 
@@ -306,15 +298,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
             address = "[" + address + "]";
         }
 
-        String ldapUrl = new LDAPURL(
-            "ldaps",
-            address,
-            ldapServer.getListenPort("ldaps"),
-            null,
-            null,
-            null,
-            null
-        ).toString();
+        String ldapUrl = new LDAPURL("ldaps", address, ldapServer.getListenPort("ldaps"), null, null, null, null).toString();
         String groupSearchBase = "o=sevenSeas";
         String userTemplates = "cn={0},ou=people,o=sevenSeas";
 

@@ -1063,6 +1063,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             Decision remainDecision,
             BiFunction<ShardRouting, RoutingNode, Decision> decider
         ) {
+            assert remainDecision.type() == Decision.Type.NO || remainDecision.type() == Decision.Type.NOT_PREFERRED;
             final boolean explain = allocation.debugDecision();
             Type bestDecision = Type.NO;
             RoutingNode targetNode = null;

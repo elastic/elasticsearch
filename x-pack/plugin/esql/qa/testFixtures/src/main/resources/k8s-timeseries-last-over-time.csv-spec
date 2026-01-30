@@ -373,6 +373,7 @@ null        | two         | 2024-05-10T00:13:00.000Z
 
 last_over_time_null_values_promql
 required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
 
 PROMQL index=k8s step=1m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:15:00.000Z" events=(sum by (pod) (last_over_time(events_received[1m])))
 | SORT events DESC, pod, step | LIMIT 10;

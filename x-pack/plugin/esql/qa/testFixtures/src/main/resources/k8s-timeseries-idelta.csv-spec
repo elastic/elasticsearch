@@ -19,6 +19,7 @@ null               | 2024-05-10T00:01:00.000Z
 
 idelta_of_double_no_grouping_promql
 required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
 
 PROMQL index=k8s step=1m cost_change=(sum(idelta(network.cost[1m])))
 | SORT cost_change DESC, step DESC | LIMIT 10;
@@ -55,6 +56,7 @@ null                | 2024-05-10T00:01:00.000Z
 
 idelta_of_integer_promql
 required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
 
 PROMQL index=k8s step=1m clients=(avg(idelta(network.eth0.currently_connected_clients[1m])))
 | SORT step | LIMIT 10;
@@ -92,6 +94,7 @@ null           | prod            | 2024-05-10T00:03:00.000Z
 
 idelta_of_integer_grouping_promql
 required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
 
 PROMQL index=k8s step=1m clients=(avg by (cluster) (idelta(network.eth0.currently_connected_clients[1m])))
 | SORT step, cluster | LIMIT 10;

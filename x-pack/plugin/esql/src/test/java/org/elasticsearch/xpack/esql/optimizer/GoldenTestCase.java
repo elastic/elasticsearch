@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
@@ -62,7 +63,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomMinimumVersion;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 
@@ -196,6 +196,7 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
             LogicalPlan parsedStatement = EsqlParser.INSTANCE.parseQuery(esqlQuery);
+            Files.writeString(PathUtils.get(basePath.toString(), testName, "query.esql"), esqlQuery);
             var analyzer = new Analyzer(
                 new AnalyzerContext(
                     EsqlTestUtils.TEST_CFG,
@@ -217,7 +218,8 @@ public abstract class GoldenTestCase extends ESTestCase {
             if (stages.equals(EnumSet.of(Stage.ANALYSIS))) {
                 return result;
             }
-            var logicallyOptimized = new LogicalPlanOptimizer(unboundLogicalOptimizerContext()).optimize(analyzed);
+            var optimizerContext = new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), transportVersion);
+            var logicallyOptimized = new LogicalPlanOptimizer(optimizerContext).optimize(analyzed);
             if (stages.contains(Stage.LOGICAL_OPTIMIZATION)) {
                 result.add(Tuple.tuple(Stage.LOGICAL_OPTIMIZATION, verifyOrWrite(logicallyOptimized, Stage.LOGICAL_OPTIMIZATION)));
             }
@@ -225,7 +227,9 @@ public abstract class GoldenTestCase extends ESTestCase {
                 || stages.contains(Stage.LOCAL_PHYSICAL_OPTIMIZATION)
                 || stages.contains(Stage.NODE_REDUCE_OPTIMIZATION)
                 || stages.contains(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION)) {
-                var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(null, null));
+                var physicalPlanOptimizer = new PhysicalPlanOptimizer(
+                    new PhysicalOptimizerContext(EsqlTestUtils.TEST_CFG, transportVersion)
+                );
                 PhysicalPlan physicalPlan = physicalPlanOptimizer.optimize(
                     new Mapper().map(new Versioned<>(logicallyOptimized, transportVersion))
                 );
@@ -393,15 +397,26 @@ public abstract class GoldenTestCase extends ESTestCase {
     }
 
     protected enum Stage {
+        /** See {@link Analyzer}. */
         ANALYSIS,
+        /** See {@link LogicalPlanOptimizer}. */
         LOGICAL_OPTIMIZATION,
+        /** See {@link PhysicalPlanOptimizer}. */
         PHYSICAL_OPTIMIZATION,
-        // There's no LOCAL_LOGICAL here since in production we use PlannerUtils.localPlan to produce the local physical plan directly from
-        // non-local physical plan.
+        /**
+         * See {@link LocalPhysicalPlanOptimizer}. There's no LOCAL_LOGICAL here since in production we use PlannerUtils.localPlan to
+         * produce the local physical plan directly from non-local physical plan.
+         */
         LOCAL_PHYSICAL_OPTIMIZATION,
-        // Both node_reduce stages actually result in *two* plans: one for the node reduce driver and one for the data nodes.
+        /**
+         * See {@link ComputeService#reductionPlan}. Actually results in <b>two</b> plans: one for the node reduce driver and one for the
+         * data nodes.
+         */
         NODE_REDUCE_OPTIMIZATION,
-        // Perform the local physical optimization on both node reduce and data node plans.
+        /**
+         * A combination of {@link Stage#NODE_REDUCE_OPTIMIZATION} and {@link  Stage#LOCAL_PHYSICAL_OPTIMIZATION}: first produce the node
+         * reduce and data node plans, and then perform local physical optimization on both.
+         */
         NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION
     }
 

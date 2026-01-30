@@ -229,8 +229,11 @@ public class DfsPhase {
         ContextIndexSearcher searcher,
         String nestedPath
     ) throws IOException {
+        // When oversample is 0 or 1, no oversampling is needed - use k directly
+        // When oversample > 1, collect ceil(k * oversample) candidates for rescoring
+        int numHits = oversample > 1 ? (int) Math.ceil(k * oversample) : k;
         CollectorManager<? extends Collector, TopDocs> topDocsCollectorManager = new TopScoreDocCollectorManager(
-            k,
+            numHits,
             null,
             Integer.MAX_VALUE
         );

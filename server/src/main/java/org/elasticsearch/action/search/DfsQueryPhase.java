@@ -223,24 +223,26 @@ class DfsQueryPhase extends SearchPhase {
                     // However, this has the caveat that some scores will be complete, while other might not
                     // in addition to the fact that some shards will return k results, while other k * oversample
                     oversampling[i] = knnResults.oversample() != null ? knnResults.oversample() : null;
-                    if (oversampling[i] != null) {
-                        k[i] = knnResults.k() != null ? (int) Math.ceil(oversampling[i] * knnResults.k()) : null;
-                    }
+                    k[i] = knnResults.k() != null ? knnResults.k() : null;
                 }
             }
         }
 
         List<DfsKnnResults> mergedResults = new ArrayList<>(source.knnSearch().size());
         for (int i = 0; i < source.knnSearch().size(); i++) {
-            int localK = source.knnSearch().get(i).k();
-            if (k[i] != null && oversampling[i] != null) {
-                localK = (int) Math.ceil(k[i] * oversampling[i]);
+            int localK = k[i] != null ? k[i] : source.knnSearch().get(i).k();
+            int finalResults = localK;
+            // When oversample is > 1, we need to merge ceil(oversample * k) results for rescoring
+            // When oversample is null, 0, or 1, no oversampling - use k directly
+            if (oversampling[i] != null && oversampling[i] > 1) {
+                finalResults = (int) Math.ceil(oversampling[i] * localK);
             }
+
             // keep k results as specified by DFSSearchResult (i.e. account for potential oversampling) otherwise
             // ask knn-search from the request
-            TopDocs mergedTopDocs = TopDocs.merge(localK, topDocsLists.get(i).toArray(new TopDocs[0]));
+            TopDocs mergedTopDocs = TopDocs.merge(finalResults, topDocsLists.get(i).toArray(new TopDocs[0]));
             mergedResults.add(
-                new DfsKnnResults(nestedPath.get(i).get(), mergedTopDocs.scoreDocs, oversampling[i], source.knnSearch().get(i).k())
+                new DfsKnnResults(nestedPath.get(i).get(), mergedTopDocs.scoreDocs, oversampling[i], localK)
             );
         }
         return mergedResults;

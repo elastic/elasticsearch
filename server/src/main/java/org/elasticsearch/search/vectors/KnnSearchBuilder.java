@@ -480,9 +480,8 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             throw new IllegalArgumentException("missing rewrite");
         }
         float oversample = getOversampleFactor(searchExecutionContext);
-        int localK = oversample == 0 ? k : (int) Math.ceil(k * oversample);
+        int localK = oversample <= 1 ? k : (int) Math.ceil(k * oversample);
         int localNumcands = oversample == 0 ? numCands : Math.max(localK, numCands);
-        ;
         return new KnnVectorQueryBuilder(field, queryVector, localK, localNumcands, visitPercentage, NO_RESCORING, similarity).boost(boost)
             .queryName(queryName)
             .addFilterQueries(filterQueries);

@@ -23,11 +23,11 @@ import static org.hamcrest.Matchers.not;
 
 public abstract class AbstractVectorTestCase extends ESTestCase {
 
-    static Optional<VectorScorerFactory> factory;
+    static Optional<org.elasticsearch.simdvec.VectorScorerFactory> factory;
 
     @BeforeClass
     public static void getVectorScorerFactory() {
-        factory = VectorScorerFactory.instance();
+        factory = org.elasticsearch.simdvec.VectorScorerFactory.instance();
     }
 
     protected AbstractVectorTestCase() {
@@ -69,6 +69,11 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
     /** Converts a float value to a byte array. */
     public static byte[] floatToByteArray(float value) {
         return ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putFloat(value).array();
+    }
+
+    /** Converts an int value to a byte array. */
+    public static byte[] intToByteArray(float value) {
+        return ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt((int) value).array();
     }
 
     /** Concatenates byte arrays. */

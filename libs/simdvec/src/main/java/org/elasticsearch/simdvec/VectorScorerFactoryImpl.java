@@ -60,4 +60,26 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
     ) {
         throw new UnsupportedOperationException("should not reach here");
     }
+
+    @Override
+    public Optional<RandomVectorScorerSupplier> getInt7OSQVectorScorerSupplier(
+        VectorSimilarityType similarityType,
+        IndexInput input,
+        org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values
+    ) {
+        throw new UnsupportedOperationException("should not reach here");
+    }
+
+    @Override
+    public Optional<RandomVectorScorer> getInt7OSQVectorScorer(
+        VectorSimilarityFunction sim,
+        org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values,
+        byte[] quantizedQuery,
+        float lowerInterval,
+        float upperInterval,
+        float additionalCorrection,
+        int quantizedComponentSum
+    ) {
+        throw new UnsupportedOperationException("should not reach here");
+    }
 }

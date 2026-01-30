@@ -20,6 +20,8 @@ import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.simdvec.internal.FloatVectorScorer;
 import org.elasticsearch.simdvec.internal.FloatVectorScorerSupplier;
+import org.elasticsearch.simdvec.internal.Int7OSQVectorScorer;
+import org.elasticsearch.simdvec.internal.Int7OSQVectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.Int7SQVectorScorer;
 import org.elasticsearch.simdvec.internal.Int7SQVectorScorerSupplier;
 
@@ -88,6 +90,45 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         float[] queryVector
     ) {
         return Int7SQVectorScorer.create(sim, values, queryVector);
+    }
+
+    @Override
+    public Optional<RandomVectorScorerSupplier> getInt7OSQVectorScorerSupplier(
+        VectorSimilarityType similarityType,
+        IndexInput input,
+        org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values
+    ) {
+        input = FilterIndexInput.unwrapOnlyTest(input);
+        if (input instanceof MemorySegmentAccessInput msInput) {
+            checkInvariants(values.size(), values.dimension(), input);
+            return switch (similarityType) {
+                case COSINE, DOT_PRODUCT -> Optional.of(new Int7OSQVectorScorerSupplier.DotProductSupplier(msInput, values));
+                case EUCLIDEAN -> Optional.of(new Int7OSQVectorScorerSupplier.EuclideanSupplier(msInput, values));
+                case MAXIMUM_INNER_PRODUCT -> Optional.of(new Int7OSQVectorScorerSupplier.MaxInnerProductSupplier(msInput, values));
+            };
+        }
+        return Optional.empty();
+    }
+
+    @Override
+    public Optional<RandomVectorScorer> getInt7OSQVectorScorer(
+        VectorSimilarityFunction sim,
+        org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values,
+        byte[] quantizedQuery,
+        float lowerInterval,
+        float upperInterval,
+        float additionalCorrection,
+        int quantizedComponentSum
+    ) {
+        return Int7OSQVectorScorer.create(
+            sim,
+            values,
+            quantizedQuery,
+            lowerInterval,
+            upperInterval,
+            additionalCorrection,
+            quantizedComponentSum
+        );
     }
 
     static void checkInvariants(int maxOrd, int vectorByteLength, IndexInput input) {

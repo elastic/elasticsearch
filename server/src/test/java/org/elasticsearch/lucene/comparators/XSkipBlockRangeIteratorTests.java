@@ -21,8 +21,10 @@ import java.io.IOException;
 public class XSkipBlockRangeIteratorTests extends ESTestCase {
 
     public void testLuceneVersion() {
-        assertFalse("Remove this class after upgrading to Lucene 10.4",
-            IndexVersion.current().luceneVersion().onOrAfter(org.apache.lucene.util.Version.fromBits(10, 4, 0)));
+        assertFalse(
+            "Remove this class after upgrading to Lucene 10.4",
+            IndexVersion.current().luceneVersion().onOrAfter(org.apache.lucene.util.Version.fromBits(10, 4, 0))
+        );
     }
 
     public void testSkipBlockRangeIterator() throws Exception {
@@ -118,8 +120,7 @@ public class XSkipBlockRangeIteratorTests extends ESTestCase {
      * Fake skipper over a NumericDocValues field built by an equivalent call to {@link
      * #docValues(long, long)}
      */
-    protected static DocValuesSkipper docValuesSkipper(
-        long queryMin, long queryMax, boolean doLevels) {
+    protected static DocValuesSkipper docValuesSkipper(long queryMin, long queryMax, boolean doLevels) {
         return new DocValuesSkipper() {
 
             int doc = -1;

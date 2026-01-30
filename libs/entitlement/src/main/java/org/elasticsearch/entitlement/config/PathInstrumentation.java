@@ -12,18 +12,18 @@ package org.elasticsearch.entitlement.config;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.rules.EntitlementHandler;
 import org.elasticsearch.entitlement.rules.EntitlementRule;
-import org.elasticsearch.entitlement.rules.EntitlementRules;
 import org.elasticsearch.entitlement.rules.Policies;
 
 import java.nio.file.FileSystems;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.stream.StreamSupport;
 
 public class PathInstrumentation implements InstrumentationConfig {
     @Override
-    public void init() {
+    public void init(Consumer<EntitlementRule> addRule) {
         var pathClasses = StreamSupport.stream(FileSystems.getDefault().getRootDirectories().spliterator(), false)
             .map(Path::getClass)
             .distinct()
@@ -52,7 +52,7 @@ public class PathInstrumentation implements InstrumentationConfig {
         // .enforce(Policies::fileRead)
         // .elseThrowNotEntitled());
 
-        EntitlementRules.registerRule(
+        addRule.accept(
             new EntitlementRule(new MethodKey("sun/nio/fs/UnixPath", "toRealPath", List.of("java.nio.file.LinkOption[]")), args -> {
                 Path path = (Path) args[0];
                 LinkOption[] options = (LinkOption[]) args[1];
@@ -67,7 +67,7 @@ public class PathInstrumentation implements InstrumentationConfig {
             }, new EntitlementHandler.NotEntitledEntitlementHandler())
         );
 
-        EntitlementRules.registerRule(
+        addRule.accept(
             new EntitlementRule(
                 new MethodKey("java/nio/file/Path", "register", List.of("java.nio.file.WatchService", "java.nio.file.WatchEvent$Kind[]")),
                 args -> {
@@ -78,7 +78,7 @@ public class PathInstrumentation implements InstrumentationConfig {
             )
         );
 
-        EntitlementRules.registerRule(
+        addRule.accept(
             new EntitlementRule(
                 new MethodKey(
                     "sun/nio/fs/UnixPath",

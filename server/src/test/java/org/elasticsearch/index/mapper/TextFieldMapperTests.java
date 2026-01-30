@@ -2157,8 +2157,7 @@ public class TextFieldMapperTests extends MapperTestCase {
                 try (DirectoryReader reader = DirectoryReader.open(directory)) {
                     LeafReaderContext ctx = reader.leaves().get(0);
                     BlockLoader blockLoader = mapperService.fieldType("name")
-                        .blockLoader(new DummyBlockLoaderContext.MapperServiceBlockLoaderContext(mapperService) {
-                        });
+                        .blockLoader(new DummyBlockLoaderContext.MapperServiceBlockLoaderContext(mapperService) {});
                     Predicate<Object> exceedIgnoreAbove = v -> {
                         if (v instanceof Collection<?> ls) {
                             return ls.stream().anyMatch(s -> s.toString().length() > ignoreAbove);

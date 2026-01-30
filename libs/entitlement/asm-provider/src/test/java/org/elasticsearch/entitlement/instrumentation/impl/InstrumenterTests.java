@@ -300,8 +300,7 @@ public class InstrumenterTests extends ESTestCase {
         String handleClass = Type.getInternalName(InstrumenterTests.TestEntitlementCheckerHolder.class);
         String getCheckerClassMethodDescriptor = Type.getMethodDescriptor(Type.getObjectType(checkerClass));
 
-        // return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, "", checkMethods);
-        return null;
+        return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, "", checkMethods);
     }
 
     private static TestLoader instrumentTestClass(InstrumenterImpl instrumenter) throws IOException {

@@ -11,6 +11,7 @@ package org.elasticsearch.entitlement.initialization;
 
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.entitlement.bridge.registry.InstrumentationRegistry;
+import org.elasticsearch.entitlement.rules.EntitlementRule;
 import org.elasticsearch.entitlement.rules.EntitlementRules;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.PolicyChecker;
@@ -22,6 +23,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.lang.instrument.Instrumentation;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -94,9 +96,15 @@ public class EntitlementInitialization {
      * @param suppressFailureLogPackages
      * @param policyManager
      */
-    public record InitializeArgs(PathLookup pathLookup, Set<Package> suppressFailureLogPackages, PolicyManager policyManager) {
+    public record InitializeArgs(
+        PathLookup pathLookup,
+        List<EntitlementRule> entitlementRules,
+        Set<Package> suppressFailureLogPackages,
+        PolicyManager policyManager
+    ) {
         public InitializeArgs {
             requireNonNull(pathLookup);
+            requireNonNull(entitlementRules);
             requireNonNull(suppressFailureLogPackages);
             requireNonNull(policyManager);
         }

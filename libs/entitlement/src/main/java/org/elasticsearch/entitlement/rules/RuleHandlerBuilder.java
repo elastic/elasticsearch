@@ -13,16 +13,21 @@ import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.rules.function.CheckMethod;
 import org.elasticsearch.entitlement.rules.function.VarargCall;
 
+import java.util.function.Consumer;
+
 public class RuleHandlerBuilder<T, R> extends VoidRuleHandlerBuilder<T> {
 
-    public RuleHandlerBuilder(Class<? extends T> clazz, MethodKey methodKey, VarargCall<CheckMethod> checkMethod) {
-        super(clazz, methodKey, checkMethod);
+    public RuleHandlerBuilder(
+        Consumer<EntitlementRule> addRule,
+        Class<? extends T> clazz,
+        MethodKey methodKey,
+        VarargCall<CheckMethod> checkMethod
+    ) {
+        super(addRule, clazz, methodKey, checkMethod);
     }
 
     public ClassMethodBuilder<T> elseReturn(R defaultValue) {
-        EntitlementRules.registerRule(
-            new EntitlementRule(methodKey, checkMethod, new EntitlementHandler.DefaultValueEntitlementHandler<>(defaultValue))
-        );
-        return new ClassMethodBuilder<>(clazz);
+        addRule.accept(new EntitlementRule(methodKey, checkMethod, new EntitlementHandler.DefaultValueEntitlementHandler<>(defaultValue)));
+        return new ClassMethodBuilder<>(addRule, clazz);
     }
 }

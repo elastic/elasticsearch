@@ -91,8 +91,7 @@ public class EsqlQueryLogTests extends ESTestCase {
     }
 
     public static SlowLogFieldProvider mockLogFieldProvider() {
-        return context -> new SlowLogFields(context) {
-        };
+        return context -> new SlowLogFields(context) {};
     }
 
     public void testPrioritiesOnSuccess() {

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.config;
 
+import org.elasticsearch.entitlement.rules.EntitlementRule;
 import org.elasticsearch.entitlement.rules.EntitlementRules;
 import org.elasticsearch.entitlement.rules.Policies;
 
@@ -17,6 +18,7 @@ import java.security.KeyStore;
 import java.security.Provider;
 import java.security.cert.CertStore;
 import java.security.cert.CertStoreParameters;
+import java.util.function.Consumer;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -25,13 +27,13 @@ import javax.net.ssl.SSLSocketFactory;
 
 public class SecurityInstrumentation implements InstrumentationConfig {
     @Override
-    public void init() {
-        EntitlementRules.on(SSLContext.class)
+    public void init(Consumer<EntitlementRule> addRule) {
+        EntitlementRules.on(addRule, SSLContext.class)
             .callingVoidStatic(SSLContext::setDefault, SSLContext.class)
             .enforce(Policies::changeJvmGlobalState)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(HttpsURLConnection.class)
+        EntitlementRules.on(addRule, HttpsURLConnection.class)
             .callingVoidStatic(HttpsURLConnection::setDefaultSSLSocketFactory, SSLSocketFactory.class)
             .enforce(Policies::changeJvmGlobalState)
             .elseThrowNotEntitled()
@@ -42,7 +44,7 @@ public class SecurityInstrumentation implements InstrumentationConfig {
             .enforce(Policies::setHttpsConnectionProperties)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(KeyStore.class)
+        EntitlementRules.on(addRule, KeyStore.class)
             .callingStatic(KeyStore::getInstance, File.class, char[].class)
             .enforce((file) -> Policies.fileRead(file))
             .elseThrowNotEntitled()
@@ -50,7 +52,7 @@ public class SecurityInstrumentation implements InstrumentationConfig {
             .enforce((file) -> Policies.fileRead(file))
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(KeyStore.Builder.class)
+        EntitlementRules.on(addRule, KeyStore.Builder.class)
             .callingStatic(KeyStore.Builder::newInstance, File.class, KeyStore.ProtectionParameter.class)
             .enforce((file) -> Policies.fileRead(file))
             .elseThrowNotEntitled()
@@ -61,7 +63,7 @@ public class SecurityInstrumentation implements InstrumentationConfig {
             .enforce(Policies::fileDescriptorRead)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(CertStore.class)
+        EntitlementRules.on(addRule, CertStore.class)
             .callingStatic(CertStore::getInstance, String.class, CertStoreParameters.class)
             .enforce((type) -> "LDAP".equals(type) ? Policies.outboundNetworkAccess() : Policies.noop())
             .elseThrowNotEntitled();

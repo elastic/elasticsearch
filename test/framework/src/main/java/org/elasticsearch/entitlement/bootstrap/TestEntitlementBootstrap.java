@@ -75,7 +75,13 @@ public class TestEntitlementBootstrap {
 
     private static void loadAgent(PolicyManager policyManager, PathLookup pathLookup) {
         logger.debug("Loading entitlement agent");
-        EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(pathLookup, Set.of(), policyManager);
+        // TODO: how we get the rules here?
+        EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(
+            pathLookup,
+            List.of(),
+            Set.of(),
+            policyManager
+        );
         EntitlementBootstrap.loadAgent(EntitlementBootstrap.findAgentJar(), EntitlementInitialization.class.getName());
     }
 

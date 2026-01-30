@@ -11,7 +11,7 @@ package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
+import org.elasticsearch.entitlement.bridge.NotEntitledException;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager.ModuleEntitlements;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
@@ -42,7 +42,6 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static java.lang.StackWalker.Option.RETAIN_CLASS_REFERENCE;
-import static java.util.function.Predicate.not;
 import static java.util.zip.ZipFile.OPEN_DELETE;
 import static java.util.zip.ZipFile.OPEN_READ;
 import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.TEMP;
@@ -56,7 +55,6 @@ import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.TE
  */
 @SuppressForbidden(reason = "Explicitly checking APIs that are forbidden")
 public class PolicyCheckerImpl implements PolicyChecker {
-    private static String CHECK_METHOD_NAME = "check$";
 
     protected final Set<Package> suppressFailureLogPackages;
     /**
@@ -172,11 +170,11 @@ public class PolicyCheckerImpl implements PolicyChecker {
         // This way, we don't need to painstakingly describe every individual global-state change.
         return StackWalker.getInstance()
             .walk(
-                frames -> frames.dropWhile(not(frame -> frame.getMethodName().equals(CHECK_METHOD_NAME)))
-                    .skip(1)
+                frames -> frames.map(StackWalker.StackFrame::getMethodName)
+                    // .dropWhile(not(methodName -> methodName.startsWith(InstrumentationService.CHECK_METHOD_PREFIX)))
                     .findFirst()
-                    .map(frame -> frame.getClassName() + "." + frame.getMethodName() + "()")
-            );
+            )
+            .map(this::operationDescription);
     }
 
     /**
@@ -324,6 +322,11 @@ public class PolicyCheckerImpl implements PolicyChecker {
     @Override
     public void checkLoadingNativeLibraries(Class<?> callerClass) {
         checkEntitlementPresent(callerClass, LoadNativeLibrariesEntitlement.class);
+    }
+
+    private String operationDescription(String methodName) {
+        // TODO: Use a more human-readable description. Perhaps share code with InstrumentationServiceImpl.parseCheckerMethodName
+        return methodName.substring(methodName.indexOf('$'));
     }
 
     @Override

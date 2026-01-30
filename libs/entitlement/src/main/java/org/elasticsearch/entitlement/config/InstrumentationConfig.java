@@ -9,6 +9,10 @@
 
 package org.elasticsearch.entitlement.config;
 
+import org.elasticsearch.entitlement.rules.EntitlementRule;
+
+import java.util.function.Consumer;
+
 public interface InstrumentationConfig {
-    void init();
+    void init(Consumer<EntitlementRule> addRule);
 }

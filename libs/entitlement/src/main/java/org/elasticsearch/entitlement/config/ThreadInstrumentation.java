@@ -9,15 +9,17 @@
 
 package org.elasticsearch.entitlement.config;
 
+import org.elasticsearch.entitlement.rules.EntitlementRule;
 import org.elasticsearch.entitlement.rules.EntitlementRules;
 import org.elasticsearch.entitlement.rules.Policies;
 
 import java.util.concurrent.ForkJoinPool;
+import java.util.function.Consumer;
 
 public class ThreadInstrumentation implements InstrumentationConfig {
     @Override
-    public void init() {
-        EntitlementRules.on(Thread.class)
+    public void init(Consumer<EntitlementRule> addRule) {
+        EntitlementRules.on(addRule, Thread.class)
             .callingVoid(Thread::start)
             .enforce(Policies::manageThreads)
             .elseThrowNotEntitled()
@@ -37,7 +39,7 @@ public class ThreadInstrumentation implements InstrumentationConfig {
             .enforce(Policies::manageThreads)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(ThreadGroup.class)
+        EntitlementRules.on(addRule, ThreadGroup.class)
             .callingVoid(ThreadGroup::setMaxPriority, Integer.class)
             .enforce(Policies::manageThreads)
             .elseThrowNotEntitled()
@@ -45,7 +47,7 @@ public class ThreadInstrumentation implements InstrumentationConfig {
             .enforce(Policies::manageThreads)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(ForkJoinPool.class)
+        EntitlementRules.on(addRule, ForkJoinPool.class)
             .callingVoid(ForkJoinPool::execute, Runnable.class)
             .enforce(Policies::manageThreads)
             .elseThrowNotEntitled()

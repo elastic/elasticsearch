@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.config;
 
+import org.elasticsearch.entitlement.rules.EntitlementRule;
 import org.elasticsearch.entitlement.rules.Policies;
 import org.elasticsearch.entitlement.rules.TypeToken;
 
@@ -27,15 +28,16 @@ import java.nio.file.spi.FileSystemProvider;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.entitlement.rules.EntitlementRules.on;
 
 public class FileSystemProviderInstrumentation implements InstrumentationConfig {
     @Override
-    public void init() {
+    public void init(Consumer<EntitlementRule> addRule) {
         var defaultFileSystemProvider = FileSystems.getDefault().provider().getClass();
 
-        on(defaultFileSystemProvider).calling(
+        on(addRule, defaultFileSystemProvider).calling(
             FileSystemProvider::newFileSystem,
             TypeToken.of(URI.class),
             new TypeToken<Map<String, ?>>() {}

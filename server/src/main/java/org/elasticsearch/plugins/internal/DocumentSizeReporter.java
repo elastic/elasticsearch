@@ -18,8 +18,7 @@ public interface DocumentSizeReporter {
     /**
      * a default noop implementation
      */
-    DocumentSizeReporter EMPTY_INSTANCE = new DocumentSizeReporter() {
-    };
+    DocumentSizeReporter EMPTY_INSTANCE = new DocumentSizeReporter() {};
 
     /**
      * An action to be performed upon finished indexing.

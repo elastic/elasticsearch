@@ -19,6 +19,7 @@ import jdk.vm.ci.services.Services;
 
 import com.sun.tools.jdi.VirtualMachineManagerImpl;
 
+import org.elasticsearch.entitlement.rules.EntitlementRule;
 import org.elasticsearch.entitlement.rules.EntitlementRules;
 import org.elasticsearch.entitlement.rules.Policies;
 import org.elasticsearch.entitlement.rules.TypeToken;
@@ -40,8 +41,8 @@ import java.util.function.Consumer;
 
 public class SystemInstrumentation implements InstrumentationConfig {
     @Override
-    public void init() {
-        EntitlementRules.on(Runtime.class)
+    public void init(Consumer<EntitlementRule> addRule) {
+        EntitlementRules.on(addRule, Runtime.class)
             .callingVoid(Runtime::exit, Integer.class)
             .enforce(Policies::exitVM)
             .elseThrowNotEntitled()
@@ -61,7 +62,7 @@ public class SystemInstrumentation implements InstrumentationConfig {
             .enforce(Policies::loadingNativeLibraries)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(System.class)
+        EntitlementRules.on(addRule, System.class)
             .callingVoidStatic(System::exit, Integer.class)
             .enforce(Policies::exitVM)
             .elseThrowNotEntitled()
@@ -90,7 +91,7 @@ public class SystemInstrumentation implements InstrumentationConfig {
             .enforce(Policies::loadingNativeLibraries)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(ProcessBuilder.class)
+        EntitlementRules.on(addRule, ProcessBuilder.class)
             .calling(ProcessBuilder::start)
             .enforce(Policies::startProcess)
             .elseThrowNotEntitled()
@@ -98,19 +99,19 @@ public class SystemInstrumentation implements InstrumentationConfig {
             .enforce(Policies::startProcess)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(Jlink.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
+        EntitlementRules.on(addRule, Jlink.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
 
-        EntitlementRules.on(Main.class)
+        EntitlementRules.on(addRule, Main.class)
             .callingStatic(Main::run, PrintWriter.class, PrintWriter.class, String[].class)
             .enforce(Policies::changeJvmGlobalState)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(JVMCIServiceLocator.class)
+        EntitlementRules.on(addRule, JVMCIServiceLocator.class)
             .callingStatic(JVMCIServiceLocator::getProviders, new TypeToken<Class<?>>() {})
             .enforce(Policies::changeJvmGlobalState)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(Services.class);
+        EntitlementRules.on(addRule, Services.class);
         // .callingStatic(Services::load, new TypeToken<Class<?>>() {})
         // .enforce(Policies::changeJvmGlobalState)
         // .elseThrowNotEntitled()
@@ -118,17 +119,17 @@ public class SystemInstrumentation implements InstrumentationConfig {
         // .enforce(Policies::changeJvmGlobalState)
         // .elseThrowNotEntitled();
 
-        EntitlementRules.on(VirtualMachineManagerImpl.class)
+        EntitlementRules.on(addRule, VirtualMachineManagerImpl.class)
             .callingStatic(VirtualMachineManagerImpl::virtualMachineManager)
             .enforce(Policies::changeJvmGlobalState)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(ValueLayouts.OfAddressImpl.class)
+        EntitlementRules.on(addRule, ValueLayouts.OfAddressImpl.class)
             .calling(ValueLayouts.OfAddressImpl::withTargetLayout, MemoryLayout.class)
             .enforce(Policies::loadingNativeLibraries)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(AbstractLinker.class)
+        EntitlementRules.on(addRule, AbstractLinker.class)
             .calling(AbstractLinker::downcallHandle, MemorySegment.class, FunctionDescriptor.class, Linker.Option[].class)
             .enforce(Policies::loadingNativeLibraries)
             .elseThrowNotEntitled()
@@ -139,7 +140,7 @@ public class SystemInstrumentation implements InstrumentationConfig {
             .enforce(Policies::loadingNativeLibraries)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(AbstractMemorySegmentImpl.class)
+        EntitlementRules.on(addRule, AbstractMemorySegmentImpl.class)
             .calling(AbstractMemorySegmentImpl::reinterpret, Long.class)
             .enforce(Policies::loadingNativeLibraries)
             .elseThrowNotEntitled()
@@ -156,7 +157,7 @@ public class SystemInstrumentation implements InstrumentationConfig {
             .elseThrowNotEntitled();
         ;
 
-        EntitlementRules.on(MemorySegment.class)
+        EntitlementRules.on(addRule, MemorySegment.class)
             .calling(MemorySegment::reinterpret, Long.class)
             .enforce(Policies::loadingNativeLibraries)
             .elseThrowNotEntitled()
@@ -172,7 +173,7 @@ public class SystemInstrumentation implements InstrumentationConfig {
             .enforce(Policies::loadingNativeLibraries)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(SymbolLookup.class)
+        EntitlementRules.on(addRule, SymbolLookup.class)
             .callingStatic(SymbolLookup::libraryLookup, String.class, Arena.class)
             .enforce(Policies::loadingNativeLibraries)
             .elseThrowNotEntitled()
@@ -180,7 +181,7 @@ public class SystemInstrumentation implements InstrumentationConfig {
             .enforce((path) -> Policies.fileRead(path).and(Policies.loadingNativeLibraries()))
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(ModuleLayer.Controller.class)
+        EntitlementRules.on(addRule, ModuleLayer.Controller.class)
             .callingVoid(ModuleLayer.Controller::enableNativeAccess, Module.class)
             .enforce(Policies::changeJvmGlobalState)
             .elseThrowNotEntitled();

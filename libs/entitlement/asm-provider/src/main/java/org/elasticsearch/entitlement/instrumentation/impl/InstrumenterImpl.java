@@ -10,9 +10,11 @@
 package org.elasticsearch.entitlement.instrumentation.impl;
 
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.entitlement.bridge.NotEntitledException;
 import org.elasticsearch.entitlement.instrumentation.EntitlementInstrumented;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
+import org.elasticsearch.entitlement.rules.EntitlementHandler;
 import org.elasticsearch.entitlement.runtime.registry.InstrumentationInfo;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -21,6 +23,7 @@ import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.FieldVisitor;
+import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.RecordComponentVisitor;
@@ -214,7 +217,8 @@ public final class InstrumenterImpl implements Instrumenter {
                         isStatic,
                         isCtor,
                         descriptor,
-                        instrumentationMethod.instrumentationId()
+                        instrumentationMethod.instrumentationId(),
+                        instrumentationMethod.handler()
                     );
                 } else {
                     logger.trace("Will not instrument {}", key);
@@ -273,6 +277,8 @@ public final class InstrumenterImpl implements Instrumenter {
         private final boolean instrumentedMethodIsCtor;
         private final String instrumentedMethodDescriptor;
         private final String instrumentationId;
+        private final EntitlementHandler entitlementHandler;
+
         private boolean hasCallerSensitiveAnnotation = false;
 
         EntitlementMethodVisitor(
@@ -281,13 +287,15 @@ public final class InstrumenterImpl implements Instrumenter {
             boolean instrumentedMethodIsStatic,
             boolean instrumentedMethodIsCtor,
             String instrumentedMethodDescriptor,
-            String instrumentationId
+            String instrumentationId,
+            EntitlementHandler entitlementHandler
         ) {
             super(api, methodVisitor);
             this.instrumentedMethodIsStatic = instrumentedMethodIsStatic;
             this.instrumentedMethodIsCtor = instrumentedMethodIsCtor;
             this.instrumentedMethodDescriptor = instrumentedMethodDescriptor;
             this.instrumentationId = instrumentationId;
+            this.entitlementHandler = entitlementHandler;
         }
 
         @Override
@@ -304,7 +312,11 @@ public final class InstrumenterImpl implements Instrumenter {
             pushInstrumentationId();
             pushCallerClass();
             pushArguments();
-            invokeInstrumentationMethod();
+            if (entitlementHandler instanceof EntitlementHandler.DefaultValueEntitlementHandler) {
+                catchNotEntitled();
+            } else {
+                invokeInstrumentationMethod();
+            }
             super.visitCode();
         }
 
@@ -424,6 +436,50 @@ public final class InstrumenterImpl implements Instrumenter {
             );
         }
 
+        private void catchNotEntitled() {
+            Label tryStart = new Label();
+            Label tryEnd = new Label();
+            Label catchStart = new Label();
+            Label catchEnd = new Label();
+            mv.visitTryCatchBlock(tryStart, tryEnd, catchStart, Type.getType(NotEntitledException.class).getInternalName());
+            mv.visitLabel(tryStart);
+            invokeInstrumentationMethod();
+            mv.visitLabel(tryEnd);
+            mv.visitJumpInsn(Opcodes.GOTO, catchEnd);
+            mv.visitLabel(catchStart);
+            if (entitlementHandler instanceof EntitlementHandler.DefaultValueEntitlementHandler<?> dve) {
+                returnConstantValue(dve.getDefaultValue());
+            } else {
+                throw new IllegalStateException("unexpected entitlement handler type [" + entitlementHandler.getClass() + "]");
+            }
+            mv.visitLabel(catchEnd);
+        }
+
+        private void returnConstantValue(Object constant) {
+            if (constant == null) {
+                mv.visitInsn(Opcodes.ACONST_NULL);
+                mv.visitInsn(Opcodes.ARETURN);
+            } else {
+                mv.visitLdcInsn(constant);
+                if (constant instanceof String) {
+                    mv.visitInsn(Opcodes.ARETURN);
+                } else if (constant instanceof Double) {
+                    mv.visitInsn(Opcodes.DRETURN);
+                } else if (constant instanceof Float) {
+                    mv.visitInsn(Opcodes.FRETURN);
+                } else if (constant instanceof Long) {
+                    mv.visitInsn(Opcodes.LRETURN);
+                } else if (constant instanceof Integer
+                    || constant instanceof Character
+                    || constant instanceof Short
+                    || constant instanceof Byte
+                    || constant instanceof Boolean) {
+                        mv.visitInsn(Opcodes.IRETURN);
+                    } else {
+                        throw new IllegalStateException("unexpected check method constant [" + constant + "]");
+                    }
+            }
+        }
     }
 
     record ClassFileInfo(String fileName, byte[] bytecodes) {}

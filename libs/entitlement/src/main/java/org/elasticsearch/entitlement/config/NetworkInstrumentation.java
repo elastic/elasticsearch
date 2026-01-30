@@ -15,6 +15,7 @@ import sun.net.www.protocol.https.AbstractDelegateHttpsURLConnection;
 import sun.net.www.protocol.https.HttpsURLConnectionImpl;
 import sun.net.www.protocol.mailto.MailToURLConnection;
 
+import org.elasticsearch.entitlement.rules.EntitlementRule;
 import org.elasticsearch.entitlement.rules.EntitlementRules;
 import org.elasticsearch.entitlement.rules.Policies;
 import org.elasticsearch.entitlement.rules.TypeToken;
@@ -63,31 +64,32 @@ import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.AbstractSelectableChannel;
 import java.nio.channels.spi.AsynchronousChannelProvider;
 import java.nio.channels.spi.SelectorProvider;
+import java.util.function.Consumer;
 
 public class NetworkInstrumentation implements InstrumentationConfig {
     @Override
-    public void init() {
-        EntitlementRules.on(ProxySelector.class)
+    public void init(Consumer<EntitlementRule> addRule) {
+        EntitlementRules.on(addRule, ProxySelector.class)
             .callingVoidStatic(ProxySelector::setDefault, ProxySelector.class)
             .enforce(Policies::changeNetworkHandling)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(ResponseCache.class)
+        EntitlementRules.on(addRule, ResponseCache.class)
             .callingVoidStatic(ResponseCache::setDefault, ResponseCache.class)
             .enforce(Policies::changeNetworkHandling)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(Authenticator.class)
+        EntitlementRules.on(addRule, Authenticator.class)
             .callingVoidStatic(Authenticator::setDefault, Authenticator.class)
             .enforce(Policies::changeNetworkHandling)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(CookieHandler.class)
+        EntitlementRules.on(addRule, CookieHandler.class)
             .callingVoidStatic(CookieHandler::setDefault, CookieHandler.class)
             .enforce(Policies::changeNetworkHandling)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(URL.class)
+        EntitlementRules.on(addRule, URL.class)
             .callingStatic(URL::new, String.class, String.class, Integer.class, String.class, URLStreamHandler.class)
             .enforce(Policies::changeNetworkHandling)
             .elseThrowNotEntitled()
@@ -118,7 +120,7 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             .enforce(Policies::entitlementForUrl)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(URLConnection.class)
+        EntitlementRules.on(addRule, URLConnection.class)
             .callingVoid(URLConnection::connect)
             .enforce(Policies::outboundNetworkAccess)
             .elseThrowNotEntitled()
@@ -165,7 +167,7 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             .enforce(Policies::entitlementForUrlConnection)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(HttpURLConnection.class)
+        EntitlementRules.on(addRule, HttpURLConnection.class)
             .callingVoidStatic(HttpURLConnection::setFollowRedirects, Boolean.class)
             .enforce(Policies::changeNetworkHandling)
             .elseThrowNotEntitled()
@@ -179,7 +181,7 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             .enforce(Policies::outboundNetworkAccess)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(Socket.class)
+        EntitlementRules.on(addRule, Socket.class)
             .callingStatic(Socket::new)
             .enforce(Policies::outboundNetworkAccess)
             .elseThrowNotEntitled()
@@ -223,7 +225,7 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             .enforce(Policies::outboundNetworkAccess)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(ServerSocket.class)
+        EntitlementRules.on(addRule, ServerSocket.class)
             .callingStatic(ServerSocket::new)
             .enforce(Policies::inboundNetworkAccess)
             .elseThrowNotEntitled()
@@ -249,7 +251,7 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             .enforce(Policies::inboundNetworkAccess)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(URLClassLoader.class)
+        EntitlementRules.on(addRule, URLClassLoader.class)
             .callingStatic(URLClassLoader::newInstance, URL[].class)
             .enforce(Policies::createClassLoader)
             .elseThrowNotEntitled()
@@ -269,7 +271,7 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             .enforce(Policies::createClassLoader)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(ServerSocket.class)
+        EntitlementRules.on(addRule, ServerSocket.class)
             .callingStatic(ServerSocket::new)
             .enforce(Policies::inboundNetworkAccess)
             .elseThrowNotEntitled()
@@ -283,7 +285,7 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             .enforce(Policies::inboundNetworkAccess)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(Socket.class)
+        EntitlementRules.on(addRule, Socket.class)
             .callingStatic(Socket::new)
             .enforce(Policies::outboundNetworkAccess)
             .elseThrowNotEntitled()
@@ -309,7 +311,7 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             .enforce(Policies::outboundNetworkAccess)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(DatagramSocket.class)
+        EntitlementRules.on(addRule, DatagramSocket.class)
             .callingStatic(DatagramSocket::new)
             .enforce(Policies::allNetworkAccess)
             .elseThrowNotEntitled()
@@ -351,7 +353,7 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             .enforce(Policies::allNetworkAccess)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(MulticastSocket.class)
+        EntitlementRules.on(addRule, MulticastSocket.class)
             .callingVoid(MulticastSocket::joinGroup, InetAddress.class)
             .enforce(Policies::allNetworkAccess)
             .elseThrowNotEntitled()
@@ -368,7 +370,7 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             .enforce(Policies::allNetworkAccess)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(SocketChannel.class)
+        EntitlementRules.on(addRule, SocketChannel.class)
             .callingStatic(SocketChannel::open, SocketAddress.class)
             .enforce(Policies::outboundNetworkAccess)
             .elseThrowNotEntitled()
@@ -382,7 +384,7 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             .enforce(Policies::inboundNetworkAccess)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on("sun.nio.ch.SocketChannelImpl", SocketChannel.class)
+        EntitlementRules.on(addRule, "sun.nio.ch.SocketChannelImpl", SocketChannel.class)
             .callingVoid(SocketChannel::bind, SocketAddress.class)
             .enforce(Policies::outboundNetworkAccess)
             .elseThrowNotEntitled()
@@ -390,12 +392,12 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             .enforce(Policies::outboundNetworkAccess)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(ServerSocketChannel.class)
+        EntitlementRules.on(addRule, ServerSocketChannel.class)
             .callingVoid(ServerSocketChannel::bind, SocketAddress.class)
             .enforce(Policies::inboundNetworkAccess)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on("sun.nio.ch.ServerSocketChannelImpl", ServerSocketChannel.class)
+        EntitlementRules.on(addRule, "sun.nio.ch.ServerSocketChannelImpl", ServerSocketChannel.class)
             .callingVoid(ServerSocketChannel::bind, SocketAddress.class, Integer.class)
             .enforce(Policies::inboundNetworkAccess)
             .elseThrowNotEntitled()
@@ -403,12 +405,12 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             .enforce(Policies::inboundNetworkAccess)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(DatagramChannel.class)
+        EntitlementRules.on(addRule, DatagramChannel.class)
             .callingVoid(DatagramChannel::bind, SocketAddress.class)
             .enforce(Policies::inboundNetworkAccess)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on("sun.nio.ch.DatagramChannelImpl", DatagramChannel.class)
+        EntitlementRules.on(addRule, "sun.nio.ch.DatagramChannelImpl", DatagramChannel.class)
             .callingVoid(DatagramChannel::bind, SocketAddress.class)
             .enforce(Policies::inboundNetworkAccess)
             .elseThrowNotEntitled()
@@ -428,12 +430,12 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             .enforce(Policies::inboundNetworkAccess)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(AsynchronousServerSocketChannel.class)
+        EntitlementRules.on(addRule, AsynchronousServerSocketChannel.class)
             .callingVoid(AsynchronousServerSocketChannel::bind, SocketAddress.class)
             .enforce(Policies::inboundNetworkAccess)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on("sun.nio.ch.AsynchronousSocketChannelImpl", AsynchronousSocketChannel.class)
+        EntitlementRules.on(addRule, "sun.nio.ch.AsynchronousSocketChannelImpl", AsynchronousSocketChannel.class)
             .callingVoid(AsynchronousSocketChannel::connect, SocketAddress.class)
             .enforce(Policies::outboundNetworkAccess)
             .elseThrowNotEntitled()
@@ -449,7 +451,7 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             .enforce(Policies::inboundNetworkAccess)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on("sun.nio.ch.AsynchronousServerSocketChannelImpl", AsynchronousServerSocketChannel.class)
+        EntitlementRules.on(addRule, "sun.nio.ch.AsynchronousServerSocketChannelImpl", AsynchronousServerSocketChannel.class)
             .callingVoid(AsynchronousServerSocketChannel::bind, SocketAddress.class, Integer.class)
             .enforce(Policies::inboundNetworkAccess)
             .elseThrowNotEntitled()
@@ -464,31 +466,37 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             .enforce(Policies::inboundNetworkAccess)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(AsynchronousSocketChannel.class)
+        EntitlementRules.on(addRule, AsynchronousSocketChannel.class)
             .callingVoid(AsynchronousSocketChannel::bind, SocketAddress.class)
             .enforce(Policies::inboundNetworkAccess)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(SelectorProvider.class).protectedCtor().enforce(Policies::changeNetworkHandling).elseThrowNotEntitled();
-
-        EntitlementRules.on(InetAddressResolverProvider.class)
+        EntitlementRules.on(addRule, SelectorProvider.class)
             .protectedCtor()
             .enforce(Policies::changeNetworkHandling)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(URLStreamHandlerProvider.class).protectedCtor().enforce(Policies::changeNetworkHandling).elseThrowNotEntitled();
+        EntitlementRules.on(addRule, InetAddressResolverProvider.class)
+            .protectedCtor()
+            .enforce(Policies::changeNetworkHandling)
+            .elseThrowNotEntitled();
 
-        EntitlementRules.on(SelectableChannel.class)
+        EntitlementRules.on(addRule, URLStreamHandlerProvider.class)
+            .protectedCtor()
+            .enforce(Policies::changeNetworkHandling)
+            .elseThrowNotEntitled();
+
+        EntitlementRules.on(addRule, SelectableChannel.class)
             .calling(SelectableChannel::register, Selector.class, Integer.class)
             .enforce(() -> Policies.outboundNetworkAccess().and(Policies.inboundNetworkAccess()))
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(AsynchronousChannelProvider.class)
+        EntitlementRules.on(addRule, AsynchronousChannelProvider.class)
             .protectedCtor()
             .enforce(Policies::changeNetworkHandling)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(sun.net.www.URLConnection.class)
+        EntitlementRules.on(addRule, sun.net.www.URLConnection.class)
             .calling(sun.net.www.URLConnection::getHeaderField, String.class)
             .enforce(Policies::entitlementForUrlConnection)
             .elseThrowNotEntitled()
@@ -508,7 +516,7 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             .enforce(Policies::entitlementForUrlConnection)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(FtpURLConnection.class)
+        EntitlementRules.on(addRule, FtpURLConnection.class)
             .callingVoid(FtpURLConnection::connect)
             .enforce(Policies::outboundNetworkAccess)
             .elseThrowNotEntitled()
@@ -519,7 +527,7 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             .enforce(Policies::outboundNetworkAccess)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(sun.net.www.protocol.http.HttpURLConnection.class)
+        EntitlementRules.on(addRule, sun.net.www.protocol.http.HttpURLConnection.class)
             // This method seems to have been removed in later JDKs
             // .callingStatic(sun.net.www.protocol.http.HttpURLConnection::openConnectionCheckRedirects, URLConnection.class)
             // .enforce(Policies::outboundNetworkAccess)
@@ -549,7 +557,7 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             .enforce(Policies::outboundNetworkAccess)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(HttpsURLConnectionImpl.class)
+        EntitlementRules.on(addRule, HttpsURLConnectionImpl.class)
             .callingVoid(HttpsURLConnectionImpl::connect)
             .enforce(Policies::outboundNetworkAccess)
             .elseThrowNotEntitled()
@@ -617,12 +625,12 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             .enforce(Policies::outboundNetworkAccess)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(AbstractDelegateHttpsURLConnection.class)
+        EntitlementRules.on(addRule, AbstractDelegateHttpsURLConnection.class)
             .callingVoid(AbstractDelegateHttpsURLConnection::connect)
             .enforce(Policies::outboundNetworkAccess)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(MailToURLConnection.class)
+        EntitlementRules.on(addRule, MailToURLConnection.class)
             .callingVoid(MailToURLConnection::connect)
             .enforce(Policies::outboundNetworkAccess)
             .elseThrowNotEntitled()
@@ -630,7 +638,7 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             .enforce(Policies::outboundNetworkAccess)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on("jdk.internal.net.http.HttpClientImpl", HttpClient.class)
+        EntitlementRules.on(addRule, "jdk.internal.net.http.HttpClientImpl", HttpClient.class)
             .calling(HttpClient::send, TypeToken.of(HttpRequest.class), new TypeToken<HttpResponse.BodyHandler<?>>() {})
             .enforce(Policies::outboundNetworkAccess)
             .elseThrowNotEntitled()
@@ -646,7 +654,7 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             .enforce(Policies::outboundNetworkAccess)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(HttpClientFacade.class)
+        EntitlementRules.on(addRule, HttpClientFacade.class)
             .calling(HttpClientFacade::send, TypeToken.of(HttpRequest.class), new TypeToken<HttpResponse.BodyHandler<?>>() {})
             .enforce(Policies::outboundNetworkAccess)
             .elseThrowNotEntitled()
@@ -662,7 +670,7 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             .enforce(Policies::outboundNetworkAccess)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(AbstractSelectableChannel.class)
+        EntitlementRules.on(addRule, AbstractSelectableChannel.class)
             .calling(AbstractSelectableChannel::register, Selector.class, Integer.class, Object.class)
             .enforce((_, _, ops) -> {
                 CheckMethod check = Policies.noop();

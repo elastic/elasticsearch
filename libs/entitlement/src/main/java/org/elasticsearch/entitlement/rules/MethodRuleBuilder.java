@@ -19,78 +19,83 @@ import org.elasticsearch.entitlement.rules.function.Call5;
 import org.elasticsearch.entitlement.rules.function.Call6;
 import org.elasticsearch.entitlement.rules.function.CheckMethod;
 
+import java.util.function.Consumer;
+
 public class MethodRuleBuilder<T, R> {
+
+    protected final Consumer<EntitlementRule> addRule;
     protected final MethodKey methodKey;
     protected final Class<? extends T> clazz;
 
-    public MethodRuleBuilder(Class<? extends T> clazz, MethodKey methodKey) {
+    public MethodRuleBuilder(Consumer<EntitlementRule> addRule, Class<? extends T> clazz, MethodKey methodKey) {
+        this.addRule = addRule;
         this.clazz = clazz;
         this.methodKey = methodKey;
     }
 
     public RuleHandlerBuilder<T, R> enforce(Call0<CheckMethod> policyCheckSupplier) {
-        return new RuleHandlerBuilder<>(clazz, methodKey, policyCheckSupplier.asVarargCall());
+        return new RuleHandlerBuilder<>(addRule, clazz, methodKey, policyCheckSupplier.asVarargCall());
     }
 
     public static class MethodRuleBuilder1<T, R, A> extends MethodRuleBuilder<T, R> {
 
-        public MethodRuleBuilder1(Class<? extends T> clazz, MethodKey methodKey) {
-            super(clazz, methodKey);
+        public MethodRuleBuilder1(Consumer<EntitlementRule> addRule, Class<? extends T> clazz, MethodKey methodKey) {
+            super(addRule, clazz, methodKey);
         }
 
         public RuleHandlerBuilder<T, R> enforce(Call1<CheckMethod, A> policyCheckSupplier) {
-            return new RuleHandlerBuilder<>(clazz, methodKey, policyCheckSupplier.asVarargCall());
+            return new RuleHandlerBuilder<>(addRule, clazz, methodKey, policyCheckSupplier.asVarargCall());
         }
     }
 
     public static class MethodRuleBuilder2<T, R, A, B> extends MethodRuleBuilder1<T, R, A> {
-        public MethodRuleBuilder2(Class<? extends T> clazz, MethodKey methodKey) {
-            super(clazz, methodKey);
+        public MethodRuleBuilder2(Consumer<EntitlementRule> addRule, Class<? extends T> clazz, MethodKey methodKey) {
+            super(addRule, clazz, methodKey);
         }
 
         public RuleHandlerBuilder<T, R> enforce(Call2<CheckMethod, A, B> policyCheckSupplier) {
-            return new RuleHandlerBuilder<>(clazz, methodKey, policyCheckSupplier.asVarargCall());
+            return new RuleHandlerBuilder<>(addRule, clazz, methodKey, policyCheckSupplier.asVarargCall());
         }
     }
 
     public static class MethodRuleBuilder3<T, R, A, B, C> extends MethodRuleBuilder2<T, R, A, B> {
 
-        public MethodRuleBuilder3(Class<? extends T> clazz, MethodKey methodKey) {
-            super(clazz, methodKey);
+        public MethodRuleBuilder3(Consumer<EntitlementRule> addRule, Class<? extends T> clazz, MethodKey methodKey) {
+            super(addRule, clazz, methodKey);
         }
 
         public RuleHandlerBuilder<T, R> enforce(Call3<CheckMethod, A, B, C> policyCheckSupplier) {
-            return new RuleHandlerBuilder<>(clazz, methodKey, policyCheckSupplier.asVarargCall());
+            return new RuleHandlerBuilder<>(addRule, clazz, methodKey, policyCheckSupplier.asVarargCall());
         }
     }
 
     public static class MethodRuleBuilder4<T, R, A, B, C, D> extends MethodRuleBuilder3<T, R, A, B, C> {
-        public MethodRuleBuilder4(Class<? extends T> clazz, MethodKey methodKey) {
-            super(clazz, methodKey);
+        public MethodRuleBuilder4(Consumer<EntitlementRule> addRule, Class<? extends T> clazz, MethodKey methodKey) {
+            super(addRule, clazz, methodKey);
         }
 
         public RuleHandlerBuilder<T, R> enforce(Call4<CheckMethod, A, B, C, D> policyCheckSupplier) {
-            return new RuleHandlerBuilder<>(clazz, methodKey, policyCheckSupplier.asVarargCall());
+            return new RuleHandlerBuilder<>(addRule, clazz, methodKey, policyCheckSupplier.asVarargCall());
         }
     }
 
     public static class MethodRuleBuilder5<T, R, A, B, C, D, E> extends MethodRuleBuilder4<T, R, A, B, C, D> {
-        public MethodRuleBuilder5(Class<? extends T> clazz, MethodKey methodKey) {
-            super(clazz, methodKey);
+        public MethodRuleBuilder5(Consumer<EntitlementRule> addRule, Class<? extends T> clazz, MethodKey methodKey) {
+            super(addRule, clazz, methodKey);
         }
 
         public RuleHandlerBuilder<T, R> enforce(Call5<CheckMethod, A, B, C, D, E> policyCheckSupplier) {
-            return new RuleHandlerBuilder<>(clazz, methodKey, policyCheckSupplier.asVarargCall());
+            return new RuleHandlerBuilder<>(addRule, clazz, methodKey, policyCheckSupplier.asVarargCall());
         }
     }
 
     public static class MethodRuleBuilder6<T, R, A, B, C, D, E, F> extends MethodRuleBuilder5<T, R, A, B, C, D, E> {
-        public MethodRuleBuilder6(Class<? extends T> clazz, MethodKey methodKey) {
-            super(clazz, methodKey);
+        public MethodRuleBuilder6(Consumer<EntitlementRule> addRule, Class<? extends T> clazz, MethodKey methodKey) {
+            super(addRule, clazz, methodKey);
         }
 
         public RuleHandlerBuilder<T, R> enforce(Call6<CheckMethod, A, B, C, D, E, F> policyCheckSupplier) {
-            return new RuleHandlerBuilder<>(clazz, methodKey, policyCheckSupplier.asVarargCall());
+            return new RuleHandlerBuilder<>(addRule, clazz, methodKey, policyCheckSupplier.asVarargCall());
         }
     }
 }

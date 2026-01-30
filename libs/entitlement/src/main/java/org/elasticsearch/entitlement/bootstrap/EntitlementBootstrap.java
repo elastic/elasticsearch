@@ -21,7 +21,6 @@ import org.elasticsearch.entitlement.config.ClassLoaderInstrumentation;
 import org.elasticsearch.entitlement.config.FileInstrumentation;
 import org.elasticsearch.entitlement.config.FileStoreInstrumentation;
 import org.elasticsearch.entitlement.config.FileSystemProviderInstrumentation;
-import org.elasticsearch.entitlement.config.InstrumentationConfig;
 import org.elasticsearch.entitlement.config.L10nInstrumentation;
 import org.elasticsearch.entitlement.config.NetworkInstrumentation;
 import org.elasticsearch.entitlement.config.PathInstrumentation;
@@ -30,6 +29,7 @@ import org.elasticsearch.entitlement.config.SelectorProviderInstrumentation;
 import org.elasticsearch.entitlement.config.SystemInstrumentation;
 import org.elasticsearch.entitlement.config.ThreadInstrumentation;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
+import org.elasticsearch.entitlement.rules.EntitlementRule;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.PathLookupImpl;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
@@ -40,6 +40,7 @@ import org.elasticsearch.logging.Logger;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -52,7 +53,7 @@ public class EntitlementBootstrap {
     /**
      * Main entry point that activates entitlement checking. Once this method returns,
      * calls to methods protected by entitlements from classes without a valid
-     * policy will throw {@link org.elasticsearch.entitlement.runtime.api.NotEntitledException}.
+     * policy will throw {@link org.elasticsearch.entitlement.bridge.NotEntitledException}.
      *
      * @param serverPolicyPatch            additional entitlements to patch the embedded server layer policy
      * @param pluginPolicies               maps each plugin name to the corresponding {@link Policy}
@@ -94,6 +95,8 @@ public class EntitlementBootstrap {
             throw new IllegalStateException("initialization data is already set");
         }
 
+        List<EntitlementRule> entitlementRules = new ArrayList<>();
+
         List.of(
             new ClassLoaderInstrumentation(),
             new FileInstrumentation(),
@@ -106,7 +109,7 @@ public class EntitlementBootstrap {
             new SelectorProviderInstrumentation(),
             new SystemInstrumentation(),
             new ThreadInstrumentation()
-        ).forEach(InstrumentationConfig::init);
+        ).forEach(ic -> ic.init(entitlementRules::add));
 
         PathLookupImpl pathLookup = new PathLookupImpl(
             getUserHome(),
@@ -124,6 +127,7 @@ public class EntitlementBootstrap {
         );
         EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(
             pathLookup,
+            entitlementRules,
             suppressFailureLogPackages,
             createPolicyManager(pluginPolicies, pathLookup, serverPolicyPatch, scopeResolver, pluginSourcePaths)
         );

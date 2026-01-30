@@ -34,7 +34,6 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
-import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.entitlement.runtime.policy.PolicyUtils;
@@ -62,6 +61,7 @@ import java.lang.management.ManagementFactory;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessControlException;
 import java.security.Security;
 import java.util.Collection;
 import java.util.HashMap;
@@ -353,7 +353,7 @@ class Elasticsearch {
             try {
                 // The command doesn't matter; it doesn't even need to exist
                 startProcess.accept(new ProcessBuilder(""));
-            } catch (NotEntitledException e) {
+            } catch (AccessControlException e) {
                 return;
             } catch (Exception e) {
                 throw new IllegalStateException("Failed entitlement protection self-test", e);

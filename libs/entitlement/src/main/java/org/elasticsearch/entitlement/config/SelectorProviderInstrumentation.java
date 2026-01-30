@@ -9,18 +9,20 @@
 
 package org.elasticsearch.entitlement.config;
 
+import org.elasticsearch.entitlement.rules.EntitlementRule;
 import org.elasticsearch.entitlement.rules.EntitlementRules;
 import org.elasticsearch.entitlement.rules.Policies;
 
 import java.net.ProtocolFamily;
 import java.nio.channels.spi.SelectorProvider;
+import java.util.function.Consumer;
 
 public class SelectorProviderInstrumentation implements InstrumentationConfig {
     @Override
-    public void init() {
+    public void init(Consumer<EntitlementRule> addRule) {
         var selectorProviderClass = SelectorProvider.provider().getClass();
 
-        EntitlementRules.on(selectorProviderClass)
+        EntitlementRules.on(addRule, selectorProviderClass)
             .calling(SelectorProvider::inheritedChannel)
             .enforce(Policies::changeNetworkHandling)
             .elseThrowNotEntitled()

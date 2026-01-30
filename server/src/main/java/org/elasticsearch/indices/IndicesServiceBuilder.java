@@ -83,8 +83,7 @@ public class IndicesServiceBuilder {
     MergeMetrics mergeMetrics;
     List<SearchOperationListener> searchOperationListener = List.of();
     QueryRewriteInterceptor queryRewriteInterceptor = null;
-    SlowLogFieldProvider slowLogFieldProvider = (context) -> new SlowLogFields(context) {
-    };
+    SlowLogFieldProvider slowLogFieldProvider = (context) -> new SlowLogFields(context) {};
 
     public IndicesServiceBuilder settings(Settings settings) {
         this.settings = settings;

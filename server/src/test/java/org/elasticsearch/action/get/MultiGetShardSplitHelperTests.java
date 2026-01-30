@@ -11,7 +11,6 @@ package org.elasticsearch.action.get;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
@@ -61,9 +60,7 @@ public class MultiGetShardSplitHelperTests extends ESTestCase {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(), 2, 0).build();
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(settings).build();
-        indexMetadata = IndexMetadata.builder(indexMetadata)
-            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(2, 2))
-            .build();
+        indexMetadata = IndexMetadata.builder(indexMetadata).reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(2, 2)).build();
 
         SplitShardCountSummary currentSummary = SplitShardCountSummary.forSearch(indexMetadata, 0);
         assertThat(currentSummary, equalTo(SplitShardCountSummary.fromInt(2)));
@@ -114,22 +111,18 @@ public class MultiGetShardSplitHelperTests extends ESTestCase {
         AtomicBoolean executeCalled = new AtomicBoolean(false);
         AtomicReference<MultiGetShardRequest> executedRequest = new AtomicReference<>();
 
-        MultiGetShardSplitHelper splitHelper = new MultiGetShardSplitHelper(
-            logger,
-            projectMetadata,
-            (request, listener) -> {
-                executeCalled.set(true);
-                executedRequest.set(request);
-                MultiGetShardResponse response = new MultiGetShardResponse();
-                for (int i = 0; i < request.items.size(); i++) {
-                    response.add(
-                        request.locations.get(i),
-                        new GetResponse(new GetResult(indexName, request.items.get(i).id(), 0, 1, 1, true, null, null, null))
-                    );
-                }
-                listener.onResponse(response);
+        MultiGetShardSplitHelper splitHelper = new MultiGetShardSplitHelper(logger, projectMetadata, (request, listener) -> {
+            executeCalled.set(true);
+            executedRequest.set(request);
+            MultiGetShardResponse response = new MultiGetShardResponse();
+            for (int i = 0; i < request.items.size(); i++) {
+                response.add(
+                    request.locations.get(i),
+                    new GetResponse(new GetResult(indexName, request.items.get(i).id(), 0, 1, 1, true, null, null, null))
+                );
             }
-        );
+            listener.onResponse(response);
+        });
 
         PlainActionFuture<MultiGetShardResponse> future = new PlainActionFuture<>();
         splitHelper.coordinateSplitRequest(originalRequest, sourceShardId, indexMetadata, future);
@@ -167,25 +160,21 @@ public class MultiGetShardSplitHelperTests extends ESTestCase {
         Map<ShardId, List<MultiGetShardRequest>> executedRequests = new ConcurrentHashMap<>();
         AtomicInteger executeCount = new AtomicInteger(0);
 
-        MultiGetShardSplitHelper splitHelper = new MultiGetShardSplitHelper(
-            logger,
-            projectMetadata,
-            (request, listener) -> {
-                executeCount.incrementAndGet();
-                IndexMetadata reqIndexMetadata = projectMetadata.index(request.index());
-                ShardId shardId = new ShardId(reqIndexMetadata.getIndex(), request.shardId());
-                executedRequests.computeIfAbsent(shardId, k -> new ArrayList<>()).add(request);
+        MultiGetShardSplitHelper splitHelper = new MultiGetShardSplitHelper(logger, projectMetadata, (request, listener) -> {
+            executeCount.incrementAndGet();
+            IndexMetadata reqIndexMetadata = projectMetadata.index(request.index());
+            ShardId shardId = new ShardId(reqIndexMetadata.getIndex(), request.shardId());
+            executedRequests.computeIfAbsent(shardId, k -> new ArrayList<>()).add(request);
 
-                MultiGetShardResponse response = new MultiGetShardResponse();
-                for (int i = 0; i < request.items.size(); i++) {
-                    response.add(
-                        request.locations.get(i),
-                        new GetResponse(new GetResult(indexName, request.items.get(i).id(), 0, 1, 1, true, null, null, null))
-                    );
-                }
-                listener.onResponse(response);
+            MultiGetShardResponse response = new MultiGetShardResponse();
+            for (int i = 0; i < request.items.size(); i++) {
+                response.add(
+                    request.locations.get(i),
+                    new GetResponse(new GetResult(indexName, request.items.get(i).id(), 0, 1, 1, true, null, null, null))
+                );
             }
-        );
+            listener.onResponse(response);
+        });
 
         PlainActionFuture<MultiGetShardResponse> future = new PlainActionFuture<>();
         splitHelper.coordinateSplitRequest(originalRequest, sourceShardId, indexMetadata, future);
@@ -250,23 +239,19 @@ public class MultiGetShardSplitHelperTests extends ESTestCase {
 
         Exception targetShardException = new RuntimeException("Target shard failed");
 
-        MultiGetShardSplitHelper splitHelper = new MultiGetShardSplitHelper(
-            logger,
-            projectMetadata,
-            (request, listener) -> {
-                IndexMetadata reqIndexMetadata = projectMetadata.index(request.index());
-                ShardId shardId = new ShardId(reqIndexMetadata.getIndex(), request.shardId());
-                if (shardId.equals(sourceShardId)) {
-                    // Source shard succeeds
-                    MultiGetShardResponse response = new MultiGetShardResponse();
-                    response.add(0, new GetResponse(new GetResult(indexName, shard0Ids.get(0), 0, 1, 1, true, null, null, null)));
-                    listener.onResponse(response);
-                } else {
-                    // Target shard fails
-                    listener.onFailure(targetShardException);
-                }
+        MultiGetShardSplitHelper splitHelper = new MultiGetShardSplitHelper(logger, projectMetadata, (request, listener) -> {
+            IndexMetadata reqIndexMetadata = projectMetadata.index(request.index());
+            ShardId shardId = new ShardId(reqIndexMetadata.getIndex(), request.shardId());
+            if (shardId.equals(sourceShardId)) {
+                // Source shard succeeds
+                MultiGetShardResponse response = new MultiGetShardResponse();
+                response.add(0, new GetResponse(new GetResult(indexName, shard0Ids.get(0), 0, 1, 1, true, null, null, null)));
+                listener.onResponse(response);
+            } else {
+                // Target shard fails
+                listener.onFailure(targetShardException);
             }
-        );
+        });
 
         PlainActionFuture<MultiGetShardResponse> future = new PlainActionFuture<>();
         splitHelper.coordinateSplitRequest(originalRequest, sourceShardId, indexMetadata, future);

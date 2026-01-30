@@ -53,6 +53,7 @@ public class HashAggregationOperator implements Operator {
         public Operator get(DriverContext driverContext) {
             if (groups.stream().anyMatch(BlockHash.GroupSpec::isCategorize)) {
                 return new HashAggregationOperator(
+                    aggregatorMode,
                     aggregators,
                     () -> BlockHash.buildCategorizeBlockHash(
                         groups,
@@ -67,6 +68,7 @@ public class HashAggregationOperator implements Operator {
                 );
             }
             return new HashAggregationOperator(
+                aggregatorMode,
                 aggregators,
                 () -> BlockHash.build(groups, driverContext.blockFactory(), maxPageSize, false),
                 partialEmitKeysThreshold,
@@ -89,6 +91,7 @@ public class HashAggregationOperator implements Operator {
     private Page output;
 
     protected final Supplier<BlockHash> blockHashSupplier;
+    protected final AggregatorMode aggregatorMode;
     protected final List<GroupingAggregator.Factory> aggregatorFactories;
 
     protected final DriverContext driverContext;
@@ -125,13 +128,13 @@ public class HashAggregationOperator implements Operator {
 
     protected long emitCount;
 
-    protected final boolean allowEmitPartialPeriodically;
     protected long rowsAddedInCurrentBatch;
     protected final int partialEmitKeysThreshold;
     protected final double partialEmitUniquenessThreshold;
 
     @SuppressWarnings("this-escape")
     public HashAggregationOperator(
+        AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregatorFactories,
         Supplier<BlockHash> blockHashSupplier,
         int partialEmitKeysThreshold,
@@ -141,6 +144,7 @@ public class HashAggregationOperator implements Operator {
         if (partialEmitKeysThreshold <= 0) {
             throw new IllegalArgumentException("partialEmitKeysThreshold must be greater than 0; got " + partialEmitKeysThreshold);
         }
+        this.aggregatorMode = aggregatorMode;
         this.partialEmitKeysThreshold = partialEmitKeysThreshold;
         this.partialEmitUniquenessThreshold = partialEmitUniquenessThreshold;
         this.driverContext = driverContext;
@@ -151,9 +155,10 @@ public class HashAggregationOperator implements Operator {
         try {
             this.blockHash = blockHashSupplier.get();
             for (GroupingAggregator.Factory a : aggregatorFactories) {
-                this.aggregators.add(a.apply(driverContext));
+                var groupingAggregator = a.apply(driverContext);
+                assert groupingAggregator.mode() == aggregatorMode : groupingAggregator.mode() + " != " + aggregatorMode;
+                this.aggregators.add(groupingAggregator);
             }
-            this.allowEmitPartialPeriodically = aggregators.stream().allMatch(a -> a.mode().isOutputPartial());
             success = true;
         } finally {
             if (success == false) {
@@ -307,7 +312,7 @@ public class HashAggregationOperator implements Operator {
     }
 
     protected boolean shouldEmitPartialResultsPeriodically() {
-        if (allowEmitPartialPeriodically == false) {
+        if (aggregatorMode.isOutputPartial() == false) {
             return false;
         }
         if (rowsAddedInCurrentBatch == 0) {

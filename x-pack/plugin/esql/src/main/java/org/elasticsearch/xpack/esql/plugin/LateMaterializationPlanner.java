@@ -139,7 +139,7 @@ class LateMaterializationPlanner {
             EstimatesRowSize.estimateRowSize(updatedFragmentExec.estimatedRowSize(), reductionPlan)
         );
 
-        return Optional.of(new ReductionPlan(reductionPlanWithSize, updatedDataPlan));
+        return Optional.of(new ReductionPlan(reductionPlanWithSize, updatedDataPlan, NodeReduceLocalPhysicalOptimization.DISABLED));
     }
 
     private static PhysicalPlan toPhysical(LogicalPlan plan, LocalPhysicalOptimizerContext context) {

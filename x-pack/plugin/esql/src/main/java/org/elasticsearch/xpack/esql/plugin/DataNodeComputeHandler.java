@@ -350,6 +350,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                     parentTask,
                                     computeContext,
                                     request.plan(),
+                                    NodeReduceLocalPhysicalOptimization.ENABLED,
                                     planTimeProfile,
                                     sub.acquireCompute()
                                 );
@@ -367,7 +368,14 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             null,
                             () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet)
                         );
-                        computeService.runCompute(parentTask, computeContext, request.plan(), planTimeProfile, batchListener);
+                        computeService.runCompute(
+                            parentTask,
+                            computeContext,
+                            request.plan(),
+                            NodeReduceLocalPhysicalOptimization.ENABLED,
+                            planTimeProfile,
+                            batchListener
+                        );
                     }
                 }, batchListener::onFailure)
             );
@@ -471,6 +479,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         CancellableTask task,
         String externalId,
         PhysicalPlan reducePlan,
+        NodeReduceLocalPhysicalOptimization nodeReduceLocalPhysicalOptimization,
         DataNodeRequest request,
         boolean failFastOnShardFailure,
         AcquiredSearchContexts searchContexts,
@@ -532,6 +541,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         () -> externalSink.createExchangeSink(() -> {})
                     ),
                     reducePlan,
+                    nodeReduceLocalPhysicalOptimization,
                     planTimeProfile,
                     ActionListener.wrap(resp -> {
                         // don't return until all pages are fetched
@@ -600,6 +610,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             (CancellableTask) task,
             sessionId,
             reductionPlan.nodeReducePlan(),
+            reductionPlan.nodeReduceLocalPhysicalOptimization(),
             request.withPlan(reductionPlan.dataNodePlan()),
             failFastOnShardFailures,
             computeSearchContexts,

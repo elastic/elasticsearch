@@ -196,6 +196,7 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
             LogicalPlan parsedStatement = EsqlParser.INSTANCE.parseQuery(esqlQuery);
+            Files.createDirectories(PathUtils.get(basePath.toString(), testName));
             Files.writeString(PathUtils.get(basePath.toString(), testName, "query.esql"), esqlQuery);
             var analyzer = new Analyzer(
                 new AnalyzerContext(
@@ -258,19 +259,31 @@ public abstract class GoldenTestCase extends ESTestCase {
                     if (stages.contains(Stage.NODE_REDUCE_OPTIMIZATION)) {
                         result.addAll(addDualPlanResult(Stage.NODE_REDUCE_OPTIMIZATION, reductionPlan, "node_reduce", "data"));
                     }
+                    // FIXME(gal, NOCOMMIT) Simplify this, this shouldn't only perform the local optimization on the data plan.
                     if (stages.contains(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION)) {
-                        var finalizedResult = new ReductionPlan(
-                            (ExchangeSinkExec) localOptimize(reductionPlan.nodeReducePlan(), conf),
-                            (ExchangeSinkExec) localOptimize(reductionPlan.dataNodePlan(), conf)
-                        );
-                        result.addAll(
-                            addDualPlanResult(
-                                Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION,
-                                finalizedResult,
-                                "local_node_reduce",
-                                "local_data"
-                            )
-                        );
+                        switch (reductionPlan.nodeReduceLocalPhysicalOptimization()) {
+                            // FIXME(gal, NOCOMMIT) document
+                            case DISABLED -> {
+                                var foo = localOptimize(reductionPlan.dataNodePlan(), conf);
+                                var bar = verifyOrWrite(foo, outputPath("reduction_", "local_data"));
+                                result.add(Tuple.tuple(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION, bar));
+                            }
+                            case ENABLED -> {
+                                var finalizedResult = new ReductionPlan(
+                                    (ExchangeSinkExec) localOptimize(reductionPlan.nodeReducePlan(), conf),
+                                    (ExchangeSinkExec) localOptimize(reductionPlan.dataNodePlan(), conf),
+                                    reductionPlan.nodeReduceLocalPhysicalOptimization()
+                                );
+                                result.addAll(
+                                    addDualPlanResult(
+                                        Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION,
+                                        finalizedResult,
+                                        "local_node_reduce",
+                                        "local_data"
+                                    )
+                                );
+                            }
+                        }
                     }
                 }
             }
@@ -352,7 +365,6 @@ public abstract class GoldenTestCase extends ESTestCase {
     }
 
     private static Test.TestResult createNewOutput(Path output, QueryPlan<?> plan) throws IOException {
-        Files.createDirectories(output.getParent());
         Files.writeString(output, toString(plan), StandardCharsets.UTF_8);
         return Test.TestResult.CREATED;
     }

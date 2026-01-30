@@ -244,7 +244,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
                 Version.CURRENT.toString(),
                 MAPPING_VERSION_VARIABLE,
                 Map.of("fleet.managed.index.version", Integer.toString(FLEET_ACTIONS_RESULTS_MAPPINGS_VERSION)),
-                false, // FIXME enable validation
+                false,
                 ComposableIndexTemplate::parse
             );
             return new SystemDataStreamDescriptor(
@@ -330,7 +330,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
                 Version.CURRENT.toString(),
                 MAPPING_VERSION_VARIABLE,
                 Map.of("fleet.managed.index.version", Integer.toString(mappingsVersion)),
-                false, // FIXME can this be true?,
+                false,
                 Template::parse
             );
             return SystemIndexDescriptor.builder().setMappings(template.mappings().string()).setSettings(template.settings());

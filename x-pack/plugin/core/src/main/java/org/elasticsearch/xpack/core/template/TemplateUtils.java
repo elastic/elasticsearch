@@ -19,9 +19,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.template.resources.TemplateResources;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -33,18 +31,17 @@ public class TemplateUtils {
     private TemplateUtils() {}
 
     /**
-     * Loads a built-in template and returns its source.
+     * Loads a built-in template and returns its source after replacing given variables.
      */
-    public static String loadTemplate(String resource, String version, String versionProperty) {
-        return loadTemplate(resource, version, versionProperty, Collections.emptyMap());
-    }
-
     public static String loadTemplate(String resource, String version, String versionProperty, Map<String, String> variables) {
         return loadTemplate(resource, version, versionProperty, variables, false);
     }
 
     /**
      * Loads a built-in template and returns its source after replacing given variables.
+     *
+     * If {@code validateVersion} is true and assertions are enabled, a root version field with the provided version
+     * is expected to exist after applying substitutions.
      */
     public static String loadTemplate(
         String resource,
@@ -63,10 +60,19 @@ public class TemplateUtils {
         }
     }
 
+    /**
+     * A template parser leveraging a {@link Template.TemplateDecorator} to modify templates during parsing.
+     */
     public interface TemplateParser<T> {
         T apply(XContentParser parser, String resource, Template.TemplateDecorator decorator) throws IOException;
     }
 
+    /**
+     * Loads a built-in template, replaces given variables and parses it using the provided {@link TemplateParser}.
+     *
+     * If {@code validateVersion} is true and assertions are enabled, a root version field with the provided version
+     * is expected to exist after applying substitutions.
+     */
     public static <T> T loadTemplate(
         String resource,
         String version,
@@ -75,31 +81,55 @@ public class TemplateUtils {
         boolean validateVersion,
         TemplateParser<T> templateParser
     ) throws IOException {
+        Template.TemplateDecorator decorator = TemplateDecoratorProvider.getInstance();
+        return loadTemplate(resource, version, versionProperty, variables, validateVersion, templateParser, decorator);
+    }
+
+    static <T> T loadTemplate(
+        String resource,
+        String version,
+        String versionProperty,
+        Map<String, String> variables,
+        boolean validateVersion,
+        TemplateParser<T> templateParser,
+        Template.TemplateDecorator decorator
+    ) throws IOException {
         String source = loadTemplate(resource, version, versionProperty, variables, validateVersion);
         try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, source.getBytes(UTF_8))) {
-            return templateParser.apply(parser, resource, TemplateDecoratorProvider.getInstance());
+            return templateParser.apply(parser, resource, decorator);
         }
     }
 
     /**
-     * Parses and validates that the source is not empty.
+     * Validates that the source is not empty and parses it to check its correctness if assertions are enabled.
+     *
+     * If {@code validateVersion} is true and assertions are enabled, a root version field with the provided version
+     * is expected to exist in the substituted {@source}.
      */
-    public static void validate(String source, String version, boolean validateVersion) {
+    static void validate(String source, String version, boolean validateVersion) {
         if (source == null) {
             throw new ElasticsearchParseException("Template must not be null");
         }
         if (Strings.isEmpty(source)) {
             throw new ElasticsearchParseException("Template must not be empty");
         }
-
-        assert XContentHelper.convertToMap(JsonXContent.jsonXContent, source, false) != null : "Invalid json template";
-        if (validateVersion) {
-            assert Pattern.compile("\"version\"\\s*:\\s*" + version).matcher(source).find()
-                : "Template must have a version property set to the given version property";
-        }
+        assert validateJson(source, version, validateVersion);
     }
 
-    public static String replaceVariables(String input, String version, String versionProperty, Map<String, String> variables) {
+    private static boolean validateJson(String source, String version, boolean validateVersion) {
+        Map<String, Object> map;
+        try {
+            map = XContentHelper.convertToMap(JsonXContent.jsonXContent, source, false);
+        } catch (Exception e) {
+            throw new ElasticsearchParseException("Invalid template", e);
+        }
+        if (validateVersion && Integer.valueOf(version).equals(map.get("version")) == false) {
+            throw new IllegalArgumentException("Template must have a version property set to the given version property");
+        }
+        return true;
+    }
+
+    static String replaceVariables(String input, String version, String versionProperty, Map<String, String> variables) {
         String template = replaceVariable(input, versionProperty, version);
         for (Map.Entry<String, String> variable : variables.entrySet()) {
             template = replaceVariable(template, variable.getKey(), variable.getValue());
@@ -110,7 +140,7 @@ public class TemplateUtils {
     /**
      * Replaces all occurrences of given variable with the value
      */
-    public static String replaceVariable(String input, String variable, String value) {
+    static String replaceVariable(String input, String variable, String value) {
         return input.replace("${" + variable + "}", value);
     }
 

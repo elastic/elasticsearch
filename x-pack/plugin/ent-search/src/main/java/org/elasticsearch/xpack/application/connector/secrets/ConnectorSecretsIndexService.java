@@ -61,7 +61,7 @@ public class ConnectorSecretsIndexService {
                 Version.CURRENT.toString(),
                 MAPPING_VERSION_VARIABLE,
                 Map.of(MAPPING_MANAGED_VERSION_VARIABLE, Integer.toString(CURRENT_INDEX_VERSION)),
-                false, // FIXME can this be true?,
+                false,
                 Template::parse
             );
         } catch (IOException e) {

@@ -63,7 +63,6 @@ import java.util.Map;
 import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
-import static org.elasticsearch.indices.TestSystemIndexDescriptor.PRIMARY_INDEX_NAME;
 import static org.elasticsearch.test.AbstractSearchCancellationTestCase.ScriptedBlockPlugin.SEARCH_BLOCK_SCRIPT_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
@@ -277,7 +276,7 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         client().execute(AutoCreateAction.INSTANCE, request).get();
         assertAcked(
             indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-                .addAlias(PRIMARY_INDEX_NAME, INDEX_NAME + "-system-alias")
+                .addAlias(TestSystemIndexDescriptor.PRIMARY_INDEX_NAME, TestSystemIndexDescriptor.PRIMARY_INDEX_NAME + "-system-alias")
         );
         // Log empty search
         assertResponse(
@@ -293,7 +292,7 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         assertNull(appender.getLastEventAndReset());
         // System index via alias
         assertResponse(
-            prepareSearch(INDEX_NAME + "-system-alias").setQuery(new MatchAllQueryBuilder()),
+            prepareSearch(TestSystemIndexDescriptor.PRIMARY_INDEX_NAME + "-system-alias").setQuery(new MatchAllQueryBuilder()),
             ElasticsearchAssertions::assertNoFailures
         );
         assertNull(appender.getLastEventAndReset());

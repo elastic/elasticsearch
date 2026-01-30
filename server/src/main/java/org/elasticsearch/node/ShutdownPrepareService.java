@@ -80,11 +80,10 @@ public class ShutdownPrepareService {
         final var reindexTimeout = MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(settings);
         addShutdownHook("http-server-transport-stop", httpServerTransport::close);
         addShutdownHook("async-search-stop", () -> awaitSearchTasksComplete(maxTimeout, transportService.getTaskManager()));
-        addShutdownHook("reindex-stop", () -> awaitReindexTasksComplete(reindexTimeout, transportService.getTaskManager()));
+        addShutdownHook("reindex-stop", () -> relocateReindexTasksAndAwaitComplete(reindexTimeout, transportService.getTaskManager()));
         if (terminationHandler != null) {
             addShutdownHook("termination-handler-stop", terminationHandler::handleTermination);
         }
-        addShutdownHook("bulk-by-scroll-relocate", () -> markBulkByScrollTasksAsRequiringRelocation(transportService.getTaskManager()));
     }
 
     public void addShutdownHook(String name, Runnable action) {
@@ -200,7 +199,8 @@ public class ShutdownPrepareService {
         awaitTasksComplete(asyncSearchTimeout, TransportSearchAction.NAME, taskManager);
     }
 
-    private void awaitReindexTasksComplete(TimeValue asyncReindexTimeout, TaskManager taskManager) {
+    private void relocateReindexTasksAndAwaitComplete(TimeValue asyncReindexTimeout, TaskManager taskManager) {
+        markBulkByScrollTasksAsRequiringRelocation(taskManager);
         awaitTasksComplete(asyncReindexTimeout, ReindexAction.NAME, taskManager);
     }
 

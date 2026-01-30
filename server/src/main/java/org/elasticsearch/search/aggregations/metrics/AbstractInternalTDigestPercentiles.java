@@ -9,8 +9,11 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
@@ -27,20 +30,24 @@ import java.util.Objects;
 
 abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetricsAggregation.MultiValue {
 
+    private static final TransportVersion QUERYDSL_PERCENTILES_EXPONENTIAL_HISTOGRAM_SUPPORT =
+        TransportVersion.fromName("query_dsl_percentiles_exponential_histogram_support");
+
     protected static final Iterator<Percentile> EMPTY_ITERATOR = Collections.emptyIterator();
 
     // NOTE: using compression = 1.0 empty histograms will track just about 5 centroids.
     // This reduces the amount of data to serialize and deserialize.
-    private static final TDigestState EMPTY_HISTOGRAM = new EmptyTDigestState();
+    //TODO: Make immutable
+    private static final HistogramUnionState EMPTY_HISTOGRAM = HistogramUnionState.wrap(new NoopCircuitBreaker("empty-state-cb"), new EmptyTDigestState());
 
     protected final double[] keys;
-    protected final TDigestState state;
+    protected final HistogramUnionState state;
     final boolean keyed;
 
     AbstractInternalTDigestPercentiles(
         String name,
         double[] keys,
-        TDigestState state,
+        HistogramUnionState state,
         boolean keyed,
         DocValueFormat formatter,
         Map<String, Object> metadata
@@ -62,7 +69,11 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
         super(in);
         keys = in.readDoubleArray();
         if (in.readBoolean()) {
-            state = TDigestState.read(in);
+            if (in.getTransportVersion().supports(QUERYDSL_PERCENTILES_EXPONENTIAL_HISTOGRAM_SUPPORT)) {
+                state = HistogramUnionState.read(HistogramUnionState.NOOP_BREAKER, in);
+            } else {
+                state = HistogramUnionState.readAsPureTDigest(HistogramUnionState.NOOP_BREAKER, in);
+            }
         } else {
             state = null;
         }
@@ -75,7 +86,11 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
         out.writeDoubleArray(keys);
         if (this.state != null) {
             out.writeBoolean(true);
-            TDigestState.write(state, out);
+            if (out.getTransportVersion().supports(QUERYDSL_PERCENTILES_EXPONENTIAL_HISTOGRAM_SUPPORT)) {
+                state.writeTo(out);
+            } else {
+                state.writeAsPureTDigestTo(out);
+            }
         } else {
             out.writeBoolean(false);
         }
@@ -102,9 +117,9 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
     }
 
     /**
-     * Return the internal {@link TDigestState} sketch for this metric.
+     * Return the internal {@link HistogramUnionState} sketch for this metric.
      */
-    public TDigestState getState() {
+    public HistogramUnionState getState() {
         return state == null ? EMPTY_HISTOGRAM : state;
     }
 
@@ -125,14 +140,14 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
-            TDigestState merged = null;
+            HistogramUnionState merged = null;
 
             @Override
             public void accept(InternalAggregation aggregation) {
                 final AbstractInternalTDigestPercentiles percentiles = (AbstractInternalTDigestPercentiles) aggregation;
                 if (percentiles.state != null) {
                     if (merged == null) {
-                        merged = TDigestState.createUsingParamsFrom(percentiles.state);
+                        merged = HistogramUnionState.createUsingParamsFrom(percentiles.state);
                     }
                     merged = merge(merged, percentiles.state);
                 }
@@ -146,7 +161,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
     }
 
     /**
-     * Merges two {@link TDigestState}s such that we always merge the one with smaller
+     * Merges two {@link HistogramUnionState}s such that we always merge the one with smaller
      * compression into the one with larger compression.
      * This prevents producing a result that has lower than expected precision.
      *
@@ -154,9 +169,9 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
      * @param digest2 The second histogram to merge
      * @return One of the input histograms such that the one with larger compression is used as the one for merging
      */
-    private static TDigestState merge(final TDigestState digest1, final TDigestState digest2) {
-        TDigestState largerCompression = digest1;
-        TDigestState smallerCompression = digest2;
+    private static HistogramUnionState merge(final HistogramUnionState digest1, final HistogramUnionState digest2) {
+        HistogramUnionState largerCompression = digest1;
+        HistogramUnionState smallerCompression = digest2;
         if (digest2.compression() > digest1.compression()) {
             largerCompression = digest2;
             smallerCompression = digest1;
@@ -173,14 +188,14 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
     protected abstract AbstractInternalTDigestPercentiles createReduced(
         String name,
         double[] keys,
-        TDigestState merged,
+        HistogramUnionState merged,
         boolean keyed,
         Map<String, Object> metadata
     );
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        TDigestState state = getState();
+        HistogramUnionState state = getState();
         if (keyed) {
             builder.startObject(CommonFields.VALUES.getPreferredName());
             for (double v : keys) {

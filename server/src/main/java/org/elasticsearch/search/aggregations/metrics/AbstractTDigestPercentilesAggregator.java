@@ -28,7 +28,7 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
 
     protected final double[] keys;
     protected final DocValueFormat formatter;
-    protected ObjectArray<TDigestState> states;
+    protected ObjectArray<HistogramUnionState> states;
     protected final double compression;
     protected final TDigestExecutionHint executionHint;
     protected final boolean keyed;
@@ -61,7 +61,7 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 if (values.advanceExact(doc)) {
-                    final TDigestState state = getExistingOrNewHistogram(bigArrays(), bucket);
+                    final HistogramUnionState state = getExistingOrNewHistogram(bigArrays(), bucket);
                     for (int i = 0; i < values.docValueCount(); i++) {
                         state.add(values.nextValue());
                     }
@@ -76,18 +76,18 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 if (values.advanceExact(doc)) {
-                    final TDigestState state = getExistingOrNewHistogram(bigArrays(), bucket);
+                    final HistogramUnionState state = getExistingOrNewHistogram(bigArrays(), bucket);
                     state.add(values.doubleValue());
                 }
             }
         };
     }
 
-    private TDigestState getExistingOrNewHistogram(final BigArrays bigArrays, long bucket) {
+    private HistogramUnionState getExistingOrNewHistogram(final BigArrays bigArrays, long bucket) {
         states = bigArrays.grow(states, bucket + 1);
-        TDigestState state = states.get(bucket);
+        HistogramUnionState state = states.get(bucket);
         if (state == null) {
-            state = TDigestState.createWithoutCircuitBreaking(compression, executionHint);
+            state = HistogramUnionState.create(HistogramUnionState.NOOP_BREAKER, executionHint, compression);
             states.set(bucket, state);
         }
         return state;
@@ -98,7 +98,7 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
         return PercentilesConfig.indexOfKey(keys, Double.parseDouble(name)) >= 0;
     }
 
-    protected TDigestState getState(long bucketOrd) {
+    protected HistogramUnionState getState(long bucketOrd) {
         if (bucketOrd >= states.size()) {
             return null;
         }

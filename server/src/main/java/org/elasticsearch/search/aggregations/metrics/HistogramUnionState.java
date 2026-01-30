@@ -44,7 +44,7 @@ public class HistogramUnionState implements Releasable, Accountable {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(HistogramUnionState.class);
 
-    static final CircuitBreaker NOOP_BREAKER = new NoopCircuitBreaker("histogram-union-state-noop-breaker");
+    public static final CircuitBreaker NOOP_BREAKER = new NoopCircuitBreaker("histogram-union-state-noop-breaker");
 
     // Must be non-null if tDigestState is null
     private final TDigestInitParams tdigestInitParams;
@@ -75,6 +75,11 @@ public class HistogramUnionState implements Releasable, Accountable {
         this.tDigestState = tdigestState;
         // Not needed and not used as tDigestState is already initialized
         this.tdigestInitParams = null;
+    }
+
+    public static HistogramUnionState create(CircuitBreaker breaker, double tDigestCompression) {
+        TDigestInitParams params = new TDigestInitParams(null, null, tDigestCompression);
+        return createWithEmptyTDigest(breaker, params, null);
     }
 
     public static HistogramUnionState create(CircuitBreaker breaker, TDigestState.Type type, double tDigestCompression) {
@@ -139,6 +144,16 @@ public class HistogramUnionState implements Releasable, Accountable {
 
     public void add(ExponentialHistogram histogram) {
         getOrInitializeExponentialHistogramState().add(histogram);
+        invalidateCachedCombinedState();
+    }
+
+    public void add(double value) {
+        getOrInitializeTDigestState().add(value);
+        invalidateCachedCombinedState();
+    }
+
+    public void add(double value, long count) {
+        getOrInitializeTDigestState().add(value, count);
         invalidateCachedCombinedState();
     }
 

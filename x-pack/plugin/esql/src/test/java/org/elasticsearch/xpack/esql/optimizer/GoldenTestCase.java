@@ -61,6 +61,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomMinimumVersion;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
@@ -83,12 +84,22 @@ public abstract class GoldenTestCase extends ESTestCase {
     }
 
     protected void runGoldenTest(String esqlQuery, EnumSet<Stage> stages, String... nestedPath) {
-        runGoldenTest(esqlQuery, stages, EsqlTestUtils.TEST_SEARCH_STATS, nestedPath);
+        builder(esqlQuery).stages(stages).nestedPath(nestedPath).run();
     }
 
     protected void runGoldenTest(String esqlQuery, EnumSet<Stage> stages, SearchStats searchStats, String... nestedPath) {
+        builder(esqlQuery).stages(stages).searchStats(searchStats).nestedPath(nestedPath).run();
+    }
+
+    protected void runGoldenTest(
+        String esqlQuery,
+        EnumSet<Stage> stages,
+        SearchStats searchStats,
+        TransportVersion transportVersion,
+        String... nestedPath
+    ) {
         String testName = extractTestName();
-        new Test(baseFile, testName, nestedPath, esqlQuery, stages, searchStats).doTest();
+        new Test(baseFile, testName, nestedPath, esqlQuery, stages, searchStats, transportVersion).doTest();
     }
 
     protected TestBuilder builder(String esqlQuery) {
@@ -100,16 +111,24 @@ public abstract class GoldenTestCase extends ESTestCase {
         private EnumSet<Stage> stages;
         private SearchStats searchStats;
         private String[] nestedPath;
+        private TransportVersion transportVersion;
 
-        private TestBuilder(String esqlQuery, EnumSet<Stage> stages, SearchStats searchStats, String[] nestedPath) {
+        private TestBuilder(
+            String esqlQuery,
+            EnumSet<Stage> stages,
+            SearchStats searchStats,
+            String[] nestedPath,
+            TransportVersion transportVersion
+        ) {
             this.esqlQuery = esqlQuery;
             this.stages = stages;
             this.searchStats = searchStats;
             this.nestedPath = nestedPath;
+            this.transportVersion = transportVersion;
         }
 
         TestBuilder(String esqlQuery) {
-            this(esqlQuery, EnumSet.allOf(Stage.class), EsqlTestUtils.TEST_SEARCH_STATS, new String[0]);
+            this(esqlQuery, EnumSet.allOf(Stage.class), EsqlTestUtils.TEST_SEARCH_STATS, new String[0], randomMinimumVersion());
         }
 
         public TestBuilder stages(EnumSet<Stage> stages) {
@@ -139,8 +158,17 @@ public abstract class GoldenTestCase extends ESTestCase {
             return nestedPath;
         }
 
+        public TransportVersion transportVersion() {
+            return transportVersion;
+        }
+
+        public TestBuilder transportVersion(TransportVersion transportVersion) {
+            this.transportVersion = transportVersion;
+            return this;
+        }
+
         public void run() {
-            runGoldenTest(esqlQuery, stages, searchStats, nestedPath);
+            runGoldenTest(esqlQuery, stages, searchStats, transportVersion, nestedPath);
         }
     }
 
@@ -150,7 +178,8 @@ public abstract class GoldenTestCase extends ESTestCase {
         String[] nestedPath,
         String esqlQuery,
         EnumSet<Stage> stages,
-        SearchStats searchStats
+        SearchStats searchStats,
+        TransportVersion transportVersion
     ) {
 
         private void doTest() {
@@ -167,7 +196,6 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
             LogicalPlan parsedStatement = EsqlParser.INSTANCE.parseQuery(esqlQuery);
-            TransportVersion version = TransportVersion.current();
             var analyzer = new Analyzer(
                 new AnalyzerContext(
                     EsqlTestUtils.TEST_CFG,
@@ -176,7 +204,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                     defaultLookupResolution(),
                     new EnrichResolution(),
                     InferenceResolution.EMPTY,
-                    version,
+                    transportVersion,
                     UnmappedResolution.FAIL
                 ),
                 TEST_VERIFIER
@@ -198,7 +226,9 @@ public abstract class GoldenTestCase extends ESTestCase {
                 || stages.contains(Stage.NODE_REDUCE_OPTIMIZATION)
                 || stages.contains(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION)) {
                 var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(null, null));
-                PhysicalPlan physicalPlan = physicalPlanOptimizer.optimize(new Mapper().map(new Versioned<>(logicallyOptimized, version)));
+                PhysicalPlan physicalPlan = physicalPlanOptimizer.optimize(
+                    new Mapper().map(new Versioned<>(logicallyOptimized, transportVersion))
+                );
                 if (stages.contains(Stage.PHYSICAL_OPTIMIZATION)) {
                     result.add(Tuple.tuple(Stage.PHYSICAL_OPTIMIZATION, verifyOrWrite(physicalPlan, Stage.PHYSICAL_OPTIMIZATION)));
                 }

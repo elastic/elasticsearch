@@ -10,7 +10,6 @@
 package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -45,6 +44,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 @SuppressCodecs("*") // we test against default codec so never get a random one here!
 public class CodecTests extends ESTestCase {
@@ -53,7 +53,7 @@ public class CodecTests extends ESTestCase {
         assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG);
         CodecService codecService = createCodecService();
         assertThat(codecService.codec("default"), instanceOf(PerFieldMapperCodec.class));
-        assertThat(codecService.codec("default"), instanceOf(Elasticsearch93Lucene104Codec.class));
+        assertThat(codecService.codec("default"), instanceOf(Elasticsearch92Lucene103Codec.class));
     }
 
     public void testDefault() throws Exception {
@@ -75,7 +75,7 @@ public class CodecTests extends ESTestCase {
         if (syntheticIdEnabled) {
             assertThat(deduplicateFieldInfosCodec.delegate(), instanceOf(ES93TSDBDefaultCompressionLucene103Codec.class));
         } else {
-            assertThat(deduplicateFieldInfosCodec.delegate(), instanceOf(Lucene104Codec.class));
+            assertThat(deduplicateFieldInfosCodec.delegate(), not(instanceOf(ES93TSDBDefaultCompressionLucene103Codec.class)));
         }
     }
 

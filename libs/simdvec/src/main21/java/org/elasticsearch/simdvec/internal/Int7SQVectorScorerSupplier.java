@@ -120,8 +120,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
 
     abstract float scoreFromSegments(MemorySegment a, float aOffset, MemorySegment b, float bOffset);
 
-    // TODO: make this abstract when we have bulk implementations for all subclasses
-    protected float bulkScoreFromSegment(
+    protected abstract float bulkScoreFromSegment(
         MemorySegment vectors,
         int vectorLength,
         int vectorPitch,
@@ -129,26 +128,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         MemorySegment ordinals,
         MemorySegment scores,
         int numNodes
-    ) {
-        long firstByteOffset = (long) firstOrd * vectorPitch;
-        var a = vectors.asSlice(firstByteOffset, vectorLength);
-        var aOffset = Float.intBitsToFloat(
-            vectors.asSlice(firstByteOffset + vectorLength, Float.BYTES).getAtIndex(ValueLayout.JAVA_INT_UNALIGNED, 0)
-        );
-        float max = Float.NEGATIVE_INFINITY;
-        for (int i = 0; i < numNodes; ++i) {
-            var secondOrd = ordinals.getAtIndex(ValueLayout.JAVA_INT, i);
-            long secondByteOffset = (long) secondOrd * vectorPitch;
-            var b = vectors.asSlice(secondByteOffset, vectorLength);
-            var bOffset = Float.intBitsToFloat(
-                vectors.asSlice(secondByteOffset + vectorLength, Float.BYTES).getAtIndex(ValueLayout.JAVA_INT_UNALIGNED, 0)
-            );
-            var score = scoreFromSegments(a, aOffset, b, bOffset);
-            scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, score);
-            max = Math.max(max, score);
-        }
-        return max;
-    }
+    );
 
     private float fallbackScore(long firstByteOffset, long secondByteOffset) throws IOException {
         byte[] a = new byte[dims];

@@ -2029,7 +2029,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             + m
             + ", beamWidth="
             + efConstruction
-            + ", flatVectorFormat=ES93ScalarQuantizedVectorsFormat(name=ES93ScalarQuantizedVectorsFormat, confidenceInterval="
+            + ", confidenceInterval="
             + (setConfidenceInterval ? confidenceInterval : null)
             + ", bits=7, compressed=false, "
             + "flatVectorScorer=ESQuantizedFlatVectorsScorer(delegate="
@@ -2135,7 +2135,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             + m
             + ", beamWidth="
             + efConstruction
-            + ", flatVectorFormat=ES93ScalarQuantizedVectorsFormat(name=ES93ScalarQuantizedVectorsFormat, confidenceInterval="
+            + ", confidenceInterval="
             + (setConfidenceInterval ? confidenceInterval : 0.0f)
             + ", bits=4, compressed=true, flatVectorScorer=ESQuantizedFlatVectorsScorer(delegate="
             + "ScalarQuantizedVectorScorer(nonQuantizedDelegate="

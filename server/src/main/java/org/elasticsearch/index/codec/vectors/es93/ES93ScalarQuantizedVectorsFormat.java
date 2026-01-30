@@ -9,10 +9,12 @@
 
 package org.elasticsearch.index.codec.vectors.es93;
 
+import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
-import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.codecs.hnsw.ScalarQuantizedVectorScorer;
 import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsReader;
 import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsWriter;
@@ -37,8 +39,9 @@ import java.util.Map;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsFormat.DYNAMIC_CONFIDENCE_INTERVAL;
 import static org.elasticsearch.index.codec.vectors.VectorScoringUtils.scoreAndCollectAll;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 
-public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
+public class ES93ScalarQuantizedVectorsFormat extends KnnVectorsFormat {
 
     static final String NAME = "ES93ScalarQuantizedVectorsFormat";
     private static final int ALLOWED_BITS = (1 << 7) | (1 << 4);
@@ -65,19 +68,18 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
     private final boolean compress;
 
     public ES93ScalarQuantizedVectorsFormat() {
-        this(DenseVectorFieldMapper.ElementType.FLOAT, null, 7, false, false);
+        this(DenseVectorFieldMapper.ElementType.FLOAT, null, 7, false);
     }
 
     public ES93ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType elementType) {
-        this(elementType, null, 7, false, false);
+        this(elementType, null, 7, false);
     }
 
     public ES93ScalarQuantizedVectorsFormat(
         DenseVectorFieldMapper.ElementType elementType,
         Float confidenceInterval,
         int bits,
-        boolean compress,
-        boolean useDirectIO
+        boolean compress
     ) {
         super(NAME);
         if (confidenceInterval != null
@@ -97,14 +99,14 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         }
         assert elementType != DenseVectorFieldMapper.ElementType.BIT : "BIT should not be used with scalar quantization";
 
-        this.rawVectorFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO);
+        this.rawVectorFormat = new ES93GenericFlatVectorsFormat(elementType, false);
         this.confidenceInterval = confidenceInterval;
         this.bits = (byte) bits;
         this.compress = compress;
     }
 
     @Override
-    public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
+    public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
         return new Lucene99ScalarQuantizedVectorsWriter(
             state,
             confidenceInterval,
@@ -116,10 +118,15 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
     }
 
     @Override
-    public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
+    public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
         return new ES93FlatVectorReader(
             new Lucene99ScalarQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state), flatVectorScorer)
         );
+    }
+
+    @Override
+    public int getMaxDimensions(String fieldName) {
+        return MAX_DIMS_COUNT;
     }
 
     @Override
@@ -140,12 +147,11 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
             + ")";
     }
 
-    static class ES93FlatVectorReader extends FlatVectorsReader {
+    static class ES93FlatVectorReader extends KnnVectorsReader {
 
         private final FlatVectorsReader reader;
 
         ES93FlatVectorReader(FlatVectorsReader reader) {
-            super(reader.getFlatVectorScorer());
             this.reader = reader;
         }
 
@@ -175,23 +181,8 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         }
 
         @Override
-        public RandomVectorScorer getRandomVectorScorer(String field, float[] target) throws IOException {
-            return reader.getRandomVectorScorer(field, target);
-        }
-
-        @Override
-        public RandomVectorScorer getRandomVectorScorer(String field, byte[] target) throws IOException {
-            return reader.getRandomVectorScorer(field, target);
-        }
-
-        @Override
         public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
             return reader.getOffHeapByteSize(fieldInfo);
-        }
-
-        @Override
-        public long ramBytesUsed() {
-            return reader.ramBytesUsed();
         }
 
         @Override

@@ -31,8 +31,10 @@ import java.util.Objects;
 
 /**
  * A state for holding potentially mixed data of exponential histogram and T-Digests.
- * If the data is not mixed, the querying methods will just delegate to {@link ExponentialHistogramState} or {@link TDigestState} as appropriate.
- * Otherwise the T-Digest data will be converted to exponential histogram and will be merged with the existing exponential histogram data to serve queries.
+ * If the data is not mixed, the querying methods will just delegate to
+ * {@link ExponentialHistogramState} or {@link TDigestState} as appropriate.
+ * Otherwise the T-Digest data will be converted to exponential histogram and will be merged
+ * with the existing exponential histogram data to serve queries.
  */
 public class HistogramUnionState implements Releasable, Accountable {
 

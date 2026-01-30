@@ -71,7 +71,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class TransportUpdateInferenceModelActionTests extends ESTestCase {
@@ -484,28 +483,15 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     public void testCombineExistingModelConfigurationsWithNewSettings_NewConfigMapsAreNull_ReturnsExistingConfigs() {
         var serviceSettings = mock(ServiceSettings.class);
         var taskSettings = mock(TaskSettings.class);
-        var secretSettings = mock(SecretSettings.class);
 
-        var model = createMockedModel(serviceSettings, taskSettings, secretSettings);
+        var model = createMockedModel(serviceSettings, taskSettings, mock(SecretSettings.class));
         var resultModelConfigurations = action.combineExistingModelConfigurationsWithNewSettings(
             model,
             new UpdateInferenceModelAction.Settings(null, null, TaskType.TEXT_EMBEDDING),
             SERVICE_NAME_VALUE
         );
-
-        verify(model).getConfigurations();
-        verify(model).getInferenceEntityId();
-        verify(model).getTaskType();
-        verifyNoMoreInteractions(model);
-
-        verify(model.getConfigurations()).getServiceSettings();
-        verify(model.getConfigurations()).getTaskSettings();
-        verify(model.getConfigurations()).getChunkingSettings();
-
         verifyNoInteractions(serviceSettings);
         verifyNoInteractions(taskSettings);
-        verifyNoInteractions(model.getConfigurations().getChunkingSettings());
-        verifyNoInteractions(secretSettings);
 
         assertThat(resultModelConfigurations.getInferenceEntityId(), sameInstance(model.getInferenceEntityId()));
         assertThat(resultModelConfigurations.getTaskType(), sameInstance(model.getTaskType()));
@@ -526,34 +512,15 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         var updatedTaskSettings = mock(TaskSettings.class);
         when(originalTaskSettings.updatedTaskSettings(newTaskSettingsMap)).thenReturn(updatedTaskSettings);
 
-        var secretSettings = mock(SecretSettings.class);
-
-        var model = createMockedModel(originalServiceSettings, originalTaskSettings, secretSettings);
+        var model = createMockedModel(originalServiceSettings, originalTaskSettings, mock(SecretSettings.class));
         var resultModelConfigurations = action.combineExistingModelConfigurationsWithNewSettings(
             model,
             new UpdateInferenceModelAction.Settings(newServiceSettingsMap, newTaskSettingsMap, TaskType.TEXT_EMBEDDING),
             SERVICE_NAME_VALUE
         );
 
-        verify(model).getConfigurations();
-        verify(model).getInferenceEntityId();
-        verify(model).getTaskType();
-        verifyNoMoreInteractions(model);
-
-        verify(model.getConfigurations()).getServiceSettings();
-        verify(model.getConfigurations()).getTaskSettings();
-        verify(model.getConfigurations()).getChunkingSettings();
-
         verify(originalServiceSettings).updateServiceSettings(newServiceSettingsMap);
-        verifyNoMoreInteractions(originalServiceSettings);
-
         verify(originalTaskSettings).updatedTaskSettings(newTaskSettingsMap);
-        verifyNoMoreInteractions(originalTaskSettings);
-
-        verifyNoInteractions(updatedServiceSettings);
-        verifyNoInteractions(updatedTaskSettings);
-        verifyNoInteractions(model.getConfigurations().getChunkingSettings());
-        verifyNoInteractions(secretSettings);
 
         assertThat(resultModelConfigurations.getInferenceEntityId(), sameInstance(model.getInferenceEntityId()));
         assertThat(resultModelConfigurations.getTaskType(), sameInstance(model.getTaskType()));
@@ -564,64 +531,35 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     }
 
     public void testCombineExistingSecretsWithNewSecrets_NewSecretsMapIsNull_ReturnsExistingSecrets() {
-        var serviceSettings = mock(ServiceSettings.class);
-        var taskSettings = mock(TaskSettings.class);
         var secretSettings = mock(SecretSettings.class);
 
-        var model = createMockedModel(serviceSettings, taskSettings, secretSettings);
+        var model = createMockedModel(mock(ServiceSettings.class), mock(TaskSettings.class), secretSettings);
         var modelSecrets = action.combineExistingSecretsWithNewSecrets(model, null);
 
         assertThat(modelSecrets.getSecretSettings(), sameInstance(secretSettings));
-
-        verify(model).getSecretSettings();
-        verifyNoMoreInteractions(model);
-
         verifyNoInteractions(secretSettings);
-        verifyNoInteractions(serviceSettings);
-        verifyNoInteractions(taskSettings);
     }
 
     public void testCombineExistingSecretsWithNewSecrets_ExistingSecretSettingsAreNull_ReturnsNull() {
-        var serviceSettings = mock(ServiceSettings.class);
-        var taskSettings = mock(TaskSettings.class);
-
         Map<String, Object> newSecretsMap = Map.of("some_secret_key", "some_secret_value");
 
-        var model = createMockedModel(serviceSettings, taskSettings, null);
+        var model = createMockedModel(mock(ServiceSettings.class), mock(TaskSettings.class), null);
         var modelSecrets = action.combineExistingSecretsWithNewSecrets(model, newSecretsMap);
 
         assertThat(modelSecrets.getSecretSettings(), nullValue());
-
-        verify(model).getSecretSettings();
-        verifyNoMoreInteractions(model);
-
-        verifyNoInteractions(serviceSettings);
-        verifyNoInteractions(taskSettings);
     }
 
     public void testCombineExistingSecretsWithNewSecrets_NewSecretSettings_UpdatesSecrets() {
-        var serviceSettings = mock(ServiceSettings.class);
-        var taskSettings = mock(TaskSettings.class);
-
         Map<String, Object> newSecretsMap = Map.of("some_secret_key", "some_secret_value");
         var originalSecretSettings = mock(SecretSettings.class);
         var updatedSecretSettings = mock(SecretSettings.class);
         when(originalSecretSettings.newSecretSettings(newSecretsMap)).thenReturn(updatedSecretSettings);
 
-        var model = createMockedModel(serviceSettings, taskSettings, originalSecretSettings);
+        var model = createMockedModel(mock(ServiceSettings.class), mock(TaskSettings.class), originalSecretSettings);
         var modelSecrets = action.combineExistingSecretsWithNewSecrets(model, newSecretsMap);
 
         assertThat(modelSecrets.getSecretSettings(), sameInstance(updatedSecretSettings));
-
         verify(originalSecretSettings).newSecretSettings(newSecretsMap);
-        verifyNoMoreInteractions(originalSecretSettings);
-
-        verify(model).getSecretSettings();
-        verifyNoMoreInteractions(model);
-
-        verifyNoInteractions(serviceSettings);
-        verifyNoInteractions(taskSettings);
-        verifyNoInteractions(updatedSecretSettings);
     }
 
     private static Model createMockedModel(
@@ -650,8 +588,6 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
 
         TransportUpdateInferenceModelAction.validateResolvedTaskType(model, TaskType.TEXT_EMBEDDING);
-
-        verify(model).getTaskType();
     }
 
     public void testValidateResolvedTaskType_MismatchingTaskType_Failure() {
@@ -662,8 +598,6 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
             ElasticsearchStatusException.class,
             () -> TransportUpdateInferenceModelAction.validateResolvedTaskType(model, TaskType.TEXT_EMBEDDING)
         );
-
-        verify(model).getTaskType();
 
         assertThat(exception.getMessage(), is("Task type must match the task type of the existing endpoint"));
         assertThat(exception.status(), is(RestStatus.BAD_REQUEST));

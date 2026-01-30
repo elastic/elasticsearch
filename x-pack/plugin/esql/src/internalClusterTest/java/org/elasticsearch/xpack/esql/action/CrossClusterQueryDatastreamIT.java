@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -68,13 +70,14 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
+@Repeat(iterations = 100)
 public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase {
     protected static final String IDX_ALIAS = "alias1";
     protected static final String FILTERED_IDX_ALIAS = "alias-filtered-1";
 
     @Override
     protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
-        return Map.of(REMOTE_CLUSTER_1, randomBoolean(), REMOTE_CLUSTER_2, randomBoolean());
+        return Map.of(REMOTE_CLUSTER_1, false, REMOTE_CLUSTER_2, false);
     }
 
     @Override
@@ -95,6 +98,11 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
         assertThat(clusterInfo.getIndexExpression(), equalTo(indexExpression));
         assertThat(clusterInfo.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
         super.assertClusterInfoSuccess(clusterInfo, numShards);
+    }
+
+    private void resetSkipUnavailableDefaults() {
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
     }
 
     public void testSuccessfulPathways() throws Exception {
@@ -233,8 +241,11 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
         }
         {
             String q = "FROM nomatch*";
-            String expectedError = "Unknown index [nomatch*]";
-            expectVerificationExceptionForQuery(q, expectedError, false);
+            try (EsqlQueryResponse resp = runQuery(q, false)) {
+                assertThat(getValuesList(resp).size(), equalTo(0));
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertThat(executionInfo.isCrossClusterSearch(), is(false));
+            }
         }
     }
 
@@ -281,8 +292,11 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
         }
         {
             String q = "FROM nomatch*::failures";
-            String expectedError = "Unknown index [nomatch*::failures]";
-            expectVerificationExceptionForQuery(q, expectedError, false);
+            try (EsqlQueryResponse resp = runQuery(q, false)) {
+                assertThat(getValuesList(resp).size(), equalTo(0));
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertThat(executionInfo.isCrossClusterSearch(), is(false));
+            }
         }
     }
 
@@ -314,21 +328,25 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
             String q = "FROM logs*,cluster-a:nomatch";
             String expectedError = "Unknown index [cluster-a:nomatch]";
             setSkipUnavailable(REMOTE_CLUSTER_1, false);
-            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
-            setSkipUnavailable(REMOTE_CLUSTER_1, true);
-            try (EsqlQueryResponse resp = runQuery(q, requestIncludeMeta)) {
-                assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));
-                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-                assertThat(executionInfo.isCrossClusterSearch(), is(true));
-                assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
-                assertExpectedClustersForMissingIndicesTests(
-                    executionInfo,
-                    List.of(
-                        new ExpectedCluster(LOCAL_CLUSTER, "logs*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, localNumShards),
-                        new ExpectedCluster(REMOTE_CLUSTER_1, "nomatch", EsqlExecutionInfo.Cluster.Status.SKIPPED, 0)
-                    )
-                );
+            try {
+                expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
+                setSkipUnavailable(REMOTE_CLUSTER_1, true);
+                try (EsqlQueryResponse resp = runQuery(q, requestIncludeMeta)) {
+                    assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));
+                    EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                    assertThat(executionInfo.isCrossClusterSearch(), is(true));
+                    assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                    assertExpectedClustersForMissingIndicesTests(
+                        executionInfo,
+                        List.of(
+                            new ExpectedCluster(LOCAL_CLUSTER, "logs*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, localNumShards),
+                            new ExpectedCluster(REMOTE_CLUSTER_1, "nomatch", EsqlExecutionInfo.Cluster.Status.SKIPPED, 0)
+                        )
+                    );
 
+                }
+            } finally {
+                resetSkipUnavailableDefaults();
             }
         }
 
@@ -415,39 +433,51 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
 
         // an error is thrown if there is a concrete index that does not match
         {
+            setSkipUnavailable(REMOTE_CLUSTER_1, false);
             String q = "FROM cluster-a:nomatch";
             String expectedError = "Unknown index [cluster-a:nomatch]";
-            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
+            try {
+                expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
+            } finally {
+                resetSkipUnavailableDefaults();
+            }
         }
 
         // an error is thrown if there are no matching indices at all - single remote cluster with wildcard index expression
         {
             String q = "FROM cluster-a:nomatch*";
-            String expectedError = "Unknown index [cluster-a:nomatch*]";
-            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
+            try (EsqlQueryResponse resp = runQuery(q, requestIncludeMeta)) {
+                assertThat(getValuesList(resp).size(), equalTo(0));
+            }
         }
 
         // an error is thrown if there is a concrete index that does not match
         {
+            setSkipUnavailable(REMOTE_CLUSTER_1, false);
             String q = "FROM nomatch*,cluster-a:nomatch";
-            String expectedError = "Unknown index [nomatch*,cluster-a:nomatch]";
-            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
+            String expectedError = "Unknown index [cluster-a:nomatch]";
+            try {
+                expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
+            } finally {
+                resetSkipUnavailableDefaults();
+            }
         }
 
         // an error is thrown if there are no matching indices at all - local with wildcard, remote with wildcard
         {
             String q = "FROM nomatch*,cluster-a:nomatch*";
-            String expectedError = "Unknown index [nomatch*,cluster-a:nomatch*]";
-            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
+            try (EsqlQueryResponse resp = runQuery(q, requestIncludeMeta)) {
+                assertThat(getValuesList(resp).size(), equalTo(0));
+            }
         }
         {
             String q = "FROM nomatch,cluster-a:nomatch";
-            String expectedError = "Unknown index [nomatch,cluster-a:nomatch]";
+            String expectedError = "Unknown index [cluster-a:nomatch]; Unknown index [nomatch]";
             expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
         }
         {
             String q = "FROM nomatch,cluster-a:nomatch*";
-            String expectedError = "Unknown index [nomatch,cluster-a:nomatch*]";
+            String expectedError = "Unknown index [nomatch]";
             expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
         }
 
@@ -460,32 +490,36 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
             String q = Strings.format("FROM %s*,cluster-a:nomatch,%s:%s*", localIndexName, REMOTE_CLUSTER_2, remote2IndexName);
             String expectedError = "Unknown index [cluster-a:nomatch]";
             setSkipUnavailable(REMOTE_CLUSTER_1, false);
-            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
-            setSkipUnavailable(REMOTE_CLUSTER_1, true);
-            try (EsqlQueryResponse resp = runQuery(q, requestIncludeMeta)) {
-                assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));
-                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-                assertThat(executionInfo.isCrossClusterSearch(), is(true));
-                assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
-                assertExpectedClustersForMissingIndicesTests(
-                    executionInfo,
-                    List.of(
-                        new ExpectedCluster(
-                            LOCAL_CLUSTER,
-                            localIndexName + "*",
-                            EsqlExecutionInfo.Cluster.Status.SUCCESSFUL,
-                            localNumShards
-                        ),
-                        new ExpectedCluster(REMOTE_CLUSTER_1, "nomatch", EsqlExecutionInfo.Cluster.Status.SKIPPED, 0),
-                        new ExpectedCluster(
-                            REMOTE_CLUSTER_2,
-                            remote2IndexName + "*",
-                            EsqlExecutionInfo.Cluster.Status.SUCCESSFUL,
-                            remote2NumShards
+            try {
+                expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
+                setSkipUnavailable(REMOTE_CLUSTER_1, true);
+                try (EsqlQueryResponse resp = runQuery(q, requestIncludeMeta)) {
+                    assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));
+                    EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                    assertThat(executionInfo.isCrossClusterSearch(), is(true));
+                    assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                    assertExpectedClustersForMissingIndicesTests(
+                        executionInfo,
+                        List.of(
+                            new ExpectedCluster(
+                                LOCAL_CLUSTER,
+                                localIndexName + "*",
+                                EsqlExecutionInfo.Cluster.Status.SUCCESSFUL,
+                                localNumShards
+                            ),
+                            new ExpectedCluster(REMOTE_CLUSTER_1, "nomatch", EsqlExecutionInfo.Cluster.Status.SKIPPED, 0),
+                            new ExpectedCluster(
+                                REMOTE_CLUSTER_2,
+                                remote2IndexName + "*",
+                                EsqlExecutionInfo.Cluster.Status.SUCCESSFUL,
+                                remote2NumShards
+                            )
                         )
-                    )
-                );
+                    );
 
+                }
+            } finally {
+                resetSkipUnavailableDefaults();
             }
         }
     }
@@ -518,21 +552,30 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
             String q = "FROM logs*::failures,cluster-a:nomatch::failures";
             String expectedError = "Unknown index [cluster-a:nomatch::failures]";
             setSkipUnavailable(REMOTE_CLUSTER_1, false);
-            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
-            setSkipUnavailable(REMOTE_CLUSTER_1, true);
-            try (EsqlQueryResponse resp = runQuery(q, requestIncludeMeta)) {
-                assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));
-                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-                assertThat(executionInfo.isCrossClusterSearch(), is(true));
-                assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
-                assertExpectedClustersForMissingIndicesTests(
-                    executionInfo,
-                    List.of(
-                        new ExpectedCluster(LOCAL_CLUSTER, "logs*::failures", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, localNumShards),
-                        new ExpectedCluster(REMOTE_CLUSTER_1, "nomatch::failures", EsqlExecutionInfo.Cluster.Status.SKIPPED, 0)
-                    )
-                );
+            try {
+                expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
+                setSkipUnavailable(REMOTE_CLUSTER_1, true);
+                try (EsqlQueryResponse resp = runQuery(q, requestIncludeMeta)) {
+                    assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));
+                    EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                    assertThat(executionInfo.isCrossClusterSearch(), is(true));
+                    assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                    assertExpectedClustersForMissingIndicesTests(
+                        executionInfo,
+                        List.of(
+                            new ExpectedCluster(
+                                LOCAL_CLUSTER,
+                                "logs*::failures",
+                                EsqlExecutionInfo.Cluster.Status.SUCCESSFUL,
+                                localNumShards
+                            ),
+                            new ExpectedCluster(REMOTE_CLUSTER_1, "nomatch::failures", EsqlExecutionInfo.Cluster.Status.SKIPPED, 0)
+                        )
+                    );
 
+                }
+            } finally {
+                resetSkipUnavailableDefaults();
             }
         }
 
@@ -629,39 +672,56 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
 
         // an error is thrown if there is a concrete index that does not match
         {
+            setSkipUnavailable(REMOTE_CLUSTER_1, false);
             String q = "FROM cluster-a:nomatch::failures";
             String expectedError = "Unknown index [cluster-a:nomatch::failures]";
-            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
+            try {
+                expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
+            } finally {
+                resetSkipUnavailableDefaults();
+            }
         }
 
-        // an error is thrown if there are no matching indices at all - single remote cluster with wildcard index expression
+        // no error on wildcard non-matching remote index
         {
             String q = "FROM cluster-a:nomatch*::failures";
-            String expectedError = "Unknown index [cluster-a:nomatch*::failures]";
-            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
+            try (EsqlQueryResponse resp = runQuery(q, requestIncludeMeta)) {
+                assertThat(getValuesList(resp).size(), equalTo(0));
+            }
         }
 
         // an error is thrown if there is a concrete index that does not match
         {
+            setSkipUnavailable(REMOTE_CLUSTER_1, false);
             String q = "FROM nomatch*::failures,cluster-a:nomatch::failures";
-            String expectedError = "Unknown index [nomatch*::failures,cluster-a:nomatch::failures]";
-            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
+            String expectedError = "Unknown index [cluster-a:nomatch::failures]";
+            try {
+                expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
+            } finally {
+                resetSkipUnavailableDefaults();
+            }
         }
 
         // an error is thrown if there are no matching indices at all - local with wildcard, remote with wildcard
         {
             String q = "FROM nomatch*::failures,cluster-a:nomatch*::failures";
-            String expectedError = "Unknown index [nomatch*::failures,cluster-a:nomatch*::failures]";
-            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
+            try (EsqlQueryResponse resp = runQuery(q, requestIncludeMeta)) {
+                assertThat(getValuesList(resp).size(), equalTo(0));
+            }
         }
         {
+            setSkipUnavailable(REMOTE_CLUSTER_1, false);
             String q = "FROM nomatch::failures,cluster-a:nomatch::failures";
-            String expectedError = "Unknown index [nomatch::failures,cluster-a:nomatch::failures]";
-            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
+            String expectedError = "Unknown index [cluster-a:nomatch::failures]; Unknown index [nomatch::failures]";
+            try {
+                expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
+            } finally {
+                resetSkipUnavailableDefaults();
+            }
         }
         {
             String q = "FROM nomatch::failures,cluster-a:nomatch*::failures";
-            String expectedError = "Unknown index [nomatch::failures,cluster-a:nomatch*::failures]";
+            String expectedError = "Unknown index [nomatch::failures]";
             expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
         }
 
@@ -679,32 +739,36 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
             );
             String expectedError = "Unknown index [cluster-a:nomatch::failures]";
             setSkipUnavailable(REMOTE_CLUSTER_1, false);
-            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
-            setSkipUnavailable(REMOTE_CLUSTER_1, true);
-            try (EsqlQueryResponse resp = runQuery(q, requestIncludeMeta)) {
-                assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));
-                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-                assertThat(executionInfo.isCrossClusterSearch(), is(true));
-                assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
-                assertExpectedClustersForMissingIndicesTests(
-                    executionInfo,
-                    List.of(
-                        new ExpectedCluster(
-                            LOCAL_CLUSTER,
-                            localIndexName + "*::failures",
-                            EsqlExecutionInfo.Cluster.Status.SUCCESSFUL,
-                            localNumShards
-                        ),
-                        new ExpectedCluster(REMOTE_CLUSTER_1, "nomatch::failures", EsqlExecutionInfo.Cluster.Status.SKIPPED, 0),
-                        new ExpectedCluster(
-                            REMOTE_CLUSTER_2,
-                            remote2IndexName + "*::failures",
-                            EsqlExecutionInfo.Cluster.Status.SUCCESSFUL,
-                            remote2NumShards
+            try {
+                expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
+                setSkipUnavailable(REMOTE_CLUSTER_1, true);
+                try (EsqlQueryResponse resp = runQuery(q, requestIncludeMeta)) {
+                    assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));
+                    EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                    assertThat(executionInfo.isCrossClusterSearch(), is(true));
+                    assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                    assertExpectedClustersForMissingIndicesTests(
+                        executionInfo,
+                        List.of(
+                            new ExpectedCluster(
+                                LOCAL_CLUSTER,
+                                localIndexName + "*::failures",
+                                EsqlExecutionInfo.Cluster.Status.SUCCESSFUL,
+                                localNumShards
+                            ),
+                            new ExpectedCluster(REMOTE_CLUSTER_1, "nomatch::failures", EsqlExecutionInfo.Cluster.Status.SKIPPED, 0),
+                            new ExpectedCluster(
+                                REMOTE_CLUSTER_2,
+                                remote2IndexName + "*::failures",
+                                EsqlExecutionInfo.Cluster.Status.SUCCESSFUL,
+                                remote2NumShards
+                            )
                         )
-                    )
-                );
+                    );
 
+                }
+            } finally {
+                resetSkipUnavailableDefaults();
             }
         }
     }
@@ -813,7 +877,7 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
             assertThat(localCluster.getIndexExpression(), equalTo("logs-*,no_such_index*"));
             assertClusterInfoSuccess(localCluster, localNumShards);
         } finally {
-            clearSkipUnavailable();
+            resetSkipUnavailableDefaults();
         }
     }
 
@@ -878,7 +942,7 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
             assertThat(localCluster.getIndexExpression(), equalTo("logs-*::failures,no_such_index*::failures"));
             assertClusterInfoSuccess(localCluster, localNumShards);
         } finally {
-            clearSkipUnavailable();
+            resetSkipUnavailableDefaults();
         }
     }
 

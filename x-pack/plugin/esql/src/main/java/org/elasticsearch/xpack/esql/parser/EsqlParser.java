@@ -121,7 +121,7 @@ public class EsqlParser {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", query);
         }
-        return invokeParser(query, params, metrics, inferenceSettings, EsqlBaseParser::singleStatement, AstBuilder::plan);
+        return invokeParser(query, params, metrics, inferenceSettings, null, EsqlBaseParser::singleStatement, AstBuilder::plan);
     }
 
     // testing utility
@@ -131,7 +131,7 @@ public class EsqlParser {
 
     // testing utility
     public EsqlStatement unvalidatedStatement(String query, QueryParams params) {
-        return createStatement(query, params, new PlanTelemetry(new EsqlFunctionRegistry()), new InferenceSettings(Settings.EMPTY));
+        return createStatement(query, params, new PlanTelemetry(new EsqlFunctionRegistry()), new InferenceSettings(Settings.EMPTY), null);
     }
 
     // testing utility
@@ -152,7 +152,7 @@ public class EsqlParser {
         PlanTelemetry metrics,
         InferenceSettings inferenceSettings
     ) {
-        var parsed = createStatement(query, params, metrics, inferenceSettings);
+        var parsed = createStatement(query, params, metrics, inferenceSettings, null);
         if (log.isDebugEnabled()) {
             log.debug("Parsed logical plan:\n{}", parsed.plan());
             log.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
@@ -161,11 +161,38 @@ public class EsqlParser {
         return parsed;
     }
 
-    private EsqlStatement createStatement(String query, QueryParams params, PlanTelemetry metrics, InferenceSettings inferenceSettings) {
+    /**
+     * Parse a view query with the given view name. The view name is used to tag all Source objects
+     * so they can be correctly deserialized when the view positions exceed the outer query's length.
+     */
+    public EsqlStatement parseView(
+        String query,
+        QueryParams params,
+        SettingsValidationContext settingsValidationCtx,
+        PlanTelemetry metrics,
+        InferenceSettings inferenceSettings,
+        String viewName
+    ) {
+        var parsed = createStatement(query, params, metrics, inferenceSettings, viewName);
+        if (log.isDebugEnabled()) {
+            log.debug("Parsed view '{}' logical plan:\n{}", viewName, parsed.plan());
+            log.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
+        }
+        QuerySettings.validate(parsed, settingsValidationCtx);
+        return parsed;
+    }
+
+    private EsqlStatement createStatement(
+        String query,
+        QueryParams params,
+        PlanTelemetry metrics,
+        InferenceSettings inferenceSettings,
+        String viewName
+    ) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", query);
         }
-        return invokeParser(query, params, metrics, inferenceSettings, EsqlBaseParser::statements, AstBuilder::statement);
+        return invokeParser(query, params, metrics, inferenceSettings, viewName, EsqlBaseParser::statements, AstBuilder::statement);
     }
 
     private <T> T invokeParser(
@@ -173,6 +200,7 @@ public class EsqlParser {
         QueryParams params,
         PlanTelemetry metrics,
         InferenceSettings inferenceSettings,
+        String viewName,
         Function<EsqlBaseParser, ParserRuleContext> parseFunction,
         BiFunction<AstBuilder, ParserRuleContext, T> result
     ) {
@@ -206,7 +234,7 @@ public class EsqlParser {
                 log.trace("Parse tree: {}", tree.toStringTree());
             }
 
-            return result.apply(new AstBuilder(new ExpressionBuilder.ParsingContext(params, metrics, inferenceSettings)), tree);
+            return result.apply(new AstBuilder(new ExpressionBuilder.ParsingContext(params, metrics, inferenceSettings, viewName)), tree);
         } catch (StackOverflowError e) {
             throw new ParsingException("ESQL statement is too large, causing stack overflow when generating the parsing tree: [{}]", query);
             // likely thrown by an invalid popMode (such as extra closing parenthesis)

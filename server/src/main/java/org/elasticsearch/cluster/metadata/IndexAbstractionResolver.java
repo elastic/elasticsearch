@@ -156,7 +156,7 @@ public class IndexAbstractionResolver {
             final HashSet<String> resolvedIndices = new HashSet<>();
             for (String authorizedIndex : allAuthorizedAndAvailableBySelector.apply(selector)) {
                 if (Regex.simpleMatch(indexAbstraction, authorizedIndex)
-                    && isIndexVisible(
+                    && isIndexVisibleUnderWildcardAccess(
                         indexAbstraction,
                         selectorString,
                         authorizedIndex,
@@ -198,11 +198,10 @@ public class IndexAbstractionResolver {
             } else {
                 final boolean authorized = isAuthorized.test(indexAbstraction, selector);
                 if (authorized) {
-                    final boolean visible = indexExists(projectMetadata, indexAbstraction)
-                        && isIndexVisible(
+                    boolean visible = indexExists(projectMetadata, indexAbstraction)
+                        && isIndexVisibleUnderConcreteAccess(
                             indexAbstraction,
                             selectorString,
-                            indexAbstraction,
                             indicesOptions,
                             projectMetadata,
                             indexNameExpressionResolver,
@@ -269,7 +268,19 @@ public class IndexAbstractionResolver {
         }
     }
 
-    public static boolean isIndexVisible(
+    public static boolean isIndexVisibleUnderConcreteAccess(
+        String expression,
+        @Nullable String selectorString,
+        IndicesOptions indicesOptions,
+        ProjectMetadata projectMetadata,
+        IndexNameExpressionResolver resolver,
+        boolean includeDataStreams
+    ) {
+        assert Regex.isSimpleMatchPattern(expression) == false : "Expected a concrete expression";
+        return isIndexVisible(expression, selectorString, expression, indicesOptions, projectMetadata, resolver, includeDataStreams, false);
+    }
+
+    public static boolean isIndexVisibleUnderWildcardAccess(
         String expression,
         @Nullable String selectorString,
         String index,
@@ -277,6 +288,20 @@ public class IndexAbstractionResolver {
         ProjectMetadata projectMetadata,
         IndexNameExpressionResolver resolver,
         boolean includeDataStreams
+    ) {
+        assert Regex.isSimpleMatchPattern(expression) : "Expected a wildcard expression";
+        return isIndexVisible(expression, selectorString, index, indicesOptions, projectMetadata, resolver, includeDataStreams, true);
+    }
+
+    private static boolean isIndexVisible(
+        String expression,
+        @Nullable String selectorString,
+        String index,
+        IndicesOptions indicesOptions,
+        ProjectMetadata projectMetadata,
+        IndexNameExpressionResolver resolver,
+        boolean includeDataStreams,
+        boolean isWildcardExpression
     ) {
         IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(index);
         if (indexAbstraction == null) {
@@ -287,11 +312,16 @@ public class IndexAbstractionResolver {
             return false;
         }
         final boolean isHidden = indexAbstraction.isHidden();
-        boolean isVisible = isHidden == false || indicesOptions.expandWildcardsHidden() || isVisibleDueToImplicitHidden(expression, index);
+        boolean isVisible = isWildcardExpression == false
+            || isHidden == false
+            || indicesOptions.expandWildcardsHidden()
+            || isVisibleDueToImplicitHidden(expression, index);
         if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
             // it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
             // it's complicated to support those options with aliases pointing to multiple indices...
-            isVisible = isVisible && indicesOptions.ignoreAliases() == false;
+            if (indicesOptions.ignoreAliases()) {
+                return false;
+            }
 
             if (isVisible && indexAbstraction.isSystem()) {
                 // check if it is net new
@@ -313,7 +343,8 @@ public class IndexAbstractionResolver {
                             indicesOptions,
                             projectMetadata,
                             resolver,
-                            includeDataStreams
+                            includeDataStreams,
+                            isWildcardExpression
                         );
                     }
                 }
@@ -365,7 +396,21 @@ public class IndexAbstractionResolver {
             }
         }
 
-        IndexMetadata indexMetadata = projectMetadata.index(indexAbstraction.getIndices().get(0));
+        IndexMetadata indexMetadata = projectMetadata.index(indexAbstraction.getIndices().getFirst());
+
+        if (isWildcardExpression == false) {
+            if (indexMetadata.getState() == IndexMetadata.State.CLOSE && indicesOptions.forbidClosedIndices()) {
+                return false;
+            }
+
+            // see IndexNameExpressionResolver#addIndex for reference
+            if (indexMetadata.getSettings().getAsBoolean("index.frozen", false) && indicesOptions.ignoreThrottled()) {
+                return false;
+            }
+
+            return true;
+        }
+
         if (indexMetadata.getState() == IndexMetadata.State.CLOSE && indicesOptions.expandWildcardsClosed()) {
             return true;
         }
@@ -393,7 +438,8 @@ public class IndexAbstractionResolver {
     }
 
     private static boolean isVisibleDueToImplicitHidden(String expression, String index) {
-        return index.startsWith(".") && expression.startsWith(".") && Regex.isSimpleMatchPattern(expression);
+        assert Regex.isSimpleMatchPattern(expression) : "Expected wildcard expression";
+        return index.startsWith(".") && expression.startsWith(".");
     }
 
     private static boolean indexExists(ProjectMetadata projectMetadata, String indexAbstraction) {

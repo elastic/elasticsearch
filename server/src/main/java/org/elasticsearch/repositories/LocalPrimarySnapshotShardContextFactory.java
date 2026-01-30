@@ -42,10 +42,6 @@ public class LocalPrimarySnapshotShardContextFactory implements SnapshotShardCon
     private final ClusterService clusterService;
     private final IndicesService indicesService;
 
-    public LocalPrimarySnapshotShardContextFactory() {
-        throw new IllegalStateException("This no arg constructor only exists for SPI validation");
-    }
-
     public LocalPrimarySnapshotShardContextFactory(ClusterService clusterService, IndicesService indicesService) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;

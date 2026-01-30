@@ -56,11 +56,20 @@ public class HistogramUnionStateTests extends ESTestCase {
             numInputDatasets = randomIntBetween(1, 100);
         }
 
-        HistogramUnionState resultState = HistogramUnionState.create(
-            breaker(),
-            randomFrom(TDigestState.Type.values()),
-            randomDoubleBetween(200, 300, true)
-        );
+        HistogramUnionState resultState;
+        if (randomBoolean()) {
+            resultState = HistogramUnionState.create(
+                breaker(),
+                randomFrom(TDigestState.Type.values()),
+                randomDoubleBetween(200, 300, true)
+            );
+        } else {
+            resultState = HistogramUnionState.create(
+                breaker(),
+                randomFrom(TDigestExecutionHint.values()),
+                randomDoubleBetween(200, 300, true)
+            );
+        }
 
         boolean useTDigests = allowExponentialHistograms == false || randomBoolean();
         boolean useExponentialHistograms = useTDigests == false || (allowExponentialHistograms && randomBoolean());

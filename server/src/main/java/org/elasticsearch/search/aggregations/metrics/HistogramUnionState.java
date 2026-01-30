@@ -12,6 +12,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -40,8 +41,12 @@ public class HistogramUnionState implements Releasable, Accountable {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(HistogramUnionState.class);
 
+    static final CircuitBreaker NOOP_BREAKER = new NoopCircuitBreaker("histogram-union-state-noop-breaker");
+
     private final double tdigestCompression;
+    // Either tdigestType or tdigestExecutionHint have to be set when tDigestState is null
     private final TDigestState.Type tdigestType;
+    private final TDigestExecutionHint tdigestExecutionHint;
     private CircuitBreaker breaker;
 
     // These are initialized lazily when needed
@@ -53,14 +58,17 @@ public class HistogramUnionState implements Releasable, Accountable {
 
     private HistogramUnionState(
         CircuitBreaker breaker,
-        TDigestState.Type type,
+        @Nullable TDigestState.Type type,
+        @Nullable TDigestExecutionHint executionHint,
         double tDigestCompression,
         @Nullable ExponentialHistogramState expHistoState
     ) {
         this.breaker = breaker;
         this.tdigestType = type;
         this.tdigestCompression = tDigestCompression;
+        this.tdigestExecutionHint = executionHint;
         this.exponentialHistogramState = expHistoState;
+        assert tdigestType != null || tdigestExecutionHint != null;
     }
 
     private HistogramUnionState(CircuitBreaker breaker, TDigestState tdigestState, @Nullable ExponentialHistogramState expHistoState) {
@@ -70,22 +78,46 @@ public class HistogramUnionState implements Releasable, Accountable {
         this.tDigestState = tdigestState;
         // These are not needed and not used as tDigestState is already initialized
         this.tdigestType = null;
+        this.tdigestExecutionHint = null;
         this.tdigestCompression = -1;
     }
 
     public static HistogramUnionState create(CircuitBreaker breaker, TDigestState.Type type, double tDigestCompression) {
-        return createWithEmptyTDigest(breaker, type, tDigestCompression, null);
+        return createWithEmptyTDigest(breaker, type, null, tDigestCompression, null);
+    }
+
+    public static HistogramUnionState create(CircuitBreaker breaker, TDigestExecutionHint executionHint, double tDigestCompression) {
+        return createWithEmptyTDigest(breaker, null, executionHint, tDigestCompression, null);
+    }
+
+    public static HistogramUnionState createUsingParamsFrom(HistogramUnionState otherState) {
+        if (otherState.tDigestState != null) {
+            return wrap(otherState.breaker, TDigestState.createUsingParamsFrom(otherState.tDigestState));
+        } else {
+            return createWithEmptyTDigest(
+                otherState.breaker,
+                otherState.tdigestType,
+                otherState.tdigestExecutionHint,
+                otherState.tdigestCompression,
+                otherState.exponentialHistogramState
+            );
+        }
+    }
+
+    public static HistogramUnionState wrap(CircuitBreaker breaker, TDigestState tdigest) {
+        return createWithPopulatedTDigest(breaker, tdigest, null);
     }
 
     private static HistogramUnionState createWithEmptyTDigest(
         CircuitBreaker breaker,
         TDigestState.Type type,
+        TDigestExecutionHint executionHint,
         double tDigestCompression,
         @Nullable ExponentialHistogramState expHistoState
     ) {
         breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "histogram-union-state-create");
         try {
-            return new HistogramUnionState(breaker, type, tDigestCompression, expHistoState);
+            return new HistogramUnionState(breaker, type, executionHint, tDigestCompression, expHistoState);
         } catch (Exception e) {
             breaker.addWithoutBreaking(-SHALLOW_SIZE);
             throw e;
@@ -125,6 +157,14 @@ public class HistogramUnionState implements Releasable, Accountable {
     public void add(TDigestState tdigest) {
         getOrInitializeTDigestState().add(tdigest);
         invalidateCachedCombinedState();
+    }
+
+    public double compression() {
+        if (tDigestState != null) {
+            return tDigestState.compression();
+        } else {
+            return tdigestCompression;
+        }
     }
 
     public final void compress() {
@@ -227,7 +267,8 @@ public class HistogramUnionState implements Releasable, Accountable {
         if (tDigestState != null) {
             TDigestState.write(tDigestState, out);
         } else {
-            out.writeString(tdigestType.toString());
+            out.writeOptionalString(tdigestType == null ? null : tdigestType.toString());
+            out.writeOptionalString(tdigestExecutionHint == null ? null : tdigestExecutionHint.toString());
             out.writeDouble(tdigestCompression);
         }
     }
@@ -246,9 +287,12 @@ public class HistogramUnionState implements Releasable, Accountable {
                 tdigestState = TDigestState.read(breaker, in);
                 result = createWithPopulatedTDigest(breaker, tdigestState, exponentialHistogramState);
             } else {
-                TDigestState.Type type = TDigestState.Type.valueOf(in.readString());
+                String typeStr = in.readOptionalString();
+                String executionHintStr = in.readOptionalString();
                 double compression = in.readDouble();
-                result = createWithEmptyTDigest(breaker, type, compression, exponentialHistogramState);
+                TDigestState.Type type = typeStr == null ? null : TDigestState.Type.valueOf(typeStr);
+                TDigestExecutionHint executionHint = executionHintStr == null ? null : TDigestExecutionHint.parse(executionHintStr);
+                result = createWithEmptyTDigest(breaker, type, executionHint, compression, exponentialHistogramState);
             }
             success = true;
             return result;
@@ -287,7 +331,11 @@ public class HistogramUnionState implements Releasable, Accountable {
 
     private TDigestState getOrInitializeTDigestState() {
         if (tDigestState == null) {
-            tDigestState = TDigestState.createOfType(breaker, tdigestType, tdigestCompression);
+            if (tdigestType != null) {
+                tDigestState = TDigestState.createOfType(breaker, tdigestType, tdigestCompression);
+            } else {
+                tDigestState = TDigestState.create(breaker, tdigestCompression, tdigestExecutionHint);
+            }
         }
         return tDigestState;
     }
@@ -345,6 +393,7 @@ public class HistogramUnionState implements Releasable, Accountable {
         if (tDigestState == null && that.tDigestState == null) {
             if (Double.compare(that.tdigestCompression, tdigestCompression) != 0) return false;
             if (tdigestType != that.tdigestType) return false;
+            if (tdigestExecutionHint != that.tdigestExecutionHint) return false;
         } else if (tDigestState != null && that.tDigestState != null) {
             if (tDigestState.equals(that.tDigestState) == false) return false;
         } else {
@@ -357,7 +406,7 @@ public class HistogramUnionState implements Releasable, Accountable {
     @Override
     public int hashCode() {
         if (tDigestState == null) {
-            return Objects.hash(tdigestType, tdigestCompression, exponentialHistogramState);
+            return Objects.hash(tdigestType, tdigestExecutionHint, tdigestCompression, exponentialHistogramState);
         } else {
             return Objects.hash(tDigestState, exponentialHistogramState);
         }

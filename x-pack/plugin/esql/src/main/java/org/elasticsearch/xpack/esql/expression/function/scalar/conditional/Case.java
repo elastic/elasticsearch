@@ -382,12 +382,7 @@ public final class Case extends EsqlScalarFunction {
                  * Rather than go into depth about this in the warning message,
                  * we just say "false".
                  */
-                Warnings.createWarningsTreatedAsFalse(
-                    driverContext.warningsMode(),
-                    conditionSource.source().getLineNumber(),
-                    conditionSource.source().getColumnNumber(),
-                    conditionSource.text()
-                ),
+                Warnings.createWarningsTreatedAsFalse(driverContext.warningsMode(), conditionSource),
                 condition.get(driverContext),
                 value.get(driverContext)
             );

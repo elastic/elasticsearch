@@ -2231,19 +2231,20 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
     /**
      * ProjectExec[[first_name{f}#10, last_name{f}#13, salary{f}#14, languages{f}#12]]
-     * \_TopNExec[[Order[salary{f}#14,DESC,FIRST]],5[INTEGER],[languages{f}#12],108]
+     * \_TopNExec[[Order[salary{f}#14,DESC,LAST]],5[INTEGER],[languages{f}#12],108]
      *   \_ExchangeExec[[first_name{f}#10, languages{f}#12, last_name{f}#13, salary{f}#14],false]
      *     \_ProjectExec[[first_name{f}#10, languages{f}#12, last_name{f}#13, salary{f}#14]]
-     *       \_FieldExtractExec[first_name{f}#10, languages{f}#12, last_name{f}#13, ..][],[]
-     *         \_EsQueryExec[test], indexMode[standard], [_doc{f}#20], limit[5],
-     *         sort[[FieldSort[field=salary{f}#14, direction=DESC, nulls=FIRST]]] estimatedRowSize[124]
-     *         queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]
+     *       \_FieldExtractExec[first_name{f}#10, last_name{f}#13][],[]
+     *         \_TopNExec[[Order[salary{f}#14,DESC,LAST]],5[INTEGER],[languages{f}#12],128]
+     *           \_FieldExtractExec[salary{f}#14, languages{f}#12][],[]
+     *             \_EsQueryExec[test], indexMode[standard], [_doc{f}#20], limit[], sort[] estimatedRowSize[12]
+     *             queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]
      */
     public void testSortWithGrouping() {
         String query = """
              FROM test
             | SORT salary DESC NULLS LAST
-            | LIMIT 5
+            | LIMIT 5 PER_🐔 languages
             | KEEP first_name, last_name, salary, languages""";
         PhysicalPlan plan = plannerOptimizer.plan(query);
 
@@ -2266,7 +2267,10 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var exchangeExec = as(topN.child(), ExchangeExec.class);
         var projectDataNode = as(exchangeExec.child(), ProjectExec.class);
         var fieldExtractDataNode = as(projectDataNode.child(), FieldExtractExec.class);
-        var queryExecDataNode = as(fieldExtractDataNode.child(), EsQueryExec.class);
+        var topNExec = as(fieldExtractDataNode.child(), TopNExec.class);
+        var fieldExtractExec = as(topNExec.child(), FieldExtractExec.class);
+        var esQueryExec = as(fieldExtractExec.child(), EsQueryExec.class);
+
     }
 
     public void testToDateNanosPushDown() {

@@ -316,9 +316,9 @@ public class DataCountsReporterTests extends ESTestCase {
      * Intent:
      * <ul>
      *   <li>Simulate a scenario where persisting stats is slow by blocking the persistence thread with CountDownLatch.</li>
-     *   <li>Ensure that, while one thread is blocked persisting stats (writeUnreportedCounts), multiple threads can still 
+     *   <li>Ensure that, while one thread is blocked persisting stats (writeUnreportedCounts), multiple threads can still
      *       read stats (runningTotalStats) concurrently and quickly.</li>
-     *   <li>Verify that all concurrent reads complete well before the simulated slow persistence finishes, ensuring no 
+     *   <li>Verify that all concurrent reads complete well before the simulated slow persistence finishes, ensuring no
      *       shared contention or unnecessary synchronization blocks reads.</li>
      * </ul>
      */

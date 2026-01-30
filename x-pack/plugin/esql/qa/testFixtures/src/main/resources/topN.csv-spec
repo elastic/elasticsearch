@@ -193,7 +193,7 @@ FROM employees
 | SORT salary DESC
 | LIMIT 5 PER_🐔 languages
 | KEEP first_name, last_name, salary, languages
-| SORT languages DESC nulls last, salary DESC, first_name
+| SORT languages DESC nulls last, salary DESC
 ;
 
 first_name:keyword | last_name:keyword | salary:integer | languages:integer
@@ -229,7 +229,65 @@ Ramzi              | Erde              | 60408          | null
 Shahaf             | Famili            | 48233          | null
 ;
 
-sortPerLimitIdempotent
+sortPerLimitMultiColumn
+required_capability: sort_per_limit
+
+FROM employees
+| SORT salary DESC
+| LIMIT 1 PER_🐔 languages, gender
+| KEEP first_name, last_name, salary, languages, gender
+| SORT languages DESC nulls last, gender DESC nulls last, salary DESC
+;
+
+first_name:keyword | last_name:keyword | salary:integer | languages:integer | gender:keyword
+Premal             | Baek              | 52833          | 5                 | M
+Arumugam           | Ossenbruggen      | 66817          | 5                 | F
+Patricio           | Bridgland         | 48942          | 5                 | null
+Mayumi             | Schueller         | 65367          | 4                 | M
+Tzvetan            | Zielinski         | 74572          | 4                 | F
+Duangkaew          | Piveteau          | 45797          | 4                 | null
+Moss               | Shanbhogue        | 74970          | 3                 | M
+Erez               | Ritzmann          | 62405          | 3                 | F
+Georgi             | Facello           | 57305          | 2                 | M
+Valter             | Sullins           | 73578          | 2                 | F
+Kazuhito           | Cappelletti       | 61358          | 2                 | null
+null               | Merlo             | 70011          | 1                 | M
+Sumant             | Peac              | 66174          | 1                 | F
+Lillian            | Haddadi           | 73717          | 1                 | null
+Otmar              | Herbst            | 74999          | null              | M
+Divier             | Reistad           | 73851          | null              | F
+;
+
+sortPerLimitQualifiedName
+required_capability: sort_per_limit
+
+FROM employees
+| SORT salary DESC
+| LIMIT 1 PER_🐔 [employees].[languages], [employees].[gender]
+| KEEP first_name, last_name, salary, languages, gender
+| SORT languages DESC nulls last, gender DESC nulls last, salary DESC
+;
+
+first_name:keyword | last_name:keyword | salary:integer | languages:integer | gender:keyword
+Premal             | Baek              | 52833          | 5                 | M
+Arumugam           | Ossenbruggen      | 66817          | 5                 | F
+Patricio           | Bridgland         | 48942          | 5                 | null
+Mayumi             | Schueller         | 65367          | 4                 | M
+Tzvetan            | Zielinski         | 74572          | 4                 | F
+Duangkaew          | Piveteau          | 45797          | 4                 | null
+Moss               | Shanbhogue        | 74970          | 3                 | M
+Erez               | Ritzmann          | 62405          | 3                 | F
+Georgi             | Facello           | 57305          | 2                 | M
+Valter             | Sullins           | 73578          | 2                 | F
+Kazuhito           | Cappelletti       | 61358          | 2                 | null
+null               | Merlo             | 70011          | 1                 | M
+Sumant             | Peac              | 66174          | 1                 | F
+Lillian            | Haddadi           | 73717          | 1                 | null
+Otmar              | Herbst            | 74999          | null              | M
+Divier             | Reistad           | 73851          | null              | F
+;
+
+sortPerLimitIsIdempotent
 required_capability: sort_per_limit
 
 FROM employees
@@ -238,7 +296,7 @@ FROM employees
 | SORT salary DESC
 | LIMIT 5 PER_🐔 languages
 | KEEP first_name, last_name, salary, languages
-| SORT languages DESC nulls last, salary DESC
+| SORT languages DESC nulls last, salary DESC, first_name, last_name
 ;
 
 first_name:keyword | last_name:keyword | salary:integer | languages:integer
@@ -283,7 +341,7 @@ FROM employees
 | SORT salary DESC
 | LIMIT 1 PER_🐔 languages
 | KEEP first_name, last_name, salary, languages
-| SORT languages DESC nulls last, salary DESC
+| SORT languages DESC nulls last
 ;
 
 first_name:keyword | last_name:keyword | salary:integer | languages:integer
@@ -357,23 +415,23 @@ required_capability: sort_per_limit
 FROM employees
 | SORT is_rehired ASC NULLS FIRST
 | LIMIT 2 PER_🐔 languages
-| SORT languages ASC NULLS FIRST, is_rehired ASC, first_name DESC
+| SORT languages ASC NULLS FIRST, is_rehired ASC, first_name, last_name
 | KEEP first_name, last_name, languages, is_rehired
 ;
 
 first_name:keyword | last_name:keyword | languages:integer | is_rehired:boolean
-Shahaf             | Famili            | null              | [false, true]
 Mayuko             | Warwick           | null              | [false, true, true]
-Uri                | Lenart            | 1                 | null
+Shahaf             | Famili            | null              | [false, true]
 Sumant             | Peac              | 1                 | null
-Saniya             | Kalloufi          | 2                 | [false, true]
+Uri                | Lenart            | 1                 | null
 Georgi             | Facello           | 2                 | [false, true]
-Magy               | Stamatiou         | 3                 | null
+Saniya             | Kalloufi          | 2                 | [false, true]
 Anneke             | Preusig           | 3                 | null
-null               | Lortz             | 4                 | null
+Magy               | Stamatiou         | 3                 | null
 Parto              | Bamford           | 4                 | null
-Berni              | Genin             | 5                 | null
-Basil              | Tramer            | 5                 | null               
+null               | Lortz             | 4                 | null
+Basil              | Tramer            | 5                 | null
+Berni              | Genin             | 5                 | null        
 ;
 
 sortPerLimitNullsLast
@@ -382,21 +440,21 @@ required_capability: sort_per_limit
 FROM employees
 | SORT is_rehired ASC NULLS LAST
 | LIMIT 2 PER_🐔 languages
-| SORT languages ASC NULLS LAST, is_rehired ASC, first_name DESC
+| SORT languages ASC NULLS LAST, is_rehired ASC, first_name, last_name
 | KEEP first_name, last_name, languages, is_rehired
 ;
 
 first_name:keyword | last_name:keyword | languages:integer | is_rehired:boolean
-Lillian            | Haddadi           | 1                 | [false, false]
 Kyoichi            | Maliniak          | 1                 | [false, false, false, true]
-Saniya             | Kalloufi          | 2                 | [false, true]
+Lillian            | Haddadi           | 1                 | [false, false]
 Georgi             | Facello           | 2                 | [false, true]
+Saniya             | Kalloufi          | 2                 | [false, true]
 null               | Demeyer           | 3                 | [false, false, true]
 null               | Reistad           | 3                 | [false, false]
-Tzvetan            | Zielinski         | 4                 | [false, false, true, true]
 Duangkaew          | Piveteau          | 4                 | [false, false, true, true]
-Patricio           | Bridgland         | 5                 | [false, false, true, true]
+Tzvetan            | Zielinski         | 4                 | [false, false, true, true]
 Bezalel            | Simmel            | 5                 | [false, false]
-Shahaf             | Famili            | null              | [false, true]
-Mayuko             | Warwick           | null              | [false, true, true]           
+Patricio           | Bridgland         | 5                 | [false, false, true, true]
+Mayuko             | Warwick           | null              | [false, true, true]
+Shahaf             | Famili            | null              | [false, true]          
 ;

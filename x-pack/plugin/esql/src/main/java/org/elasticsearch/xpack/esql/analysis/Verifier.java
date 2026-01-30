@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
@@ -117,6 +119,7 @@ public class Verifier {
             checkUnsupportedAttributeRenaming(p, failures);
             checkInsist(p, failures);
             checkLimitBeforeInlineStats(p, failures);
+            checkLimitPer(p, failures);
         });
 
         if (failures.hasFailures() == false) {
@@ -322,6 +325,20 @@ public class Verifier {
                         firstLimit.source().source().toString()
                     )
                 );
+            }
+        }
+    }
+
+    private static void checkLimitPer(LogicalPlan plan, Failures failures) {
+        if (plan instanceof Limit limit && limit.groupings().isEmpty() == false) {
+            if (limit.child() instanceof OrderBy == false) {
+                failures.add(fail(limit, "When PER is used in LIMIT, the query needs to have a SORT before the LIMIT"));
+            }
+
+            var groupings = limit.groupings();
+
+            if (groupings.stream().anyMatch(grouping -> grouping instanceof FieldAttribute == false)) {
+                failures.add(fail(limit, "only index attributes can be used in LIMIT PER"));
             }
         }
     }

@@ -3607,6 +3607,34 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testLimitPer() {
+        assertThat(
+            error("""
+                FROM test
+                | LIMIT 5 PER_🐔 languages
+                """, defaultAnalyzer, VerificationException.class),
+            containsString("When PER is used in LIMIT, the query needs to have a SORT before the LIMIT")
+        );
+
+        assertThat(error("""
+            FROM test
+            | SORT salary DESC
+            | LIMIT 5 PER_🐔 made_up_attr
+            """, defaultAnalyzer, VerificationException.class), containsString("Unknown column [made_up_attr]"));
+
+        assertThat(error("""
+            FROM test
+            | SORT salary DESC
+            | LIMIT 5 PER_🐔 45
+            """, defaultAnalyzer, VerificationException.class), containsString("only index attributes can be used in LIMIT PER"));
+
+        assertThat(error("""
+            FROM test
+            | SORT salary DESC
+            | LIMIT 5 PER_🐔 languages * 2
+            """, defaultAnalyzer, VerificationException.class), containsString("only index attributes can be used in LIMIT PER"));
+    }
+
     private void query(String query) {
         query(query, defaultAnalyzer);
     }

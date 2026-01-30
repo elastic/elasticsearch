@@ -25,10 +25,7 @@ public final class CombineLimitTopN extends OptimizerRules.OptimizerRule<Limit> 
 
     @Override
     public LogicalPlan rule(Limit limit) {
-        /** TODO Nacho: I have added the condition topn.groupings is empty here,
-         * can we also do this optimization if it's not?
-         */
-        if (limit.child() instanceof TopN topn && topn.groupings().isEmpty()) {
+        if (limit.child() instanceof TopN topn) {
             int thisLimitValue = Foldables.limitValue(limit.limit(), limit.sourceText());
             int topNValue = Foldables.limitValue(topn.limit(), topn.sourceText());
             if (topNValue <= thisLimitValue) {

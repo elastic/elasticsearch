@@ -9,12 +9,9 @@
 
 package org.elasticsearch.common.logging.action;
 
-import org.elasticsearch.common.logging.ESLogMessage;
-import org.elasticsearch.logging.Level;
-
 /**
  * Generic writer interface to record a log message.
  */
 public interface ActionLogWriter {
-    void write(Level level, ESLogMessage message);
+    void write(ActionLogMessage message);
 }

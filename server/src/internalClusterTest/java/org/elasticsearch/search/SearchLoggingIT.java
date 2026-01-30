@@ -12,6 +12,8 @@ package org.elasticsearch.search;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.message.MapMessage;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -30,7 +32,6 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
-import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -118,6 +119,14 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
 
     private static final String INDEX_NAME = "test_index";
 
+    @SuppressWarnings("unchecked")
+    private Map<String, String> getMessageData(LogEvent event) {
+        assertNotNull(event);
+        assertThat(event.getMessage(), instanceOf(MapMessage.class));
+
+        return ((MapMessage<?, String>) event.getMessage()).getData();
+    }
+
     // Test _search
     public void testSearchLog() {
         setupIndex();
@@ -126,15 +135,12 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         {
             assertSearchHitsWithoutFailures(prepareSearch().setQuery(simpleQueryStringQuery("fox")), "1");
             var event = appender.getLastEventAndReset();
-            assertNotNull(event);
-            assertThat(event.getMessage(), instanceOf(ESLogMessage.class));
-            ESLogMessage message = (ESLogMessage) event.getMessage();
-            var data = message.getIndexedReadOnlyStringMap();
+            Map<String, String> message = getMessageData(event);
             assertThat(message.get("success"), equalTo("true"));
             assertThat(message.get("type"), equalTo("search"));
             assertThat(message.get("hits"), equalTo("1"));
-            assertThat(data.getValue("took"), greaterThan(0L));
-            assertThat(data.getValue("took_millis"), greaterThanOrEqualTo(0L));
+            assertThat(Long.valueOf(message.get("took")), greaterThan(0L));
+            assertThat(Long.valueOf(message.get("took_millis")), greaterThanOrEqualTo(0L));
             assertThat(message.get("query"), containsString("fox"));
             assertThat(message.get("indices"), equalTo(""));
         }
@@ -143,15 +149,12 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         {
             assertSearchHitsWithoutFailures(prepareSearch(INDEX_NAME).setQuery(matchQuery("field1", "quick")), "1", "2", "3");
             var event = appender.getLastEventAndReset();
-            assertNotNull(event);
-            assertThat(event.getMessage(), instanceOf(ESLogMessage.class));
-            ESLogMessage message = (ESLogMessage) event.getMessage();
-            var data = message.getIndexedReadOnlyStringMap();
+            Map<String, String> message = getMessageData(event);
             assertThat(message.get("success"), equalTo("true"));
             assertThat(message.get("type"), equalTo("search"));
             assertThat(message.get("hits"), equalTo("3"));
-            assertThat(data.getValue("took"), greaterThan(0L));
-            assertThat(data.getValue("took_millis"), greaterThanOrEqualTo(0L));
+            assertThat(Long.valueOf(message.get("took")), greaterThan(0L));
+            assertThat(Long.valueOf(message.get("took_millis")), greaterThanOrEqualTo(0L));
             assertThat(message.get("query"), containsString("quick"));
             assertThat(message.get("indices"), equalTo(INDEX_NAME));
         }
@@ -171,15 +174,12 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             containsString("field:[field1] was indexed without position data; cannot run PhraseQuery")
         );
         var event = appender.getLastEventAndReset();
-        assertNotNull(event);
-        assertThat(event.getMessage(), instanceOf(ESLogMessage.class));
-        ESLogMessage message = (ESLogMessage) event.getMessage();
-        var data = message.getIndexedReadOnlyStringMap();
+        Map<String, String> message = getMessageData(event);
         assertThat(message.get("success"), equalTo("false"));
         assertThat(message.get("type"), equalTo("search"));
         assertThat(message.get("hits"), equalTo("0"));
-        assertThat(data.getValue("took"), greaterThan(0L));
-        assertThat(data.getValue("took_millis"), greaterThanOrEqualTo(0L));
+        assertThat(Long.valueOf(message.get("took")), greaterThan(0L));
+        assertThat(Long.valueOf(message.get("took_millis")), greaterThanOrEqualTo(0L));
         assertThat(message.get("query"), containsString("quick brown"));
         assertThat(message.get("indices"), equalTo(INDEX_NAME));
         assertThat(message.get("error.type"), equalTo("org.elasticsearch.action.search.SearchPhaseExecutionException"));
@@ -200,15 +200,12 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         disableBlocks(plugins);
         ensureSearchWasCancelled(searchResponse);
         var event = appender.getLastEventAndReset();
-        assertNotNull(event);
-        assertThat(event.getMessage(), instanceOf(ESLogMessage.class));
-        ESLogMessage message = (ESLogMessage) event.getMessage();
-        var data = message.getIndexedReadOnlyStringMap();
+        Map<String, String> message = getMessageData(event);
         assertThat(message.get("success"), equalTo("false"));
         assertThat(message.get("type"), equalTo("search"));
         assertThat(message.get("hits"), equalTo("0"));
-        assertThat(data.getValue("took"), greaterThan(0L));
-        assertThat(data.getValue("took_millis"), greaterThanOrEqualTo(0L));
+        assertThat(Long.valueOf(message.get("took")), greaterThan(0L));
+        assertThat(Long.valueOf(message.get("took_millis")), greaterThanOrEqualTo(0L));
         assertThat(message.get("query"), containsString("mockscript"));
         assertThat(message.get("indices"), equalTo("test"));
         assertThat(message.get("error.type"), equalTo("org.elasticsearch.action.search.SearchPhaseExecutionException"));
@@ -224,13 +221,11 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         assertThat(appender.events, hasSize(2));
 
         appender.events.forEach(ev -> {
-            assertThat(ev.getMessage(), instanceOf(ESLogMessage.class));
-            ESLogMessage message = (ESLogMessage) ev.getMessage();
-            var data = message.getIndexedReadOnlyStringMap();
+            Map<String, String> message = getMessageData(ev);
             assertThat(message.get("success"), equalTo("true"));
             assertThat(message.get("type"), equalTo("search"));
-            assertThat(data.getValue("took"), greaterThan(0L));
-            assertThat(data.getValue("took_millis"), greaterThanOrEqualTo(0L));
+            assertThat(Long.valueOf(message.get("took")), greaterThan(0L));
+            assertThat(Long.valueOf(message.get("took_millis")), greaterThanOrEqualTo(0L));
             assertThat(message.get("indices"), equalTo(INDEX_NAME));
             if (message.get("query").contains("quick")) {
                 assertThat(message.get("hits"), equalTo("3"));
@@ -254,15 +249,12 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
                 "1"
             );
             var event = appender.getLastEventAndReset();
-            assertNotNull(event);
-            assertThat(event.getMessage(), instanceOf(ESLogMessage.class));
-            ESLogMessage message = (ESLogMessage) event.getMessage();
-            var data = message.getIndexedReadOnlyStringMap();
+            Map<String, String> message = getMessageData(event);
             assertThat(message.get("success"), equalTo("true"));
             assertThat(message.get("type"), equalTo("search"));
             assertThat(message.get("hits"), equalTo("1"));
-            assertThat(data.getValue("took"), greaterThan(0L));
-            assertThat(data.getValue("took_millis"), greaterThanOrEqualTo(0L));
+            assertThat(Long.valueOf(message.get("took")), greaterThan(0L));
+            assertThat(Long.valueOf(message.get("took_millis")), greaterThanOrEqualTo(0L));
             assertThat(message.get("query"), containsString("fox"));
             assertThat(message.get("indices"), equalTo(INDEX_NAME));
         } finally {
@@ -304,9 +296,7 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
                 ElasticsearchAssertions::assertNoFailures
             );
             var event = appender.getLastEventAndReset();
-            assertNotNull(event);
-            assertThat(event.getMessage(), instanceOf(ESLogMessage.class));
-            ESLogMessage message = (ESLogMessage) event.getMessage();
+            Map<String, String> message = getMessageData(event);
             assertThat(message.get("indices"), equalTo(TestSystemIndexDescriptor.PRIMARY_INDEX_NAME));
             assertThat(message.get("is_system"), equalTo("true"));
         } finally {
@@ -334,9 +324,7 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
                 ElasticsearchAssertions::assertNoFailures
             );
             var event = appender.getLastEventAndReset();
-            assertNotNull(event);
-            assertThat(event.getMessage(), instanceOf(ESLogMessage.class));
-            ESLogMessage message = (ESLogMessage) event.getMessage();
+            Map<String, String> message = getMessageData(event);
             assertThat(message.get("indices"), equalTo(TestSystemDataStreamPlugin.SYSTEM_DATA_STREAM_NAME));
             assertThat(message.get("is_system"), equalTo("true"));
         } finally {

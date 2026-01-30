@@ -9,7 +9,7 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.common.logging.ESLogMessage;
+import org.elasticsearch.common.logging.action.ActionLogMessage;
 import org.elasticsearch.common.logging.action.ActionLoggerProducer;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -43,12 +43,15 @@ public class SearchLogProducer implements ActionLoggerProducer<SearchLogContext>
     }
 
     @Override
-    public ESLogMessage produce(SearchLogContext context, ActionLoggingFields additionalFields) {
-        ESLogMessage msg = produceCommon(context, additionalFields);
+    public ActionLogMessage produce(Level level, SearchLogContext context, ActionLoggingFields additionalFields) {
+        ActionLogMessage msg = produceCommon(level, context, additionalFields);
+        msg.put("query", context.getQuery());
+        msg.put("indices", context.getIndices());
+        msg.put("hits", String.valueOf(context.getHits()));
         if (context.isSystemSearch(systemChecker)) {
-            msg = msg.with("is_system", true);
+            msg.put("is_system", true);
         }
-        return msg.with("query", context.getQuery()).with("indices", context.getIndices()).with("hits", context.getHits());
+        return msg;
     }
 
     @Override

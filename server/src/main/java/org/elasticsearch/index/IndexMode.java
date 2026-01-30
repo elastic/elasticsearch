@@ -612,6 +612,15 @@ public enum IndexMode {
         };
     }
 
+    /**
+     * Retrieves the `index.mode` setting and parses it to {@link IndexMode}. When missing, it defaults to standard.
+     * Note: This should be used only in cases where it is not relevant to validate the index settings.
+     */
+    public static IndexMode fromIndexSettingsWithoutValidation(Settings settings) {
+        String indexModeLabel = settings.get(IndexSettings.MODE.getKey());
+        return indexModeLabel == null ? IndexMode.STANDARD : IndexMode.fromString(indexModeLabel);
+    }
+
     public static IndexMode readFrom(StreamInput in) throws IOException {
         int mode = in.readByte();
         return switch (mode) {

@@ -268,9 +268,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     ) {
         super(indexSettings);
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
-        String indexModeLabel = indexSettings.getSettings().get(IndexSettings.MODE.getKey());
         // We parse the setting in this way to avoid any index settings validations which are not relevant here.
-        this.indexMode = indexModeLabel == null ? IndexMode.STANDARD : IndexMode.fromString(indexModeLabel);
+        this.indexMode = IndexMode.fromIndexSettingsWithoutValidation(indexSettings.getSettings());
         this.indexAnalyzers = indexAnalyzers;
         this.mapperRegistry = mapperRegistry;
         this.mappingParserContextSupplier = () -> new MappingParserContext(

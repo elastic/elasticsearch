@@ -81,7 +81,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -97,7 +96,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
 
@@ -863,7 +861,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues() && (ignoreAbove.valuesPotentiallyIgnored() == false || isSyntheticSourceEnabled)) {
-                return docValuesBlockLoader(blContext);
+                return new FlattenedDocValuesBlockLoader(name(), ignoreAbove, usesBinaryDocValues);
             }
 
             SourceValueFetcher fetcher = new SourceValueFetcher(
@@ -883,105 +881,6 @@ public final class FlattenedFieldMapper extends FieldMapper {
             };
 
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext));
-        }
-
-        private BlockLoader docValuesBlockLoader(BlockLoaderContext blContext) {
-            FlattenedDocValuesSyntheticFieldLoader fieldLoader = new FlattenedDocValuesSyntheticFieldLoader(
-                name(),
-                name() + KEYED_FIELD_SUFFIX,
-                ignoreAbove.valuesPotentiallyIgnored() ? name() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
-                null,
-                usesBinaryDocValues
-            );
-            var storedFieldLoaders = fieldLoader.storedFieldLoaders().toList();
-            return new BlockLoader() {
-                @Override
-                public StoredFieldsSpec rowStrideStoredFieldSpec() {
-                    if (ignoreAbove.valuesPotentiallyIgnored()) {
-                        return new StoredFieldsSpec(
-                            false,
-                            false,
-                            fieldLoader.storedFieldLoaders().map(Map.Entry::getKey).collect(Collectors.toSet())
-                        );
-                    } else {
-                        return StoredFieldsSpec.NO_REQUIREMENTS;
-                    }
-                }
-
-                @Override
-                public boolean supportsOrdinals() {
-                    return false;
-                }
-
-                @Override
-                public SortedSetDocValues ordinals(LeafReaderContext context) throws IOException {
-                    return null;
-                }
-
-                public AllReader reader(LeafReaderContext context) throws IOException {
-                    var reader = fieldLoader.docValuesLoader(context.reader(), null);
-                    return new AllReader() {
-                        @Override
-                        public boolean canReuse(int startingDocID) {
-                            return false;
-                        }
-
-                        @Override
-                        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-                            for (var loaderEntry : storedFieldLoaders) {
-                                var values = storedFields.storedFields().get(loaderEntry.getKey());
-                                if (values != null) {
-                                    loaderEntry.getValue().load(values);
-                                }
-                            }
-                            read(docId, (BytesRefBuilder) builder);
-                        }
-
-                        @Override
-                        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-                            try (BlockLoader.BytesRefBuilder builder = factory.bytesRefs(docs.count() - offset)) {
-                                for (int i = offset; i < docs.count(); i++) {
-                                    int doc = docs.get(i);
-                                    read(doc, builder);
-                                }
-                                return builder.build();
-                            }
-                        }
-
-                        public void read(int docId, BytesRefBuilder builder) throws IOException {
-                            if (reader != null) {
-                                reader.advanceToDoc(docId);
-                            }
-                            fieldLoader.writeToBlock(builder);
-                        }
-
-                        @Override
-                        public String toString() {
-                            return getClass().getSimpleName();
-                        }
-                    };
-                }
-
-                @Override
-                public Builder builder(BlockFactory factory, int expectedCount) {
-                    return factory.bytesRefs(expectedCount);
-                }
-
-                @Override
-                public ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
-                    // stored fields aren't supported when reading column-at-a-time
-                    if (ignoreAbove.valuesPotentiallyIgnored()) {
-                        return null;
-                    }
-
-                    return reader(context);
-                }
-
-                @Override
-                public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
-                    return reader(context);
-                }
-            };
         }
 
         private BlockSourceReader.LeafIteratorLookup sourceBlockLoaderLookup(BlockLoaderContext blContext) {

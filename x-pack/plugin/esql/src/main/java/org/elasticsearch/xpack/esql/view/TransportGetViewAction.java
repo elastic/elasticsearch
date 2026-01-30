@@ -15,14 +15,17 @@ import org.elasticsearch.action.support.local.TransportLocalProjectMetadataActio
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -61,14 +64,19 @@ public class TransportGetViewAction extends TransportLocalProjectMetadataAction<
         ProjectId projectId = project.projectId();
         Collection<View> views = new ArrayList<>();
         List<String> missing = new ArrayList<>();
-        List<String> names = request.names();
-        if (names.isEmpty()) {
+        String[] names = request.indices();
+        // TODO currently doesn't support multi-target when security is off
+        if (names == null
+            || names.length == 0
+            || (names.length == 1 && (Metadata.ALL.equals(names[0]) || Regex.isMatchAllPattern(names[0])))) {
             views = viewService.getMetadata(projectId).views().values();
-        } else {
+        } else if (names != IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY) {
             for (String name : names) {
                 View view = viewService.get(projectId, name);
                 if (view == null) {
-                    missing.add(name);
+                    if (project.metadata().getIndicesLookup().containsKey(name) == false) {
+                        missing.add(name);
+                    }
                 } else {
                     views.add(view);
                 }
@@ -77,7 +85,7 @@ public class TransportGetViewAction extends TransportLocalProjectMetadataAction<
         if (missing.isEmpty() == false) {
             listener.onFailure(new ResourceNotFoundException("Views do not exist: " + String.join(", ", missing)));
         } else {
-            listener.onResponse(new GetViewAction.Response(views));
+            listener.onResponse(new GetViewAction.Response(views.toArray(View[]::new)));
         }
     }
 

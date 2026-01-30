@@ -43,6 +43,7 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.client.NoOpClient;
@@ -125,7 +126,7 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
                     return;
                 }
 
-                final GetCheckpointAction.Response getCheckpointResponse = new GetCheckpointAction.Response(checkpoints);
+                final GetCheckpointAction.Response getCheckpointResponse = new GetCheckpointAction.Response(checkpoints, null);
                 listener.onResponse((Response) getCheckpointResponse);
                 return;
             }
@@ -178,7 +179,8 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
             Settings.EMPTY,
             StubLinkedProjectConfigService.INSTANCE,
             transformsConfigManager,
-            mockAuditor
+            mockAuditor,
+            new CrossProjectModeDecider(Settings.EMPTY)
         );
     }
 

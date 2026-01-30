@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -53,7 +54,10 @@ public class TransformGetCheckpointIT extends TransformSingleNodeTestCase {
             IndicesOptions.LENIENT_EXPAND_OPEN,
             null,
             null,
-            TimeValue.timeValueSeconds(5)
+            TimeValue.timeValueSeconds(5),
+            null,
+            Map.of(),
+            false
         );
 
         final GetCheckpointAction.Response response = client().execute(GetCheckpointAction.INSTANCE, request).get();
@@ -136,7 +140,10 @@ public class TransformGetCheckpointIT extends TransformSingleNodeTestCase {
             // This query does not match any documents
             QueryBuilders.rangeQuery("@timestamp").gte(20_000_000),
             null,
-            TimeValue.timeValueSeconds(5)
+            TimeValue.timeValueSeconds(5),
+            null,
+            Map.of(),
+            false
         );
 
         final GetCheckpointAction.Response response = client().execute(GetCheckpointAction.INSTANCE, request).get();
@@ -150,7 +157,10 @@ public class TransformGetCheckpointIT extends TransformSingleNodeTestCase {
             IndicesOptions.LENIENT_EXPAND_OPEN,
             null,
             null,
-            TimeValue.timeValueSeconds(5)
+            TimeValue.timeValueSeconds(5),
+            null,
+            Map.of(),
+            false
         );
 
         GetCheckpointAction.Response response = client().execute(GetCheckpointAction.INSTANCE, request).get();
@@ -161,7 +171,10 @@ public class TransformGetCheckpointIT extends TransformSingleNodeTestCase {
             IndicesOptions.LENIENT_EXPAND_OPEN,
             null,
             null,
-            TimeValue.timeValueSeconds(5)
+            TimeValue.timeValueSeconds(5),
+            null,
+            Map.of(),
+            false
         );
 
         response = client().execute(GetCheckpointAction.INSTANCE, request).get();
@@ -182,7 +195,10 @@ public class TransformGetCheckpointIT extends TransformSingleNodeTestCase {
             IndicesOptions.LENIENT_EXPAND_OPEN,
             null,
             null,
-            TimeValue.ZERO
+            TimeValue.ZERO,
+            null,
+            Map.of(),
+            false
         );
 
         CountDownLatch latch = new CountDownLatch(1);

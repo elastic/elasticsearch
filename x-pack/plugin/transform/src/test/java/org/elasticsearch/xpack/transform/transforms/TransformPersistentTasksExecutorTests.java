@@ -664,7 +664,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             Settings.EMPTY,
             StubLinkedProjectConfigService.INSTANCE,
             configManager,
-            mockAuditor
+            mockAuditor,
+            mock(CrossProjectModeDecider.class)
         );
         return new TransformServices(
             configManager,

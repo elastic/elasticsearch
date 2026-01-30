@@ -205,7 +205,8 @@ public class TransformTaskTests extends ESTestCase {
             Settings.EMPTY,
             StubLinkedProjectConfigService.INSTANCE,
             transformsConfigManager,
-            auditor
+            auditor,
+            mock(CrossProjectModeDecider.class)
         );
         return new TransformServices(
             transformsConfigManager,

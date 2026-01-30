@@ -29,11 +29,6 @@ public class ClearScrollRequest extends LegacyActionRequest implements ToXConten
 
     private List<String> scrollIds;
 
-    @Override
-    public boolean allowsCrossProject() {
-        return true;
-    }
-
     public ClearScrollRequest() {}
 
     public ClearScrollRequest(StreamInput in) throws IOException {

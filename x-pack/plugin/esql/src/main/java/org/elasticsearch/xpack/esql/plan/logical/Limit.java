@@ -54,11 +54,11 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
      * Create a new instance with groupings, which are the expressions used in LIMIT PER. This sets {@link Limit#duplicated}
      * and {@link Limit#local} to {@code false}.
      */
-    public Limit(Source source, Expression limit, List<Expression> groupings, LogicalPlan child) {
-        this(source, limit, groupings, child, false, false);
+    public Limit(Source source, Expression limit, LogicalPlan child, List<Expression> groupings) {
+        this(source, limit, child, groupings, false, false);
     }
 
-    public Limit(Source source, Expression limit, List<Expression> groupings, LogicalPlan child, boolean duplicated, boolean local) {
+    public Limit(Source source, Expression limit, LogicalPlan child, List<Expression> groupings, boolean duplicated, boolean local) {
         super(source, child);
         this.limit = limit;
         this.duplicated = duplicated;
@@ -67,7 +67,7 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
     }
 
     public Limit(Source source, Expression limit, LogicalPlan child, boolean duplicated, boolean local) {
-        this(source, limit, List.of(), child, duplicated, local);
+        this(source, limit, child, List.of(), duplicated, local);
     }
 
     /**
@@ -77,8 +77,8 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.readNamedWriteableCollectionAsList(Expression.class),
             in.readNamedWriteable(LogicalPlan.class),
+            List.of(),
             false,
             false
         );
@@ -99,12 +99,13 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(limit());
+        out.writeNamedWriteable(child());
+
         if (out.getTransportVersion().supports(ESQL_LIMIT_PER)) {
             out.writeNamedWriteableCollection(groupings());
         } else {
             throw new IllegalArgumentException("LIMIT PER is not supported by all nodes in the cluster");
         }
-        out.writeNamedWriteable(child());
     }
 
     @Override
@@ -114,12 +115,12 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
 
     @Override
     protected NodeInfo<Limit> info() {
-        return NodeInfo.create(this, Limit::new, limit, groupings, child(), duplicated, local);
+        return NodeInfo.create(this, Limit::new, limit, child(), groupings, duplicated, local);
     }
 
     @Override
     public Limit replaceChild(LogicalPlan newChild) {
-        return new Limit(source(), limit, groupings, newChild, duplicated, local);
+        return new Limit(source(), limit, newChild, groupings, duplicated, local);
     }
 
     public Expression limit() {
@@ -131,7 +132,7 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
     }
 
     public Limit withLimit(Expression limit) {
-        return new Limit(source(), limit, groupings, child(), duplicated, local);
+        return new Limit(source(), limit, child(), groupings, duplicated, local);
     }
 
     public boolean duplicated() {
@@ -143,11 +144,11 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
     }
 
     public Limit withDuplicated(boolean duplicated) {
-        return new Limit(source(), limit, groupings, child(), duplicated, local);
+        return new Limit(source(), limit, child(), groupings, duplicated, local);
     }
 
     public Limit withLocal(boolean newLocal) {
-        return new Limit(source(), limit, groupings, child(), duplicated, newLocal);
+        return new Limit(source(), limit, child(), groupings, duplicated, newLocal);
     }
 
     @Override

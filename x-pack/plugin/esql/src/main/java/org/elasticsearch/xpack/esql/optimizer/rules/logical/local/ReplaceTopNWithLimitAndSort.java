@@ -25,6 +25,6 @@ public class ReplaceTopNWithLimitAndSort extends OptimizerRules.OptimizerRule<To
 
     @Override
     protected LogicalPlan rule(TopN plan) {
-        return new Limit(plan.source(), plan.limit(), plan.groupings(), new OrderBy(plan.source(), plan.child(), plan.order()));
+        return new Limit(plan.source(), plan.limit(), new OrderBy(plan.source(), plan.child(), plan.order()), plan.groupings());
     }
 }

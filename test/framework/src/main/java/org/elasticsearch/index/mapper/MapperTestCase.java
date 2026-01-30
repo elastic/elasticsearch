@@ -1759,7 +1759,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             try {
                 MapperService mapperService = createMapperService(indexVersion, fieldMapping(this::minimalMapping));
             } catch (MapperException e) {
-                throw new MapperException(String.format(Locale.ROOT, "failed on version=%s msg=%s", indexVersion, e.getMessage()), e);
+                fail(e, "failed on version=%s msg=%s", indexVersion, e.getMessage());
             }
             assertWarningsForIndexVersion(indexVersion);
         }

@@ -221,6 +221,33 @@ public class ModelLoadingService implements ClusterStateListener {
         CircuitBreaker trainedModelCircuitBreaker,
         XPackLicenseState licenseState
     ) {
+        this(
+            trainedModelProvider,
+            auditor,
+            threadPool,
+            clusterService,
+            modelStatsService,
+            settings,
+            localNode,
+            trainedModelCircuitBreaker,
+            licenseState,
+            INFERENCE_MODEL_CACHE_TTL.get(settings)
+        );
+    }
+
+    // For testing
+    ModelLoadingService(
+        TrainedModelProvider trainedModelProvider,
+        InferenceAuditor auditor,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TrainedModelStatsService modelStatsService,
+        Settings settings,
+        String localNode,
+        CircuitBreaker trainedModelCircuitBreaker,
+        XPackLicenseState licenseState,
+        TimeValue cacheExpireTime
+    ) {
         this.provider = trainedModelProvider;
         this.threadPool = threadPool;
         this.maxCacheSize = INFERENCE_MODEL_CACHE_SIZE.get(settings);
@@ -231,7 +258,7 @@ public class ModelLoadingService implements ClusterStateListener {
             .setMaximumWeight(this.maxCacheSize.getBytes())
             .weigher((id, modelAndConsumer) -> modelAndConsumer.model.ramBytesUsed())
             .removalListener(this::cacheEvictionListener)
-            .setExpireAfterAccess(INFERENCE_MODEL_CACHE_TTL.get(settings))
+            .setExpireAfterAccess(cacheExpireTime)
             .build();
         clusterService.addListener(this);
         this.localNode = localNode;
@@ -450,6 +477,10 @@ public class ModelLoadingService implements ClusterStateListener {
     }
 
     private void loadModel(String modelId, Consumer consumer) {
+        // Refresh will evict any models that have aged out.
+        // Evicted models update the circuit breaker accounting for the freed memory
+        localModelCache.refresh();
+
         // We cannot use parentTaskId here as multiple listeners may be wanting this model to be loaded
         // We don't want to cancel the loading if only ONE of them stops listening or closes connection
         // TODO Is there a way to only signal a cancel if all the listener tasks cancel???
@@ -507,6 +538,10 @@ public class ModelLoadingService implements ClusterStateListener {
         TaskId parentTaskId,
         ActionListener<LocalModel> modelActionListener
     ) {
+        // Refresh will evict any models that have aged out.
+        // Evicted models update the circuit breaker accounting for the freed memory
+        localModelCache.refresh();
+
         // If we the model is not loaded and we did not kick off a new loading attempt, this means that we may be getting called
         // by a simulated pipeline
         provider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.empty(), parentTaskId, ActionListener.wrap(trainedModelConfig -> {

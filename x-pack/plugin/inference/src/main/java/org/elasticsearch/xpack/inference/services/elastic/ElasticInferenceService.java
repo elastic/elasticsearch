@@ -109,6 +109,11 @@ public class ElasticInferenceService extends SenderService {
         TEXT_EMBEDDING
     );
 
+    /**
+     * The task types that support chunking settings
+     */
+    private static final EnumSet<TaskType> CHUNKING_TASK_TYPES = EnumSet.of(SPARSE_EMBEDDING, TEXT_EMBEDDING, EMBEDDING);
+
     private final ElasticInferenceServiceComponents elasticInferenceServiceComponents;
     private final CCMAuthenticationApplierFactory ccmAuthenticationApplierFactory;
     private ElasticInferenceServiceActionCreator actionCreator;
@@ -309,7 +314,7 @@ public class ElasticInferenceService extends SenderService {
             Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
             ChunkingSettings chunkingSettings = null;
-            if (SPARSE_EMBEDDING.equals(taskType) || TEXT_EMBEDDING.equals(taskType) || EMBEDDING.equals(taskType)) {
+            if (CHUNKING_TASK_TYPES.contains(taskType)) {
                 chunkingSettings = ChunkingSettingsBuilder.fromMap(
                     removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
                 );
@@ -433,7 +438,7 @@ public class ElasticInferenceService extends SenderService {
         Map<String, Object> secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
-        if (SPARSE_EMBEDDING.equals(taskType) || TEXT_EMBEDDING.equals(taskType) || EMBEDDING.equals(taskType)) {
+        if (CHUNKING_TASK_TYPES.contains(taskType)) {
             chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 
@@ -453,7 +458,7 @@ public class ElasticInferenceService extends SenderService {
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
-        if (SPARSE_EMBEDDING.equals(taskType) || TEXT_EMBEDDING.equals(taskType) || EMBEDDING.equals(taskType)) {
+        if (CHUNKING_TASK_TYPES.contains(taskType)) {
             chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 

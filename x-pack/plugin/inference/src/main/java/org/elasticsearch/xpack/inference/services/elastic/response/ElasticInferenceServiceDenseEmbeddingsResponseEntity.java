@@ -102,38 +102,36 @@ public class ElasticInferenceServiceDenseEmbeddingsResponseEntity {
             // Custom field declaration to handle array of arrays format
             PARSER.declareField(constructorArg(), (parser, context) -> XContentParserUtils.parseList(parser, (p, index) -> {
                 List<Float> embedding = XContentParserUtils.parseList(p, (innerParser, innerIndex) -> innerParser.floatValue());
-                return EmbeddingFloatResultEntry.fromFloatArray(embedding);
+                return EmbeddingFloatResultEntry.fromFloatList(embedding);
             }), new ParseField("data"), org.elasticsearch.xcontent.ObjectParser.ValueType.OBJECT_ARRAY);
         }
 
         public EmbeddingFloatResults toEmbeddingFloatResults(TaskType taskType) {
-            if (taskType == TaskType.TEXT_EMBEDDING) {
-                return new DenseEmbeddingFloatResults(
+            return switch (taskType) {
+                case TEXT_EMBEDDING -> new DenseEmbeddingFloatResults(
                     embeddingResults.stream().map(entry -> EmbeddingFloatResults.Embedding.of(entry.embedding)).toList()
                 );
-            } else if (taskType == TaskType.EMBEDDING) {
-                return new GenericDenseEmbeddingFloatResults(
+                case EMBEDDING -> new GenericDenseEmbeddingFloatResults(
                     embeddingResults.stream().map(entry -> EmbeddingFloatResults.Embedding.of(entry.embedding)).toList()
                 );
-            } else {
-                throw new IllegalArgumentException(
+                case null, default -> throw new IllegalArgumentException(
                     Strings.format(
                         "Invalid task type [%s]. Must be one of %s",
                         taskType,
                         EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.EMBEDDING)
                     )
                 );
-            }
+            };
         }
     }
 
     /**
      * Represents a single embedding entry in the response.
-     * For the Elastic Inference Service, each entry is just an array of floats (no wrapper object).
-     * This is a simpler wrapper that just holds the float array.
+     * For the Elastic Inference Service, each entry is just a list of floats (no wrapper object).
+     * This is a simpler wrapper that just holds the float list.
      */
     public record EmbeddingFloatResultEntry(List<Float> embedding) {
-        public static EmbeddingFloatResultEntry fromFloatArray(List<Float> floats) {
+        public static EmbeddingFloatResultEntry fromFloatList(List<Float> floats) {
             return new EmbeddingFloatResultEntry(floats);
         }
     }

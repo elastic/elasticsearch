@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.elastic.request;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 
@@ -62,10 +64,16 @@ public record ElasticInferenceServiceDenseEmbeddingsRequestEntity(
     }
 
     private void writeInputs(XContentBuilder builder) throws IOException {
-        if (model.getConfigurations().getTaskType().equals(TaskType.EMBEDDING)) {
-            builder.field(INPUT_FIELD, inputs);
-        } else {
-            builder.field(INPUT_FIELD, toStringList(inputs));
+        switch (model.getConfigurations().getTaskType()) {
+            case EMBEDDING -> builder.field(INPUT_FIELD, inputs);
+            case TEXT_EMBEDDING -> builder.field(INPUT_FIELD, toStringList(inputs));
+            default -> throw new IllegalArgumentException(
+                Strings.format(
+                    "Invalid task type [%s]. Must be one of %s",
+                    model.getConfigurations().getTaskType(),
+                    EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.EMBEDDING)
+                )
+            );
         }
     }
 }

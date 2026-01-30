@@ -60,6 +60,7 @@ import java.io.LineNumberReader;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.io.UncheckedIOException;
+import java.net.InetAddress;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
@@ -1370,6 +1371,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         baseConfig.put("path.repo", confPathRepo.toAbsolutePath().toString());
         baseConfig.put("path.data", confPathData.toAbsolutePath().toString());
         baseConfig.put("path.logs", confPathLogs.toAbsolutePath().toString());
+        baseConfig.put("network.host", "_local:ipv6_"); // TODO only switch this in IPv6 test mode
         baseConfig.put("node.attr.testattr", "test");
         baseConfig.put("node.portsfile", "true");
         baseConfig.put("http.port", httpPort);

@@ -13,6 +13,7 @@ import org.elasticsearch.test.cluster.SettingsProvider;
 import org.elasticsearch.test.cluster.local.LocalClusterSpec.LocalNodeSpec;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 
+import java.net.InetAddress;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -31,7 +32,8 @@ public class DefaultSettingsProvider implements SettingsProvider {
         settings.put("node.portsfile", "true");
         settings.put("http.port", "0");
         settings.put("transport.port", "0");
-        settings.put("network.host", "_local_");
+        // settings.put("network.host", "_local_");
+        settings.put("network.host", "_local:ipv6_"); // TODO only switch this in IPv6 test mode
 
         if (nodeSpec.getDistributionType() == DistributionType.INTEG_TEST) {
             settings.put("xpack.security.enabled", "false");

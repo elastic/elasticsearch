@@ -23,7 +23,7 @@ import java.util.function.Consumer;
 
 public class VoidMethodRuleBuilder<T> {
 
-    private final Consumer<EntitlementRule> addRule;
+    protected final Consumer<EntitlementRule> addRule;
     protected final MethodKey methodKey;
     protected final Class<? extends T> clazz;
 
@@ -34,7 +34,7 @@ public class VoidMethodRuleBuilder<T> {
     }
 
     public VoidRuleHandlerBuilder<T> enforce(Call0<CheckMethod> policyCheckSupplier) {
-        return new VoidRuleHandlerBuilder<>(clazz, methodKey, policyCheckSupplier.asVarargCall());
+        return new VoidRuleHandlerBuilder<>(addRule, clazz, methodKey, policyCheckSupplier.asVarargCall());
     }
 
     public static class VoidMethodRuleBuilder1<T, A> extends VoidMethodRuleBuilder<T> {
@@ -44,7 +44,7 @@ public class VoidMethodRuleBuilder<T> {
         }
 
         public VoidRuleHandlerBuilder<T> enforce(Call1<CheckMethod, A> policyCheckSupplier) {
-            return new VoidRuleHandlerBuilder<>(clazz, methodKey, policyCheckSupplier.asVarargCall());
+            return new VoidRuleHandlerBuilder<>(addRule, clazz, methodKey, policyCheckSupplier.asVarargCall());
         }
     }
 
@@ -54,7 +54,7 @@ public class VoidMethodRuleBuilder<T> {
         }
 
         public VoidRuleHandlerBuilder<T> enforce(Call2<CheckMethod, A, B> policyCheckSupplier) {
-            return new VoidRuleHandlerBuilder<>(clazz, methodKey, policyCheckSupplier.asVarargCall());
+            return new VoidRuleHandlerBuilder<>(addRule, clazz, methodKey, policyCheckSupplier.asVarargCall());
         }
     }
 
@@ -65,7 +65,7 @@ public class VoidMethodRuleBuilder<T> {
         }
 
         public VoidRuleHandlerBuilder<T> enforce(Call3<CheckMethod, A, B, C> policyCheckSupplier) {
-            return new VoidRuleHandlerBuilder<>(clazz, methodKey, policyCheckSupplier.asVarargCall());
+            return new VoidRuleHandlerBuilder<>(addRule, clazz, methodKey, policyCheckSupplier.asVarargCall());
         }
     }
 
@@ -75,7 +75,7 @@ public class VoidMethodRuleBuilder<T> {
         }
 
         public VoidRuleHandlerBuilder<T> enforce(Call4<CheckMethod, A, B, C, D> policyCheckSupplier) {
-            return new VoidRuleHandlerBuilder<>(clazz, methodKey, policyCheckSupplier.asVarargCall());
+            return new VoidRuleHandlerBuilder<>(addRule, clazz, methodKey, policyCheckSupplier.asVarargCall());
         }
     }
 
@@ -85,7 +85,7 @@ public class VoidMethodRuleBuilder<T> {
         }
 
         public VoidRuleHandlerBuilder<T> enforce(Call5<CheckMethod, A, B, C, D, E> policyCheckSupplier) {
-            return new VoidRuleHandlerBuilder<>(clazz, methodKey, policyCheckSupplier.asVarargCall());
+            return new VoidRuleHandlerBuilder<>(addRule, clazz, methodKey, policyCheckSupplier.asVarargCall());
         }
     }
 
@@ -95,7 +95,7 @@ public class VoidMethodRuleBuilder<T> {
         }
 
         public VoidRuleHandlerBuilder<T> enforce(Call6<CheckMethod, A, B, C, D, E, F> policyCheckSupplier) {
-            return new VoidRuleHandlerBuilder<>(clazz, methodKey, policyCheckSupplier.asVarargCall());
+            return new VoidRuleHandlerBuilder<>(addRule, clazz, methodKey, policyCheckSupplier.asVarargCall());
         }
     }
 }

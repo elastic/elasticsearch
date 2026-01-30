@@ -12,6 +12,7 @@ package org.elasticsearch.entitlement.rules;
 import org.elasticsearch.entitlement.rules.function.Call1;
 import org.elasticsearch.entitlement.rules.function.Call2;
 import org.elasticsearch.entitlement.rules.function.CheckMethod;
+import org.elasticsearch.entitlement.runtime.policy.PolicyChecker;
 
 import java.io.File;
 import java.net.JarURLConnection;

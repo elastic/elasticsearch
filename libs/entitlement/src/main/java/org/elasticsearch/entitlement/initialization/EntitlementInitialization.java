@@ -79,7 +79,7 @@ public class EntitlementInitialization {
         try {
             // the checker _MUST_ be set before _any_ instrumentation is done
             final PolicyChecker policyChecker = createPolicyChecker(initializeArgs.policyManager());
-            instrumentationRegistry = new InstrumentationRegistryImpl(policyChecker, EntitlementRules.getRules());
+            instrumentationRegistry = new InstrumentationRegistryImpl(policyChecker, initializeArgs.entitlementRules());
             initInstrumentation(inst);
         } catch (Exception e) {
             // exceptions thrown within the agent will be swallowed, so capture it here

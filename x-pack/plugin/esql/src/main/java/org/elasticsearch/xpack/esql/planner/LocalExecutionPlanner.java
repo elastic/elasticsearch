@@ -873,6 +873,7 @@ public class LocalExecutionPlanner {
             new FilterOperatorFactory(EvalMapper.toEvaluator(context.foldCtx(), filter.condition(), source.layout, context.shardContexts)),
             source.layout
         );
+        // Add ScoreOperator only on data nodes. Data nodes are able to calculate scores running queries on the resulting docs.
         if (context.shardContexts.isEmpty() == false && PlannerUtils.usesScoring(filter)) {
             // Add scorer operator to add the filter expression scores to the overall scores
             Attribute scoreAttribute = null;

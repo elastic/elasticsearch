@@ -1268,10 +1268,6 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                     return Decision.NOT_PREFERRED;
                 } else if (nodeId.startsWith("yes")) {
                     return Decision.YES;
-                } else if (nodeId.startsWith("no")) {
-                    return Decision.NO;
-                } else if (nodeId.startsWith("throttle")) {
-                    return Decision.THROTTLE;
                 } else {
                     throw new AssertionError("unexpected node name: " + node.node().getName());
                 }

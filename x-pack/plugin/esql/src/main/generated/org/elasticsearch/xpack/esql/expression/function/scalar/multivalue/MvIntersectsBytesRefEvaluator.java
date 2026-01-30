@@ -81,7 +81,6 @@ public final class MvIntersectsBytesRefEvaluator implements EvalOperator.Express
   private Warnings warnings() {
     if (warnings == null) {
       this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
-
     }
     return warnings;
   }

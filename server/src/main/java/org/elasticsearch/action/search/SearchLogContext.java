@@ -23,8 +23,11 @@ public class SearchLogContext extends ActionLoggerContext {
     private static final String TYPE = "search";
     private final SearchRequest request;
     private final @Nullable SearchResponse response;
-    private String[] indexNames = null;
     private final NamedWriteableRegistry namedWriteableRegistry;
+    // Cached index names
+    private String[] indexNames = null;
+    // Cached "isSystem" flag
+    private Boolean isSystemSearch = null;
 
     private SearchLogContext(
         Task task,
@@ -77,12 +80,15 @@ public class SearchLogContext extends ActionLoggerContext {
     }
 
     boolean isSystemSearch(Predicate<String> systemChecker) {
-        String[] indices = getIndexNames();
-        // Request that only asks for system indices is system search
-        if (indices.length > 0 && Arrays.stream(indices).allMatch(systemChecker)) {
-            return true;
+        if (isSystemSearch == null) {
+            isSystemSearch = false;
+            String[] indices = getIndexNames();
+            // Request that only asks for system indices is system search
+            if (indices.length > 0 && Arrays.stream(indices).allMatch(systemChecker)) {
+                isSystemSearch = true;
+            }
         }
-        return false;
+        return isSystemSearch;
     }
 
     public String getIndices() {

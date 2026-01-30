@@ -45,6 +45,9 @@ public class SearchLogProducer implements ActionLoggerProducer<SearchLogContext>
     @Override
     public ESLogMessage produce(SearchLogContext context, ActionLoggingFields additionalFields) {
         ESLogMessage msg = produceCommon(context, additionalFields);
+        if (context.isSystemSearch(systemChecker)) {
+            msg = msg.with("is_system", true);
+        }
         return msg.with("query", context.getQuery()).with("indices", context.getIndices()).with("hits", context.getHits());
     }
 

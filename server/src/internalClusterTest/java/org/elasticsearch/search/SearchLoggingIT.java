@@ -308,6 +308,7 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             assertThat(event.getMessage(), instanceOf(ESLogMessage.class));
             ESLogMessage message = (ESLogMessage) event.getMessage();
             assertThat(message.get("indices"), equalTo(TestSystemIndexDescriptor.PRIMARY_INDEX_NAME));
+            assertThat(message.get("is_system"), equalTo("true"));
         } finally {
             ActionLoggingUtils.disableLoggingSystem();
         }
@@ -337,6 +338,7 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             assertThat(event.getMessage(), instanceOf(ESLogMessage.class));
             ESLogMessage message = (ESLogMessage) event.getMessage();
             assertThat(message.get("indices"), equalTo(TestSystemDataStreamPlugin.SYSTEM_DATA_STREAM_NAME));
+            assertThat(message.get("is_system"), equalTo("true"));
         } finally {
             ActionLoggingUtils.disableLoggingSystem();
             client().execute(

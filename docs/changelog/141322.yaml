@@ -1,0 +1,5 @@
+pr: 141322
+summary: Allow loading BYTE_LENGTH without decompressing Zstd byte ref blocks
+area: Codec
+type: enhancement
+issues: []

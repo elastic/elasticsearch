@@ -232,7 +232,12 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 // incorrect. So, if the request's split shard count summary indicates that routing has changed since the request
                 // was formulated, we double check that the requested document still maps to this shard.
                 final var indexMetadata = mapperService.getIndexSettings().getIndexMetadata();
-                final var currentSummary = SplitShardCountSummary.forSearch(indexMetadata, shardId().getId());
+                // For realtime get, correct results depend on index routing (the new shard may accept updates at handoff) and consult
+                // the index shard's translog.
+                // Regular search happens on the search shard and uses search routing.
+                final var currentSummary = realtime
+                    ? SplitShardCountSummary.forIndexing(indexMetadata, shardId().getId())
+                    : SplitShardCountSummary.forSearch(indexMetadata, shardId().getId());
                 if (splitShardCountSummary.equals(SplitShardCountSummary.UNSET)) {
                     // TODO, this should only be possible temporarily, until we've ensured that all callers provide a valid summary.
                     return getResult;

@@ -8,7 +8,7 @@
     },
     "text_vector": {
       "type": "dense_vector",
-      "dims": 4
+      "dims": 3
     }
   }
 }

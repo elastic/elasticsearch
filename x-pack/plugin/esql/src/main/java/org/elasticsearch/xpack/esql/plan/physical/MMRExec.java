@@ -19,14 +19,13 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Objects;
 
-public class MMRExec extends UnaryExec implements ExecutesOn.Coordinator {
+public class MMRExec extends UnaryExec {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(PhysicalPlan.class, "MmrExec", MMRExec::new);
 
     private final Attribute diversifyField;
@@ -113,15 +112,17 @@ public class MMRExec extends UnaryExec implements ExecutesOn.Coordinator {
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         MMRExec mmr = (MMRExec) o;
-        return Objects.equals(this.diversifyField, mmr.diversifyField)
+        return Objects.equals(this.child(), mmr.child())
+            && Objects.equals(this.diversifyField, mmr.diversifyField)
             && Objects.equals(this.limit, mmr.limit)
-            && Objects.equals(this.queryVector, mmr.queryVector)
-            && Objects.equals(this.lambda, mmr.lambda);
+            && Objects.equals(this.queryVectorExpression, mmr.queryVectorExpression)
+            && Objects.equals(this.options, mmr.options);
+
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), diversifyField, limit, queryVector, lambda);
+        return Objects.hash(super.hashCode(), diversifyField, limit, queryVectorExpression, options);
     }
 
     private VectorData extractQueryVectorData(Expression queryVectorExpression) {

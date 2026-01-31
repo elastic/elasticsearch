@@ -117,7 +117,8 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         MMR mmr = (MMR) o;
-        return Objects.equals(this.diversifyField, mmr.diversifyField)
+        return Objects.equals(this.child(), mmr.child())
+            && Objects.equals(this.diversifyField, mmr.diversifyField)
             && Objects.equals(this.limit, mmr.limit)
             && Objects.equals(this.queryVector, mmr.queryVector)
             && Objects.equals(this.options, mmr.options);

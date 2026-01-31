@@ -384,8 +384,7 @@ public class EsqlFunctionRegistry {
                 def(Present.class, uni(Present::new), "present"),
                 def(Absent.class, uni(Absent::new), "absent"),
                 def(First.class, bi(First::new), "first"),
-                def(Last.class, bi(Last::new), "last"),
-            },
+                def(Last.class, bi(Last::new), "last"), },
             // math
             new FunctionDefinition[] {
                 def(Abs.class, Abs::new, "abs"),

@@ -10,14 +10,19 @@ FROM --platform=linux/amd64 c2id/c2id-server-demo:16.1.1 AS c2id
 # than the original eclipse-temurin:17-noble (~400MB vs ~1.3GB)
 FROM eclipse-temurin:17-jre
 
-# Install python3 for the fake server hack during startup
-RUN apt-get update -qqy && apt-get install -qqy --no-install-recommends python3 \
-    && rm -rf /var/lib/apt/lists/*
-
 COPY --from=c2id /c2id-server /c2id-server
 COPY --from=c2id /etc/c2id /etc/c2id
-COPY ./setup.sh /fixture/
+COPY ./build.sh /fixture/
+COPY ./entrypoint.sh /fixture/
 COPY ./testnode.jks /c2id-server/tomcat/conf/keystore.jks
+
+# Build logic: prepare image (config dir, pre-deploy WAR, etc.)
+RUN chmod +x /fixture/build.sh /fixture/entrypoint.sh && /fixture/build.sh
+
+# Pre-deploy c2id WAR at build time so container startup skips ~30s Tomcat deployment
+RUN apt-get update -qqy && apt-get install -qqy --no-install-recommends unzip \
+    && cd /c2id-server/tomcat/webapps && unzip -q -o c2id.war -d c2id && rm -f c2id.war \
+    && apt-get remove -qqy unzip && rm -rf /var/lib/apt/lists/*
 
 RUN sed -i '/<!-- A "Connector" using the shared thread pool-->/ i\
     <Connector port="8443" \
@@ -38,7 +43,9 @@ RUN sed -i '/<!-- A "Connector" using the shared thread pool-->/ i\
     </Connector>' \
     /c2id-server/tomcat/conf/server.xml
 
-ENV CATALINA_OPTS="-DsystemPropertiesURL=file:///config/c2id/override.properties"
+# Limit JVM heap for test fixture to reduce memory footprint
+ENV CATALINA_OPTS="-DsystemPropertiesURL=file:///config/c2id/override.properties -Xms128m -Xmx256m"
 EXPOSE 8080
 EXPOSE 8443
-CMD ["/bin/bash", "/fixture/setup.sh"]
+# Run logic: wait for override.properties (from test), then start Tomcat
+CMD ["/bin/bash", "/fixture/entrypoint.sh"]

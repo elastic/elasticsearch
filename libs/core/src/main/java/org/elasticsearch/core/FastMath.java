@@ -96,6 +96,10 @@ final class FastMath {
     // CONSTANTS AND TABLES FOR ACOSH
     // --------------------------------------------------------------------------
 
+    // For values >= 2^28, we use a simplified formula: acosh(x) ~= log(x) + ln(2).
+    // At this magnitude, sqrt(x^2 - 1) ~= x, so the full formula reduces to log(2x).
+    // Using this threshold avoids potential overflow when computing x^2.
+    // https://github.com/golang/go/blob/master/src/math/acosh.go
     private static final double ACOSH_LARGE = (double) (1L << 28);
 
     // --------------------------------------------------------------------------

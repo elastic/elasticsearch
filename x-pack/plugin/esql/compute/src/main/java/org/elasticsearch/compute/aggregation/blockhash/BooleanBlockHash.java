@@ -138,6 +138,17 @@ final class BooleanBlockHash extends BlockHash {
     }
 
     @Override
+    public int numKeys() {
+        int numKeys = 0;
+        for (boolean b : everSeen) {
+            if (b) {
+                numKeys++;
+            }
+        }
+        return numKeys;
+    }
+
+    @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
         BitArray seen = new BitArray(everSeen.length, bigArrays);
         for (int i = 0; i < everSeen.length; i++) {

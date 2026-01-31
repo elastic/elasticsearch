@@ -1873,14 +1873,14 @@ public class EsqlCapabilities {
         PROMQL_COMMAND_V0,
 
         /**
-         * PromQL acosh function support.
-         */
-        PROMQL_ACOSH(Build.current().isSnapshot()),
-
-        /**
          * Bundle flag for PromQL math functions.
          */
         PROMQL_MATH_V0,
+
+        /**
+         * Support for the ACOSH function.
+         */
+        ACOSH_FUNCTION,
 
         /**
          * Initial support for simple binary comparisons in PromQL.
@@ -1898,16 +1898,6 @@ public class EsqlCapabilities {
          * Also filters out nulls from results.
          */
         PROMQL_UNMAPPED_FIELDS_FILTER_NULLS,
-
-        /**
-         * PromQL radians (deg → rad) function support.
-         */
-        PROMQL_RAD(PROMQL_PRE_TECH_PREVIEW_V14.isEnabled()),
-
-        /**
-         * PromQL binary logarithm function support.
-         */
-        PROMQL_LOG2(PROMQL_PRE_TECH_PREVIEW_V14.isEnabled()),
 
         /**
          * KNN function adds support for k and visit_percentage options

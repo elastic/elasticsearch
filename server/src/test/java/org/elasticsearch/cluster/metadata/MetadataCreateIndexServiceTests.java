@@ -318,7 +318,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             }
             DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(newNode("node1")).build();
             final Tuple<ProjectMetadata.Builder, RoutingTable.Builder> tuple = ClusterStateCreationUtils
-                .projectWithAssignedPrimariesAndReplicas(projectId, indices, 1, 0, discoveryNodes);
+                .projectWithAssignedPrimariesAndReplicas(projectId, indices, between(1, 5), 0, discoveryNodes);
 
             ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
                 .nodes(discoveryNodes)

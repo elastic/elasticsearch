@@ -223,6 +223,10 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 missingMetric.inc(System.nanoTime() - now);
             }
             if (getResult == null || getResult.isExists() == false || realtime) {
+                if (splitShardCountSummary.equals(SplitShardCountSummary.UNSET)) {
+                    // TODO, this should only be possible temporarily, until we've ensured that all callers provide a valid summary.
+                    return getResult;
+                }
                 // during resharding, a coordinating node may route a get request to a shard that is the source of a split
                 // before the target shard has taken over that document, but by the time the request is processed on the
                 // source shard, handoff has occurred. If a non-realtime get succeeds, this is fine - we block refreshes during this
@@ -238,10 +242,6 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 final var currentSummary = realtime
                     ? SplitShardCountSummary.forIndexing(indexMetadata, shardId().getId())
                     : SplitShardCountSummary.forSearch(indexMetadata, shardId().getId());
-                if (splitShardCountSummary.equals(SplitShardCountSummary.UNSET)) {
-                    // TODO, this should only be possible temporarily, until we've ensured that all callers provide a valid summary.
-                    return getResult;
-                }
                 if (splitShardCountSummary.compareTo(currentSummary) >= 0) {
                     // coordinator is current, so response is valid
                     return getResult;
@@ -249,7 +249,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 // Otherwise, recompute the route of the requested document based on current metadata and fail the request if it
                 // doesn't map to this shard anymore.
                 final var indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
-                final var docShard = indexRouting.getShard(id, routing);
+                // see currentSummary above
+                final var docShard = realtime ? indexRouting.updateShard(id, routing) : indexRouting.getShard(id, routing);
                 if (docShard != shardId().getId()) {
                     // XXX we may want a more specific exception type here
                     throw new ElasticsearchStatusException("stale get request for document [" + id + "]", RestStatus.SERVICE_UNAVAILABLE);

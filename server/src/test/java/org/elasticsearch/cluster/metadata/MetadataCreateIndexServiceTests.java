@@ -301,16 +301,13 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     }
 
     public void testUserIndicesLimit() {
+        var indexLimit = randomIntBetween(10, 30);
         Settings nodeSettings = Settings.builder()
-            .put(CLUSTER_MAX_INDICES_PER_PROJECT_SETTING.getKey(), randomIntBetween(10, 30))
+            .put(CLUSTER_MAX_INDICES_PER_PROJECT_SETTING.getKey(), indexLimit)
             .put(CLUSTER_MAX_INDICES_PER_PROJECT_ENABLED_SETTING.getKey(), true)
             .build();
 
         withTemporaryClusterService((clusterService, threadPool) -> {
-            @SuppressWarnings("unchecked")
-            Setting<Integer> indexLimitSetting = (Setting<Integer>) clusterService.getClusterSettings()
-                .get(CLUSTER_MAX_INDICES_PER_PROJECT_SETTING.getKey());
-            var indexLimit = clusterService.getClusterSettings().get(Objects.requireNonNull(indexLimitSetting));
             var totalUserIndices = indexLimit + randomIntBetween(1, 10);
             String[] indices = new String[totalUserIndices + randomIntBetween(1, 10)];
             for (int i = 0; i < totalUserIndices; i++) {

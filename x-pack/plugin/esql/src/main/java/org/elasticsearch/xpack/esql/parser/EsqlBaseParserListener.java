@@ -830,16 +830,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitMmrQueryVectorExpression(EsqlBaseParser.MmrQueryVectorExpressionContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#mmrOptionalQueryVector}.
-   * @param ctx the parse tree
-   */
-  void enterMmrOptionalQueryVector(EsqlBaseParser.MmrOptionalQueryVectorContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#mmrOptionalQueryVector}.
-   * @param ctx the parse tree
-   */
-  void exitMmrOptionalQueryVector(EsqlBaseParser.MmrOptionalQueryVectorContext ctx);
-  /**
    * Enter a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree

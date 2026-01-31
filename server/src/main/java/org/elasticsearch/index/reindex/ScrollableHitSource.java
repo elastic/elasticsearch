@@ -74,14 +74,22 @@ public abstract class ScrollableHitSource {
         doStart(createRetryListener(this::doStart));
     }
 
-    public abstract void resume(AbstractBulkByScrollRequest.WorkerResumeInfo resumeInfo);
+    /**
+     * Resumes the scrollable hit source from previously saved state.
+     * @param resumeInfo resume information
+     */
+    public void resume(AbstractBulkByScrollRequest.WorkerResumeInfo resumeInfo) {
+        restoreState(resumeInfo, ActionListener.wrap(v -> startNextScroll(TimeValue.ZERO), fail));
+    }
 
-    private RetryListener createRetryListener(Consumer<RejectAwareActionListener<Response>> retryHandler) {
+    protected abstract void restoreState(AbstractBulkByScrollRequest.WorkerResumeInfo resumeInfo, ActionListener<Void> doSearchListener);
+
+    private RetryListener<Response> createRetryListener(Consumer<RejectAwareActionListener<Response>> retryHandler) {
         Consumer<RejectAwareActionListener<Response>> countingRetryHandler = listener -> {
             countSearchRetry.run();
             retryHandler.accept(listener);
         };
-        return new RetryListener(logger, threadPool, backoffPolicy, countingRetryHandler, ActionListener.wrap(this::onResponse, fail));
+        return new RetryListener<>(logger, threadPool, backoffPolicy, countingRetryHandler, ActionListener.wrap(this::onResponse, fail));
     }
 
     // package private for tests.

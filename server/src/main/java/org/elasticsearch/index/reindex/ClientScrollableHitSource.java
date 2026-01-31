@@ -38,7 +38,6 @@ import java.util.function.Consumer;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.common.util.CollectionUtils.isEmpty;
-import static org.elasticsearch.core.TimeValue.ZERO;
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
 
 /**
@@ -76,11 +75,11 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
     }
 
     @Override
-    public void resume(AbstractBulkByScrollRequest.WorkerResumeInfo resumeInfo) {
+    protected void restoreState(AbstractBulkByScrollRequest.WorkerResumeInfo resumeInfo, ActionListener<Void> doSearchListener) {
         assert resumeInfo instanceof AbstractBulkByScrollRequest.ScrollWorkerResumeInfo;
         var scrollResumeInfo = (AbstractBulkByScrollRequest.ScrollWorkerResumeInfo) resumeInfo;
         setScroll(scrollResumeInfo.scrollId());
-        startNextScroll(ZERO);
+        doSearchListener.onResponse(null);
     }
 
     @Override

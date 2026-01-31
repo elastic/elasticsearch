@@ -18,6 +18,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
@@ -32,6 +33,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.RemoteInfo;
+import org.elasticsearch.index.reindex.RetryListener;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -46,7 +48,6 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.core.TimeValue.ZERO;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
 import static org.elasticsearch.reindex.remote.RemoteResponseParsers.MAIN_ACTION_PARSER;
@@ -88,11 +89,16 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
     }
 
     @Override
-    public void resume(AbstractBulkByScrollRequest.WorkerResumeInfo resumeInfo) {
+    public void restoreState(AbstractBulkByScrollRequest.WorkerResumeInfo resumeInfo, ActionListener<Void> doSearchListener) {
         assert resumeInfo instanceof AbstractBulkByScrollRequest.ScrollWorkerResumeInfo;
         var scrollResumeInfo = (AbstractBulkByScrollRequest.ScrollWorkerResumeInfo) resumeInfo;
-        setScroll(scrollResumeInfo.scrollId());
-        startNextScroll(ZERO);
+        lookupRemoteVersion(
+            new RetryListener<>(logger, threadPool, backoffPolicy, this::lookupRemoteVersion, ActionListener.wrap(version -> {
+                remoteVersion = version;
+                setScroll(scrollResumeInfo.scrollId());
+                doSearchListener.onResponse(null);
+            }, doSearchListener::onFailure))
+        );
     }
 
     void lookupRemoteVersion(RejectAwareActionListener<Version> listener) {

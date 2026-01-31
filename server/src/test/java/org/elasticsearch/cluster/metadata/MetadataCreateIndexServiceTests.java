@@ -13,6 +13,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
@@ -1479,7 +1480,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             4,
             sourceIndexMetadata,
             false,
-            Map.of()
+            Map.of(),
+            TransportVersion.current()
         );
 
         assertThat(indexMetadata.getAliases().size(), is(1));
@@ -1487,6 +1489,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat("The source index primary term must be used", indexMetadata.primaryTerm(0), is(3L));
         assertThat(indexMetadata.getTimestampRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
         assertThat(indexMetadata.getEventIngestedRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
+        assertThat(indexMetadata.getTransportVersion(), equalTo(TransportVersion.current()));
     }
 
     public void testGetIndexNumberOfRoutingShardsWithNullSourceIndex() {

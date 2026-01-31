@@ -10,6 +10,62 @@ TS k8s | sort @timestamp DESC, cluster, pod | keep @timestamp,cluster,pod,networ
 2024-05-10T00:22:49.000Z | staging         | two         | 3                     | 1.75
 ;
 
+implicitTimestampSortBasic
+required_capability: ts_command_v0
+required_capability: ts_implicit_timestamp_sort
+
+TS k8s | WHERE cluster == "qa" | KEEP @timestamp, cluster, pod | LIMIT 5;
+
+@timestamp:datetime      | cluster:keyword | pod:keyword
+2024-05-10T00:22:59.000Z | qa              | one
+2024-05-10T00:22:54.000Z | qa              | three
+2024-05-10T00:22:25.000Z | qa              | two
+2024-05-10T00:21:37.000Z | qa              | one
+2024-05-10T00:21:25.000Z | qa              | three
+;
+
+implicitTimestampSortWithFilter
+required_capability: ts_command_v0
+required_capability: ts_implicit_timestamp_sort
+
+TS k8s | WHERE cluster == "prod" | KEEP @timestamp, cluster, pod | LIMIT 3;
+
+@timestamp:datetime      | cluster:keyword | pod:keyword
+2024-05-10T00:22:53.000Z | prod            | two
+2024-05-10T00:22:41.000Z | prod            | one
+2024-05-10T00:22:33.000Z | prod            | three
+;
+
+implicitTimestampSortWithEval
+required_capability: ts_command_v0
+required_capability: ts_implicit_timestamp_sort
+
+TS k8s 
+| WHERE cluster == "staging" 
+| EVAL bytes_kb = network.bytes_in / 1024.0 
+| KEEP @timestamp, cluster, bytes_kb 
+| LIMIT 5;
+
+@timestamp:datetime      | cluster:keyword | bytes_kb:double
+2024-05-10T00:22:53.000Z | staging         | 0.232421875
+2024-05-10T00:22:49.000Z | staging         | 0.00292969
+2024-05-10T00:22:17.000Z | staging         | 0.08203125
+2024-05-10T00:21:49.000Z | staging         | 0.85546875
+2024-05-10T00:21:21.000Z | staging         | 0.93359375
+;
+
+noImplicitSortWithExplicitSort
+required_capability: ts_command_v0
+required_capability: ts_implicit_timestamp_sort
+
+TS k8s | SORT cluster ASC, @timestamp DESC | KEEP @timestamp, cluster, pod | LIMIT 3;
+
+@timestamp:datetime      | cluster:keyword | pod:keyword
+2024-05-10T00:22:53.000Z | prod            | two
+2024-05-10T00:22:41.000Z | prod            | one
+2024-05-10T00:22:33.000Z | prod            | three
+;
+
 timeseriesWithAggsAndSourceQuoting
 required_capability: ts_command_v0
 required_capability: double_quotes_source_enclosing

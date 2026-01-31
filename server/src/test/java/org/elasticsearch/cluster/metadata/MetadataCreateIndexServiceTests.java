@@ -308,7 +308,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             .build();
 
         withTemporaryClusterService((clusterService, threadPool) -> {
-            var totalUserIndices = indexLimit + randomIntBetween(1, 10);
+            var totalUserIndices = indexLimit + randomIntBetween(0, 10);
             String[] indices = new String[totalUserIndices + randomIntBetween(1, 10)];
             for (int i = 0; i < totalUserIndices; i++) {
                 indices[i] = "index-" + i;

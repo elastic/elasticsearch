@@ -1416,8 +1416,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source source = source(ctx);
 
         Attribute diversifyField = visitQualifiedName(ctx.diversifyField);
-        Expression queryVector = visitMMRQueryVector(ctx.queryVector);
         Expression limitValue = expression(ctx.limitValue);
+        Expression queryVector = visitMMRQueryVector(ctx.queryVector);
         MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
 
         return input -> new MMR(source, input, diversifyField, limitValue, queryVector, options);

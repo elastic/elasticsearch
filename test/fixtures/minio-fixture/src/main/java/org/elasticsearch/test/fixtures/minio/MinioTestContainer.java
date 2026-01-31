@@ -81,7 +81,18 @@ public final class MinioTestContainer extends DockerEnvironmentAwareTestContaine
             super.stop();
         }
         // Always cleanup dataFolder since it's always created in constructor
-        dataFolder.delete();
+        // Use try-catch to prevent cleanup failures from failing tests on CI where /dev/shm may have permission issues
+        // or container still holds references to files as not fully stopped yet.
+        try {
+            dataFolder.delete();
+        } catch (AssertionError e) {
+            LOGGER.warn(
+                "Failed to clean up temporary folder at {}. This is typically harmless and cleanup will happen via CI agent cleanup.",
+                dataFolder.getRoot(),
+                e
+            );
+            // Don't propagate - cleanup failures shouldn't fail tests
+        }
     }
 
     public String getAddress() {

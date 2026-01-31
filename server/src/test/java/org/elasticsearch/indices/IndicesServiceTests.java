@@ -537,7 +537,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * Tests that teh {@link MapperService} created by {@link IndicesService#createIndexMapperServiceForValidation(IndexMetadata)} contains
+     * Tests that the {@link MapperService} created by {@link IndicesService#createIndexMapperServiceForValidation(IndexMetadata)} contains
      * custom types and similarities registered by plugins
      */
     public void testStandAloneMapperServiceWithPlugins() throws IOException {

@@ -28,7 +28,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
-// It's not possible to suppress teh warning at #realtime(boolean) at a method-level.
+// It's not possible to suppress the warning at #realtime(boolean) at a method-level.
 @SuppressWarnings("unchecked")
 public class MultiTermVectorsRequest extends LegacyActionRequest
     implements

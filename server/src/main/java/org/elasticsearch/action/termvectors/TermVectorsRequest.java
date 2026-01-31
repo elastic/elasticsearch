@@ -46,7 +46,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
  * <p>
  * Note, the {@link #index()} and {@link #id(String)} are required.
  */
-// It's not possible to suppress teh warning at #realtime(boolean) at a method-level.
+// It's not possible to suppress the warning at #realtime(boolean) at a method-level.
 @SuppressWarnings("unchecked")
 public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> implements RealtimeRequest {
 

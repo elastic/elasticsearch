@@ -5535,7 +5535,7 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final MmrQueryVectorParamsContext mmrQueryVectorParams() throws RecognitionException {
     MmrQueryVectorParamsContext _localctx = new MmrQueryVectorParamsContext(_ctx, getState());
-    enterRule(_localctx, 144, RULE_mmrQueryVectorParams);
+    enterRule(_localctx, 146, RULE_mmrQueryVectorParams);
     try {
       setState(711);
       _errHandler.sync(this);

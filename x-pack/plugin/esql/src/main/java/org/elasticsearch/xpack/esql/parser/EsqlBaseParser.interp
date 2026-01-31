@@ -403,6 +403,7 @@ lookupCommand
 insistCommand
 setCommand
 setField
+mmrCommand
 mmrQueryVectorParams
 booleanExpression
 regexBooleanExpression

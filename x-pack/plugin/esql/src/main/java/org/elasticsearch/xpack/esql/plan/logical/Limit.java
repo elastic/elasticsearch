@@ -85,8 +85,6 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
 
         if (in.getTransportVersion().supports(ESQL_LIMIT_PER)) {
             this.groupings = in.readNamedWriteableCollectionAsList(Expression.class);
-        } else {
-            throw new IllegalArgumentException("LIMIT PER is not supported by all nodes in the cluster");
         }
     }
 
@@ -103,7 +101,7 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
 
         if (out.getTransportVersion().supports(ESQL_LIMIT_PER)) {
             out.writeNamedWriteableCollection(groupings());
-        } else {
+        } else if (groupings.isEmpty() == false) {
             throw new IllegalArgumentException("LIMIT PER is not supported by all nodes in the cluster");
         }
     }

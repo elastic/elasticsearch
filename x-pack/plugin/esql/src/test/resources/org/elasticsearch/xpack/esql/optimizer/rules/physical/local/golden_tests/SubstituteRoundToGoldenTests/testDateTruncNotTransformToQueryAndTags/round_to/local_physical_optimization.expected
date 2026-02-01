@@ -1,5 +1,5 @@
 ProjectExec[[!alias_integer, date{f}, x{r}]]
-\_TopNExec[[Order[date{f},ASC,LAST]],5[INTEGER],null]
+\_TopNExec[[Order[date{f},ASC,LAST]],5[INTEGER],[],null]
   \_ExchangeExec[[!alias_integer, date{f}, x{r}],false]
     \_ProjectExec[[!alias_integer, date{f}, x{r}]]
       \_FieldExtractExec[!alias_integer]<[],[]>

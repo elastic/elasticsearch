@@ -93,8 +93,6 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
 
         if (in.getTransportVersion().supports(ESQL_LIMIT_PER)) {
             this.groupings = in.readNamedWriteableCollectionAsList(Expression.class);
-        } else {
-            throw new IllegalArgumentException("LIMIT PER is not supported by all nodes in the cluster");
         }
         // docValueAttributes are only used on the data node and never serialized.
     }
@@ -109,7 +107,7 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
 
         if (out.getTransportVersion().supports(ESQL_LIMIT_PER)) {
             out.writeNamedWriteableCollection(groupings());
-        } else {
+        } else if (groupings.isEmpty() == false) {
             throw new IllegalArgumentException("LIMIT PER is not supported by all nodes in the cluster");
         }
 

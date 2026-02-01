@@ -7,9 +7,9 @@ FROM mmr_text_vector_keyword
 ;
 
 keyword_field:keyword | text_body:text | text_vector:dense_vector     
-test1                 | first text     | [0.4, 0.2, 0.4]            
-test3                 | third text     | [0.4, 0.1, 0.3]            
-test6                 | sixth text     | [0.05, 0.05, 0.05]            
+test1                 | first text     | [0.4, 0.2, 0.4]
+test3                 | third text     | [0.4, 0.1, 0.3]
+test6                 | sixth text     | [0.1, 0.1, 0.1]
 ;
 
 
@@ -23,7 +23,7 @@ FROM mmr_text_vector_keyword
 
 keyword_field:keyword | text_body:text | text_vector:dense_vector     
 test3                 | third text     | [0.4, 0.1, 0.3]
-test6                 | sixth text     | [0.05, 0.05, 0.05]
+test6                 | sixth text     | [0.1, 0.1, 0.1]
 test8                 | eighth text    | [0.1, 0.7, 0.9]
 ;
 
@@ -55,5 +55,5 @@ FROM mmr_text_vector_keyword
 keyword_field:keyword | text_body:text | text_vector:dense_vector     
 test1                 | first text     | [0.4, 0.2, 0.4]
 test3                 | third text     | [0.4, 0.1, 0.3]
-test6                 | sixth text     | [0.05, 0.05, 0.05]
+test6                 | sixth text     | [0.1, 0.1, 0.1]
 ;

@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
@@ -103,6 +104,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         Logger logger,
         NamedWriteableRegistry namedWriteableRegistry,
         SearchTransportService searchTransportService,
+        BigArrays bigArrays,
         BiFunction<String, String, Transport.Connection> nodeIdToConnection,
         Map<String, AliasFilter> aliasFilter,
         Map<String, Float> concreteIndexBoosts,
@@ -126,6 +128,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             logger,
             namedWriteableRegistry,
             searchTransportService,
+            bigArrays,
             nodeIdToConnection,
             aliasFilter,
             concreteIndexBoosts,

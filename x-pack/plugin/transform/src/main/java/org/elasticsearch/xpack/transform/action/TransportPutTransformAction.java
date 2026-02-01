@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.transform.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -45,11 +46,14 @@ import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.transform.TransformConfigAutoMigration;
+import org.elasticsearch.xpack.transform.TransformExtensionHolder;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.AuthorizationStatePersistenceUtils;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
+import org.elasticsearch.xpack.transform.transforms.TransformNodes;
 
 import java.time.Instant;
 
@@ -67,6 +71,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     private final TransformAuditor auditor;
     private final TransformConfigAutoMigration transformConfigAutoMigration;
     private final ProjectResolver projectResolver;
+    private final TransformExtensionHolder extension;
 
     @Inject
     public TransportPutTransformAction(
@@ -79,7 +84,8 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         TransformServices transformServices,
         Client client,
         TransformConfigAutoMigration transformConfigAutoMigration,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        TransformExtensionHolder extension
     ) {
         super(
             PutTransformAction.NAME,
@@ -94,6 +100,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.client = client;
         this.transformConfigManager = transformServices.configManager();
+        this.extension = extension;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
@@ -105,6 +112,11 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     @Override
     protected void masterOperation(Task task, Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener) {
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
+        if (request.isDeferValidation() == false && TransformNodes.hasNoTransformNodes(clusterState)) {
+            TransformNodes.completeWithNoTransformNodeException(listener);
+            return;
+        }
+        TransformNodes.warnIfNoTransformNodes(clusterState);
 
         if (TransformMetadata.upgradeMode(clusterState)) {
             listener.onFailure(
@@ -128,12 +140,12 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             return;
         }
 
-        // <3> Create the transform
+        // <4> Create the transform
         ActionListener<ValidateTransformAction.Response> validateTransformListener = listener.delegateFailureAndWrap(
             (l, unused) -> putTransform(request, l)
         );
 
-        // <2> Validate source and destination indices
+        // <3> Validate source and destination indices
 
         var parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         ActionListener<Void> checkPrivilegesListener = validateTransformListener.delegateFailureAndWrap(
@@ -146,43 +158,61 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             )
         );
 
-        // <1> Early check to verify that the user can create the destination index and can read from the source
-        if (XPackSettings.SECURITY_ENABLED.get(settings)) {
-            TransformPrivilegeChecker.checkPrivileges(
-                "create",
-                settings,
-                securityContext,
-                indexNameExpressionResolver,
-                clusterState,
-                client,
-                config,
-                true,
-                ActionListener.wrap(
-                    aVoid -> AuthorizationStatePersistenceUtils.persistAuthState(
-                        settings,
-                        transformConfigManager,
-                        transformId,
-                        AuthorizationState.green(),
-                        checkPrivilegesListener
-                    ),
-                    e -> {
-                        if (request.isDeferValidation()) {
-                            AuthorizationStatePersistenceUtils.persistAuthState(
-                                settings,
-                                transformConfigManager,
-                                transformId,
-                                AuthorizationState.red(e),
-                                checkPrivilegesListener
-                            );
-                        } else {
-                            checkPrivilegesListener.onFailure(e);
+        // <2> Early check to verify that the user can create the destination index and can read from the source
+        ActionListener<Void> createIndexListener = checkPrivilegesListener.delegateFailureAndWrap((l, r) -> {
+            if (XPackSettings.SECURITY_ENABLED.get(settings)) {
+                TransformPrivilegeChecker.checkPrivileges(
+                    "create",
+                    settings,
+                    securityContext,
+                    indexNameExpressionResolver,
+                    clusterState,
+                    client,
+                    config,
+                    true,
+                    ActionListener.wrap(
+                        aVoid -> AuthorizationStatePersistenceUtils.persistAuthState(
+                            settings,
+                            transformConfigManager,
+                            transformId,
+                            AuthorizationState.green(),
+                            l
+                        ),
+                        e -> {
+                            if (request.isDeferValidation()) {
+                                AuthorizationStatePersistenceUtils.persistAuthState(
+                                    settings,
+                                    transformConfigManager,
+                                    transformId,
+                                    AuthorizationState.red(e),
+                                    l
+                                );
+                            } else {
+                                l.onFailure(e);
+                            }
                         }
-                    }
-                )
-            );
-        } else { // No security enabled, just move on
-            checkPrivilegesListener.onResponse(null);
-        }
+                    )
+                );
+            } else { // No security enabled, just move on
+                l.onResponse(null);
+            }
+        });
+
+        // <1> Check the latest internal index (IMPORTANT: according to _this_ node, which might be newer than master) is installed
+        TransformInternalIndex.createLatestVersionedIndexIfRequired(
+            clusterService,
+            new ParentTaskAssigningClient(client, parentTaskId),
+            extension.getTransformExtension().getTransformInternalIndexAdditionalSettings(),
+            createIndexListener.delegateResponse((l, e) -> {
+                l.onFailure(
+                    new ElasticsearchStatusException(
+                        TransformMessages.REST_PUT_FAILED_CREATING_TRANSFORM_INDEX,
+                        RestStatus.INTERNAL_SERVER_ERROR,
+                        ExceptionsHelper.unwrapCause(e)
+                    )
+                );
+            })
+        );
     }
 
     @Override

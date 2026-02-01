@@ -21,6 +21,8 @@ public class TransformMessages {
     public static final String REST_UNKNOWN_TRANSFORM = "Transform with id [{0}] could not be found";
     public static final String REST_STOP_TRANSFORM_WITHOUT_CONFIG =
         "Detected transforms with no config [{0}]. Use force to stop/delete them.";
+    public static final String REST_PUT_FAILED_CREATING_TRANSFORM_INDEX =
+        "Failed to create transform system index, please wait and try again.";
     public static final String REST_PUT_FAILED_PERSIST_TRANSFORM_CONFIGURATION = "Failed to persist transform configuration";
     public static final String REST_PUT_TRANSFORM_FAILED_TO_DEDUCE_DEST_MAPPINGS = "Failed to deduce dest mappings";
     public static final String REST_PUT_TRANSFORM_INCONSISTENT_ID =

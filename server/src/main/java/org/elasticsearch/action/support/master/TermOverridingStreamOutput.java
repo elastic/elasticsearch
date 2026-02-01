@@ -40,6 +40,11 @@ class TermOverridingStreamOutput extends StreamOutput {
     }
 
     @Override
+    public long position() {
+        return delegate.position();
+    }
+
+    @Override
     public void writeString(String str) throws IOException {
         delegate.writeString(str);
     }

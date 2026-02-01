@@ -4,7 +4,7 @@
       "date_detection": false,
       "properties": {
         "@timestamp": {
-          "type": "date"
+          "type": "date_nanos"
         },
         "data_stream.type": {
           "type": "constant_keyword",

@@ -86,18 +86,46 @@ null
 null
 ;
 
-addDenseVectorInt
+addDenseVectorAndScalarDouble
 required_capability: dense_vector_arithmetic
 FROM dense_vector_arithmetic
-| eval result_vector = vector_field_1 + int_field
+| eval result_vector = vector_field_1 + 1.0
 | SORT id
 | KEEP result_vector;
 
 result_vector:dense_vector
+[2.0, 3.0, 4.0]
 [5.0, 6.0, 7.0]
-[9.0, 10.0, 11.0]
-[15.0, 14.0, 13.0]
-[7.054, 7.032, 7.012]
+[10.0, 9.0, 8.0]
+[1.054, 1.032, 1.012]
+;
+
+addDenseVectorAndScalarInt
+required_capability: dense_vector_arithmetic
+FROM dense_vector_arithmetic
+| eval result_vector = vector_field_1 + 1
+| SORT id
+| KEEP result_vector;
+
+result_vector:dense_vector
+[2.0, 3.0, 4.0]
+[5.0, 6.0, 7.0]
+[10.0, 9.0, 8.0]
+[1.054, 1.032, 1.012]
+;
+
+addDenseVectorAndScalarLong
+required_capability: dense_vector_arithmetic
+FROM dense_vector_arithmetic
+| eval result_vector = vector_field_1 + 1::long
+| SORT id
+| KEEP result_vector;
+
+result_vector:dense_vector
+[2.0, 3.0, 4.0]
+[5.0, 6.0, 7.0]
+[10.0, 9.0, 8.0]
+[1.054, 1.032, 1.012]
 ;
 
 // tests for sub operation
@@ -188,18 +216,46 @@ null
 null
 ;
 
-subDenseVectorInt
+subDenseVectorAndScalarDouble
 required_capability: dense_vector_arithmetic
 FROM dense_vector_arithmetic
-| eval result_vector = vector_field_1 - int_field
+| eval result_vector = vector_field_1 - 1.0
 | SORT id
 | KEEP result_vector;
 
 result_vector:dense_vector
-[-3.0, -2.0, -1.0]
-[-1.0, 0.0, 1.0]
-[3.0, 2.0, 1.0]
-[-6.946, -6.968, -6.988]
+[0.0, 1.0, 2.0]
+[3.0, 4.0, 5.0]
+[8.0, 7.0, 6.0]
+[-0.946, -0.968, -0.988]
+;
+
+subDenseVectorAndScalarInt
+required_capability: dense_vector_arithmetic
+FROM dense_vector_arithmetic
+| eval result_vector = vector_field_1 - 1
+| SORT id
+| KEEP result_vector;
+
+result_vector:dense_vector
+[0.0, 1.0, 2.0]
+[3.0, 4.0, 5.0]
+[8.0, 7.0, 6.0]
+[-0.946, -0.968, -0.988]
+;
+
+subDenseVectorAndScalarLong
+required_capability: dense_vector_arithmetic
+FROM dense_vector_arithmetic
+| eval result_vector = vector_field_1 - 1::long
+| SORT id
+| KEEP result_vector;
+
+result_vector:dense_vector
+[0.0, 1.0, 2.0]
+[3.0, 4.0, 5.0]
+[8.0, 7.0, 6.0]
+[-0.946, -0.968, -0.988]
 ;
 
 // tests for mul operation
@@ -290,18 +346,46 @@ null
 null
 ;
 
-mulDenseVectorInt
+mulDenseVectorAndScalarDouble
 required_capability: dense_vector_arithmetic
 FROM dense_vector_arithmetic
-| eval result_vector = vector_field_1 * int_field
+| eval result_vector = vector_field_1 * 2.0
 | SORT id
 | KEEP result_vector;
 
 result_vector:dense_vector
-[4.0, 8.0, 12.0]
-[20.0, 25.0, 30.0]
-[54.0, 48.0, 42.0]
-[0.37800002, 0.224, 0.084]
+[2.0, 4.0, 6.0]
+[8.0, 10.0, 12.0]
+[18.0, 16.0, 14.0]
+[0.108, 0.064, 0.024]
+;
+
+mulDenseVectorAndScalarInt
+required_capability: dense_vector_arithmetic
+FROM dense_vector_arithmetic
+| eval result_vector = vector_field_1 * 2
+| SORT id
+| KEEP result_vector;
+
+result_vector:dense_vector
+[2.0, 4.0, 6.0]
+[8.0, 10.0, 12.0]
+[18.0, 16.0, 14.0]
+[0.108, 0.064, 0.024]
+;
+
+mulDenseVectorAndScalarLong
+required_capability: dense_vector_arithmetic
+FROM dense_vector_arithmetic
+| eval result_vector = vector_field_1 * 2::long
+| SORT id
+| KEEP result_vector;
+
+result_vector:dense_vector
+[2.0, 4.0, 6.0]
+[8.0, 10.0, 12.0]
+[18.0, 16.0, 14.0]
+[0.108, 0.064, 0.024]
 ;
 
 // tests for div operation
@@ -392,16 +476,44 @@ null
 null
 ;
 
-divDenseVectorInt
+divDenseVectorAndScalarDouble
 required_capability: dense_vector_arithmetic
 FROM dense_vector_arithmetic
-| eval result_vector = vector_field_1 / int_field
+| eval result_vector = vector_field_1 / 2.0
 | SORT id
 | KEEP result_vector;
 
 result_vector:dense_vector
-[0.25, 0.5, 0.75]
-[0.8, 1.0, 1.2]
-[1.5, 1.3333334, 1.1666666]
-[0.007714286, 0.004571429, 0.0017142857]
+[0.5, 1.0, 1.5]
+[2.0, 2.5, 3.0]
+[4.5, 4.0, 3.5]
+[0.027, 0.016, 0.006]
+;
+
+divDenseVectorAndScalarInt
+required_capability: dense_vector_arithmetic
+FROM dense_vector_arithmetic
+| eval result_vector = vector_field_1 / 2
+| SORT id
+| KEEP result_vector;
+
+result_vector:dense_vector
+[0.5, 1.0, 1.5]
+[2.0, 2.5, 3.0]
+[4.5, 4.0, 3.5]
+[0.027, 0.016, 0.006]
+;
+
+divDenseVectorAndScalarLong
+required_capability: dense_vector_arithmetic
+FROM dense_vector_arithmetic
+| eval result_vector = vector_field_1 / 2::long
+| SORT id
+| KEEP result_vector;
+
+result_vector:dense_vector
+[0.5, 1.0, 1.5]
+[2.0, 2.5, 3.0]
+[4.5, 4.0, 3.5]
+[0.027, 0.016, 0.006]
 ;

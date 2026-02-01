@@ -40,6 +40,7 @@ import static org.elasticsearch.xpack.esql.core.util.DateUtils.asMillis;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.randomDenseVector;
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DenseVectorTestCaseHelper.denseVectorScalarCases;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -341,8 +342,16 @@ public class AddTests extends AbstractConfigurationFunctionTestCase {
                 DENSE_VECTOR,
                 equalTo(null)
             ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
-                .withWarning("Line 1:1: java.lang.ArithmeticException: not a finite double number: Infinity");
+                .withWarning("Line 1:1: java.lang.ArithmeticException: not a finite float number: Infinity");
         }));
+
+        suppliers.addAll(
+            denseVectorScalarCases(
+                "AddDenseVectorsEvaluator",
+                (v, s) -> v.stream().map(f -> (float) (f.doubleValue() + s.doubleValue())).toList(),
+                (s, v) -> v.stream().map(f -> (float) (s.doubleValue() + f.doubleValue())).toList()
+            )
+        );
 
         // Set the timezone to UTC for test cases up to here
         suppliers = TestCaseSupplier.mapTestCases(

@@ -13,18 +13,12 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 
 import java.util.function.BiFunction;
-
-import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for performing arithmetic operations on two dense_vector arguments.
@@ -32,11 +26,10 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
  */
 class DenseVectorsEvaluator implements EvalOperator.ExpressionEvaluator {
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DenseVectorsEvaluator.class);
-    private static boolean CAST_ALL_TYPES_TO_DOUBLE = true;
-    private static final String ADD_DENSE_VECTOR_EVALUATOR = "AddDenseVectorsEvaluator";
-    private static final String SUB_DENSE_VECTOR_EVALUATOR = "SubDenseVectorsEvaluator";
-    private static final String MUL_DENSE_VECTOR_EVALUATOR = "MulDenseVectorsEvaluator";
-    private static final String DIV_DENSE_VECTOR_EVALUATOR = "DivDenseVectorsEvaluator";
+    static final String ADD_DENSE_VECTOR_EVALUATOR = "AddDenseVectorsEvaluator";
+    static final String SUB_DENSE_VECTOR_EVALUATOR = "SubDenseVectorsEvaluator";
+    static final String MUL_DENSE_VECTOR_EVALUATOR = "MulDenseVectorsEvaluator";
+    static final String DIV_DENSE_VECTOR_EVALUATOR = "DivDenseVectorsEvaluator";
 
     private final BiFunction<Float, Float, Float> op;
     private final String name;
@@ -135,24 +128,24 @@ class DenseVectorsEvaluator implements EvalOperator.ExpressionEvaluator {
         return warnings;
     }
 
-    private static float processAdd(float lhs, float rhs) {
-        return NumericUtils.asFiniteNumber(lhs + rhs);
+    static float processAdd(double lhs, double rhs) {
+        return NumericUtils.asFiniteNumber((float) (lhs + rhs));
     }
 
-    private static float processSub(float lhs, float rhs) {
-        return NumericUtils.asFiniteNumber(lhs - rhs);
+    static float processSub(double lhs, double rhs) {
+        return NumericUtils.asFiniteNumber((float) (lhs - rhs));
     }
 
-    private static float processMul(float lhs, float rhs) {
-        return NumericUtils.asFiniteNumber(lhs * rhs);
+    static float processMul(double lhs, double rhs) {
+        return NumericUtils.asFiniteNumber((float) (lhs * rhs));
     }
 
-    private static float processDiv(float lhs, float rhs) {
-        float result = lhs / rhs;
+    static float processDiv(double lhs, double rhs) {
+        double result = (float) (lhs / rhs);
         if (Double.isNaN(result) || Double.isInfinite(result)) {
             throw new ArithmeticException("/ by zero");
         }
-        return result;
+        return NumericUtils.asFiniteNumber((float) result);
     }
 
     static final class AddFactory implements Factory {
@@ -271,160 +264,72 @@ class DenseVectorsEvaluator implements EvalOperator.ExpressionEvaluator {
         }
     }
 
+    public static class AddEvaluator implements DenseVectorArithmeticOperation.DenseVectorBinaryEvaluator {
 
-    public static ExpressionEvaluator.Factory getAddFactory(
-        Source source,
-        DataType lhsType,
-        DataType rhsType,
-        ExpressionEvaluator.Factory lhsfactory,
-        ExpressionEvaluator.Factory rhsFactory) {
-        if (lhsType == DENSE_VECTOR && rhsType == DENSE_VECTOR) {
+        @Override
+        public Factory apply(Source source, Factory lhsfactory, Factory rhsFactory) {
             return new DenseVectorsEvaluator.AddFactory(source, lhsfactory, rhsFactory);
-        } else {
-            if (lhsType != DENSE_VECTOR) {
-                // lhs is a scalar type
-                if (CAST_ALL_TYPES_TO_DOUBLE) {
-                    // here we cast all types to Double
-                    var lhs = Cast.cast(source, lhsType, DOUBLE, lhsfactory);
-                    return new DoubleDenseVectorOpEvaluator.AddFactory(source, lhs, rhsFactory);
-                }
-                return switch (lhsType) {
-                    case DOUBLE -> new AddDoubleDenseVectorEvaluator.Factory(source, lhsfactory, rhsFactory);
-                    case INTEGER -> new AddIntDenseVectorEvaluator.Factory(source, lhsfactory, rhsFactory);
-                    case LONG -> new AddLongDenseVectorEvaluator.Factory(source, lhsfactory, lhsfactory);
-                    default -> throw new IllegalArgumentException("");
-                };
-            } else {
-                // rhs is a scalar type
-                if (CAST_ALL_TYPES_TO_DOUBLE) {
-                    // here we cast all types to Double
-                    var rhs = Cast.cast(source, rhsType, DOUBLE, rhsFactory);
-                    return new DenseVectorDoubleOpEvaluator.AddFactory(source, lhsfactory, rhs);
-                }
-                return switch (rhsType) {
-                    case DOUBLE -> new AddDenseVectorDoubleEvaluator.Factory(source, lhsfactory, rhsFactory);
-                    case INTEGER -> new AddDenseVectorIntEvaluator.Factory(source, lhsfactory, rhsFactory);
-                    case LONG -> new AddDenseVectorLongEvaluator.Factory(source, lhsfactory, rhsFactory);
-                    default -> throw new IllegalArgumentException("");
-                };
-            }
+        }
+
+        @Override
+        public Factory apply(Source source, double lhs, Factory rhsFactory) {
+            return new DoubleDenseVectorOpEvaluator.AddFactory(source, lhs, rhsFactory);
+        }
+
+        @Override
+        public Factory apply(Source source, Factory lhsFactory, double rhs) {
+            return new DenseVectorDoubleOpEvaluator.AddFactory(source, lhsFactory, rhs);
         }
     }
 
-    public static ExpressionEvaluator.Factory getSubFactory(
-        Source source,
-        DataType lhsType,
-        DataType rhsType,
-        ExpressionEvaluator.Factory lhsfactory,
-        ExpressionEvaluator.Factory rhsFactory) {
-        if (lhsType == DENSE_VECTOR && rhsType == DENSE_VECTOR) {
+    public static class SubEvaluator implements DenseVectorArithmeticOperation.DenseVectorBinaryEvaluator {
+        @Override
+        public Factory apply(Source source, Factory lhsfactory, Factory rhsFactory) {
             return new DenseVectorsEvaluator.SubFactory(source, lhsfactory, rhsFactory);
-        } else {
-            if (lhsType != DENSE_VECTOR) {
-                // lhs is a scalar type
-                if (CAST_ALL_TYPES_TO_DOUBLE) {
-                    // here we cast all types to Double
-                    var lhs = Cast.cast(source, lhsType, DOUBLE, lhsfactory);
-                    return new DoubleDenseVectorOpEvaluator.SubFactory(source, lhs, rhsFactory);
-                }
-                return switch (lhsType) {
-                    case DOUBLE -> new SubDoubleDenseVectorEvaluator.Factory(source, lhsfactory, rhsFactory);
-                    case INTEGER -> new SubIntDenseVectorEvaluator.Factory(source, lhsfactory, rhsFactory);
-                    case LONG -> new SubLongDenseVectorEvaluator.Factory(source, lhsfactory, lhsfactory);
-                    default -> throw new IllegalArgumentException("");
-                };
-            } else {
-                // rhs is a scalar type
-                if (CAST_ALL_TYPES_TO_DOUBLE) {
-                    // here we cast all types to Double
-                    var rhs = Cast.cast(source, rhsType, DOUBLE, rhsFactory);
-                    return new DenseVectorDoubleOpEvaluator.SubFactory(source, lhsfactory, rhs);
-                }
-                return switch (rhsType) {
-                    case DOUBLE -> new SubDenseVectorDoubleEvaluator.Factory(source, lhsfactory, rhsFactory);
-                    case INTEGER -> new SubDenseVectorIntEvaluator.Factory(source, lhsfactory, rhsFactory);
-                    case LONG -> new SubDenseVectorLongEvaluator.Factory(source, lhsfactory, rhsFactory);
-                    default -> throw new IllegalArgumentException("");
-                };
-            }
+        }
+
+        @Override
+        public Factory apply(Source source, double lhs, Factory rhsFactory) {
+            return new DoubleDenseVectorOpEvaluator.SubFactory(source, lhs, rhsFactory);
+        }
+
+        @Override
+        public Factory apply(Source source, Factory lhsFactory, double rhs) {
+            return new DenseVectorDoubleOpEvaluator.SubFactory(source, lhsFactory, rhs);
         }
     }
 
-    public static ExpressionEvaluator.Factory getMulFactory(
-        Source source,
-        DataType lhsType,
-        DataType rhsType,
-        ExpressionEvaluator.Factory lhsfactory,
-        ExpressionEvaluator.Factory rhsFactory) {
-        if (lhsType == DENSE_VECTOR && rhsType == DENSE_VECTOR) {
+    public static class MulEvaluator implements DenseVectorArithmeticOperation.DenseVectorBinaryEvaluator {
+        @Override
+        public Factory apply(Source source, Factory lhsfactory, Factory rhsFactory) {
             return new DenseVectorsEvaluator.MulFactory(source, lhsfactory, rhsFactory);
-        } else {
-            if (lhsType != DENSE_VECTOR) {
-                // lhs is a scalar type
-                if (CAST_ALL_TYPES_TO_DOUBLE) {
-                    // here we cast all types to Double
-                    var lhs = Cast.cast(source, lhsType, DOUBLE, lhsfactory);
-                    return new DoubleDenseVectorOpEvaluator.MulFactory(source, lhs, rhsFactory);
-                }
-                return switch (lhsType) {
-                    case DOUBLE -> new MulDoubleDenseVectorEvaluator.Factory(source, lhsfactory, rhsFactory);
-                    case INTEGER -> new MulIntDenseVectorEvaluator.Factory(source, lhsfactory, rhsFactory);
-                    case LONG -> new MulLongDenseVectorEvaluator.Factory(source, lhsfactory, lhsfactory);
-                    default -> throw new IllegalArgumentException("");
-                };
-            } else {
-                // rhs is a scalar type
-                if (CAST_ALL_TYPES_TO_DOUBLE) {
-                    // here we cast all types to Double
-                    var rhs = Cast.cast(source, rhsType, DOUBLE, rhsFactory);
-                    return new DenseVectorDoubleOpEvaluator.MulFactory(source, lhsfactory, rhs);
-                }
-                return switch (rhsType) {
-                    case DOUBLE -> new MulDenseVectorDoubleEvaluator.Factory(source, lhsfactory, rhsFactory);
-                    case INTEGER -> new MulDenseVectorIntEvaluator.Factory(source, lhsfactory, rhsFactory);
-                    case LONG -> new MulDenseVectorLongEvaluator.Factory(source, lhsfactory, rhsFactory);
-                    default -> throw new IllegalArgumentException("");
-                };
-            }
+        }
+
+        @Override
+        public Factory apply(Source source, double lhs, Factory rhsFactory) {
+            return new DoubleDenseVectorOpEvaluator.MulFactory(source, lhs, rhsFactory);
+        }
+
+        @Override
+        public Factory apply(Source source, Factory lhsFactory, double rhs) {
+            return new DenseVectorDoubleOpEvaluator.MulFactory(source, lhsFactory, rhs);
         }
     }
 
-    public static ExpressionEvaluator.Factory getDivFactory(
-        Source source,
-        DataType lhsType,
-        DataType rhsType,
-        ExpressionEvaluator.Factory lhsfactory,
-        ExpressionEvaluator.Factory rhsFactory) {
-        if (lhsType == DENSE_VECTOR && rhsType == DENSE_VECTOR) {
+    public static class DivEvaluator implements DenseVectorArithmeticOperation.DenseVectorBinaryEvaluator {
+        @Override
+        public Factory apply(Source source, Factory lhsfactory, Factory rhsFactory) {
             return new DenseVectorsEvaluator.DivFactory(source, lhsfactory, rhsFactory);
-        } else {
-            if (lhsType != DENSE_VECTOR) {
-                // lhs is a scalar type
-                if (CAST_ALL_TYPES_TO_DOUBLE) {
-                    // here we cast all types to Double
-                    var lhs = Cast.cast(source, lhsType, DOUBLE, lhsfactory);
-                    return new DoubleDenseVectorOpEvaluator.DivFactory(source, lhs, rhsFactory);
-                }
-                return switch (lhsType) {
-                    case DOUBLE -> new DivDoubleDenseVectorEvaluator.Factory(source, lhsfactory, rhsFactory);
-                    case INTEGER -> new DivIntDenseVectorEvaluator.Factory(source, lhsfactory, rhsFactory);
-                    case LONG -> new DivLongDenseVectorEvaluator.Factory(source, lhsfactory, lhsfactory);
-                    default -> throw new IllegalArgumentException("");
-                };
-            } else {
-                // rhs is a scalar type
-                if (CAST_ALL_TYPES_TO_DOUBLE) {
-                    // here we cast all types to Double
-                    var rhs = Cast.cast(source, rhsType, DOUBLE, rhsFactory);
-                    return new DenseVectorDoubleOpEvaluator.DivFactory(source, lhsfactory, rhs);
-                }
-                return switch (rhsType) {
-                    case DOUBLE -> new DivDenseVectorDoubleEvaluator.Factory(source, lhsfactory, rhsFactory);
-                    case INTEGER -> new DivDenseVectorIntEvaluator.Factory(source, lhsfactory, rhsFactory);
-                    case LONG -> new DivDenseVectorLongEvaluator.Factory(source, lhsfactory, rhsFactory);
-                    default -> throw new IllegalArgumentException("");
-                };
-            }
+        }
+
+        @Override
+        public Factory apply(Source source, double lhs, Factory rhsFactory) {
+            return new DoubleDenseVectorOpEvaluator.DivFactory(source, lhs, rhsFactory);
+        }
+
+        @Override
+        public Factory apply(Source source, Factory lhsFactory, double rhs) {
+            return new DenseVectorDoubleOpEvaluator.DivFactory(source, lhsFactory, rhs);
         }
     }
 }

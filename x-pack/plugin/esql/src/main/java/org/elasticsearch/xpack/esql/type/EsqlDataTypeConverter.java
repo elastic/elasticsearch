@@ -121,7 +121,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTimeOrNanosOrTemporal;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrDatePeriod;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrNumeric;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrTemporalAmount;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrTimeDuration;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isString;

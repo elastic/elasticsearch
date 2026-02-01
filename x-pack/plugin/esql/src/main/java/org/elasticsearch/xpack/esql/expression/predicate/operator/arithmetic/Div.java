@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.compute.ann.DenseVectorEvaluator;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -54,7 +53,7 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
             DivLongsEvaluator.Factory::new,
             DivUnsignedLongsEvaluator.Factory::new,
             DivDoublesEvaluator.Factory::new,
-            DenseVectorsEvaluator::getDivFactory
+            new DenseVectorsEvaluator.DivEvaluator()
         );
         this.type = type;
     }
@@ -67,7 +66,7 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
             DivLongsEvaluator.Factory::new,
             DivUnsignedLongsEvaluator.Factory::new,
             DivDoublesEvaluator.Factory::new,
-            DenseVectorsEvaluator::getDivFactory
+            new DenseVectorsEvaluator.DivEvaluator()
         );
     }
 
@@ -129,35 +128,5 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
             throw new ArithmeticException("/ by zero");
         }
         return value;
-    }
-
-    @DenseVectorEvaluator(extraName = "IntDenseVector", warnExceptions = { ArithmeticException.class })
-    static float processIntDenseVector(int lhs, float rhs) {
-        return NumericUtils.asFiniteNumber(lhs / rhs);
-    }
-
-    @DenseVectorEvaluator(extraName = "DenseVectorInt", warnExceptions = { ArithmeticException.class })
-    static float processDenseVectorInt(float lhs, int rhs) {
-        return NumericUtils.asFiniteNumber(lhs / rhs);
-    }
-
-    @DenseVectorEvaluator(extraName = "LongDenseVector", warnExceptions = { ArithmeticException.class })
-    static float processLongDenseVector(long lhs, float rhs) {
-        return NumericUtils.asFiniteNumber(lhs / rhs);
-    }
-
-    @DenseVectorEvaluator(extraName = "DenseVectorLong", warnExceptions = { ArithmeticException.class })
-    static float processDenseVectorLong(float lhs, long rhs) {
-        return NumericUtils.asFiniteNumber(lhs / rhs);
-    }
-
-    @DenseVectorEvaluator(extraName = "DoubleDenseVector", warnExceptions = { ArithmeticException.class })
-    static float processDoubleDenseVector(double lhs, float rhs) {
-        return NumericUtils.asFiniteNumber((float) (lhs / rhs));
-    }
-
-    @DenseVectorEvaluator(extraName = "DenseVectorDouble", warnExceptions = { ArithmeticException.class })
-    static float processDenseVectorDouble(float lhs, double rhs) {
-        return NumericUtils.asFiniteNumber((float) (lhs / rhs));
     }
 }

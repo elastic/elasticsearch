@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -25,10 +26,17 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrNumeric;
 public abstract class DenseVectorArithmeticOperation extends EsqlArithmeticOperation {
     private final DenseVectorBinaryEvaluator denseVectors;
 
-    /** Arithmetic (quad) function. */
-    @FunctionalInterface
+    /** Set of arithmetic (quad) functions for dense_vectors. */
     public interface DenseVectorBinaryEvaluator {
-        EvalOperator.ExpressionEvaluator.Factory apply(Source source, DataType lhsType, DataType rhsType, EvalOperator.ExpressionEvaluator.Factory lhs, EvalOperator.ExpressionEvaluator.Factory rhs);
+        EvalOperator.ExpressionEvaluator.Factory apply(
+            Source source,
+            EvalOperator.ExpressionEvaluator.Factory lhs,
+            EvalOperator.ExpressionEvaluator.Factory rhs
+        );
+
+        EvalOperator.ExpressionEvaluator.Factory apply(Source source, double lhs, EvalOperator.ExpressionEvaluator.Factory rhs);
+
+        EvalOperator.ExpressionEvaluator.Factory apply(Source source, EvalOperator.ExpressionEvaluator.Factory lhs, double rhs);
     }
 
     protected DenseVectorArithmeticOperation(
@@ -73,7 +81,7 @@ public abstract class DenseVectorArithmeticOperation extends EsqlArithmeticOpera
 
     @Override
     protected TypeResolution checkCompatibility() {
-        // dense_vectors arithmetic only supported when both arguments are dense_vectors or one argument is null
+        // dense_vectors arithmetic only supported when both arguments are dense_vectors or one argument is numeric or null
         DataType leftType = left().dataType();
         DataType rightType = right().dataType();
         if (leftType == DENSE_VECTOR || rightType == DENSE_VECTOR) {
@@ -89,7 +97,27 @@ public abstract class DenseVectorArithmeticOperation extends EsqlArithmeticOpera
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var commonType = dataType();
         if (commonType == DENSE_VECTOR) {
-            return denseVectors.apply(source(), left().dataType(), right().dataType(), toEvaluator.apply(left()), toEvaluator.apply(right()));
+            if (left().dataType() == DENSE_VECTOR && right().dataType() == DENSE_VECTOR) {
+                return denseVectors.apply(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
+            }
+            if (left().dataType() != DENSE_VECTOR) {
+                if (false == left().foldable()) {
+                    throw new IllegalArgumentException(
+                        LoggerMessageFormat.format(null, "[{}] should yield a dense_vector or scalar constant", left().sourceText())
+                    );
+                }
+                double lhs = ((Number) left().fold(toEvaluator.foldCtx())).doubleValue();
+                return denseVectors.apply(source(), lhs, toEvaluator.apply(right()));
+            } else {
+                if (false == right().foldable()) {
+                    throw new IllegalArgumentException(
+                        LoggerMessageFormat.format(null, "[{}] should yield a dense_vector or scalar constant", right().sourceText())
+                    );
+                }
+
+                double rhs = ((Number) (right().fold(toEvaluator.foldCtx()))).doubleValue();
+                return denseVectors.apply(source(), toEvaluator.apply(left()), rhs);
+            }
         }
         return super.toEvaluator(toEvaluator);
     }

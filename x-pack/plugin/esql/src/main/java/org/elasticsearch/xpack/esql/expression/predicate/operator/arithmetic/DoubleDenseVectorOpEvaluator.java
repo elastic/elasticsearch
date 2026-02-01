@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -17,12 +16,13 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 
-import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.ADD;
-import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.DIV;
-import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.MUL;
-import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.SUB;
+import java.util.function.BiFunction;
+
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DenseVectorsEvaluator.ADD_DENSE_VECTOR_EVALUATOR;
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DenseVectorsEvaluator.DIV_DENSE_VECTOR_EVALUATOR;
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DenseVectorsEvaluator.MUL_DENSE_VECTOR_EVALUATOR;
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DenseVectorsEvaluator.SUB_DENSE_VECTOR_EVALUATOR;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for performing arithmetic operations on lhs=double and rhs=dense_vector argument.
@@ -30,24 +30,20 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithme
  */
 class DoubleDenseVectorOpEvaluator implements EvalOperator.ExpressionEvaluator {
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleDenseVectorOpEvaluator.class);
-    private static final String ADD_DENSE_VECTOR_EVALUATOR = "AddDenseVectorsEvaluator";
-    private static final String SUB_DENSE_VECTOR_EVALUATOR = "SubDenseVectorsEvaluator";
-    private static final String MUL_DENSE_VECTOR_EVALUATOR = "MulDenseVectorsEvaluator";
-    private static final String DIV_DENSE_VECTOR_EVALUATOR = "DivDenseVectorsEvaluator";
 
-    private final EsqlArithmeticOperation.OperationSymbol op;
+    private final BiFunction<Double, Float, Float> op;
     private final String name;
     private final Source source;
-    private final EvalOperator.ExpressionEvaluator lhs;
+    private final double lhs;
     private final EvalOperator.ExpressionEvaluator rhs;
     private final DriverContext driverContext;
     private Warnings warnings;
 
     DoubleDenseVectorOpEvaluator(
-        EsqlArithmeticOperation.OperationSymbol op,
+        BiFunction<Double, Float, Float> op,
         String name,
         Source source,
-        EvalOperator.ExpressionEvaluator lhs,
+        double lhs,
         EvalOperator.ExpressionEvaluator rhs,
         DriverContext driverContext
     ) {
@@ -61,45 +57,34 @@ class DoubleDenseVectorOpEvaluator implements EvalOperator.ExpressionEvaluator {
 
     @Override
     public Block eval(Page page) {
-        try (var lhsBlock = (DoubleBlock) lhs.eval(page); var rhsBlock = (FloatBlock) rhs.eval(page)) {
+        try (var rhsBlock = (FloatBlock) rhs.eval(page)) {
             int positionCount = page.getPositionCount();
             try (var resultBlock = driverContext.blockFactory().newFloatBlockBuilder(positionCount)) {
                 float[] buffer = new float[0];
                 for (int p = 0; p < positionCount; p++) {
-                    if (lhsBlock.isNull(p) || rhsBlock.isNull(p)) {
+                    if (rhsBlock.isNull(p)) {
                         resultBlock.appendNull();
                         continue;
                     }
 
-                    int lhsValueCount = lhsBlock.getValueCount(p);
-                    if (buffer.length < lhsValueCount) {
-                        buffer = new float[lhsValueCount];
+                    int rhsValueCount = rhsBlock.getValueCount(p);
+                    if (buffer.length < rhsValueCount) {
+                        buffer = new float[rhsValueCount];
                     }
-                    int rhsStart = lhsBlock.getFirstValueIndex(p);
-                    double l = lhsBlock.getDouble(rhsBlock.getFirstValueIndex(p));
-                    boolean success = true;
+                    int rhsStart = rhsBlock.getFirstValueIndex(p);
                     try {
-                        for (int i = 0; i < lhsValueCount; i++) {
-                            float r = rhsBlock.getFloat(rhsStart + i);
-                            buffer[i] = switch (op) {
-                                case ADD -> processAdd(l, r);
-                                case SUB -> processSub(l, r);
-                                case MUL -> processMul(l, r);
-                                case DIV -> processDiv(l, r);
-                                case MOD -> throw new IllegalArgumentException("unsupported");
-                            };
+                        for (int i = 0; i < rhsValueCount; i++) {
+                            float rhs = rhsBlock.getFloat(rhsStart + i);
+                            buffer[i] = op.apply(lhs, rhs);
                         }
-                    } catch (ArithmeticException e) {
-                        warnings().registerException(e);
-                        resultBlock.appendNull();
-                        success = false;
-                    }
-                    if (success) {
                         resultBlock.beginPositionEntry();
-                        for (int i = 0; i < lhsValueCount; i++) {
+                        for (int i = 0; i < rhsValueCount; i++) {
                             resultBlock.appendFloat(buffer[i]);
                         }
                         resultBlock.endPositionEntry();
+                    } catch (ArithmeticException e) {
+                        warnings().registerException(e);
+                        resultBlock.appendNull();
                     }
                 }
                 return resultBlock.build();
@@ -109,7 +94,7 @@ class DoubleDenseVectorOpEvaluator implements EvalOperator.ExpressionEvaluator {
 
     @Override
     public long baseRamBytesUsed() {
-        return BASE_RAM_BYTES_USED + lhs.baseRamBytesUsed() + rhs.baseRamBytesUsed();
+        return BASE_RAM_BYTES_USED + rhs.baseRamBytesUsed();
     }
 
     @Override
@@ -119,47 +104,22 @@ class DoubleDenseVectorOpEvaluator implements EvalOperator.ExpressionEvaluator {
 
     @Override
     public void close() {
-        Releasables.closeExpectNoException(lhs, rhs);
+        Releasables.closeExpectNoException(rhs);
     }
 
     private Warnings warnings() {
         if (warnings == null) {
-            this.warnings = Warnings.createWarnings(
-                driverContext.warningsMode(),
-                source.source().getLineNumber(),
-                source.source().getColumnNumber(),
-                source.text()
-            );
+            this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
         }
         return warnings;
     }
 
-    private static float processAdd(double lhs, double rhs) {
-        return NumericUtils.asFiniteNumber((float) (lhs + rhs));
-    }
-
-    private static float processSub(double lhs, double rhs) {
-        return NumericUtils.asFiniteNumber((float) (lhs - rhs));
-    }
-
-    private static float processMul(double lhs, double rhs) {
-        return NumericUtils.asFiniteNumber((float) (lhs * rhs));
-    }
-
-    private static float processDiv(double lhs, double rhs) {
-        double result = (float) (lhs / rhs);
-        if (Double.isNaN(result) || Double.isInfinite(result)) {
-            throw new ArithmeticException("/ by zero");
-        }
-        return NumericUtils.asFiniteNumber((float) result);
-    }
-
     static final class AddFactory implements Factory {
         private final Source source;
-        private final Factory lhs;
+        private final double lhs;
         private final Factory rhs;
 
-        AddFactory(Source source, Factory lhs, Factory rhs) {
+        AddFactory(Source source, double lhs, Factory rhs) {
             this.source = source;
             this.lhs = lhs;
             this.rhs = rhs;
@@ -167,7 +127,14 @@ class DoubleDenseVectorOpEvaluator implements EvalOperator.ExpressionEvaluator {
 
         @Override
         public DoubleDenseVectorOpEvaluator get(DriverContext context) {
-            return new DoubleDenseVectorOpEvaluator(ADD, ADD_DENSE_VECTOR_EVALUATOR, source, lhs.get(context), rhs.get(context), context);
+            return new DoubleDenseVectorOpEvaluator(
+                DenseVectorsEvaluator::processAdd,
+                ADD_DENSE_VECTOR_EVALUATOR,
+                source,
+                lhs,
+                rhs.get(context),
+                context
+            );
         }
 
         @Override
@@ -178,10 +145,10 @@ class DoubleDenseVectorOpEvaluator implements EvalOperator.ExpressionEvaluator {
 
     static class SubFactory implements Factory {
         private final Source source;
-        private final Factory lhs;
+        private final double lhs;
         private final Factory rhs;
 
-        SubFactory(Source source, Factory lhs, Factory rhs) {
+        SubFactory(Source source, double lhs, Factory rhs) {
             this.source = source;
             this.lhs = lhs;
             this.rhs = rhs;
@@ -189,7 +156,14 @@ class DoubleDenseVectorOpEvaluator implements EvalOperator.ExpressionEvaluator {
 
         @Override
         public DoubleDenseVectorOpEvaluator get(DriverContext context) {
-            return new DoubleDenseVectorOpEvaluator(SUB, SUB_DENSE_VECTOR_EVALUATOR, source, lhs.get(context), rhs.get(context), context);
+            return new DoubleDenseVectorOpEvaluator(
+                DenseVectorsEvaluator::processSub,
+                SUB_DENSE_VECTOR_EVALUATOR,
+                source,
+                lhs,
+                rhs.get(context),
+                context
+            );
         }
 
         @Override
@@ -200,10 +174,10 @@ class DoubleDenseVectorOpEvaluator implements EvalOperator.ExpressionEvaluator {
 
     static class MulFactory implements Factory {
         private final Source source;
-        private final Factory lhs;
+        private final double lhs;
         private final Factory rhs;
 
-        MulFactory(Source source, Factory lhs, Factory rhs) {
+        MulFactory(Source source, double lhs, Factory rhs) {
             this.source = source;
             this.lhs = lhs;
             this.rhs = rhs;
@@ -211,7 +185,14 @@ class DoubleDenseVectorOpEvaluator implements EvalOperator.ExpressionEvaluator {
 
         @Override
         public DoubleDenseVectorOpEvaluator get(DriverContext context) {
-            return new DoubleDenseVectorOpEvaluator(MUL, MUL_DENSE_VECTOR_EVALUATOR, source, lhs.get(context), rhs.get(context), context);
+            return new DoubleDenseVectorOpEvaluator(
+                DenseVectorsEvaluator::processMul,
+                MUL_DENSE_VECTOR_EVALUATOR,
+                source,
+                lhs,
+                rhs.get(context),
+                context
+            );
         }
 
         @Override
@@ -222,10 +203,10 @@ class DoubleDenseVectorOpEvaluator implements EvalOperator.ExpressionEvaluator {
 
     static class DivFactory implements Factory {
         private final Source source;
-        private final Factory lhs;
+        private final double lhs;
         private final Factory rhs;
 
-        DivFactory(Source source, Factory lhs, Factory rhs) {
+        DivFactory(Source source, double lhs, Factory rhs) {
             this.source = source;
             this.lhs = lhs;
             this.rhs = rhs;
@@ -233,7 +214,14 @@ class DoubleDenseVectorOpEvaluator implements EvalOperator.ExpressionEvaluator {
 
         @Override
         public DoubleDenseVectorOpEvaluator get(DriverContext context) {
-            return new DoubleDenseVectorOpEvaluator(DIV, DIV_DENSE_VECTOR_EVALUATOR, source, lhs.get(context), rhs.get(context), context);
+            return new DoubleDenseVectorOpEvaluator(
+                DenseVectorsEvaluator::processDiv,
+                DIV_DENSE_VECTOR_EVALUATOR,
+                source,
+                lhs,
+                rhs.get(context),
+                context
+            );
         }
 
         @Override

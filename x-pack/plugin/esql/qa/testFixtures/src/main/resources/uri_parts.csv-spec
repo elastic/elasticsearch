@@ -25,7 +25,7 @@ port:integer | scheme:keyword | domain:keyword
 ;
 
 
-test_after_filtering
+testAfterFiltering
 required_capability: compound_output_eval
 
 FROM web_logs
@@ -41,7 +41,51 @@ https                | www.elastic.co         | /guide/en/elasticsearch/referenc
 ;
 
 
-test_before_filtering
+prefixSameAsInputFieldName
+required_capability: compound_output_eval
+
+FROM web_logs
+| WHERE timestamp == "2024-01-10T10:04:45.987Z"
+| URI_PARTS_🐔 uri = uri
+| KEEP uri.scheme, uri.domain, uri.path
+;
+
+uri.scheme:keyword   | uri.domain:keyword     | uri.path:keyword
+https                | www.google.com         | /search
+;
+
+
+prefixSameAsInputFieldNameDropInputField
+required_capability: compound_output_eval
+
+FROM web_logs
+| URI_PARTS_🐔 uri = uri
+| WHERE timestamp == "2024-01-10T10:04:45.987Z"
+| DROP uri
+| KEEP uri.scheme, uri.domain, uri.path
+;
+
+uri.scheme:keyword   | uri.domain:keyword     | uri.path:keyword
+https                | www.google.com         | /search
+;
+
+
+prefixSameAsInputFieldNameEvalInputField
+required_capability: compound_output_eval
+
+FROM web_logs
+| URI_PARTS_🐔 uri = uri
+| WHERE timestamp == "2024-01-10T10:04:45.987Z"
+| EVAL uri = 5
+| KEEP uri.scheme, uri.domain, uri.path
+;
+
+uri.scheme:keyword   | uri.domain:keyword     | uri.path:keyword
+https                | www.google.com         | /search
+;
+
+
+testBeforeFiltering
 required_capability: compound_output_eval
 
 FROM web_logs
@@ -57,7 +101,7 @@ https                | www.elastic.co         | /downloads/elasticsearch
 ;
 
 
-test_non_web_uri
+testNonWebUri
 required_capability: compound_output_eval
 
 FROM web_logs
@@ -71,7 +115,7 @@ ftp              | files.internal       | /data.zip        | user               
 ;
 
 
-test_no_scheme_uri
+testNoSchemeUri
 required_capability: compound_output_eval
 
 FROM web_logs
@@ -85,7 +129,7 @@ null             | null                   | /app/login     | session=expired
 ;
 
 
-test_invalid_uri
+testInvalidUri
 required_capability: compound_output_eval
 
 ROW uri = "not a valid uri"

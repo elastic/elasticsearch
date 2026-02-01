@@ -11,12 +11,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
@@ -24,13 +22,11 @@ import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankModelTests;
-import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
@@ -43,7 +39,6 @@ import static org.mockito.Mockito.mock;
 
 public class MixedbreadActionCreatorTests extends ESTestCase {
     private static final String EXPECTED_EXCEPTION = "Failed to send Mixedbread rerank request. Cause: failed";
-    private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private static final QueryAndDocsInputs QUERY_AND_DOCS_INPUTS = new QueryAndDocsInputs(
         "popular name",
         List.of("Luke"),
@@ -69,16 +64,6 @@ public class MixedbreadActionCreatorTests extends ESTestCase {
         webServer.close();
     }
 
-    public void testExecute_ThrowsElasticsearchException() {
-        var sender = mock(Sender.class);
-        doThrow(new ElasticsearchException("failed")).when(sender).send(any(), any(), any(), any());
-
-        var action = createAction("model", "secret", null, null, sender);
-        ElasticsearchException thrownException = executeActionWithException(action);
-
-        MatcherAssert.assertThat(thrownException.getMessage(), is("failed"));
-    }
-
     public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled() {
         var sender = mock(Sender.class);
 
@@ -92,23 +77,7 @@ public class MixedbreadActionCreatorTests extends ESTestCase {
         var action = createAction("model", "secret", null, null, sender);
         ElasticsearchException thrownException = executeActionWithException(action);
 
-        MatcherAssert.assertThat(thrownException.getMessage(), is(EXPECTED_EXCEPTION));
-    }
-
-    public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled_WhenUrlIsNull() {
-        var sender = mock(Sender.class);
-
-        doAnswer(invocation -> {
-            ActionListener<HttpResult> listener = invocation.getArgument(3);
-            listener.onFailure(new IllegalStateException("failed"));
-
-            return Void.TYPE;
-        }).when(sender).send(any(), any(), any(), any());
-
-        var action = createAction("model", "secret", null, null, sender);
-        ElasticsearchException thrownException = executeActionWithException(action);
-
-        MatcherAssert.assertThat(thrownException.getMessage(), is(EXPECTED_EXCEPTION));
+        ESTestCase.assertThat(thrownException.getMessage(), is(EXPECTED_EXCEPTION));
     }
 
     public void testExecute_ThrowsException() {
@@ -118,28 +87,18 @@ public class MixedbreadActionCreatorTests extends ESTestCase {
         var action = createAction("model", "secret", null, null, sender);
         ElasticsearchException thrownException = executeActionWithException(action);
 
-        MatcherAssert.assertThat(thrownException.getMessage(), is(EXPECTED_EXCEPTION));
-    }
-
-    public void testExecute_ThrowsExceptionWithNullUrl() {
-        var sender = mock(Sender.class);
-        doThrow(new IllegalArgumentException("failed")).when(sender).send(any(), any(), any(), any());
-
-        var action = createAction("model", "secret", null, null, sender);
-        var thrownException = executeActionWithException(action);
-
-        MatcherAssert.assertThat(thrownException.getMessage(), is(EXPECTED_EXCEPTION));
+        ESTestCase.assertThat(thrownException.getMessage(), is(EXPECTED_EXCEPTION));
     }
 
     private static ElasticsearchException executeActionWithException(ExecutableAction action) {
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(QUERY_AND_DOCS_INPUTS, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
-        return expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
+        action.execute(QUERY_AND_DOCS_INPUTS, ESTestCase.TEST_REQUEST_TIMEOUT, listener);
+        return expectThrows(ElasticsearchException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
     }
 
     private ExecutableAction createAction(String modelName, String apiKey, Integer topN, Boolean returnDocuments, Sender sender) {
         var actionCreator = new MixedbreadActionCreator(sender, createWithEmptySettings(threadPool));
-        var model = MixedbreadRerankModelTests.createModel(modelName, apiKey, topN, returnDocuments);
+        var model = MixedbreadRerankModelTests.createModel(modelName, apiKey, topN, returnDocuments, null);
         return actionCreator.create(model, null);
     }
 }

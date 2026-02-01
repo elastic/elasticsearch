@@ -47,9 +47,7 @@ public class MixedbreadRerankResponseEntityTests extends ESTestCase {
         );
 
         assertThat(parsedResults, instanceOf(RankedDocsResults.class));
-        for (int i = 0; i < ((RankedDocsResults) parsedResults).getRankedDocs().size(); i++) {
-            assertEquals(((RankedDocsResults) parsedResults).getRankedDocs().get(i).index(), RESPONSE_LITERAL_DOCS.get(i).index());
-        }
+        assertThat(((RankedDocsResults) parsedResults).getRankedDocs(), is(RESPONSE_LITERAL_DOCS));
     }
 
     public void testResponseLiteralWithDocumentsAsString() throws IOException {

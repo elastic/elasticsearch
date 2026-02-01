@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.mixedbread.request;
+package org.elasticsearch.xpack.inference.services.mixedbread.request.rerank;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
@@ -16,7 +16,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankModel;
-import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankTaskSettings;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -31,7 +30,6 @@ public class MixedbreadRerankRequest implements Request {
     private final List<String> input;
     private final Boolean returnDocuments;
     private final Integer topN;
-    private final MixedbreadRerankTaskSettings taskSettings;
 
     public MixedbreadRerankRequest(
         String query,
@@ -44,7 +42,7 @@ public class MixedbreadRerankRequest implements Request {
         this.query = Objects.requireNonNull(query);
         this.returnDocuments = returnDocuments;
         this.topN = topN;
-        taskSettings = model.getTaskSettings();
+        model.getTaskSettings();
         this.model = Objects.requireNonNull(model);
     }
 
@@ -53,7 +51,14 @@ public class MixedbreadRerankRequest implements Request {
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
             Strings.toString(
-                new MixedbreadRerankRequestEntity(model.getServiceSettings().modelId(), query, input, topN, returnDocuments, taskSettings)
+                new MixedbreadRerankRequestEntity(
+                    model.getServiceSettings().modelId(),
+                    query,
+                    input,
+                    topN,
+                    returnDocuments,
+                    model.getTaskSettings()
+                )
             ).getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);

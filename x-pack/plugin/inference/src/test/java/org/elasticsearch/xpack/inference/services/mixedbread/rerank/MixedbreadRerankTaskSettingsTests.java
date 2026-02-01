@@ -16,9 +16,15 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadServiceTests.RETURN_DOCUMENTS_FALSE;
+import static org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadServiceTests.RETURN_DOCUMENTS_TRUE;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class MixedbreadRerankTaskSettingsTests extends AbstractWireSerializingTestCase<MixedbreadRerankTaskSettings> {
+    private static final int TOP_N = 7;
+    private static final int TOP_N_UPDATE_VALUE = 8;
 
     public static MixedbreadRerankTaskSettings createRandom() {
         var returnDocuments = randomOptionalBoolean();
@@ -30,13 +36,13 @@ public class MixedbreadRerankTaskSettingsTests extends AbstractWireSerializingTe
     public void testFromMap_WithValidValues_ReturnsSettings() {
         Map<String, Object> taskMap = Map.of(
             MixedbreadRerankTaskSettings.RETURN_DOCUMENTS,
-            true,
-            MixedbreadRerankTaskSettings.TOP_N_DOCS_ONLY,
-            5
+            RETURN_DOCUMENTS_TRUE,
+            MixedbreadRerankTaskSettings.TOP_N,
+            TOP_N
         );
         var settings = MixedbreadRerankTaskSettings.fromMap(new HashMap<>(taskMap));
         assertTrue(settings.getReturnDocuments());
-        assertEquals(5, settings.getTopNDocumentsOnly().intValue());
+        assertEquals(TOP_N, settings.getTopNDocumentsOnly().intValue());
     }
 
     public void testFromMap_WithNullValues_ReturnsSettingsWithNulls() {
@@ -49,8 +55,8 @@ public class MixedbreadRerankTaskSettingsTests extends AbstractWireSerializingTe
         Map<String, Object> taskMap = Map.of(
             MixedbreadRerankTaskSettings.RETURN_DOCUMENTS,
             "invalid",
-            MixedbreadRerankTaskSettings.TOP_N_DOCS_ONLY,
-            5
+            MixedbreadRerankTaskSettings.TOP_N,
+            TOP_N
         );
         var thrownException = expectThrows(ValidationException.class, () -> MixedbreadRerankTaskSettings.fromMap(new HashMap<>(taskMap)));
         assertThat(thrownException.getMessage(), containsString("field [return_documents] is not of the expected type"));
@@ -59,8 +65,8 @@ public class MixedbreadRerankTaskSettingsTests extends AbstractWireSerializingTe
     public void testFromMap_WithInvalidTopNDocsOnly_ThrowsValidationException() {
         Map<String, Object> taskMap = Map.of(
             MixedbreadRerankTaskSettings.RETURN_DOCUMENTS,
-            true,
-            MixedbreadRerankTaskSettings.TOP_N_DOCS_ONLY,
+            RETURN_DOCUMENTS_TRUE,
+            MixedbreadRerankTaskSettings.TOP_N,
             "invalid"
         );
         var thrownException = expectThrows(ValidationException.class, () -> MixedbreadRerankTaskSettings.fromMap(new HashMap<>(taskMap)));
@@ -68,38 +74,38 @@ public class MixedbreadRerankTaskSettingsTests extends AbstractWireSerializingTe
     }
 
     public void testUpdatedTaskSettings_WithEmptyMap_ReturnsSameSettings() {
-        var initialSettings = new MixedbreadRerankTaskSettings(5, true);
-        MixedbreadRerankTaskSettings updatedSettings = (MixedbreadRerankTaskSettings) initialSettings.updatedTaskSettings(Map.of());
-        assertEquals(initialSettings, updatedSettings);
+        var initialSettings = new MixedbreadRerankTaskSettings(TOP_N, RETURN_DOCUMENTS_TRUE);
+        MixedbreadRerankTaskSettings updatedSettings = initialSettings.updatedTaskSettings(Map.of());
+        assertThat(initialSettings, is(sameInstance(updatedSettings)));
     }
 
     public void testUpdatedTaskSettings_WithNewReturnDocuments_ReturnsUpdatedSettings() {
-        var initialSettings = new MixedbreadRerankTaskSettings(5, true);
-        Map<String, Object> newSettings = Map.of(MixedbreadRerankTaskSettings.RETURN_DOCUMENTS, false);
-        MixedbreadRerankTaskSettings updatedSettings = (MixedbreadRerankTaskSettings) initialSettings.updatedTaskSettings(newSettings);
+        var initialSettings = new MixedbreadRerankTaskSettings(TOP_N, RETURN_DOCUMENTS_TRUE);
+        Map<String, Object> newSettings = Map.of(MixedbreadRerankTaskSettings.RETURN_DOCUMENTS, RETURN_DOCUMENTS_FALSE);
+        MixedbreadRerankTaskSettings updatedSettings = initialSettings.updatedTaskSettings(newSettings);
         assertFalse(updatedSettings.getReturnDocuments());
         assertEquals(initialSettings.getTopNDocumentsOnly(), updatedSettings.getTopNDocumentsOnly());
     }
 
     public void testUpdatedTaskSettings_WithNewTopNDocsOnly_ReturnsUpdatedSettings() {
-        var initialSettings = new MixedbreadRerankTaskSettings(5, true);
-        Map<String, Object> newSettings = Map.of(MixedbreadRerankTaskSettings.TOP_N_DOCS_ONLY, 7);
-        MixedbreadRerankTaskSettings updatedSettings = (MixedbreadRerankTaskSettings) initialSettings.updatedTaskSettings(newSettings);
-        assertEquals(7, updatedSettings.getTopNDocumentsOnly().intValue());
+        var initialSettings = new MixedbreadRerankTaskSettings(TOP_N, RETURN_DOCUMENTS_TRUE);
+        Map<String, Object> newSettings = Map.of(MixedbreadRerankTaskSettings.TOP_N, TOP_N_UPDATE_VALUE);
+        MixedbreadRerankTaskSettings updatedSettings = initialSettings.updatedTaskSettings(newSettings);
+        assertEquals(TOP_N_UPDATE_VALUE, updatedSettings.getTopNDocumentsOnly().intValue());
         assertEquals(initialSettings.getReturnDocuments(), updatedSettings.getReturnDocuments());
     }
 
     public void testUpdatedTaskSettings_WithMultipleNewValues_ReturnsUpdatedSettings() {
-        var initialSettings = new MixedbreadRerankTaskSettings(5, true);
+        var initialSettings = new MixedbreadRerankTaskSettings(TOP_N, RETURN_DOCUMENTS_TRUE);
         Map<String, Object> newSettings = Map.of(
             MixedbreadRerankTaskSettings.RETURN_DOCUMENTS,
-            false,
-            MixedbreadRerankTaskSettings.TOP_N_DOCS_ONLY,
-            7
+            RETURN_DOCUMENTS_FALSE,
+            MixedbreadRerankTaskSettings.TOP_N,
+            TOP_N_UPDATE_VALUE
         );
-        MixedbreadRerankTaskSettings updatedSettings = (MixedbreadRerankTaskSettings) initialSettings.updatedTaskSettings(newSettings);
+        MixedbreadRerankTaskSettings updatedSettings = initialSettings.updatedTaskSettings(newSettings);
         assertFalse(updatedSettings.getReturnDocuments());
-        assertEquals(7, updatedSettings.getTopNDocumentsOnly().intValue());
+        assertEquals(TOP_N_UPDATE_VALUE, updatedSettings.getTopNDocumentsOnly().intValue());
     }
 
     @Override
@@ -127,7 +133,7 @@ public class MixedbreadRerankTaskSettingsTests extends AbstractWireSerializingTe
         var map = new HashMap<String, Object>();
 
         if (topNDocumentsOnly != null) {
-            map.put(MixedbreadRerankTaskSettings.TOP_N_DOCS_ONLY, topNDocumentsOnly);
+            map.put(MixedbreadRerankTaskSettings.TOP_N, topNDocumentsOnly);
         }
 
         if (returnDocuments != null) {

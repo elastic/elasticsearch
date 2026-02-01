@@ -118,4 +118,8 @@ public abstract class BaseResponseHandler implements ResponseHandler {
 
         return code == null ? RestStatus.BAD_REQUEST : code;
     }
+
+    protected static String resourceNotFoundError(Request request) {
+        return format("Resource not found at [%s]", request.getURI());
+    }
 }

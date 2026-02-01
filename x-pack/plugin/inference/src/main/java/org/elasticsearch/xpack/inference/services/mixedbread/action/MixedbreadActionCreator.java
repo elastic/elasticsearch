@@ -14,9 +14,9 @@ import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestMana
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.mixedbread.request.MixedbreadRerankRequest;
+import org.elasticsearch.xpack.inference.services.mixedbread.request.rerank.MixedbreadRerankRequest;
 import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankModel;
-import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankResponseHandler;
+import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadResponseHandler;
 import org.elasticsearch.xpack.inference.services.mixedbread.response.MixedbreadRerankResponseEntity;
 
 import java.util.Map;
@@ -27,7 +27,7 @@ import static org.elasticsearch.xpack.inference.external.action.ActionUtils.cons
 public class MixedbreadActionCreator implements MixedbreadActionVisitor {
     private static final String RERANK_ERROR_PREFIX = "Mixedbread rerank";
 
-    private static final ResponseHandler RERANK_HANDLER = new MixedbreadRerankResponseHandler(
+    private static final ResponseHandler RERANK_HANDLER = new MixedbreadResponseHandler(
         "mixedbread rerank",
         (request, response) -> MixedbreadRerankResponseEntity.fromResponse(response)
     );

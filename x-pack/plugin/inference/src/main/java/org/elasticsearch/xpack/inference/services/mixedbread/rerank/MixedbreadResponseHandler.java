@@ -14,8 +14,6 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
 
-import static org.elasticsearch.core.Strings.format;
-
 public class MixedbreadResponseHandler extends BaseResponseHandler {
     private static final String FORBIDDEN = "Valid credentials but insufficient permissions for this resource.";
     private static final String PAYMENT_ERROR_MESSAGE = "Insufficient balance. Top up your account to continue.";
@@ -62,9 +60,5 @@ public class MixedbreadResponseHandler extends BaseResponseHandler {
         } else {
             throw new RetryException(false, buildError(UNSUCCESSFUL, request, result));
         }
-    }
-
-    private static String resourceNotFoundError(Request request) {
-        return format("Resource not found at [%s]", request.getURI());
     }
 }

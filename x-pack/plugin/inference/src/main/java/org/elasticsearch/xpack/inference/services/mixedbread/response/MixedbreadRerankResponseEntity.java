@@ -48,6 +48,7 @@ public class MixedbreadRerankResponseEntity {
      * }
      * <p>
      *  The response will look like (without whitespace):
+     *  <pre>
      *{
      *     "usage": {
      *         "prompt_tokens": 162,
@@ -79,6 +80,7 @@ public class MixedbreadRerankResponseEntity {
      *     "top_k": 3,
      *     "return_input": false
      * }
+     * </pre>
 
      * Parses the response from a Mixedbread rerank request and returns the results.
 

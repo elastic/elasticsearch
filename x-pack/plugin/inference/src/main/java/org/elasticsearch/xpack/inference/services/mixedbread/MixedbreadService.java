@@ -259,7 +259,7 @@ public class MixedbreadService extends SenderService implements RerankingInferen
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return MixedbreadUtils.ML_INFERENCE_MIXEDBREAD_ADDED;
+        return MixedbreadUtils.INFERENCE_MIXEDBREAD_ADDED;
     }
 
     @Override

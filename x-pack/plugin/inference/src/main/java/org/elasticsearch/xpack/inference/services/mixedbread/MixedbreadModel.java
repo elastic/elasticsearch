@@ -11,7 +11,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
-import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
@@ -37,12 +36,14 @@ public abstract class MixedbreadModel extends RateLimitGroupingModel {
         ModelConfigurations configurations,
         ModelSecrets secrets,
         @Nullable ApiKeySecrets apiKeySecrets,
-        RateLimitSettings rateLimitServiceSettings
+        RateLimitSettings rateLimitServiceSettings,
+        URI uri
     ) {
         super(configurations, secrets);
 
         this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
         apiKey = ServiceUtils.apiKey(apiKeySecrets);
+        this.uri = uri;
     }
 
     protected MixedbreadModel(MixedbreadModel model, TaskSettings taskSettings) {
@@ -50,13 +51,7 @@ public abstract class MixedbreadModel extends RateLimitGroupingModel {
 
         rateLimitServiceSettings = model.rateLimitServiceSettings();
         apiKey = model.apiKey();
-    }
-
-    protected MixedbreadModel(MixedbreadModel model, ServiceSettings serviceSettings) {
-        super(model, serviceSettings);
-
-        rateLimitServiceSettings = model.rateLimitServiceSettings();
-        apiKey = model.apiKey();
+        uri = model.uri();
     }
 
     public SecureString apiKey() {

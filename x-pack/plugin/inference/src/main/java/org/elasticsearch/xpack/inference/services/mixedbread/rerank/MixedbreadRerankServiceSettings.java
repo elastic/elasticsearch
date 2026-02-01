@@ -35,7 +35,7 @@ public class MixedbreadRerankServiceSettings extends FilteredXContentObject impl
     public static final String WINDOWS_SIZE = "windows_size";
 
     /**
-     * 100 req / min
+     * Free subscription tier 100 req / min
      * <a href="https://www.mixedbread.com/pricing">Rate Limiting</a>.
      */
     public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(100);
@@ -66,11 +66,7 @@ public class MixedbreadRerankServiceSettings extends FilteredXContentObject impl
     private final RateLimitSettings rateLimitSettings;
     private final Integer windowsSize;
 
-    public MixedbreadRerankServiceSettings(
-        @Nullable String model,
-        @Nullable RateLimitSettings rateLimitSettings,
-        @Nullable Integer windowsSize
-    ) {
+    public MixedbreadRerankServiceSettings(String model, @Nullable RateLimitSettings rateLimitSettings, @Nullable Integer windowsSize) {
         this.model = model;
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
         this.windowsSize = Objects.requireNonNullElse(windowsSize, DEFAULT_WINDOWS_SIZE);
@@ -99,7 +95,7 @@ public class MixedbreadRerankServiceSettings extends FilteredXContentObject impl
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         assert false : "should never be called when supportsVersion is used";
-        return MixedbreadUtils.ML_INFERENCE_MIXEDBREAD_ADDED;
+        return MixedbreadUtils.INFERENCE_MIXEDBREAD_ADDED;
     }
 
     @Override

@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentE
 import java.util.concurrent.Flow;
 import java.util.function.Function;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.external.http.retry.ResponseHandlerUtils.getFirstHeaderOrUnknown;
 
 public class OpenAiResponseHandler extends BaseResponseHandler {
@@ -103,10 +102,6 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
 
     protected RetryException buildExceptionHandlingContentTooLarge(Request request, HttpResult result) {
         return new ContentTooLargeException(buildError(CONTENT_TOO_LARGE, request, result));
-    }
-
-    private static String resourceNotFoundError(Request request) {
-        return format("Resource not found at [%s]", request.getURI());
     }
 
     protected RetryException buildExceptionHandling429(Request request, HttpResult result) {

@@ -28,7 +28,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 public class MixedbreadRerankTaskSettings implements TaskSettings {
     public static final String NAME = "mixedbread_rerank_task_settings";
     public static final String RETURN_DOCUMENTS = "return_documents";
-    public static final String TOP_N_DOCS_ONLY = "top_n";
+    public static final String TOP_N = "top_n";
 
     public static final MixedbreadRerankTaskSettings EMPTY_SETTINGS = new MixedbreadRerankTaskSettings(null, null);
 
@@ -40,12 +40,7 @@ public class MixedbreadRerankTaskSettings implements TaskSettings {
         }
 
         Boolean returnDocuments = extractOptionalBoolean(map, RETURN_DOCUMENTS, validationException);
-        Integer topNDocumentsOnly = extractOptionalPositiveInteger(
-            map,
-            TOP_N_DOCS_ONLY,
-            ModelConfigurations.TASK_SETTINGS,
-            validationException
-        );
+        Integer topNDocumentsOnly = extractOptionalPositiveInteger(map, TOP_N, ModelConfigurations.TASK_SETTINGS, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
@@ -55,7 +50,7 @@ public class MixedbreadRerankTaskSettings implements TaskSettings {
             return EMPTY_SETTINGS;
         }
 
-        return of(topNDocumentsOnly, returnDocuments);
+        return new MixedbreadRerankTaskSettings(topNDocumentsOnly, returnDocuments);
     }
 
     /**
@@ -70,6 +65,9 @@ public class MixedbreadRerankTaskSettings implements TaskSettings {
         MixedbreadRerankTaskSettings originalSettings,
         MixedbreadRerankTaskSettings requestTaskSettings
     ) {
+        if (requestTaskSettings.isEmpty() || originalSettings.equals(requestTaskSettings)) {
+            return originalSettings;
+        }
         return new MixedbreadRerankTaskSettings(
             requestTaskSettings.getTopNDocumentsOnly() != null
                 ? requestTaskSettings.getTopNDocumentsOnly()
@@ -78,10 +76,6 @@ public class MixedbreadRerankTaskSettings implements TaskSettings {
                 ? requestTaskSettings.getReturnDocuments()
                 : originalSettings.getReturnDocuments()
         );
-    }
-
-    public static MixedbreadRerankTaskSettings of(Integer topNDocumentsOnly, Boolean returnDocuments) {
-        return new MixedbreadRerankTaskSettings(topNDocumentsOnly, returnDocuments);
     }
 
     private final Integer topNDocumentsOnly;
@@ -105,7 +99,7 @@ public class MixedbreadRerankTaskSettings implements TaskSettings {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (topNDocumentsOnly != null) {
-            builder.field(TOP_N_DOCS_ONLY, topNDocumentsOnly);
+            builder.field(TOP_N, topNDocumentsOnly);
         }
         if (returnDocuments != null) {
             builder.field(RETURN_DOCUMENTS, returnDocuments);
@@ -122,7 +116,7 @@ public class MixedbreadRerankTaskSettings implements TaskSettings {
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         assert false : "should never be called when supportsVersion is used";
-        return MixedbreadUtils.ML_INFERENCE_MIXEDBREAD_ADDED;
+        return MixedbreadUtils.INFERENCE_MIXEDBREAD_ADDED;
     }
 
     @Override
@@ -158,7 +152,7 @@ public class MixedbreadRerankTaskSettings implements TaskSettings {
     }
 
     @Override
-    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+    public MixedbreadRerankTaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
         MixedbreadRerankTaskSettings updatedSettings = MixedbreadRerankTaskSettings.fromMap(new HashMap<>(newSettings));
         return MixedbreadRerankTaskSettings.of(this, updatedSettings);
     }

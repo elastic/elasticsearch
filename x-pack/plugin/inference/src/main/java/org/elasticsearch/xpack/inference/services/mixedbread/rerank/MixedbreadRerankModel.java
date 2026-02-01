@@ -13,24 +13,19 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadConstants;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadModel;
 import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadService;
+import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadUtils;
 import org.elasticsearch.xpack.inference.services.mixedbread.action.MixedbreadActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
 
 public class MixedbreadRerankModel extends MixedbreadModel {
-    private URI uri = buildUri(
-        MixedbreadService.SERVICE_NAME,
-        MixedbreadConstants.DEFAULT_URI_BUILDER.setPathSegments(MixedbreadConstants.VERSION_1, MixedbreadConstants.RERANK_PATH)::build
-    );
-
     public static MixedbreadRerankModel of(MixedbreadRerankModel model, Map<String, Object> taskSettings) {
         var requestTaskSettings = MixedbreadRerankTaskSettings.fromMap(taskSettings);
         if (requestTaskSettings.isEmpty() || requestTaskSettings.equals(model.getTaskSettings())) {
@@ -50,31 +45,36 @@ public class MixedbreadRerankModel extends MixedbreadModel {
             inferenceId,
             MixedbreadRerankServiceSettings.fromMap(serviceSettings, context),
             MixedbreadRerankTaskSettings.fromMap(taskSettings),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets),
+            null
         );
     }
 
     // should only be used for testing
-    public MixedbreadRerankModel(
+    MixedbreadRerankModel(
         String modelId,
         MixedbreadRerankServiceSettings serviceSettings,
         MixedbreadRerankTaskSettings taskSettings,
-        @Nullable DefaultSecretSettings secretSettings
+        @Nullable DefaultSecretSettings secretSettings,
+        @Nullable String uri
     ) {
         super(
             new ModelConfigurations(modelId, TaskType.RERANK, MixedbreadService.NAME, serviceSettings, taskSettings),
             new ModelSecrets(secretSettings),
             secretSettings,
-            serviceSettings.rateLimitSettings()
+            serviceSettings.rateLimitSettings(),
+            Objects.requireNonNullElse(
+                ServiceUtils.createOptionalUri(uri),
+                buildUri(
+                    MixedbreadService.SERVICE_NAME,
+                    MixedbreadUtils.DEFAULT_URI_BUILDER.setPathSegments(MixedbreadUtils.VERSION_1, MixedbreadUtils.RERANK_PATH)::build
+                )
+            )
         );
     }
 
     private MixedbreadRerankModel(MixedbreadRerankModel model, MixedbreadRerankTaskSettings taskSettings) {
         super(model, taskSettings);
-    }
-
-    public MixedbreadRerankModel(MixedbreadRerankModel model, MixedbreadRerankServiceSettings serviceSettings) {
-        super(model, serviceSettings);
     }
 
     @Override
@@ -90,19 +90,6 @@ public class MixedbreadRerankModel extends MixedbreadModel {
     @Override
     public DefaultSecretSettings getSecretSettings() {
         return (DefaultSecretSettings) super.getSecretSettings();
-    }
-
-    public URI uri() {
-        return uri;
-    }
-
-    // Needed for testing only
-    public void setURI(String newUri) {
-        try {
-            uri = new URI(newUri);
-        } catch (URISyntaxException e) {
-            // swallow any error
-        }
     }
 
     /**

@@ -18,7 +18,6 @@ import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.http.MockResponse;
@@ -27,6 +26,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -65,9 +65,16 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
 public class MixedbreadServiceTests extends InferenceServiceTestCase {
+    public static final Boolean RETURN_DOCUMENTS_TRUE = true;
+    public static final Boolean RETURN_DOCUMENTS_FALSE = false;
+    public static final String DEFAULT_RERANK_URL = "https://api.mixedbread.com/v1/reranking";
+
     private static final String INFERENCE_ENTITY_ID_VALUE = "id";
-    public static final String DEFAULT_RERANK_URL = "https://api.mixedbread.com/v1/rerank";
     private static final String MODEL_NAME_VALUE = "modelName";
+    private static final String API_KEY = "secret";
+    private static final String QUERY_VALUE = "query";
+    private static final Integer TOP_N = 3;
+    private static final Boolean STREAM = false;
     private static final List<String> INPUT = List.of("candidate1", "candidate2", "candidate3");
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
@@ -100,7 +107,7 @@ public class MixedbreadServiceTests extends InferenceServiceTestCase {
             service.parseRequestConfig(
                 INFERENCE_ENTITY_ID_VALUE,
                 TaskType.RERANK,
-                getRequestConfigMap(
+                Utils.getRequestConfigMap(
                     MixedbreadRerankServiceSettingsTests.getServiceSettingsMap(modelName, requestsPerMinute),
                     MixedbreadRerankTaskSettingsTests.getTaskSettingsMap(topN, returnDocuments),
                     getSecretSettingsMap(apiKey)
@@ -128,7 +135,11 @@ public class MixedbreadServiceTests extends InferenceServiceTestCase {
             service.parseRequestConfig(
                 INFERENCE_ENTITY_ID_VALUE,
                 TaskType.RERANK,
-                getRequestConfigMap(MixedbreadRerankServiceSettingsTests.getServiceSettingsMap(modelName), getSecretSettingsMap(apiKey)),
+                Utils.getRequestConfigMap(
+                    MixedbreadRerankServiceSettingsTests.getServiceSettingsMap(modelName),
+                    Map.of(),
+                    getSecretSettingsMap(apiKey)
+                ),
                 modelListener
             );
 
@@ -235,17 +246,16 @@ public class MixedbreadServiceTests extends InferenceServiceTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(401).setBody(responseJson));
 
-            var model = MixedbreadRerankModelTests.createModel(MODEL_NAME_VALUE, "secret", 1024, false);
-            model.setURI(getUrl(webServer));
+            var model = MixedbreadRerankModelTests.createModel(MODEL_NAME_VALUE, API_KEY, TOP_N, RETURN_DOCUMENTS_FALSE, getUrl(webServer));
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
-                "query",
+                QUERY_VALUE,
                 null,
                 null,
                 List.of("candidate1", "candidate2"),
-                false,
+                STREAM,
                 new HashMap<>(),
                 null,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -259,7 +269,7 @@ public class MixedbreadServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testInfer_Rerank_Get_Response_NoReturnDocuments_NoTopN() throws IOException {
+    public void testInfer_Rerank_NoReturnDocuments_NoTopN() throws IOException {
         String responseJson = """
             {
                 "usage": {
@@ -293,16 +303,15 @@ public class MixedbreadServiceTests extends InferenceServiceTestCase {
 
         try (var service = new MixedbreadService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-            var model = MixedbreadRerankModelTests.createModel(MODEL_NAME_VALUE, "secret", null, false);
-            model.setURI(getUrl(webServer));
+            var model = MixedbreadRerankModelTests.createModel(MODEL_NAME_VALUE, API_KEY, null, RETURN_DOCUMENTS_FALSE, getUrl(webServer));
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
-                "query",
+                QUERY_VALUE,
                 null,
                 null,
                 INPUT,
-                false,
+                STREAM,
                 new HashMap<>(),
                 null,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -330,11 +339,14 @@ public class MixedbreadServiceTests extends InferenceServiceTestCase {
             assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
-            assertThat(requestMap, is(Map.of("query", "query", "input", INPUT, "model", MODEL_NAME_VALUE, "return_input", false)));
+            assertThat(
+                requestMap,
+                is(Map.of("query", QUERY_VALUE, "input", INPUT, "model", MODEL_NAME_VALUE, "return_input", RETURN_DOCUMENTS_FALSE))
+            );
         }
     }
 
-    public void testInfer_Rerank_Get_Response_ReturnDocumentsNull_NoTopN() throws IOException {
+    public void testInfer_Rerank_ReturnDocumentsNull_NoTopN() throws IOException {
         String responseJson = """
             {
                 "usage": {
@@ -370,16 +382,15 @@ public class MixedbreadServiceTests extends InferenceServiceTestCase {
 
         try (var service = new MixedbreadService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-            var model = MixedbreadRerankModelTests.createModel(MODEL_NAME_VALUE, "secret", null, null);
-            model.setURI(getUrl(webServer));
+            var model = MixedbreadRerankModelTests.createModel(MODEL_NAME_VALUE, API_KEY, null, null, getUrl(webServer));
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
-                "query",
+                QUERY_VALUE,
                 null,
                 null,
                 INPUT,
-                false,
+                STREAM,
                 new HashMap<>(),
                 null,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -406,12 +417,12 @@ public class MixedbreadServiceTests extends InferenceServiceTestCase {
             assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
-            assertThat(requestMap, is(Map.of("query", "query", "input", INPUT, "model", MODEL_NAME_VALUE)));
+            assertThat(requestMap, is(Map.of("query", QUERY_VALUE, "input", INPUT, "model", MODEL_NAME_VALUE)));
 
         }
     }
 
-    public void testInfer_Rerank_Get_Response_ReturnDocuments_TopN() throws IOException {
+    public void testInfer_Rerank_ReturnDocuments_TopN() throws IOException {
         String responseJson = """
             {
                 "usage": {
@@ -449,16 +460,15 @@ public class MixedbreadServiceTests extends InferenceServiceTestCase {
 
         try (var service = new MixedbreadService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-            var model = MixedbreadRerankModelTests.createModel(MODEL_NAME_VALUE, "secret", 3, true);
-            model.setURI(getUrl(webServer));
+            var model = MixedbreadRerankModelTests.createModel(MODEL_NAME_VALUE, API_KEY, TOP_N, RETURN_DOCUMENTS_TRUE, getUrl(webServer));
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
-                "query",
+                QUERY_VALUE,
                 null,
                 null,
                 List.of("candidate1", "candidate2", "candidate3", "candidate4"),
-                false,
+                STREAM,
                 new HashMap<>(),
                 null,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -490,13 +500,13 @@ public class MixedbreadServiceTests extends InferenceServiceTestCase {
                 is(
                     Map.of(
                         "query",
-                        "query",
+                        QUERY_VALUE,
                         "input",
                         List.of("candidate1", "candidate2", "candidate3", "candidate4"),
                         "model",
                         MODEL_NAME_VALUE,
                         "return_input",
-                        true,
+                        RETURN_DOCUMENTS_TRUE,
                         "top_k",
                         3
                     )
@@ -586,28 +596,6 @@ public class MixedbreadServiceTests extends InferenceServiceTestCase {
         assertThat(model.rateLimitServiceSettings(), is(rateLimitSettings));
 
         assertThat(model.apiKey().toString(), is(apiKey));
-    }
-
-    private Map<String, Object> getRequestConfigMap(
-        Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
-        Map<String, Object> secretSettings
-    ) {
-        var builtServiceSettings = new HashMap<>();
-        builtServiceSettings.putAll(serviceSettings);
-        builtServiceSettings.putAll(secretSettings);
-
-        return new HashMap<>(
-            Map.of(ModelConfigurations.SERVICE_SETTINGS, builtServiceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)
-        );
-    }
-
-    private Map<String, Object> getRequestConfigMap(Map<String, Object> serviceSettings, Map<String, Object> secretSettings) {
-        var builtServiceSettings = new HashMap<>();
-        builtServiceSettings.putAll(serviceSettings);
-        builtServiceSettings.putAll(secretSettings);
-
-        return new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, builtServiceSettings));
     }
 
     private MixedbreadService createMixedbreadService() {

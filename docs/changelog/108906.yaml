@@ -1,0 +1,5 @@
+pr: 108906
+summary: "[User-Agent] Update regexes file for user_agent processor"
+area: Ingest Node
+type: enhancement
+issues: []

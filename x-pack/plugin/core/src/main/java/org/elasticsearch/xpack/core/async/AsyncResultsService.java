@@ -186,7 +186,7 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
     }
 
     /**
-     * Represents a function that accepts three arguments and produces a result.
+     * Represents a function that accepts four arguments and produces a result.
      *
      * @param <S> the type of the first argument
      * @param <T> the type of the second argument

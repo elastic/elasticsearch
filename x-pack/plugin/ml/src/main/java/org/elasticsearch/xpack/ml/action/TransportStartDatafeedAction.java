@@ -348,6 +348,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         DataExtractorFactory.create(
             new ParentTaskAssigningClient(client, clusterService.localNode(), task),
             effectiveDatafeed,
+            null,
             job,
             xContentRegistry,
             // Fake DatafeedTimingStatsReporter that does not have access to results index

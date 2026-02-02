@@ -43,6 +43,7 @@ import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -1229,5 +1230,45 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
         // Should handle wildcard patterns correctly
         assertThat(result.getIndices(), equalTo(datafeed.getIndices()));
         assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(true));
+    }
+
+    public void testCrossProjectWithFeatureEnabled() throws IOException {
+        var datafeedConfig = createDatafeedConfigFromString("""
+            {
+              "datafeed_id": "cross-project-feature-enabled",
+              "job_id": "test-job",
+              "indices": ["project-1:src"]
+            }""");
+        assertNull(datafeedConfig.validateNoCrossProjectWhenCrossProjectFeatureIsDisabled(true, null));
+    }
+
+    public void testCrossProjectWithFeatureDisabled() throws IOException {
+        var datafeedConfig = createDatafeedConfigFromString("""
+            {
+              "datafeed_id": "cross-project-feature-not-enabled",
+              "job_id": "test-job",
+              "indices": ["project-1:src"]
+            }""");
+        var validationException = datafeedConfig.validateNoCrossProjectWhenCrossProjectFeatureIsDisabled(false, null);
+        assertNotNull(validationException);
+        assertThat(
+            validationException.getMessage(),
+            containsString("Cross-project calls are not supported, but remote indices were requested: [project-1:src]")
+        );
+    }
+
+    public void testNotCrossProjectEnvironment() throws IOException {
+        var datafeedConfig = createDatafeedConfigFromString("""
+            {
+              "datafeed_id": "remote-cluster",
+              "job_id": "test-job",
+              "indices": ["remote-1:src"]
+            }""");
+        assertNull(datafeedConfig.validateNoCrossProjectWhenCrossProjectIsDisabled(new CrossProjectModeDecider(Settings.EMPTY), null));
+    }
+
+    private DatafeedConfig createDatafeedConfigFromString(String json) throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent, json);
+        return DatafeedConfig.LENIENT_PARSER.apply(parser, null).build();
     }
 }

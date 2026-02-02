@@ -109,6 +109,15 @@ public class DatafeedJobBuilder {
             return;
         }
 
+        // if we had created a datafeed when the feature flag was enabled, but we disabled the feature flag
+        // then verify that this datafeed does not use CPS features
+        var validationException = datafeedConfig.validateNoCrossProjectWhenCrossProjectIsDisabled(crossProjectModeDecider, null);
+
+        if (validationException != null) {
+            listener.onFailure(validationException);
+            return;
+        }
+
         ActionListener<DataExtractorFactory> dataExtractorFactoryHandler = ActionListener.wrap(dataExtractorFactory -> {
             TimeValue frequency = getFrequencyOrDefault(datafeedConfig, job, xContentRegistry);
             TimeValue queryDelay = datafeedConfig.getQueryDelay();
@@ -149,6 +158,7 @@ public class DatafeedJobBuilder {
         DataExtractorFactory.create(
             parentTaskAssigningClient,
             effectiveDatafeedConfig,
+            null,
             job,
             xContentRegistry,
             timingStatsReporter,

@@ -101,7 +101,7 @@ class CompletionRequestIterator implements BulkInferenceRequestItemIterator {
         // Only set task settings if explicitly provided by the user.
         // This preserves backward compatibility and avoids sending empty
         // maps to the inference service, which could have unexpected behavior.
-        if (taskSettings != null && !taskSettings.isEmpty()) {
+        if (taskSettings != null && taskSettings.isEmpty() == false) {
             builder.setTaskSettings(taskSettings);
         }
 

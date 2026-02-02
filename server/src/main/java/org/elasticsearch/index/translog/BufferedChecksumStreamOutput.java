@@ -48,6 +48,11 @@ public final class BufferedChecksumStreamOutput extends StreamOutput {
     }
 
     @Override
+    public long position() {
+        return out.position();
+    }
+
+    @Override
     public void writeString(String str) throws IOException {
         // Have to update the digest with the bytes written.
         // Not performance-critical: only used for sending translog operations during recovery.

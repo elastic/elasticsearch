@@ -36,6 +36,13 @@ public class Configuration implements Writeable {
 
     private static final TransportVersion ESQL_SUPPORT_PARTIAL_RESULTS = TransportVersion.fromName("esql_support_partial_results");
 
+    /**
+     * Transport version for view queries support. This is needed to correctly serialize/deserialize
+     * Source objects that originated from views (which have positions relative to the view query,
+     * not the main query).
+     */
+    public static final TransportVersion ESQL_VIEW_QUERIES = TransportVersion.fromName("esql_view_queries");
+
     private final String clusterName;
     private final String username;
     private final Instant now;
@@ -58,6 +65,11 @@ public class Configuration implements Writeable {
     private final Map<String, Map<String, Column>> tables;
     private final long queryStartTimeNanos;
     private final String projectRouting;
+    /**
+     * Map of view names to their query strings. Used during deserialization to reconstruct
+     * Source objects that originated from views.
+     */
+    private final Map<String, String> viewQueries;
 
     public Configuration(
         ZoneId zi,
@@ -75,7 +87,8 @@ public class Configuration implements Writeable {
         boolean allowPartialResults,
         int resultTruncationMaxSizeTimeseries,
         int resultTruncationDefaultSizeTimeseries,
-        String projectRouting
+        String projectRouting,
+        Map<String, String> viewQueries
     ) {
         this.zoneId = zi.normalized();
         this.now = now;
@@ -94,6 +107,8 @@ public class Configuration implements Writeable {
         this.queryStartTimeNanos = queryStartTimeNanos;
         this.allowPartialResults = allowPartialResults;
         this.projectRouting = projectRouting;
+        this.viewQueries = viewQueries;
+        assert viewQueries != null;
     }
 
     public Configuration(BlockStreamInput in) throws IOException {
@@ -121,6 +136,11 @@ public class Configuration implements Writeable {
             this.resultTruncationMaxSizeTimeseries = this.resultTruncationMaxSizeRegular;
             this.resultTruncationDefaultSizeTimeseries = this.resultTruncationDefaultSizeRegular;
         }
+        if (in.getTransportVersion().supports(ESQL_VIEW_QUERIES)) {
+            this.viewQueries = in.readImmutableMap(StreamInput::readString);
+        } else {
+            this.viewQueries = Map.of();
+        }
 
         // not needed on the data nodes for now
         this.projectRouting = null;
@@ -147,6 +167,9 @@ public class Configuration implements Writeable {
         if (out.getTransportVersion().supports(TIMESERIES_DEFAULT_LIMIT)) {
             out.writeVInt(resultTruncationMaxSizeTimeseries);
             out.writeVInt(resultTruncationDefaultSizeTimeseries);
+        }
+        if (out.getTransportVersion().supports(ESQL_VIEW_QUERIES)) {
+            out.writeMap(viewQueries, StreamOutput::writeString);
         }
     }
 
@@ -238,7 +261,8 @@ public class Configuration implements Writeable {
             allowPartialResults,
             resultTruncationMaxSizeTimeseries,
             resultTruncationDefaultSizeTimeseries,
-            projectRouting
+            projectRouting,
+            viewQueries
         );
     }
 
@@ -259,6 +283,38 @@ public class Configuration implements Writeable {
 
     public String projectRouting() {
         return projectRouting;
+    }
+
+    /**
+     * Returns the map of view names to their query strings.
+     */
+    public Map<String, String> viewQueries() {
+        return viewQueries;
+    }
+
+    /**
+     * Returns a new Configuration with the given view queries added.
+     */
+    public Configuration withViewQueries(Map<String, String> viewQueries) {
+        return new Configuration(
+            zoneId,
+            now,
+            locale,
+            username,
+            clusterName,
+            pragmas,
+            resultTruncationMaxSizeRegular,
+            resultTruncationDefaultSizeRegular,
+            query,
+            profile,
+            tables,
+            queryStartTimeNanos,
+            allowPartialResults,
+            resultTruncationMaxSizeTimeseries,
+            resultTruncationDefaultSizeTimeseries,
+            projectRouting,
+            viewQueries
+        );
     }
 
     private static void writeQuery(StreamOutput out, String query) throws IOException {
@@ -300,7 +356,8 @@ public class Configuration implements Writeable {
             && Objects.equals(that.query, query)
             && profile == that.profile
             && tables.equals(that.tables)
-            && allowPartialResults == that.allowPartialResults;
+            && allowPartialResults == that.allowPartialResults
+            && viewQueries.equals(that.viewQueries);
     }
 
     @Override
@@ -319,7 +376,8 @@ public class Configuration implements Writeable {
             tables,
             allowPartialResults,
             resultTruncationMaxSizeTimeseries,
-            resultTruncationDefaultSizeTimeseries
+            resultTruncationDefaultSizeTimeseries,
+            viewQueries
         );
     }
 

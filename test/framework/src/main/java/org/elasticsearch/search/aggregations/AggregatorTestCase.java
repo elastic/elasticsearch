@@ -762,6 +762,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 );
                 internalAggs = new ArrayList<>(internalAggs.subList(r, toReduceSize));
                 internalAggs.add(InternalAggregations.topLevelReduce(toReduce, reduceContext));
+                toReduce.forEach(InternalAggregations::close);
                 for (InternalAggregations internalAggregation : internalAggs) {
                     assertRoundTrip(internalAggregation.copyResults());
                 }

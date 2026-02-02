@@ -295,3 +295,38 @@ book_no:keyword | title:text                                                    
 7350            | Return of the Shadow                                                 | 0.012500000186264515
 // end::rerank-top-snippets-result[]
 ;
+
+rerank with row filtering null scores
+required_capability: rerank
+required_capability: fix_score_operator_planning
+
+ROW a = ["abc", "def", "ghi"]
+| MV_EXPAND a
+| EVAL a = case(a == "def", null,  a)
+| RERANK "foo" ON a WITH { "inference_id" : "test_reranker" }
+| WHERE _score IS NOT NULL
+| SORT a
+;
+
+a:keyword | _score:double
+abc       | 0.3333333432674408
+ghi       | 0.3333333432674408
+;
+
+rerank with null score filtering
+required_capability: rerank
+required_capability: fix_score_operator_planning
+
+FROM books METADATA _id, _index, _score
+| WHERE MATCH(description, "hobbit") OR MATCH(author, "Tolkien")
+| SORT _score DESC
+| LIMIT 3
+| EVAL title = CASE(book_no == "4289", NULL, title)
+| RERANK "hobbit" ON title WITH { "inference_id" : "test_reranker" }
+| KEEP book_no, title, _score
+| WHERE _score IS NULL
+;
+
+book_no:keyword | title:keyword | _score: double
+4289            | null          | null
+;

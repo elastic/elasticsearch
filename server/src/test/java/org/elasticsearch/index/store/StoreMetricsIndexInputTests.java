@@ -35,9 +35,9 @@ public class StoreMetricsIndexInputTests extends ESTestCase {
         assertEquals(1026, metricHolder.instance().getBytesRead());
     }
 
-    public void testSnapshotMetricBeforeUsageSnapshotDoesNotChange() throws IOException {
+    public void testCopyMetricBeforeUsageCopyDoesNotChange() throws IOException {
         PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
-        var snapshot = metricHolder.instance().snapshot();
+        var snapshot = metricHolder.instance().copy();
         StoreMetricsIndexInput indexInput = new StoreMetricsIndexInput("test", mock(IndexInput.class), metricHolder);
 
         assertEquals(0, metricHolder.instance().getBytesRead());

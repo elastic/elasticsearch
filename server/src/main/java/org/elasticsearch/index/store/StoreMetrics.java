@@ -34,14 +34,14 @@ public class StoreMetrics implements DirectoryMetrics.PluggableMetrics<StoreMetr
         return bytesRead;
     }
 
-    public StoreMetrics snapshot() {
+    public StoreMetrics copy() {
         return new StoreMetrics(bytesRead);
     }
 
     public Supplier<StoreMetrics> delta() {
-        StoreMetrics snapshot = snapshot();
+        StoreMetrics snapshot = copy();
 
-        return () -> snapshot().minus(snapshot);
+        return () -> copy().minus(snapshot);
     }
 
     private StoreMetrics minus(StoreMetrics snapshot) {

@@ -32,7 +32,7 @@ public class DirectoryMetrics implements ToXContentFragment {
     public interface PluggableMetrics<T extends PluggableMetrics<T>> extends ToXContentObject {
         Supplier<T> delta();
 
-        T snapshot();
+        T copy();
 
         default <R> R cast(Class<R> clazz) {
             return clazz.cast(this);

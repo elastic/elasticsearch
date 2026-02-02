@@ -1529,15 +1529,15 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      * Limit[1000[INTEGER],false,false]
      * \_UnionAll[[language_code{r}#22, language_name{r}#23, does_not_exist1{r}#24, @timestamp{r}#25, client_ip{r}#26,
      *      event_duration{r}#27, message{r}#28]]
-     *   |_EsqlProject[[language_code{f}#6, language_name{f}#7, does_not_exist1{r}#12, @timestamp{r}#16, client_ip{r}#17, event_duration{r}#18,
-     *          message{r}#19]]
+     *   |_EsqlProject[[language_code{f}#6, language_name{f}#7, does_not_exist1{r}#12, @timestamp{r}#16, client_ip{r}#17,
+     *                  event_duration{r}#18, message{r}#19]]
      *   | \_Eval[[null[DATETIME] AS @timestamp#16, null[IP] AS client_ip#17, null[LONG] AS event_duration#18, null[KEYWORD] AS message#19]]
      *   |   \_Subquery[]
      *   |     \_Filter[TOLONG(does_not_exist1{r}#12) > 1[INTEGER]]
      *   |       \_Eval[[null[NULL] AS does_not_exist1#12]]
      *   |         \_EsRelation[languages][language_code{f}#6, language_name{f}#7]
-     *   \_EsqlProject[[language_code{r}#20, language_name{r}#21, does_not_exist1{r}#14, @timestamp{f}#8, client_ip{f}#9, event_duration{f}#10,
-     *          message{f}#11]]
+     *   \_EsqlProject[[language_code{r}#20, language_name{r}#21, does_not_exist1{r}#14, @timestamp{f}#8, client_ip{f}#9,
+     *                  event_duration{f}#10, message{f}#11]]
      *     \_Eval[[null[INTEGER] AS language_code#20, null[KEYWORD] AS language_name#21]]
      *       \_Subquery[]
      *         \_Filter[TODOUBLE(does_not_exist1{r}#14) > 10.0[DOUBLE]]

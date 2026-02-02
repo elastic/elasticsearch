@@ -63,7 +63,7 @@ public class AllocateUnassignedIT extends ESIntegTestCase {
     }
 
     public void testNewShardsAreAllocatedToPreferredNodesWhenPresent() {
-        final var nodes = createNodes(randomIntBetween(1, 3), randomIntBetween(1, 3), randomIntBetween(1, 3), randomIntBetween(1, 3));
+        final var nodes = createNodes(randomIntBetween(1, 3), randomIntBetween(1, 3), 0, randomIntBetween(1, 3));
 
         createSingleShardAndAssertItIsAssignedToAppropriateNode(nodes.yesNodes());
     }

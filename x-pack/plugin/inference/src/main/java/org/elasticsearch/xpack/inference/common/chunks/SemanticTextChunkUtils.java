@@ -21,9 +21,12 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -34,6 +37,9 @@ import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceField;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
@@ -218,4 +224,72 @@ public class SemanticTextChunkUtils {
         return queries;
     }
 
+    public static int getSemanticTextFieldEmbeddingLength(DenseVectorFieldMapper.ElementType elementType, int dimensions) {
+        return switch (elementType) {
+            case FLOAT, BFLOAT16, BYTE -> dimensions;
+            case BIT -> {
+                assert dimensions % Byte.SIZE == 0;
+                yield dimensions / Byte.SIZE;
+            }
+        };
+    }
+
+    public static VectorData getTextEmbeddingVectorFromChunk(
+        SemanticTextField.Chunk chunk,
+        int embeddingLength,
+        XContentType contentType,
+        DenseVectorFieldMapper.ElementType elementType
+    ) {
+        BytesReference embeddingsBytes = chunk.rawEmbeddings();
+        if (embeddingsBytes == null) {
+            return null;
+        }
+
+        double[] values = parseDenseVectorFromBytes(chunk.rawEmbeddings(), embeddingLength, contentType);
+        if (values == null) {
+            return null;
+        }
+
+        return switch (elementType) {
+            case FLOAT, BFLOAT16 -> new VectorData(floatArrayOf(values));
+            case BYTE, BIT -> new VectorData(byteArrayOf(values));
+        };
+    }
+
+    private static float[] floatArrayOf(double[] doublesArray) {
+        var floatArray = new float[doublesArray.length];
+        for (int i = 0; i < doublesArray.length; i++) {
+            floatArray[i] = (float) doublesArray[i];
+        }
+        return floatArray;
+    }
+
+    private static byte[] byteArrayOf(double[] doublesArray) {
+        // It's fine to not check if the double values are out of range here because if any are, equality assertions on the expected vs.
+        // actual chunks will fail downstream
+        byte[] byteArray = new byte[doublesArray.length];
+        for (int i = 0; i < doublesArray.length; i++) {
+            byteArray[i] = (byte) doublesArray[i];
+        }
+        return byteArray;
+    }
+
+    private static double[] parseDenseVectorFromBytes(BytesReference value, int numDims, XContentType contentType) {
+        try (XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, value, contentType)) {
+            parser.nextToken();
+            if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
+                return null;
+            }
+            double[] values = new double[numDims];
+            for (int i = 0; i < numDims; i++) {
+                if (parser.nextToken() == XContentParser.Token.END_ARRAY) {
+                    return values;
+                }
+                values[i] = parser.doubleValue();
+            }
+            return values;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
 }

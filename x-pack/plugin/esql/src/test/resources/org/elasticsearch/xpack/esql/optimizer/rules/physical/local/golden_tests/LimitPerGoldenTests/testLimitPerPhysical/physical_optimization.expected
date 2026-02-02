@@ -1,7 +1,7 @@
 TopNExec[[Order[salary{f},ASC,LAST]],2[INTEGER],[languages{f}],null]
 \_ExchangeExec[[avg_worked_seconds{f}, birth_date{f}, emp_no{f}, first_name{f}, gender{f}, height{f}, height.float{f}, height.half_float{f}, height.scaled_float{f}, hire_date{f}, is_rehired{f}, job_positions{f}, languages{f}, languages.byte{f}, languages.long{f}, languages.short{f}, last_name{f}, salary{f}, salary_change{f}, salary_change.int{f}, salary_change.keyword{f}, salary_change.long{f}, still_hired{f}],false]
   \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
-Project[[avg_worked_seconds{f}, birth_date{f}, emp_no{f}, first_name{f}, gender{f}, height{f}, height
-.float{f}, height.half_float{f}, height.scaled_float{f}, hire_date{f}, is_rehired{f}, job_positions{f}, languages{f}, languages.byte{f}, languages.long{f}, languages.short{f}, last_name{f}, salary{f}, salary_change{f}, salary_change.int{f}, salary_change.keyword{f}, salary_change.long{f}, still_hired{f}]]
+Project[[avg_worked_seconds{f}, birth_date{f}, emp_no{f}, first_name{f}, gender{f}, height{f}, heigh
+t.float{f}, height.half_float{f}, height.scaled_float{f}, hire_date{f}, is_rehired{f}, job_positions{f}, languages{f}, languages.byte{f}, languages.long{f}, languages.short{f}, last_name{f}, salary{f}, salary_change{f}, salary_change.int{f}, salary_change.keyword{f}, salary_change.long{f}, still_hired{f}]]
 \_TopN[[Order[salary{f},ASC,LAST]],2[INTEGER],[languages{f}],false]
-  \_EsRelation[employees][avg_worked_seconds{f}, birth_date{f}, emp_no{f..]<>]]
+  \_EsRelation[employees][avg_worked_seconds{f}, birth_date{f}, emp_no{..]<>]]

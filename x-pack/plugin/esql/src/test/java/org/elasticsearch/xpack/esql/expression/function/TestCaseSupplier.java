@@ -2018,6 +2018,24 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             );
         }
 
+        public TestCase withWarnings(List<String> warnings) {
+            return new TestCase(
+                source,
+                configuration,
+                data,
+                evaluatorToString,
+                expectedType,
+                matcher,
+                warnings == null ? null : warnings.toArray(new String[0]),
+                expectedBuildEvaluatorWarnings,
+                expectedTypeError,
+                foldingExceptionClass,
+                foldingExceptionMessage,
+                extra,
+                canBuildEvaluator
+            );
+        }
+
         /**
          * Warnings that are added by calling {@link AbstractFunctionTestCase#evaluator}
          * or {@link Expression#fold} on the expression built by this.

@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -456,24 +457,6 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             // Resolve final evaluation
             Object result = Foldables.valueOf(FoldContext.small(), expressionWithResolvedAggs);
             assertTestCaseResultAndWarnings(result);
-            /*
-            // TODO: OLD
-            Expression finalExpression = expression.transformUp(e -> {
-                if (e instanceof AggregateFunction) {
-                    // return Literal.of(e, executeAggregator.apply(e));
-                    return Literal.of(e, e);
-                } else if (e instanceof Function) {
-                    // return Literal.of(e, executeEvaluableExpression.apply(e));
-                    return Literal.of(e, e);
-                }
-                return e;
-            });
-
-            assertThat(finalExpression, instanceOf(Literal.class));
-
-            var result = ((Literal) finalExpression).value();
-            assertTestCaseResultAndWarnings(result);
-            */
         } finally {
             Releasables.close(blocksByField.values());
         }
@@ -603,23 +586,23 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             return expression;
         }
 
-        for (int i = 0;; i++) {
-            assertThat("Potential infinite loop detected in surrogates", i, lessThan(10));
-
-            if (expression instanceof SurrogateExpression == false) {
-                break;
-            }
-
-            // TODO: Substitute using transformUp()
-
-            var surrogate = ((SurrogateExpression) expression).surrogate();
-
-            if (surrogate == null) {
-                break;
-            }
-
-            expression = surrogate;
+        // Run agg surrogates twice
+        for (int i = 0; i < 2; i++) {
+            expression = expression.transformUp(
+                AggregateFunction.class,
+                agg -> {
+                    if (agg instanceof SurrogateExpression se) {
+                        var surrogate = se.surrogate();
+                        if (surrogate != null) {
+                            return surrogate;
+                        }
+                    }
+                    return agg;
+                }
+            );
         }
+
+        expression = SubstituteSurrogateExpressions.rule(expression);
 
         return expression;
     }

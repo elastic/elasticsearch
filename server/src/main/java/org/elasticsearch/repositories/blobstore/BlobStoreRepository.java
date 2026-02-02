@@ -12,12 +12,10 @@ package org.elasticsearch.repositories.blobstore;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.BytesRef;
@@ -71,8 +69,6 @@ import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.TruncatedOutputStream;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -3334,8 +3330,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             context.onFailure(new RepositoryException(metadata.name(), "cannot snapshot shard on a readonly repository"));
             return;
         }
-        final Store store = context.store();
-        final ShardId shardId = store.shardId();
+        final ShardId shardId = context.shardId();
         final SnapshotId snapshotId = context.snapshotId();
         final IndexShardSnapshotStatus snapshotStatus = context.status();
         snapshotStatus.updateStatusDescription("snapshot task runner: setting up shard snapshot");
@@ -3396,7 +3391,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             int filesInShardMetadataCount = 0;
             long filesInShardMetadataSize = 0;
 
-            if (store.indexSettings().getIndexMetadata().isSearchableSnapshot()) {
+            if (context.isSearchableSnapshot()) {
                 indexCommitPointFiles = Collections.emptyList();
             } else if (filesFromSegmentInfos == null) {
                 // If we did not find a set of files that is equal to the current commit we determine the files to upload by comparing files
@@ -3406,14 +3401,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 final Store.MetadataSnapshot metadataFromStore;
                 try (Releasable ignored = context.withCommitRef()) {
                     // TODO apparently we don't use the MetadataSnapshot#.recoveryDiff(...) here but we should
-                    try {
-                        final IndexCommit snapshotIndexCommit = context.indexCommit();
-                        logger.trace("[{}] [{}] Loading store metadata using index commit [{}]", shardId, snapshotId, snapshotIndexCommit);
-                        metadataFromStore = store.getMetadata(snapshotIndexCommit);
-                        fileNames = snapshotIndexCommit.getFileNames();
-                    } catch (IOException e) {
-                        throw new IndexShardSnapshotFailedException(shardId, "Failed to get store file metadata", e);
-                    }
+                    metadataFromStore = context.metadataSnapshot();
+                    fileNames = context.fileNames();
                 }
                 for (String fileName : fileNames) {
                     ensureNotAborted(shardId, snapshotId, snapshotStatus, fileName);
@@ -3441,7 +3430,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         if (needsWrite) {
                             filesToSnapshot.add(snapshotFileInfo);
                         } else {
-                            assert assertFileContentsMatchHash(snapshotStatus, snapshotFileInfo, store);
+                            assert context.assertFileContentsMatchHash(snapshotFileInfo);
                             filesInShardMetadataCount += 1;
                             filesInShardMetadataSize += md.length();
                         }
@@ -3672,32 +3661,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         for (int i = 0; i < noOfFilesToSnapshot; i++) {
             shardSnapshotTaskRunner.enqueueFileSnapshot(context, filesToSnapshot::poll, filesListener);
         }
-    }
-
-    private static boolean assertFileContentsMatchHash(
-        IndexShardSnapshotStatus snapshotStatus,
-        BlobStoreIndexShardSnapshot.FileInfo fileInfo,
-        Store store
-    ) {
-        if (store.tryIncRef()) {
-            try (IndexInput indexInput = store.openVerifyingInput(fileInfo.physicalName(), IOContext.READONCE, fileInfo.metadata())) {
-                final byte[] tmp = new byte[Math.toIntExact(fileInfo.metadata().length())];
-                indexInput.readBytes(tmp, 0, tmp.length);
-                assert fileInfo.metadata().hash().bytesEquals(new BytesRef(tmp));
-            } catch (IOException e) {
-                throw new AssertionError(e);
-            } finally {
-                store.decRef();
-            }
-        } else {
-            try {
-                snapshotStatus.ensureNotAborted();
-                assert false : "if the store is already closed we must have been aborted";
-            } catch (Exception e) {
-                assert e instanceof AbortedSnapshotException : e;
-            }
-        }
-        return true;
     }
 
     @Override
@@ -4212,16 +4175,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     protected void snapshotFile(SnapshotShardContext context, FileInfo fileInfo) throws IOException {
         final IndexId indexId = context.indexId();
-        final Store store = context.store();
-        final ShardId shardId = store.shardId();
+        final ShardId shardId = context.shardId();
         final IndexShardSnapshotStatus snapshotStatus = context.status();
         final SnapshotId snapshotId = context.snapshotId();
         final BlobContainer shardContainer = shardContainer(indexId, shardId);
         final String file = fileInfo.physicalName();
-        try (
-            Releasable ignored = context.withCommitRef();
-            IndexInput indexInput = store.openVerifyingInput(file, IOContext.DEFAULT, fileInfo.metadata())
-        ) {
+        try (var fileReader = context.fileReader(file, fileInfo.metadata())) {
             for (int i = 0; i < fileInfo.numberOfParts(); i++) {
                 final long partBytes = fileInfo.partBytes(i);
 
@@ -4232,9 +4191,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 AtomicLong totalTimeSpendReadingInNanos = new AtomicLong();
 
                 // Make reads abortable by mutating the snapshotStatus object
-                final InputStream inputStream = new FilterInputStream(
-                    maybeRateLimitSnapshots(new InputStreamIndexInput(indexInput, partBytes))
-                ) {
+                final InputStream inputStream = new FilterInputStream(maybeRateLimitSnapshots(fileReader.openInput(partBytes))) {
                     @Override
                     public int read() throws IOException {
                         checkAborted();
@@ -4275,23 +4232,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 );
             }
             blobStoreSnapshotMetrics.incrementNumberOfBlobsUploaded();
-            Store.verify(indexInput);
+            fileReader.verify();
             snapshotStatus.addProcessedFile(fileInfo.length());
         } catch (Exception t) {
-            failStoreIfCorrupted(store, t);
+            context.failStoreIfCorrupted(t);
             snapshotStatus.addProcessedFile(0);
             throw t;
-        }
-    }
-
-    private static void failStoreIfCorrupted(Store store, Exception e) {
-        if (Lucene.isCorruptionException(e)) {
-            try {
-                store.markStoreCorrupted((IOException) e);
-            } catch (IOException inner) {
-                inner.addSuppressed(e);
-                logger.warn("store cannot be marked as corrupted", inner);
-            }
         }
     }
 

@@ -46,9 +46,26 @@ public class ESNextOSQVectorsScorer {
     protected final float[] upperIntervals;
     protected final int[] targetComponentSums;
     protected final float[] additionalCorrections;
+    protected final ES92Int7VectorsScorer int7Scorer;
 
     public ESNextOSQVectorsScorer(IndexInput in, byte queryBits, byte indexBits, int dimensions, int dataLength, int bulkSize) {
-        if (queryBits != 4 || (indexBits != 1 && indexBits != 2 && indexBits != 4)) {
+        this(in, queryBits, indexBits, dimensions, dataLength, bulkSize, null);
+    }
+
+    public ESNextOSQVectorsScorer(
+        IndexInput in,
+        byte queryBits,
+        byte indexBits,
+        int dimensions,
+        int dataLength,
+        int bulkSize,
+        ES92Int7VectorsScorer int7Scorer
+    ) {
+        if (indexBits == 7) {
+            if (queryBits != 7) {
+                throw new IllegalArgumentException("Only symmetric 7-bit query supported for 7-bit index");
+            }
+        } else if (queryBits != 4 || (indexBits != 1 && indexBits != 2 && indexBits != 4)) {
             throw new IllegalArgumentException("Only asymmetric 4-bit query and 1, 2 or 4-bit index supported");
         }
         this.in = in;
@@ -61,6 +78,13 @@ public class ESNextOSQVectorsScorer {
         this.targetComponentSums = new int[bulkSize];
         this.additionalCorrections = new float[bulkSize];
         this.bulkSize = bulkSize;
+        if (indexBits == 7) {
+            this.int7Scorer = int7Scorer == null ? new ES92Int7VectorsScorer(in, dimensions, bulkSize) : int7Scorer;
+        } else if (int7Scorer != null) {
+            throw new IllegalArgumentException("int7Scorer is only supported for 7-bit index");
+        } else {
+            this.int7Scorer = null;
+        }
     }
 
     public ESNextOSQVectorsScorer(IndexInput in, byte queryBits, byte indexBits, int dimensions, int dataLength) {
@@ -72,6 +96,12 @@ public class ESNextOSQVectorsScorer {
      * that is read from the wrapped {@link IndexInput}.
      */
     public long quantizeScore(byte[] q) throws IOException {
+        if (indexBits == 7) {
+            if (queryBits == 7) {
+                return int7Scorer.int7DotProduct(q);
+            }
+            throw new IllegalArgumentException("Only symmetric 7-bit query supported for 7-bit index");
+        }
         if (indexBits == 1) {
             if (queryBits == 4) {
                 return quantized4BitScore(q, length);
@@ -147,6 +177,10 @@ public class ESNextOSQVectorsScorer {
      * determined by {code count} and the results are stored in the provided {@code scores} array.
      */
     public void quantizeScoreBulk(byte[] q, int count, float[] scores) throws IOException {
+        if (indexBits == 7) {
+            int7Scorer.int7DotProductBulk(q, count, scores);
+            return;
+        }
         if (indexBits == 1) {
             if (queryBits == 4) {
                 for (int i = 0; i < count; i++) {
@@ -216,6 +250,47 @@ public class ESNextOSQVectorsScorer {
     }
 
     /**
+     * Computes the score by reading the corrections directly from the wrapped {@link IndexInput}.
+     */
+    public float score(
+        byte[] q,
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum,
+        float queryAdditionalCorrection,
+        VectorSimilarityFunction similarityFunction,
+        float centroidDp
+    ) throws IOException {
+        if (indexBits == 7) {
+            return int7Scorer.score(
+                q,
+                queryLowerInterval,
+                queryUpperInterval,
+                queryComponentSum,
+                queryAdditionalCorrection,
+                similarityFunction,
+                centroidDp
+            );
+        }
+        float qcDist = quantizeScore(q);
+        in.readFloats(lowerIntervals, 0, 3);
+        int addition = Short.toUnsignedInt(in.readShort());
+        return score(
+            queryLowerInterval,
+            queryUpperInterval,
+            queryComponentSum,
+            queryAdditionalCorrection,
+            similarityFunction,
+            centroidDp,
+            lowerIntervals[0],
+            lowerIntervals[1],
+            addition,
+            lowerIntervals[2],
+            qcDist
+        );
+    }
+
+    /**
      * compute the distance between the provided quantized query and the quantized vectors that are
      * read from the wrapped {@link IndexInput}.
      *
@@ -236,6 +311,26 @@ public class ESNextOSQVectorsScorer {
         float centroidDp,
         float[] scores
     ) throws IOException {
+        if (indexBits == 7) {
+            int7Scorer.scoreBulk(
+                q,
+                queryLowerInterval,
+                queryUpperInterval,
+                queryComponentSum,
+                queryAdditionalCorrection,
+                similarityFunction,
+                centroidDp,
+                scores,
+                bulkSize
+            );
+            float maxScore = Float.NEGATIVE_INFINITY;
+            for (int i = 0; i < bulkSize; i++) {
+                if (scores[i] > maxScore) {
+                    maxScore = scores[i];
+                }
+            }
+            return maxScore;
+        }
         quantizeScoreBulk(q, bulkSize, scores);
         in.readFloats(lowerIntervals, 0, bulkSize);
         in.readFloats(upperIntervals, 0, bulkSize);
@@ -263,5 +358,55 @@ public class ESNextOSQVectorsScorer {
             }
         }
         return maxScore;
+    }
+
+    /**
+     * compute the distance between the provided quantized query and the quantized vectors that are
+     * read from the wrapped {@link IndexInput}, using the provided count.
+     */
+    public float scoreBulk(
+        byte[] q,
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum,
+        float queryAdditionalCorrection,
+        VectorSimilarityFunction similarityFunction,
+        float centroidDp,
+        float[] scores,
+        int count
+    ) throws IOException {
+        if (indexBits == 7) {
+            int7Scorer.scoreBulk(
+                q,
+                queryLowerInterval,
+                queryUpperInterval,
+                queryComponentSum,
+                queryAdditionalCorrection,
+                similarityFunction,
+                centroidDp,
+                scores,
+                count
+            );
+            float maxScore = Float.NEGATIVE_INFINITY;
+            for (int i = 0; i < count; i++) {
+                if (scores[i] > maxScore) {
+                    maxScore = scores[i];
+                }
+            }
+            return maxScore;
+        }
+        if (count != bulkSize) {
+            throw new IllegalArgumentException("Bulk size mismatch: " + count + " != " + bulkSize);
+        }
+        return scoreBulk(
+            q,
+            queryLowerInterval,
+            queryUpperInterval,
+            queryComponentSum,
+            queryAdditionalCorrection,
+            similarityFunction,
+            centroidDp,
+            scores
+        );
     }
 }

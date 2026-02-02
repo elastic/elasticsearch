@@ -144,6 +144,9 @@ public abstract sealed class DiskBBQBulkWriter {
             int limit = qvv.count() - bulkSize + 1;
             int i = 0;
             for (; i < limit; i += bulkSize) {
+                if (docsWriter != null) {
+                    docsWriter.accept(i);
+                }
                 for (int j = 0; j < bulkSize; j++) {
                     byte[] qv = qvv.next();
                     corrections[j] = qvv.getCorrections();
@@ -152,6 +155,9 @@ public abstract sealed class DiskBBQBulkWriter {
                 writeCorrections(corrections);
             }
 
+            if (i < qvv.count() && docsWriter != null) {
+                docsWriter.accept(i);
+            }
             for (; i < qvv.count(); ++i) {
                 byte[] qv = qvv.next();
                 OptimizedScalarQuantizer.QuantizationResult correction = qvv.getCorrections();
@@ -195,6 +201,9 @@ public abstract sealed class DiskBBQBulkWriter {
             int limit = qvv.count() - bulkSize + 1;
             int i = 0;
             for (; i < limit; i += bulkSize) {
+                if (docsWriter != null) {
+                    docsWriter.accept(i);
+                }
                 for (int j = 0; j < bulkSize; j++) {
                     byte[] qv = qvv.next();
                     corrections[j] = qvv.getCorrections();
@@ -203,6 +212,9 @@ public abstract sealed class DiskBBQBulkWriter {
                 writeCorrections(corrections);
             }
             // write tail
+            if (i < qvv.count() && docsWriter != null) {
+                docsWriter.accept(i);
+            }
             OptimizedScalarQuantizer.QuantizationResult[] tailCorrections = new OptimizedScalarQuantizer.QuantizationResult[qvv.count()
                 - i];
             int j = 0;

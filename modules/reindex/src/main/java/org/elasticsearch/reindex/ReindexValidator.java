@@ -31,8 +31,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.transport.RemoteClusterAware;
 
@@ -106,8 +104,6 @@ public class ReindexValidator {
         return new CharacterRunAutomaton(automaton);
     }
 
-    private final static Logger logger = LogManager.getLogger(ReindexValidator.class);
-
     /**
      * Throws an ActionRequestValidationException if the request tries to index
      * back into the same index or into an index that points to two indexes.
@@ -145,12 +141,6 @@ public class ReindexValidator {
             return;
         }
         String[] sourceIndexNames = indexNameExpressionResolver.concreteIndexNames(project, filteredSource);
-        logger.info(
-            "--> resolved [{}] to sourceIndicesNames [{}] with indicesOptions [{}]",
-            Arrays.toString(filteredSource.indices()),
-            Arrays.toString(sourceIndexNames),
-            filteredSource.indicesOptions()
-        );
         for (String sourceIndex : sourceIndexNames) {
             if (sourceIndex.equals(target)) {
                 ActionRequestValidationException e = new ActionRequestValidationException();

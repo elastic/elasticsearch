@@ -386,6 +386,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 logger,
                 namedWriteableRegistry,
                 searchTransportService,
+                searchService.getBigArrays(),
                 connectionLookup,
                 aliasFilter,
                 concreteIndexBoosts,

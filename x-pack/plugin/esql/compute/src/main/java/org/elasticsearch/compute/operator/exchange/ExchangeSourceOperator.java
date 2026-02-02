@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -27,17 +29,25 @@ import java.util.function.Supplier;
  * Source operator implementation that retrieves data from an {@link ExchangeSource}
  */
 public class ExchangeSourceOperator extends SourceOperator {
+    private static final Logger logger = LogManager.getLogger(ExchangeSourceOperator.class);
 
     private final ExchangeSource source;
+    private final String driverName; // Identifies the driver for logging
     private IsBlockedResult isBlocked = NOT_BLOCKED;
     private int pagesEmitted;
     private long rowsEmitted;
 
-    public record ExchangeSourceOperatorFactory(Supplier<ExchangeSource> exchangeSources) implements SourceOperatorFactory {
+    public record ExchangeSourceOperatorFactory(Supplier<ExchangeSource> exchangeSources, String driverName)
+        implements
+            SourceOperatorFactory {
+
+        public ExchangeSourceOperatorFactory(Supplier<ExchangeSource> exchangeSources) {
+            this(exchangeSources, "unknown-driver");
+        }
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new ExchangeSourceOperator(exchangeSources.get());
+            return new ExchangeSourceOperator(exchangeSources.get(), driverName);
         }
 
         @Override
@@ -47,7 +57,12 @@ public class ExchangeSourceOperator extends SourceOperator {
     }
 
     public ExchangeSourceOperator(ExchangeSource source) {
+        this(source, "unknown-driver");
+    }
+
+    public ExchangeSourceOperator(ExchangeSource source, String driverName) {
         this.source = source;
+        this.driverName = driverName;
     }
 
     @Override
@@ -62,7 +77,18 @@ public class ExchangeSourceOperator extends SourceOperator {
 
     @Override
     public boolean isFinished() {
-        return source.isFinished();
+        boolean finished = source.isFinished();
+        // Only log when there are pages in buffer but source is finished (critical for deadlock detection)
+        // This scenario is only relevant for client driver with BatchPages
+        int bufferSize = source.bufferSize();
+        if (finished && bufferSize > 0) {
+            logger.info(
+                "[{}] ExchangeSourceOperator.isFinished() returning true BUT bufferSize={} (potential deadlock)",
+                driverName,
+                bufferSize
+            );
+        }
+        return finished;
     }
 
     @Override
@@ -74,11 +100,42 @@ public class ExchangeSourceOperator extends SourceOperator {
     public IsBlockedResult isBlocked() {
         if (isBlocked.listener().isDone()) {
             isBlocked = source.waitForReading();
+            // Only log when blocked and source is finished but buffer has pages (critical for deadlock)
+            boolean isBlockedNow = isBlocked.listener().isDone() == false;
+            if (isBlockedNow) {
+                int bufferSize = source.bufferSize();
+                boolean sourceFinished = source.isFinished();
+                if (sourceFinished && bufferSize > 0) {
+                    logger.info(
+                        "[{}] ExchangeSourceOperator.isBlocked() returning BLOCKED but bufferSize={} and sourceFinished={} "
+                            + "(potential deadlock)",
+                        driverName,
+                        bufferSize,
+                        sourceFinished
+                    );
+                }
+            }
             if (isBlocked.listener().isDone()) {
                 isBlocked = NOT_BLOCKED;
             }
         }
         return isBlocked;
+    }
+
+    @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        // Source operators should return false - their data production is gated by nextOp.needsInput().
+        // Even if there are buffered pages, if downstream doesn't need them (e.g., blocked on async),
+        // we should wait, not busy-spin.
+        return false;
+    }
+
+    /**
+     * Get the current buffer size (number of pages waiting to be consumed).
+     * Used for debugging and deadlock diagnosis.
+     */
+    public int bufferSize() {
+        return source.bufferSize();
     }
 
     @Override

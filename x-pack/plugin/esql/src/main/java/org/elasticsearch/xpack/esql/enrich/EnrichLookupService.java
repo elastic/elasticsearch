@@ -302,12 +302,15 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
     @Override
     protected void sendChildRequest(
         CancellableTask parentTask,
-        ActionListener<List<Page>> delegate,
+        ActionListener<AbstractLookupService.LookupResponse> delegate,
         DiscoveryNode targetNode,
         TransportRequest transportRequest
     ) {
         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-        ActionListener<List<Page>> listener = ContextPreservingActionListener.wrapPreservingContext(delegate, threadContext);
+        ActionListener<AbstractLookupService.LookupResponse> listener = ContextPreservingActionListener.wrapPreservingContext(
+            delegate,
+            threadContext
+        );
         hasEnrichPrivilege(listener.delegateFailureAndWrap((l, ignored) -> {
             // Since we just checked the needed privileges
             // we can access the index regardless of the user/role that is executing the query

@@ -30,10 +30,23 @@ public class DirectoryMetrics implements ToXContentFragment {
     }
 
     public interface PluggableMetrics<T extends PluggableMetrics<T>> extends ToXContentObject {
+        /**
+         * A delta object that measures the delta of the metric between invoking the delta method and
+         * the returned supplier.
+         * @return supplier of the delta.
+         */
         Supplier<T> delta();
 
+        /**
+         * @return copy of the metric object
+         */
         T copy();
 
+        /**
+         * Convenience method to cast to the class specified.
+         * @param clazz class to cast to.
+         * @return object as clazz
+         */
         default <R> R cast(Class<R> clazz) {
             return clazz.cast(this);
         }

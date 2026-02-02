@@ -242,6 +242,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             null,
+            false,
+            false,
             false
         );
 
@@ -263,7 +265,9 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             null,
-            true
+            true,
+            false,
+            false
         );
 
         // when
@@ -291,7 +295,9 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             syntheticSourceDelegate,
-            true
+            true,
+            false,
+            false
         );
 
         // when
@@ -337,6 +343,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             syntheticSourceDelegate,
+            false,
+            false,
             false
         );
 
@@ -386,6 +394,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             syntheticSourceDelegate,
+            false,
+            false,
             false
         );
 
@@ -420,6 +430,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             true,
             false,
             keywordFieldType,
+            false,
+            false,
             false
         );
 
@@ -467,6 +479,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             null,
+            false,
+            false,
             false
         );
 
@@ -489,7 +503,9 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             null,
-            true
+            true,
+            false,
+            false
         );
 
         // when

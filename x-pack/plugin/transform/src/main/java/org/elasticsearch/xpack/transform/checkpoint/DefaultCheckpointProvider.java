@@ -92,19 +92,27 @@ class DefaultCheckpointProvider implements CheckpointProvider {
             CrossProjectHeadersHelper.executeWithCrossProjectHeaders(
                 client,
                 transformConfig,
-                ActionListener.wrap(v -> getIndexCheckpoints(INTERNAL_GET_INDEX_CHECKPOINTS_TIMEOUT, ActionListener.wrap(checkpointsByIndex -> {
-                    reportSourceIndexChanges(
-                        TransformCheckpoint.isNullOrEmpty(lastCheckpoint)
-                            ? Collections.emptySet()
-                            : lastCheckpoint.getIndicesCheckpoints().keySet(),
-                        checkpointsByIndex.keySet()
-                    );
+                ActionListener.wrap(
+                    v -> getIndexCheckpoints(INTERNAL_GET_INDEX_CHECKPOINTS_TIMEOUT, ActionListener.wrap(checkpointsByIndex -> {
+                        reportSourceIndexChanges(
+                            TransformCheckpoint.isNullOrEmpty(lastCheckpoint)
+                                ? Collections.emptySet()
+                                : lastCheckpoint.getIndicesCheckpoints().keySet(),
+                            checkpointsByIndex.keySet()
+                        );
 
-                    listener.onResponse(new TransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, 0L));
-                }, listener::onFailure)), e -> {
-                    logger.warn(() -> format("[%s] failed to prepare headers for checkpoint [%d]", transformConfig.getId(), checkpoint), e);
-                    listener.onFailure(e);
-                })
+                        listener.onResponse(
+                            new TransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, 0L)
+                        );
+                    }, listener::onFailure)),
+                    e -> {
+                        logger.warn(
+                            () -> format("[%s] failed to prepare headers for checkpoint [%d]", transformConfig.getId(), checkpoint),
+                            e
+                        );
+                        listener.onFailure(e);
+                    }
+                )
             );
         } else {
             getIndexCheckpoints(INTERNAL_GET_INDEX_CHECKPOINTS_TIMEOUT, ActionListener.wrap(checkpointsByIndex -> {

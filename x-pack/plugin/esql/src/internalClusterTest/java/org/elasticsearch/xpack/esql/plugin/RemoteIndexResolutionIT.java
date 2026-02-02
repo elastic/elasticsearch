@@ -7,8 +7,14 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractCrossClusterTestCase;
@@ -18,16 +24,23 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
+        return CollectionUtils.appendToCopy(super.nodePlugins(clusterAlias), DataStreamsPlugin.class);
+    }
 
     public void testResolvesRemoteIndex() {
         indexRandom(REMOTE_CLUSTER_1, true, "index-1", 1);
@@ -142,6 +155,43 @@ public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
             assertResultConcreteIndices(response);
             assertExecutionInfo(response, new EsqlResponseExecutionInfo(REMOTE_CLUSTER_1, "index-1", Status.SUCCESSFUL));
         }
+    }
+
+    public void testResolvesDataStream() {
+        assertAcked(
+            client(REMOTE_CLUSTER_1).execute(
+                TransportPutComposableIndexTemplateAction.TYPE,
+                new TransportPutComposableIndexTemplateAction.Request("data-stream-1-template").indexTemplate(
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of("data-stream-1*"))
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                        .build()
+                )
+            )
+        );
+        assertAcked(
+            client(REMOTE_CLUSTER_1).execute(
+                CreateDataStreamAction.INSTANCE,
+                new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "data-stream-1")
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":data-stream-1"))) {
+            assertOk(response);
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":data-stream-1::data"))) {
+            assertOk(response);
+        }
+        expectThrows(
+            org.elasticsearch.xpack.esql.parser.ParsingException.class,
+            containsString("Invalid index name [data-stream-1::fake]"),
+            () -> run(syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":data-stream-1::fake"))
+        );
+        expectThrows(
+            VerificationException.class,
+            containsString("Unknown index [" + REMOTE_CLUSTER_1 + ":no-such-data-stream::data]"),
+            () -> run(syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":no-such-data-stream::data"))
+        );
     }
 
     private EsqlQueryResponse run(EsqlQueryRequest request) {

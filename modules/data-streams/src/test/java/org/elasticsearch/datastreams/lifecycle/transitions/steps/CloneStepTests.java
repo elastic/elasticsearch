@@ -107,7 +107,6 @@ public class CloneStepTests extends ESTestCase {
                     capturedDeleteListener.set((ActionListener<AcknowledgedResponse>) listener);
                 } else if (request instanceof MarkIndexToBeForceMergedAction.Request markRequest) {
                     capturedMarkRequest.set(markRequest);
-                    // listener type is action-specific (AcknowledgedResponse). We don't need to invoke it in tests.
                 }
             }
         };
@@ -254,9 +253,6 @@ public class CloneStepTests extends ESTestCase {
         // Respond to delete request successfully
         AcknowledgedResponse deleteResponse = AcknowledgedResponse.of(true);
         capturedDeleteListener.get().onResponse(deleteResponse);
-
-        // No error should be recorded
-        // (In a real scenario, this would trigger retry of clone operation)
     }
 
     public void testDeleteCloneWithFailure() {
@@ -269,8 +265,6 @@ public class CloneStepTests extends ESTestCase {
         // Respond to delete request with failure
         ElasticsearchException exception = new ElasticsearchException("delete failed");
         capturedDeleteListener.get().onFailure(exception);
-
-        // Error is logged but doesn't block the operation
     }
 
     private ProjectState createProjectState(String indexName, int numberOfReplicas, Map<String, String> customMetadata) {

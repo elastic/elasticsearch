@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.in;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class NonPreferredAllocateUnassignedIT extends ESIntegTestCase {
+public class AllocateUnassignedIT extends ESIntegTestCase {
 
     private static final Set<String> NOT_PREFERRED_NODES = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private static final Set<String> THROTTLE_NODES = Collections.newSetFromMap(new ConcurrentHashMap<>());
@@ -63,19 +63,19 @@ public class NonPreferredAllocateUnassignedIT extends ESIntegTestCase {
     }
 
     public void testNewShardsAreAllocatedToPreferredNodesWhenPresent() {
-        final var nodes = createNodes(randomIntBetween(1, 3), randomIntBetween(2, 5), randomIntBetween(1, 3), randomIntBetween(1, 2));
+        final var nodes = createNodes(randomIntBetween(1, 3), randomIntBetween(1, 3), randomIntBetween(1, 3), randomIntBetween(1, 3));
 
-        createSingleShardAndAssertItIsAssignedToNode(nodes.yesNodes());
+        createSingleShardAndAssertItIsAssignedToAppropriateNode(nodes.yesNodes());
     }
 
     public void testNewShardsAreAllocatedToNotPreferredNodesWhenNoThrottleOrYesNodesArePresent() {
-        final var nodes = createNodes(randomIntBetween(2, 5), randomIntBetween(1, 2), 0, 0);
+        final var nodes = createNodes(randomIntBetween(1, 3), randomIntBetween(1, 3), 0, 0);
 
-        createSingleShardAndAssertItIsAssignedToNode(nodes.notPreferredNodes());
+        createSingleShardAndAssertItIsAssignedToAppropriateNode(nodes.notPreferredNodes());
     }
 
     public void testNewShardsAreAllocatedToThrottleNodesWhenNoYesNodesArePresent() {
-        final var nodes = createNodes(randomIntBetween(1, 3), randomIntBetween(2, 5), randomIntBetween(1, 3), 0);
+        final var nodes = createNodes(randomIntBetween(1, 3), randomIntBetween(1, 3), randomIntBetween(1, 3), 0);
 
         final var indexName = randomIdentifier();
 
@@ -110,7 +110,7 @@ public class NonPreferredAllocateUnassignedIT extends ESIntegTestCase {
         ensureRed(indexName);
     }
 
-    private void createSingleShardAndAssertItIsAssignedToNode(Set<String> expectedNodes) {
+    private void createSingleShardAndAssertItIsAssignedToAppropriateNode(Set<String> expectedNodes) {
         final var indexName = randomIdentifier();
         final var firstAllocationListener = waitForFirstAllocation(indexName);
 

@@ -20,6 +20,10 @@ import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+/**
+ * Main entry point for access to directory level metrics. Access using #metrics(type) to get native
+ * store or plugged in metrics.
+ */
 public class DirectoryMetrics implements ToXContentFragment {
     private DirectoryMetrics(Map<String, PluggableMetrics<?>> data) {
         this.data = data;

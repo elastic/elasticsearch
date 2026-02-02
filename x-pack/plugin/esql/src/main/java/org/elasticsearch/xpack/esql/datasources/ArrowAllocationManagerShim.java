@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.apache.arrow.memory.AllocationManager;
 import org.apache.arrow.memory.DefaultAllocationManagerOption;
 import org.apache.arrow.memory.unsafe.UnsafeAllocationManager;
 import org.elasticsearch.core.SuppressForbidden;

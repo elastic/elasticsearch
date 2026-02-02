@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 public interface StorageProviderFactory {
     /**
      * Creates a StorageProvider for the given path.
-     * 
+     *
      * @param path the storage path that determines provider configuration
      * @return a StorageProvider instance
      */

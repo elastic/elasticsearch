@@ -33,11 +33,9 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.junit.BeforeClass;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -50,7 +48,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for {@link AsyncExternalSourceOperatorSupport}.
- * 
+ *
  * Tests the shared infrastructure for creating async source operators
  * that read Arrow data from external sources.
  */
@@ -64,38 +62,46 @@ public class AsyncExternalSourceOperatorSupportTests extends ESTestCase {
             ArrowAllocationManagerShim.init();
         } catch (ExceptionInInitializerError | NoClassDefFoundError e) {
             // Arrow initialization failed - tests will be skipped
-            assumeTrue("Arrow memory initialization failed - skipping tests. " +
-                "Run with --add-opens=java.base/java.nio=ALL-UNNAMED to enable.", false);
+            assumeTrue(
+                "Arrow memory initialization failed - skipping tests. " + "Run with --add-opens=java.base/java.nio=ALL-UNNAMED to enable.",
+                false
+            );
         }
     }
 
     public void testCreateAsyncSourceOperatorWithEmptyData() {
         // Create test components
         Executor executor = Runnable::run; // Direct execution for testing
-        
+
         // Create empty data supplier
         Supplier<CloseableIterable<VectorSchemaRoot>> emptySupplier = () -> new EmptyCloseableIterable();
-        
+
         // Create schema
-        Schema schema = new Schema(
-            Types.NestedField.optional(1, "id", Types.LongType.get())
-        );
-        
+        Schema schema = new Schema(Types.NestedField.optional(1, "id", Types.LongType.get()));
+
         // Create attributes
         List<Attribute> attributes = new ArrayList<>();
-        attributes.add(new FieldAttribute(Source.EMPTY, "id", new EsField("id", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE)));
-        
+        attributes.add(
+            new FieldAttribute(Source.EMPTY, "id", new EsField("id", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+        );
+
         // Mock DriverContext
         DriverContext driverContext = mock(DriverContext.class);
         BlockFactory blockFactory = mock(BlockFactory.class);
         when(driverContext.blockFactory()).thenReturn(blockFactory);
-        
+
         // Track async action registration
         AtomicBoolean asyncActionAdded = new AtomicBoolean(false);
         AtomicBoolean asyncActionRemoved = new AtomicBoolean(false);
-        doAnswer(inv -> { asyncActionAdded.set(true); return null; }).when(driverContext).addAsyncAction();
-        doAnswer(inv -> { asyncActionRemoved.set(true); return null; }).when(driverContext).removeAsyncAction();
-        
+        doAnswer(inv -> {
+            asyncActionAdded.set(true);
+            return null;
+        }).when(driverContext).addAsyncAction();
+        doAnswer(inv -> {
+            asyncActionRemoved.set(true);
+            return null;
+        }).when(driverContext).removeAsyncAction();
+
         // Create operator
         SourceOperator operator = AsyncExternalSourceOperatorSupport.createAsyncSourceOperator(
             driverContext,
@@ -106,15 +112,15 @@ public class AsyncExternalSourceOperatorSupportTests extends ESTestCase {
             1000,
             10
         );
-        
+
         // Verify operator was created
         assertNotNull(operator);
         assertTrue("Async action should be added", asyncActionAdded.get());
         assertTrue("Async action should be removed after completion", asyncActionRemoved.get());
-        
+
         // Verify operator is an AsyncExternalSourceOperator
         assertTrue(operator instanceof AsyncExternalSourceOperator);
-        
+
         // Clean up
         operator.close();
     }
@@ -122,7 +128,7 @@ public class AsyncExternalSourceOperatorSupportTests extends ESTestCase {
     public void testCreateAsyncSourceOperatorWithData() throws Exception {
         // Create test components
         Executor executor = Runnable::run;
-        
+
         // Create data supplier with one batch
         BufferAllocator allocator = new RootAllocator(Long.MAX_VALUE);
         Supplier<CloseableIterable<VectorSchemaRoot>> dataSupplier = () -> {
@@ -131,46 +137,53 @@ public class AsyncExternalSourceOperatorSupportTests extends ESTestCase {
                 new Field("id", FieldType.nullable(new ArrowType.Int(64, true)), null),
                 new Field("name", FieldType.nullable(new ArrowType.Utf8()), null)
             );
-            org.apache.arrow.vector.types.pojo.Schema arrowSchema = 
-                new org.apache.arrow.vector.types.pojo.Schema(fields);
-            
+            org.apache.arrow.vector.types.pojo.Schema arrowSchema = new org.apache.arrow.vector.types.pojo.Schema(fields);
+
             // Create VectorSchemaRoot with test data
             VectorSchemaRoot root = VectorSchemaRoot.create(arrowSchema, allocator);
             root.allocateNew();
-            
+
             BigIntVector idVector = (BigIntVector) root.getVector("id");
             VarCharVector nameVector = (VarCharVector) root.getVector("name");
-            
+
             idVector.setSafe(0, 1L);
             nameVector.setSafe(0, "Alice".getBytes(StandardCharsets.UTF_8));
             idVector.setSafe(1, 2L);
             nameVector.setSafe(1, "Bob".getBytes(StandardCharsets.UTF_8));
-            
+
             root.setRowCount(2);
-            
+
             return new SingleBatchIterable(root);
         };
-        
+
         // Create schema
         Schema schema = new Schema(
             Types.NestedField.optional(1, "id", Types.LongType.get()),
             Types.NestedField.optional(2, "name", Types.StringType.get())
         );
-        
+
         // Create attributes
         List<Attribute> attributes = new ArrayList<>();
-        attributes.add(new FieldAttribute(Source.EMPTY, "id", new EsField("id", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE)));
-        attributes.add(new FieldAttribute(Source.EMPTY, "name", new EsField("name", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)));
-        
+        attributes.add(
+            new FieldAttribute(Source.EMPTY, "id", new EsField("id", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+        );
+        attributes.add(
+            new FieldAttribute(
+                Source.EMPTY,
+                "name",
+                new EsField("name", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
         // Create real BlockFactory for this test
         BlockFactory blockFactory = BlockFactory.getInstance(new NoopCircuitBreaker("test-noop"), BigArrays.NON_RECYCLING_INSTANCE);
-        
+
         // Mock DriverContext
         DriverContext driverContext = mock(DriverContext.class);
         when(driverContext.blockFactory()).thenReturn(blockFactory);
         doAnswer(inv -> null).when(driverContext).addAsyncAction();
         doAnswer(inv -> null).when(driverContext).removeAsyncAction();
-        
+
         // Create operator
         SourceOperator operator = AsyncExternalSourceOperatorSupport.createAsyncSourceOperator(
             driverContext,
@@ -181,13 +194,13 @@ public class AsyncExternalSourceOperatorSupportTests extends ESTestCase {
             1000,
             10
         );
-        
+
         // Get output - should have data
         Page page = operator.getOutput();
         assertNotNull("Should have output page", page);
         assertEquals("Should have 2 rows", 2, page.getPositionCount());
         assertEquals("Should have 2 blocks (columns)", 2, page.getBlockCount());
-        
+
         // Clean up
         page.releaseBlocks();
         operator.close();

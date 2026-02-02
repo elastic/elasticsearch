@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.datasources.s3;
 
-import org.apache.iceberg.aws.s3.S3FileIO;
-import org.apache.iceberg.util.SerializableSupplier;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
@@ -15,6 +13,9 @@ import software.amazon.awssdk.profiles.ProfileFile;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
+
+import org.apache.iceberg.aws.s3.S3FileIO;
+import org.apache.iceberg.util.SerializableSupplier;
 
 import java.net.URI;
 
@@ -58,10 +59,10 @@ public final class S3FileIOFactory {
         // that can't be accessed via reflection in Elasticsearch's classloader environment
         SerializableSupplier<S3Client> s3ClientSupplier = (SerializableSupplier<S3Client> & java.io.Serializable) () -> {
             S3ClientBuilder builder = S3Client.builder();
-            
+
             // Always set a region to avoid auto-detection issues
             Region region = Region.US_EAST_1; // Default region
-            
+
             // CRITICAL: Create an empty profile file to prevent AWS SDK from reading ~/.aws/credentials
             // and ~/.aws/config files, which would trigger Elasticsearch entitlement violations.
             // We must set BOTH the profile file AND the profile file supplier to empty values.
@@ -69,21 +70,18 @@ public final class S3FileIOFactory {
                 .type(ProfileFile.Type.CREDENTIALS)
                 .content(new java.io.ByteArrayInputStream(new byte[0]))
                 .build();
-            
+
             // Use a supplier that returns the empty profile file to prevent lazy loading of default files
             java.util.function.Supplier<ProfileFile> emptyProfileSupplier = () -> emptyProfileFile;
-            
+
             builder.overrideConfiguration(c -> {
                 c.defaultProfileFile(emptyProfileFile);
                 c.defaultProfileFileSupplier(emptyProfileSupplier);
             });
-            
+
             // Always provide explicit credentials
             if (s3Config != null && s3Config.hasCredentials()) {
-                AwsBasicCredentials credentials = AwsBasicCredentials.create(
-                    s3Config.accessKey(),
-                    s3Config.secretKey()
-                );
+                AwsBasicCredentials credentials = AwsBasicCredentials.create(s3Config.accessKey(), s3Config.secretKey());
                 builder.credentialsProvider(StaticCredentialsProvider.create(credentials));
             } else {
                 // Use default test credentials that match the S3 fixture expectations
@@ -91,7 +89,7 @@ public final class S3FileIOFactory {
                 AwsBasicCredentials testCredentials = AwsBasicCredentials.create("test-access-key", "test-secret-key");
                 builder.credentialsProvider(StaticCredentialsProvider.create(testCredentials));
             }
-            
+
             if (s3Config != null) {
                 if (s3Config.endpoint() != null) {
                     builder.endpointOverride(URI.create(s3Config.endpoint()));
@@ -100,19 +98,19 @@ public final class S3FileIOFactory {
                     region = Region.of(s3Config.region());
                 }
             }
-            
+
             builder.region(region);
-            
+
             // Enable path-style access for compatibility with MinIO, LocalStack, and S3HttpFixture
             builder.forcePathStyle(true);
-            
+
             // Use URL connection HTTP client to avoid entitlement issues
             // The Apache HTTP client creates daemon threads which are blocked by Elasticsearch's entitlement system
             builder.httpClient(UrlConnectionHttpClient.builder().build());
-            
+
             return builder.build();
         };
-        
+
         // Initialize S3FileIO with the pre-configured S3 client
         return new S3FileIO(s3ClientSupplier);
     }

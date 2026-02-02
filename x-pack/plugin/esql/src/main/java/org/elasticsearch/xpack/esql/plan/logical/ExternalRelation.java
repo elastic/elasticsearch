@@ -89,7 +89,6 @@ public abstract class ExternalRelation extends LeafPlan implements ExecutesOn.Co
         }
 
         ExternalRelation other = (ExternalRelation) obj;
-        return Objects.equals(sourcePath, other.sourcePath)
-            && Objects.equals(output, other.output);
+        return Objects.equals(sourcePath, other.sourcePath) && Objects.equals(output, other.output);
     }
 }

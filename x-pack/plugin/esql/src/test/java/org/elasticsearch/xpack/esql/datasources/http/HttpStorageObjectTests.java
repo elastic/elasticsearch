@@ -16,7 +16,7 @@ import static org.mockito.Mockito.mock;
 
 /**
  * Tests for HttpStorageObject with Range header support.
- * 
+ *
  * Note: These are basic unit tests that verify object creation and path handling.
  * Full integration tests with actual HTTP requests should be done in integration test suites.
  */
@@ -28,7 +28,7 @@ public class HttpStorageObjectTests extends ESTestCase {
         StoragePath path = StoragePath.of("https://example.com/file.txt");
         HttpConfiguration config = HttpConfiguration.defaults();
         HttpStorageObject object = new HttpStorageObject(mockClient, path, config);
-        
+
         assertEquals(path, object.path());
     }
 
@@ -36,9 +36,9 @@ public class HttpStorageObjectTests extends ESTestCase {
         HttpClient mockClient = mock(HttpClient.class);
         StoragePath path = StoragePath.of("https://example.com/file.txt");
         HttpConfiguration config = HttpConfiguration.defaults();
-        
+
         HttpStorageObject object = new HttpStorageObject(mockClient, path, config, 12345L);
-        
+
         assertEquals(path, object.path());
     }
 
@@ -46,9 +46,9 @@ public class HttpStorageObjectTests extends ESTestCase {
         HttpClient mockClient = mock(HttpClient.class);
         StoragePath path = StoragePath.of("https://example.com/file.txt");
         HttpConfiguration config = HttpConfiguration.defaults();
-        
+
         HttpStorageObject object = new HttpStorageObject(mockClient, path, config, 12345L, java.time.Instant.now());
-        
+
         assertEquals(path, object.path());
     }
 
@@ -57,10 +57,8 @@ public class HttpStorageObjectTests extends ESTestCase {
         StoragePath path = StoragePath.of("https://example.com/file.txt");
         HttpConfiguration config = HttpConfiguration.defaults();
         HttpStorageObject object = new HttpStorageObject(mockClient, path, config);
-        
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            object.newStream(-1, 100);
-        });
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> { object.newStream(-1, 100); });
         assertTrue(e.getMessage().contains("position"));
     }
 
@@ -69,23 +67,21 @@ public class HttpStorageObjectTests extends ESTestCase {
         StoragePath path = StoragePath.of("https://example.com/file.txt");
         HttpConfiguration config = HttpConfiguration.defaults();
         HttpStorageObject object = new HttpStorageObject(mockClient, path, config);
-        
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            object.newStream(0, -1);
-        });
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> { object.newStream(0, -1); });
         assertTrue(e.getMessage().contains("length"));
     }
 
     public void testBoundedInputStreamReadsExactly() throws Exception {
         byte[] data = "0123456789abcdefghij".getBytes();
         java.io.ByteArrayInputStream source = new java.io.ByteArrayInputStream(data);
-        
+
         // Create a BoundedInputStream via reflection since it's private
         HttpClient mockClient = mock(HttpClient.class);
         StoragePath path = StoragePath.of("https://example.com/file.txt");
         HttpConfiguration config = HttpConfiguration.defaults();
         HttpStorageObject object = new HttpStorageObject(mockClient, path, config);
-        
+
         // Test that we can create the object successfully
         assertNotNull(object);
         assertEquals(path, object.path());

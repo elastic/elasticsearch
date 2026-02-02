@@ -59,10 +59,10 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
+import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
@@ -829,11 +829,7 @@ public class EsqlSession {
         // Extract parameters from UnresolvedExternalRelation nodes
         Map<String, Map<String, Expression>> pathParams = extractIcebergParams(plan);
 
-        externalSourceResolver.resolve(
-            preAnalysis.icebergPaths(),
-            pathParams,
-            listener.map(result::withExternalSourceResolution)
-        );
+        externalSourceResolver.resolve(preAnalysis.icebergPaths(), pathParams, listener.map(result::withExternalSourceResolution));
     }
 
     /**

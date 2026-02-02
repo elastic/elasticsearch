@@ -27,13 +27,13 @@ import java.util.NoSuchElementException;
 
 /**
  * StorageProvider implementation for local file system access.
- * 
+ *
  * Features:
  * - Full file reads
  * - Range reads via RandomAccessFile
  * - Directory listing
  * - File metadata (size, last modified)
- * 
+ *
  * This implementation is primarily for testing and development purposes.
  */
 public final class LocalStorageProvider implements StorageProvider {
@@ -67,15 +67,15 @@ public final class LocalStorageProvider implements StorageProvider {
     public StorageIterator listObjects(StoragePath directory) throws IOException {
         validateFileScheme(directory);
         Path dirPath = toFilePath(directory);
-        
+
         if (!Files.exists(dirPath)) {
             throw new IOException("Directory does not exist: " + dirPath);
         }
-        
+
         if (!Files.isDirectory(dirPath)) {
             throw new IOException("Path is not a directory: " + dirPath);
         }
-        
+
         return new LocalStorageIterator(dirPath);
     }
 
@@ -102,9 +102,7 @@ public final class LocalStorageProvider implements StorageProvider {
     private void validateFileScheme(StoragePath path) {
         String scheme = path.scheme().toLowerCase();
         if (!scheme.equals("file")) {
-            throw new IllegalArgumentException(
-                "LocalStorageProvider only supports file:// scheme, got: " + scheme
-            );
+            throw new IllegalArgumentException("LocalStorageProvider only supports file:// scheme, got: " + scheme);
         }
     }
 
@@ -114,15 +112,15 @@ public final class LocalStorageProvider implements StorageProvider {
      */
     private Path toFilePath(StoragePath storagePath) {
         String pathStr = storagePath.path();
-        
+
         // Handle file:// URLs - the path() method returns the path component after the scheme
         // For file:///absolute/path, path() returns "/absolute/path"
         // For file://relative/path, path() returns "relative/path"
-        
+
         if (pathStr == null || pathStr.isEmpty()) {
             throw new IllegalArgumentException("Path cannot be empty for file:// scheme");
         }
-        
+
         return Paths.get(pathStr);
     }
 
@@ -142,20 +140,20 @@ public final class LocalStorageProvider implements StorageProvider {
         LocalStorageIterator(Path directory) throws IOException {
             this.directory = directory;
             this.entries = new ArrayList<>();
-            
+
             // Read all entries into memory
             // For very large directories, this could be optimized to stream entries
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory)) {
                 for (Path entry : stream) {
                     try {
                         BasicFileAttributes attrs = Files.readAttributes(entry, BasicFileAttributes.class);
-                        
+
                         // Skip directories, only include files
                         if (attrs.isRegularFile()) {
                             StoragePath storagePath = StoragePath.of("file://" + entry.toAbsolutePath());
                             long length = attrs.size();
                             Instant lastModified = attrs.lastModifiedTime().toInstant();
-                            
+
                             entries.add(new StorageEntry(storagePath, length, lastModified));
                         }
                     } catch (IOException e) {
@@ -164,7 +162,7 @@ public final class LocalStorageProvider implements StorageProvider {
                     }
                 }
             }
-            
+
             this.iterator = entries.iterator();
         }
 

@@ -14,5 +14,4 @@ import java.util.Iterator;
  * Iterator over objects in a directory. Must be closed to release resources.
  * Supports lazy loading for large directories.
  */
-public interface StorageIterator extends Iterator<StorageEntry>, Closeable {
-}
+public interface StorageIterator extends Iterator<StorageEntry>, Closeable {}

@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.esql.qa.rest;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.ParquetSpecTestCase.StorageBackend;
 
 import java.lang.reflect.Method;

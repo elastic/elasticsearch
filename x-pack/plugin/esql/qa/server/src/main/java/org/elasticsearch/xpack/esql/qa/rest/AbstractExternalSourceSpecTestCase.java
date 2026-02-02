@@ -12,11 +12,6 @@ import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.IcebergS3HttpFixture;
 import org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.S3RequestLog;
-
-import static org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.ACCESS_KEY;
-import static org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.BUCKET;
-import static org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.SECRET_KEY;
-import static org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.WAREHOUSE;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
@@ -30,11 +25,16 @@ import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.ACCESS_KEY;
+import static org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.BUCKET;
+import static org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.SECRET_KEY;
+import static org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.WAREHOUSE;
+
 /**
  * Abstract base class for external source integration tests using S3HttpFixture.
  * Provides common S3 fixture infrastructure for testing external data sources like Iceberg and Parquet.
  * <p>
- * This class provides template-based query transformation where templates like {@code {{employees}}} 
+ * This class provides template-based query transformation where templates like {@code {{employees}}}
  * are replaced with actual paths based on the storage backend (S3, HTTP, LOCAL) and format (parquet, csv).
  * <p>
  * Subclasses specify the storage backend and format in their constructor, and the base class handles
@@ -45,10 +45,10 @@ import java.util.regex.Pattern;
 public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCase {
 
     private static final Logger logger = LogManager.getLogger(AbstractExternalSourceSpecTestCase.class);
-    
+
     /** Pattern to match template placeholders like {{employees}} */
     private static final Pattern TEMPLATE_PATTERN = Pattern.compile("\\{\\{(\\w+)\\}\\}");
-    
+
     /** Base path for fixtures within the resource directory */
     private static final String FIXTURES_BASE = "standalone";
 
@@ -195,46 +195,46 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     /**
      * Transform template placeholders in the query.
      * Replaces {{name}} with the actual path based on storage backend and format.
-     * 
+     *
      * @param query the query with template placeholders
      * @return the query with templates replaced by actual paths
      */
     private String transformTemplates(String query) {
         Matcher matcher = TEMPLATE_PATTERN.matcher(query);
         StringBuffer result = new StringBuffer();
-        
+
         while (matcher.find()) {
             String templateName = matcher.group(1);
             String resolvedPath = resolveTemplatePath(templateName);
             matcher.appendReplacement(result, Matcher.quoteReplacement(resolvedPath));
         }
         matcher.appendTail(result);
-        
+
         return result.toString();
     }
 
     /**
      * Resolve a template name to an actual path based on storage backend and format.
-     * 
+     *
      * @param templateName the template name (e.g., "employees")
      * @return the resolved path
      */
     private String resolveTemplatePath(String templateName) {
         // Build the filename with extension
         String filename = templateName + "." + format;
-        
+
         // Build the relative path within the fixtures
         String relativePath = FIXTURES_BASE + "/" + filename;
-        
+
         switch (storageBackend) {
             case S3:
                 // S3 path: s3://bucket/warehouse/standalone/employees.parquet
                 return "s3://" + BUCKET + "/" + WAREHOUSE + "/" + relativePath;
-                
+
             case HTTP:
                 // HTTP path: http://host:port/bucket/warehouse/standalone/employees.parquet
                 return s3Fixture.getAddress() + "/" + BUCKET + "/" + WAREHOUSE + "/" + relativePath;
-                
+
             case LOCAL:
                 // Local path: file:///absolute/path/to/iceberg-fixtures/standalone/employees.parquet
                 if (localFixturesPath != null) {
@@ -245,7 +245,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
                     logger.warn("Local fixtures path not available, falling back to S3");
                     return "s3://" + BUCKET + "/" + WAREHOUSE + "/" + relativePath;
                 }
-                
+
             default:
                 throw new IllegalArgumentException("Unknown storage backend: " + storageBackend);
         }
@@ -275,7 +275,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         params.append("\"access_key\": \"").append(ACCESS_KEY).append("\", ");
         params.append("\"secret_key\": \"").append(SECRET_KEY).append("\"");
         params.append(" }");
-        
+
         return externalPart + params.toString() + restOfQuery;
     }
 

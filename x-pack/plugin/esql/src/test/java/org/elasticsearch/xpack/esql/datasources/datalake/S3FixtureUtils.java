@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.esql.datasources.datalake;
 
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpHandler;
-import com.sun.net.httpserver.HttpServer;
-
 import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 import fixture.s3.S3HttpHandler;
+
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
+import com.sun.net.httpserver.HttpServer;
 
 import org.apache.iceberg.aws.s3.S3FileIO;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -194,7 +194,7 @@ public final class S3FixtureUtils {
         private S3HttpHandler handler;
         private final S3ConsistencyModel consistencyModel;
         private final int fixedPort;
-        
+
         // Server and executor for fixed-port mode (need our own since parent's are private)
         private HttpServer server;
         private ExecutorService executorService;
@@ -205,7 +205,7 @@ public final class S3FixtureUtils {
 
         /**
          * Creates an S3 HTTP fixture with a fixed port.
-         * 
+         *
          * @param fixedPort the port to bind to, or 0 for a random available port
          */
         public IcebergS3HttpFixture(int fixedPort) {
@@ -217,13 +217,7 @@ public final class S3FixtureUtils {
         }
 
         public IcebergS3HttpFixture(S3ConsistencyModel consistencyModel, int fixedPort) {
-            super(
-                true,
-                BUCKET,
-                WAREHOUSE,
-                () -> consistencyModel,
-                fixedAccessKey(ACCESS_KEY, ANY_REGION, "s3")
-            );
+            super(true, BUCKET, WAREHOUSE, () -> consistencyModel, fixedAccessKey(ACCESS_KEY, ANY_REGION, "s3"));
             this.consistencyModel = consistencyModel;
             this.fixedPort = fixedPort;
         }
@@ -313,7 +307,7 @@ public final class S3FixtureUtils {
 
                     try {
                         String authHeader = exchange.getRequestHeaders().getFirst("Authorization");
-                        
+
                         if (authHeader != null && authHeader.startsWith("AWS4-HMAC-SHA256")) {
                             // S3 request with AWS auth - use normal flow
                             if (checkAuthorization(fixedAccessKey(ACCESS_KEY, ANY_REGION, "s3"), exchange)) {
@@ -358,12 +352,7 @@ public final class S3FixtureUtils {
                     requestLogs.add(log);
 
                     // Log to console for immediate visibility
-                    logger.info(
-                        "S3 Request: {} {} {}",
-                        method,
-                        path + (queryString != null ? "?" + queryString : ""),
-                        requestType
-                    );
+                    logger.info("S3 Request: {} {} {}", method, path + (queryString != null ? "?" + queryString : ""), requestType);
                 }
 
                 /**
@@ -376,30 +365,28 @@ public final class S3FixtureUtils {
                         String method = exchange.getRequestMethod();
                         String path = exchange.getRequestURI().getPath();
                         logger.info("HTTP request: {} {} (looking up blob with path: {})", method, exchange.getRequestURI(), path);
-                        
+
                         BytesReference blob = blobs().get(path);
-                        
+
                         if (blob == null) {
                             logger.warn("Blob not found for HTTP path: {} (available blob keys: {})", path, blobs().size());
                             // Log first few blob keys for debugging
-                            blobs().keySet().stream()
-                                .limit(10)
-                                .forEach(k -> logger.warn("  Available blob key: {}", k));
+                            blobs().keySet().stream().limit(10).forEach(k -> logger.warn("  Available blob key: {}", k));
                             exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                             return;
                         }
-                        
+
                         logger.info("Found blob for HTTP path: {} ({} bytes)", path, blob.length());
-                        
+
                         String contentType = guessContentType(path);
-                        
+
                         if ("HEAD".equals(method)) {
                             exchange.getResponseHeaders().add("Content-Length", String.valueOf(blob.length()));
                             exchange.getResponseHeaders().add("Content-Type", contentType);
                             exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                             return;
                         }
-                        
+
                         if ("GET".equals(method)) {
                             String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
                             if (rangeHeader == null) {
@@ -417,11 +404,11 @@ public final class S3FixtureUtils {
                                     blob.writeTo(exchange.getResponseBody());
                                     return;
                                 }
-                                
+
                                 long start = range.start();
                                 // For open-ended ranges (bytes=N-), end is null, meaning "to end of file"
                                 long end = range.end() != null ? range.end() : blob.length() - 1;
-                                
+
                                 if (end < start) {
                                     // Invalid range - return full content
                                     exchange.getResponseHeaders().add("Content-Type", contentType);
@@ -434,32 +421,33 @@ public final class S3FixtureUtils {
                                     exchange.sendResponseHeaders(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), -1);
                                     return;
                                 }
-                                
+
                                 // Calculate the actual slice to return
                                 var responseBlob = blob.slice(
                                     Math.toIntExact(start),
                                     Math.toIntExact(Math.min(end - start + 1, blob.length() - start))
                                 );
                                 end = start + responseBlob.length() - 1;
-                                
+
                                 exchange.getResponseHeaders().add("Content-Type", contentType);
-                                exchange.getResponseHeaders().add(
-                                    "Content-Range",
-                                    String.format(java.util.Locale.ROOT, "bytes %d-%d/%d", start, end, blob.length())
-                                );
+                                exchange.getResponseHeaders()
+                                    .add(
+                                        "Content-Range",
+                                        String.format(java.util.Locale.ROOT, "bytes %d-%d/%d", start, end, blob.length())
+                                    );
                                 exchange.sendResponseHeaders(RestStatus.PARTIAL_CONTENT.getStatus(), responseBlob.length());
                                 responseBlob.writeTo(exchange.getResponseBody());
                             }
                             return;
                         }
-                        
+
                         // Unsupported method
                         exchange.sendResponseHeaders(RestStatus.METHOD_NOT_ALLOWED.getStatus(), -1);
                     } finally {
                         exchange.close();
                     }
                 }
-                
+
                 /**
                  * Guesses the Content-Type header based on file extension.
                  */
@@ -510,13 +498,13 @@ public final class S3FixtureUtils {
                 // Fall back to this class's classloader if not found
                 ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
                 URL resourceUrl = classLoader.getResource("iceberg-fixtures");
-                
+
                 if (resourceUrl == null) {
                     // Try this class's classloader
                     classLoader = getClass().getClassLoader();
                     resourceUrl = classLoader.getResource("iceberg-fixtures");
                 }
-                
+
                 if (resourceUrl == null) {
                     logger.info("No iceberg-fixtures directory found in resources, skipping fixture loading");
                     return;
@@ -559,7 +547,7 @@ public final class S3FixtureUtils {
                 }
 
                 // Walk the directory tree and load all files
-                final int[] loadedCount = {0};
+                final int[] loadedCount = { 0 };
                 try (Stream<Path> paths = Files.walk(fixturesPath)) {
                     paths.filter(Files::isRegularFile).forEach(filePath -> {
                         try {
@@ -588,22 +576,22 @@ public final class S3FixtureUtils {
                 throw new RuntimeException("Failed to load iceberg-fixtures", e);
             }
         }
-        
+
         /**
          * Adds content to the fixture's blob storage for plain HTTP access.
          * Can be used by any test to serve files over HTTP.
-         * 
+         *
          * @param path the path (e.g., "/test/data.csv")
          * @param content the content as a byte array
          */
         public void addContent(String path, byte[] content) {
             handler.blobs().put(path, new BytesArray(content));
         }
-        
+
         /**
          * Adds content to the fixture's blob storage for plain HTTP access.
          * Can be used by any test to serve files over HTTP.
-         * 
+         *
          * @param path the path (e.g., "/test/data.csv")
          * @param content the content as a string
          */
@@ -620,8 +608,13 @@ public final class S3FixtureUtils {
      * @return configured S3FileIO instance
      */
     public static S3FileIO createS3FileIO(String s3Endpoint) {
-        org.elasticsearch.xpack.esql.datasources.s3.S3Configuration s3Config = org.elasticsearch.xpack.esql.datasources.s3.S3Configuration.fromFields(ACCESS_KEY, SECRET_KEY, s3Endpoint, null // region
-        );
+        org.elasticsearch.xpack.esql.datasources.s3.S3Configuration s3Config = org.elasticsearch.xpack.esql.datasources.s3.S3Configuration
+            .fromFields(
+                ACCESS_KEY,
+                SECRET_KEY,
+                s3Endpoint,
+                null // region
+            );
         return org.elasticsearch.xpack.esql.datasources.s3.S3FileIOFactory.create(s3Config);
     }
 
@@ -700,7 +693,9 @@ public final class S3FixtureUtils {
         byType.entrySet()
             .stream()
             .sorted(Map.Entry.<String, List<S3RequestLog>>comparingByValue((a, b) -> Integer.compare(b.size(), a.size())))
-            .forEach(entry -> { logger.info("  {}: {} requests", entry.getKey(), entry.getValue().size()); });
+            .forEach(entry -> {
+                logger.info("  {}: {} requests", entry.getKey(), entry.getValue().size());
+            });
 
         logger.info("\nDetailed request log:");
         for (int i = 0; i < logs.size(); i++) {

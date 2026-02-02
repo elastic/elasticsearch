@@ -22,7 +22,6 @@ import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
-
 import java.io.PrintStream;
 import java.util.List;
 import java.util.Map;
@@ -45,7 +44,7 @@ import static org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.W
  *   <li>Elasticsearch cluster on port 9200 configured to access the fixture via S3</li>
  * </ul>
  * <p>
- * Then waits indefinitely (or for configured time) to allow manual queries via curl, 
+ * Then waits indefinitely (or for configured time) to allow manual queries via curl,
  * Kibana Dev Console, or other tools.
  * <p>
  * <b>Usage:</b>
@@ -75,7 +74,7 @@ public class InteractiveFixtureManual extends ESRestTestCase {
 
     /** Fixed port for Elasticsearch */
     private static final int ES_PORT = 9200;
-    
+
     /** Fixed port for S3/HTTP fixture */
     private static final int S3_FIXTURE_PORT = 9345;
 

@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -54,9 +54,7 @@ public class IcebergPushdownFilters {
      */
     public static org.apache.iceberg.expressions.Expression convert(Expression esqlExpr) {
         // Binary comparisons: field op value
-        if (esqlExpr instanceof EsqlBinaryComparison bc
-            && bc.left() instanceof NamedExpression ne
-            && bc.right().foldable()) {
+        if (esqlExpr instanceof EsqlBinaryComparison bc && bc.left() instanceof NamedExpression ne && bc.right().foldable()) {
             String fieldName = ne.name();
             Object value = convertValue(literalValueOf(bc.right()));
 

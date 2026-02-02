@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.datasources.http.HttpConfiguration;
 import org.elasticsearch.xpack.esql.datasources.http.HttpStorageProvider;
 import org.elasticsearch.xpack.esql.datasources.s3.S3Configuration;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageManager;
-import org.elasticsearch.xpack.esql.datasources.StorageProviderRegistry;
 
 import java.util.HashMap;
 import java.util.List;
@@ -76,13 +75,13 @@ public class ExternalSourceResolver {
                 // This allows ParquetFileAdapter to resolve HTTP URLs using the registry
                 StorageProviderRegistry registry = createStorageProviderRegistry();
                 StorageManager storageManager = new StorageManager(registry);
-                
+
                 try {
                     Map<String, ExternalSourceMetadata> resolved = new HashMap<>();
 
                     for (String path : paths) {
                         Map<String, Expression> params = pathParams.get(path);
-                        
+
                         // Detect the scheme and create appropriate configuration
                         String scheme = detectScheme(path);
                         Object config = createConfigForScheme(scheme, params);
@@ -117,7 +116,7 @@ public class ExternalSourceResolver {
 
     /**
      * Detect the URI scheme from a path.
-     * 
+     *
      * @param path the path to analyze
      * @return the scheme (e.g., "s3", "http", "https", "file"), or "s3" as default
      */
@@ -125,19 +124,19 @@ public class ExternalSourceResolver {
         if (path == null) {
             return "s3"; // Default
         }
-        
+
         int colonIndex = path.indexOf(':');
         if (colonIndex > 0) {
             String scheme = path.substring(0, colonIndex).toLowerCase(Locale.ROOT);
             return scheme;
         }
-        
+
         return "s3"; // Default for paths without explicit scheme
     }
 
     /**
      * Create appropriate configuration object based on the URI scheme.
-     * 
+     *
      * @param scheme the URI scheme
      * @param params the query parameters
      * @return configuration object (S3Configuration, HttpConfiguration, or null)
@@ -162,11 +161,11 @@ public class ExternalSourceResolver {
      */
     private StorageProviderRegistry createStorageProviderRegistry() {
         StorageProviderRegistry registry = new StorageProviderRegistry();
-        
+
         // Register HttpStorageProvider for HTTP and HTTPS schemes
         // Use the executor from this resolver to create HttpStorageProvider
         HttpConfiguration httpConfig = HttpConfiguration.defaults();
-        
+
         // Try to cast executor to ExecutorService using pattern matching
         // ThreadPool executors are typically ExecutorService instances
         if (executor instanceof ExecutorService executorService) {
@@ -183,7 +182,7 @@ public class ExternalSourceResolver {
             // StorageManager will handle HTTP schemes via registry fallback or throw appropriate error
             LOGGER.debug("Executor is not an ExecutorService, skipping HttpStorageProvider registration");
         }
-        
+
         return registry;
     }
 
@@ -197,11 +196,8 @@ public class ExternalSourceResolver {
      * @return resolved metadata
      * @throws Exception if resolution fails
      */
-    private ExternalSourceMetadata resolveSingleSource(
-        String path, 
-        @Nullable Object config,
-        StorageManager storageManager
-    ) throws Exception {
+    private ExternalSourceMetadata resolveSingleSource(String path, @Nullable Object config, StorageManager storageManager)
+        throws Exception {
         SourceType type = detectSourceType(path);
         LOGGER.info("Resolving external source: path=[{}], detected type=[{}]", path, type);
 
@@ -230,7 +226,7 @@ public class ExternalSourceResolver {
         String lowerPath = path.toLowerCase(Locale.ROOT);
         boolean isParquet = lowerPath.endsWith(".parquet");
         LOGGER.debug("Detecting source type for path: [{}], ends with .parquet: [{}]", path, isParquet);
-        
+
         if (isParquet) {
             LOGGER.debug("Detected as PARQUET file");
             return SourceType.PARQUET;

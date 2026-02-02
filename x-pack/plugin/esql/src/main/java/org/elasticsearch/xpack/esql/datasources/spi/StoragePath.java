@@ -12,7 +12,7 @@ import java.util.Objects;
 /**
  * Represents a location in a storage system. Similar to Trino's Location class.
  * Uses URI-like format: scheme://[userInfo@]host[:port][/path]
- * 
+ *
  * Unlike java.net.URI, this class:
  * - Does not perform URL encoding/decoding
  * - Has simpler parsing rules suitable for blob storage keys
@@ -36,26 +36,26 @@ public final class StoragePath {
     /**
      * Parses a location string into a StoragePath.
      * Expected format: scheme://host[:port][/path]
-     * 
+     *
      * @param location the location string to parse
      * @return a StoragePath instance
      * @throws IllegalArgumentException if the location format is invalid
      */
     public static StoragePath of(String location) {
         Objects.requireNonNull(location, "location cannot be null");
-        
+
         // Find scheme
         int schemeEnd = location.indexOf("://");
         if (schemeEnd < 0) {
             throw new IllegalArgumentException("Invalid location format, missing scheme: " + location);
         }
         String scheme = location.substring(0, schemeEnd);
-        
+
         // Parse authority and path
         int pathStart = location.indexOf('/', schemeEnd + 3);
         String authority;
         String path;
-        
+
         if (pathStart < 0) {
             authority = location.substring(schemeEnd + 3);
             path = "";
@@ -63,17 +63,17 @@ public final class StoragePath {
             authority = location.substring(schemeEnd + 3, pathStart);
             path = location.substring(pathStart);
         }
-        
+
         // Parse host and port from authority
         String host;
         int port = -1;
-        
+
         // Skip userInfo if present (not commonly used in storage URLs)
         int atIndex = authority.indexOf('@');
         if (atIndex >= 0) {
             authority = authority.substring(atIndex + 1);
         }
-        
+
         int portIndex = authority.lastIndexOf(':');
         if (portIndex >= 0) {
             host = authority.substring(0, portIndex);
@@ -85,7 +85,7 @@ public final class StoragePath {
         } else {
             host = authority;
         }
-        
+
         return new StoragePath(location, scheme, host, port, path);
     }
 
@@ -149,7 +149,7 @@ public final class StoragePath {
             parentLocation += "/";
             return StoragePath.of(parentLocation);
         }
-        
+
         String parentPath = path.substring(0, lastSlash);
         String parentLocation = scheme + "://" + host;
         if (port > 0) {
@@ -168,19 +168,19 @@ public final class StoragePath {
         if (element.isEmpty()) {
             return this;
         }
-        
+
         String newPath = path;
         if (!path.endsWith("/") && !element.startsWith("/")) {
             newPath += "/";
         }
         newPath += element;
-        
+
         String newLocation = scheme + "://" + host;
         if (port > 0) {
             newLocation += ":" + port;
         }
         newLocation += newPath;
-        
+
         return StoragePath.of(newLocation);
     }
 

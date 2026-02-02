@@ -38,7 +38,7 @@ public class MessageTemplates {
     /**
      * Load templates from a resource file.
      * Uses System.err for output to ensure visibility (bypasses test output capture).
-     * 
+     *
      * @param resourcePath path to the template file
      * @return MessageTemplates instance
      * @throws IOException if the file cannot be read
@@ -51,7 +51,7 @@ public class MessageTemplates {
 
     /**
      * Create a MessageTemplates instance with custom output stream.
-     * 
+     *
      * @param out the output stream to use for printing
      */
     public MessageTemplates(PrintStream out) {
@@ -67,7 +67,7 @@ public class MessageTemplates {
 
     /**
      * Set a variable value for template substitution.
-     * 
+     *
      * @param name variable name
      * @param value variable value
      * @return this instance for chaining
@@ -79,7 +79,7 @@ public class MessageTemplates {
 
     /**
      * Set a variable value for template substitution.
-     * 
+     *
      * @param name variable name
      * @param value variable value (converted to string)
      * @return this instance for chaining
@@ -90,7 +90,7 @@ public class MessageTemplates {
 
     /**
      * Set a variable value for template substitution.
-     * 
+     *
      * @param name variable name
      * @param value variable value (converted to string)
      * @return this instance for chaining
@@ -101,7 +101,7 @@ public class MessageTemplates {
 
     /**
      * Get a rendered template by name.
-     * 
+     *
      * @param name template name (from [section] in the file)
      * @return rendered template with variables substituted
      */
@@ -115,7 +115,7 @@ public class MessageTemplates {
 
     /**
      * Print a template to the output stream.
-     * 
+     *
      * @param name template name
      */
     public void print(String name) {
@@ -124,7 +124,7 @@ public class MessageTemplates {
 
     /**
      * Print a formatted string to the output stream.
-     * 
+     *
      * @param format format string
      * @param args format arguments
      */

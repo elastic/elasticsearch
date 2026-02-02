@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.esql.datasources.format.csv;
 import com.fasterxml.jackson.dataformat.csv.CsvMapper;
 import com.fasterxml.jackson.dataformat.csv.CsvParser;
 import com.fasterxml.jackson.dataformat.csv.CsvSchema;
+
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -40,30 +40,32 @@ import java.util.NoSuchElementException;
 
 /**
  * Simple CSV format reader for external datasources.
- * 
+ *
  * <p>CSV Format:
  * - First line: schema definition (column_name:type_name,...)
  * - Subsequent lines: data rows
  * - Empty values are treated as null
  * - Lines starting with "//" are comments and ignored
- * 
+ *
  * <p>Supported types: integer, long, double, keyword, text, boolean, datetime
- * 
+ *
  * <p>This reader works with any StorageProvider (HTTP, S3, local).
  */
 public class CsvFormatReader implements FormatReader {
-    
+
     private final BlockFactory blockFactory;
-    
+
     public CsvFormatReader(BlockFactory blockFactory) {
         this.blockFactory = blockFactory;
     }
-    
+
     @Override
     public List<Attribute> getSchema(StorageObject object) throws IOException {
-        try (InputStream stream = object.newStream();
-             BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
-            
+        try (
+            InputStream stream = object.newStream();
+            BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))
+        ) {
+
             String line;
             while ((line = reader.readLine()) != null) {
                 line = line.trim();
@@ -76,58 +78,54 @@ public class CsvFormatReader implements FormatReader {
             throw new IOException("CSV file has no schema line");
         }
     }
-    
+
     @Override
-    public CloseableIterator<Page> read(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize
-    ) throws IOException {
+    public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
         InputStream stream = object.newStream();
         BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8));
-        
+
         return new CsvBatchIterator(reader, stream, projectedColumns, batchSize);
     }
-    
+
     @Override
     public String formatName() {
         return "csv";
     }
-    
+
     @Override
     public List<String> fileExtensions() {
         return List.of(".csv", ".tsv");
     }
-    
+
     @Override
     public void close() throws IOException {
         // No resources to close at reader level
     }
-    
+
     /**
      * Parse schema line: "name:type,name:type,..."
      */
     private List<Attribute> parseSchema(String schemaLine) {
         String[] columns = schemaLine.split(",");
         List<Attribute> attributes = new ArrayList<>(columns.length);
-        
+
         for (String column : columns) {
             String[] parts = column.trim().split(":");
             if (parts.length != 2) {
                 throw new ParsingException("Invalid CSV schema format: [{}]. Expected 'name:type'", column);
             }
-            
+
             String name = parts[0].trim();
             String typeName = parts[1].trim().toUpperCase();
             DataType dataType = parseDataType(typeName);
-            
+
             EsField field = new EsField(name, dataType, java.util.Map.of(), true, EsField.TimeSeriesFieldType.NONE);
             attributes.add(new FieldAttribute(Source.EMPTY, name, field));
         }
-        
+
         return attributes;
     }
-    
+
     /**
      * Map CSV type names to ESQL DataType.
      */
@@ -144,7 +142,7 @@ public class CsvFormatReader implements FormatReader {
             default -> throw EsqlIllegalArgumentException.illegalDataType(typeName);
         };
     }
-    
+
     /**
      * Iterator that reads CSV data in batches and converts to ESQL Pages.
      * Uses Jackson CSV parser for robust CSV parsing with proper quote and escape handling.
@@ -155,13 +153,13 @@ public class CsvFormatReader implements FormatReader {
         private final List<String> projectedColumns;
         private final int batchSize;
         private final CsvMapper csvMapper;
-        
+
         private List<Attribute> schema;
         private List<Integer> projectedIndices;
         private Iterator<List<?>> csvIterator;
         private Page nextPage;
         private boolean closed = false;
-        
+
         CsvBatchIterator(BufferedReader reader, InputStream stream, List<String> projectedColumns, int batchSize) {
             this.reader = reader;
             this.stream = stream;
@@ -172,7 +170,7 @@ public class CsvFormatReader implements FormatReader {
             this.csvMapper.enable(CsvParser.Feature.SKIP_EMPTY_LINES);
             this.csvMapper.enable(CsvParser.Feature.WRAP_AS_ARRAY);
         }
-        
+
         @Override
         public boolean hasNext() {
             if (closed) {
@@ -188,7 +186,7 @@ public class CsvFormatReader implements FormatReader {
                 throw new RuntimeException("Failed to read CSV batch", e);
             }
         }
-        
+
         @Override
         public Page next() {
             if (!hasNext()) {
@@ -198,7 +196,7 @@ public class CsvFormatReader implements FormatReader {
             nextPage = null;
             return result;
         }
-        
+
         @Override
         public void close() throws IOException {
             if (!closed) {
@@ -207,7 +205,7 @@ public class CsvFormatReader implements FormatReader {
                 stream.close();
             }
         }
-        
+
         private Page readNextBatch() throws IOException {
             if (schema == null) {
                 // Read schema from first non-comment line
@@ -219,7 +217,7 @@ public class CsvFormatReader implements FormatReader {
                     }
                     schema = parseSchema(line);
                     projectedIndices = computeProjectedIndices();
-                    
+
                     // Initialize CSV iterator with Jackson CSV parser
                     // Use WRAP_AS_ARRAY to read CSV rows as lists without predefined schema
                     CsvSchema csvSchema = CsvSchema.emptySchema()
@@ -227,17 +225,15 @@ public class CsvFormatReader implements FormatReader {
                         .withQuoteChar('"')
                         .withEscapeChar('\\')
                         .withNullValue("");
-                    
-                    csvIterator = csvMapper.readerFor(List.class)
-                        .with(csvSchema)
-                        .readValues(reader);
+
+                    csvIterator = csvMapper.readerFor(List.class).with(csvSchema).readValues(reader);
                     break;
                 }
                 if (schema == null) {
                     return null; // No schema found
                 }
             }
-            
+
             // Read batch of rows using Jackson CSV parser
             List<String[]> rows = new ArrayList<>();
             while (rows.size() < batchSize && csvIterator.hasNext()) {
@@ -254,14 +250,14 @@ public class CsvFormatReader implements FormatReader {
                 }
                 rows.add(row);
             }
-            
+
             if (rows.isEmpty()) {
                 return null; // No more data
             }
-            
+
             return convertRowsToPage(rows);
         }
-        
+
         private List<Integer> computeProjectedIndices() {
             if (projectedColumns == null || projectedColumns.isEmpty()) {
                 // Return all columns
@@ -271,7 +267,7 @@ public class CsvFormatReader implements FormatReader {
                 }
                 return indices;
             }
-            
+
             // Map projected column names to indices
             List<Integer> indices = new ArrayList<>(projectedColumns.size());
             for (String colName : projectedColumns) {
@@ -289,11 +285,11 @@ public class CsvFormatReader implements FormatReader {
             }
             return indices;
         }
-        
+
         private Page convertRowsToPage(List<String[]> rows) {
             int rowCount = rows.size();
             int columnCount = projectedIndices.size();
-            
+
             // Create block builders for projected columns
             BlockUtils.BuilderWrapper[] builders = new BlockUtils.BuilderWrapper[columnCount];
             try {
@@ -306,46 +302,42 @@ public class CsvFormatReader implements FormatReader {
                         rowCount
                     );
                 }
-                
+
                 // Fill blocks with data
                 for (String[] row : rows) {
                     // Jackson CSV may return shorter arrays if trailing values are empty
                     // We need to handle this gracefully
                     if (row.length > schema.size()) {
-                        throw new ParsingException(
-                            "CSV row has [{}] columns but schema defines [{}] columns",
-                            row.length,
-                            schema.size()
-                        );
+                        throw new ParsingException("CSV row has [{}] columns but schema defines [{}] columns", row.length, schema.size());
                     }
-                    
+
                     for (int i = 0; i < columnCount; i++) {
                         int schemaIndex = projectedIndices.get(i);
                         Attribute attr = schema.get(schemaIndex);
-                        
+
                         // Handle case where row is shorter than expected (trailing empty values)
                         String value = schemaIndex < row.length ? row[schemaIndex] : "";
                         if (value != null) {
                             value = value.trim();
                         }
-                        
+
                         Object converted = convertValue(value, attr.dataType());
                         builders[i].append().accept(converted);
                     }
                 }
-                
+
                 // Build blocks
                 Block[] blocks = new Block[columnCount];
                 for (int i = 0; i < columnCount; i++) {
                     blocks[i] = builders[i].builder().build();
                 }
-                
+
                 return new Page(rowCount, blocks);
             } finally {
                 Releasables.closeExpectNoException(builders);
             }
         }
-        
+
         private Class<?> javaClassForDataType(DataType dataType) {
             return switch (dataType) {
                 case INTEGER -> Integer.class;
@@ -357,14 +349,14 @@ public class CsvFormatReader implements FormatReader {
                 default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);
             };
         }
-        
+
         private Object convertValue(String value, DataType dataType) {
             // Jackson CSV uses null for empty values when configured with withNullValue("")
             // Also handle explicit "null" string
             if (value == null || value.isEmpty() || value.equalsIgnoreCase("null")) {
                 return null;
             }
-            
+
             try {
                 return switch (dataType) {
                     case INTEGER -> Integer.parseInt(value);

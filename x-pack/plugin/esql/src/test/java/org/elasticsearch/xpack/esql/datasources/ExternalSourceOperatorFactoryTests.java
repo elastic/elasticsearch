@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.test.ESTestCase;
@@ -30,7 +29,7 @@ import java.util.Map;
 
 /**
  * Tests for ExternalSourceOperatorFactory.
- * 
+ *
  * This demonstrates the integration of StorageProvider and FormatReader
  * to create source operators for external data.
  */
@@ -57,9 +56,21 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
 
         // Define attributes (schema)
         List<Attribute> attributes = List.of(
-            new FieldAttribute(Source.EMPTY, "name", new EsField("name", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)),
-            new FieldAttribute(Source.EMPTY, "age", new EsField("age", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)),
-            new FieldAttribute(Source.EMPTY, "city", new EsField("city", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
+            new FieldAttribute(
+                Source.EMPTY,
+                "name",
+                new EsField("name", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            ),
+            new FieldAttribute(
+                Source.EMPTY,
+                "age",
+                new EsField("age", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            ),
+            new FieldAttribute(
+                Source.EMPTY,
+                "city",
+                new EsField("city", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
         );
 
         // Create operator factory
@@ -92,36 +103,43 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
         CsvFormatReader formatReader = new CsvFormatReader(blockFactory);
         StoragePath path = StoragePath.of("file:///tmp/test.csv");
         List<Attribute> attributes = List.of(
-            new FieldAttribute(Source.EMPTY, "name", new EsField("name", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
+            new FieldAttribute(
+                Source.EMPTY,
+                "name",
+                new EsField("name", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
         );
 
         // Test null storage provider
-        expectThrows(IllegalArgumentException.class, () -> 
-            new ExternalSourceOperatorFactory(null, formatReader, path, attributes, 1000)
-        );
+        expectThrows(IllegalArgumentException.class, () -> new ExternalSourceOperatorFactory(null, formatReader, path, attributes, 1000));
 
         // Test null format reader
-        expectThrows(IllegalArgumentException.class, () -> 
-            new ExternalSourceOperatorFactory(storageProvider, null, path, attributes, 1000)
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new ExternalSourceOperatorFactory(storageProvider, null, path, attributes, 1000)
         );
 
         // Test null path
-        expectThrows(IllegalArgumentException.class, () -> 
-            new ExternalSourceOperatorFactory(storageProvider, formatReader, null, attributes, 1000)
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new ExternalSourceOperatorFactory(storageProvider, formatReader, null, attributes, 1000)
         );
 
         // Test null attributes
-        expectThrows(IllegalArgumentException.class, () -> 
-            new ExternalSourceOperatorFactory(storageProvider, formatReader, path, null, 1000)
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new ExternalSourceOperatorFactory(storageProvider, formatReader, path, null, 1000)
         );
 
         // Test invalid batch size
-        expectThrows(IllegalArgumentException.class, () -> 
-            new ExternalSourceOperatorFactory(storageProvider, formatReader, path, attributes, 0)
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new ExternalSourceOperatorFactory(storageProvider, formatReader, path, attributes, 0)
         );
 
-        expectThrows(IllegalArgumentException.class, () -> 
-            new ExternalSourceOperatorFactory(storageProvider, formatReader, path, attributes, -1)
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new ExternalSourceOperatorFactory(storageProvider, formatReader, path, attributes, -1)
         );
     }
 
@@ -131,16 +149,14 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
         CsvFormatReader formatReader = new CsvFormatReader(blockFactory);
         StoragePath path = StoragePath.of("file:///tmp/data.csv");
         List<Attribute> attributes = List.of(
-            new FieldAttribute(Source.EMPTY, "col1", new EsField("col1", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
+            new FieldAttribute(
+                Source.EMPTY,
+                "col1",
+                new EsField("col1", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
         );
 
-        ExternalSourceOperatorFactory factory = new ExternalSourceOperatorFactory(
-            storageProvider,
-            formatReader,
-            path,
-            attributes,
-            500
-        );
+        ExternalSourceOperatorFactory factory = new ExternalSourceOperatorFactory(storageProvider, formatReader, path, attributes, 500);
 
         String description = factory.describe();
         assertTrue(description.contains("ExternalSourceOperator"));

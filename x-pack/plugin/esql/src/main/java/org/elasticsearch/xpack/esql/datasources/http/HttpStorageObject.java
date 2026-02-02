@@ -24,7 +24,7 @@ import java.time.format.DateTimeParseException;
 /**
  * StorageObject implementation using HTTP Range requests for efficient partial reads.
  * Uses standard Java HttpClient and InputStream - no custom stream classes needed.
- * 
+ *
  * Supports:
  * - Full object reads via GET
  * - Range reads via HTTP Range header for columnar formats
@@ -34,7 +34,7 @@ public final class HttpStorageObject implements StorageObject {
     private final HttpClient client;
     private final StoragePath path;
     private final HttpConfiguration config;
-    
+
     // Cached metadata to avoid repeated HEAD requests
     private Long cachedLength;
     private Instant cachedLastModified;
@@ -81,21 +81,19 @@ public final class HttpStorageObject implements StorageObject {
             .uri(URI.create(path.toString()))
             .GET()
             .timeout(config.requestTimeout());
-        
+
         // Add custom headers if configured
         config.customHeaders().forEach(requestBuilder::header);
-        
+
         HttpRequest request = requestBuilder.build();
-        
+
         try {
             HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
-            
+
             if (response.statusCode() != 200) {
-                throw new IOException(
-                    "Failed to read object from " + path + ", HTTP status: " + response.statusCode()
-                );
+                throw new IOException("Failed to read object from " + path + ", HTTP status: " + response.statusCode());
             }
-            
+
             return response.body();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -111,26 +109,26 @@ public final class HttpStorageObject implements StorageObject {
         if (length < 0) {
             throw new IllegalArgumentException("length must be non-negative, got: " + length);
         }
-        
+
         // Range read using HTTP Range header: "bytes=start-end" (inclusive)
         // HTTP Range uses inclusive end, so we need position + length - 1
         long endPosition = position + length - 1;
         String rangeHeader = String.format("bytes=%d-%d", position, endPosition);
-        
+
         HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
             .uri(URI.create(path.toString()))
             .header("Range", rangeHeader)
             .GET()
             .timeout(config.requestTimeout());
-        
+
         // Add custom headers if configured
         config.customHeaders().forEach(requestBuilder::header);
-        
+
         HttpRequest request = requestBuilder.build();
-        
+
         try {
             HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
-            
+
             // 206 = Partial Content (successful range request)
             // 200 = OK (server doesn't support ranges but returned full content)
             if (response.statusCode() == 206) {
@@ -141,16 +139,12 @@ public final class HttpStorageObject implements StorageObject {
                 long skipped = stream.skip(position);
                 if (skipped != position) {
                     stream.close();
-                    throw new IOException(
-                        "Failed to skip to position " + position + ", only skipped " + skipped + " bytes"
-                    );
+                    throw new IOException("Failed to skip to position " + position + ", only skipped " + skipped + " bytes");
                 }
                 // Wrap in a limited stream to ensure we only read 'length' bytes
                 return new BoundedInputStream(stream, length);
             } else {
-                throw new IOException(
-                    "Range request failed for " + path + ", HTTP status: " + response.statusCode()
-                );
+                throw new IOException("Range request failed for " + path + ", HTTP status: " + response.statusCode());
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -195,36 +189,31 @@ public final class HttpStorageObject implements StorageObject {
             .uri(URI.create(path.toString()))
             .method("HEAD", HttpRequest.BodyPublishers.noBody())
             .timeout(config.requestTimeout());
-        
+
         // Add custom headers if configured
         config.customHeaders().forEach(requestBuilder::header);
-        
+
         HttpRequest request = requestBuilder.build();
-        
+
         try {
             HttpResponse<Void> response = client.send(request, HttpResponse.BodyHandlers.discarding());
-            
+
             if (response.statusCode() == 200) {
                 cachedExists = true;
-                
+
                 // Extract Content-Length
                 cachedLength = response.headers()
                     .firstValueAsLong("Content-Length")
                     .orElseThrow(() -> new IOException("Server did not return Content-Length for " + path));
-                
+
                 // Extract Last-Modified
-                cachedLastModified = response.headers()
-                    .firstValue("Last-Modified")
-                    .map(this::parseHttpDate)
-                    .orElse(null);
+                cachedLastModified = response.headers().firstValue("Last-Modified").map(this::parseHttpDate).orElse(null);
             } else if (response.statusCode() == 404) {
                 cachedExists = false;
                 cachedLength = 0L;
                 cachedLastModified = null;
             } else {
-                throw new IOException(
-                    "HEAD request failed for " + path + ", HTTP status: " + response.statusCode()
-                );
+                throw new IOException("HEAD request failed for " + path + ", HTTP status: " + response.statusCode());
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

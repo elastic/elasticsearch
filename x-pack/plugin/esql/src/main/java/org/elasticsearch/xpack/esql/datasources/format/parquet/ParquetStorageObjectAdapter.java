@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources.format.parquet;
 
-import org.apache.parquet.io.DelegatingSeekableInputStream;
 import org.apache.parquet.io.SeekableInputStream;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
@@ -17,7 +16,7 @@ import java.io.InputStream;
 /**
  * Adapter that wraps a StorageObject to implement Parquet's InputFile interface.
  * This allows using our storage abstraction with Parquet's ParquetFileReader.
- * 
+ *
  * <p>Key features:
  * <ul>
  *   <li>Converts StorageObject's range-based reads to Parquet's seekable stream interface</li>
@@ -30,7 +29,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
 
     /**
      * Creates an adapter for the given StorageObject.
-     * 
+     *
      * @param storageObject the storage object to adapt
      */
     public ParquetStorageObjectAdapter(StorageObject storageObject) {
@@ -52,7 +51,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
 
     /**
      * SeekableInputStream implementation that uses StorageObject's range-based reads.
-     * 
+     *
      * <p>This implementation provides efficient random access by:
      * <ul>
      *   <li>Tracking current position in the stream</li>
@@ -193,15 +192,15 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             if (!buf.hasRemaining()) {
                 return 0;
             }
-            
+
             int bytesToRead = buf.remaining();
             byte[] temp = new byte[bytesToRead];
             int bytesRead = read(temp, 0, bytesToRead);
-            
+
             if (bytesRead > 0) {
                 buf.put(temp, 0, bytesRead);
             }
-            
+
             return bytesRead;
         }
 

@@ -3599,10 +3599,10 @@ public class VerifierTests extends ESTestCase {
     public void testMMRDiversifyFieldIsValid() {
         assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
 
-        query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr dense_embedding limit 10");
+        query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10");
 
         assertThat(
-            error("row dense_embedding=\"hello\" | mmr dense_embedding limit 10", defaultAnalyzer, VerificationException.class),
+            error("row dense_embedding=\"hello\" | mmr on dense_embedding limit 10", defaultAnalyzer, VerificationException.class),
             equalTo("1:31: MMR diversify field must be a dense vector field")
         );
     }
@@ -3610,15 +3610,15 @@ public class VerifierTests extends ESTestCase {
     public void testMMRLimitIsValid() {
         assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
 
-        query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr dense_embedding limit 10");
+        query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10");
 
         assertThat(
             error(
-                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr dense_embedding limit -5",
+                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit -5",
                 defaultAnalyzer,
                 VerificationException.class
             ),
-            equalTo("1:58: MMR limit must be an positive integer")
+            equalTo("1:58: MMR limit must be a positive integer")
         );
     }
 
@@ -3642,11 +3642,11 @@ public class VerifierTests extends ESTestCase {
     public void testMMRLambdaValueIsValid() {
         assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
 
-        query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr dense_embedding limit 10 with { \"lambda\": 0.5 }");
+        query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"lambda\": 0.5 }");
 
         assertThat(
             error(
-                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr dense_embedding limit 10 with { \"unknown\": true }",
+                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"unknown\": true }",
                 defaultAnalyzer,
                 VerificationException.class
             ),
@@ -3655,7 +3655,7 @@ public class VerifierTests extends ESTestCase {
 
         assertThat(
             error(
-                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr dense_embedding limit 10 with "
+                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with "
                     + "{ \"lambda\": 0.5, \"unknown_extra\": true }",
                 defaultAnalyzer,
                 VerificationException.class
@@ -3665,7 +3665,7 @@ public class VerifierTests extends ESTestCase {
 
         assertThat(
             error(
-                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr dense_embedding limit 10 with { \"lambda\": 2.5 }",
+                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"lambda\": 2.5 }",
                 defaultAnalyzer,
                 VerificationException.class
             ),
@@ -3673,7 +3673,7 @@ public class VerifierTests extends ESTestCase {
         );
         assertThat(
             error(
-                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr dense_embedding limit 10 with { \"lambda\": -2.5 }",
+                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"lambda\": -2.5 }",
                 defaultAnalyzer,
                 VerificationException.class
             ),

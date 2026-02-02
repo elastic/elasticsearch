@@ -284,64 +284,6 @@ public final class TextStructureUtils {
         String timestampFormatOverride,
         int mappingDepthLimit
     ) {
-        return guessMappingsAndCalculateFieldStats(
-            explanation,
-            sampleRecords,
-            timeoutChecker,
-            DEFAULT_ECS_COMPATIBILITY,
-            timestampFormatOverride,
-            mappingDepthLimit
-        );
-    }
-
-    /**
-     * Given the sampled records, guess appropriate Elasticsearch mappings.
-     * @param explanation List of reasons for making decisions.  May contain items when passed and new reasons
-     *                    can be appended by this method.
-     * @param sampleRecords The sampled records.
-     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
-     * @param timestampFormatOverride The format of the timestamp as given in the request overrides.
-     * @return A map of field name to mapping settings.
-     */
-    public static Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> guessMappingsAndCalculateFieldStats(
-        List<String> explanation,
-        List<Map<String, ?>> sampleRecords,
-        TimeoutChecker timeoutChecker,
-        String timestampFormatOverride
-    ) {
-        return guessMappingsAndCalculateFieldStats(
-            explanation,
-            sampleRecords,
-            timeoutChecker,
-            DEFAULT_ECS_COMPATIBILITY,
-            timestampFormatOverride,
-            1
-        );
-    }
-
-    /**
-     * Given the sampled records, guess appropriate Elasticsearch mappings.
-     * @param explanation List of reasons for making decisions.  May contain items when passed and new reasons
-     *                    can be appended by this method.
-     * @param sampleRecords The sampled records.
-     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
-     * @param ecsCompatibility The mode of compatibility with ECS Grok patterns.
-     * @param timestampFormatOverride The format of the timestamp as given in the request overrides.
-     * @param mappingDepthLimit How deep into the nested objects we should look for keys.
-     *                          For example, with depth=2 and input:
-     *                          {"a": [{"b": {"c": 1}}]}
-     *                          the mapping will reach down to "a.b" and map it as an object,
-     *                          but will not dive into "c". Increasing the depth allows for deeper mapping.
-     * @return A map of field name to mapping settings.
-     */
-    public static Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> guessMappingsAndCalculateFieldStats(
-        List<String> explanation,
-        List<Map<String, ?>> sampleRecords,
-        TimeoutChecker timeoutChecker,
-        boolean ecsCompatibility,
-        String timestampFormatOverride,
-        int mappingDepthLimit
-    ) {
         if (mappingDepthLimit < 1) {
             throw new IllegalArgumentException("Mapping depth limit must be at least 1");
         }
@@ -365,7 +307,7 @@ public final class TextStructureUtils {
                 fieldName,
                 fieldValues,
                 timeoutChecker,
-                ecsCompatibility,
+                DEFAULT_ECS_COMPATIBILITY,
                 timestampFormatOverride
             );
             if (mappingAndFieldStats != null) {
@@ -379,6 +321,24 @@ public final class TextStructureUtils {
         }
 
         return new Tuple<>(mappings, fieldStats);
+    }
+
+    /**
+     * Given the sampled records, guess appropriate Elasticsearch mappings.
+     * @param explanation List of reasons for making decisions.  May contain items when passed and new reasons
+     *                    can be appended by this method.
+     * @param sampleRecords The sampled records.
+     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
+     * @param timestampFormatOverride The format of the timestamp as given in the request overrides.
+     * @return A map of field name to mapping settings.
+     */
+    public static Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> guessMappingsAndCalculateFieldStats(
+        List<String> explanation,
+        List<Map<String, ?>> sampleRecords,
+        TimeoutChecker timeoutChecker,
+        String timestampFormatOverride
+    ) {
+        return guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker, timestampFormatOverride, 1);
     }
 
     /**

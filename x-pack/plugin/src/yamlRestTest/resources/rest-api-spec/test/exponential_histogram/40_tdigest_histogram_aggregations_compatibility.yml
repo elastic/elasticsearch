@@ -28,7 +28,7 @@ setup:
         body:
           '@timestamp': "2023-01-01T00:00:00Z"
           tdigest_or_exp_histo:
-            values: [1.0, 2.0, 4.0]
+            values: [0.9, 2.0, 4.0]
             counts: [2, 2, 1]
 
   # Update the index template to change the field type to exponential_histogram
@@ -89,7 +89,7 @@ setup:
             sum_metric:
               sum:
                 field: tdigest_or_exp_histo
-  - match: { aggregations.sum_metric.value: 110.0 }
+  - match: { aggregations.sum_metric.value: 109.8 }
 
 ---
 "Average aggregation over aggregate_metric_double and exponential_histogram":
@@ -102,4 +102,40 @@ setup:
             avg_metric:
               avg:
                 field: tdigest_or_exp_histo
-  - match: { aggregations.avg_metric.value: 11.0 }
+  - match: { aggregations.avg_metric.value: 10.98 }
+
+---
+"Min aggregation over aggregate_metric_double and exponential_histogram":
+  - requires:
+      cluster_features: [ "search.exponential_histogram_querydsl_min_max" ]
+      reason: exponential_histogram min/max aggregations were introduced
+  - do:
+      search:
+        index: test-data-stream
+        size: 0
+        body:
+          aggs:
+            min_agg:
+              min:
+                field: tdigest_or_exp_histo
+
+  - match: { hits.total.value: 2 }
+  - match: { aggregations.min_agg.value: 0.9 }
+
+---
+"Max aggregation over aggregate_metric_double and exponential_histogram":
+  - requires:
+      cluster_features: [ "search.exponential_histogram_querydsl_min_max" ]
+      reason: exponential_histogram min/max aggregations were introduced
+  - do:
+      search:
+        index: test-data-stream
+        size: 0
+        body:
+          aggs:
+            max_agg:
+              max:
+                field: tdigest_or_exp_histo
+
+  - match: { hits.total.value: 2 }
+  - match: { aggregations.max_agg.value: 10.0 }

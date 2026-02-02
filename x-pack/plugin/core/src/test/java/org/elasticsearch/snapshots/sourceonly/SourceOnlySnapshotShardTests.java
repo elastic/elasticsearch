@@ -70,12 +70,12 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.FinalizeSnapshotContext.UpdatedShardGenerations;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.LocalPrimarySnapshotShardContext;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotIndexCommit;
-import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -135,7 +135,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             runAsSnapshot(
                 shard.getThreadPool(),
                 () -> repository.snapshotShard(
-                    new SnapshotShardContext(
+                    new LocalPrimarySnapshotShardContext(
                         shard.store(),
                         shard.mapperService(),
                         snapshotId,
@@ -186,7 +186,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             runAsSnapshot(
                 shard.getThreadPool(),
                 () -> repository.snapshotShard(
-                    new SnapshotShardContext(
+                    new LocalPrimarySnapshotShardContext(
                         shard.store(),
                         shard.mapperService(),
                         snapshotId,
@@ -230,7 +230,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             runAsSnapshot(
                 shard.getThreadPool(),
                 () -> repository.snapshotShard(
-                    new SnapshotShardContext(
+                    new LocalPrimarySnapshotShardContext(
                         shard.store(),
                         shard.mapperService(),
                         snapshotId,
@@ -261,7 +261,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             runAsSnapshot(
                 shard.getThreadPool(),
                 () -> repository.snapshotShard(
-                    new SnapshotShardContext(
+                    new LocalPrimarySnapshotShardContext(
                         shard.store(),
                         shard.mapperService(),
                         snapshotId,
@@ -292,7 +292,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             runAsSnapshot(
                 shard.getThreadPool(),
                 () -> repository.snapshotShard(
-                    new SnapshotShardContext(
+                    new LocalPrimarySnapshotShardContext(
                         shard.store(),
                         shard.mapperService(),
                         snapshotId,
@@ -355,7 +355,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
             runAsSnapshot(shard.getThreadPool(), () -> {
                 repository.snapshotShard(
-                    new SnapshotShardContext(
+                    new LocalPrimarySnapshotShardContext(
                         shard.store(),
                         shard.mapperService(),
                         snapshotId,

@@ -12,8 +12,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.function.Function;
 
 public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
@@ -162,12 +160,12 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
 
         for (Batch<TreeType> batch : batches) {
             int batchRuns = 0;
-            List<Transformation> tfs = new ArrayList<>();
 
             boolean hasChanged = false;
             long batchStart = System.currentTimeMillis();
             long batchDuration = 0;
 
+            TreeType before = currentPlan;
             // run each batch until no change occurs or the limit is reached
             do {
                 hasChanged = false;
@@ -178,7 +176,6 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
                         log.trace("About to apply rule {}", rule);
                     }
                     Transformation tf = new Transformation(rule.name(), currentPlan, transform(rule));
-                    tfs.add(tf);
                     currentPlan = tf.after;
 
                     if (tf.hasChanged()) {
@@ -194,16 +191,11 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
                 }
                 batchDuration = System.currentTimeMillis() - batchStart;
             } while (hasChanged && batch.limit.reached(batchRuns) == false);
+            TreeType after = currentPlan;
 
             totalDuration += batchDuration;
 
             if (log.isTraceEnabled()) {
-                TreeType before = plan;
-                TreeType after = plan;
-                if (tfs.isEmpty() == false) {
-                    before = tfs.get(0).before;
-                    after = tfs.get(tfs.size() - 1).after;
-                }
                 log.trace(
                     "Batch {} applied took {}\n{}",
                     batch.name,

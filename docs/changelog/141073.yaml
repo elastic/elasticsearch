@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 139828
+pr: 141073
+summary: Delay partial results
+type: enhancement

@@ -116,6 +116,9 @@ setup:
 
 ---
 "Min aggregation":
+  - requires:
+      cluster_features: [ "search.exponential_histogram_querydsl_min_max" ]
+      reason: exponential_histogram min/max aggregations were introduced
   - do:
       search:
         index: test_exponential_histogram
@@ -131,6 +134,9 @@ setup:
 
 ---
 "Max aggregation":
+  - requires:
+      cluster_features: [ "search.exponential_histogram_querydsl_min_max" ]
+      reason: exponential_histogram min/max aggregations were introduced
   - do:
       search:
         index: test_exponential_histogram

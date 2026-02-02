@@ -6,64 +6,65 @@
   - match:
       $body: |
         /  #ip                          heap.percent        ram.percent     cpu         load_1m                load_5m                load_15m                node.role                   master          name
-        ^  ([0-9a-f:.%]+  \s+  \d+            \s+  \d*         \s+ (-)?\d* \s+ ((-)?(\d*(\.\d+)?)?|-)? \s+ ((-)?(\d*(\.\d+)?)?|-)?\s+  ((-)?(\d*(\.\d+)?)?|-)? \s+  (-|[cdfhilmrstvwIS]{1,11}) \s+ [-*x]     \s+   .*     \n)+  $/
+        ^  ([0-9a-f:.%]+  \s+  \d+            \s+  \d*         \s+ (-)?\d* \s+ ((-)?\d*(\.\d+)?)? \s+ ((-)?\d*(\.\d+)?)?\s+  ((-)?\d*(\.\d+)?)? \s+  (-|[cdfhilmrstvwIS]{1,11}) \s+ [-*x]     \s+   .*     \n)+  $/
 
   - do:
       cat.nodes:
-        v: true
+          v: true
 
   - match:
       $body: |
         /^  ip                     \s+  heap\.percent   \s+  ram\.percent \s+ cpu      \s+ load_1m            \s+ load_5m            \s+ load_15m            \s+ node\.role                 \s+  master   \s+   name  \n
-           ([0-9a-f:.%]+  \s+  \d+             \s+  \d*          \s+ (-)?\d*  \s+ ((-)?(\d*(\.\d+)?)?|-)? \s+ ((-)?(\d*(\.\d+)?)?|-)? \s+ ((-)?(\d*(\.\d+)?)?|-)?  \s+ (-|[cdfhilmrstvwIS]{1,11}) \s+  [-*x]    \s+   .*    \n)+  $/
+           ([0-9a-f:.%]+  \s+  \d+             \s+  \d*          \s+ (-)?\d*  \s+ ((-)?\d*(\.\d+)?)? \s+ ((-)?\d*(\.\d+)?)? \s+ ((-)?\d*(\.\d+)?)?  \s+ (-|[cdfhilmrstvwIS]{1,11}) \s+  [-*x]    \s+   .*    \n)+  $/
 
   - do:
       cat.nodes:
-        h: heap.current,heap.percent,heap.max
-        v: true
+          h: heap.current,heap.percent,heap.max
+          v: true
 
   - match:
       $body: |
-        /^      heap\.current          \s+  heap\.percent  \s+  heap\.max              \n
-           (\s+ \d+(\.\d+)?[ptgmk]?b   \s+  \d+            \s+  \d+(\.\d+)?[ptgmk]?b   \n)+  $/
+               /^      heap\.current          \s+  heap\.percent  \s+  heap\.max              \n
+                  (\s+ \d+(\.\d+)?[ptgmk]?b   \s+  \d+            \s+  \d+(\.\d+)?[ptgmk]?b   \n)+  $/
 
   - do:
       cat.nodes:
-        h: heap.*
-        v: true
+          h: heap.*
+          v: true
 
   - match:
       $body: |
-        /^      heap\.current          \s+  heap\.percent  \s+  heap\.max              \n
-           (\s+ \d+(\.\d+)?[ptgmk]?b   \s+  \d+            \s+  \d+(\.\d+)?[ptgmk]?b   \n)+  $/
+               /^      heap\.current          \s+  heap\.percent  \s+  heap\.max              \n
+                  (\s+ \d+(\.\d+)?[ptgmk]?b   \s+  \d+            \s+  \d+(\.\d+)?[ptgmk]?b   \n)+  $/
 
   - do:
       cat.nodes:
-        h: file_desc.current,file_desc.percent,file_desc.max
-        v: true
+          h: file_desc.current,file_desc.percent,file_desc.max
+          v: true
 
   - match:
       # Windows reports -1 for the file descriptor counts.
       $body: |
-        /^      file_desc\.current  \s+  file_desc\.percent  \s+  file_desc\.max   \n
-           (\s+ (-1|\d+)            \s+  \d+                 \s+  (-1|\d+)         \n)+  $/
+               /^      file_desc\.current  \s+  file_desc\.percent  \s+  file_desc\.max   \n
+                  (\s+ (-1|\d+)            \s+  \d+                 \s+  (-1|\d+)         \n)+  $/
 
   - do:
       cat.nodes:
-        h: http
-        v: true
+          h: http
+          v: true
 
   - match:
       $body: |
-        /^      http \\n ([0-9a-f:.%]+:\\d{1,5}\\n)+  $/
+               /^      http \n ([0-9a-f:.%]+:\d{1,5}\n)+  $/
+
 ---
 "Test cat nodes output for all fields with available_processors":
   - requires:
       capabilities:
         - method: GET
           path: /_cat/nodes
-          capabilities: [available_processors_availability]
-      test_runner_features: [capabilities]
+          capabilities: [ available_processors_availability ]
+      test_runner_features: [ capabilities ]
       reason: available_processors capability required to run test
 
   - do:
@@ -75,48 +76,52 @@
       $body: |
         /^         ap       \s+  available_processors   \n
            (  \s+  \d+      \s+  \d+                    \n )+    $/
+
 ---
 "Additional disk information":
   - do:
       cat.nodes:
-        h: diskAvail,diskTotal,diskUsed,diskUsedPercent
-        v: true
+          h: diskAvail,diskTotal,diskUsed,diskUsedPercent
+          v: true
 
   - match:
       # leading whitespace on columns and optional whitespace on values is necessary
       # because `diskAvail` is right aligned and text representation of disk size might be
       # longer so it's padded with leading whitespace
       $body: |
-        /^  \s* diskAvail            \s+ diskTotal            \s+ diskUsed            \s+ diskUsedPercent            \n
-           (\s* \d+(\.\d+)?[ptgmk]?b \s+ \d+(\.\d+)?[ptgmk]?b \s+ \d+(\.\d+)?[ptgmk]?b\s+ (100\.00 | \d{1,2}\.\d{2}) \n)+  $/
+               /^  \s* diskAvail            \s+ diskTotal            \s+ diskUsed            \s+ diskUsedPercent            \n
+                  (\s* \d+(\.\d+)?[ptgmk]?b \s+ \d+(\.\d+)?[ptgmk]?b \s+ \d+(\.\d+)?[ptgmk]?b\s+ (100\.00 | \d{1,2}\.\d{2}) \n)+  $/
 
   - do:
       cat.nodes:
-        h: disk,dt,du,dup
-        v: true
+          h: disk,dt,du,dup
+          v: true
 
   - match:
       # leading whitespace on columns and optional whitespace on values is necessary
       # because `disk` is right aligned and text representation of disk size might be
       # longer so it's padded with leading whitespace
       $body: |
-        /^  \s* disk                 \s+ dt                   \s+ du                  \s+ dup                        \n
-           (\s* \d+(\.\d+)?[ptgmk]?b \s+ \d+(\.\d+)?[ptgmk]?b \s+ \d+(\.\d+)?[ptgmk]?b\s+ (100\.00 | \d{1,2}\.\d{2}) \n)+  $/
+               /^  \s* disk                 \s+ dt                   \s+ du                  \s+ dup                        \n
+                  (\s* \d+(\.\d+)?[ptgmk]?b \s+ \d+(\.\d+)?[ptgmk]?b \s+ \d+(\.\d+)?[ptgmk]?b\s+ (100\.00 | \d{1,2}\.\d{2}) \n)+  $/
+
 ---
 "Test cat nodes output with full_id set":
-  - do:
-      cat.nodes:
-        h: id
-  # check for a 4 char non-whitespace character string
-  - match:
-      $body: |
-        /^(\S{4}\n)+$/
 
   - do:
       cat.nodes:
-        h: id
-        full_id: true
+          h: id
+  # check for a 4 char non-whitespace character string
+  - match:
+      $body: |
+               /^(\S{4}\n)+$/
+
+  - do:
+      cat.nodes:
+          h: id
+          full_id: true
   # check for a 5+ char non-whitespace character string
   - match:
       $body: |
-        /^(\S{5,}\n)+$/
+               /^(\S{5,}\n)+$/
+

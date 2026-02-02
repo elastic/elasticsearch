@@ -9,75 +9,76 @@
 
   - match:
       $body: |
-        /^$/
+               /^$/
 
   - do:
       index:
-        index: index1
-        id: "1"
-        body: { foo: bar }
+        index:  index1
+        id:     "1"
+        body:   { foo: bar }
         refresh: true
   - do:
       cat.recovery:
-        h: i,s,t,ty,st,shost,thost,rep,snap,f,fr,fp,tf,b,br,bp,tb,to,tor,top
+          h: i,s,t,ty,st,shost,thost,rep,snap,f,fr,fp,tf,b,br,bp,tb,to,tor,top
 
   - match:
       $body: |
-        /^
-        (
-          index1      \s+
-          \d          \s+                                 # shard
-          (?:\d+ms|\d+(?:\.\d+)?s)    \s+                 # time in ms or seconds
-          (empty_store|existing_store|peer|snapshot|local_shards) \s+ # source type
-          (init|index|verify_index|translog|finalize|done) \s+ # stage
-          [0-9a-f:.%/]+    \s+                                 # source_host
-          [0-9a-f:.%/]+    \s+                                 # target_host
-          [-\w./]+    \s+                                 # repository
-          [-\w./]+    \s+                                 # snapshot
-          \d+         \s+                                 # files
-          \d+         \s+                                 # files_recovered
-          \d+\.\d+%   \s+                                 # files_percent
-          \d+         \s+                                 # files_total
-          \d+(b|kb|mb|gb|tb|pb) \s+                       # bytes
-          \d+(b|kb|mb|gb|tb|pb) \s+                       # bytes_recovered
-          \d+\.\d+%   \s+                                 # bytes_percent
-          \d+(b|kb|mb|gb|tb|pb) \s+                       # bytes_total
-          -?\d+       \s+                                 # translog_ops
-          \d+         \s+                                 # translog_ops_recovered
-          -?\d+\.\d+%                                     # translog_ops_percent
-          \n
-        )+
-        $/
+              /^
+              (
+                index1      \s+
+                \d          \s+                                 # shard
+                (?:\d+ms|\d+(?:\.\d+)?s)    \s+                 # time in ms or seconds
+                (empty_store|existing_store|peer|snapshot|local_shards) \s+ # source type
+                (init|index|verify_index|translog|finalize|done) \s+ # stage
+                [0-9a-f:.%]+    \s+                                 # source_host
+                [0-9a-f:.%]+    \s+                                 # target_host
+                [-\w./]+    \s+                                 # repository
+                [-\w./]+    \s+                                 # snapshot
+                \d+         \s+                                 # files
+                \d+         \s+                                 # files_recovered
+                \d+\.\d+%   \s+                                 # files_percent
+                \d+         \s+                                 # files_total
+                \d+(b|kb|mb|gb|tb|pb) \s+                       # bytes
+                \d+(b|kb|mb|gb|tb|pb) \s+                       # bytes_recovered
+                \d+\.\d+%   \s+                                 # bytes_percent
+                \d+(b|kb|mb|gb|tb|pb) \s+                       # bytes_total
+                -?\d+       \s+                                 # translog_ops
+                \d+         \s+                                 # translog_ops_recovered
+                -?\d+\.\d+%                                     # translog_ops_percent
+                \n
+              )+
+              $/
 
   - do:
       cat.recovery:
-        h: shard,source_node,bytes
+          h: shard,source_node,bytes
 
   - match:
       $body: |
-        /^
-        (
-          \d          \s+                                 # shard
-          ((\S+\s?){1,10})\s+                             # source_node
-          \d+(b|kb|mb|gb|tb|pb)                           # bytes
-          \n
-        )+
-        $/
+              /^
+              (
+                \d          \s+                                 # shard
+                ((\S+\s?){1,10})\s+                             # source_node
+                \d+(b|kb|mb|gb|tb|pb)                           # bytes
+                \n
+              )+
+              $/
 
   - do:
       cat.recovery:
-        h: shard,target_node,bytes
+          h: shard,target_node,bytes
 
   - match:
       $body: |
-        /^
-        (
-          \d          \s+                                 # shard
-          ((\S+\s?){1,10})\s+                             # target_node
-          \d+(b|kb|mb|gb|tb|pb)                           # bytes
-          \n
-        )+
-        $/
+              /^
+              (
+                \d          \s+                                 # shard
+                ((\S+\s?){1,10})\s+                             # target_node
+                \d+(b|kb|mb|gb|tb|pb)                           # bytes
+                \n
+              )+
+              $/
+
 ---
 "Test cat recovery output for closed index":
   - requires:
@@ -87,7 +88,7 @@
 
   - do:
       indices.create:
-        index: index2
+        index:  index2
         body:
           settings:
             index:
@@ -117,8 +118,8 @@
           (?:\d+ms|\d+(?:\.\d+)?s)    \s+                 # time in ms or seconds
           existing_store \s+                              # source type (always existing_store for closed indices)
           done        \s+                                 # stage
-          [0-9a-f:.%/]+    \s+                                 # source_host
-          [0-9a-f:.%/]+    \s+                                 # target_host
+          [0-9a-f:.%]+    \s+                                 # source_host
+          [0-9a-f:.%]+    \s+                                 # target_host
           [-\w./]+    \s+                                 # repository
           [-\w./]+    \s+                                 # snapshot
           \d+         \s+                                 # files

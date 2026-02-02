@@ -1,7 +1,7 @@
 ---
 "Help":
   - requires:
-      cluster_features: ["gte_v8.15.0"]
+      cluster_features: [ "gte_v8.15.0" ]
       reason: sparse vector was added in 8.15.0
   - do:
       cat.shards:
@@ -92,7 +92,7 @@
 ---
 "Test cat shards output":
   - requires:
-      cluster_features: ["gte_v8.11.0"]
+      cluster_features: [ "gte_v8.11.0" ]
       reason: dataset size was added in 8.11.0
 
   - do:
@@ -138,8 +138,10 @@
   - match:
       $body: |
         /^(index2 \s+ \d \s+ (p|r) \s+ ((STARTED|INITIALIZING|RELOCATING) \s+ (\d \s+ (\d+|\d+[.]\d+)(kb|b) \s+ (\d+|\d+[.]\d+)(kb|b) \s+)? [0-9a-f:.%]+ \s+ .+|UNASSIGNED \s+) \n?){5}$/
+
 ---
 "Test cat shards using wildcards":
+
   - do:
       indices.create:
         index: foo
@@ -183,10 +185,11 @@
   - match:
       $body: |
         /^(ba(r|z) \n?){2}$/
+
 ---
 "Test cat shards sort":
   - requires:
-      cluster_features: ["gte_v8.11.0"]
+      cluster_features: [ "gte_v8.11.0" ]
       reason: dataset size was added in 8.11.0
 
   - do:
@@ -213,8 +216,8 @@
 
   - do:
       cat.shards:
-        h: [index, docs]
-        s: [docs]
+        h: [ index, docs ]
+        s: [ docs ]
         index: "foo,bar"
 
   # don't use the store here it's cached and might be stale
@@ -226,8 +229,8 @@
 
   - do:
       cat.shards:
-        h: [index, dataset]
-        s: [docs]
+        h: [ index, dataset ]
+        s: [ docs ]
         index: "foo,bar"
 
   - match:
@@ -235,10 +238,11 @@
         /^ foo \s+ (\d+|\d+[.]\d+)(kb|b)\n
            bar \s+ (\d+|\d+[.]\d+)(kb|b)\n
         $/
+
 ---
 "Test cat shards with hidden indices":
   - requires:
-      cluster_features: ["gte_v8.3.0"]
+      cluster_features: [ "gte_v8.3.0" ]
       reason: hidden indices were misreported in versions before 8.3.0
 
   - do:
@@ -258,7 +262,7 @@
 
   - do:
       cat.shards:
-        h: [index, docs]
+        h: [ index, docs ]
 
   - match:
       $body: /foo \s+ 1\n/

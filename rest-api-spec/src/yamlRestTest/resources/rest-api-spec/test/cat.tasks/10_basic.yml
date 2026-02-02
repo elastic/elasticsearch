@@ -1,21 +1,23 @@
 ---
 "Test cat tasks output":
+
   - do:
       cat.tasks: {}
 
   - match:
       $body: |
-        / # action  task_id      parent_task_id      type    start_time   timestamp            running_time  ip                                  node
-        ^(  \S+\s+  \S+\:\d+\s+  (?:\-|\S+\:\d+)\s+  \S+\s+  \d+\s+       \d\d\:\d\d\:\d\d\s+  \S+\s+        [0-9a-f:.%]+\s+  \S+\n)+$/
+               / # action  task_id      parent_task_id      type    start_time   timestamp            running_time  ip                                  node
+               ^(  \S+\s+  \S+\:\d+\s+  (?:\-|\S+\:\d+)\s+  \S+\s+  \d+\s+       \d\d\:\d\d\:\d\d\s+  \S+\s+        [0-9a-f:.%]+\s+  \S+\n)+$/
 
   - do:
       cat.tasks:
-        detailed: true
+       detailed: true
 
   - match:
       $body: |
-        / # action  task_id      parent_task_id      type    start_time   timestamp            running_time  ip                                  node   description
-        ^(  \S+\s+  \S+\:\d+\s+  (?:\-|\S+\:\d+)\s+  \S+\s+  \d+\s+       \d\d\:\d\d\:\d\d\s+  \S+\s+        [0-9a-f:.%]+\s+  \S+\s+ .*\n)+$/
+               / # action  task_id      parent_task_id      type    start_time   timestamp            running_time  ip                                  node   description
+               ^(  \S+\s+  \S+\:\d+\s+  (?:\-|\S+\:\d+)\s+  \S+\s+  \d+\s+       \d\d\:\d\d\:\d\d\s+  \S+\s+        [0-9a-f:.%]+\s+  \S+\s+ .*\n)+$/
+
 ---
 "Test cat tasks output with X-Opaque-Id":
   - requires:

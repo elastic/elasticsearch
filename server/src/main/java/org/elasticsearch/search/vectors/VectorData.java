@@ -74,7 +74,7 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
 
     public byte[] asByteVector() {
         if (stringVector != null) {
-            throw new IllegalStateException("base64 query vector must be resolved against the field type before use");
+            throw new IllegalStateException("encoded query vector must be resolved against the field type before use");
         }
         if (byteVector != null) {
             return byteVector;
@@ -89,7 +89,7 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
 
     public float[] asFloatVector() {
         if (stringVector != null) {
-            throw new IllegalStateException("base64 query vector must be resolved against the field type before use");
+            throw new IllegalStateException("encoded query vector must be resolved against the field type before use");
         }
         if (floatVector != null) {
             return floatVector;
@@ -103,7 +103,7 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
 
     public void addToBuffer(DenseVectorFieldMapper.Element element, ByteBuffer byteBuffer) {
         if (stringVector != null) {
-            throw new IllegalStateException("base64 query vector must be resolved against the field type before use");
+            throw new IllegalStateException("encoded query vector must be resolved against the field type before use");
         }
         if (floatVector != null) {
             element.writeValues(byteBuffer, floatVector);
@@ -163,43 +163,20 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
         return stringVector;
     }
 
-    @Override
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
+        if (!(obj instanceof VectorData other)) {
             return false;
         }
-        VectorData other = (VectorData) obj;
-        if (Arrays.equals(floatVector, other.floatVector) == false) {
-            return false;
-        }
-        byte[] thisBytes = bytesOrNull();
-        byte[] otherBytes = other.bytesOrNull();
-        if (thisBytes != null || otherBytes != null) {
-            return Arrays.equals(thisBytes, otherBytes);
-        }
-        return Objects.equals(stringVector, other.stringVector);
+        return Arrays.equals(floatVector, other.floatVector)
+            && Arrays.equals(byteVector, other.byteVector)
+            && Objects.equals(stringVector, other.stringVector);
     }
 
-    @Override
     public int hashCode() {
-        byte[] bytes = bytesOrNull();
-        if (bytes != null) {
-            return Objects.hash(Arrays.hashCode(floatVector), Arrays.hashCode(bytes));
-        }
-        return Objects.hash(Arrays.hashCode(floatVector), stringVector);
-    }
-
-    private byte[] bytesOrNull() {
-        if (byteVector != null) {
-            return byteVector;
-        }
-        if (stringVector != null) {
-            return tryParseHex(stringVector);
-        }
-        return null;
+        return Objects.hash(Arrays.hashCode(floatVector), Arrays.hashCode(byteVector), stringVector);
     }
 
     public static VectorData parseXContent(XContentParser parser) throws IOException {
@@ -258,7 +235,7 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
 
     /**
      * Decodes an encoded string (hex or base64) to VectorData based on the element type and dimensions.
-     * Hex encoding produces byte vectors
+     * Hex encoding is only supported for BYTE and BIT element types.
      * Base64 encoding is supported for all element types with proper byte interpretation.
      *
      * @param encoded the encoded vector string
@@ -268,24 +245,29 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
      * @throws IllegalArgumentException if the string cannot be decoded or doesn't match expected dimensions
      */
     public static VectorData decodeQueryVector(String encoded, ElementType elementType, int dims) {
+        // For FLOAT/BFLOAT16, only try base64
+        if (elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16) {
+            byte[] base64Bytes = tryParseBase64(encoded);
+            if (base64Bytes == null) {
+                throw invalidEncodedVector();
+            }
+            if (matchesExpectedBase64Length(base64Bytes.length, elementType, dims)) {
+                return decodeBase64Vector(base64Bytes, elementType, dims);
+            }
+            throw invalidBase64Length(base64Bytes.length, elementType);
+        }
+
+        // For BIT/BYTE: try hex first, only fall back to base64 if hex fails or doesn't match
         byte[] hexBytes = tryParseHex(encoded);
+        if (hexBytes != null) {
+            int expectedHexLen = elementType == ElementType.BIT ? dims / Byte.SIZE : dims;
+            if (hexBytes.length == expectedHexLen) {
+                return VectorData.fromBytes(hexBytes);
+            }
+            // Hex parsed but wrong length - try base64 before falling back
+        }
+
         byte[] base64Bytes = tryParseBase64(encoded);
-
-        if (hexBytes == null && base64Bytes == null) {
-            throw invalidEncodedVector();
-        }
-
-        // Prefer hex if it matches expected dimensions (hex always produces byte[])
-        if (hexBytes != null && hexBytes.length == dims) {
-            return VectorData.fromBytes(hexBytes);
-        }
-
-        // For BIT element type, check hex with bit dimensions
-        if (elementType == ElementType.BIT && hexBytes != null && hexBytes.length == dims / Byte.SIZE) {
-            return VectorData.fromBytes(hexBytes);
-        }
-
-        // Try base64 if it matches expected dimensions for the element type
         if (base64Bytes != null && matchesExpectedBase64Length(base64Bytes.length, elementType, dims)) {
             return decodeBase64Vector(base64Bytes, elementType, dims);
         }
@@ -295,7 +277,9 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
             return VectorData.fromBytes(hexBytes);
         }
 
-        // base64 was parsed but doesn't match dimensions
+        if (base64Bytes == null) {
+            throw invalidEncodedVector();
+        }
         throw invalidBase64Length(base64Bytes.length, elementType);
     }
 

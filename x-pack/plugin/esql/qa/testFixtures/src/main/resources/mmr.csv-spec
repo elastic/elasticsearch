@@ -4,12 +4,13 @@ required_capability: mmr
 FROM mmr_text_vector_keyword
 | LIMIT 10
 | MMR ON text_vector LIMIT 3
+| DROP text_vector
 ;
 
-keyword_field:keyword | text_body:text | text_vector:dense_vector     
-test1                 | first text     | [0.4, 0.2, 0.4]
-test3                 | third text     | [0.4, 0.1, 0.3]
-test6                 | sixth text     | [0.1, 0.1, 0.1]
+keyword_field:keyword | text_body:text     
+test1                 | first text
+test3                 | third text
+test6                 | sixth text
 ;
 
 
@@ -19,12 +20,13 @@ required_capability: mmr
 FROM mmr_text_vector_keyword
 | LIMIT 10
 | MMR [0.1, 0.2, 0.3]::dense_vector ON text_vector LIMIT 3 WITH { "lambda": 0.1 }
+| DROP text_vector
 ;
 
-keyword_field:keyword | text_body:text | text_vector:dense_vector     
-test3                 | third text     | [0.4, 0.1, 0.3]
-test6                 | sixth text     | [0.1, 0.1, 0.1]
-test8                 | eighth text    | [0.1, 0.7, 0.9]
+keyword_field:keyword | text_body:text     
+test3                 | third text
+test6                 | sixth text
+test8                 | eighth text
 ;
 
 
@@ -34,12 +36,13 @@ required_capability: mmr
 FROM mmr_text_vector_keyword
 | LIMIT 10
 | MMR [0.1, 0.2, 0.3]::dense_vector ON text_vector LIMIT 3 WITH { "lambda": 0.9 }
+| DROP text_vector
 ;
 
-keyword_field:keyword | text_body:text | text_vector:dense_vector     
-test4                 | fourth text    | [0.9, 0.5, 0.6]
-test5                 | fifth text     | [0.1, 0.5, 0.9]
-test8                 | eighth text    | [0.1, 0.7, 0.9]
+keyword_field:keyword | text_body:text     
+test4                 | fourth text
+test5                 | fifth text
+test8                 | eighth text
 ;
 
 MMR with query vector variable
@@ -49,11 +52,11 @@ FROM mmr_text_vector_keyword
 | LIMIT 10
 | EVAL qv=[0.1, 0.2, 0.3]::dense_vector 
 | MMR qv ON text_vector LIMIT 3 WITH { "lambda": 0.9 }
-| KEEP keyword_field, text_body, text_vector
+| KEEP keyword_field, text_body
 ;
 
-keyword_field:keyword | text_body:text | text_vector:dense_vector     
-test1                 | first text     | [0.4, 0.2, 0.4]
-test3                 | third text     | [0.4, 0.1, 0.3]
-test6                 | sixth text     | [0.1, 0.1, 0.1]
+keyword_field:keyword | text_body:text     
+test1                 | first text
+test3                 | third text
+test6                 | sixth text
 ;

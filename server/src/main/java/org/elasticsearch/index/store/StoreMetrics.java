@@ -34,10 +34,12 @@ public class StoreMetrics implements DirectoryMetrics.PluggableMetrics<StoreMetr
         return bytesRead;
     }
 
+    @Override
     public StoreMetrics copy() {
         return new StoreMetrics(bytesRead);
     }
 
+    @Override
     public Supplier<StoreMetrics> delta() {
         StoreMetrics snapshot = copy();
 

@@ -224,12 +224,12 @@ abstract class CentroidShapeAggregator {
             this.bigArrays = bigArrays;
             boolean success = false;
             try {
-                this.xValues = bigArrays.newDoubleArray(1);
-                this.xDeltas = bigArrays.newDoubleArray(1);
-                this.yValues = bigArrays.newDoubleArray(1);
-                this.yDeltas = bigArrays.newDoubleArray(1);
-                this.weights = bigArrays.newDoubleArray(1);
-                this.shapeTypes = bigArrays.newIntArray(1);
+                this.xValues = bigArrays.newDoubleArray(1, true);
+                this.xDeltas = bigArrays.newDoubleArray(1, true);
+                this.yValues = bigArrays.newDoubleArray(1, true);
+                this.yDeltas = bigArrays.newDoubleArray(1, true);
+                this.weights = bigArrays.newDoubleArray(1, true);
+                this.shapeTypes = bigArrays.newIntArray(1, true);
                 success = true;
             } finally {
                 if (success == false) {
@@ -243,6 +243,18 @@ abstract class CentroidShapeAggregator {
                 return;
             }
             ensureCapacity(groupId);
+
+            double currentWeight = weights.get(groupId);
+            if (currentWeight == 0) {
+                // First value for this group - initialize
+                xValues.set(groupId, x);
+                xDeltas.set(groupId, dx);
+                yValues.set(groupId, y);
+                yDeltas.set(groupId, dy);
+                weights.set(groupId, weight);
+                shapeTypes.set(groupId, shapeType.ordinal());
+                return;
+            }
 
             int currentShapeType = shapeTypes.get(groupId);
             int newShapeType = shapeType.ordinal();
@@ -285,13 +297,24 @@ abstract class CentroidShapeAggregator {
         public final void enableGroupIdTracking(SeenGroupIds ignore) {}
 
         private void ensureCapacity(int groupId) {
-            if (groupId >= xValues.size()) {
-                xValues = bigArrays.grow(xValues, groupId + 1);
-                xDeltas = bigArrays.grow(xDeltas, groupId + 1);
-                yValues = bigArrays.grow(yValues, groupId + 1);
-                yDeltas = bigArrays.grow(yDeltas, groupId + 1);
-                weights = bigArrays.grow(weights, groupId + 1);
-                shapeTypes = bigArrays.grow(shapeTypes, groupId + 1);
+            long requiredSize = groupId + 1;
+            if (xValues.size() < requiredSize) {
+                xValues = bigArrays.grow(xValues, requiredSize);
+            }
+            if (xDeltas.size() < requiredSize) {
+                xDeltas = bigArrays.grow(xDeltas, requiredSize);
+            }
+            if (yValues.size() < requiredSize) {
+                yValues = bigArrays.grow(yValues, requiredSize);
+            }
+            if (yDeltas.size() < requiredSize) {
+                yDeltas = bigArrays.grow(yDeltas, requiredSize);
+            }
+            if (weights.size() < requiredSize) {
+                weights = bigArrays.grow(weights, requiredSize);
+            }
+            if (shapeTypes.size() < requiredSize) {
+                shapeTypes = bigArrays.grow(shapeTypes, requiredSize);
             }
         }
 

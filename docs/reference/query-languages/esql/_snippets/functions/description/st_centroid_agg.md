@@ -2,5 +2,5 @@
 
 **Description**
 
-Calculate the spatial centroid over a field with spatial point geometry type.
+Calculate the spatial centroid over a field with spatial geometry type.
 

@@ -31,7 +31,7 @@ public class ImmutableLeavesTrieTests extends ESTestCase {
         trie.add(List.of("a", "b"));
 
         assertNull(trie.findConflict(List.of()));
-        assertTrue(trie.add(List.of())); // maybe false?
+        assertTrue(trie.add(List.of()));
     }
 
     public void testAdd_succeedsForExistingLeaf() {

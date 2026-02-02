@@ -354,7 +354,7 @@ public final class TextStructureUtils {
      *                          but will not dive into "c". Increasing the depth allows for deeper mapping.
      * @return A flattened map with dot-notation keys, where each key maps to a list of values.
      */
-    private static Map<String, List<Object>> flattenRecord(Object record, TimeoutChecker timeoutChecker, int mappingDepthLimit) {
+    private static Map<String, List<Object>> flattenRecord(Map<String, ?> record, TimeoutChecker timeoutChecker, int mappingDepthLimit) {
         Map<String, List<Object>> flattened = new LinkedHashMap<>();
         ImmutableLeavesTrie keysPointingToConcreteValues = new ImmutableLeavesTrie();
         List<String> keyParts = new ArrayList<>();

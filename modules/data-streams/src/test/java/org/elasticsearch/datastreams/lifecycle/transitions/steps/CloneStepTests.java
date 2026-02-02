@@ -72,8 +72,10 @@ public class CloneStepTests extends ESTestCase {
     private ResultDeduplicator<Tuple<ProjectId, TransportRequest>, Void> deduplicator;
     private AtomicReference<ActionListener<CreateIndexResponse>> capturedCloneListener;
     private AtomicReference<ActionListener<AcknowledgedResponse>> capturedDeleteListener;
+    private AtomicReference<ActionListener<AcknowledgedResponse>> capturedMarkListener;
     private AtomicReference<ResizeRequest> capturedResizeRequest;
     private AtomicReference<DeleteIndexRequest> capturedDeleteRequest;
+    private AtomicReference<MarkIndexToBeForceMergedAction.Request> capturedMarkRequest;
 
     @Before
     public void setup() {
@@ -86,8 +88,10 @@ public class CloneStepTests extends ESTestCase {
         deduplicator = new ResultDeduplicator<>(threadPool.getThreadContext());
         capturedCloneListener = new AtomicReference<>();
         capturedDeleteListener = new AtomicReference<>();
+        capturedMarkListener = new AtomicReference<>();
         capturedResizeRequest = new AtomicReference<>();
         capturedDeleteRequest = new AtomicReference<>();
+        capturedMarkRequest = new AtomicReference<>();
 
         client = new NoOpClient(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext())) {
             @Override
@@ -103,6 +107,9 @@ public class CloneStepTests extends ESTestCase {
                 } else if (request instanceof DeleteIndexRequest deleteIndexRequest) {
                     capturedDeleteRequest.set(deleteIndexRequest);
                     capturedDeleteListener.set((ActionListener<AcknowledgedResponse>) listener);
+                } else if (request instanceof MarkIndexToBeForceMergedAction.Request markRequest) {
+                    capturedMarkRequest.set(markRequest);
+                    capturedMarkListener.set((ActionListener<AcknowledgedResponse>) listener);
                 }
             }
         };
@@ -171,11 +178,11 @@ public class CloneStepTests extends ESTestCase {
         // No clone request should be issued
         assertThat(capturedResizeRequest.get(), is(nullValue()));
 
-        // But the index should be marked to be force merged directly
-        IndexMetadata updatedMetadata = stepContext.projectState().metadata().index(indexName);
-        Map<String, String> customMetadata = updatedMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
-        assertThat(customMetadata, is(notNullValue()));
-        assertThat(customMetadata.get("dlm_index_to_be_force_merged"), equalTo(indexName));
+        // But the mark action should be called to mark the index to be force merged directly
+        assertThat(capturedMarkRequest.get(), is(notNullValue()));
+        assertThat(capturedMarkRequest.get().getSourceIndex(), equalTo(indexName));
+        assertThat(capturedMarkRequest.get().getIndexToBeForceMerged(), equalTo(indexName));
+        assertThat(capturedMarkRequest.get().getProjectId(), equalTo(projectId));
     }
 
     public void testExecuteDeletesExistingCloneAndRetriesClone() {
@@ -212,11 +219,11 @@ public class CloneStepTests extends ESTestCase {
         CreateIndexResponse response = new CreateIndexResponse(true, true, cloneIndexName);
         capturedCloneListener.get().onResponse(response);
 
-        // Verify clone index name is marked in custom metadata
-        IndexMetadata updatedMetadata = stepContext.projectState().metadata().index(indexName);
-        Map<String, String> customMetadata = updatedMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
-        assertThat(customMetadata, is(notNullValue()));
-        assertThat(customMetadata.get("dlm_index_to_be_force_merged"), equalTo(cloneIndexName));
+        // Verify that the mark action was called with correct parameters
+        assertThat(capturedMarkRequest.get(), is(notNullValue()));
+        assertThat(capturedMarkRequest.get().getSourceIndex(), equalTo(indexName));
+        assertThat(capturedMarkRequest.get().getIndexToBeForceMerged(), equalTo(cloneIndexName));
+        assertThat(capturedMarkRequest.get().getProjectId(), equalTo(projectId));
     }
 
     public void testExecuteWithFailedCloneResponse() {

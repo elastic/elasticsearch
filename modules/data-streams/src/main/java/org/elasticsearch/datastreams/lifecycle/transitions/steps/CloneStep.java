@@ -35,7 +35,6 @@ import org.elasticsearch.datastreams.lifecycle.transitions.DlmStepContext;
 import org.elasticsearch.index.Index;
 
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
@@ -94,7 +93,7 @@ public class CloneStep implements DlmStep {
                 indexName
             );
             // mark the index to be force merged directly
-            markIndexToBeForceMerged(indexName, indexName, stepContext);
+            markIndexToBeForceMerged(indexName, indexName, stepContext, ActionListener.noop());
             return;
         }
         String cloneIndexName = generateCloneIndexName(indexName);
@@ -145,8 +144,7 @@ public class CloneStep implements DlmStep {
         public void onResponse(CreateIndexResponse createIndexResponse) {
             logger.debug("DLM successfully cloned index [{}] to index [{}]", sourceIndexName, targetIndexName);
             // on success, write the cloned index name to the custom metadata of the index metadata of original index
-            markIndexToBeForceMerged(sourceIndexName, targetIndexName, stepContext);
-            listener.onResponse(null);
+            markIndexToBeForceMerged(sourceIndexName, targetIndexName, stepContext, listener);
         }
 
         @Override
@@ -190,24 +188,28 @@ public class CloneStep implements DlmStep {
     }
 
     /*
-     * Updates the custom metadata of the index metadata of the source index to mark the target index as that to be force merged by DLM
-     *
+     * Updates the custom metadata of the index metadata of the source index to mark the target index as that to be force merged by DLM.
+     * This method performs the update asynchronously using a transport action.
      */
-    private static void markIndexToBeForceMerged(String sourceIndex, String indexToBeForceMerged, DlmStepContext stepContext) {
-        IndexMetadata sourceIndexMetadata = stepContext.projectState().metadata().index(sourceIndex);
-        Map<String, String> existingCustomMetadata = sourceIndexMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
-        Map<String, String> customMetadata;
-        if (existingCustomMetadata != null) {
-            customMetadata = new HashMap<>(existingCustomMetadata);
-            customMetadata.put(DLM_INDEX_TO_BE_MERGED_KEY, indexToBeForceMerged);
-        } else {
-            customMetadata = Map.of(DLM_INDEX_TO_BE_MERGED_KEY, indexToBeForceMerged);
-        }
-        IndexMetadata updatedSourceIndexMetadata = IndexMetadata.builder(sourceIndexMetadata)
-            .putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, customMetadata)
-            .build();
-        stepContext.projectState()
-            .updateProject(ProjectMetadata.builder(stepContext.projectState().metadata()).put(updatedSourceIndexMetadata, true).build());
+    private static void markIndexToBeForceMerged(
+        String sourceIndex,
+        String indexToBeForceMerged,
+        DlmStepContext stepContext,
+        ActionListener<Void> listener
+    ) {
+        MarkIndexToBeForceMergedAction.Request request = new MarkIndexToBeForceMergedAction.Request(
+            stepContext.projectId(),
+            sourceIndex,
+            indexToBeForceMerged,
+            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT
+        );
+
+        stepContext.client()
+            .projectClient(stepContext.projectId())
+            .execute(MarkIndexToBeForceMergedAction.INSTANCE, request, listener.delegateFailure((delegate, response) -> {
+                logger.debug("DLM successfully marked index [{}] to be force merged", indexToBeForceMerged);
+                delegate.onResponse(null);
+            }));
     }
 
     /*
@@ -234,7 +236,7 @@ public class CloneStep implements DlmStep {
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(cloneIndex).indicesOptions(IGNORE_MISSING_OPTIONS)
             .masterNodeTimeout(TimeValue.MAX_VALUE);
         String errorMessage = String.format(Locale.ROOT, "Failed to acknowledge delete of index [%s]", cloneIndex);
-        DeleteCloneIndexActionListener listener = new DeleteCloneIndexActionListener(cloneIndex, stepContext);
+        DeleteCloneIndexActionListener listener = new DeleteCloneIndexActionListener(cloneIndex);
         stepContext.client()
             .projectClient(stepContext.projectId())
             .admin()
@@ -245,7 +247,7 @@ public class CloneStep implements DlmStep {
     private static class DeleteCloneIndexActionListener implements ActionListener<AcknowledgedResponse> {
         private final String targetIndex;
 
-        private DeleteCloneIndexActionListener(String targetIndex, DlmStepContext stepContext) {
+        private DeleteCloneIndexActionListener(String targetIndex) {
             this.targetIndex = targetIndex;
         }
 

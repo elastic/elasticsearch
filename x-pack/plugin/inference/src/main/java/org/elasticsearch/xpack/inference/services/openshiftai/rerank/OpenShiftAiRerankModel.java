@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.openshiftai.rerank;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -39,6 +40,16 @@ public class OpenShiftAiRerankModel extends OpenShiftAiModel {
         return new OpenShiftAiRerankModel(model, OpenShiftAiRerankTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
     }
 
+    /**
+     * Constructor for creating an OpenShiftAiRerankModel with specified parameters.
+     * @param inferenceEntityId the unique identifier for the inference entity
+     * @param taskType the type of task this model is designed for
+     * @param service the name of the inference service
+     * @param serviceSettings the settings for the inference service, specific to rerank tasks
+     * @param taskSettings the settings specific to the rerank task
+     * @param secrets the secret settings for the model, such as API keys or tokens
+     * @param context the context for parsing configuration settings
+     */
     public OpenShiftAiRerankModel(
         String inferenceEntityId,
         TaskType taskType,
@@ -58,19 +69,36 @@ public class OpenShiftAiRerankModel extends OpenShiftAiModel {
         );
     }
 
-    // should only be used for testing
-    OpenShiftAiRerankModel(
+    /**
+     * Constructor for creating an OpenShiftAiRerankModel with specified parameters.
+     * @param inferenceEntityId the unique identifier for the inference entity
+     * @param taskType the type of task this model is designed for
+     * @param service the name of the inference service
+     * @param serviceSettings the settings for the inference service, specific to rerank tasks
+     * @param taskSettings the settings specific to the rerank task
+     * @param secretSettings the secret settings for the model, such as API keys or tokens
+     */
+    public OpenShiftAiRerankModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
         OpenShiftAiRerankServiceSettings serviceSettings,
         OpenShiftAiRerankTaskSettings taskSettings,
-        @Nullable DefaultSecretSettings secretSettings
+        @Nullable SecretSettings secretSettings
     ) {
-        super(
+        this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secretSettings)
         );
+    }
+
+    /**
+     * Constructor for creating an OpenShiftAiRerankModel with specified configurations and secrets.
+     * @param modelConfigurations the model configurations
+     * @param modelSecrets the model secrets
+     */
+    public OpenShiftAiRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets);
     }
 
     private OpenShiftAiRerankModel(OpenShiftAiRerankModel model, OpenShiftAiRerankTaskSettings taskSettings) {

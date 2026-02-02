@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.inference.services.custom;
 
-import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceParameterizedTests;
+import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceParameterizedModelCreationTests;
 
-public class CustomServiceParameterizedTests extends AbstractInferenceServiceParameterizedTests {
-    public CustomServiceParameterizedTests(TestCase testCase) {
+public class CustomServiceParameterizedModelCreationTests extends AbstractInferenceServiceParameterizedModelCreationTests {
+    public CustomServiceParameterizedModelCreationTests(TestCase testCase) {
         super(CustomServiceTests.createTestConfiguration(), testCase);
     }
 }

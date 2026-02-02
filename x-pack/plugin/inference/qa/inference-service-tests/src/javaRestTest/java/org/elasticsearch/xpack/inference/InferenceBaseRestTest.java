@@ -117,6 +117,20 @@ public class InferenceBaseRestTest extends ESRestTestCase {
             """, taskType, apiKey, temperature);
     }
 
+    static String updateConfigWithFailedValidationFlag(TaskType taskType) {
+        return Strings.format("""
+            {
+              "task_type": "%s",
+              "service_settings": {
+                "api_key": "some_new_api_key"
+              },
+              "task_settings": {
+                "should_fail_validation": true
+              }
+            }
+            """, taskType);
+    }
+
     static String mockCompletionServiceModelConfig(@Nullable TaskType taskTypeInBody, String service) {
         var taskType = taskTypeInBody == null ? "" : "\"task_type\": \"" + taskTypeInBody + "\",";
         return Strings.format("""

@@ -82,9 +82,9 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.LocalPrimarySnapshotShardContext;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotIndexCommit;
-import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -620,7 +620,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                 threadPool.generic().submit(() -> {
                     IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
                     repository.snapshotShard(
-                        new SnapshotShardContext(
+                        new LocalPrimarySnapshotShardContext(
                             store,
                             null,
                             snapshotId,

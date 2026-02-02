@@ -850,7 +850,7 @@ public class IndexRoutingTests extends ESTestCase {
         );
     }
 
-    public void testCollectSearchShardsUnpartitionedWithResharding() throws IOException {
+    public void testCollectSearchShardsUnpartitionedAndGetWithResharding() {
         int shards = 1;
         int newShardCount = 2;
         var initialRouting = IndexRouting.fromIndexMetadata(
@@ -885,6 +885,7 @@ public class IndexRoutingTests extends ESTestCase {
             assertEquals(1, collectedShards.size());
             // Rerouting is in effect due to resharding metadata having a shard in CLONE state.
             assertEquals(0, collectedShards.get(0));
+            assertEquals(0, initialReshardingRouting.getShard(shardAndRouting.getValue(), null));
         }
 
         var reshardingRoutingWithShardInHandoff = IndexRouting.fromIndexMetadata(
@@ -903,8 +904,9 @@ public class IndexRoutingTests extends ESTestCase {
             var collectedShards = new ArrayList<>();
             reshardingRoutingWithShardInHandoff.collectSearchShards(shardAndRouting.getValue(), collectedShards::add);
             assertEquals(1, collectedShards.size());
-            // Rerouting is in effect due to resharding metadata having a shard in CLONE state.
+            // Rerouting is in effect due to resharding metadata having a shard in HANDOFF state.
             assertEquals(0, collectedShards.get(0));
+            assertEquals(0, reshardingRoutingWithShardInHandoff.getShard(shardAndRouting.getValue(), null));
         }
 
         var reshardingRoutingWithShardInSplit = IndexRouting.fromIndexMetadata(
@@ -926,6 +928,7 @@ public class IndexRoutingTests extends ESTestCase {
             assertEquals(1, collectedShards.size());
             // Rerouting is no longer in effect since resharding metadata has SPLIT state for this shard
             assertEquals(shardAndRouting.getKey(), collectedShards.get(0));
+            assertEquals(shardAndRouting.getKey().intValue(), reshardingRoutingWithShardInSplit.getShard(shardAndRouting.getValue(), null));
         }
     }
 

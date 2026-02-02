@@ -71,10 +71,15 @@ public class FlattenedDocValuesBlockLoader implements BlockLoader {
 
     public AllReader reader(LeafReaderContext context) throws IOException {
         var reader = fieldLoader.docValuesLoader(context.reader(), null);
+        var trackingReader = reader != null ? new TrackingLoader(reader) : null;
+
         return new AllReader() {
+            private final Thread creationThread = Thread.currentThread();
+
             @Override
             public boolean canReuse(int startingDocID) {
-                return false;
+                // Logic emulated from BlockDocValuesReader#canReuse
+                return creationThread == Thread.currentThread() && trackingReader.getCurDocId() <= startingDocID;
             }
 
             @Override
@@ -100,8 +105,8 @@ public class FlattenedDocValuesBlockLoader implements BlockLoader {
             }
 
             public void read(int docId, BytesRefBuilder builder) throws IOException {
-                if (reader != null) {
-                    reader.advanceToDoc(docId);
+                if (trackingReader != null) {
+                    trackingReader.advanceToDoc(docId);
                 }
                 fieldLoader.writeToBlock(builder);
             }
@@ -131,6 +136,28 @@ public class FlattenedDocValuesBlockLoader implements BlockLoader {
     @Override
     public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
         return reader(context);
+    }
+
+    /**
+     * A DocValuesLoader that tracks the last advanced docId.
+     */
+    private static class TrackingLoader implements SourceLoader.SyntheticFieldLoader.DocValuesLoader {
+        private final SourceLoader.SyntheticFieldLoader.DocValuesLoader loader;
+        private int curDocId = -1;
+
+        TrackingLoader(SourceLoader.SyntheticFieldLoader.DocValuesLoader loader) {
+            this.loader = loader;
+        }
+
+        @Override
+        public boolean advanceToDoc(int docId) throws IOException {
+            curDocId = docId;
+            return loader.advanceToDoc(docId);
+        }
+
+        public int getCurDocId() {
+            return curDocId;
+        }
     }
 
     /**

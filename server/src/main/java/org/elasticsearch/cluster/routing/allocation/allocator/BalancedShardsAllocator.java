@@ -692,7 +692,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             }
                             if (logger.isTraceEnabled()) {
                                 logger.trace(
-                                    "Stop balancing index [{}]  min_node [{}] weight: [{}] max_node [{}] weight: [{}] delta: [{}]",
+                                    "Stop balancing index [{}] max_node [{}] weight: [{}] min_node [{}] weight: [{}] delta: [{}]",
                                     index,
                                     maxNode.getNodeId(),
                                     weights[highIdx],
@@ -903,9 +903,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 if (moveDecision.isDecisionTaken() && moveDecision.cannotRemainAndCanMove()) {
                     if (notPreferredLogger.isDebugEnabled()) {
                         notPreferredLogger.debug(
-                            "Moving shard [{}] to [{}] from a NOT_PREFERRED allocation: {}",
+                            "Moving shard [{}] from [{}] to [{}]; current assignment is NOT_PREFERRED: {}",
                             shardRouting,
-                            moveDecision.getTargetNode().getName(),
+                            getNodeDescription(shardRouting.currentNodeId()),
+                            getNodeDescription(moveDecision.getTargetNode()),
                             moveDecision.getCanRemainDecision()
                         );
                     }
@@ -1062,6 +1063,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             Decision remainDecision,
             BiFunction<ShardRouting, RoutingNode, Decision> decider
         ) {
+            assert remainDecision.type() == Decision.Type.NO || remainDecision.type() == Decision.Type.NOT_PREFERRED;
             final boolean explain = allocation.debugDecision();
             Type bestDecision = Type.NO;
             RoutingNode targetNode = null;
@@ -1076,13 +1078,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     if (explain) {
                         nodeResults.add(new NodeAllocationResult(currentNode.getRoutingNode().node(), allocationDecision, ++weightRanking));
                     }
-                    if (allocationDecision.type() == Type.NOT_PREFERRED && remainDecision.type() == Type.NOT_PREFERRED) {
-                        // Whether or not a relocation target node can be found, it's important to explain the canAllocate response as
-                        // NOT_PREFERRED, as opposed to NO.
-                        bestDecision = Type.NOT_PREFERRED;
-                        // Relocating a shard from one NOT_PREFERRED node to another NOT_PREFERRED node would not improve the situation.
-                        continue;
-                    }
                     if (allocationDecision.type().compareToBetweenNodes(bestDecision) > 0) {
                         bestDecision = allocationDecision.type();
                         if (bestDecision == Type.YES) {
@@ -1093,9 +1088,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                                 break;
                             }
                         } else if (bestDecision == Type.NOT_PREFERRED) {
-                            assert remainDecision.type() != Type.NOT_PREFERRED;
-                            // If we don't ever find a YES/THROTTLE decision, we'll settle for NOT_PREFERRED as preferable to NO.
-                            targetNode = target;
+                            // We will accept a NOT_PREFERRED allocation if canRemain = NO, but if canRemain = NOT_PREFERRED
+                            // we will wait for a YES/THROTTLE. Either way we update bestDecision so we can distinguish betweem
+                            // a NO and a NOT_PREFERRED in allocate-explain
+                            if (remainDecision.type() != Type.NOT_PREFERRED) {
+                                targetNode = target;
+                            } else {
+                                assert targetNode == null : "If the best we've seen is NOT_PREFERRED, we should not have a targetNode yet";
+                            }
                         } else if (bestDecision == Type.THROTTLE) {
                             assert allocation.isSimulating() == false;
                             // THROTTLE is better than NOT_PREFERRED, we just need to wait for a YES.
@@ -1103,6 +1103,18 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         }
                     }
                 }
+            }
+
+            if (logger.isTraceEnabled()) {
+                // Some of the target information may be null, but that's still informative.
+                logger.trace(
+                    "Shard [{}] cannot remain on node [{}] because of decision [{}]. Moving to node [{}] with decision [{}]",
+                    shardRouting.shardId(),
+                    shardRouting.currentNodeId(),
+                    remainDecision,
+                    targetNode != null ? targetNode.nodeId() : null,
+                    bestDecision
+                );
             }
 
             return MoveDecision.move(
@@ -1647,6 +1659,20 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 () -> logger.error("Weight function returned invalid weight node={}, index={}, weight={}", modelNode, index, weight)
             );
             assert enableInvalidWeightsAssertion == false : "Weight function is returning invalid weights";
+        }
+
+        /**
+         * Return {nodeId}/{nodeName} for nodes still in the cluster, or just {nodeId} for nodes that have left
+         *
+         * @param nodeId The ID of the node
+         */
+        private String getNodeDescription(String nodeId) {
+            DiscoveryNode discoveryNode = allocation.getClusterState().nodes().get(nodeId);
+            return discoveryNode != null ? getNodeDescription(discoveryNode) : nodeId;
+        }
+
+        private String getNodeDescription(DiscoveryNode node) {
+            return node.getId() + "/" + node.getName();
         }
     }
 

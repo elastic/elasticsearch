@@ -494,6 +494,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     }
 
     private static float getDefaultOversampleForField(String fieldName, SearchExecutionContext searchExecutionContext) {
+        assert searchExecutionContext != null : "[searchExecutionContext] should be available";
         var fieldType = searchExecutionContext.getFieldType(fieldName);
         var indexOptions = fieldType instanceof DenseVectorFieldMapper.DenseVectorFieldType
             ? ((DenseVectorFieldMapper.DenseVectorFieldType) fieldType).getIndexOptions()
@@ -502,7 +503,6 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             ? ((DenseVectorFieldMapper.QuantizedIndexOptions) indexOptions).getRescoreVector()
             : null;
         return quantizedIndexOptions != null ? quantizedIndexOptions.oversample() : 0f;
-
     }
 
     public Float getSimilarity() {

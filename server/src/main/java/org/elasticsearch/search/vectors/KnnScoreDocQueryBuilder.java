@@ -68,8 +68,6 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         this.queryVector = queryVector;
         this.vectorSimilarity = vectorSimilarity;
         this.filterQueries = filterQueries;
-        // todo: can probably remove these as we already have oversampled
-        // need to only check if we should rewrite to a rescore or not
         this.oversample = oversample;
         this.k = k;
     }
@@ -180,36 +178,36 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         var query = new KnnScoreDocQuery(scoreDocs, context.getIndexReader());
-        if (oversample == null) {
+        if (oversample == null || oversample <= 1) {
             return query;
         }
         var fieldType = (DenseVectorFieldMapper.DenseVectorFieldType) context.getFieldType(fieldName);
         if (fieldType.needsRescore(oversample)) {
-//            var q = new BoolQueryBuilder();
-//            q.filter(new KnnScoreDocQueryBuilder(scoreDocs, fieldName, queryVector, vectorSimilarity, filterQueries, null, k));
-//            QueryBuilder exactKnnQuery = new ExactKnnQueryBuilder(queryVector, fieldName, vectorSimilarity);
-//            q.must(exactKnnQuery);
-//            if (false == filterQueries.isEmpty()) {
-//                for (QueryBuilder filter : this.filterQueries) {
-//                    // filter can be both over parents or nested docs, so add them as should clauses to a filter
-//                    BoolQueryBuilder adjustedFilter = new BoolQueryBuilder().should(filter)
-//                        .should(new ToChildBlockJoinQueryBuilder(filter));
-//                    q.filter(adjustedFilter);
-//                }
-//            }
-//            return q.toQuery(context);
-             int localK = k == null ? scoreDocs.length : k;
-             var similarityFunction = fieldType.getSimilarity()
-             .vectorSimilarityFunction(context.indexVersionCreated(), DenseVectorFieldMapper.ElementType.FLOAT);
-             var rescoreK = scoreDocs.length;
-             return RescoreKnnVectorQuery.fromInnerQuery(
-             fieldName,
-             queryVector.asFloatVector(),
-             similarityFunction,
-             localK,
-             rescoreK,
-             query
-             );
+            // var q = new BoolQueryBuilder();
+            // q.filter(new KnnScoreDocQueryBuilder(scoreDocs, fieldName, queryVector, vectorSimilarity, filterQueries, null, k));
+            // QueryBuilder exactKnnQuery = new ExactKnnQueryBuilder(queryVector, fieldName, vectorSimilarity);
+            // q.must(exactKnnQuery);
+            // if (false == filterQueries.isEmpty()) {
+            // for (QueryBuilder filter : this.filterQueries) {
+            // // filter can be both over parents or nested docs, so add them as should clauses to a filter
+            // BoolQueryBuilder adjustedFilter = new BoolQueryBuilder().should(filter)
+            // .should(new ToChildBlockJoinQueryBuilder(filter));
+            // q.filter(adjustedFilter);
+            // }
+            // }
+            // return q.toQuery(context);
+            int localK = k == null ? scoreDocs.length : k;
+            var similarityFunction = fieldType.getSimilarity()
+                .vectorSimilarityFunction(context.indexVersionCreated(), DenseVectorFieldMapper.ElementType.FLOAT);
+            var rescoreK = scoreDocs.length;
+            return RescoreKnnVectorQuery.fromInnerQuery(
+                fieldName,
+                queryVector.asFloatVector(),
+                similarityFunction,
+                localK,
+                rescoreK,
+                query
+            );
         }
         return query;
     }

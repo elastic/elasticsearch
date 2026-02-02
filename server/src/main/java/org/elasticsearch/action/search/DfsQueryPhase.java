@@ -87,6 +87,9 @@ class DfsQueryPhase extends SearchPhase {
 
         List<DfsKnnResults> knnResults = mergeKnnResults(context.getRequest(), searchResults);
         if (context.getRequest().source() != null) {
+            // if we only have a single knn search and size is not defined
+            // override it on the request, so that we can ensure we will return at most `k` results
+            // after any potential oversampling on the query phase
             var source = context.getRequest().source();
             if (source.size() == -1 && source.knnSearch().size() == 1 && source.subSearches().isEmpty()) {
                 source.size(source.knnSearch().getFirst().k());
@@ -191,8 +194,6 @@ class DfsQueryPhase extends SearchPhase {
             subSearchSourceBuilders.add(new SubSearchSourceBuilder(query));
             i++;
         }
-
-        // TODO: check aggregations, pagination, runtime fields and all else
         source = source.shallowCopy().subSearches(subSearchSourceBuilders).knnSearch(List.of());
         request.source(source);
 
@@ -222,12 +223,11 @@ class DfsQueryPhase extends SearchPhase {
                     SearchPhaseController.setShardIndex(shardTopDocs, dfsSearchResult.getShardIndex());
                     topDocsLists.get(i).add(shardTopDocs);
                     nestedPath.get(i).trySet(knnResults.getNestedPath());
-                    // a knn result will spawn across multiple shards. however,
-                    // some shards may not support oversampling as they might be on older nodes
-                    // during this period we want to ensure that we will only account the first value if not null
-                    // and do not do any rescoring for these results.
-                    // However, this has the caveat that some scores will be complete, while other might not
-                    // in addition to the fact that some shards will return k results, while other k * oversample
+                    // A knn search will spawn across multiple shards, and it is possible that some may be on older nodes that
+                    // do not support lazy oversampling. So, we want to read from the responses whether we should allow oversampling or not.
+                    // There are two options here:
+                    // * either the value is null indicating an older node
+                    // * or the value is consistent amongst all other nodes (it is picked up by the search request or the index settings)
                     oversampling[i] = knnResults.oversample() != null ? knnResults.oversample() : null;
                     k[i] = knnResults.k() != null ? knnResults.k() : null;
                 }
@@ -237,16 +237,11 @@ class DfsQueryPhase extends SearchPhase {
         List<DfsKnnResults> mergedResults = new ArrayList<>(source.knnSearch().size());
         for (int i = 0; i < source.knnSearch().size(); i++) {
             int localK = k[i] != null ? k[i] : source.knnSearch().get(i).k();
-            int finalResults = localK;
-            // When oversample is > 1, we need to merge ceil(oversample * k) results for rescoring
-            // When oversample is null, 0, or 1, no oversampling - use k directly
+            int resultsToKeep = localK;
             if (oversampling[i] != null && oversampling[i] > 1) {
-                finalResults = (int) Math.ceil(oversampling[i] * localK);
+                resultsToKeep = (int) Math.ceil(oversampling[i] * localK);
             }
-
-            // keep k results as specified by DFSSearchResult (i.e. account for potential oversampling) otherwise
-            // ask knn-search from the request
-            TopDocs mergedTopDocs = TopDocs.merge(finalResults, topDocsLists.get(i).toArray(new TopDocs[0]));
+            TopDocs mergedTopDocs = TopDocs.merge(resultsToKeep, topDocsLists.get(i).toArray(new TopDocs[0]));
             mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), mergedTopDocs.scoreDocs, oversampling[i], localK));
         }
         return mergedResults;

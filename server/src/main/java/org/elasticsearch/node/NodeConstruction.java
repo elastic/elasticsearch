@@ -194,9 +194,11 @@ import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
 import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.plugins.internal.SettingsExtension;
 import org.elasticsearch.readiness.ReadinessService;
+import org.elasticsearch.repositories.LocalPrimarySnapshotShardContextFactory;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.SnapshotMetrics;
+import org.elasticsearch.repositories.SnapshotShardContextFactory;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
 import org.elasticsearch.reservedstate.ReservedStateHandlerProvider;
@@ -1179,12 +1181,17 @@ class NodeConstruction {
             projectResolver.supportsMultipleProjects(),
             snapshotMetrics
         );
+
         SnapshotShardsService snapshotShardsService = new SnapshotShardsService(
             settings,
             clusterService,
             repositoriesService,
             transportService,
-            indicesService
+            indicesService,
+            pluginsService.loadSingletonServiceProvider(
+                SnapshotShardContextFactory.class,
+                () -> new LocalPrimarySnapshotShardContextFactory(clusterService, indicesService)
+            )
         );
         final CachingSnapshotAndShardByStateMetricsService cachingSnapshotAndShardByStateMetricsService =
             new CachingSnapshotAndShardByStateMetricsService(clusterService);

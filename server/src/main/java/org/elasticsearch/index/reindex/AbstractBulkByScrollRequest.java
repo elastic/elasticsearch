@@ -586,13 +586,15 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      * Resume information for a single worker of a BulkByScrollTask.
      */
     public interface WorkerResumeInfo extends NamedWriteable {
+        long startTime();
+
         BulkByScrollTask.Status status();
     }
 
     /**
      * Resume information for a scroll-based BulkByScrollTask worker.
      */
-    public record ScrollWorkerResumeInfo(String scrollId, BulkByScrollTask.Status status) implements WorkerResumeInfo {
+    public record ScrollWorkerResumeInfo(String scrollId, long startTime, BulkByScrollTask.Status status) implements WorkerResumeInfo {
         public static final String NAME = "ScrollWorkerResumeInfo";
 
         public ScrollWorkerResumeInfo {
@@ -601,12 +603,13 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         }
 
         public ScrollWorkerResumeInfo(StreamInput in) throws IOException {
-            this(in.readString(), new BulkByScrollTask.Status(in));
+            this(in.readString(), in.readLong(), new BulkByScrollTask.Status(in));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(scrollId);
+            out.writeLong(startTime);
             status.writeTo(out);
         }
 

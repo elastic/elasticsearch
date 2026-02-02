@@ -79,7 +79,7 @@ public class ReindexResumeIT extends ESIntegTestCase {
             .setRefresh(true)
             .setResumeInfo(
                 new AbstractBulkByScrollRequest.ResumeInfo(
-                    new AbstractBulkByScrollRequest.ScrollWorkerResumeInfo(scrollId, randomStats),
+                    new AbstractBulkByScrollRequest.ScrollWorkerResumeInfo(scrollId, System.nanoTime(), randomStats),
                     null
                 )
             );
@@ -149,7 +149,7 @@ public class ReindexResumeIT extends ESIntegTestCase {
             )
             .setResumeInfo(
                 new AbstractBulkByScrollRequest.ResumeInfo(
-                    new AbstractBulkByScrollRequest.ScrollWorkerResumeInfo(scrollId, randomStats),
+                    new AbstractBulkByScrollRequest.ScrollWorkerResumeInfo(scrollId, System.nanoTime(), randomStats),
                     null
                 )
             );

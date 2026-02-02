@@ -330,20 +330,24 @@ public abstract class AbstractAsyncBulkByScrollAction<
             return;
         }
         try {
-            startTime.set(System.nanoTime());
             if (mainRequest.getResumeInfo().isPresent()) {
                 var resumeInfo = mainRequest.getResumeInfo().get();
                 // At this point only worker task can be started, leader task would have split slices into worker tasks
                 assert resumeInfo.getWorker().isPresent() : "Resume info for worker task must have worker resume info";
-                AbstractBulkByScrollRequest.WorkerResumeInfo workerResumeInfo = resumeInfo.getWorker().get();
-                worker.restoreState(workerResumeInfo.status());
-                scrollSource.resume(workerResumeInfo);
+                resumeWorker(resumeInfo.getWorker().get());
             } else {
+                startTime.set(System.nanoTime());
                 scrollSource.start();
             }
         } catch (Exception e) {
             finishHim(e);
         }
+    }
+
+    private void resumeWorker(AbstractBulkByScrollRequest.WorkerResumeInfo workerResumeInfo) {
+        startTime.set(workerResumeInfo.startTime());
+        worker.restoreState(workerResumeInfo.status());
+        scrollSource.resume(workerResumeInfo);
     }
 
     void onScrollResponse(ScrollableHitSource.AsyncResponse asyncResponse) {

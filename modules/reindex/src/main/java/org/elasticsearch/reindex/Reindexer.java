@@ -24,7 +24,6 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.internal.Client;
@@ -91,7 +90,6 @@ public class Reindexer {
     private final ScriptService scriptService;
     private final ReindexSslConfig reindexSslConfig;
     private final ReindexMetrics reindexMetrics;
-    private final boolean supportsCrossProjectSearch;
 
     Reindexer(
         ClusterService clusterService,
@@ -100,7 +98,6 @@ public class Reindexer {
         ThreadPool threadPool,
         ScriptService scriptService,
         ReindexSslConfig reindexSslConfig,
-        boolean supportsCrossProjectSearch,
         @Nullable ReindexMetrics reindexMetrics
     ) {
         this.clusterService = clusterService;
@@ -109,7 +106,6 @@ public class Reindexer {
         this.threadPool = threadPool;
         this.scriptService = scriptService;
         this.reindexSslConfig = reindexSslConfig;
-        this.supportsCrossProjectSearch = supportsCrossProjectSearch;
         this.reindexMetrics = reindexMetrics;
     }
 
@@ -119,16 +115,6 @@ public class Reindexer {
 
     public void execute(BulkByScrollTask task, ReindexRequest request, Client bulkClient, ActionListener<BulkByScrollResponse> listener) {
         long startTime = System.nanoTime();
-
-        if (request.getRemoteInfo() == null && supportsCrossProjectSearch) {
-            logger.info("--> enable CPS for search request");
-            request.getSearchRequest()
-                .indicesOptions(
-                    IndicesOptions.builder(request.getSearchRequest().indicesOptions())
-                        .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
-                        .build()
-                );
-        }
 
         BulkByScrollParallelizationHelper.executeSlicedAction(
             task,

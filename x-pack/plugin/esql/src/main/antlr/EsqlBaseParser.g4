@@ -68,6 +68,7 @@ processingCommand
     | rerankCommand
     | inlineStatsCommand
     | fuseCommand
+    | metricsInfoCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
@@ -348,6 +349,10 @@ fuseConfiguration
 fuseKeyByFields
    : qualifiedName (COMMA qualifiedName)*
    ;
+
+metricsInfoCommand
+    : METRICS_INFO
+    ;
 
 //
 // In development

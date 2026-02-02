@@ -756,6 +756,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitFuseKeyByFields(EsqlBaseParser.FuseKeyByFieldsContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#metricsInfoCommand}.
+   * @param ctx the parse tree
+   */
+  void enterMetricsInfoCommand(EsqlBaseParser.MetricsInfoCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#metricsInfoCommand}.
+   * @param ctx the parse tree
+   */
+  void exitMetricsInfoCommand(EsqlBaseParser.MetricsInfoCommandContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
    * @param ctx the parse tree
    */

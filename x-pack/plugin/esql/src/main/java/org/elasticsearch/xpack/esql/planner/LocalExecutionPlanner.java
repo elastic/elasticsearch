@@ -34,6 +34,8 @@ import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator.LocalSourceFactory;
+import org.elasticsearch.compute.operator.MetricFieldInfo;
+import org.elasticsearch.compute.operator.MetricsInfoOperator;
 import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
@@ -63,7 +65,11 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.Node;
@@ -117,6 +123,7 @@ import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -134,6 +141,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -284,6 +292,8 @@ public class LocalExecutionPlanner {
             return planCompletion(completion, context);
         } else if (node instanceof SampleExec Sample) {
             return planSample(Sample, context);
+        } else if (node instanceof MetricsInfoExec metricsInfo) {
+            return planMetricsInfo(metricsInfo, context);
         }
 
         // source nodes
@@ -821,6 +831,78 @@ public class LocalExecutionPlanner {
         LocalSourceOperator.PageSupplier supplier = () -> localSourceExec.supplier().get();
         var operator = new LocalSourceOperator(supplier);
         return PhysicalOperation.fromSource(new LocalSourceFactory(() -> operator), layout.build());
+    }
+
+    private PhysicalOperation planMetricsInfo(MetricsInfoExec metricsInfoExec, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(metricsInfoExec.child(), context);
+
+        Layout.Builder layoutBuilder = new Layout.Builder();
+        layoutBuilder.append(metricsInfoExec.output());
+
+        List<MetricFieldInfo> metricFieldInfos = getMetricFields(context.shardContexts);
+        Set<String> dimensionFields = getDimensionFields(context.shardContexts);
+
+        return source.with(new MetricsInfoOperator.Factory(metricFieldInfos, dimensionFields), layoutBuilder.build());
+    }
+
+    private static List<MetricFieldInfo> getMetricFields(IndexedByShardId<? extends ShardContext> shardContexts) {
+        record MetricFieldInfoKey(String name, String indexName, String fieldType, String metricType, String unit) {}
+
+        Set<MetricFieldInfoKey> seenFields = new LinkedHashSet<>();
+        List<MetricFieldInfo> metricFieldInfos = new ArrayList<>();
+
+        for (ShardContext shard : shardContexts.iterable()) {
+            if (shard.indexSettings().getMode() != IndexMode.TIME_SERIES) {
+                continue;
+            }
+            String indexName = shard.indexSettings().getIndex().getName();
+            MappingLookup mappingLookup = shard.mappingLookup();
+            for (Mapper mapper : mappingLookup.fieldMappers()) {
+                if (mapper instanceof FieldMapper fieldMapper) {
+                    MappedFieldType fieldType = fieldMapper.fieldType();
+                    TimeSeriesParams.MetricType tsMetricType = fieldType.getMetricType();
+                    if (tsMetricType == null) {
+                        continue;
+                    }
+                    String name = fieldType.name();
+                    String unit = fieldType.meta().get("unit");
+                    if (unit == null || unit.isBlank()) {
+                        unit = null;
+                    }
+                    String metricType = tsMetricType.toString();
+                    String fieldTypeName = fieldType.typeName();
+                    MetricFieldInfoKey key = new MetricFieldInfoKey(name, indexName, fieldTypeName, metricType, unit);
+                    if (seenFields.add(key)) {
+                        metricFieldInfos.add(new MetricFieldInfo(name, indexName, fieldTypeName, metricType, unit));
+                    }
+                }
+            }
+        }
+        return metricFieldInfos;
+    }
+
+    private static Set<String> getDimensionFields(IndexedByShardId<? extends ShardContext> shardContexts) {
+        Set<String> dimensionFields = new LinkedHashSet<>();
+        for (ShardContext shard : shardContexts.iterable()) {
+            if (shard.indexSettings().getMode() != IndexMode.TIME_SERIES) {
+                continue;
+            }
+            List<String> fromSettings = shard.indexSettings().getIndexMetadata().getTimeSeriesDimensions();
+            if (fromSettings != null && fromSettings.isEmpty() == false) {
+                dimensionFields.addAll(fromSettings);
+                continue;
+            }
+            MappingLookup mappingLookup = shard.mappingLookup();
+            for (Mapper mapper : mappingLookup.fieldMappers()) {
+                if (mapper instanceof FieldMapper fieldMapper) {
+                    MappedFieldType fieldType = fieldMapper.fieldType();
+                    if (fieldType.isDimension()) {
+                        dimensionFields.add(fieldType.name());
+                    }
+                }
+            }
+        }
+        return dimensionFields;
     }
 
     private PhysicalOperation planShow(ShowExec showExec) {

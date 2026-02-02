@@ -175,7 +175,6 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         mockLicenseStateIsAllowed(true);
         var model = createModel();
         mockParsePersistedConfigWithSecretsToReturnModel(model);
-        mockUpdateModelWithEmbeddingDetailsToReturnSameModel();
 
         var simulatedException = new RuntimeException("update failed");
         doAnswer(invocationOnMock -> {
@@ -199,7 +198,6 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         mockLicenseStateIsAllowed(true);
         var model = createModel();
         mockParsePersistedConfigWithSecretsToReturnModel(model);
-        mockUpdateModelWithEmbeddingDetailsToReturnSameModel();
 
         mockUpdateModelTransactionToReturnBoolean(false, model);
 
@@ -218,7 +216,6 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         mockLicenseStateIsAllowed(true);
         var model = createModel();
         mockParsePersistedConfigWithSecretsToReturnModel(model);
-        mockUpdateModelWithEmbeddingDetailsToReturnSameModel();
         mockUpdateModelTransactionToReturnBoolean(true, model);
 
         mockModelRegistryGetModelToReturnUnparsedModel(null);
@@ -238,7 +235,6 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         mockLicenseStateIsAllowed(true);
         var model = createModel();
         mockParsePersistedConfigWithSecretsToReturnModel(model);
-        mockUpdateModelWithEmbeddingDetailsToReturnSameModel();
         mockUpdateModelTransactionToReturnBoolean(true, model);
 
         var simulatedException = new RuntimeException("updated model not found");
@@ -262,7 +258,6 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         mockLicenseStateIsAllowed(true);
         var model = createModel();
         mockParsePersistedConfigWithSecretsToReturnModel(model);
-        mockUpdateModelWithEmbeddingDetailsToReturnSameModel();
         mockUpdateModelTransactionToReturnBoolean(true, model);
         mockModelRegistryGetModelToReturnUnparsedModel(unparsedModel);
         mockParsePersistedConfigToReturnModel(model);
@@ -322,12 +317,6 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
     private void mockServiceRegistryToReturnService(InferenceService service) {
         when(mockInferenceServiceRegistry.getService(SERVICE_NAME_VALUE)).thenReturn(Optional.ofNullable(service));
-    }
-
-    private void mockUpdateModelWithEmbeddingDetailsToReturnSameModel() {
-        when(service.updateModelWithEmbeddingDetails(any(GoogleVertexAiEmbeddingsModel.class), eq(3))).thenAnswer(
-            invocationOnMock -> invocationOnMock.getArgument(0)
-        );
     }
 
     private void mockUpdateModelTransactionToReturnBoolean(boolean result, GoogleVertexAiEmbeddingsModel model) {

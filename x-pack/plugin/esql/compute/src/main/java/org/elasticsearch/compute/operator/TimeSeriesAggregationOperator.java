@@ -61,6 +61,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             return new TimeSeriesAggregationOperator(
                 timeBucket,
                 dateNanos ? DateFieldMapper.Resolution.NANOSECONDS : DateFieldMapper.Resolution.MILLISECONDS,
+                aggregatorMode,
                 aggregators,
                 () -> BlockHash.build(
                     groups,
@@ -89,11 +90,12 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
     public TimeSeriesAggregationOperator(
         Rounding.Prepared timeBucket,
         DateFieldMapper.Resolution timeResolution,
+        AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregators,
         Supplier<BlockHash> blockHash,
         DriverContext driverContext
     ) {
-        super(aggregators, blockHash, Integer.MAX_VALUE, 1.0, driverContext);
+        super(aggregatorMode, aggregators, blockHash, Integer.MAX_VALUE, 1.0, driverContext);
         this.timeBucket = timeBucket;
         this.timeResolution = timeResolution;
     }
@@ -179,10 +181,8 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
      * ```
      */
     private void expandWindowBuckets() {
-        for (GroupingAggregator aggregator : aggregators) {
-            if (aggregator.mode().isOutputPartial()) {
-                return;
-            }
+        if (aggregatorMode.isOutputPartial()) {
+            return;
         }
         final long windowMillis = largestWindowMillis();
         if (windowMillis <= 0) {

@@ -368,15 +368,10 @@ setField
     ;
 
 mmrCommand
-    : DEV_MMR queryVector=mmrOptionalQueryVector diversifyField=qualifiedName MMR_LIMIT limitValue=integerValue commandNamedParameters
+    :  DEV_MMR (queryVector=mmrQueryVectorParams)? ON diversifyField=qualifiedName MMR_LIMIT limitValue=integerValue commandNamedParameters
     ;
 
 mmrQueryVectorParams
     : parameter                           # mmrQueryVectorParameter
     | primaryExpression                   # mmrQueryVectorExpression
     ;
-
-mmrOptionalQueryVector
-    : (mmrQueryVectorParams ON)?
-    ;
-

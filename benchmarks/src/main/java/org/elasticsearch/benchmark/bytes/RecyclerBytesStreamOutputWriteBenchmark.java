@@ -93,7 +93,7 @@ public class RecyclerBytesStreamOutputWriteBenchmark {
             offset = 0L;
         } else if (bytes == 9) {
             upperBound = Long.MAX_VALUE;
-            lowerBound = 1L << 56 - 1;
+            lowerBound = (1L << 56) - 1;
             offset = 1L; // ±1 because upper bound is exclusive
         } else {
             upperBound = 1L << (bytes * 7);

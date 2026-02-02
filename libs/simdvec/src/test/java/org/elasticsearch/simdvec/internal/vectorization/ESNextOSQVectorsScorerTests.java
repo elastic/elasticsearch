@@ -27,12 +27,14 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.stream.Stream;
 
 public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
 
     private final DirectoryType directoryType;
     private final byte indexBits;
+    private final VectorSimilarityFunction similarityFunction;
     private static final byte queryBits = 4;
 
     public enum DirectoryType {
@@ -40,9 +42,10 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
         MMAP
     }
 
-    public ESNextOSQVectorsScorerTests(DirectoryType directoryType, byte indexBits) {
+    public ESNextOSQVectorsScorerTests(DirectoryType directoryType, byte indexBits, VectorSimilarityFunction similarityFunction) {
         this.directoryType = directoryType;
         this.indexBits = indexBits;
+        this.similarityFunction = similarityFunction;
     }
 
     public void testQuantizeScore() throws Exception {
@@ -120,7 +123,6 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
         final float[] residualScratch = new float[dimensions];
         final byte[] qVector = new byte[length];
         final float[] centroid = new float[dimensions];
-        VectorSimilarityFunction similarityFunction = randomFrom(VectorSimilarityFunction.values());
         randomVector(centroid, similarityFunction);
         OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(similarityFunction);
         int padding = random().nextInt(100);
@@ -367,7 +369,8 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
         return () -> Stream.of((byte) 1, (byte) 2, (byte) 4)
-            .flatMap(i -> Arrays.stream(DirectoryType.values()).map(f -> new Object[] { f, i }))
+            .flatMap(i -> Arrays.stream(DirectoryType.values()).map(f -> List.of(f, i)))
+            .flatMap(p -> Arrays.stream(VectorSimilarityFunction.values()).map(f -> Stream.concat(p.stream(), Stream.of(f)).toArray()))
             .iterator();
     }
 }

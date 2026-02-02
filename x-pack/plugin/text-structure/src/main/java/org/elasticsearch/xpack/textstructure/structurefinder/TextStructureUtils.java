@@ -20,7 +20,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -351,7 +350,6 @@ public final class TextStructureUtils {
         SortedMap<String, FieldStats> fieldStats = new TreeMap<>();
 
         List<Map<String, List<Object>>> flattenedRecords = sampleRecords.stream()
-            .map(x -> (Object) x)
             .map(record -> flattenRecord(record, timeoutChecker, mappingDepthLimit))
             .toList();
         Set<String> uniqueFieldNames = flattenedRecords.stream().flatMap(record -> record.keySet().stream()).collect(Collectors.toSet());
@@ -398,9 +396,9 @@ public final class TextStructureUtils {
      */
     private static Map<String, List<Object>> flattenRecord(Object record, TimeoutChecker timeoutChecker, int mappingDepthLimit) {
         Map<String, List<Object>> flattened = new LinkedHashMap<>();
-        Set<String> keyHasChildrenObjects = new HashSet<>();
+        ImmutableLeavesTrie keysPointingToConcreteValues = new ImmutableLeavesTrie();
         List<String> keyParts = new ArrayList<>();
-        flattenRecordRecursive(keyParts, record, flattened, keyHasChildrenObjects, timeoutChecker, mappingDepthLimit);
+        flattenRecordRecursive(keyParts, record, flattened, keysPointingToConcreteValues, timeoutChecker, mappingDepthLimit);
         return flattened;
     }
 
@@ -408,7 +406,7 @@ public final class TextStructureUtils {
         List<String> keyParts,
         Object record,
         Map<String, List<Object>> flattenedResult,
-        Set<String> keyHasChildrenObjects,
+        ImmutableLeavesTrie keysPointingToConcreteValues,
         TimeoutChecker timeoutChecker,
         int remainingDepth
     ) {
@@ -416,13 +414,13 @@ public final class TextStructureUtils {
         if (record instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, ?> nestedMap = (Map<String, ?>) record;
-            flattenMap(keyParts, nestedMap, flattenedResult, keyHasChildrenObjects, timeoutChecker, remainingDepth);
+            flattenMap(keyParts, nestedMap, flattenedResult, keysPointingToConcreteValues, timeoutChecker, remainingDepth);
         } else if (record instanceof List) {
             @SuppressWarnings("unchecked")
             List<Object> list = (List<Object>) record;
-            flattenList(keyParts, list, flattenedResult, keyHasChildrenObjects, timeoutChecker, remainingDepth);
+            flattenList(keyParts, list, flattenedResult, keysPointingToConcreteValues, timeoutChecker, remainingDepth);
         } else { // concrete value
-            tryAddConcreteValueToResultMap(keyParts, record, flattenedResult, keyHasChildrenObjects);
+            tryAddConcreteValueToResultMap(keyParts, record, flattenedResult, keysPointingToConcreteValues);
         }
 
     }
@@ -432,27 +430,28 @@ public final class TextStructureUtils {
      * @param keyParts The current key parts.
      * @param value The concrete value to add.
      * @param flattenedResult The result map to add the value to.
-     * @param keyHasChildrenObjects A set of keys that can't be used for concrete values anymore.
+     * @param keysPointingToConcreteValues A structure that helps keep track of keys which were used for concrete values.
      */
     private static void tryAddConcreteValueToResultMap(
         List<String> keyParts,
         Object value,
         Map<String, List<Object>> flattenedResult,
-        Set<String> keyHasChildrenObjects
+        ImmutableLeavesTrie keysPointingToConcreteValues
     ) {
         if (value == null) {
             // null values are ignored
             return;
         }
 
-        String key = String.join(DOT_DELIMITER, keyParts);
-        if (keyHasChildrenObjects.contains(key)) {
+        if (keysPointingToConcreteValues.add(keyParts) == false) {
+            List<String> conflict = keysPointingToConcreteValues.findConflict(keyParts);
+            String conflictPath = String.join(DOT_DELIMITER, conflict);
             throw new IllegalArgumentException(
-                "Field [" + key + "] has both object and non-object values - this is not supported by Elasticsearch"
+                "Field [" + conflictPath + "] has both object and non-object values - this is not supported by Elasticsearch"
             );
         }
-        validateParentKeysAndMarkThemAsTaken(flattenedResult, keyParts, keyHasChildrenObjects);
 
+        String key = String.join(DOT_DELIMITER, keyParts);
         List<Object> valueList = flattenedResult.get(key);
         if (valueList != null) {
             validateNewElement(keyParts, valueList, value);
@@ -461,36 +460,6 @@ public final class TextStructureUtils {
             var newList = new ArrayList<>();
             newList.add(value);
             flattenedResult.put(key, newList);
-        }
-    }
-
-    /**
-     * Checks if any parent has a concrete value, which would mean a conflict.
-     * Also marks all parent keys of the given key as having children.
-     * Example: for keyParts ["a", "b", "c"], marks "a" and "a.b" as having children.
-     * This effectively means that "a" and "a.b" can't accommodate concrete values anymore,
-     * only other nested objects. If we try to add a concrete value to "a" at this point,
-     * it means we're trying to mix objects and concrete values under a single key.
-     */
-    private static void validateParentKeysAndMarkThemAsTaken(
-        Map<String, List<Object>> flattenedResult,
-        List<String> keyParts,
-        Set<String> keyHasChildrenObjects
-    ) {
-        for (int i = keyParts.size() - 1; i >= 1; i--) {
-            String parentKey = String.join(DOT_DELIMITER, keyParts.subList(0, i));
-
-            if (flattenedResult.containsKey(parentKey)) {
-                throw new IllegalArgumentException(
-                    "Field [" + parentKey + "] has both object and non-object values - this is not supported by Elasticsearch"
-                );
-            }
-
-            if (keyHasChildrenObjects.add(parentKey) == false) {
-                // Since we iterate from the longest key,
-                // the parents that follow should already be marked and valid
-                break;
-            }
         }
     }
 
@@ -521,7 +490,7 @@ public final class TextStructureUtils {
         List<String> keyParts,
         Map<String, ?> record,
         Map<String, List<Object>> flattenedResult,
-        Set<String> keyHasChildrenObjects,
+        ImmutableLeavesTrie keysPointingToConcreteValues,
         TimeoutChecker timeoutChecker,
         int remainingDepth
     ) {
@@ -529,14 +498,21 @@ public final class TextStructureUtils {
 
         if (record.isEmpty() || remainingDepth <= 0) {
             // Empty nested objects or max depth reached - will be mapped as "object" type
-            tryAddConcreteValueToResultMap(keyParts, Collections.emptyMap(), flattenedResult, keyHasChildrenObjects);
+            tryAddConcreteValueToResultMap(keyParts, Collections.emptyMap(), flattenedResult, keysPointingToConcreteValues);
             return;
         }
 
         for (Map.Entry<String, ?> entry : record.entrySet()) {
             keyParts.add(entry.getKey());
             var recordValue = (Object) entry.getValue();
-            flattenRecordRecursive(keyParts, recordValue, flattenedResult, keyHasChildrenObjects, timeoutChecker, remainingDepth - 1);
+            flattenRecordRecursive(
+                keyParts,
+                recordValue,
+                flattenedResult,
+                keysPointingToConcreteValues,
+                timeoutChecker,
+                remainingDepth - 1
+            );
             keyParts.removeLast();
         }
     }
@@ -545,14 +521,14 @@ public final class TextStructureUtils {
         List<String> keyParts,
         List<Object> list,
         Map<String, List<Object>> flattenedResult,
-        Set<String> keyHasChildrenObjects,
+        ImmutableLeavesTrie keysPointingToConcreteValues,
         TimeoutChecker timeoutChecker,
         int remainingDepth
     ) {
         timeoutChecker.check("list flattening");
 
         for (Object record : list) {
-            flattenRecordRecursive(keyParts, record, flattenedResult, keyHasChildrenObjects, timeoutChecker, remainingDepth);
+            flattenRecordRecursive(keyParts, record, flattenedResult, keysPointingToConcreteValues, timeoutChecker, remainingDepth);
         }
     }
 

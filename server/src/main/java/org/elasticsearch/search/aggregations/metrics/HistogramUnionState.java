@@ -369,7 +369,7 @@ public class HistogramUnionState implements Releasable, Accountable {
 
         // ensure both tDigestStates are either null or equal
         if (tDigestState == null && that.tDigestState == null) {
-            if (!tdigestInitParams.equals(that.tdigestInitParams)) return false;
+            if (tdigestInitParams.equals(that.tdigestInitParams) == false) return false;
         } else if (tDigestState != null && that.tDigestState != null) {
             if (tDigestState.equals(that.tDigestState) == false) return false;
         } else {

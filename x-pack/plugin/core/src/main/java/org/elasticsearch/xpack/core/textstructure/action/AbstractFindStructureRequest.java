@@ -27,7 +27,9 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public abstract class AbstractFindStructureRequest extends LegacyActionRequest {
 
-    private static final TransportVersion RECURSIVE_PARSING_SUPPORT = TransportVersion.fromName("should_parse_recursively_parameter");
+    private static final TransportVersion RECURSIVE_PARSING_SUPPORT = TransportVersion.fromName(
+        "find_structure_request_should_parse_recursively"
+    );
 
     public static final int MIN_SAMPLE_LINE_COUNT = 2;
 

@@ -17,10 +17,10 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
 
 public class LimitPerGoldenTests extends GoldenTestCase {
     String query = """
-            FROM employees
-            | SORT salary
-            | LIMIT 2 PER_🐔 languages
-            """;
+        FROM employees
+        | SORT salary
+        | LIMIT 2 PER_🐔 languages
+        """;
 
     public void testLimitPerParsing() {
         runGoldenTest(query, EnumSet.of(Stage.ANALYSIS), STATS);

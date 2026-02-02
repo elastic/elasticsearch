@@ -17,7 +17,6 @@ import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanVector;
-import org.elasticsearch.compute.data.ConstantNullBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
@@ -368,7 +367,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         // We'll resolve them from the inside out.
 
         // assert testCase.getData().size() == originalExpression.children().size()
-        //     : "the original agg has some unknown children that doesn't match the test case data";
+        // : "the original agg has some unknown children that doesn't match the test case data";
 
         // Maps simulating the Layout and pages
         Map<Expression, Block> blocksByField = new HashMap<>();
@@ -388,7 +387,11 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                 if (data.isMultiRow()) {
                     blocksByField.put(
                         field,
-                        BlockUtils.asBlock(driverContext().blockFactory(), PlannerUtils.toElementType(field.dataType()), data.multiRowData())
+                        BlockUtils.asBlock(
+                            driverContext().blockFactory(),
+                            PlannerUtils.toElementType(field.dataType()),
+                            data.multiRowData()
+                        )
                     );
                 } else {
                     literalsByField.put(field, data.asLiteral());

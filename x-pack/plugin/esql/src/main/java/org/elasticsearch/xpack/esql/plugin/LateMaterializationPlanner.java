@@ -128,6 +128,7 @@ class LateMaterializationPlanner {
         }
         var updatedFragment = new Project(Source.EMPTY, withAddedDocToRelation, expectedDataOutput);
         FragmentExec updatedFragmentExec = fragmentExec.withFragment(updatedFragment);
+        // TODO This ignores the possible change in output, see #141654
         ExchangeSinkExec updatedDataPlan = originalPlan.replaceChild(updatedFragmentExec);
 
         // Replace the TopN child with the data driver as the source.

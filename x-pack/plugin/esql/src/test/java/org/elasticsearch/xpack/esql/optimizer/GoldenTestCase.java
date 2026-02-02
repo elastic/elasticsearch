@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
@@ -57,7 +58,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -68,6 +68,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLoo
 
 /** See GoldenTestsReadme.md for more information about these tests. */
 @Listeners({ GoldenTestCase.GoldenTestReproduceInfoPrinter.class })
+@LuceneTestCase.SuppressFileSystems("ExtrasFS") // ExtraFS can create extraneous files in the output directory.
 public abstract class GoldenTestCase extends ESTestCase {
     private static final Logger logger = LogManager.getLogger(GoldenTestCase.class);
     private final Path baseFile;
@@ -226,7 +227,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             }
             if (stages.contains(Stage.PHYSICAL_OPTIMIZATION)
                 || stages.contains(Stage.LOCAL_PHYSICAL_OPTIMIZATION)
-                || stages.contains(Stage.NODE_REDUCE_OPTIMIZATION)
+                || stages.contains(Stage.NODE_REDUCE)
                 || stages.contains(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION)) {
                 var physicalPlanOptimizer = new PhysicalPlanOptimizer(
                     new PhysicalOptimizerContext(EsqlTestUtils.TEST_CFG, transportVersion)
@@ -242,7 +243,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                     TestResult localPhysicalResult = verifyOrWrite(localOptimize(physicalPlan, conf), Stage.LOCAL_PHYSICAL_OPTIMIZATION);
                     result.add(Tuple.tuple(Stage.LOCAL_PHYSICAL_OPTIMIZATION, localPhysicalResult));
                 }
-                if (stages.contains(Stage.NODE_REDUCE_OPTIMIZATION) || stages.contains(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION)) {
+                if (stages.contains(Stage.NODE_REDUCE) || stages.contains(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION)) {
                     ExchangeExec exec = EsqlTestUtils.singleValue(physicalPlan.collect(ExchangeExec.class));
                     var sink = new ExchangeSinkExec(exec.source(), exec.output(), false, exec.child());
                     var reductionPlan = ComputeService.reductionPlan(
@@ -256,16 +257,24 @@ public abstract class GoldenTestCase extends ESTestCase {
                         new PlanTimeProfile()
 
                     );
-                    if (stages.contains(Stage.NODE_REDUCE_OPTIMIZATION)) {
-                        result.addAll(addDualPlanResult(Stage.NODE_REDUCE_OPTIMIZATION, reductionPlan, "node_reduce", "data"));
+                    if (stages.contains(Stage.NODE_REDUCE)) {
+                        var dualFileOutput = (DualFileOutput) Stage.NODE_REDUCE.fileOutput;
+                        result.addAll(
+                            addDualPlanResult(
+                                Stage.NODE_REDUCE,
+                                reductionPlan,
+                                dualFileOutput.nodeReduceOutput(),
+                                dualFileOutput.dataNodeOutput()
+                            )
+                        );
                     }
-                    // FIXME(gal, NOCOMMIT) Simplify this, this shouldn't only perform the local optimization on the data plan.
                     if (stages.contains(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION)) {
+                        var dualFileOutput = (DualFileOutput) Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION.fileOutput;
                         switch (reductionPlan.nodeReduceLocalPhysicalOptimization()) {
-                            // FIXME(gal, NOCOMMIT) document
+                            // If there is no local node-reduce physical optimization, there's nothing to verify!
                             case DISABLED -> {
                                 var foo = localOptimize(reductionPlan.dataNodePlan(), conf);
-                                var bar = verifyOrWrite(foo, outputPath("reduction_", "local_data"));
+                                var bar = verifyOrWrite(foo, outputPath(dualFileOutput.dataNodeOutput()));
                                 result.add(Tuple.tuple(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION, bar));
                             }
                             case ENABLED -> {
@@ -278,8 +287,8 @@ public abstract class GoldenTestCase extends ESTestCase {
                                     addDualPlanResult(
                                         Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION,
                                         finalizedResult,
-                                        "local_node_reduce",
-                                        "local_data"
+                                        dualFileOutput.nodeReduceOutput(),
+                                        dualFileOutput.dataNodeOutput()
                                     )
                                 );
                             }
@@ -302,8 +311,8 @@ public abstract class GoldenTestCase extends ESTestCase {
             String nodeReduceName,
             String dataNodeName
         ) throws IOException {
-            var reduceResult = verifyOrWrite(plan.nodeReducePlan(), outputPath("reduction_", nodeReduceName));
-            var dataResult = verifyOrWrite(plan.dataNodePlan(), outputPath("reduction_", dataNodeName));
+            var reduceResult = verifyOrWrite(plan.nodeReducePlan(), outputPath(nodeReduceName));
+            var dataResult = verifyOrWrite(plan.dataNodePlan(), outputPath(dataNodeName));
             var result = new ArrayList<Tuple<Stage, TestResult>>();
             if (reduceResult == TestResult.FAILURE || dataResult == TestResult.FAILURE) {
                 result.add(Tuple.tuple(stage, TestResult.FAILURE));
@@ -340,14 +349,14 @@ public abstract class GoldenTestCase extends ESTestCase {
         }
 
         private Path outputPath(Stage stage) {
-            return outputPath("", stage.name().toLowerCase(Locale.ROOT));
+            return outputPath(((SingleFileOutput) stage.fileOutput).output());
         }
 
-        private Path outputPath(String prefix, String suffix) {
+        private Path outputPath(String stageName) {
             var paths = new String[nestedPath.length + 2];
             paths[0] = testName;
             System.arraycopy(nestedPath, 0, paths, 1, nestedPath.length);
-            paths[paths.length - 1] = Strings.format("%s%s.expected", prefix, suffix);
+            paths[paths.length - 1] = Strings.format("%s.expected", stageName);
             return PathUtils.get(basePath.toString(), paths);
         }
 
@@ -365,6 +374,9 @@ public abstract class GoldenTestCase extends ESTestCase {
     }
 
     private static Test.TestResult createNewOutput(Path output, QueryPlan<?> plan) throws IOException {
+        if (output.toString().contains("extra")) {
+            throw new IllegalStateException("Extra output files should not be created automatically:" + output);
+        }
         Files.writeString(output, toString(plan), StandardCharsets.UTF_8);
         return Test.TestResult.CREATED;
     }
@@ -408,29 +420,49 @@ public abstract class GoldenTestCase extends ESTestCase {
         return withDefaultLimitWarning(super.filteredWarnings());
     }
 
+    private sealed interface StageOutput {}
+
+    private record SingleFileOutput(String output) implements StageOutput {}
+
+    private record DualFileOutput(String nodeReduceOutput, String dataNodeOutput) implements StageOutput {}
+
     protected enum Stage {
         /** See {@link Analyzer}. */
-        ANALYSIS,
+        ANALYSIS(new SingleFileOutput("analysis")),
         /** See {@link LogicalPlanOptimizer}. */
-        LOGICAL_OPTIMIZATION,
+        LOGICAL_OPTIMIZATION(new SingleFileOutput("logical_optimization")),
         /** See {@link PhysicalPlanOptimizer}. */
-        PHYSICAL_OPTIMIZATION,
+        PHYSICAL_OPTIMIZATION(new SingleFileOutput("physical_optimization")),
         /**
          * See {@link LocalPhysicalPlanOptimizer}. There's no LOCAL_LOGICAL here since in production we use PlannerUtils.localPlan to
          * produce the local physical plan directly from non-local physical plan.
          */
-        LOCAL_PHYSICAL_OPTIMIZATION,
+        LOCAL_PHYSICAL_OPTIMIZATION(new SingleFileOutput("local_physical_optimization")),
         /**
          * See {@link ComputeService#reductionPlan}. Actually results in <b>two</b> plans: one for the node reduce driver and one for the
          * data nodes.
          */
-        NODE_REDUCE_OPTIMIZATION,
+        NODE_REDUCE(new DualFileOutput("local_reduce_planned_reduce_driver", "local_reduce_planned_data_driver")),
         /**
-         * A combination of {@link Stage#NODE_REDUCE_OPTIMIZATION} and {@link  Stage#LOCAL_PHYSICAL_OPTIMIZATION}: first produce the node
+         * A combination of {@link Stage#NODE_REDUCE} and {@link  Stage#LOCAL_PHYSICAL_OPTIMIZATION}: first produce the node
          * reduce and data node plans, and then perform local physical optimization on both.
          */
-        NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION
+        NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION(
+            new DualFileOutput("local_reduce_physical_optimization_reduce_driver", "local_reduce_physical_optimization_data_driver")
+        );
+
+        private final StageOutput fileOutput;
+
+        Stage(StageOutput fileOutput) {
+            this.fileOutput = fileOutput;
+        }
     }
+
+    private sealed interface TestOutput {}
+
+    private record SingleTestOutput(String output) implements TestOutput {}
+
+    private record DualTestOutput(String nodeReduceOutput, String dataNodeOutput) implements TestOutput {}
 
     private static String normalize(String s) {
         return s.lines().map(String::strip).collect(Collectors.joining("\n"));

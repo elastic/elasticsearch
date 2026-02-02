@@ -16,7 +16,7 @@ import java.util.EnumSet;
 public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
     private static final EnumSet<Stage> STAGES = EnumSet.of(
         Stage.PHYSICAL_OPTIMIZATION,
-        Stage.NODE_REDUCE_OPTIMIZATION,
+        Stage.NODE_REDUCE,
         Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION
     );
 
@@ -63,11 +63,21 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
         runGoldenTest(query, STAGES, unindexedStats());
     }
 
-    public void testExpressionSortTopN() throws Exception {
+    public void testExpressionSortTopNKeepBeforeSort() throws Exception {
         String query = """
             FROM employees
             | keep hire_date, height
             | SORT sin(height) * 2
+            | LIMIT 20
+            """;
+        runGoldenTest(query, STAGES, unindexedStats());
+    }
+
+    public void testExpressionSortTopNKeepAfterSort() throws Exception {
+        String query = """
+            FROM employees
+            | SORT sin(height) * 2
+            | keep hire_date
             | LIMIT 20
             """;
         runGoldenTest(query, STAGES, unindexedStats());

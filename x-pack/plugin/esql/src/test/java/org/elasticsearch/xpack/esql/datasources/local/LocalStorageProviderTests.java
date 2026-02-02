@@ -40,8 +40,10 @@ public class LocalStorageProviderTests extends ESTestCase {
         StorageObject object = provider.newObject(path);
 
         // Read the full file
-        try (InputStream stream = object.newStream();
-             BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+        try (
+            InputStream stream = object.newStream();
+            BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))
+        ) {
             String line1 = reader.readLine();
             String line2 = reader.readLine();
             assertEquals("Hello, World!", line1);
@@ -108,10 +110,7 @@ public class LocalStorageProviderTests extends ESTestCase {
 
         // Verify we got both files
         assertEquals(2, entries.size());
-        List<String> fileNames = entries.stream()
-            .map(e -> e.path().objectName())
-            .sorted()
-            .toList();
+        List<String> fileNames = entries.stream().map(e -> e.path().objectName()).sorted().toList();
         assertEquals(List.of("file1.txt", "file2.csv"), fileNames);
     }
 
@@ -119,7 +118,7 @@ public class LocalStorageProviderTests extends ESTestCase {
         // Use a temp directory path that doesn't exist (within allowed paths)
         Path tempDir = createTempDir();
         Path nonExistentFile = tempDir.resolve("nonexistent_file.txt");
-        
+
         LocalStorageProvider provider = new LocalStorageProvider();
         StoragePath path = StoragePath.of("file://" + nonExistentFile.toAbsolutePath());
         StorageObject object = provider.newObject(path);
@@ -138,7 +137,7 @@ public class LocalStorageProviderTests extends ESTestCase {
     public void testInvalidScheme() {
         LocalStorageProvider provider = new LocalStorageProvider();
         StoragePath path = StoragePath.of("http://example.com/file.txt");
-        
+
         expectThrows(IllegalArgumentException.class, () -> provider.newObject(path));
     }
 }

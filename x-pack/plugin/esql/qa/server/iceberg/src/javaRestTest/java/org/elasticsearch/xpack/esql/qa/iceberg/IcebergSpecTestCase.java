@@ -50,9 +50,7 @@ public abstract class IcebergSpecTestCase extends AbstractExternalSourceSpecTest
                 logger.warn("✗ employees fixture NOT found - tests may fail");
             }
 
-            long parquetFiles = logs.stream()
-                .filter(log -> log.getPath() != null && log.getPath().endsWith(".parquet"))
-                .count();
+            long parquetFiles = logs.stream().filter(log -> log.getPath() != null && log.getPath().endsWith(".parquet")).count();
             long metadataFiles = logs.stream().filter(log -> log.getPath() != null && log.getPath().contains("metadata")).count();
 
             logger.info("Fixture summary: {} Parquet files, {} metadata files", parquetFiles, metadataFiles);
@@ -82,14 +80,11 @@ public abstract class IcebergSpecTestCase extends AbstractExternalSourceSpecTest
     protected void verifyIcebergMetadataUsed() {
         var logs = getRequestLogs();
 
-        boolean accessedMetadataJson = logs.stream()
-            .anyMatch(log -> log.getPath() != null && log.getPath().contains("metadata.json"));
+        boolean accessedMetadataJson = logs.stream().anyMatch(log -> log.getPath() != null && log.getPath().contains("metadata.json"));
 
-        boolean accessedManifestList = logs.stream()
-            .anyMatch(log -> log.getPath() != null && log.getPath().contains("/metadata/snap-"));
+        boolean accessedManifestList = logs.stream().anyMatch(log -> log.getPath() != null && log.getPath().contains("/metadata/snap-"));
 
-        boolean accessedManifest = logs.stream()
-            .anyMatch(log -> log.getPath() != null && log.getPath().matches(".*metadata/.*\\.avro"));
+        boolean accessedManifest = logs.stream().anyMatch(log -> log.getPath() != null && log.getPath().matches(".*metadata/.*\\.avro"));
 
         logger.info("Iceberg metadata usage verification:");
         logger.info("  - Metadata JSON accessed: {}", accessedMetadataJson);

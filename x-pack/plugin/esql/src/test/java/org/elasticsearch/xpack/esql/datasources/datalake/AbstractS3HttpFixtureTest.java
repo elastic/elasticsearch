@@ -25,9 +25,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.ACCESS_KEY;
-import static org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.BUCKET;
-import static org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.SECRET_KEY;
-import static org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.WAREHOUSE;
 
 /**
  * Base test class for Iceberg unit tests using S3HttpFixture.
@@ -43,31 +40,31 @@ import static org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.W
  * <b>Example usage:</b>
  * <pre>{@code
  * public class MyIcebergTest extends AbstractS3HttpFixtureTest {
- *     
+ *
  *     @After
  *     public void printLogs() {
  *         // Print detailed S3 request analysis after each test
  *         printRequestSummary();
  *     }
- *     
+ *
  *     public void testReadIcebergTable() throws Exception {
  *         // Clear logs from previous tests
  *         clearRequestLogs();
- *         
+ *
  *         // Pre-populate S3 fixture with test data
  *         String metadataJson = "{\"format-version\":2,...}";
  *         addBlobToFixture("db/table/metadata/v1.metadata.json", metadataJson);
- *         
+ *
  *         // Create Iceberg catalog
  *         Catalog catalog = createCatalog();
- *         
+ *
  *         // Use catalog to access table
  *         TableIdentifier tableId = TableIdentifier.of("db", "table");
  *         Table table = catalog.loadTable(tableId);
- *         
+ *
  *         // Verify table operations work
  *         assertNotNull(table);
- *         
+ *
  *         // Note: If any unsupported S3 operations are used, the test will automatically fail
  *         // with an UnsupportedOperationException, making gap detection mandatory.
  *     }
@@ -123,15 +120,15 @@ public abstract class AbstractS3HttpFixtureTest extends ESTestCase {
     public static void loadFixtures() {
         s3Fixture.loadFixturesFromResources();
     }
-    
+
     /**
      * Automatically checks for unsupported S3 operations after each test.
      * If any UNKNOWN request types are detected, fails the test with a detailed error message.
      * This ensures gaps in S3HttpHandler support are caught immediately rather than silently passing.
-     * 
+     *
      * <p>Subclasses can override this method if they need custom behavior, but should
      * typically call {@code super.checkForUnsupportedOperations()} to maintain gap detection.
-     * 
+     *
      * @throws AssertionError if unsupported operations were detected
      */
     @org.junit.After
@@ -191,7 +188,7 @@ public abstract class AbstractS3HttpFixtureTest extends ESTestCase {
     protected String getS3Endpoint() {
         return s3Fixture.getAddress();
     }
-    
+
     /**
      * Gets all S3 requests logged.
      *
@@ -200,7 +197,7 @@ public abstract class AbstractS3HttpFixtureTest extends ESTestCase {
     protected List<S3RequestLog> getRequestLogs() {
         return S3FixtureUtils.getRequestLogs();
     }
-    
+
     /**
      * Clears request logs.
      * Useful to call in @Before methods to isolate test logs.
@@ -208,7 +205,7 @@ public abstract class AbstractS3HttpFixtureTest extends ESTestCase {
     protected void clearRequestLogs() {
         S3FixtureUtils.clearRequestLogs();
     }
-    
+
     /**
      * Prints a summary of all S3 requests logged.
      * Groups requests by type and shows counts.
@@ -216,7 +213,7 @@ public abstract class AbstractS3HttpFixtureTest extends ESTestCase {
     protected void printRequestSummary() {
         S3FixtureUtils.printRequestSummary();
     }
-    
+
     /**
      * Gets the count of requests by type.
      *
@@ -226,7 +223,7 @@ public abstract class AbstractS3HttpFixtureTest extends ESTestCase {
     protected int getRequestCount(String requestType) {
         return S3FixtureUtils.getRequestCount(requestType);
     }
-    
+
     /**
      * Gets all requests matching a specific type.
      *
@@ -236,7 +233,7 @@ public abstract class AbstractS3HttpFixtureTest extends ESTestCase {
     protected List<S3RequestLog> getRequestsByType(String requestType) {
         return S3FixtureUtils.getRequestsByType(requestType);
     }
-    
+
     /**
      * Checks if there are any UNKNOWN request types, which may indicate gaps in S3HttpHandler support.
      *
@@ -245,7 +242,7 @@ public abstract class AbstractS3HttpFixtureTest extends ESTestCase {
     protected boolean hasUnknownRequests() {
         return S3FixtureUtils.hasUnknownRequests();
     }
-    
+
     /**
      * Gets all UNKNOWN requests for debugging S3HttpHandler gaps.
      *
@@ -254,41 +251,41 @@ public abstract class AbstractS3HttpFixtureTest extends ESTestCase {
     protected List<S3RequestLog> getUnknownRequests() {
         return S3FixtureUtils.getUnknownRequests();
     }
-    
+
     /**
      * Wrapper for HttpResponse that provides convenient access to response data.
      */
     protected static class HttpConnection {
         private final HttpResponse<byte[]> response;
         private final int statusCode;
-        
+
         private HttpConnection(HttpResponse<byte[]> response) {
             this.response = response;
             this.statusCode = response.statusCode();
         }
-        
+
         public int getResponseCode() {
             return statusCode;
         }
-        
+
         public InputStream getInputStream() {
             return new java.io.ByteArrayInputStream(response.body());
         }
-        
+
         public Map<String, List<String>> getHeaderFields() {
             return response.headers().map();
         }
-        
+
         public byte[] getBody() {
             return response.body();
         }
     }
-    
+
     /**
      * Creates and sends an HTTP request for S3 operations.
      * Handles common setup including authorization and caching headers.
      * Uses HttpClient with try-with-resources for proper cleanup.
-     * 
+     *
      * @param url the full URL to connect to
      * @param method the HTTP method (GET, POST, HEAD, PUT, DELETE, etc.)
      * @return HttpConnection with the response data
@@ -298,12 +295,12 @@ public abstract class AbstractS3HttpFixtureTest extends ESTestCase {
     protected HttpConnection createS3Connection(String url, String method) throws IOException, InterruptedException {
         return createS3Connection(url, method, null, null);
     }
-    
+
     /**
      * Creates and sends an HTTP request for S3 operations with custom headers.
      * Handles common setup including authorization and caching headers.
      * Uses HttpClient with try-with-resources for proper cleanup.
-     * 
+     *
      * @param url the full URL to connect to
      * @param method the HTTP method (GET, POST, HEAD, PUT, DELETE, etc.)
      * @param additionalHeaders optional map of additional headers to set (can be null)
@@ -311,16 +308,16 @@ public abstract class AbstractS3HttpFixtureTest extends ESTestCase {
      * @throws IOException if the request fails
      * @throws InterruptedException if the request is interrupted
      */
-    protected HttpConnection createS3Connection(String url, String method, Map<String, String> additionalHeaders) 
-            throws IOException, InterruptedException {
+    protected HttpConnection createS3Connection(String url, String method, Map<String, String> additionalHeaders) throws IOException,
+        InterruptedException {
         return createS3Connection(url, method, additionalHeaders, null);
     }
-    
+
     /**
      * Creates and sends an HTTP request for S3 operations with custom headers and body.
      * Handles common setup including authorization and caching headers.
      * Uses HttpClient with try-with-resources for proper cleanup (Java 21+).
-     * 
+     *
      * @param url the full URL to connect to
      * @param method the HTTP method (GET, POST, HEAD, PUT, DELETE, etc.)
      * @param additionalHeaders optional map of additional headers to set (can be null)
@@ -329,15 +326,13 @@ public abstract class AbstractS3HttpFixtureTest extends ESTestCase {
      * @throws IOException if the request fails
      * @throws InterruptedException if the request is interrupted
      */
-    protected HttpConnection createS3Connection(String url, String method, Map<String, String> additionalHeaders, byte[] body) 
-            throws IOException, InterruptedException {
+    protected HttpConnection createS3Connection(String url, String method, Map<String, String> additionalHeaders, byte[] body)
+        throws IOException, InterruptedException {
         URI uri = URI.create(url);
-        
+
         // Build the request
-        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
-            .uri(uri)
-            .timeout(Duration.ofSeconds(10));
-        
+        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder().uri(uri).timeout(Duration.ofSeconds(10));
+
         // Set the HTTP method and body
         if (body != null && body.length > 0) {
             requestBuilder.method(method, HttpRequest.BodyPublishers.ofByteArray(body));
@@ -346,45 +341,49 @@ public abstract class AbstractS3HttpFixtureTest extends ESTestCase {
         } else {
             requestBuilder.method(method, HttpRequest.BodyPublishers.noBody());
         }
-        
+
         // Add authorization header
         requestBuilder.header("Authorization", createS3AuthHeader(method, uri.getPath()));
-        
+
         // Disable caching explicitly
         requestBuilder.header("Cache-Control", "no-cache, no-store, must-revalidate");
         requestBuilder.header("Pragma", "no-cache");
         requestBuilder.header("Expires", "0");
-        
+
         // Add any additional headers
         if (additionalHeaders != null) {
             for (Map.Entry<String, String> header : additionalHeaders.entrySet()) {
                 requestBuilder.header(header.getKey(), header.getValue());
             }
         }
-        
+
         // Create HttpClient and send request using try-with-resources (Java 21+ AutoCloseable support)
-        try (HttpClient client = HttpClient.newBuilder()
+        try (
+            HttpClient client = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(5))
                 .followRedirects(HttpClient.Redirect.NEVER)
-                .build()) {
-            
+                .build()
+        ) {
+
             HttpRequest request = requestBuilder.build();
             HttpResponse<byte[]> response = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
-            
+
             return new HttpConnection(response);
         }
     }
-    
+
     /**
      * Creates an AWS Signature Version 4 style authorization header for S3 requests.
      * This is a simplified version for testing - real S3 uses full SigV4.
-     * 
+     *
      * @param method the HTTP method
      * @param path the request path
      * @return authorization header value
      */
     protected String createS3AuthHeader(String method, String path) {
-        return "AWS4-HMAC-SHA256 Credential=" + ACCESS_KEY + "/20260126/us-east-1/s3/aws4_request, "
+        return "AWS4-HMAC-SHA256 Credential="
+            + ACCESS_KEY
+            + "/20260126/us-east-1/s3/aws4_request, "
             + "SignedHeaders=host;x-amz-date, Signature=dummy";
     }
 }

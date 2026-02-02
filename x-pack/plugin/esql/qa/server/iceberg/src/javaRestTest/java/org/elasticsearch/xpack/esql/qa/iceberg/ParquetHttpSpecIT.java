@@ -24,7 +24,7 @@ import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.junit.Assert.assertTrue;
 
-/** 
+/**
  * Integration tests for standalone Parquet files over HTTP storage backend.
  * This test uses the S3HttpFixture to serve Parquet files over plain HTTP
  * (without AWS authentication).
@@ -57,10 +57,10 @@ public class ParquetHttpSpecIT extends ParquetSpecTestCase {
     public static List<Object[]> readScriptSpec() throws Exception {
         List<URL> urls = classpathResources("/parquet-*.csv-spec");
         assertTrue("No parquet-*.csv-spec files found", urls.size() > 0);
-        
+
         // Read the base test cases from CSV specs
         List<Object[]> baseTests = SpecReader.readScriptSpec(urls, specParser());
-        
+
         // Parameterize each test with HTTP storage backend only
         List<Object[]> parameterizedTests = new java.util.ArrayList<>();
         for (Object[] baseTest : baseTests) {
@@ -70,7 +70,7 @@ public class ParquetHttpSpecIT extends ParquetSpecTestCase {
             parameterizedTest[baseTest.length] = StorageBackend.HTTP;
             parameterizedTests.add(parameterizedTest);
         }
-        
+
         return parameterizedTests;
     }
 }

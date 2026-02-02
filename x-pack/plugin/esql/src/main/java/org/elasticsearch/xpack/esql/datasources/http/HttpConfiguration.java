@@ -129,11 +129,11 @@ public final class HttpConfiguration {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         HttpConfiguration that = (HttpConfiguration) o;
-        return followRedirects == that.followRedirects &&
-               maxRetries == that.maxRetries &&
-               Objects.equals(connectTimeout, that.connectTimeout) &&
-               Objects.equals(requestTimeout, that.requestTimeout) &&
-               Objects.equals(customHeaders, that.customHeaders);
+        return followRedirects == that.followRedirects
+            && maxRetries == that.maxRetries
+            && Objects.equals(connectTimeout, that.connectTimeout)
+            && Objects.equals(requestTimeout, that.requestTimeout)
+            && Objects.equals(customHeaders, that.customHeaders);
     }
 
     @Override
@@ -143,12 +143,17 @@ public final class HttpConfiguration {
 
     @Override
     public String toString() {
-        return "HttpConfiguration{" +
-               "connectTimeout=" + connectTimeout +
-               ", requestTimeout=" + requestTimeout +
-               ", followRedirects=" + followRedirects +
-               ", customHeaders=" + customHeaders +
-               ", maxRetries=" + maxRetries +
-               '}';
+        return "HttpConfiguration{"
+            + "connectTimeout="
+            + connectTimeout
+            + ", requestTimeout="
+            + requestTimeout
+            + ", followRedirects="
+            + followRedirects
+            + ", customHeaders="
+            + customHeaders
+            + ", maxRetries="
+            + maxRetries
+            + '}';
     }
 }

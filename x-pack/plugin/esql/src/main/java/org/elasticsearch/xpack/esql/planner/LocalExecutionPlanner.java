@@ -85,6 +85,12 @@ import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceOperatorFactory;
+import org.elasticsearch.xpack.esql.datasources.datalake.iceberg.IcebergSourceOperatorFactory;
+import org.elasticsearch.xpack.esql.datasources.format.parquet.ParquetSourceOperatorFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
@@ -94,12 +100,6 @@ import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceOperatorFactory;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
-import org.elasticsearch.xpack.esql.datasources.datalake.iceberg.IcebergSourceOperatorFactory;
-import org.elasticsearch.xpack.esql.datasources.format.parquet.ParquetSourceOperatorFactory;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.XContentRowEncoder;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
@@ -869,23 +869,22 @@ public class LocalExecutionPlanner {
         // Create layout with output attributes
         Layout.Builder layout = new Layout.Builder();
         layout.append(icebergSource.output());
-        
+
         // Determine page size based on estimated row size
         Integer estimatedRowSize = icebergSource.estimatedRowSize();
         int pageSize = (estimatedRowSize != null && estimatedRowSize > 0)
-            ? Math.max(SourceOperator.MIN_TARGET_PAGE_SIZE, 
-                      SourceOperator.TARGET_PAGE_SIZE / estimatedRowSize)
+            ? Math.max(SourceOperator.MIN_TARGET_PAGE_SIZE, SourceOperator.TARGET_PAGE_SIZE / estimatedRowSize)
             : 1000;
-        
+
         // Use a simple direct executor (runs in same thread)
         // In production, use a dedicated executor pool for external I/O
         // to avoid blocking the Driver thread during S3 reads
         java.util.concurrent.Executor executor = Runnable::run; // Direct executor for simplicity
-        
+
         // Get Iceberg table metadata from the physical plan node
         // The schema and S3 configuration are already resolved by ExternalSourceResolver
         org.apache.iceberg.Schema icebergSchema = resolveIcebergSchema(icebergSource);
-        
+
         // Create the appropriate factory based on source type
         SourceOperator.SourceOperatorFactory factory;
         if ("parquet".equals(icebergSource.sourceType())) {
@@ -913,10 +912,10 @@ public class LocalExecutionPlanner {
                 10  // Buffer size - allow up to 10 pages in buffer
             );
         }
-        
+
         // Set driver parallelism to 1 for now (can be optimized later with file splitting)
         context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, 1));
-        
+
         return PhysicalOperation.fromSource(factory, layout.build());
     }
 
@@ -929,15 +928,11 @@ public class LocalExecutionPlanner {
         // The metadata comes from the resolved ExternalSourceResolution
         java.util.List<org.apache.iceberg.types.Types.NestedField> fields = new java.util.ArrayList<>();
         int fieldId = 1;
-        
+
         for (org.elasticsearch.xpack.esql.core.expression.Attribute attr : icebergSource.output()) {
             org.apache.iceberg.types.Type icebergType = mapEsqlTypeToIceberg(attr.dataType());
             if (icebergType != null) {
-                fields.add(org.apache.iceberg.types.Types.NestedField.optional(
-                    fieldId++,
-                    attr.name(),
-                    icebergType
-                ));
+                fields.add(org.apache.iceberg.types.Types.NestedField.optional(fieldId++, attr.name(), icebergType));
             }
         }
         return new org.apache.iceberg.Schema(fields);
@@ -963,7 +958,7 @@ public class LocalExecutionPlanner {
     /**
      * Plans a generic external source using the StorageProvider and FormatReader abstractions.
      * This method demonstrates how to use the new pluggable architecture for external data sources.
-     * 
+     *
      * Example usage with registries:
      * <pre>
      * // Setup registries (typically done at initialization)
@@ -972,19 +967,19 @@ public class LocalExecutionPlanner {
      * storageRegistry.register("https", path -> new HttpStorageProvider(httpConfig, executor));
      * storageRegistry.register("s3", path -> new S3StorageProvider(s3Config));
      * storageRegistry.register("file", path -> new LocalStorageProvider());
-     * 
+     *
      * FormatReaderRegistry formatRegistry = new FormatReaderRegistry();
      * formatRegistry.register(new CsvFormatReader());
      * formatRegistry.register(new ParquetFormatReader());
-     * 
+     *
      * // Use in planner
      * StoragePath path = StoragePath.of(externalSource.sourcePath());
      * StorageProvider provider = storageRegistry.getProvider(path);
      * FormatReader reader = formatRegistry.getByExtension(path.objectName());
-     * 
+     *
      * return planExternalSourceGeneric(externalSource, provider, reader, context);
      * </pre>
-     * 
+     *
      * @param externalSource the external source physical plan node
      * @param storageProvider the storage provider for the source
      * @param formatReader the format reader for the source
@@ -1000,17 +995,16 @@ public class LocalExecutionPlanner {
         // Create layout with output attributes
         Layout.Builder layout = new Layout.Builder();
         layout.append(externalSource.output());
-        
+
         // Determine page size based on estimated row size
         Integer estimatedRowSize = externalSource.estimatedRowSize();
         int pageSize = (estimatedRowSize != null && estimatedRowSize > 0)
-            ? Math.max(SourceOperator.MIN_TARGET_PAGE_SIZE, 
-                      SourceOperator.TARGET_PAGE_SIZE / estimatedRowSize)
+            ? Math.max(SourceOperator.MIN_TARGET_PAGE_SIZE, SourceOperator.TARGET_PAGE_SIZE / estimatedRowSize)
             : 1000;
-        
+
         // Parse the storage path
         StoragePath path = StoragePath.of(externalSource.sourcePath());
-        
+
         // Create the operator factory using the generic abstraction
         SourceOperator.SourceOperatorFactory factory = new ExternalSourceOperatorFactory(
             storageProvider,
@@ -1019,10 +1013,10 @@ public class LocalExecutionPlanner {
             externalSource.output(),
             pageSize
         );
-        
+
         // Set driver parallelism to 1 for now (can be optimized later with file splitting)
         context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, 1));
-        
+
         return PhysicalOperation.fromSource(factory, layout.build());
     }
 

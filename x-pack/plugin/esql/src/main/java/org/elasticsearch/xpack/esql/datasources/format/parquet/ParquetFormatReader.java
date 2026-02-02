@@ -38,10 +38,10 @@ import java.util.NoSuchElementException;
 
 /**
  * FormatReader implementation for Parquet files.
- * 
+ *
  * <p>Uses Parquet's native ParquetFileReader with our StorageObject abstraction.
  * Produces ESQL Page batches directly without requiring Arrow as an intermediate format.
- * 
+ *
  * <p>Key features:
  * <ul>
  *   <li>Works with any StorageProvider (HTTP, S3, local)</li>
@@ -56,7 +56,7 @@ public class ParquetFormatReader implements FormatReader {
 
     /**
      * Creates a ParquetFormatReader with the specified BlockFactory.
-     * 
+     *
      * @param blockFactory the BlockFactory to use for creating blocks
      */
     public ParquetFormatReader(BlockFactory blockFactory) {
@@ -69,27 +69,21 @@ public class ParquetFormatReader implements FormatReader {
         org.apache.parquet.io.InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
 
         // Build ParquetReadOptions with SKIP_ROW_GROUPS to only read schema metadata
-        ParquetReadOptions options = ParquetReadOptions.builder()
-            .withMetadataFilter(ParquetMetadataConverter.SKIP_ROW_GROUPS)
-            .build();
+        ParquetReadOptions options = ParquetReadOptions.builder().withMetadataFilter(ParquetMetadataConverter.SKIP_ROW_GROUPS).build();
 
         try (ParquetFileReader reader = ParquetFileReader.open(parquetInputFile, options)) {
             MessageType parquetSchema = reader.getFileMetaData().getSchema();
-            
+
             // Convert Parquet schema to Iceberg schema
             Schema icebergSchema = ParquetSchemaUtil.convert(parquetSchema);
-            
+
             // Convert Iceberg schema to ESQL Attributes
             return convertSchemaToAttributes(icebergSchema);
         }
     }
 
     @Override
-    public CloseableIterator<Page> read(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize
-    ) throws IOException {
+    public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
         // Adapt StorageObject to Parquet InputFile
         org.apache.parquet.io.InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
 
@@ -147,11 +141,13 @@ public class ParquetFormatReader implements FormatReader {
         List<Attribute> attributes = new ArrayList<>();
         for (org.apache.iceberg.types.Types.NestedField field : schema.columns()) {
             DataType esqlType = convertIcebergTypeToEsql(field.type());
-            attributes.add(new org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute(
-                org.elasticsearch.xpack.esql.core.tree.Source.EMPTY,
-                field.name(),
-                esqlType
-            ));
+            attributes.add(
+                new org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute(
+                    org.elasticsearch.xpack.esql.core.tree.Source.EMPTY,
+                    field.name(),
+                    esqlType
+                )
+            );
         }
         return attributes;
     }
@@ -375,8 +371,8 @@ public class ParquetFormatReader implements FormatReader {
                     } else {
                         // Handle both float and double
                         org.apache.parquet.schema.Type fieldType = group.getType().getType(fieldIndex);
-                        if (fieldType.asPrimitiveType().getPrimitiveTypeName() 
-                            == org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.FLOAT) {
+                        if (fieldType.asPrimitiveType()
+                            .getPrimitiveTypeName() == org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.FLOAT) {
                             builder.appendDouble(group.getFloat(fieldName, 0));
                         } else {
                             builder.appendDouble(group.getDouble(fieldName, 0));

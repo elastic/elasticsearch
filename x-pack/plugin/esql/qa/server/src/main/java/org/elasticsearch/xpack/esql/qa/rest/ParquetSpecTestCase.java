@@ -14,7 +14,7 @@ import org.junit.BeforeClass;
 /**
  * Base test class for standalone Parquet file tests (no Iceberg metadata).
  * <p>
- * This class uses templates in csv-spec files (like {@code {{employees}}}) that are 
+ * This class uses templates in csv-spec files (like {@code {{employees}}}) that are
  * transformed to actual paths based on the storage backend (S3, HTTP, LOCAL).
  * <p>
  * The format is fixed to "parquet" for this test case.
@@ -40,9 +40,7 @@ public abstract class ParquetSpecTestCase extends AbstractExternalSourceSpecTest
                 logger.warn("✗ standalone/employees.parquet NOT found - tests may fail");
             }
 
-            long parquetFiles = logs.stream()
-                .filter(log -> log.getPath() != null && log.getPath().endsWith(".parquet"))
-                .count();
+            long parquetFiles = logs.stream().filter(log -> log.getPath() != null && log.getPath().endsWith(".parquet")).count();
 
             logger.info("Fixture summary: {} Parquet files", parquetFiles);
 

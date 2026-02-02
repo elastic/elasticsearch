@@ -33,12 +33,12 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperatorSupport;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
-import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.http.HttpConfiguration;
 import org.elasticsearch.xpack.esql.datasources.http.HttpStorageProvider;
 import org.elasticsearch.xpack.esql.datasources.s3.S3Configuration;
 import org.elasticsearch.xpack.esql.datasources.s3.S3FileIOFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -55,18 +55,18 @@ import java.util.function.Supplier;
 /**
  * Factory for creating async source operators for standalone Parquet files.
  * Uses {@link AsyncExternalSourceOperatorSupport} for shared operator creation infrastructure.
- * 
+ *
  * <p>This factory creates operators that read data from standalone Parquet files using:
  * <ul>
  *   <li>Parquet's native ParquetFileReader for efficient columnar data reading</li>
  *   <li>Arrow format ({@link VectorSchemaRoot}) for in-memory representation</li>
  *   <li>Background executor thread to avoid blocking the Driver during S3 I/O</li>
  * </ul>
- * 
+ *
  * <p>Unlike {@link org.elasticsearch.xpack.esql.datasources.datalake.iceberg.IcebergSourceOperatorFactory},
  * this factory reads Parquet files directly without requiring Iceberg table metadata.
  * It uses Iceberg's S3FileIO for S3 access and Parquet's native reader for data reading.
- * 
+ *
  * <p>This implementation avoids using Iceberg's Parquet.read() API which requires parquet-avro
  * dependency. Instead, it uses ParquetFileReader directly with a custom InputFile adapter.
  */
@@ -125,27 +125,27 @@ public class ParquetSourceOperatorFactory implements SourceOperator.SourceOperat
     /**
      * Create a reader for a standalone Parquet file.
      * Supports both S3 and HTTP/HTTPS URLs.
-     * 
+     *
      * <p>For S3 URLs (s3://), uses Parquet's native ParquetFileReader with Iceberg's S3FileIO.
      * <p>For HTTP/HTTPS URLs, uses HttpStorageProvider with ParquetStorageObjectAdapter.
-     * 
+     *
      * <p>The reader produces {@link VectorSchemaRoot} batches by:
      * <ol>
      *   <li>Opening the Parquet file via the appropriate storage provider</li>
      *   <li>Reading data using Parquet's native reader (avoiding Iceberg's Parquet.read() which requires Avro)</li>
      *   <li>Converting records to Arrow VectorSchemaRoot format</li>
      * </ol>
-     * 
+     *
      * @return CloseableIterable of VectorSchemaRoot batches
      */
     private CloseableIterable<VectorSchemaRoot> createParquetReader() {
         try {
             // Detect the URL scheme to determine which storage provider to use
             String scheme = detectScheme(filePath);
-            
+
             org.apache.parquet.io.InputFile parquetInputFile;
             Closeable storageResource; // Resource to close when done (S3FileIO or HttpStorageProvider)
-            
+
             if (scheme.equals("http") || scheme.equals("https")) {
                 // For HTTP/HTTPS URLs, use HttpStorageProvider with ParquetStorageObjectAdapter
                 // Create a dedicated executor for HTTP operations
@@ -154,12 +154,12 @@ public class ParquetSourceOperatorFactory implements SourceOperator.SourceOperat
                     t.setDaemon(true);
                     return t;
                 });
-                
+
                 HttpConfiguration httpConfig = HttpConfiguration.defaults();
                 HttpStorageProvider httpProvider = new HttpStorageProvider(httpConfig, httpExecutor);
                 StoragePath storagePath = StoragePath.of(filePath);
                 StorageObject storageObject = httpProvider.newObject(storagePath);
-                
+
                 parquetInputFile = new ParquetStorageObjectAdapter(storageObject);
                 // Create a composite closeable that closes both the provider and executor
                 storageResource = () -> {
@@ -199,10 +199,10 @@ public class ParquetSourceOperatorFactory implements SourceOperator.SourceOperat
             throw new RuntimeException("Failed to create Parquet data reader for: " + filePath, e);
         }
     }
-    
+
     /**
      * Detect the URI scheme from a file path.
-     * 
+     *
      * @param path the file path
      * @return the scheme (e.g., "s3", "http", "https"), or "s3" as default
      */
@@ -210,12 +210,12 @@ public class ParquetSourceOperatorFactory implements SourceOperator.SourceOperat
         if (path == null) {
             return "s3"; // Default
         }
-        
+
         int colonIndex = path.indexOf(':');
         if (colonIndex > 0) {
             return path.substring(0, colonIndex).toLowerCase(Locale.ROOT);
         }
-        
+
         return "s3"; // Default for paths without explicit scheme
     }
 
@@ -309,7 +309,7 @@ public class ParquetSourceOperatorFactory implements SourceOperator.SourceOperat
      */
     private static class ParquetBatchIterator implements CloseableIterator<VectorSchemaRoot> {
         private static final Logger logger = LogManager.getLogger(ParquetBatchIterator.class);
-        
+
         private final ParquetFileReader reader;
         private final Schema schema;
         private final List<Attribute> attributes;
@@ -373,17 +373,16 @@ public class ParquetSourceOperatorFactory implements SourceOperator.SourceOperat
             }
 
             // Create Arrow schema from Iceberg schema
-            org.apache.arrow.vector.types.pojo.Schema arrowSchema = 
-                org.apache.iceberg.arrow.ArrowSchemaUtil.convert(schema);
-            
+            org.apache.arrow.vector.types.pojo.Schema arrowSchema = org.apache.iceberg.arrow.ArrowSchemaUtil.convert(schema);
+
             // Create VectorSchemaRoot with the Arrow schema
             VectorSchemaRoot root = VectorSchemaRoot.create(arrowSchema, allocator);
-            
+
             try {
                 // Read records up to batch size
                 List<Group> batch = new ArrayList<>(batchSize);
                 int rowsToRead = (int) Math.min(batchSize, rowsRemainingInGroup);
-                
+
                 for (int i = 0; i < rowsToRead; i++) {
                     Group group = recordReader.read();
                     if (group != null) {
@@ -427,12 +426,7 @@ public class ParquetSourceOperatorFactory implements SourceOperator.SourceOperat
         /**
          * Populate a single Arrow FieldVector with values from Parquet Groups.
          */
-        private void populateVector(
-            FieldVector vector,
-            List<Group> batch,
-            String fieldName,
-            org.apache.iceberg.types.Type type
-        ) {
+        private void populateVector(FieldVector vector, List<Group> batch, String fieldName, org.apache.iceberg.types.Type type) {
             for (int row = 0; row < batch.size(); row++) {
                 Group group = batch.get(row);
                 setVectorValue(vector, row, group, fieldName, type);
@@ -442,20 +436,14 @@ public class ParquetSourceOperatorFactory implements SourceOperator.SourceOperat
         /**
          * Set a single value in an Arrow vector from a Parquet Group.
          */
-        private void setVectorValue(
-            FieldVector vector, 
-            int index, 
-            Group group, 
-            String fieldName, 
-            org.apache.iceberg.types.Type type
-        ) {
+        private void setVectorValue(FieldVector vector, int index, Group group, String fieldName, org.apache.iceberg.types.Type type) {
             try {
                 // Check if field exists and has a value
                 // Note: For field names with dots (e.g., "height.float"), we need to find the field
                 // by iterating through the schema, as getFieldIndex() may not handle dots correctly
                 int fieldIndex = -1;
                 org.apache.parquet.schema.Type parquetFieldType = null;
-                
+
                 // Try to find the field by name
                 // Iterate through all fields to find the one with the matching name
                 // This is necessary because getFieldIndex() doesn't handle field names with dots correctly
@@ -467,7 +455,7 @@ public class ParquetSourceOperatorFactory implements SourceOperator.SourceOperat
                         break;
                     }
                 }
-                
+
                 // If field not found, return (leave as null)
                 if (fieldIndex == -1) {
                     if (logger.isDebugEnabled()) {
@@ -475,7 +463,7 @@ public class ParquetSourceOperatorFactory implements SourceOperator.SourceOperat
                     }
                     return;
                 }
-                
+
                 int repetitionCount = group.getFieldRepetitionCount(fieldIndex);
                 if (repetitionCount == 0) {
                     // Null value - Arrow vectors handle nulls via validity buffer
@@ -536,8 +524,9 @@ public class ParquetSourceOperatorFactory implements SourceOperator.SourceOperat
                         // to determine the physical type and logical type annotation.
                         // Note: parquetFieldType is already set from the field lookup above
                         long micros;
-                        
-                        if (parquetFieldType.asPrimitiveType().getPrimitiveTypeName() == org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT32) {
+
+                        if (parquetFieldType.asPrimitiveType()
+                            .getPrimitiveTypeName() == org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT32) {
                             // INT32 physical type - likely DATE stored as days since epoch
                             int days = group.getInteger(fieldName, 0);
                             // Convert days to microseconds
@@ -545,7 +534,7 @@ public class ParquetSourceOperatorFactory implements SourceOperator.SourceOperat
                         } else {
                             // INT64 or INT96 physical type
                             long value = group.getLong(fieldName, 0);
-                            
+
                             // Check the logical type to determine the unit
                             org.apache.parquet.schema.LogicalTypeAnnotation logicalType = parquetFieldType.getLogicalTypeAnnotation();
                             if (logicalType instanceof org.apache.parquet.schema.LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestampType) {
@@ -568,7 +557,7 @@ public class ParquetSourceOperatorFactory implements SourceOperator.SourceOperat
                                 micros = value;
                             }
                         }
-                        
+
                         // Handle both timestamp with timezone (TimeStampMicroTZVector) and without (TimeStampMicroVector)
                         // ArrowSchemaUtil.convert() creates TimeStampMicroTZVector for Iceberg's timestamptz type
                         if (vector instanceof org.apache.arrow.vector.TimeStampMicroTZVector tzVector) {

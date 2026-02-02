@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources.s3;
 
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
-import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
-
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -18,6 +15,9 @@ import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
@@ -25,7 +25,7 @@ import java.time.Instant;
 /**
  * StorageObject implementation for S3 using AWS SDK v2.
  * Uses standard Java InputStream - no custom stream classes needed.
- * 
+ *
  * Supports:
  * - Full object reads via GetObject
  * - Range reads via GetObject with Range header for columnar formats
@@ -36,7 +36,7 @@ public final class S3StorageObject implements StorageObject {
     private final String bucket;
     private final String key;
     private final StoragePath path;
-    
+
     // Cached metadata to avoid repeated HeadObject requests
     private Long cachedLength;
     private Instant cachedLastModified;
@@ -84,13 +84,10 @@ public final class S3StorageObject implements StorageObject {
     public InputStream newStream() throws IOException {
         // Full object read - no Range header
         try {
-            GetObjectRequest request = GetObjectRequest.builder()
-                .bucket(bucket)
-                .key(key)
-                .build();
-            
+            GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).build();
+
             ResponseInputStream<GetObjectResponse> response = s3Client.getObject(request);
-            
+
             // Cache metadata from response if not already cached
             if (cachedLength == null) {
                 cachedLength = response.response().contentLength();
@@ -98,7 +95,7 @@ public final class S3StorageObject implements StorageObject {
             if (cachedLastModified == null) {
                 cachedLastModified = response.response().lastModified();
             }
-            
+
             return response;
         } catch (NoSuchKeyException e) {
             throw new IOException("Object not found: " + path, e);
@@ -115,21 +112,17 @@ public final class S3StorageObject implements StorageObject {
         if (length < 0) {
             throw new IllegalArgumentException("length must be non-negative, got: " + length);
         }
-        
+
         // Range read using S3 Range header: "bytes=start-end" (inclusive)
         // S3 Range uses inclusive end, so we need position + length - 1
         long endPosition = position + length - 1;
         String rangeHeader = String.format("bytes=%d-%d", position, endPosition);
-        
+
         try {
-            GetObjectRequest request = GetObjectRequest.builder()
-                .bucket(bucket)
-                .key(key)
-                .range(rangeHeader)
-                .build();
-            
+            GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).range(rangeHeader).build();
+
             ResponseInputStream<GetObjectResponse> response = s3Client.getObject(request);
-            
+
             // Cache metadata from response if not already cached
             if (cachedLength == null && response.response().contentLength() != null) {
                 // Note: For range requests, contentLength is the range size, not the full object size
@@ -149,7 +142,7 @@ public final class S3StorageObject implements StorageObject {
             if (cachedLastModified == null) {
                 cachedLastModified = response.response().lastModified();
             }
-            
+
             return response;
         } catch (NoSuchKeyException e) {
             throw new IOException("Object not found: " + path, e);
@@ -197,13 +190,10 @@ public final class S3StorageObject implements StorageObject {
      */
     private void fetchMetadata() throws IOException {
         try {
-            HeadObjectRequest request = HeadObjectRequest.builder()
-                .bucket(bucket)
-                .key(key)
-                .build();
-            
+            HeadObjectRequest request = HeadObjectRequest.builder().bucket(bucket).key(key).build();
+
             HeadObjectResponse response = s3Client.headObject(request);
-            
+
             cachedExists = true;
             cachedLength = response.contentLength();
             cachedLastModified = response.lastModified();

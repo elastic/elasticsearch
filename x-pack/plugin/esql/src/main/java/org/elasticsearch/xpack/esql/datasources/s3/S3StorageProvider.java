@@ -7,13 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources.s3;
 
-import org.elasticsearch.xpack.esql.datasources.StorageEntry;
-import org.elasticsearch.xpack.esql.datasources.StorageIterator;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
-import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
-import org.elasticsearch.xpack.esql.datasources.s3.S3Configuration;
-
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
@@ -22,11 +15,16 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
-import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.S3Object;
+
+import org.elasticsearch.xpack.esql.datasources.StorageEntry;
+import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.IOException;
 import java.net.URI;
@@ -38,7 +36,7 @@ import java.util.NoSuchElementException;
 /**
  * StorageProvider implementation for S3 using AWS SDK v2 directly.
  * No Iceberg dependency required.
- * 
+ *
  * Features:
  * - Full object reads via GetObject
  * - Range reads via GetObject with Range header
@@ -52,7 +50,7 @@ public final class S3StorageProvider implements StorageProvider {
 
     /**
      * Creates an S3StorageProvider with configuration.
-     * 
+     *
      * @param config the S3 configuration (can be null to use default credentials)
      */
     public S3StorageProvider(S3Configuration config) {
@@ -69,9 +67,7 @@ public final class S3StorageProvider implements StorageProvider {
         // Configure credentials
         AwsCredentialsProvider credentialsProvider;
         if (config != null && config.hasCredentials()) {
-            credentialsProvider = StaticCredentialsProvider.create(
-                AwsBasicCredentials.create(config.accessKey(), config.secretKey())
-            );
+            credentialsProvider = StaticCredentialsProvider.create(AwsBasicCredentials.create(config.accessKey(), config.secretKey()));
         } else {
             // Use default credentials chain (environment variables, instance profile, etc.)
             credentialsProvider = DefaultCredentialsProvider.create();
@@ -125,7 +121,7 @@ public final class S3StorageProvider implements StorageProvider {
         validateS3Scheme(directory);
         String bucket = directory.host();
         String prefix = extractKey(directory);
-        
+
         // Ensure prefix ends with / for directory listing
         if (!prefix.isEmpty() && !prefix.endsWith("/")) {
             prefix += "/";
@@ -141,10 +137,7 @@ public final class S3StorageProvider implements StorageProvider {
         String key = extractKey(path);
 
         try {
-            HeadObjectRequest request = HeadObjectRequest.builder()
-                .bucket(bucket)
-                .key(key)
-                .build();
+            HeadObjectRequest request = HeadObjectRequest.builder().bucket(bucket).key(key).build();
             s3Client.headObject(request);
             return true;
         } catch (NoSuchKeyException e) {
@@ -170,9 +163,7 @@ public final class S3StorageProvider implements StorageProvider {
     private void validateS3Scheme(StoragePath path) {
         String scheme = path.scheme().toLowerCase();
         if (!scheme.equals("s3") && !scheme.equals("s3a") && !scheme.equals("s3n")) {
-            throw new IllegalArgumentException(
-                "S3StorageProvider only supports s3://, s3a://, and s3n:// schemes, got: " + scheme
-            );
+            throw new IllegalArgumentException("S3StorageProvider only supports s3://, s3a://, and s3n:// schemes, got: " + scheme);
         }
     }
 
@@ -216,7 +207,7 @@ public final class S3StorageProvider implements StorageProvider {
         private final String bucket;
         private final String prefix;
         private final StoragePath baseDirectory;
-        
+
         private Iterator<S3Object> currentBatch;
         private String continuationToken;
         private boolean hasMorePages;
@@ -237,16 +228,16 @@ public final class S3StorageProvider implements StorageProvider {
                 fetchNextBatch();
                 initialized = true;
             }
-            
+
             if (currentBatch != null && currentBatch.hasNext()) {
                 return true;
             }
-            
+
             if (hasMorePages) {
                 fetchNextBatch();
                 return currentBatch != null && currentBatch.hasNext();
             }
-            
+
             return false;
         }
 
@@ -255,18 +246,14 @@ public final class S3StorageProvider implements StorageProvider {
             if (!hasNext()) {
                 throw new NoSuchElementException();
             }
-            
+
             S3Object s3Object = currentBatch.next();
-            
+
             // Construct full path
             String fullPath = baseDirectory.scheme() + "://" + bucket + "/" + s3Object.key();
             StoragePath objectPath = StoragePath.of(fullPath);
-            
-            return new StorageEntry(
-                objectPath,
-                s3Object.size(),
-                s3Object.lastModified()
-            );
+
+            return new StorageEntry(objectPath, s3Object.size(), s3Object.lastModified());
         }
 
         @Override
@@ -276,16 +263,14 @@ public final class S3StorageProvider implements StorageProvider {
 
         private void fetchNextBatch() {
             try {
-                ListObjectsV2Request.Builder requestBuilder = ListObjectsV2Request.builder()
-                    .bucket(bucket)
-                    .prefix(prefix);
-                
+                ListObjectsV2Request.Builder requestBuilder = ListObjectsV2Request.builder().bucket(bucket).prefix(prefix);
+
                 if (continuationToken != null) {
                     requestBuilder.continuationToken(continuationToken);
                 }
-                
+
                 ListObjectsV2Response response = s3Client.listObjectsV2(requestBuilder.build());
-                
+
                 currentBatch = response.contents().iterator();
                 continuationToken = response.nextContinuationToken();
                 hasMorePages = response.isTruncated();

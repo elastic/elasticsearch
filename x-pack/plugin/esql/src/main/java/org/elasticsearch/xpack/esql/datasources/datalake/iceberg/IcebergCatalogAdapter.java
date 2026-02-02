@@ -64,7 +64,7 @@ public class IcebergCatalogAdapter {
     /**
      * Find the latest metadata file in the table's metadata directory.
      * Iceberg tables store metadata in versioned JSON files like v1.metadata.json, v2.metadata.json, etc.
-     * 
+     *
      * Since FileIO doesn't have a listPrefix method, we try common version numbers.
      * This is a simplified approach that works for test fixtures and small tables.
      * For production, consider using a catalog that tracks the current metadata location.
@@ -116,8 +116,7 @@ public class IcebergCatalogAdapter {
             }
         }
 
-        throw new IOException("No metadata files found in " + metadataDir + 
-            ". Tried version-hint.text and versions 1-100");
+        throw new IOException("No metadata files found in " + metadataDir + ". Tried version-hint.text and versions 1-100");
     }
 
     /**

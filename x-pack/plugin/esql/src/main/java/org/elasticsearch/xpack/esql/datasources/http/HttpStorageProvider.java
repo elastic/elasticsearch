@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources.http;
 
-import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -21,13 +20,13 @@ import java.util.concurrent.ExecutorService;
 
 /**
  * StorageProvider implementation for HTTP/HTTPS using Java's built-in HttpClient.
- * 
+ *
  * Features:
  * - Full object reads via GET
  * - Range reads via HTTP Range header
  * - Metadata retrieval via HEAD
  * - Configurable timeouts and redirects
- * 
+ *
  * Note: HTTP/HTTPS does not support directory listing, so listObjects() returns null.
  */
 public final class HttpStorageProvider implements StorageProvider {
@@ -36,7 +35,7 @@ public final class HttpStorageProvider implements StorageProvider {
 
     /**
      * Creates an HttpStorageProvider with configuration and executor.
-     * 
+     *
      * @param config the HTTP configuration
      * @param executor the executor service for async operations
      */
@@ -47,7 +46,7 @@ public final class HttpStorageProvider implements StorageProvider {
         if (executor == null) {
             throw new IllegalArgumentException("executor cannot be null");
         }
-        
+
         this.config = config;
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(config.connectTimeout())
@@ -105,9 +104,7 @@ public final class HttpStorageProvider implements StorageProvider {
     private void validateHttpScheme(StoragePath path) {
         String scheme = path.scheme().toLowerCase();
         if (!scheme.equals("http") && !scheme.equals("https")) {
-            throw new IllegalArgumentException(
-                "HttpStorageProvider only supports http:// and https:// schemes, got: " + scheme
-            );
+            throw new IllegalArgumentException("HttpStorageProvider only supports http:// and https:// schemes, got: " + scheme);
         }
     }
 

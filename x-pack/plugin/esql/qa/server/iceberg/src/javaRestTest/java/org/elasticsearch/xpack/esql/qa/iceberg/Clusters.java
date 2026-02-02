@@ -14,9 +14,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.ACCESS_KEY;
-import static org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.BUCKET;
 import static org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.SECRET_KEY;
-import static org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.WAREHOUSE;
 
 /**
  * Cluster configuration for Iceberg integration tests.
@@ -26,15 +24,12 @@ public class Clusters {
 
     /**
      * Creates a test cluster configured for Iceberg integration testing.
-     * 
+     *
      * @param s3EndpointSupplier supplier for the S3 fixture endpoint URL
      * @param configProvider additional cluster configuration provider
      * @return configured ElasticsearchCluster
      */
-    public static ElasticsearchCluster testCluster(
-        Supplier<String> s3EndpointSupplier,
-        LocalClusterConfigProvider configProvider
-    ) {
+    public static ElasticsearchCluster testCluster(Supplier<String> s3EndpointSupplier, LocalClusterConfigProvider configProvider) {
         return ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             // Enable S3 repository plugin for S3 access
@@ -68,7 +63,7 @@ public class Clusters {
 
     /**
      * Creates a test cluster with default configuration.
-     * 
+     *
      * @param s3EndpointSupplier supplier for the S3 fixture endpoint URL
      * @return configured ElasticsearchCluster
      */

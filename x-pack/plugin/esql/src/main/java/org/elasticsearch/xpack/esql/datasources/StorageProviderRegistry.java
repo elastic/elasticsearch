@@ -21,10 +21,10 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class StorageProviderRegistry {
     private final Map<String, StorageProviderFactory> factories = new ConcurrentHashMap<>();
-    
+
     /**
      * Registers a StorageProviderFactory for a specific URI scheme.
-     * 
+     *
      * @param scheme the URI scheme (e.g., "http", "s3")
      * @param factory the factory to create StorageProvider instances
      * @throws IllegalArgumentException if scheme is null or empty
@@ -38,10 +38,10 @@ public class StorageProviderRegistry {
         }
         factories.put(scheme.toLowerCase(Locale.ROOT), factory);
     }
-    
+
     /**
      * Unregisters a StorageProviderFactory for a specific URI scheme.
-     * 
+     *
      * @param scheme the URI scheme to unregister
      * @return the previously registered factory, or null if none was registered
      */
@@ -51,10 +51,10 @@ public class StorageProviderRegistry {
         }
         return factories.remove(scheme.toLowerCase(Locale.ROOT));
     }
-    
+
     /**
      * Gets a StorageProvider for the given path.
-     * 
+     *
      * @param path the storage path
      * @return a StorageProvider instance
      * @throws IllegalArgumentException if no provider is registered for the scheme
@@ -63,7 +63,7 @@ public class StorageProviderRegistry {
         if (path == null) {
             throw new IllegalArgumentException("Path cannot be null");
         }
-        
+
         String scheme = path.scheme();
         StorageProviderFactory factory = factories.get(scheme.toLowerCase(Locale.ROOT));
         if (factory == null) {
@@ -71,10 +71,10 @@ public class StorageProviderRegistry {
         }
         return factory.create(path);
     }
-    
+
     /**
      * Checks if a provider is registered for the given scheme.
-     * 
+     *
      * @param scheme the URI scheme to check
      * @return true if a provider is registered, false otherwise
      */

@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -25,7 +24,7 @@ import java.util.Objects;
 /**
  * Source operator that retrieves data from external sources (Iceberg tables, Parquet files, etc.).
  * Modeled after {@link org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator}.
- * 
+ *
  * This operator uses an async pattern:
  * - Background thread reads from external source and fills a buffer
  * - Operator polls from buffer without blocking the Driver

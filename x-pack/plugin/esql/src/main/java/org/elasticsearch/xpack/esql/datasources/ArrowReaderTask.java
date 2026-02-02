@@ -26,14 +26,14 @@ import java.util.function.Supplier;
 /**
  * Background task that reads data using Arrow format.
  * This task runs on a separate executor thread to avoid blocking the Driver.
- * 
+ *
  * <p>Architecture:
  * <ul>
  *   <li>Reads from data sources that provide Arrow {@link VectorSchemaRoot} batches</li>
  *   <li>Converts Arrow vectors to ESQL Blocks using {@link ArrowToBlockConverter}</li>
  *   <li>Fills {@link AsyncExternalSourceBuffer} with converted pages for consumption by operator</li>
  * </ul>
- * 
+ *
  * <p>Key requirements:
  * <ul>
  *   <li>Call {@link Page#allowPassingToDifferentDriver()} before adding pages to buffer</li>
@@ -85,7 +85,7 @@ public class ArrowReaderTask implements Runnable {
     private void readData() throws IOException {
         try (CloseableIterable<VectorSchemaRoot> batches = dataSupplier.get()) {
             CloseableIterator<VectorSchemaRoot> iterator = batches.iterator();
-            
+
             while (iterator.hasNext() && buffer.noMoreInputs() == false) {
                 // Check backpressure before processing next batch
                 var blocked = buffer.waitForWriting();
@@ -93,7 +93,7 @@ public class ArrowReaderTask implements Runnable {
                     // Buffer is full - wait for space to become available
                     // In production systems, proper backpressure handling prevents memory exhaustion
                 }
-                
+
                 VectorSchemaRoot root = iterator.next();
                 try {
                     // Convert Arrow batch to ESQL Page
@@ -114,7 +114,7 @@ public class ArrowReaderTask implements Runnable {
     /**
      * Convert an Arrow VectorSchemaRoot to an ESQL Page.
      * Uses {@link ArrowToBlockConverter} for type-specific conversion.
-     * 
+     *
      * @param root the Arrow vector batch
      * @return ESQL Page with converted blocks, or null if no data
      */
@@ -123,14 +123,12 @@ public class ArrowReaderTask implements Runnable {
         if (rowCount == 0) {
             return null;
         }
-        
+
         List<FieldVector> vectors = root.getFieldVectors();
         if (vectors.size() != attributes.size()) {
-            throw new IllegalStateException(
-                "Schema mismatch: expected " + attributes.size() + " columns, got " + vectors.size()
-            );
+            throw new IllegalStateException("Schema mismatch: expected " + attributes.size() + " columns, got " + vectors.size());
         }
-        
+
         Block[] blocks = new Block[attributes.size()];
         try {
             for (int col = 0; col < attributes.size(); col++) {
@@ -152,22 +150,22 @@ public class ArrowReaderTask implements Runnable {
     /**
      * Convert a single Arrow FieldVector to an ESQL Block.
      * Uses {@link ArrowToBlockConverter} which provides symmetric conversion with BlockConverter.
-     * 
+     *
      * @param vector the Arrow field vector
      * @return ESQL Block with converted data
      */
     private Block convertArrowVectorToBlock(FieldVector vector) {
         // Get the Arrow type
         Types.MinorType arrowType = vector.getMinorType();
-        
+
         // Get the appropriate converter for this Arrow type
         ArrowToBlockConverter converter = ArrowToBlockConverter.forType(arrowType);
-        
+
         if (converter == null) {
             // Unsupported type - create null block
             return blockFactory.newConstantNullBlock(vector.getValueCount());
         }
-        
+
         // Convert Arrow vector to ESQL block
         return converter.convert(vector, blockFactory);
     }

@@ -21,7 +21,7 @@ public class HttpStorageProviderTests extends ESTestCase {
 
     public void testConfigurationDefaults() {
         HttpConfiguration config = HttpConfiguration.defaults();
-        
+
         assertEquals(Duration.ofSeconds(30), config.connectTimeout());
         assertEquals(Duration.ofMinutes(5), config.requestTimeout());
         assertTrue(config.followRedirects());
@@ -37,7 +37,7 @@ public class HttpStorageProviderTests extends ESTestCase {
             .customHeaders(Map.of("Authorization", "Bearer token"))
             .maxRetries(2)
             .build();
-        
+
         assertEquals(Duration.ofSeconds(15), config.connectTimeout());
         assertEquals(Duration.ofMinutes(3), config.requestTimeout());
         assertFalse(config.followRedirects());
@@ -46,36 +46,40 @@ public class HttpStorageProviderTests extends ESTestCase {
     }
 
     public void testConfigurationBuilderValidation() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            HttpConfiguration.builder().maxRetries(-1).build();
-        });
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> { HttpConfiguration.builder().maxRetries(-1).build(); }
+        );
         assertTrue(e.getMessage().contains("non-negative"));
     }
-    
+
     public void testConfigurationBuilderNullConnectTimeout() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            HttpConfiguration.builder().connectTimeout(null);
-        });
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> { HttpConfiguration.builder().connectTimeout(null); }
+        );
         assertTrue(e.getMessage().contains("connectTimeout"));
     }
-    
+
     public void testConfigurationBuilderNullRequestTimeout() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            HttpConfiguration.builder().requestTimeout(null);
-        });
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> { HttpConfiguration.builder().requestTimeout(null); }
+        );
         assertTrue(e.getMessage().contains("requestTimeout"));
     }
-    
+
     public void testConfigurationBuilderNullCustomHeaders() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            HttpConfiguration.builder().customHeaders(null);
-        });
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> { HttpConfiguration.builder().customHeaders(null); }
+        );
         assertTrue(e.getMessage().contains("customHeaders"));
     }
 
     public void testStoragePathParsing() {
         StoragePath path = StoragePath.of("https://example.com:8080/data/file.csv");
-        
+
         assertEquals("https", path.scheme());
         assertEquals("example.com", path.host());
         assertEquals(8080, path.port());
@@ -85,7 +89,7 @@ public class HttpStorageProviderTests extends ESTestCase {
 
     public void testStoragePathWithoutPort() {
         StoragePath path = StoragePath.of("https://example.com/data/file.csv");
-        
+
         assertEquals("https", path.scheme());
         assertEquals("example.com", path.host());
         assertEquals(-1, path.port());

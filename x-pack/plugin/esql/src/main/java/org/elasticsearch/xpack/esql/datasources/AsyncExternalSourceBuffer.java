@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Thread-safe buffer for async external source data.
  * Modeled after {@link org.elasticsearch.compute.operator.exchange.ExchangeBuffer}.
- * 
+ *
  * This buffer provides:
  * - Thread-safe page queue for cross-thread communication
  * - Backpressure control via max buffer size

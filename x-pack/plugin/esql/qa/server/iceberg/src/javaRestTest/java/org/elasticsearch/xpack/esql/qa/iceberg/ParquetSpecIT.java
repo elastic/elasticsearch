@@ -24,7 +24,7 @@ import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.junit.Assert.assertTrue;
 
-/** 
+/**
  * Integration tests for standalone Parquet files (loads parquet-*.csv-spec).
  * Tests are parameterized over storage backends: S3, HTTP, and LOCAL.
  */
@@ -56,10 +56,10 @@ public class ParquetSpecIT extends ParquetSpecTestCase {
     public static List<Object[]> readScriptSpec() throws Exception {
         List<URL> urls = classpathResources("/parquet-*.csv-spec");
         assertTrue("No parquet-*.csv-spec files found", urls.size() > 0);
-        
+
         // Read the base test cases from CSV specs
         List<Object[]> baseTests = SpecReader.readScriptSpec(urls, specParser());
-        
+
         // Parameterize each test with storage backend: S3 only for now
         // LOCAL is skipped because ES server entitlements prevent reading local files
         // HTTP is skipped because the HTTP provider returns empty results (needs investigation)
@@ -73,7 +73,7 @@ public class ParquetSpecIT extends ParquetSpecTestCase {
                 parameterizedTests.add(parameterizedTest);
             }
         }
-        
+
         return parameterizedTests;
     }
 }

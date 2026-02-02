@@ -61,7 +61,7 @@ public class ArrowToBlockConverterTests extends ESTestCase {
             try (Block block = converter.convert(vector, blockFactory)) {
                 assertTrue(block instanceof DoubleBlock);
                 DoubleBlock doubleBlock = (DoubleBlock) block;
-                
+
                 assertEquals(5, doubleBlock.getPositionCount());
                 assertEquals(1.5, doubleBlock.getDouble(0), 0.0);
                 assertEquals(2.5, doubleBlock.getDouble(1), 0.0);
@@ -84,7 +84,7 @@ public class ArrowToBlockConverterTests extends ESTestCase {
             try (Block block = converter.convert(vector, blockFactory)) {
                 assertTrue(block instanceof DoubleBlock);
                 DoubleBlock doubleBlock = (DoubleBlock) block;
-                
+
                 assertEquals(3, doubleBlock.getPositionCount());
                 assertTrue(doubleBlock.isNull(0));
                 assertTrue(doubleBlock.isNull(1));
@@ -107,7 +107,7 @@ public class ArrowToBlockConverterTests extends ESTestCase {
             try (Block block = converter.convert(vector, blockFactory)) {
                 assertTrue(block instanceof LongBlock);
                 LongBlock longBlock = (LongBlock) block;
-                
+
                 assertEquals(5, longBlock.getPositionCount());
                 assertEquals(100L, longBlock.getLong(0));
                 assertEquals(200L, longBlock.getLong(1));
@@ -132,7 +132,7 @@ public class ArrowToBlockConverterTests extends ESTestCase {
             try (Block block = converter.convert(vector, blockFactory)) {
                 assertTrue(block instanceof IntBlock);
                 IntBlock intBlock = (IntBlock) block;
-                
+
                 assertEquals(5, intBlock.getPositionCount());
                 assertEquals(10, intBlock.getInt(0));
                 assertEquals(20, intBlock.getInt(1));
@@ -157,7 +157,7 @@ public class ArrowToBlockConverterTests extends ESTestCase {
             try (Block block = converter.convert(vector, blockFactory)) {
                 assertTrue(block instanceof BooleanBlock);
                 BooleanBlock booleanBlock = (BooleanBlock) block;
-                
+
                 assertEquals(5, booleanBlock.getPositionCount());
                 assertTrue(booleanBlock.getBoolean(0));
                 assertFalse(booleanBlock.getBoolean(1));
@@ -182,7 +182,7 @@ public class ArrowToBlockConverterTests extends ESTestCase {
             try (Block block = converter.convert(vector, blockFactory)) {
                 assertTrue(block instanceof BytesRefBlock);
                 BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
-                
+
                 assertEquals(5, bytesRefBlock.getPositionCount());
                 assertEquals(new BytesRef("hello"), bytesRefBlock.getBytesRef(0, new BytesRef()));
                 assertEquals(new BytesRef("world"), bytesRefBlock.getBytesRef(1, new BytesRef()));
@@ -207,7 +207,7 @@ public class ArrowToBlockConverterTests extends ESTestCase {
             try (Block block = converter.convert(vector, blockFactory)) {
                 assertTrue(block instanceof BytesRefBlock);
                 BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
-                
+
                 assertEquals(5, bytesRefBlock.getPositionCount());
                 assertEquals(new BytesRef(new byte[] { 1, 2, 3 }), bytesRefBlock.getBytesRef(0, new BytesRef()));
                 assertEquals(new BytesRef(new byte[] { 4, 5, 6 }), bytesRefBlock.getBytesRef(1, new BytesRef()));
@@ -260,7 +260,7 @@ public class ArrowToBlockConverterTests extends ESTestCase {
             try (Block block = converter.convert(vector, blockFactory)) {
                 assertTrue(block instanceof IntBlock);
                 IntBlock intBlock = (IntBlock) block;
-                
+
                 assertEquals(size, intBlock.getPositionCount());
                 for (int i = 0; i < size; i++) {
                     if (i % 100 == 0) {
@@ -279,7 +279,7 @@ public class ArrowToBlockConverterTests extends ESTestCase {
             builder.appendDouble(1.5);
             builder.appendNull();
             builder.appendDouble(3.5);
-            
+
             try (DoubleBlock originalBlock = builder.build()) {
                 // Convert Block → Arrow using BlockConverter
                 try (Float8Vector vector = new Float8Vector("test", allocator)) {
@@ -292,13 +292,13 @@ public class ArrowToBlockConverterTests extends ESTestCase {
                         }
                     }
                     vector.setValueCount(originalBlock.getPositionCount());
-                    
+
                     // Convert Arrow → Block using ArrowToBlockConverter
                     ArrowToBlockConverter converter = new ArrowToBlockConverter.FromFloat64();
                     try (Block convertedBlock = converter.convert(vector, blockFactory)) {
                         assertTrue(convertedBlock instanceof DoubleBlock);
                         DoubleBlock convertedDoubleBlock = (DoubleBlock) convertedBlock;
-                        
+
                         assertEquals(originalBlock.getPositionCount(), convertedDoubleBlock.getPositionCount());
                         for (int i = 0; i < originalBlock.getPositionCount(); i++) {
                             assertEquals(originalBlock.isNull(i), convertedDoubleBlock.isNull(i));

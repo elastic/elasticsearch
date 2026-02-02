@@ -14,10 +14,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.junit.After;
 import org.junit.Before;
 
@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 
 /**
  * Tests for ExternalSourceResolver.
- * 
+ *
  * Note: These tests use mocked Iceberg APIs due to Parquet jar hell issues.
  * Once the jar hell is resolved, integration tests with real S3/Iceberg can be added.
  */
@@ -109,7 +109,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
             new Literal(Source.EMPTY, new BytesRef("us-west-2"), KEYWORD)
         );
 
-        org.elasticsearch.xpack.esql.datasources.s3.S3Configuration config = org.elasticsearch.xpack.esql.datasources.s3.S3Configuration.fromParams(params);
+        org.elasticsearch.xpack.esql.datasources.s3.S3Configuration config = org.elasticsearch.xpack.esql.datasources.s3.S3Configuration
+            .fromParams(params);
         assertNotNull("S3 config should be extracted", config);
         assertEquals("test-access-key", config.accessKey());
         assertEquals("test-secret-key", config.secretKey());
@@ -121,14 +122,21 @@ public class ExternalSourceResolverTests extends ESTestCase {
     public void testS3ConfigurationWithoutCredentials() {
         Map<String, Expression> params = Map.of();
 
-        org.elasticsearch.xpack.esql.datasources.s3.S3Configuration config = org.elasticsearch.xpack.esql.datasources.s3.S3Configuration.fromParams(params);
+        org.elasticsearch.xpack.esql.datasources.s3.S3Configuration config = org.elasticsearch.xpack.esql.datasources.s3.S3Configuration
+            .fromParams(params);
         assertNull("Should return null when no config provided", config);
     }
 
     public void testExternalSourceResolutionGet() {
         Schema mockSchema = new Schema(List.of(Types.NestedField.required(1, "id", Types.LongType.get())));
 
-        org.elasticsearch.xpack.esql.datasources.datalake.iceberg.IcebergTableMetadata metadata = new org.elasticsearch.xpack.esql.datasources.datalake.iceberg.IcebergTableMetadata("s3://bucket/table", mockSchema, null, "iceberg");
+        org.elasticsearch.xpack.esql.datasources.datalake.iceberg.IcebergTableMetadata metadata =
+            new org.elasticsearch.xpack.esql.datasources.datalake.iceberg.IcebergTableMetadata(
+                "s3://bucket/table",
+                mockSchema,
+                null,
+                "iceberg"
+            );
 
         ExternalSourceResolution resolution = new ExternalSourceResolution(Map.of("s3://bucket/table", metadata));
 
@@ -157,7 +165,13 @@ public class ExternalSourceResolverTests extends ESTestCase {
             )
         );
 
-        org.elasticsearch.xpack.esql.datasources.datalake.iceberg.IcebergTableMetadata metadata = new org.elasticsearch.xpack.esql.datasources.datalake.iceberg.IcebergTableMetadata("s3://bucket/table", schema, null, "iceberg");
+        org.elasticsearch.xpack.esql.datasources.datalake.iceberg.IcebergTableMetadata metadata =
+            new org.elasticsearch.xpack.esql.datasources.datalake.iceberg.IcebergTableMetadata(
+                "s3://bucket/table",
+                schema,
+                null,
+                "iceberg"
+            );
 
         assertEquals("Should have 6 attributes", 6, metadata.attributes().size());
         assertEquals("bool_field", metadata.attributes().get(0).name());
@@ -172,8 +186,20 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Schema schema1 = new Schema(List.of(Types.NestedField.required(1, "id", Types.LongType.get())));
         Schema schema2 = new Schema(List.of(Types.NestedField.required(1, "id", Types.LongType.get())));
 
-        org.elasticsearch.xpack.esql.datasources.datalake.iceberg.IcebergTableMetadata metadata1 = new org.elasticsearch.xpack.esql.datasources.datalake.iceberg.IcebergTableMetadata("s3://bucket/table", schema1, null, "iceberg");
-        org.elasticsearch.xpack.esql.datasources.datalake.iceberg.IcebergTableMetadata metadata2 = new org.elasticsearch.xpack.esql.datasources.datalake.iceberg.IcebergTableMetadata("s3://bucket/table", schema2, null, "iceberg");
+        org.elasticsearch.xpack.esql.datasources.datalake.iceberg.IcebergTableMetadata metadata1 =
+            new org.elasticsearch.xpack.esql.datasources.datalake.iceberg.IcebergTableMetadata(
+                "s3://bucket/table",
+                schema1,
+                null,
+                "iceberg"
+            );
+        org.elasticsearch.xpack.esql.datasources.datalake.iceberg.IcebergTableMetadata metadata2 =
+            new org.elasticsearch.xpack.esql.datasources.datalake.iceberg.IcebergTableMetadata(
+                "s3://bucket/table",
+                schema2,
+                null,
+                "iceberg"
+            );
 
         // Note: Iceberg Schema doesn't override equals(), so we compare by content
         assertEquals("Table paths should match", metadata1.tablePath(), metadata2.tablePath());
@@ -184,7 +210,13 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     public void testIcebergTableMetadataToString() {
         Schema schema = new Schema(List.of(Types.NestedField.required(1, "id", Types.LongType.get())));
-        org.elasticsearch.xpack.esql.datasources.datalake.iceberg.IcebergTableMetadata metadata = new org.elasticsearch.xpack.esql.datasources.datalake.iceberg.IcebergTableMetadata("s3://bucket/table", schema, null, "iceberg");
+        org.elasticsearch.xpack.esql.datasources.datalake.iceberg.IcebergTableMetadata metadata =
+            new org.elasticsearch.xpack.esql.datasources.datalake.iceberg.IcebergTableMetadata(
+                "s3://bucket/table",
+                schema,
+                null,
+                "iceberg"
+            );
 
         String str = metadata.toString();
         assertTrue("Should contain table path", str.contains("s3://bucket/table"));
@@ -195,7 +227,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
     /**
      * Note: Full integration tests with real S3/Iceberg APIs are not possible
      * until the Parquet jar hell issue is resolved. When that happens, add:
-     * 
+     *
      * 1. testResolveRealIcebergTable() - with LocalStack or real S3
      * 2. testResolveRealParquetFile() - with test Parquet files
      * 3. testParallelResolution() - multiple sources resolved concurrently

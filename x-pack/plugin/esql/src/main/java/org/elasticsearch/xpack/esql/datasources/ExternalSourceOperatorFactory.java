@@ -24,10 +24,10 @@ import java.util.List;
 /**
  * Factory for creating source operators that read from external storage using
  * the StorageProvider and FormatReader abstractions.
- * 
+ *
  * This is the generic implementation that works with any StorageProvider (HTTP, S3, local)
  * and any FormatReader (CSV, Parquet, etc.).
- * 
+ *
  * The factory creates operators that:
  * <ul>
  *   <li>Use StorageProvider to access the storage object</li>
@@ -45,7 +45,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
 
     /**
      * Creates an ExternalSourceOperatorFactory.
-     * 
+     *
      * @param storageProvider the storage provider for accessing the object
      * @param formatReader the format reader for parsing the data
      * @param path the path to the data object
@@ -74,7 +74,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         if (batchSize <= 0) {
             throw new IllegalArgumentException("batchSize must be positive, got: " + batchSize);
         }
-        
+
         this.storageProvider = storageProvider;
         this.formatReader = formatReader;
         this.path = path;
@@ -86,21 +86,17 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
     public SourceOperator get(DriverContext driverContext) {
         // Create a storage object for the path
         StorageObject storageObject = storageProvider.newObject(path);
-        
+
         // Extract column names from attributes
         List<String> projectedColumns = new ArrayList<>(attributes.size());
         for (Attribute attr : attributes) {
             projectedColumns.add(attr.name());
         }
-        
+
         try {
             // Open a reader for the object
-            CloseableIterator<Page> pages = formatReader.read(
-                storageObject,
-                projectedColumns,
-                batchSize
-            );
-            
+            CloseableIterator<Page> pages = formatReader.read(storageObject, projectedColumns, batchSize);
+
             // Return a simple source operator that iterates through pages
             return new ExternalSourceOperator(pages, driverContext);
         } catch (Exception e) {
@@ -110,12 +106,16 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
 
     @Override
     public String describe() {
-        return "ExternalSourceOperator[" +
-            "storage=" + storageProvider.getClass().getSimpleName() +
-            ", format=" + formatReader.formatName() +
-            ", path=" + path +
-            ", batchSize=" + batchSize +
-            "]";
+        return "ExternalSourceOperator["
+            + "storage="
+            + storageProvider.getClass().getSimpleName()
+            + ", format="
+            + formatReader.formatName()
+            + ", path="
+            + path
+            + ", batchSize="
+            + batchSize
+            + "]";
     }
 
     /**
@@ -137,7 +137,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
             if (finished || pages.hasNext() == false) {
                 return null;
             }
-            
+
             try {
                 return pages.next();
             } catch (Exception e) {
@@ -151,12 +151,12 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
             if (finished) {
                 return true;
             }
-            
+
             if (pages.hasNext() == false) {
                 finished = true;
                 return true;
             }
-            
+
             return false;
         }
 

@@ -16,8 +16,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.arrow.vectorized.ArrowReader;
-import org.apache.iceberg.arrow.vectorized.ColumnarBatch;
 import org.apache.iceberg.arrow.vectorized.ColumnVector;
+import org.apache.iceberg.arrow.vectorized.ColumnarBatch;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
@@ -38,14 +38,14 @@ import java.util.function.Supplier;
 /**
  * Factory for creating async source operators for Iceberg tables.
  * Uses {@link AsyncExternalSourceOperatorSupport} for shared operator creation infrastructure.
- * 
+ *
  * <p>This factory creates operators that read data from Iceberg tables or Parquet files using:
  * <ul>
  *   <li>Iceberg's {@link ArrowReader} for efficient vectorized columnar data reading</li>
  *   <li>Arrow format ({@link VectorSchemaRoot}) for in-memory representation</li>
  *   <li>Background executor thread to avoid blocking the Driver during S3 I/O</li>
  * </ul>
- * 
+ *
  * <p>Each operator gets:
  * <ul>
  *   <li>A shared buffer for pages</li>
@@ -135,23 +135,20 @@ public class IcebergSourceOperatorFactory implements SourceOperator.SourceOperat
         // Recreate the table from metadata location
         // Note: We need to recreate it here because we can't keep FileIO open across the entire query
         IcebergTableMetadata metadata = IcebergCatalogAdapter.resolveTable(tablePath, s3Config);
-        
+
         // Recreate the Table object for scanning
         org.apache.iceberg.aws.s3.S3FileIO fileIO = S3FileIOFactory.create(s3Config);
-        org.apache.iceberg.StaticTableOperations ops = new org.apache.iceberg.StaticTableOperations(
-            metadata.metadataLocation(), 
-            fileIO
-        );
+        org.apache.iceberg.StaticTableOperations ops = new org.apache.iceberg.StaticTableOperations(metadata.metadataLocation(), fileIO);
         Table table = new org.apache.iceberg.BaseTable(ops, tablePath);
-        
+
         // Create DataTableScan directly with a custom TableScanContext that has our executor pre-set
         // This avoids table.newScan() which creates a context with default planExecutor that loads ThreadPools
         TableScan scan = createTableScanWithExecutor(table, CurrentThreadExecutorService.INSTANCE);
-        
+
         if (filter != null) {
             scan = scan.filter(filter);
         }
-        
+
         // Project only the columns we need based on attributes
         if (attributes != null && !attributes.isEmpty()) {
             List<String> columnNames = new ArrayList<>();
@@ -160,26 +157,26 @@ public class IcebergSourceOperatorFactory implements SourceOperator.SourceOperat
             }
             scan = scan.select(columnNames);
         }
-        
+
         // Get the scan tasks - use planFiles() to get individual file tasks
         CloseableIterable<org.apache.iceberg.FileScanTask> fileTasks = scan.planFiles();
-        
+
         // Convert FileScanTasks to CombinedScanTasks (each file as its own combined task)
         CloseableIterable<CombinedScanTask> tasks = org.apache.iceberg.io.CloseableIterable.transform(
             fileTasks,
             fileTask -> new org.apache.iceberg.BaseCombinedScanTask(java.util.Collections.singletonList(fileTask))
         );
-        
+
         // Create ArrowReader with the specified page size (batch size)
         // reuseContainers=false for safety (true could reuse buffers across batches)
         ArrowReader arrowReader = new ArrowReader(scan, pageSize, /* reuseContainers */ false);
-        
+
         // Create a buffer allocator for Arrow memory management
         BufferAllocator allocator = new RootAllocator(Long.MAX_VALUE);
-        
+
         // Open the reader to get an iterator of ColumnarBatch
         CloseableIterator<ColumnarBatch> batchIterator = arrowReader.open(tasks);
-        
+
         // Wrap the ColumnarBatch iterator to return VectorSchemaRoot
         return new ColumnarBatchToVectorSchemaRootIterable(batchIterator, allocator, arrowReader);
     }
@@ -221,7 +218,7 @@ public class IcebergSourceOperatorFactory implements SourceOperator.SourceOperat
                     if (!hasNext()) {
                         throw new NoSuchElementException();
                     }
-                    
+
                     ColumnarBatch batch = batchIterator.next();
                     return convertColumnarBatchToVectorSchemaRoot(batch);
                 }
@@ -253,7 +250,7 @@ public class IcebergSourceOperatorFactory implements SourceOperator.SourceOperat
         private VectorSchemaRoot convertColumnarBatchToVectorSchemaRoot(ColumnarBatch batch) {
             int numRows = batch.numRows();
             int numColumns = batch.numCols();
-            
+
             // Extract the underlying Arrow FieldVectors from the ColumnVector wrappers
             List<FieldVector> fieldVectors = new ArrayList<>(numColumns);
             for (int col = 0; col < numColumns; col++) {
@@ -262,7 +259,7 @@ public class IcebergSourceOperatorFactory implements SourceOperator.SourceOperat
                 FieldVector fieldVector = columnVector.getFieldVector();
                 fieldVectors.add(fieldVector);
             }
-            
+
             // Create VectorSchemaRoot from the field vectors
             // Note: We pass the vectors directly; they are already allocated and populated
             return new VectorSchemaRoot(fieldVectors);
@@ -272,7 +269,7 @@ public class IcebergSourceOperatorFactory implements SourceOperator.SourceOperat
     /**
      * Creates a TableScan with a custom executor, bypassing the default TableScanContext
      * which would load ThreadPools and add shutdown hooks (violating ES entitlements).
-     * 
+     *
      * Uses direct constructor invocation to bypass the Immutables builder which triggers
      * the derived field computation.
      */
@@ -280,7 +277,7 @@ public class IcebergSourceOperatorFactory implements SourceOperator.SourceOperat
         try {
             // Get the ImmutableTableScanContext class
             Class<?> immutableContextClass = Class.forName("org.apache.iceberg.ImmutableTableScanContext");
-            
+
             // Find the constructor by examining all constructors and finding the one with the most parameters
             java.lang.reflect.Constructor<?>[] constructors = immutableContextClass.getDeclaredConstructors();
             java.lang.reflect.Constructor<?> targetConstructor = null;
@@ -291,15 +288,15 @@ public class IcebergSourceOperatorFactory implements SourceOperator.SourceOperat
                     targetConstructor = c;
                 }
             }
-            
+
             if (targetConstructor == null) {
                 throw new RuntimeException("Could not find ImmutableTableScanContext constructor");
             }
             targetConstructor.setAccessible(true);
-            
+
             // Log the constructor parameters for debugging
             Class<?>[] paramTypes = targetConstructor.getParameterTypes();
-            
+
             // Build the arguments array based on parameter types
             Object[] args = new Object[paramTypes.length];
             for (int i = 0; i < paramTypes.length; i++) {
@@ -310,8 +307,8 @@ public class IcebergSourceOperatorFactory implements SourceOperator.SourceOperat
                     args[i] = null; // snapshotId, fromSnapshotId, toSnapshotId, minRowsRequested
                 } else if (paramType == boolean.class) {
                     // For booleans, we need to figure out which one
-                    // Default: ignoreResiduals=false, caseSensitive=true, returnColumnStats=false, 
-                    //          fromSnapshotInclusive=false, planWithCustomizedExecutor=true
+                    // Default: ignoreResiduals=false, caseSensitive=true, returnColumnStats=false,
+                    // fromSnapshotInclusive=false, planWithCustomizedExecutor=true
                     args[i] = false; // Will be adjusted below
                 } else if (paramType == java.util.concurrent.ExecutorService.class) {
                     args[i] = executor;
@@ -333,36 +330,46 @@ public class IcebergSourceOperatorFactory implements SourceOperator.SourceOperat
                     args[i] = null;
                 }
             }
-            
+
             // Now we need to specifically set the boolean values correctly
             // The typical order is: ignoreResiduals, caseSensitive, returnColumnStats, fromSnapshotInclusive, planWithCustomizedExecutor
             int booleanIndex = 0;
             for (int i = 0; i < paramTypes.length; i++) {
                 if (paramTypes[i] == boolean.class) {
                     switch (booleanIndex) {
-                        case 0: args[i] = false; break; // ignoreResiduals
-                        case 1: args[i] = true; break;  // caseSensitive  
-                        case 2: args[i] = false; break; // returnColumnStats
-                        case 3: args[i] = false; break; // fromSnapshotInclusive
-                        case 4: args[i] = true; break;  // planWithCustomizedExecutor - IMPORTANT!
+                        case 0:
+                            args[i] = false;
+                            break; // ignoreResiduals
+                        case 1:
+                            args[i] = true;
+                            break;  // caseSensitive
+                        case 2:
+                            args[i] = false;
+                            break; // returnColumnStats
+                        case 3:
+                            args[i] = false;
+                            break; // fromSnapshotInclusive
+                        case 4:
+                            args[i] = true;
+                            break;  // planWithCustomizedExecutor - IMPORTANT!
                     }
                     booleanIndex++;
                 }
             }
-            
+
             // Create the context
             Object context = targetConstructor.newInstance(args);
-            
+
             // Get the DataTableScan constructor
             Class<?> dataTableScanClass = Class.forName("org.apache.iceberg.DataTableScan");
             Class<?> tableScanContextClass = Class.forName("org.apache.iceberg.TableScanContext");
             java.lang.reflect.Constructor<?> scanConstructor = dataTableScanClass.getDeclaredConstructor(
-                Table.class, 
-                org.apache.iceberg.Schema.class, 
+                Table.class,
+                org.apache.iceberg.Schema.class,
                 tableScanContextClass
             );
             scanConstructor.setAccessible(true);
-            
+
             // Create the DataTableScan with our pre-configured context
             return (TableScan) scanConstructor.newInstance(table, table.schema(), context);
         } catch (Exception e) {
@@ -376,35 +383,35 @@ public class IcebergSourceOperatorFactory implements SourceOperator.SourceOperat
      */
     private static final class CurrentThreadExecutorService extends java.util.concurrent.AbstractExecutorService {
         static final CurrentThreadExecutorService INSTANCE = new CurrentThreadExecutorService();
-        
+
         private volatile boolean shutdown = false;
-        
+
         @Override
         public void execute(Runnable command) {
             command.run();
         }
-        
+
         @Override
         public void shutdown() {
             shutdown = true;
         }
-        
+
         @Override
         public List<Runnable> shutdownNow() {
             shutdown = true;
             return java.util.Collections.emptyList();
         }
-        
+
         @Override
         public boolean isShutdown() {
             return shutdown;
         }
-        
+
         @Override
         public boolean isTerminated() {
             return shutdown;
         }
-        
+
         @Override
         public boolean awaitTermination(long timeout, java.util.concurrent.TimeUnit unit) {
             return true;

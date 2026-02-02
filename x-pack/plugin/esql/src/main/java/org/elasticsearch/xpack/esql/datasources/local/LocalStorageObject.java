@@ -21,7 +21,7 @@ import java.time.Instant;
 
 /**
  * StorageObject implementation for local file system.
- * 
+ *
  * Supports:
  * - Full file reads via FileInputStream
  * - Range reads via RandomAccessFile for columnar formats
@@ -30,7 +30,7 @@ import java.time.Instant;
 public final class LocalStorageObject implements StorageObject {
     private final Path filePath;
     private final StoragePath storagePath;
-    
+
     // Cached metadata to avoid repeated file system calls
     private Long cachedLength;
     private Instant cachedLastModified;
@@ -68,11 +68,11 @@ public final class LocalStorageObject implements StorageObject {
         if (!Files.exists(filePath)) {
             throw new IOException("File does not exist: " + filePath);
         }
-        
+
         if (!Files.isRegularFile(filePath)) {
             throw new IOException("Path is not a regular file: " + filePath);
         }
-        
+
         return new FileInputStream(filePath.toFile());
     }
 
@@ -84,15 +84,15 @@ public final class LocalStorageObject implements StorageObject {
         if (length < 0) {
             throw new IllegalArgumentException("length must be non-negative, got: " + length);
         }
-        
+
         if (!Files.exists(filePath)) {
             throw new IOException("File does not exist: " + filePath);
         }
-        
+
         if (!Files.isRegularFile(filePath)) {
             throw new IOException("Path is not a regular file: " + filePath);
         }
-        
+
         // Use RandomAccessFile for efficient range reads
         return new RangeInputStream(filePath, position, length);
     }
@@ -153,7 +153,7 @@ public final class LocalStorageObject implements StorageObject {
         RangeInputStream(Path filePath, long position, long length) throws IOException {
             this.raf = new RandomAccessFile(filePath.toFile(), "r");
             this.remaining = length;
-            
+
             try {
                 // Seek to the start position
                 raf.seek(position);

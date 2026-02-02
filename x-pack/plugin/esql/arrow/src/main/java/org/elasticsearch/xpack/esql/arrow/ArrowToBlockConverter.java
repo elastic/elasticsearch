@@ -31,7 +31,7 @@ import org.elasticsearch.compute.data.LongBlock;
  * Converts Apache Arrow FieldVector to ESQL Blocks.
  * This is the inverse operation of {@link BlockConverter} (Block → Arrow).
  * Together they provide symmetric conversion: Block ↔ Arrow.
- * 
+ *
  * <p>Type Mapping (symmetric with BlockConverter):
  * <ul>
  *   <li>Arrow FLOAT4 (Float4Vector) → ESQL double (DoubleBlock) - {@link FromFloat32} (ESQL maps FLOAT to DOUBLE)</li>
@@ -44,10 +44,10 @@ import org.elasticsearch.compute.data.LongBlock;
  *   <li>Arrow TIMESTAMPMICRO (TimeStampMicroVector) → ESQL datetime (LongBlock) - {@link FromTimestampMicro}</li>
  *   <li>Arrow TIMESTAMPMICROTZ (TimeStampMicroTZVector) → ESQL datetime (LongBlock) - {@link FromTimestampMicroTZ}</li>
  * </ul>
- * 
+ *
  * <p>Note: Timestamp types convert from microseconds (Arrow) to milliseconds (ESQL).
  * Float types (FLOAT4) are converted to double (ESQL doesn't have a separate float type).
- * 
+ *
  * <p>This converter is designed to be used in the arrow module to keep Arrow dependencies isolated,
  * preventing Arrow from leaking into the compute module.
  */
@@ -90,7 +90,7 @@ public abstract class ArrowToBlockConverter {
         public Block convert(FieldVector vector, BlockFactory factory) {
             Float4Vector f4v = (Float4Vector) vector;
             int valueCount = f4v.getValueCount();
-            
+
             try (DoubleBlock.Builder builder = factory.newDoubleBlockBuilder(valueCount)) {
                 for (int i = 0; i < valueCount; i++) {
                     if (f4v.isNull(i)) {
@@ -114,7 +114,7 @@ public abstract class ArrowToBlockConverter {
         public Block convert(FieldVector vector, BlockFactory factory) {
             Float8Vector f8v = (Float8Vector) vector;
             int valueCount = f8v.getValueCount();
-            
+
             try (DoubleBlock.Builder builder = factory.newDoubleBlockBuilder(valueCount)) {
                 for (int i = 0; i < valueCount; i++) {
                     if (f8v.isNull(i)) {
@@ -137,7 +137,7 @@ public abstract class ArrowToBlockConverter {
         public Block convert(FieldVector vector, BlockFactory factory) {
             BigIntVector bigIntVector = (BigIntVector) vector;
             int valueCount = bigIntVector.getValueCount();
-            
+
             try (LongBlock.Builder builder = factory.newLongBlockBuilder(valueCount)) {
                 for (int i = 0; i < valueCount; i++) {
                     if (bigIntVector.isNull(i)) {
@@ -160,7 +160,7 @@ public abstract class ArrowToBlockConverter {
         public Block convert(FieldVector vector, BlockFactory factory) {
             IntVector intVector = (IntVector) vector;
             int valueCount = intVector.getValueCount();
-            
+
             try (IntBlock.Builder builder = factory.newIntBlockBuilder(valueCount)) {
                 for (int i = 0; i < valueCount; i++) {
                     if (intVector.isNull(i)) {
@@ -183,7 +183,7 @@ public abstract class ArrowToBlockConverter {
         public Block convert(FieldVector vector, BlockFactory factory) {
             BitVector bitVector = (BitVector) vector;
             int valueCount = bitVector.getValueCount();
-            
+
             try (BooleanBlock.Builder builder = factory.newBooleanBlockBuilder(valueCount)) {
                 for (int i = 0; i < valueCount; i++) {
                     if (bitVector.isNull(i)) {
@@ -206,7 +206,7 @@ public abstract class ArrowToBlockConverter {
         public Block convert(FieldVector vector, BlockFactory factory) {
             VarCharVector varCharVector = (VarCharVector) vector;
             int valueCount = varCharVector.getValueCount();
-            
+
             try (BytesRefBlock.Builder builder = factory.newBytesRefBlockBuilder(valueCount)) {
                 for (int i = 0; i < valueCount; i++) {
                     if (varCharVector.isNull(i)) {
@@ -230,7 +230,7 @@ public abstract class ArrowToBlockConverter {
         public Block convert(FieldVector vector, BlockFactory factory) {
             VarBinaryVector varBinaryVector = (VarBinaryVector) vector;
             int valueCount = varBinaryVector.getValueCount();
-            
+
             try (BytesRefBlock.Builder builder = factory.newBytesRefBlockBuilder(valueCount)) {
                 for (int i = 0; i < valueCount; i++) {
                     if (varBinaryVector.isNull(i)) {
@@ -254,7 +254,7 @@ public abstract class ArrowToBlockConverter {
         public Block convert(FieldVector vector, BlockFactory factory) {
             TimeStampMicroVector tsVector = (TimeStampMicroVector) vector;
             int valueCount = tsVector.getValueCount();
-            
+
             try (LongBlock.Builder builder = factory.newLongBlockBuilder(valueCount)) {
                 for (int i = 0; i < valueCount; i++) {
                     if (tsVector.isNull(i)) {
@@ -280,7 +280,7 @@ public abstract class ArrowToBlockConverter {
         public Block convert(FieldVector vector, BlockFactory factory) {
             TimeStampMicroTZVector tsVector = (TimeStampMicroTZVector) vector;
             int valueCount = tsVector.getValueCount();
-            
+
             try (LongBlock.Builder builder = factory.newLongBlockBuilder(valueCount)) {
                 for (int i = 0; i < valueCount; i++) {
                     if (tsVector.isNull(i)) {

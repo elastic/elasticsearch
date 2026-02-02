@@ -12,12 +12,12 @@ import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.format.converter.ParquetMetadataConverter;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.schema.MessageType;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageManager;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
-import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.StorageProviderRegistry;
 import org.elasticsearch.xpack.esql.datasources.datalake.iceberg.IcebergTableMetadata;
 import org.elasticsearch.xpack.esql.datasources.s3.S3Configuration;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageManager;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.util.Locale;
 
@@ -56,15 +56,11 @@ public class ParquetFileAdapter {
      * @return IcebergTableMetadata with schema extracted from Parquet file
      * @throws Exception if file cannot be read
      */
-    public static IcebergTableMetadata resolveParquetFile(
-        String filePath,
-        Object config,
-        StorageManager storageManager
-    ) throws Exception {
+    public static IcebergTableMetadata resolveParquetFile(String filePath, Object config, StorageManager storageManager) throws Exception {
         // Detect scheme to determine how to get the StorageObject
         StoragePath storagePath = StoragePath.of(filePath);
         String scheme = storagePath.scheme().toLowerCase(Locale.ROOT);
-        
+
         StorageObject storageObject;
         if ((scheme.equals("http") || scheme.equals("https")) && config == null) {
             // For HTTP/HTTPS with null config, use registry-based approach
@@ -83,10 +79,8 @@ public class ParquetFileAdapter {
         // 1. Using ParquetReadOptions (not HadoopReadOptions) avoids HadoopParquetConfiguration creation
         // 2. SKIP_ROW_GROUPS filter reads only file-level metadata (schema), skipping row group details
         // 3. When ParquetFileReader.open() receives a non-HadoopInputFile with explicit options,
-        //    it uses the provided options directly without creating Hadoop-specific configurations
-        ParquetReadOptions options = ParquetReadOptions.builder()
-            .withMetadataFilter(ParquetMetadataConverter.SKIP_ROW_GROUPS)
-            .build();
+        // it uses the provided options directly without creating Hadoop-specific configurations
+        ParquetReadOptions options = ParquetReadOptions.builder().withMetadataFilter(ParquetMetadataConverter.SKIP_ROW_GROUPS).build();
 
         try (ParquetFileReader reader = ParquetFileReader.open(parquetInputFile, options)) {
             MessageType parquetSchema = reader.getFileMetaData().getSchema();

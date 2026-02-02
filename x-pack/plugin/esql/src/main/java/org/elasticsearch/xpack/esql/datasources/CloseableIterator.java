@@ -12,8 +12,7 @@ import java.util.Iterator;
 
 /**
  * Iterator that must be closed to release resources.
- * 
+ *
  * @param <T> the type of elements returned by this iterator
  */
-public interface CloseableIterator<T> extends Iterator<T>, Closeable {
-}
+public interface CloseableIterator<T> extends Iterator<T>, Closeable {}

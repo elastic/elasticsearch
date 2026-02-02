@@ -21,7 +21,7 @@ import java.util.function.Supplier;
 /**
  * Utility class for creating async external source operators with shared infrastructure.
  * Used by both IcebergSourceOperatorFactory and ParquetSourceOperatorFactory.
- * 
+ *
  * <p>This class provides the common pattern for:
  * <ul>
  *   <li>Creating an {@link AsyncExternalSourceBuffer} for cross-thread page transfer</li>
@@ -38,7 +38,7 @@ public final class AsyncExternalSourceOperatorSupport {
 
     /**
      * Create an async external source operator with shared infrastructure.
-     * 
+     *
      * @param driverContext The driver context for block factory and async action tracking
      * @param executor The executor for running background reads
      * @param dataSupplier Supplier that creates the data source (lazily initialized)
@@ -63,14 +63,7 @@ public final class AsyncExternalSourceOperatorSupport {
         // Create background reader task
         // Note: We use the driver's blockFactory directly
         // Cross-thread memory management uses the parent factory pattern
-        ArrowReaderTask readerTask = new ArrowReaderTask(
-            buffer,
-            driverContext.blockFactory(),
-            dataSupplier,
-            schema,
-            attributes,
-            pageSize
-        );
+        ArrowReaderTask readerTask = new ArrowReaderTask(buffer, driverContext.blockFactory(), dataSupplier, schema, attributes, pageSize);
 
         // Register async action with driver context for lifecycle tracking
         driverContext.addAsyncAction();

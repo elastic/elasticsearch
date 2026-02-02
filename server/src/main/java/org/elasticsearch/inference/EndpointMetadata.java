@@ -25,19 +25,20 @@ import java.io.IOException;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
-public record EndpointMetadata(Heuristics heuristics, Internal internal, @Nullable String name) implements ToXContentObject, Writeable {
+public record EndpointMetadata(Heuristics heuristics, Internal internal, Display display) implements ToXContentObject, Writeable {
 
     public static final TransportVersion INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED = TransportVersion.fromName(
         "inference_endpoint_metadata_fields_added"
     );
 
-    public static final EndpointMetadata EMPTY = new EndpointMetadata(Heuristics.EMPTY, Internal.EMPTY, null);
+    public static final EndpointMetadata EMPTY = new EndpointMetadata(Heuristics.EMPTY, Internal.EMPTY, Display.EMPTY);
 
     public static final String METADATA = "metadata";
     public static final String HEURISTICS = "heuristics";
     public static final String INTERNAL = "internal";
-    public static final String NAME = "name";
+    public static final String DISPLAY = "display";
 
     private static final String INCLUDE_INTERNAL_FIELDS = "include_internal_fields";
 
@@ -47,22 +48,28 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, @Nullab
         args -> new EndpointMetadata(
             args[0] == null ? Heuristics.EMPTY : (Heuristics) args[0],
             args[1] == null ? Internal.EMPTY : (Internal) args[1],
-            (String) args[2]
+            args[2] == null ? Display.EMPTY : (Display) args[2]
         )
     );
 
     static {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Heuristics.parse(p), new ParseField(HEURISTICS));
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Internal.parse(p), new ParseField(INTERNAL));
-        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField(NAME));
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Display.parse(p), new ParseField(DISPLAY));
     }
 
     public static EndpointMetadata parse(XContentParser parser) throws IOException {
         return PARSER.apply(parser, null);
     }
 
+    public EndpointMetadata {
+        Objects.requireNonNull(heuristics);
+        Objects.requireNonNull(internal);
+        Objects.requireNonNull(display);
+    }
+
     public EndpointMetadata(StreamInput in) throws IOException {
-        this(new Heuristics(in), new Internal(in), in.readOptionalString());
+        this(new Heuristics(in), new Internal(in), new Display(in));
     }
 
     public Params getXContentParamsExcludeInternalFields() {
@@ -79,9 +86,7 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, @Nullab
             builder.field(INTERNAL, internal);
         }
 
-        if (name != null) {
-            builder.field(NAME, name);
-        }
+        builder.field(DISPLAY, display);
 
         builder.endObject();
         return builder;
@@ -89,14 +94,59 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, @Nullab
 
     @Override
     public String toString() {
-        return "EndpointMetadata{" + "heuristics=" + heuristics + ", internal=" + internal + ", name=" + name + '}';
+        return "EndpointMetadata{" + "heuristics=" + heuristics + ", internal=" + internal + ", display=" + display + '}';
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         heuristics.writeTo(out);
         internal.writeTo(out);
-        out.writeOptionalString(name);
+        display.writeTo(out);
+    }
+
+    public record Display(@Nullable String name) implements ToXContentObject, Writeable {
+
+        public static final Display EMPTY = new Display((String) null);
+
+        public static final String NAME = "name";
+
+        private static final ConstructingObjectParser<Display, Void> PARSER = new ConstructingObjectParser<>(
+            "endpoint_metadata_display",
+            true,
+            args -> new Display((String) args[0])
+        );
+
+        static {
+            PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField(NAME));
+        }
+
+        public static Display parse(XContentParser parser) throws IOException {
+            return PARSER.apply(parser, null);
+        }
+
+        public Display(StreamInput in) throws IOException {
+            this(in.readOptionalString());
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            if (name != null) {
+                builder.field(NAME, name);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public String toString() {
+            return "Display{" + "name=" + name + '}';
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalString(name);
+        }
     }
 
     public record Heuristics(

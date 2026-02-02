@@ -24,8 +24,13 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
     public static EndpointMetadata randomInstance() {
         var heuristics = randomHeuristics();
         var internal = randomInternal();
+        var display = randomDisplay();
+        return new EndpointMetadata(heuristics, internal, display);
+    }
+
+    public static EndpointMetadata.Display randomDisplay() {
         var name = randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
-        return new EndpointMetadata(heuristics, internal, name);
+        return name != null ? new EndpointMetadata.Display(name) : EndpointMetadata.Display.EMPTY;
     }
 
     public static EndpointMetadata.Heuristics randomHeuristics() {
@@ -78,15 +83,15 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
     protected EndpointMetadata mutateInstance(EndpointMetadata instance) throws IOException {
         var heuristics = instance.heuristics();
         var internal = instance.internal();
-        var name = instance.name();
+        var display = instance.display();
 
         switch (randomInt(2)) {
             case 0 -> heuristics = randomValueOtherThan(heuristics, EndpointMetadataTests::randomHeuristics);
             case 1 -> internal = randomValueOtherThan(internal, EndpointMetadataTests::randomInternal);
-            case 2 -> name = randomValueOtherThan(name, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20));
+            case 2 -> display = randomValueOtherThan(display, EndpointMetadataTests::randomDisplay);
         }
 
-        return new EndpointMetadata(heuristics, internal, name);
+        return new EndpointMetadata(heuristics, internal, display);
     }
 
     @Override

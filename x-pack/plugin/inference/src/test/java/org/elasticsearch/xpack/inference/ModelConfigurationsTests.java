@@ -75,8 +75,8 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
                 if (endpointMetadata.equals(EndpointMetadata.EMPTY)) {
                     var heuristics = EndpointMetadataTests.randomHeuristics();
                     var internal = EndpointMetadataTests.randomInternal();
-                    var name = randomAlphaOfLengthBetween(1, 20);
-                    endpointMetadata = new EndpointMetadata(heuristics, internal, name);
+                    var display = new EndpointMetadata.Display(randomAlphaOfLengthBetween(1, 20));
+                    endpointMetadata = new EndpointMetadata(heuristics, internal, display);
                 } else {
                     endpointMetadata = EndpointMetadata.EMPTY;
                 }

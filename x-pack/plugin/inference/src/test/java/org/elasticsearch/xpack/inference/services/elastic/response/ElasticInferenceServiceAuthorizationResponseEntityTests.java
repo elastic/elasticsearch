@@ -316,7 +316,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of("english"), StatusHeuristic.fromString("preview"), RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal("fingerprint789", ENDPOINT_VERSION),
-                "Elser 2 Elastic"
+                new EndpointMetadata.Display("Elser 2 Elastic")
             )
         );
     }
@@ -402,7 +402,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of("multilingual"), StatusHeuristic.fromString("ga"), RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal("fingerprint234", ENDPOINT_VERSION),
-                "Gp Llm V2 Chat Completion"
+                new EndpointMetadata.Display("Gp Llm V2 Chat Completion")
             )
         );
     }
@@ -417,7 +417,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of("multilingual"), StatusHeuristic.fromString("ga"), RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal("fingerprint345", ENDPOINT_VERSION),
-                "Gp Llm V2 Completion"
+                new EndpointMetadata.Display("Gp Llm V2 Completion")
             )
         );
     }
@@ -467,7 +467,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                     END_OF_LIFE_DATE_PARSED
                 ),
                 new EndpointMetadata.Internal("fingerprint123", ENDPOINT_VERSION),
-                "Rainbow Sprinkles Elastic"
+                new EndpointMetadata.Display("Rainbow Sprinkles Elastic")
             )
         );
     }
@@ -538,7 +538,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                     null
                 ),
                 new EndpointMetadata.Internal("fingerprint456", ENDPOINT_VERSION),
-                "Jina Embeddings V3"
+                new EndpointMetadata.Display("Jina Embeddings V3")
             )
         );
     }
@@ -568,7 +568,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of(), StatusHeuristic.fromString("preview"), RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal("fingerprint567", ENDPOINT_VERSION),
-                "Jina Reranker V2"
+                new EndpointMetadata.Display("Jina Reranker V2")
             )
         );
     }

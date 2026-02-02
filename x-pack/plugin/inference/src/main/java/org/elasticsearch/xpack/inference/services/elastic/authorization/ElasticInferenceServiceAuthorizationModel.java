@@ -130,10 +130,11 @@ public class ElasticInferenceServiceAuthorizationModel {
         ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint
     ) {
         try {
+            var kibanaConnectorName = authorizedEndpoint.kibanaConnectorName();
             return new EndpointMetadata(
                 getHeuristics(authorizedEndpoint),
                 getInternalFields(authorizedEndpoint),
-                authorizedEndpoint.kibanaConnectorName()
+                new EndpointMetadata.Display(kibanaConnectorName)
             );
         } catch (IllegalArgumentException e) {
             logger.atWarn()

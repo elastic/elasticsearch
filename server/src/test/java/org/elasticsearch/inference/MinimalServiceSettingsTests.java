@@ -126,8 +126,8 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
                     // Generate a non-EMPTY instance by ensuring at least one field is non-empty
                     var heuristics = EndpointMetadataTests.randomHeuristics();
                     var internal = EndpointMetadataTests.randomInternal();
-                    var name = randomAlphaOfLengthBetween(1, 20);
-                    endpointMetadata = new EndpointMetadata(heuristics, internal, name);
+                    var display = new EndpointMetadata.Display(randomAlphaOfLengthBetween(1, 20));
+                    endpointMetadata = new EndpointMetadata(heuristics, internal, display);
                 } else {
                     endpointMetadata = randomValueOtherThan(
                         endpointMetadata,

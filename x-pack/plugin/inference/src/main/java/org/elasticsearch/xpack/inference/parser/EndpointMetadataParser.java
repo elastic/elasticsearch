@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import java.util.EnumSet;
 import java.util.Map;
 
+import static org.elasticsearch.inference.EndpointMetadata.DISPLAY;
+import static org.elasticsearch.inference.EndpointMetadata.Display.NAME;
 import static org.elasticsearch.inference.EndpointMetadata.HEURISTICS;
 import static org.elasticsearch.inference.EndpointMetadata.Heuristics.END_OF_LIFE_DATE;
 import static org.elasticsearch.inference.EndpointMetadata.Heuristics.PROPERTIES;
@@ -26,10 +28,10 @@ import static org.elasticsearch.inference.EndpointMetadata.INTERNAL;
 import static org.elasticsearch.inference.EndpointMetadata.Internal.FINGERPRINT;
 import static org.elasticsearch.inference.EndpointMetadata.Internal.VERSION;
 import static org.elasticsearch.inference.EndpointMetadata.METADATA;
-import static org.elasticsearch.inference.EndpointMetadata.NAME;
 import static org.elasticsearch.xpack.inference.common.parser.EnumParser.extractEnum;
 import static org.elasticsearch.xpack.inference.common.parser.NumberParser.extractNumber;
 import static org.elasticsearch.xpack.inference.common.parser.ObjectParserUtils.isMapNullOrEmpty;
+import static org.elasticsearch.xpack.inference.common.parser.ObjectParserUtils.pathToKey;
 import static org.elasticsearch.xpack.inference.common.parser.StringParser.extractStringList;
 
 /**
@@ -37,10 +39,6 @@ import static org.elasticsearch.xpack.inference.common.parser.StringParser.extra
  * that has the same structure as the JSON produced by {@link EndpointMetadata#toXContent}.
  */
 public final class EndpointMetadataParser {
-
-    public static void discardEndpointMetadata(Map<String, Object> map) {
-        ServiceUtils.removeFromMap(map, METADATA);
-    }
 
     /**
      * Parse {@link EndpointMetadata} from a map with the same structure as the JSON produced by
@@ -58,11 +56,12 @@ public final class EndpointMetadataParser {
 
         var heuristicsMap = ServiceUtils.removeFromMap(metadataMap, HEURISTICS);
         var internalMap = ServiceUtils.removeFromMap(metadataMap, INTERNAL);
-        var name = ObjectParserUtils.removeAsType(metadataMap, NAME, root + "." + METADATA, String.class);
+        var displayMap = ServiceUtils.removeFromMap(metadataMap, DISPLAY);
 
-        var heuristics = heuristicsFromMap(heuristicsMap, root);
-        var internal = internalFromMap(internalMap, root);
-        return new EndpointMetadata(heuristics, internal, name);
+        var heuristics = heuristicsFromMap(heuristicsMap, pathToKey(root, HEURISTICS));
+        var internal = internalFromMap(internalMap, pathToKey(root, INTERNAL));
+        var display = displayFromMap(displayMap, pathToKey(root, DISPLAY));
+        return new EndpointMetadata(heuristics, internal, display);
     }
 
     /**
@@ -92,6 +91,19 @@ public final class EndpointMetadataParser {
         var fingerprint = ServiceUtils.removeAsType(map, FINGERPRINT, String.class);
         var version = extractNumber(map, VERSION, root);
         return new EndpointMetadata.Internal(fingerprint, version == null ? null : version.longValue());
+    }
+
+    /**
+     * Parse {@link EndpointMetadata.Display} from a map with the same structure as the JSON produced by
+     * {@link EndpointMetadata.Display#toXContent}. Returns null if the map is null or empty.
+     */
+    @Nullable
+    public static EndpointMetadata.Display displayFromMap(@Nullable Map<String, Object> map, String root) {
+        if (map == null || map.isEmpty()) {
+            return EndpointMetadata.Display.EMPTY;
+        }
+        var name = ObjectParserUtils.removeAsType(map, NAME, root, String.class);
+        return name != null ? new EndpointMetadata.Display(name) : EndpointMetadata.Display.EMPTY;
     }
 
     private EndpointMetadataParser() {}

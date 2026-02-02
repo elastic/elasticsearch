@@ -242,7 +242,9 @@ public class AuthorizationPollerTests extends ESTestCase {
                                 sparseModel.endOfLifeDate()
                             ),
                             new EndpointMetadata.Internal(sparseModel.fingerprint(), ENDPOINT_VERSION),
-                            sparseModel.kibanaConnectorName()
+                            sparseModel.kibanaConnectorName() != null
+                                ? new EndpointMetadata.Display(sparseModel.kibanaConnectorName())
+                                : null
                         )
                     )
                 )
@@ -341,7 +343,9 @@ public class AuthorizationPollerTests extends ESTestCase {
                                 sparseModel.endOfLifeDate()
                             ),
                             new EndpointMetadata.Internal(sparseModel.fingerprint(), ENDPOINT_VERSION),
-                            sparseModel.kibanaConnectorName()
+                            sparseModel.kibanaConnectorName() != null
+                                ? new EndpointMetadata.Display(sparseModel.kibanaConnectorName())
+                                : null
                         )
                     )
                 )

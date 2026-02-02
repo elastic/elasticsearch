@@ -59,7 +59,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             TEST_END_OF_LIFE_DATE_PARSED
         ),
         new EndpointMetadata.Internal(null, ENDPOINT_VERSION),
-        null
+        new EndpointMetadata.Display((String) null)
     );
 
     public void testIsAuthorized_ReturnsFalse_WithEmptyMap() {
@@ -831,7 +831,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(properties, statusHeuristic, TEST_RELEASE_DATE_PARSED, TEST_END_OF_LIFE_DATE_PARSED),
                 new EndpointMetadata.Internal(null, ENDPOINT_VERSION),
-                null
+                new EndpointMetadata.Display((String) null)
             )
         );
 
@@ -879,7 +879,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE_PARSED
                 ),
                 new EndpointMetadata.Internal(fingerprint, ENDPOINT_VERSION),
-                null
+                new EndpointMetadata.Display((String) null)
             )
         );
 
@@ -927,7 +927,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE_PARSED
                 ),
                 new EndpointMetadata.Internal(null, ENDPOINT_VERSION),
-                kibanaConnectorName
+                new EndpointMetadata.Display(kibanaConnectorName)
             )
         );
 
@@ -970,7 +970,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of(), statusHeuristic, TEST_RELEASE_DATE_PARSED, TEST_END_OF_LIFE_DATE_PARSED),
                 new EndpointMetadata.Internal(null, ENDPOINT_VERSION),
-                null
+                new EndpointMetadata.Display((String) null)
             )
         );
 
@@ -1013,7 +1013,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of(), statusHeuristic, TEST_RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal(null, ENDPOINT_VERSION),
-                null
+                new EndpointMetadata.Display((String) null)
             )
         );
 
@@ -1153,7 +1153,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE_PARSED
                 ),
                 new EndpointMetadata.Internal(null, ENDPOINT_VERSION),
-                null
+                new EndpointMetadata.Display((String) null)
             )
         );
 
@@ -1216,7 +1216,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE_PARSED
                 ),
                 new EndpointMetadata.Internal(null, ENDPOINT_VERSION),
-                null
+                new EndpointMetadata.Display((String) null)
             )
         );
 
@@ -1264,7 +1264,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE_PARSED
                 ),
                 new EndpointMetadata.Internal(null, ENDPOINT_VERSION),
-                null
+                new EndpointMetadata.Display((String) null)
             )
         );
 
@@ -1309,7 +1309,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE_PARSED
                 ),
                 new EndpointMetadata.Internal(null, ENDPOINT_VERSION),
-                null
+                new EndpointMetadata.Display((String) null)
             )
         );
         assertThat(auth.getEndpoints(Set.of(id1, id2, "nonexistent")).get(0), is(expectedEndpoint));
@@ -1398,7 +1398,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(properties, StatusHeuristic.fromString(status), TEST_RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal(fingerprint, ENDPOINT_VERSION),
-                null
+                new EndpointMetadata.Display((String) null)
             )
         );
 

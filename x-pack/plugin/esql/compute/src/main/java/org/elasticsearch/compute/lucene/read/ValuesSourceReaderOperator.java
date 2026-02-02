@@ -71,7 +71,14 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new ValuesSourceReaderOperator(driverContext, jumboSize.getBytes(), fields, shardContexts, reuseColumnLoaders, docChannel);
+            return new ValuesSourceReaderOperator(
+                driverContext,
+                jumboSize.getBytes(),
+                fields,
+                shardContexts,
+                reuseColumnLoaders,
+                docChannel
+            );
         }
 
         @Override
@@ -176,7 +183,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         long jumboBytes,
         List<FieldInfo> fields,
         IndexedByShardId<? extends ShardContext> shardContexts,
-        boolean reuseColumnLoaders, int docChannel
+        boolean reuseColumnLoaders,
+        int docChannel
     ) {
         if (fields.isEmpty()) {
             throw new IllegalStateException("ValuesSourceReaderOperator doesn't support empty fields");

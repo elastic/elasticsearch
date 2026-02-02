@@ -7,10 +7,6 @@
 
 package org.elasticsearch.compute.lucene.read;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
-import com.carrotsearch.randomizedtesting.annotations.Seed;
-
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.FieldType;
@@ -528,9 +524,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             reuseColumnLoaders,
             0
         ).get(driverContext);
-        List<Page> results = new TestDriverRunner()
-            .numThreads(1)
-            .run(load, input.iterator(), driverContext);
+        List<Page> results = new TestDriverRunner().numThreads(1).run(load, input.iterator(), driverContext);
         assertThat(results, hasSize(input.size()));
         for (Page page : results) {
             assertThat(page.getBlockCount(), equalTo(3));

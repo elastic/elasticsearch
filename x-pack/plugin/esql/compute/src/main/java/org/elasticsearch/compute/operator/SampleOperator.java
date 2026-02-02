@@ -132,6 +132,11 @@ public class SampleOperator implements Operator {
     }
 
     @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return outputPages.isEmpty() == false;
+    }
+
+    @Override
     public Page getOutput() {
         final var emitStart = System.nanoTime();
         Page page;

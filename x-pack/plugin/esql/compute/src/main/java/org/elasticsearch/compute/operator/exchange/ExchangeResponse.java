@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
@@ -21,6 +22,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 public final class ExchangeResponse extends TransportResponse implements Releasable {
+    private static final TransportVersion ESQL_STREAMING_LOOKUP_JOIN = TransportVersion.fromName("esql_streaming_lookup_join");
     private final RefCounted counted = AbstractRefCounted.of(this::closeInternal);
     private final Page page;
     private final boolean finished;
@@ -36,7 +38,7 @@ public final class ExchangeResponse extends TransportResponse implements Releasa
 
     public ExchangeResponse(BlockStreamInput in) throws IOException {
         this.blockFactory = in.blockFactory();
-        this.page = in.readOptionalWriteable(Page::new);
+        this.page = readPage(in);
         this.finished = in.readBoolean();
     }
 
@@ -47,7 +49,7 @@ public final class ExchangeResponse extends TransportResponse implements Releasa
             blockFactory.breaker().addEstimateBytesAndMaybeBreak(bytes, "serialize exchange response");
             reservedBytes += bytes;
         }
-        out.writeOptionalWriteable(page);
+        writePage(out, page);
         out.writeBoolean(finished);
     }
 
@@ -123,5 +125,44 @@ public final class ExchangeResponse extends TransportResponse implements Releasa
         if (pageTaken == false && page != null) {
             page.releaseBlocks();
         }
+    }
+
+    /**
+     * Reads a page from the stream, handling BatchPage deserialization based on transport version.
+     */
+    private static Page readPage(BlockStreamInput in) throws IOException {
+        boolean hasPage = in.readBoolean();
+        if (hasPage == false) {
+            return null;
+        }
+        boolean isBatchPage = false;
+        if (in.getTransportVersion().supports(ESQL_STREAMING_LOOKUP_JOIN)) {
+            isBatchPage = in.readBoolean();
+        }
+        return isBatchPage ? new BatchPage(in) : new Page(in);
+    }
+
+    /**
+     * Writes a page to the stream, handling BatchPage serialization based on transport version.
+     * @param out the output stream
+     * @param page the page to write, or null if no page
+     */
+    private static void writePage(StreamOutput out, Page page) throws IOException {
+        boolean hasPage = page != null;
+        out.writeBoolean(hasPage);
+        if (hasPage == false) {
+            return;
+        }
+        boolean isBatchPage = page instanceof BatchPage;
+        if (out.getTransportVersion().supports(ESQL_STREAMING_LOOKUP_JOIN)) {
+            out.writeBoolean(isBatchPage);
+        } else {
+            // For older versions, BatchPage is not supported
+            if (isBatchPage) {
+                throw new IllegalStateException("BatchPage serialization is not supported on remote node");
+            }
+        }
+        // this will correctly Page.writeTo() or BatchPage.writeTo(), depending on the type of page
+        page.writeTo(out);
     }
 }

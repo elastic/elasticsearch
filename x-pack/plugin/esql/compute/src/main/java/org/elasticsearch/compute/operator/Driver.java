@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.exchange.BatchPage;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -62,7 +63,7 @@ public class Driver implements Releasable, Describable {
      * Description of the driver. This description should be short and meaningful as a grouping identifier.
      * We use the phase of the query right now: "data", "node_reduce", "final".
      */
-    private final String shortDescription;
+    protected final String shortDescription;
 
     /**
      * The wall clock time when this driver was created in milliseconds since epoch.
@@ -81,7 +82,7 @@ public class Driver implements Releasable, Describable {
     private final long startNanos;
     private final DriverContext driverContext;
     private final Supplier<String> description;
-    private List<Operator> activeOperators;
+    protected List<Operator> activeOperators;
     private final List<OperatorStatus> statusOfCompletedOperators = new ArrayList<>();
     private final Releasable releasable;
     private final long statusNanos;
@@ -276,14 +277,17 @@ public class Driver implements Releasable, Describable {
                 continue;
             }
 
-            if (op.isFinished() == false && nextOp.needsInput()) {
+            boolean opFinished = op.isFinished();
+            boolean nextOpNeedsInput = nextOp.needsInput();
+
+            if (opFinished == false && nextOpNeedsInput) {
                 driverContext.checkForEarlyTermination();
                 assert nextOp.isFinished() == false || nextOp instanceof ExchangeSinkOperator || nextOp instanceof LimitOperator
                     : "next operator should not be finished yet: " + nextOp;
                 Page page = op.getOutput();
                 if (page == null) {
                     // No result, just move to the next iteration
-                } else if (page.getPositionCount() == 0) {
+                } else if (page.getPositionCount() == 0 && (page instanceof BatchPage) == false) {
                     // Empty result, release any memory it holds immediately and move to the next iteration
                     page.releaseBlocks();
                 } else {
@@ -312,18 +316,40 @@ public class Driver implements Releasable, Describable {
         closeEarlyFinishedOperators(activeOperators.listIterator(activeOperators.size()));
 
         if (movedPage == false) {
-            return oneOf(
+            IsBlockedResult result = oneOf(
                 activeOperators.stream()
                     .map(Operator::isBlocked)
                     .filter(laf -> laf.listener().isDone() == false)
                     .collect(Collectors.toList())
             );
+            onNoPagesMoved();
+
+            // Before blocking, check if any operator can produce more data without extra input.
+            // If so, we should continue looping rather than waiting, because that operator
+            // has buffered data that needs to be processed. This prevents deadlock when an
+            // intermediate operator (like LookupQueryOperator) has data to process
+            // but the source operator is blocked waiting for more input.
+            for (Operator op : activeOperators) {
+                if (op.canProduceMoreDataWithoutExtraInput()) {
+                    return Operator.NOT_BLOCKED;
+                }
+            }
+
+            return result;
         }
         return Operator.NOT_BLOCKED;
     }
 
+    /**
+     * Called when no pages were moved in a loop iteration.
+     * Subclasses can override this to detect when the driver is idle/empty.
+     */
+    protected void onNoPagesMoved() {
+        // Default implementation does nothing
+    }
+
     // Returns the index of the last operator that was closed, -1 if no operator was closed.
-    private int closeEarlyFinishedOperators(ListIterator<Operator> operators) {
+    protected int closeEarlyFinishedOperators(ListIterator<Operator> operators) {
         var iterator = activeOperators.listIterator(operators.nextIndex());
         while (iterator.hasPrevious()) {
             if (iterator.previous().isFinished()) {
@@ -351,6 +377,16 @@ public class Driver implements Releasable, Describable {
             }
         }
         return -1;
+    }
+
+    /**
+     * Finish all active operators. This is used before throwing DriverEarlyTerminationException
+     * to ensure all operators are properly finished and can be closed.
+     */
+    protected void finishAllActiveOperators() {
+        for (Operator op : activeOperators) {
+            op.finish();
+        }
     }
 
     public void cancel(String reason) {
@@ -399,8 +435,7 @@ public class Driver implements Releasable, Describable {
         }
     }
 
-    // Drains all active operators and closes them.
-    private void drainAndCloseOperators(@Nullable Exception e) {
+    protected void drainAndCloseOperators(@Nullable Exception e) {
         Iterator<Operator> itr = activeOperators.iterator();
         while (itr.hasNext()) {
             try {
@@ -433,13 +468,13 @@ public class Driver implements Releasable, Describable {
                     onComplete(listener);
                     return;
                 }
-                if (fut.isDone()) {
+                boolean futIsDone = fut.isDone();
+                if (futIsDone) {
                     schedule(maxTime, maxIterations, threadContext, executor, driver, listener);
                 } else {
-                    ActionListener<Void> readyListener = ActionListener.wrap(
-                        ignored -> schedule(maxTime, maxIterations, threadContext, executor, driver, listener),
-                        this::onFailure
-                    );
+                    ActionListener<Void> readyListener = ActionListener.wrap(ignored -> {
+                        schedule(maxTime, maxIterations, threadContext, executor, driver, listener);
+                    }, this::onFailure);
                     fut.addListener(ContextPreservingActionListener.wrapPreservingContext(readyListener, threadContext));
                     driver.scheduler.addOrRunDelayedTask(() -> fut.onResponse(null));
                 }

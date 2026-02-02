@@ -63,20 +63,27 @@ public class HeapAttackLookupJoinIT extends HeapAttackTestCase {
     }
 
     public void testLookupExplosionManyMatchesManyFields() throws IOException {
-        // 1500, 10000 is enough locally, but some CI machines need more.
-        int lookupEntries = 10000;
-        assertCircuitBreaks(attempt -> lookupExplosion(attempt * 1500, lookupEntries, 30, lookupEntries, false));
+        // this test works now, and does not circuit break any more
+        int sensorDataCount = 1500;
+        int lookupEntries = 1000;
+        Map<?, ?> map = lookupExplosion(sensorDataCount, lookupEntries, 30, lookupEntries, false);
+        assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount * lookupEntries))));
     }
 
     public void testLookupExplosionManyMatches() throws IOException {
-        // 1500, 10000 is enough locally, but some CI machines need more.
+        // this test works now, and does not circuit break any more
+        int sensorDataCount = 1500;
         int lookupEntries = 10000;
-        assertCircuitBreaks(attempt -> lookupExplosion(attempt * 1500, lookupEntries, 1, lookupEntries, false));
+        Map<?, ?> map = lookupExplosion(sensorDataCount, lookupEntries, 1, lookupEntries, false);
+        assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount * lookupEntries))));
     }
 
     public void testLookupExplosionManyMatchesExpression() throws IOException {
+        // this test works now, and does not circuit break any more
+        int sensorDataCount = 1500;
         int lookupEntries = 10000;
-        assertCircuitBreaks(attempt -> lookupExplosion(attempt * 1500, lookupEntries, 1, lookupEntries, true));
+        Map<?, ?> map = lookupExplosion(sensorDataCount, lookupEntries, 1, lookupEntries, true);
+        assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount * lookupEntries))));
     }
 
     public void testLookupExplosionManyMatchesFiltered() throws IOException {
@@ -113,8 +120,11 @@ public class HeapAttackLookupJoinIT extends HeapAttackTestCase {
     }
 
     public void testLookupExplosionNoFetchManyMatches() throws IOException {
-        // 8500 is plenty on most nodes
-        assertCircuitBreaks(attempt -> lookupExplosionNoFetch(attempt * 8500, 10000));
+        // this test works now, and does not circuit break any more
+        int sensorDataCount = 8500;
+        int lookupEntries = 10000;
+        Map<?, ?> map = lookupExplosionNoFetch(sensorDataCount, lookupEntries);
+        assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount * lookupEntries))));
     }
 
     public void testLookupExplosionBigString() throws IOException {

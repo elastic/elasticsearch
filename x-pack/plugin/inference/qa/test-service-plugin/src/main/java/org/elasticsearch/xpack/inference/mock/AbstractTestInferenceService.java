@@ -94,6 +94,11 @@ public abstract class AbstractTestInferenceService implements InferenceService {
     }
 
     @Override
+    public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return new TestServiceModel(config, secrets);
+    }
+
+    @Override
     @SuppressWarnings("unchecked")
     public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
         var serviceSettingsMap = (Map<String, Object>) config.remove(ModelConfigurations.SERVICE_SETTINGS);
@@ -168,7 +173,11 @@ public abstract class AbstractTestInferenceService implements InferenceService {
             TaskSettings taskSettings,
             TestSecretSettings secretSettings
         ) {
-            super(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secretSettings));
+            this(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secretSettings));
+        }
+
+        public TestServiceModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+            super(modelConfigurations, modelSecrets);
         }
 
         @Override
@@ -182,27 +191,29 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         }
     }
 
-    public record TestTaskSettings(Integer temperature) implements TaskSettings {
+    public record TestTaskSettings(Integer temperature, Boolean shouldFailValidation) implements TaskSettings {
 
         static final String NAME = "test_task_settings";
 
         public static TestTaskSettings fromMap(Map<String, Object> map) {
             Integer temperature = (Integer) map.remove("temperature");
-            return new TestTaskSettings(temperature);
+            Boolean shouldFailValidation = (Boolean) map.remove("should_fail_validation");
+            return new TestTaskSettings(temperature, shouldFailValidation);
         }
 
         public TestTaskSettings(StreamInput in) throws IOException {
-            this(in.readOptionalVInt());
+            this(in.readOptionalVInt(), in.readOptionalBoolean());
         }
 
         @Override
         public boolean isEmpty() {
-            return temperature == null;
+            return temperature == null && shouldFailValidation == null;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalVInt(temperature);
+            out.writeOptionalBoolean(shouldFailValidation);
         }
 
         @Override
@@ -210,6 +221,9 @@ public abstract class AbstractTestInferenceService implements InferenceService {
             builder.startObject();
             if (temperature != null) {
                 builder.field("temperature", temperature);
+            }
+            if (shouldFailValidation != null) {
+                builder.field("should_fail_validation", shouldFailValidation);
             }
             builder.endObject();
             return builder;

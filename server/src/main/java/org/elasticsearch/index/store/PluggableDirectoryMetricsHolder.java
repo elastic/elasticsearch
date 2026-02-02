@@ -10,6 +10,9 @@
 package org.elasticsearch.index.store;
 
 public interface PluggableDirectoryMetricsHolder<M extends DirectoryMetrics.PluggableMetrics<M>> {
+    /**
+     * A utility to be used when no metrics are needed, intended to be used with a noop data implementation.
+     */
     static <M extends DirectoryMetrics.PluggableMetrics<M>> PluggableDirectoryMetricsHolder<M> noop(M noopData) {
         return new PluggableDirectoryMetricsHolder<>() {
 

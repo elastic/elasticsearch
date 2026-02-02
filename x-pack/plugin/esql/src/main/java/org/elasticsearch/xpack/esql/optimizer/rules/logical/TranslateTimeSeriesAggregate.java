@@ -264,7 +264,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
             if (group instanceof Attribute || group instanceof Alias) {
                 NamedExpression g = (NamedExpression) group;
                 if (timeBucket != null && g.id().equals(timeBucket.id())) {
-                    addBucket(timeBucket, g, firstPassGroupings, secondPassGroupings);
+                    addBucket(g instanceof Attribute ? timeBucket.toAttribute() : timeBucket, g, firstPassGroupings, secondPassGroupings);
                 } else {
                     var unwrapped = Alias.unwrap(g);
                     if (unwrapped instanceof Attribute a) {

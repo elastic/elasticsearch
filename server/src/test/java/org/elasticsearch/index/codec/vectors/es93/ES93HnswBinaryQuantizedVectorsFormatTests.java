@@ -87,6 +87,28 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseHnswVectorsFo
         );
     }
 
+    public void testToString() {
+        String expected = "ES93HnswBinaryQuantizedVectorsFormat("
+            + "name=ES93HnswBinaryQuantizedVectorsFormat, maxConn=10, beamWidth=20, flatVectorFormat=%s)";
+        expected = format(
+            Locale.ROOT,
+            expected,
+            "ES93BinaryQuantizedVectorsFormat(name=ES93BinaryQuantizedVectorsFormat, rawVectorFormat=%s,"
+                + " scorer=ES818BinaryFlatVectorsScorer(nonQuantizedDelegate={}))"
+        );
+        expected = format(Locale.ROOT, expected, "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)");
+        expected = format(
+            Locale.ROOT,
+            expected,
+            "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=ES93FlatVectorScorer(delegate={}))"
+        );
+        String defaultScorer = expected.replaceAll("\\{}", "DefaultFlatVectorScorer()");
+        String memSegScorer = expected.replaceAll("\\{}", "Lucene99MemorySegmentFlatVectorsScorer()");
+
+        KnnVectorsFormat format = createFormat(10, 20, 1, null);
+        assertThat(format, hasToString(oneOf(defaultScorer, memSegScorer)));
+    }
+
     public void testDefaultHnswGraphThreshold() {
         KnnVectorsFormat format = createFormat(16, 100);
         assertThat(

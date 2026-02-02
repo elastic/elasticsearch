@@ -386,6 +386,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 logger,
                 namedWriteableRegistry,
                 searchTransportService,
+                searchService.getBigArrays(),
                 connectionLookup,
                 aliasFilter,
                 concreteIndexBoosts,
@@ -400,7 +401,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 searchRequest.getMaxConcurrentShardRequests(),
                 clusters,
                 searchResponseMetrics,
-                searchRequestAttributes
+                searchRequestAttributes,
+                false
             ) {
                 @Override
                 protected void executePhaseOnShard(

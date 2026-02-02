@@ -89,4 +89,9 @@ public class ES92GpuHnswSQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
     public void testMismatchedFields() {
         // No bytes support
     }
+
+    @Override
+    protected boolean supportsFloatVectorFallback() {
+        return false;
+    }
 }

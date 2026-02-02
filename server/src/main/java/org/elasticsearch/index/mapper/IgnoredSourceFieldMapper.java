@@ -560,7 +560,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     }
 
     private static MappedNameValue nameValueToMapped(NameValue nameValue) throws IOException {
-        if (XContentDataHelper.isDataPresent(nameValue.value()) == false) {
+        if (nameValue.hasValue() == false) {
             return null;
         }
         XContentBuilder xContentBuilder = XContentBuilder.builder(XContentDataHelper.getXContentType(nameValue.value()).xContent());

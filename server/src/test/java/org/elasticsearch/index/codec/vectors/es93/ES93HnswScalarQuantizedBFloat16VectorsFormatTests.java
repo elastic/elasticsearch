@@ -82,7 +82,7 @@ public class ES93HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseHnswB
         assertThat(format, hasToString(containsString("name=ES93HnswScalarQuantizedVectorsFormat")));
         assertThat(format, hasToString(containsString("maxConn=10")));
         assertThat(format, hasToString(containsString("beamWidth=20")));
-        assertThat(format, hasToString(containsString("hnswGraphThreshold=" + ES93HnswVectorsFormat.DEFAULT_HNSW_GRAPH_THRESHOLD)));
+        assertThat(format, hasToString(containsString("hnswGraphThreshold=" + ES93HnswVectorsFormat.HNSW_GRAPH_THRESHOLD)));
     }
 
     public void testSimpleOffHeapSize() throws IOException {

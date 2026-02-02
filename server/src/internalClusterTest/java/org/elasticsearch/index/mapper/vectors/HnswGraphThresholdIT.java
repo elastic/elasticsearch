@@ -24,6 +24,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat.BBQ_HNSW_GRAPH_THRESHOLD;
+import static org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat.HNSW_GRAPH_THRESHOLD;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -41,10 +43,8 @@ public class HnswGraphThresholdIT extends ESIntegTestCase {
     private static final String VECTOR_FIELD = "vector";
     private static final int DIMENSIONS = 64;
 
-    private static final int BBQ_HNSW_THRESHOLD = 300;
-    private static final int HNSW_THRESHOLD = 150;
-
-    // Number of vectors needed to exceed the threshold (based on search power calculation)
+    // Number of vectors needed to exceed the threshold (based on search power calculation:
+    // graph is built when numVectors > log(numVectors) * threshold)
     private static final int BBQ_HNSW_VECTORS_FOR_GRAPH = 2327;
     private static final int HNSW_VECTORS_FOR_GRAPH = 1045;
 
@@ -256,17 +256,17 @@ public class HnswGraphThresholdIT extends ESIntegTestCase {
         switch (indexType) {
             case "bbq_hnsw" -> {
                 elementType = randomFrom("float", "bfloat16");
-                threshold = BBQ_HNSW_THRESHOLD;
+                threshold = BBQ_HNSW_GRAPH_THRESHOLD;
                 vectorsForGraph = BBQ_HNSW_VECTORS_FOR_GRAPH;
             }
             case "int8_hnsw", "int4_hnsw" -> {
                 elementType = randomFrom("float", "bfloat16");
-                threshold = HNSW_THRESHOLD;
+                threshold = HNSW_GRAPH_THRESHOLD;
                 vectorsForGraph = HNSW_VECTORS_FOR_GRAPH;
             }
             default -> { // hnsw
                 elementType = randomFrom("float", "byte", "bfloat16");
-                threshold = HNSW_THRESHOLD;
+                threshold = HNSW_GRAPH_THRESHOLD;
                 vectorsForGraph = HNSW_VECTORS_FOR_GRAPH;
             }
         }

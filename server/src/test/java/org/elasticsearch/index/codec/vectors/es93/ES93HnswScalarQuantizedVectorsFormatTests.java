@@ -87,7 +87,7 @@ public class ES93HnswScalarQuantizedVectorsFormatTests extends BaseHnswVectorsFo
 
     public void testDefaultHnswGraphThreshold() {
         KnnVectorsFormat format = createFormat(16, 100);
-        assertThat(format, hasToString(containsString("hnswGraphThreshold=" + ES93HnswVectorsFormat.DEFAULT_HNSW_GRAPH_THRESHOLD)));
+        assertThat(format, hasToString(containsString("hnswGraphThreshold=" + ES93HnswVectorsFormat.HNSW_GRAPH_THRESHOLD)));
     }
 
     public void testHnswGraphThresholdWithCustomValue() {
@@ -104,7 +104,7 @@ public class ES93HnswScalarQuantizedVectorsFormatTests extends BaseHnswVectorsFo
 
     public void testHnswGraphThresholdWithNegativeValueFallsBackToDefault() {
         KnnVectorsFormat format = createFormat(16, 100, 1, null, -1);
-        assertThat(format, hasToString(containsString("hnswGraphThreshold=" + ES93HnswVectorsFormat.DEFAULT_HNSW_GRAPH_THRESHOLD)));
+        assertThat(format, hasToString(containsString("hnswGraphThreshold=" + ES93HnswVectorsFormat.HNSW_GRAPH_THRESHOLD)));
     }
 
     public void testToString() {

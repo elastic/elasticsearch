@@ -91,7 +91,7 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseHnswVectorsFo
         KnnVectorsFormat format = createFormat(16, 100);
         assertThat(
             format,
-            hasToString(containsString("hnswGraphThreshold=" + ES93HnswBinaryQuantizedVectorsFormat.DEFAULT_HNSW_GRAPH_THRESHOLD))
+            hasToString(containsString("hnswGraphThreshold=" + ES93HnswBinaryQuantizedVectorsFormat.BBQ_HNSW_GRAPH_THRESHOLD))
         );
     }
 
@@ -111,7 +111,7 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseHnswVectorsFo
         KnnVectorsFormat format = createFormat(16, 100, 1, null, -1);
         assertThat(
             format,
-            hasToString(containsString("hnswGraphThreshold=" + ES93HnswBinaryQuantizedVectorsFormat.DEFAULT_HNSW_GRAPH_THRESHOLD))
+            hasToString(containsString("hnswGraphThreshold=" + ES93HnswBinaryQuantizedVectorsFormat.BBQ_HNSW_GRAPH_THRESHOLD))
         );
     }
 

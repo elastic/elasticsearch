@@ -32,6 +32,8 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_NUM_MERGE_WORKER;
 
 public class ES93HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFormat {
@@ -41,14 +43,14 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFor
      * For k=100, we do by default 3x oversampling, asking the HNSW graph to return 300 results.
      * So the threshold is set to 300 to match this expected search cost.
      */
-    public static final int DEFAULT_HNSW_GRAPH_THRESHOLD = 300;
+    public static final int BBQ_HNSW_GRAPH_THRESHOLD = 300;
 
     /** The format for storing, reading, merging vectors on disk */
     private final FlatVectorsFormat flatVectorsFormat;
 
     /** Constructs a format using default graph construction parameters */
     public ES93HnswBinaryQuantizedVectorsFormat() {
-        super(NAME, DEFAULT_HNSW_GRAPH_THRESHOLD);
+        super(NAME, DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, DEFAULT_NUM_MERGE_WORKER, null, BBQ_HNSW_GRAPH_THRESHOLD);
         flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat();
     }
 
@@ -58,7 +60,7 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFor
      * @param useDirectIO whether to use direct IO when reading raw vectors
      */
     public ES93HnswBinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType elementType, boolean useDirectIO) {
-        super(NAME, DEFAULT_HNSW_GRAPH_THRESHOLD);
+        super(NAME, DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, DEFAULT_NUM_MERGE_WORKER, null, BBQ_HNSW_GRAPH_THRESHOLD);
         flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(elementType, useDirectIO);
     }
 
@@ -75,7 +77,7 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFor
         DenseVectorFieldMapper.ElementType elementType,
         boolean useDirectIO
     ) {
-        super(NAME, maxConn, beamWidth, DEFAULT_NUM_MERGE_WORKER, null, DEFAULT_HNSW_GRAPH_THRESHOLD);
+        super(NAME, maxConn, beamWidth, DEFAULT_NUM_MERGE_WORKER, null, BBQ_HNSW_GRAPH_THRESHOLD);
         flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(elementType, useDirectIO);
     }
 
@@ -98,7 +100,7 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFor
         int numMergeWorkers,
         ExecutorService mergeExec
     ) {
-        super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, DEFAULT_HNSW_GRAPH_THRESHOLD);
+        super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, BBQ_HNSW_GRAPH_THRESHOLD);
         flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(elementType, useDirectIO);
     }
 
@@ -129,7 +131,7 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFor
             beamWidth,
             numMergeWorkers,
             mergeExec,
-            hnswGraphThreshold >= 0 ? hnswGraphThreshold : DEFAULT_HNSW_GRAPH_THRESHOLD
+            resolveThreshold(hnswGraphThreshold, BBQ_HNSW_GRAPH_THRESHOLD)
         );
         flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(elementType, useDirectIO);
     }

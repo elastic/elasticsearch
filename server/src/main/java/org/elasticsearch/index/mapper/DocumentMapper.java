@@ -78,8 +78,6 @@ public class DocumentMapper {
     private void maybeLog(Exception ex) {
         if (logger.isDebugEnabled()) {
             logger.debug("Error while parsing document for index [" + indexName + "]: " + ex.getMessage(), ex);
-        } else if (IntervalThrottler.DOCUMENT_PARSING_FAILURE.accept()) {
-            logger.info("Error while parsing document for index [" + indexName + "]: " + ex.getMessage(), ex);
         }
     }
 

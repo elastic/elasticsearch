@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.logsdb;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
@@ -29,6 +30,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -86,7 +88,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
             {
               "_doc": {
                 "properties": {
-                  "@timestmap": {
+                  "@timestamp": {
                     "type": "date"
                   },
                   "host.name": {
@@ -270,6 +272,57 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
         }
 
         assertOrder(backingIndex, orderedDocs);
+    }
+
+    public void testMatchTailWithMissingHostname() throws Exception {
+        final String dataStreamName = "test-logsdb-match-tail-with-missing-hostname";
+
+        final String mapping = """
+            {
+              "_doc": {
+                "properties": {
+                  "@timestamp": {
+                    "type": "date"
+                  },
+                  "host.name": {
+                    "type": "keyword"
+                  },
+                  "test_id": {
+                    "type": "text"
+                  }
+                }
+              }
+            }
+            """;
+
+        final DocWithId[] orderedDocs = {
+            doc("{\"@timestamp\":\"2025-01-01T13:00:00\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:01\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:02\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:03\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:04\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:05\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:06\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:07\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:08\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:09\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:10\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:11\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:12\",\"test_id\": \"%id%\"}"),
+        };
+
+        createDataStream(dataStreamName, mapping);
+
+        List<DocWithId> shuffledDocs = shuffledList(Arrays.asList(orderedDocs));
+        indexDocuments(dataStreamName, shuffledDocs);
+        client().admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchRequest searchRequest = new SearchRequest(dataStreamName);
+        searchRequest.source().sort("@timestamp", SortOrder.ASC).query(new MatchAllQueryBuilder()).size(4);
+        var response = client().search(searchRequest).get();
+        assertEquals(4, response.getHits().getHits().length);
+        assertEquals(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO, response.getHits().getTotalHits().relation());
+        response.decRef();
     }
 
     private void createDataStream(String dataStreamName, String mapping) throws IOException {

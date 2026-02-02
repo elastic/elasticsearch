@@ -17,8 +17,10 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.action.ActionListener;
@@ -84,6 +86,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.LongSupplier;
@@ -771,6 +774,30 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public Query query() {
         return this.query;
+    }
+
+    @Override
+    public Query rewrittenQuery() {
+        Query query = super.rewrittenQuery();
+        if (this.searchAfter() == null
+            && query instanceof MatchAllDocsQuery
+            && size() > 0
+            && rewriteToMatchTail()) {
+            return this.rewriteQuery = new MatchTailTimestampSortedDocsQuery(size());
+        }
+        return query;
+    }
+
+    private boolean rewriteToMatchTail() {
+        if (indexService.getIndexSettings().getIndexSortConfig().containsDescendingTimestampSort() == false) {
+            return false;
+        }
+        SortAndFormats sort = sort();
+        if (sort == null) {
+            return false;
+        }
+        SortField primarySort = sort.sort.getSort()[0];
+        return primarySort.getReverse() == false && Objects.equals(primarySort.getField(), "@timestamp");
     }
 
     @Override

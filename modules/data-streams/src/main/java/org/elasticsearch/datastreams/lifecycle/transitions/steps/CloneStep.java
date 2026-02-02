@@ -199,8 +199,7 @@ public class CloneStep implements DlmStep {
         Map<String, String> customMetadata;
         if (existingCustomMetadata != null) {
             customMetadata = new HashMap<>(existingCustomMetadata);
-            customMetadata.put(DLM_INDEX_TO_BE_MERGED_KEY, indexToBeForceMerged
-            );
+            customMetadata.put(DLM_INDEX_TO_BE_MERGED_KEY, indexToBeForceMerged);
         } else {
             customMetadata = Map.of(DLM_INDEX_TO_BE_MERGED_KEY, indexToBeForceMerged);
         }

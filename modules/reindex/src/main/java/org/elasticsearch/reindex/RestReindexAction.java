@@ -78,6 +78,12 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         if (request.hasParam(DocWriteRequest.REQUIRE_ALIAS)) {
             internal.setRequireAlias(request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false));
         }
+        if (clusterSupportsFeature.test(ReindexPlugin.RELOCATE_ON_SHUTDOWN_NODE_FEATURE)
+            && request.paramAsBoolean("wait_for_completion", true) == false) {
+            // On shutdown, we can try to relocate an asynchronous reindex task to another node. We cannot do this for synchronous ones,
+            // where a client is waiting for a response from this node (but they should not be long-lived anyway).
+            internal.setEligibleForRelocationOnShutdown(true);
+        }
 
         return internal;
     }

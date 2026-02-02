@@ -3108,7 +3108,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         );
         final ClusterState clusterState = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(clusterState);
-        final TransportVersion minTransportVersion = TransportVersionUtils.randomCompatibleVersion(random());
+        final TransportVersion minTransportVersion = TransportVersionUtils.randomCompatibleVersion();
         when(clusterState.getMinTransportVersion()).thenReturn(minTransportVersion);
         final ApiKeyService service = new ApiKeyService(
             Settings.EMPTY,

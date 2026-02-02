@@ -78,6 +78,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
             add("refresh");
             add("require_data_stream");
             add("timeout");
+            add("include_source_on_error");
             // Add internal marker params
             addAll(INTERNAL_MARKER_REQUEST_PARAMETERS);
         }

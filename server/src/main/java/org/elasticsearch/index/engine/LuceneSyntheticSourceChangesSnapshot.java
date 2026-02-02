@@ -205,6 +205,10 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
                     if (record.isTombstone()) {
                         continue;
                     }
+                    if (record.hasRecoverySourceSize() == false) {
+                        assert requiredFullRange == false : "source not found for seqno=" + record.seqNo();
+                        continue;
+                    }
                     int docID = record.docID();
                     if (docID >= docBase + maxDoc) {
                         break;

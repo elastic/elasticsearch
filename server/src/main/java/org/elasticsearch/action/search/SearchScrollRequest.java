@@ -10,6 +10,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,7 +27,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class SearchScrollRequest extends LegacyActionRequest implements ToXContentObject {
+public class SearchScrollRequest extends LegacyActionRequest implements ToXContentObject, IndicesRequest.CrossProjectCandidate {
 
     private String scrollId;
     private TimeValue scroll;
@@ -150,6 +151,8 @@ public class SearchScrollRequest extends LegacyActionRequest implements ToXConte
                     scrollId(parser.text());
                 } else if ("scroll".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
                     scroll(TimeValue.parseTimeValue(parser.text(), null, "scroll"));
+                } else if ("project_routing".equals(currentFieldName)) {
+                    throw new IllegalArgumentException("Unknown key for a VALUE_STRING in [project_routing]");
                 } else {
                     throw new IllegalArgumentException(
                         "Unknown parameter [" + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] "
@@ -157,5 +160,10 @@ public class SearchScrollRequest extends LegacyActionRequest implements ToXConte
                 }
             }
         }
+    }
+
+    @Override
+    public boolean allowsCrossProject() {
+        return true;
     }
 }

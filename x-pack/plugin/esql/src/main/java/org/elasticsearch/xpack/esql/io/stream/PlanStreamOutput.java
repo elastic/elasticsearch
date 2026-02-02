@@ -100,6 +100,11 @@ public final class PlanStreamOutput extends StreamOutput {
     }
 
     @Override
+    public long position() {
+        return delegate.position();
+    }
+
+    @Override
     public void flush() throws IOException {
         delegate.flush();
     }

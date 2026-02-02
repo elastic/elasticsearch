@@ -43,21 +43,24 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
 
     @FunctionInfo(
         operator = "-",
-        returnType = { "double", "integer", "long", "date_period", "datetime", "time_duration", "unsigned_long" },
-        description = "Subtract one number from another. "
-            + "If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`."
+        returnType = { "double", "integer", "long", "date_period", "datetime", "time_duration", "unsigned_long", "dense_vector" },
+        description = """
+            Subtract one value from another. In case of numeric fields, if either field is <<esql-multivalued-fields,multivalued>>
+            then the result is `null`. For dense_vector fields, both arguments should be dense_vectors. Inequal vector dimensions generate
+            null result.
+            """
     )
     public Sub(
         Source source,
         @Param(
             name = "lhs",
-            description = "A numeric value or a date time value.",
-            type = { "double", "integer", "long", "date_period", "datetime", "time_duration", "unsigned_long" }
+            description = "A numeric value, dense_vector or a date time value.",
+            type = { "double", "integer", "long", "date_period", "datetime", "time_duration", "unsigned_long", "dense_vector" }
         ) Expression left,
         @Param(
             name = "rhs",
-            description = "A numeric value or a date time value.",
-            type = { "double", "integer", "long", "date_period", "datetime", "time_duration", "unsigned_long" }
+            description = "A numeric value, dense_vector or a date time value.",
+            type = { "double", "integer", "long", "date_period", "datetime", "time_duration", "unsigned_long", "dense_vector" }
         ) Expression right,
         Configuration configuration
     ) {
@@ -70,6 +73,7 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
             SubLongsEvaluator.Factory::new,
             SubUnsignedLongsEvaluator.Factory::new,
             SubDoublesEvaluator.Factory::new,
+            DenseVectorsEvaluator.SubFactory::new,
             SubDatetimesEvaluator.Factory::new,
             SubDateNanosEvaluator.Factory::new
         );
@@ -84,6 +88,7 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
             SubLongsEvaluator.Factory::new,
             SubUnsignedLongsEvaluator.Factory::new,
             SubDoublesEvaluator.Factory::new,
+            DenseVectorsEvaluator.SubFactory::new,
             SubDatetimesEvaluator.Factory::new,
             SubDateNanosEvaluator.Factory::new
         );

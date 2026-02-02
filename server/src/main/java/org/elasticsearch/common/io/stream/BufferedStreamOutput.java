@@ -81,7 +81,7 @@ public class BufferedStreamOutput extends StreamOutput {
     }
 
     @Override
-    public long position() throws IOException {
+    public long position() {
         return flushedBytes + position - startPosition;
     }
 

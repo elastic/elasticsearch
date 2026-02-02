@@ -290,6 +290,15 @@ final class LongTopNBlockHash extends BlockHash {
     }
 
     @Override
+    public int numKeys() {
+        if (hasNull) {
+            return Math.toIntExact(hash.size()) + 1;
+        } else {
+            return Math.toIntExact(hash.size());
+        }
+    }
+
+    @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
         BitArray seenGroups = new BitArray(1, bigArrays);
         if (hasNull) {

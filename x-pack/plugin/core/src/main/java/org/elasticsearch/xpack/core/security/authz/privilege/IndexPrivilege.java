@@ -88,7 +88,15 @@ public final class IndexPrivilege extends Privilege {
         TransportResolveClusterAction.NAME,
         GetInferenceFieldsInternalAction.NAME  // cross-cluster inference for semantic search
     );
-    private static final Automaton READ_FAILURE_STORE_AUTOMATON = patterns("indices:data/read/*", ResolveIndexAction.NAME);
+    private static final Automaton READ_FAILURE_STORE_AUTOMATON = patterns(
+        "indices:data/read/*",
+        ResolveIndexAction.NAME,
+        "internal:transport/proxy/indices:data/read/*",
+        TransportClusterSearchShardsAction.TYPE.name(),
+        TransportSearchShardsAction.TYPE.name(),
+        TransportResolveClusterAction.NAME,
+        GetInferenceFieldsInternalAction.NAME // cross-cluster inference for semantic search
+    );
     private static final Automaton READ_CROSS_CLUSTER_AUTOMATON = patterns(
         "internal:transport/proxy/indices:data/read/*",
         TransportClusterSearchShardsAction.TYPE.name(),

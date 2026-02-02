@@ -19,6 +19,7 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexWriter;
@@ -895,6 +896,261 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         }
     }
 
+    public void testOptionalLengthReaderDense() throws Exception {
+        final String timestampField = "@timestamp";
+        final String binaryFixedField = "binary_variable";
+        final String binaryVariableField = "binary_fixed";
+        final int binaryFixedLength = randomIntBetween(0, 100);
+        long currentTimestamp = 1704067200000L;
+
+        var config = getTimeSeriesIndexWriterConfig(null, timestampField);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            List<BytesRef> binaryFixedValues = new ArrayList<>();
+            List<BytesRef> binaryVariableValues = new ArrayList<>();
+            int numDocs = 256 + random().nextInt(8096);
+
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                long timestamp = currentTimestamp;
+                // Index sorting doesn't work with NumericDocValuesField:
+                d.add(SortedNumericDocValuesField.indexedField(timestampField, timestamp));
+
+                binaryFixedValues.add(new BytesRef(randomAlphaOfLength(binaryFixedLength)));
+                binaryVariableValues.add(new BytesRef(randomAlphaOfLength(between(0, 100))));
+                d.add(new BinaryDocValuesField(binaryFixedField, binaryFixedValues.getLast()));
+                d.add(new BinaryDocValuesField(binaryVariableField, binaryVariableValues.getLast()));
+
+                iw.addDocument(d);
+                if (i % 100 == 0) {
+                    iw.commit();
+                }
+                if (i < numDocs - 1) {
+                    currentTimestamp += 1000L;
+                }
+            }
+            iw.commit();
+
+            var factory = TestBlock.factory();
+            try (var reader = DirectoryReader.open(iw)) {
+                for (var leaf : reader.leaves()) {
+                    var binaryFixedDV = getDenseBinaryValues(leaf.reader(), binaryFixedField);
+                    var binaryVariableDV = getDenseBinaryValues(leaf.reader(), binaryVariableField);
+
+                    int maxDoc = leaf.reader().maxDoc();
+                    for (int i = 0; i < maxDoc;) {
+                        int size = Math.max(1, random().nextInt(0, maxDoc - i));
+                        var docs = TestBlock.docs(IntStream.range(i, i + size).toArray());
+                        {
+                            // bulk loading binary fixed length field:
+                            var block = (TestBlock) binaryFixedDV.tryReadLength(factory, docs, 0, random().nextBoolean());
+                            assertNotNull(block);
+                            assertEquals(size, block.size());
+
+                            for (int j = 0; j < block.size(); j++) {
+                                var actual = (int) block.get(j);
+                                assertEquals(binaryFixedLength, actual);
+                            }
+                        }
+                        {
+                            // bulk loading binary variable length field:
+                            var block = (TestBlock) binaryVariableDV.tryReadLength(factory, docs, 0, random().nextBoolean());
+                            assertNotNull(block);
+                            assertEquals(size, block.size());
+                            for (int j = 0; j < block.size(); j++) {
+                                var actual = (int) block.get(j);
+                                var expected = binaryVariableValues.removeLast().length;
+                                assertEquals(expected, actual);
+                            }
+                        }
+
+                        i += size;
+                    }
+                }
+            }
+
+            // Now bulk reader from one big segment and use random offset:
+            iw.forceMerge(1);
+            try (var reader = DirectoryReader.open(iw)) {
+                int randomOffset = random().nextInt(numDocs / 4);
+                assertEquals(1, reader.leaves().size());
+                assertEquals(numDocs, reader.maxDoc());
+                var leafReader = reader.leaves().get(0).reader();
+                int maxDoc = leafReader.maxDoc();
+                int size = maxDoc - randomOffset;
+
+                {
+                    var binaryFixedDV = getDenseBinaryValues(leafReader, binaryFixedField);
+                    var binaryVariableDV = getDenseBinaryValues(leafReader, binaryVariableField);
+                    var docs = TestBlock.docs(IntStream.range(0, maxDoc).toArray());
+
+                    // Separate doc values to bulk load and use as expected values
+                    var expectedBinaryFixedDV = getDenseBinaryValues(leafReader, binaryFixedField);
+                    var expectedBinaryVariableDV = getDenseBinaryValues(leafReader, binaryVariableField);
+
+                    // Test fixed length
+                    var fixedBinaryBlock = (TestBlock) binaryFixedDV.tryReadLength(factory, docs, randomOffset, false);
+                    assertLengthDenseBlock(fixedBinaryBlock, size, randomOffset, docs, expectedBinaryFixedDV);
+
+                    // Test variable length
+                    var variableBinaryBlock = (TestBlock) binaryVariableDV.tryReadLength(factory, docs, randomOffset, false);
+                    assertLengthDenseBlock(variableBinaryBlock, size, randomOffset, docs, expectedBinaryVariableDV);
+                }
+
+                {
+                    // And finally docs with gaps:
+                    var docs = TestBlock.docs(IntStream.range(0, maxDoc).filter(docId -> docId == 0 || docId % 64 != 0).toArray());
+                    size = docs.count();
+
+                    // Doc values to call tryReadLength on:
+                    var binaryFixedDV = getDenseBinaryValues(leafReader, binaryFixedField);
+                    var binaryVariableDV = getDenseBinaryValues(leafReader, binaryVariableField);
+
+                    // Doc values to get expected lengths from
+                    var expectedBinaryFixedDV = getDenseBinaryValues(leafReader, binaryFixedField);
+                    var expectedBinaryVariableDV = getDenseBinaryValues(leafReader, binaryVariableField);
+
+                    // Test fixed length
+                    var fixedBinaryBlock = (TestBlock) binaryFixedDV.tryReadLength(factory, docs, 0, false);
+                    assertLengthDenseBlock(fixedBinaryBlock, size, 0, docs, expectedBinaryFixedDV);
+
+                    // Test variable length
+                    var variableBinaryBlock = (TestBlock) binaryVariableDV.tryReadLength(factory, docs, 0, false);
+                    assertLengthDenseBlock(variableBinaryBlock, size, 0, docs, expectedBinaryVariableDV);
+                }
+            }
+        }
+    }
+
+    public void testOptionalLengthReaderSparse() throws Exception {
+        final String timestampField = "@timestamp";
+        final String binaryFixedField = "binary_variable";
+        final String binaryVariableField = "binary_fixed";
+        final int binaryFixedLength = randomIntBetween(0, 100);
+        long currentTimestamp = 1704067200000L;
+
+        var config = getTimeSeriesIndexWriterConfig(null, timestampField);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            List<BytesRef> binaryFixedValues = new ArrayList<>();
+            List<BytesRef> binaryVariableValues = new ArrayList<>();
+            int numDocs = 256 + random().nextInt(8096);
+
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                long timestamp = currentTimestamp;
+                // Index sorting doesn't work with NumericDocValuesField:
+                d.add(SortedNumericDocValuesField.indexedField(timestampField, timestamp));
+
+                if (randomBoolean()) {
+                    binaryFixedValues.add(new BytesRef(randomAlphaOfLength(binaryFixedLength)));
+                    binaryVariableValues.add(new BytesRef(randomAlphaOfLength(between(0, 100))));
+                    d.add(new BinaryDocValuesField(binaryFixedField, binaryFixedValues.getLast()));
+                    d.add(new BinaryDocValuesField(binaryVariableField, binaryVariableValues.getLast()));
+                } else {
+                    binaryFixedValues.add(null);
+                    binaryVariableValues.add(null);
+                }
+
+                iw.addDocument(d);
+                if (i % 100 == 0) {
+                    iw.commit();
+                }
+                if (i < numDocs - 1) {
+                    currentTimestamp += 1000L;
+                }
+            }
+            iw.commit();
+
+            // Now bulk reader from one big segment and use random offset:
+            var factory = TestBlock.factory();
+            iw.forceMerge(1);
+            try (var reader = DirectoryReader.open(iw)) {
+                int randomOffset = random().nextInt(numDocs / 4);
+                assertEquals(1, reader.leaves().size());
+                assertEquals(numDocs, reader.maxDoc());
+                var leafReader = reader.leaves().get(0).reader();
+                int maxDoc = leafReader.maxDoc();
+                int size = maxDoc - randomOffset;
+
+                {
+                    var binaryFixedDV = getSparseBinaryValues(leafReader, binaryFixedField);
+                    var binaryVariableDV = getSparseBinaryValues(leafReader, binaryVariableField);
+                    var docs = TestBlock.docs(IntStream.range(0, maxDoc).toArray());
+
+                    // Separate doc values to bulk load and use as expected values
+                    var expectedBinaryFixedDV = getSparseBinaryValues(leafReader, binaryFixedField);
+                    var expectedBinaryVariableDV = getSparseBinaryValues(leafReader, binaryVariableField);
+
+                    // Test fixed length
+                    var fixedBinaryBlock = (TestBlock) binaryFixedDV.tryReadLength(factory, docs, randomOffset, false);
+                    assertLengthSparseBlock(fixedBinaryBlock, size, randomOffset, docs, expectedBinaryFixedDV);
+
+                    // Test variable length
+                    var variableBinaryBlock = (TestBlock) binaryVariableDV.tryReadLength(factory, docs, randomOffset, false);
+                    assertLengthSparseBlock(variableBinaryBlock, size, randomOffset, docs, expectedBinaryVariableDV);
+                }
+
+                {
+                    // And finally docs with gaps:
+                    var docs = TestBlock.docs(IntStream.range(0, maxDoc).filter(docId -> docId == 0 || docId % 64 != 0).toArray());
+                    size = docs.count();
+
+                    // Doc values to call tryReadLength on:
+                    var binaryFixedDV = getSparseBinaryValues(leafReader, binaryFixedField);
+                    var binaryVariableDV = getSparseBinaryValues(leafReader, binaryVariableField);
+
+                    // Doc values to get expected lengths from
+                    var expectedBinaryFixedDV = getSparseBinaryValues(leafReader, binaryFixedField);
+                    var expectedBinaryVariableDV = getSparseBinaryValues(leafReader, binaryVariableField);
+
+                    // Test fixed length
+                    var fixedBinaryBlock = (TestBlock) binaryFixedDV.tryReadLength(factory, docs, 0, false);
+                    assertLengthSparseBlock(fixedBinaryBlock, size, 0, docs, expectedBinaryFixedDV);
+
+                    // Test variable length
+                    var variableBinaryBlock = (TestBlock) binaryVariableDV.tryReadLength(factory, docs, 0, false);
+                    assertLengthSparseBlock(variableBinaryBlock, size, 0, docs, expectedBinaryVariableDV);
+                }
+            }
+        }
+    }
+
+    private void assertLengthSparseBlock(
+        TestBlock block,
+        int size,
+        int randomOffset,
+        BlockLoader.Docs docs,
+        BinaryDocValues expectedBytesRefs
+    ) throws IOException {
+        assertNotNull(block);
+        assertEquals(size, block.size());
+        for (int j = 0; j < block.size(); j++) {
+            var actual = block.get(j);
+            if (expectedBytesRefs.advanceExact(docs.get(randomOffset + j))) {
+                var expected = expectedBytesRefs.binaryValue().length;
+                assertEquals(expected, actual);
+            } else {
+                assertNull(actual);
+            }
+        }
+    }
+
+    private void assertLengthDenseBlock(
+        TestBlock block,
+        int size,
+        int randomOffset,
+        BlockLoader.Docs docs,
+        BinaryDocValues expectedBytesRefs
+    ) throws IOException {
+        assertNotNull(block);
+        assertEquals(size, block.size());
+        for (int j = 0; j < block.size(); j++) {
+            var actual = block.get(j);
+            assert (expectedBytesRefs.advanceExact(docs.get(randomOffset + j)));
+            var expected = expectedBytesRefs.binaryValue().length;
+            assertEquals(expected, actual);
+        }
+    }
+
     public void testOptionalColumnAtATimeReader() throws Exception {
         final String counterField = "counter";
         final String counterFieldAsString = "counter_as_string";
@@ -968,10 +1224,12 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                     for (int i = 0; i < maxDoc;) {
                         int size = Math.max(1, random().nextInt(0, maxDoc - i));
                         var docs = TestBlock.docs(IntStream.range(i, i + size).toArray());
+                        int docIdEnd = docs.get(docs.count() - 1);
 
                         {
                             // bulk loading timestamp:
                             var block = (TestBlock) timestampDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false, false);
+                            assertEquals(timestampDV.docID(), docIdEnd);
                             assertNotNull(block);
                             assertEquals(size, block.size());
                             for (int j = 0; j < block.size(); j++) {
@@ -984,6 +1242,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                         {
                             // bulk loading counter field:
                             var block = (TestBlock) counterDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false, false);
+                            assertEquals(counterDV.docID(), docIdEnd);
                             assertNotNull(block);
                             assertEquals(size, block.size());
                             var stringBlock = (TestBlock) stringCounterDV.tryRead(
@@ -995,6 +1254,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                                 false,
                                 false
                             );
+                            assertEquals(stringCounterDV.docID(), docIdEnd);
                             assertNotNull(stringBlock);
                             assertEquals(size, stringBlock.size());
                             for (int j = 0; j < block.size(); j++) {
@@ -1012,6 +1272,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                         {
                             // bulk loading gauge field:
                             var block = (TestBlock) gaugeDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false, false);
+                            assertEquals(gaugeDV.docID(), docIdEnd);
                             assertNotNull(block);
                             assertEquals(size, block.size());
                             for (int j = 0; j < block.size(); j++) {
@@ -1031,6 +1292,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                                 false,
                                 useCustomBinaryFormat
                             );
+                            assertEquals(binaryFixedDV.docID(), docIdEnd);
                             assertNotNull(block);
                             assertEquals(size, block.size());
                             for (int j = 0; j < block.size(); j++) {
@@ -1050,6 +1312,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                                 false,
                                 useCustomBinaryFormat
                             );
+                            assertEquals(binaryVariableDV.docID(), docIdEnd);
                             assertNotNull(block);
                             assertEquals(size, block.size());
                             for (int j = 0; j < block.size(); j++) {
@@ -1086,10 +1349,11 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 var binaryVariableDV = getDenseBinaryValues(leafReader, binaryVariableField);
 
                 var docs = TestBlock.docs(IntStream.range(0, maxDoc).toArray());
-
+                int docIdEnd = docs.get(docs.count() - 1);
                 {
                     // bulk loading timestamp:
                     var block = (TestBlock) timestampDV.tryRead(blockFactory, docs, randomOffset, false, null, false, false);
+                    assertEquals(timestampDV.docID(), docIdEnd);
                     assertNotNull(block);
                     assertEquals(size, block.size());
                     for (int j = 0; j < block.size(); j++) {
@@ -1102,10 +1366,12 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 {
                     // bulk loading counter field:
                     var block = (TestBlock) counterDV.tryRead(factory, docs, randomOffset, false, null, false, false);
+                    assertEquals(counterDV.docID(), docIdEnd);
                     assertNotNull(block);
                     assertEquals(size, block.size());
 
                     var stringBlock = (TestBlock) stringCounterDV.tryRead(factory, docs, randomOffset, false, null, false, false);
+                    assertEquals(stringCounterDV.docID(), docIdEnd);
                     assertNotNull(stringBlock);
                     assertEquals(size, stringBlock.size());
 
@@ -1124,6 +1390,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 {
                     // bulk loading gauge field:
                     var block = (TestBlock) gaugeDV.tryRead(factory, docs, randomOffset, false, null, false, false);
+                    assertEquals(gaugeDV.docID(), docIdEnd);
                     assertNotNull(block);
                     assertEquals(size, block.size());
                     for (int j = 0; j < block.size(); j++) {
@@ -1135,6 +1402,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 {
                     // bulk loading binary fixed length field:
                     var block = (TestBlock) binaryFixedDV.tryRead(factory, docs, randomOffset, false, null, false, useCustomBinaryFormat);
+                    assertEquals(binaryFixedDV.docID(), docIdEnd);
                     assertNotNull(block);
                     assertEquals(size, block.size());
                     for (int j = 0; j < block.size(); j++) {
@@ -1153,6 +1421,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                         false,
                         useCustomBinaryFormat
                     );
+                    assertEquals(binaryVariableDV.docID(), docIdEnd);
                     assertNotNull(block);
                     assertEquals(size, block.size());
                     for (int j = 0; j < block.size(); j++) {
@@ -1163,6 +1432,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
 
                 // And finally docs with gaps:
                 docs = TestBlock.docs(IntStream.range(0, maxDoc).filter(docId -> docId == 0 || docId % 64 != 0).toArray());
+                docIdEnd = docs.get(docs.count() - 1);
                 size = docs.count();
                 // Test against values loaded using normal doc value apis:
                 long[] expectedCounters = new long[size];
@@ -1208,14 +1478,17 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 {
                     // bulk loading counter field:
                     var block = (TestBlock) counterDV.tryRead(factory, docs, 0, false, null, false, false);
+                    assertEquals(counterDV.docID(), docIdEnd);
                     assertNotNull(block);
                     assertEquals(size, block.size());
 
                     var stringBlock = (TestBlock) stringCounterDV.tryRead(factory, docs, 0, false, null, false, false);
+                    assertEquals(stringCounterDV.docID(), docIdEnd);
                     assertNotNull(stringBlock);
                     assertEquals(size, stringBlock.size());
 
                     var fixedBinaryBlock = (TestBlock) binaryFixedDV.tryRead(factory, docs, 0, false, null, false, useCustomBinaryFormat);
+                    assertEquals(binaryFixedDV.docID(), docIdEnd);
                     assertNotNull(fixedBinaryBlock);
                     assertEquals(size, fixedBinaryBlock.size());
 
@@ -1228,6 +1501,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                         false,
                         useCustomBinaryFormat
                     );
+                    assertEquals(binaryVariableDV.docID(), docIdEnd);
                     assertNotNull(variableBinaryBlock);
                     assertEquals(size, variableBinaryBlock.size());
 

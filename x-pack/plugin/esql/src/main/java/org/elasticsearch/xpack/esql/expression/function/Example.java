@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function;
 
 import java.lang.annotation.ElementType;
+import java.lang.annotation.Repeatable;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
@@ -16,7 +17,8 @@ import java.lang.annotation.Target;
  * An example of using a function that is rendered in the docs.
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.CONSTRUCTOR)
+@Target({ ElementType.CONSTRUCTOR, ElementType.FIELD })
+@Repeatable(Examples.class)
 public @interface Example {
 
     /**

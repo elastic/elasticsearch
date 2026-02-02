@@ -17,7 +17,9 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInfo> {
 
@@ -48,7 +50,8 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             randomShardHeapUsages(),
             randomNodeUsageStatsForThreadPools(),
             randomShardWriteLoad(),
-            randomMaxHeapSizes()
+            randomMaxHeapSizes(),
+            randomNodeIdsWriteLoadHotspottingSet()
         );
     }
 
@@ -110,6 +113,16 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             nodeUsageStatsForThreadPools.put(ThreadPool.Names.WRITE, new NodeUsageStatsForThreadPools(nodeIdKey, usageStatsForThreadPools));
         }
         return nodeUsageStatsForThreadPools;
+    }
+
+    private static Set<String> randomNodeIdsWriteLoadHotspottingSet() {
+        int numEntries = randomIntBetween(0, 128);
+        Set<String> nodeIdsWriteLoadHotspotting = new HashSet<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            String nodeId = randomAlphaOfLength(32);
+            nodeIdsWriteLoadHotspotting.add(nodeId);
+        }
+        return nodeIdsWriteLoadHotspotting;
     }
 
     private static Map<String, DiskUsage> randomDiskUsage() {

@@ -21,6 +21,8 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.TDigestBlock;
+import org.elasticsearch.compute.data.TDigestBlockBuilder;
 
 import java.util.Arrays;
 
@@ -115,6 +117,9 @@ public class NullInsertingSourceOperator extends MappingSourceOperator {
                 ((ExponentialHistogramBlockBuilder) into).append(
                     ((ExponentialHistogramBlock) from).getExponentialHistogram(valueIndex, new ExponentialHistogramScratch())
                 );
+                break;
+            case TDIGEST:
+                ((TDigestBlockBuilder) into).appendTDigest(((TDigestBlock) from).getTDigestHolder(valueIndex));
                 break;
             default:
                 throw new IllegalArgumentException("unknown block type " + elementType);

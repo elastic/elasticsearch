@@ -223,7 +223,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                             nodes.add(newNode("node" + (nodeIdx++), Version.CURRENT, IndexVersion.current()));
                         }
                     } else {
-                        nodes.add(newNode("node" + (nodeIdx++), VersionUtils.randomVersion(random()), IndexVersion.current()));
+                        nodes.add(newNode("node" + (nodeIdx++), VersionUtils.randomVersion(), IndexVersion.current()));
                     }
                 }
             }

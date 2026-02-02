@@ -17,6 +17,7 @@ import java.io.OutputStream;
 public class OutputStreamStreamOutput extends StreamOutput {
 
     private final OutputStream out;
+    private long position;
 
     public OutputStreamStreamOutput(OutputStream out) {
         this.out = out;
@@ -25,26 +26,33 @@ public class OutputStreamStreamOutput extends StreamOutput {
     @Override
     public void writeByte(byte b) throws IOException {
         out.write(b);
+        position += 1;
     }
 
     @Override
     public void writeBytes(byte[] b, int offset, int length) throws IOException {
         out.write(b, offset, length);
+        position += length;
+    }
+
+    @Override
+    public long position() {
+        return position;
     }
 
     @Override
     public void writeString(String str) throws IOException {
-        StreamOutputHelper.writeString(str, out);
+        position += StreamOutputHelper.writeString(str, out);
     }
 
     @Override
     public void writeOptionalString(@Nullable String str) throws IOException {
-        StreamOutputHelper.writeOptionalString(str, out);
+        position += StreamOutputHelper.writeOptionalString(str, out);
     }
 
     @Override
     public void writeGenericString(String value) throws IOException {
-        StreamOutputHelper.writeGenericString(value, out);
+        position += StreamOutputHelper.writeGenericString(value, out);
     }
 
     @Override

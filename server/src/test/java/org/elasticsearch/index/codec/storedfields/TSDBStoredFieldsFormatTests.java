@@ -15,10 +15,6 @@ import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormat;
 import org.apache.lucene.tests.codecs.asserting.AssertingCodec;
 import org.apache.lucene.tests.index.BaseStoredFieldsFormatTestCase;
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.codec.bloomfilter.ES93BloomFilterStoredFieldsFormat;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 
 public class TSDBStoredFieldsFormatTests extends BaseStoredFieldsFormatTestCase {
 
@@ -29,15 +25,7 @@ public class TSDBStoredFieldsFormatTests extends BaseStoredFieldsFormatTestCase 
 
     @Override
     protected Codec getCodec() {
-        var bloomFilterSizeInKb = atLeast(1);
-        var tsdbStoredFieldsFormat = new TSDBStoredFieldsFormat(
-            new Lucene90StoredFieldsFormat(),
-            new ES93BloomFilterStoredFieldsFormat(
-                BigArrays.NON_RECYCLING_INSTANCE,
-                ByteSizeValue.ofKb(bloomFilterSizeInKb),
-                IdFieldMapper.NAME
-            )
-        );
+        var tsdbStoredFieldsFormat = new TSDBStoredFieldsFormat(new Lucene90StoredFieldsFormat());
         return new AssertingCodec() {
             @Override
             public StoredFieldsFormat storedFieldsFormat() {

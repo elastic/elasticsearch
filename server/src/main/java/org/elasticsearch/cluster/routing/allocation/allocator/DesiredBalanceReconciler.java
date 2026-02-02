@@ -321,7 +321,9 @@ public class DesiredBalanceReconciler {
                             }
                             final var decision = allocation.deciders().canAllocate(shard, routingNode, allocation);
                             switch (decision.type()) {
-                                case YES -> {
+                                // if balancer decided to allocate shard on a not-preferred node, then it's OK,
+                                // there is no better place, and we treat NO_PREFERRED as YES
+                                case YES, NOT_PREFERRED -> {
                                     logger.debug("Assigning shard [{}] to {} [{}]", shard, nodeIdsIterator.source, nodeId);
                                     long shardSize = getExpectedShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation);
                                     routingNodes.initializeShard(shard, nodeId, null, shardSize, allocation.changes());

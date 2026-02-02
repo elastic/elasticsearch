@@ -278,7 +278,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
             long vectorIndexOffset = vectorIndex.getFilePointer();
             int[][] graphLevelNodeOffsets = new int[1][];
             final HnswGraph graph;
-            try (var index = buildGPUIndex(resourcesHolder.resources(), cagraIndexParams, dataset)) {
+            try (var index = buildGPUIndex(resourcesHolder.resources(), cagraIndexParams, dataset, fieldInfo)) {
                 assert index != null : "GPU index should be built for field: " + fieldInfo.name;
                 var deviceGraph = index.getGraph();
                 var graphSize = deviceGraph.size() * deviceGraph.columns() * Integer.BYTES;
@@ -319,8 +319,40 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
     private CagraIndex buildGPUIndex(
         CuVSResourceManager.ManagedCuVSResources cuVSResources,
         CagraIndexParams cagraIndexParams,
-        CuVSMatrix dataset
+        CuVSMatrix dataset,
+        FieldInfo fieldInfo
     ) throws Throwable {
+        if (logger.isDebugEnabled()) {
+            var algorithm = cagraIndexParams.getCagraGraphBuildAlgo();
+            if (algorithm == CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT) {
+                logger.debug(
+                    "Building CAGRA graph: numVectors=[{}], dims=[{}], algorithm=[{}], similarity=[{}], "
+                        + "graphDegree=[{}], intermediateGraphDegree=[{}], nnDescentIterations=[5], dataType=[{}]",
+                    dataset.size(),
+                    dataset.columns(),
+                    algorithm,
+                    fieldInfo.getVectorSimilarityFunction(),
+                    M,
+                    beamWidth,
+                    dataType
+                );
+            } else {
+                // IVF_PQ algorithm
+                var ivfPqIndexParams = cagraIndexParams.getCuVSIvfPqParams().getIndexParams();
+                logger.debug(
+                    "Building CAGRA graph: numVectors=[{}], dims=[{}], algorithm=[{}], similarity=[{}], "
+                        + "pqDim=[{}], pqBits=[{}], nLists=[{}], dataType=[{}]",
+                    dataset.size(),
+                    dataset.columns(),
+                    algorithm,
+                    fieldInfo.getVectorSimilarityFunction(),
+                    ivfPqIndexParams.getPqDim(),
+                    ivfPqIndexParams.getPqBits(),
+                    ivfPqIndexParams.getnLists(),
+                    dataType
+                );
+            }
+        }
         long startTime = System.nanoTime();
         var indexBuilder = CagraIndex.newBuilder(cuVSResources).withDataset(dataset).withIndexParams(cagraIndexParams);
         var index = indexBuilder.build();

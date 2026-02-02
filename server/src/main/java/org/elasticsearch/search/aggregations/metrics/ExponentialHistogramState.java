@@ -101,25 +101,27 @@ public class ExponentialHistogramState implements Releasable, Accountable {
     }
 
     public void add(ExponentialHistogram histogram) {
+        initMergedHistograms();
+        mergedHistograms.add(histogram);
+    }
+
+    public void addWithoutUpscaling(ExponentialHistogram histogram) {
+        initMergedHistograms();
+        mergedHistograms.addWithoutUpscaling(histogram);
+    }
+
+    private void initMergedHistograms() {
         if (mergedHistograms == null) {
-            if (deserializedHistogram == null) {
-                mergedHistograms = ExponentialHistogramMerger.create(
-                    DEFAULT_MAX_HISTOGRAM_BUCKETS,
-                    new ElasticCircuitBreakerWrapper(circuitBreaker)
-                );
-            } else {
-                // do not upscale the deserialized histogram
-                mergedHistograms = ExponentialHistogramMerger.createWithMaxScale(
-                    DEFAULT_MAX_HISTOGRAM_BUCKETS,
-                    deserializedHistogram.scale(),
-                    new ElasticCircuitBreakerWrapper(circuitBreaker)
-                );
-                mergedHistograms.add(deserializedHistogram);
+            mergedHistograms = ExponentialHistogramMerger.create(
+                DEFAULT_MAX_HISTOGRAM_BUCKETS,
+                new ElasticCircuitBreakerWrapper(circuitBreaker)
+            );
+            if (deserializedHistogram != null) {
+                mergedHistograms.addWithoutUpscaling(deserializedHistogram);
                 deserializedHistogram.close();
                 deserializedHistogram = null;
             }
         }
-        mergedHistograms.add(histogram);
     }
 
     /**
@@ -372,7 +374,7 @@ public class ExponentialHistogramState implements Releasable, Accountable {
         return bytes;
     }
 
-    private static class ElasticCircuitBreakerWrapper implements ExponentialHistogramCircuitBreaker {
+    static class ElasticCircuitBreakerWrapper implements ExponentialHistogramCircuitBreaker {
 
         private final CircuitBreaker breaker;
 

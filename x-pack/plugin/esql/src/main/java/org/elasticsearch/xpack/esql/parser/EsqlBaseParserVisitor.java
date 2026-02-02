@@ -88,18 +88,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitField(EsqlBaseParser.FieldContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#rerankFields}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitRerankFields(EsqlBaseParser.RerankFieldsContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#rerankField}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitRerankField(EsqlBaseParser.RerankFieldContext ctx);
-  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#fromCommand}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -496,6 +484,26 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitSetField(EsqlBaseParser.SetFieldContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#mmrCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMmrCommand(EsqlBaseParser.MmrCommandContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code mmrQueryVectorParameter}
+   * labeled alternative in {@link EsqlBaseParser#mmrQueryVectorParams}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMmrQueryVectorParameter(EsqlBaseParser.MmrQueryVectorParameterContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code mmrQueryVectorExpression}
+   * labeled alternative in {@link EsqlBaseParser#mmrQueryVectorParams}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMmrQueryVectorExpression(EsqlBaseParser.MmrQueryVectorExpressionContext ctx);
   /**
    * Visit a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.

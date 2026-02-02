@@ -48,6 +48,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.supercsv.io.CsvListReader;
 import org.supercsv.prefs.CsvPreference;
@@ -92,9 +93,20 @@ public final class CsvTestUtils {
     public static final String COMMA_ESCAPING_REGEX = "(?<!\\" + ESCAPE_CHAR + "),";
     public static final String ESCAPED_COMMA_SEQUENCE = ESCAPE_CHAR + ",";
 
+    /**
+     * Matches any value.
+     */
+    public static final String ANY = "{any}";
+
+    /**
+     * Matches any value in the range [lowerBound, upperBound].
+     */
     public record Range(Object lowerBound, Object upperBound) {
         @SuppressWarnings("unchecked")
         <T extends Comparable<T>> boolean includes(Object value) {
+            if (value == null || value instanceof List) {
+                return false;
+            }
             return ((T) value).compareTo((T) lowerBound) >= 0 && ((T) value).compareTo((T) upperBound) <= 0;
         }
     }
@@ -644,6 +656,9 @@ public final class CsvTestUtils {
                 Object lowerBound = converter.apply(value.substring(0, separator).trim());
                 Object upperBound = converter.apply(value.substring(separator + 2).trim());
                 return new Range(lowerBound, upperBound);
+            } else if (ANY.equals(value)) {
+                // The token "{any}" indicates that any value is accepted.
+                return ANY;
             } else {
                 return converter.apply(value);
             }
@@ -663,6 +678,7 @@ public final class CsvTestUtils {
     }
 
     record ActualResults(
+        Configuration configuration,
         List<String> columnNames,
         List<Type> columnTypes,
         List<DataType> dataTypes,
@@ -670,7 +686,7 @@ public final class CsvTestUtils {
         Map<String, List<String>> responseHeaders
     ) {
         Iterator<Iterator<Object>> values() {
-            return ResponseValueUtils.pagesToValues(dataTypes(), pages);
+            return ResponseValueUtils.pagesToValues(dataTypes(), pages, configuration.zoneId());
         }
     }
 

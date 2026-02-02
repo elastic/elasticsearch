@@ -113,21 +113,33 @@ public enum FunctionType {
      * Input: Scalar
      * <br>
      * Output: Instant vector (single sample with no labels)
+     * <p>
+     * Example: {@code vector(42)} produces an instant vector with one sample with value {@code 42}
      */
-    VECTOR(PromqlDataType.SCALAR, PromqlDataType.INSTANT_VECTOR),
+    VECTOR_CONVERSION(PromqlDataType.SCALAR, PromqlDataType.INSTANT_VECTOR),
 
     /**
-     * Special functions that don't fit standard patterns.
+     * Converts a vector that contains only a single element to a scalar.
+     * If the vector does not contain exactly one element, {@code NaN} is returned.
      * <p>
-     * Examples:
-     * <ul>
-     * <li>scalar() - converts single-element vector to scalar</li>
-     * <li>time() - current timestamp as scalar</li>
-     * <li>pi() - mathematical constant</li>
-     * </ul>
+     * Input: Instant vector (single sample)
+     * <br>
+     * Output: Scalar
+     * <p>
+     * Example: {@code scalar(vector(42))} produces {@code 42}
      */
-    // TODO refine input/output types for these special cases
-    SPECIAL(null, null);
+    SCALAR_CONVERSION(PromqlDataType.INSTANT_VECTOR, PromqlDataType.SCALAR),
+
+    /**
+     * Produces a scalar value.
+     * <p>
+     * Input: None
+     * <br>
+     * Output: Scalar
+     * <p>
+     * Examples: {@code pi()}, {@code time()}
+     */
+    SCALAR(null, PromqlDataType.SCALAR);
 
     private final PromqlDataType inputType;
     private final PromqlDataType outputType;

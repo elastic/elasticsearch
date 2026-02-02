@@ -126,15 +126,16 @@ public class StreamOutputToBytesTests extends ESTestCase {
                 return s -> s.writeGenericString(value);
             });
 
-            while (countingStream.size() < targetSize) {
+            while (countingStream.position() < targetSize) {
                 var writerIndex = between(0, writers.size() - 1);
                 var writer = writers.get(writerIndex).get();
                 for (var stream : streams) {
                     writer.accept(stream);
                 }
-                assertEquals("recyclerBytesStream after " + writerIndex, countingStream.size(), recyclerBytesStream.position());
-                assertEquals("plainBytesStream after " + writerIndex, countingStream.size(), plainBytesStream.position());
-                assertEquals("bufferedStream after " + writerIndex, countingStream.size(), bufferedStream.position());
+                assertEquals("recyclerBytesStream after " + writerIndex, countingStream.position(), recyclerBytesStream.position());
+                assertEquals("plainBytesStream after " + writerIndex, countingStream.position(), plainBytesStream.position());
+                assertEquals("bufferedStream after " + writerIndex, countingStream.position(), bufferedStream.position());
+                assertEquals("wrappedStream after " + writerIndex, countingStream.position(), wrappedStream.position());
             }
 
             isExpectedWriteSize.set(allOf(lessThanOrEqualTo(bufferLen), greaterThan(0))); // last write may be undersized

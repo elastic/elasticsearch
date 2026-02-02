@@ -14,6 +14,7 @@ import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.datageneration.datasource.DataSource;
 
 import java.util.Map;
+import java.util.function.Function;
 
 public interface PredefinedField {
     String name();
@@ -30,6 +31,18 @@ public interface PredefinedField {
         @Override
         public FieldDataGenerator generator(DataSource dataSource) {
             return generator;
+        }
+    }
+
+    record WithGeneratorProvider(
+        String name,
+        FieldType fieldType,
+        Map<String, Object> mapping,
+        Function<DataSource, FieldDataGenerator> generatorProvider
+    ) implements PredefinedField {
+        @Override
+        public FieldDataGenerator generator(DataSource dataSource) {
+            return generatorProvider.apply(dataSource);
         }
     }
 }

@@ -42,10 +42,11 @@ public enum StreamOutputHelper {
      *
      * @param str string to write
      * @param outputStream the stream to which to write the data after buffering.
+     * @return number of bytes written.
      * @throws IOException on failure
      */
-    public static void writeString(String str, OutputStream outputStream) throws IOException {
-        writeString(str, getThreadLocalScratchBuffer(), 0, outputStream);
+    public static int writeString(String str, OutputStream outputStream) throws IOException {
+        return writeString(str, getThreadLocalScratchBuffer(), 0, outputStream);
     }
 
     /**
@@ -58,11 +59,13 @@ public enum StreamOutputHelper {
      * @param buffer buffer that may hold some bytes to write
      * @param prefixLength how many bytes in {code buffer} to write
      * @param outputStream the stream to which to write the data after buffering.
+     * @return number of bytes written.
      * @throws IOException on failure
      */
-    public static void writeString(String str, byte[] buffer, int prefixLength, OutputStream outputStream) throws IOException {
+    public static int writeString(String str, byte[] buffer, int prefixLength, OutputStream outputStream) throws IOException {
         final int charCount = str.length();
         int offset = prefixLength + putVInt(buffer, charCount, prefixLength);
+        int total = 0;
         for (int i = 0; i < charCount; i++) {
             final int c = str.charAt(i);
             if (c <= 0x007F) {
@@ -80,10 +83,12 @@ public enum StreamOutputHelper {
             // left before we start another iteration
             if (offset > buffer.length - 3) {
                 outputStream.write(buffer, 0, offset);
+                total += offset;
                 offset = 0;
             }
         }
         outputStream.write(buffer, 0, offset);
+        return total + offset;
     }
 
     /**
@@ -95,16 +100,18 @@ public enum StreamOutputHelper {
      *
      * @param str string to write
      * @param outputStream the stream to which to write the data after buffering.
+     * @return number of bytes written.
      * @throws IOException on failure
      */
-    public static void writeOptionalString(@Nullable String str, OutputStream outputStream) throws IOException {
+    public static int writeOptionalString(@Nullable String str, OutputStream outputStream) throws IOException {
         if (str == null) {
             outputStream.write((byte) 0);
+            return 1;
         } else {
             byte[] buffer = getThreadLocalScratchBuffer();
             // put the true byte into the buffer instead of writing it outright to do fewer flushes
             buffer[0] = (byte) 1;
-            StreamOutputHelper.writeString(str, buffer, 1, outputStream);
+            return StreamOutputHelper.writeString(str, buffer, 1, outputStream);
         }
     }
 
@@ -117,13 +124,14 @@ public enum StreamOutputHelper {
      *
      * @param value string to write
      * @param outputStream the stream to which to write the data after buffering.
+     * @return number of bytes written.
      * @throws IOException on failure
      */
-    public static void writeGenericString(String value, OutputStream outputStream) throws IOException {
+    public static int writeGenericString(String value, OutputStream outputStream) throws IOException {
         byte[] buffer = StreamOutputHelper.getThreadLocalScratchBuffer();
         // put the 0 type identifier byte into the buffer instead of writing it outright to do fewer flushes
         buffer[0] = 0;
-        StreamOutputHelper.writeString(value, buffer, 1, outputStream);
+        return StreamOutputHelper.writeString(value, buffer, 1, outputStream);
     }
 
     /**

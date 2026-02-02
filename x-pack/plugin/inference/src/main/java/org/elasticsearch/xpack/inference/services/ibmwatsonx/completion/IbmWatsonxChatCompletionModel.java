@@ -88,19 +88,18 @@ public class IbmWatsonxChatCompletionModel extends IbmWatsonxModel {
         );
     }
 
-    // should only be used for testing
-    IbmWatsonxChatCompletionModel(
+    public IbmWatsonxChatCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
         IbmWatsonxChatCompletionServiceSettings serviceSettings,
         @Nullable DefaultSecretSettings secretSettings
     ) {
-        super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings),
-            new ModelSecrets(secretSettings),
-            serviceSettings
-        );
+        this(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings), new ModelSecrets(secretSettings));
+    }
+
+    public IbmWatsonxChatCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets, (IbmWatsonxChatCompletionServiceSettings) modelConfigurations.getServiceSettings());
     }
 
     @Override

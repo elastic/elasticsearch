@@ -17,7 +17,7 @@ cost:double | time_bucket:datetime
 ;
 
 min_over_time_of_double_no_grouping_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=1m cost=(sum(min_over_time(network.cost[1m])))
 | SORT cost DESC, step DESC | LIMIT 10;
@@ -87,7 +87,7 @@ bytes_in:long | time_bucket:datetime
 ;
 
 min_over_time_of_long_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=1m bytes_in=(sum(min_over_time(network.bytes_in[1m])))
 | SORT bytes_in DESC, step | LIMIT 10;
@@ -138,7 +138,7 @@ bytes_in:long | time_bucket:datetime
 ;
 
 min_over_time_with_window_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 required_capability: time_series_window_v1
 
 PROMQL index=k8s step=1m bytes_in=(sum(min_over_time(network.bytes_in[3m])))
@@ -185,7 +185,7 @@ bytes_in:long | cluster:keyword | time_bucket:datetime
 ;
 
 min_over_time_of_long_grouping_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=1m bytes_in=(sum by (cluster) (min_over_time(network.bytes_in[1m])))
 | SORT bytes_in DESC, step | LIMIT 10;
@@ -214,7 +214,7 @@ true            | 2024-05-10T00:20:00.000Z
 ;
 
 min_over_time_of_boolean_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m eth0_up=(max(min_over_time(network.eth0.up[10m])))
 | SORT step | LIMIT 10;
@@ -243,7 +243,7 @@ false           | staging         | 2024-05-10T00:03:00.000Z
 ;
 
 min_over_time_of_boolean_grouping_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=1m eth0_up=(min by (cluster) (min_over_time(network.eth0.up[1m])))
 | SORT step, cluster | LIMIT 10;
@@ -347,7 +347,7 @@ clients:double     | time_bucket:datetime
 ;
 
 min_over_time_of_integer_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=1m clients=(avg(min_over_time(network.eth0.currently_connected_clients[1m])))
 | SORT step | LIMIT 10;
@@ -383,7 +383,7 @@ clients:double | cluster:keyword | time_bucket:datetime
 ;
 
 min_over_time_of_integer_grouping_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=1m clients=(avg by (cluster) (min_over_time(network.eth0.currently_connected_clients[1m])))
 | SORT step, cluster | LIMIT 10;
@@ -453,7 +453,7 @@ false       | 2024-05-10T00:09:00.000Z
 ;
 
 min_over_time_of_keyword_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=1m pod=(min(min_over_time(network.eth0.up[1m])))
 | SORT step | LIMIT 10;
@@ -489,7 +489,7 @@ false       | staging         | 2024-05-10T00:03:00.000Z
 ;
 
 min_over_time_of_keyword_grouping_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=1m pod=(min by (cluster) (min_over_time(network.eth0.up[1m])))
 | SORT step, cluster | LIMIT 10;
@@ -519,7 +519,7 @@ tx:double | time_bucket:datetime
 ;
 
 min_over_time_of_aggregate_metric_double_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 required_capability: aggregate_metric_double_v0
 
 PROMQL index=k8s-downsampled step=10m tx=(sum(min_over_time(network.eth0.tx[10m])))
@@ -549,7 +549,7 @@ tx:double | cluster:keyword | time_bucket:datetime
 ;
 
 min_over_time_of_aggregate_metric_double_grouping_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 required_capability: aggregate_metric_double_v0
 
 PROMQL index=k8s-downsampled step=10m tx=(sum by (cluster) (min_over_time(network.eth0.tx[10m])))
@@ -584,7 +584,7 @@ tx:long | cluster:keyword | time_bucket:datetime
 ;
 
 min_over_time_with_filtering_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m tx=(sum by (cluster) (min_over_time(network.bytes_in{pod!="three"}[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -631,7 +631,7 @@ min_bytes:long | pod:keyword | time_bucket:datetime     | kb:double
 ;
 
 eval_on_min_over_time_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m min_bytes=(sum by (pod) (min_over_time(network.bytes_in[10m])))
 | EVAL kb = min_bytes / 1000.0
@@ -667,7 +667,7 @@ events:long | pod:keyword | time_bucket:datetime
 ;
 
 min_over_time_multi_values_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=1m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:09:00.000Z" events=(sum by (pod) (min_over_time(events_received[1m])))
 | SORT events, step | LIMIT 10;
@@ -705,7 +705,7 @@ null        | two         | 2024-05-10T00:13:00.000Z
 # PromQL omits buckets with no samples:
 # https://github.com/prometheus/prometheus/blob/14de1eb043f2b264056a9d1426d5db8c068c3b32/promql/functions.go#L1052
 min_over_time_null_values_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=1m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:15:00.000Z" events=(sum by (pod) (min_over_time(events_received[1m])))
 | SORT events, step | LIMIT 10;
@@ -740,7 +740,7 @@ events:long | pod:keyword | time_bucket:datetime
 ;
 
 min_over_time_all_value_types_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m events=(sum by (pod) (min_over_time(events_received[10m])))
 | SORT events, pod, step | LIMIT 10;
@@ -773,7 +773,7 @@ bytes:double | time_bucket:datetime
 
 # Awaits fix: index wildcard selector not yet available for PromQL.
 min_over_time_aggregate_metric_double_implicit_casting_promql-Ignore
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 required_capability: aggregate_metric_double_v0
 
 PROMQL index=k8s* step=10m bytes=(sum by (pod) (min_over_time(network.eth0.rx[10m])))
@@ -812,7 +812,7 @@ bytes:double | pod:keyword | time_bucket:datetime
 
 # Awaits fix: index wildcard selector not yet available for PromQL.
 min_over_time_aggregate_metric_double_implicit_casting_grouping_promql-Ignore
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 required_capability: aggregate_metric_double_v0
 
 PROMQL index=k8s* step=10m bytes=(sum by (pod) (min_over_time(network.eth0.rx[10m])))

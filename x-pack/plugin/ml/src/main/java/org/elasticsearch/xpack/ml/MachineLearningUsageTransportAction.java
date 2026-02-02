@@ -117,8 +117,10 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
     private final Client client;
     private final XPackLicenseState licenseState;
     private final JobManagerHolder jobManagerHolder;
-    private final MachineLearningExtension machineLearningExtension;
     private final boolean enabled;
+    private final boolean anomalyDetectionEnabled;
+    private final boolean dataFrameAnalyticsEnabled;
+    private final boolean nlpEnabled;
 
     @Inject
     public MachineLearningUsageTransportAction(
@@ -129,19 +131,16 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         Environment environment,
         Client client,
         XPackLicenseState licenseState,
-        JobManagerHolder jobManagerHolder,
-        MachineLearningExtensionHolder machineLearningExtensionHolder
+        JobManagerHolder jobManagerHolder
     ) {
         super(XPackUsageFeatureAction.MACHINE_LEARNING.name(), transportService, clusterService, threadPool, actionFilters);
         this.client = new OriginSettingClient(client, ML_ORIGIN);
         this.licenseState = licenseState;
         this.jobManagerHolder = jobManagerHolder;
-        if (machineLearningExtensionHolder.isEmpty()) {
-            this.machineLearningExtension = new DefaultMachineLearningExtension();
-        } else {
-            this.machineLearningExtension = machineLearningExtensionHolder.getMachineLearningExtension();
-        }
         this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(environment.settings());
+        anomalyDetectionEnabled = MachineLearning.ANOMALY_DETECTION_ENABLED.get(environment.settings());
+        dataFrameAnalyticsEnabled = MachineLearning.DATA_FRAME_ANALYTICS_ENABLED.get(environment.settings());
+        nlpEnabled = MachineLearning.NLP_ENABLED.get(environment.settings());
     }
 
     @Override
@@ -244,14 +243,14 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         dataframeAnalyticsStatsRequest.setPageParams(new PageParams(0, 10_000));
         ActionListener<GetDatafeedsStatsAction.Response> datafeedStatsListener = ActionListener.wrap(response -> {
             addDatafeedsUsage(response, datafeedsUsage);
-            if (machineLearningExtension.isDataFrameAnalyticsEnabled()) {
+            if (dataFrameAnalyticsEnabled) {
                 client.execute(GetDataFrameAnalyticsStatsAction.INSTANCE, dataframeAnalyticsStatsRequest, dataframeAnalyticsStatsListener);
             } else {
                 addInferenceUsage(inferenceUsageListener);
             }
         }, e -> {
             logger.warn("Failed to get datafeed stats to include in ML usage", e);
-            if (machineLearningExtension.isDataFrameAnalyticsEnabled()) {
+            if (dataFrameAnalyticsEnabled) {
                 client.execute(GetDataFrameAnalyticsStatsAction.INSTANCE, dataframeAnalyticsStatsRequest, dataframeAnalyticsStatsListener);
             } else {
                 addInferenceUsage(inferenceUsageListener);
@@ -275,10 +274,10 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         );
 
         // Step 0. Kick off the chain of callbacks by requesting jobs stats
-        if (machineLearningExtension.isAnomalyDetectionEnabled()) {
+        if (anomalyDetectionEnabled) {
             GetJobsStatsAction.Request jobStatsRequest = new GetJobsStatsAction.Request(Metadata.ALL);
             client.execute(GetJobsStatsAction.INSTANCE, jobStatsRequest, jobStatsListener);
-        } else if (machineLearningExtension.isDataFrameAnalyticsEnabled()) {
+        } else if (dataFrameAnalyticsEnabled) {
             client.execute(GetDataFrameAnalyticsStatsAction.INSTANCE, dataframeAnalyticsStatsRequest, dataframeAnalyticsStatsListener);
         } else {
             addInferenceUsage(inferenceUsageListener);
@@ -435,7 +434,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
     }
 
     private void addInferenceUsage(ActionListener<Map<String, Object>> listener) {
-        if (machineLearningExtension.isDataFrameAnalyticsEnabled() || machineLearningExtension.isNlpEnabled()) {
+        if (dataFrameAnalyticsEnabled || nlpEnabled) {
             GetTrainedModelsAction.Request getModelsRequest = new GetTrainedModelsAction.Request(
                 "*",
                 Collections.emptyList(),

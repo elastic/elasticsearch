@@ -99,8 +99,12 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         final NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector = spy(
             new NodeUsageStatsForThreadPoolsCollector()
         );
+        final WriteLoadConstraintSettings writeLoadConstraintSettings = new WriteLoadConstraintSettings(
+            clusterService.getClusterSettings()
+        );
         final InternalClusterInfoService clusterInfoService = new InternalClusterInfoService(
             settings,
+            writeLoadConstraintSettings,
             clusterService,
             threadPool,
             client,
@@ -109,7 +113,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         );
         final WriteLoadConstraintMonitor usageMonitor = spy(
             new WriteLoadConstraintMonitor(
-                clusterService.getClusterSettings(),
+                writeLoadConstraintSettings,
                 threadPool.relativeTimeInMillisSupplier(),
                 clusterService::state,
                 new RerouteService() {

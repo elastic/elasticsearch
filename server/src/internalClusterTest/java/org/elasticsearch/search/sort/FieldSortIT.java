@@ -146,7 +146,6 @@ public class FieldSortIT extends ESIntegTestCase {
             prepareSearch().addSort(new FieldSortBuilder("entry").order(SortOrder.DESC).unmappedType(useMapping ? null : "long"))
                 .setSize(10),
             response -> {
-                logClusterState();
                 Number previous = (Number) response.getHits().getHits()[0].getSourceAsMap().get("entry");
                 for (int j = 1; j < response.getHits().getHits().length; j++) {
                     Number current = (Number) response.getHits().getHits()[j].getSourceAsMap().get("entry");
@@ -161,7 +160,6 @@ public class FieldSortIT extends ESIntegTestCase {
             prepareSearch().addSort(new FieldSortBuilder("entry").order(SortOrder.ASC).unmappedType(useMapping ? null : "long"))
                 .setSize(10),
             response -> {
-                logClusterState();
                 Number previous = (Number) response.getHits().getHits()[0].getSourceAsMap().get("entry");
                 for (int j = 1; j < response.getHits().getHits().length; j++) {
                     Number current = (Number) response.getHits().getHits()[j].getSourceAsMap().get("entry");

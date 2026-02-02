@@ -10,23 +10,26 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
-import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.node.ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Test that a wait added during shutdown is necessary for a large reindexing task to complete.
@@ -66,7 +69,11 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
 
         int numDocs = 20000;
         createIndex(numDocs);
-        createReindexTaskAndShutdown(coordNodeName);
+        BulkByScrollTask task = createReindexTaskAndShutdown(coordNodeName);
+
+        // Assert that relocation is requested on the reindex task...
+        assertBusy(() -> assertThat(task.isRelocationRequested(), is(true)), 1, TimeUnit.SECONDS);
+        // ...and that the reindex is given time to complete:
         checkDestinationIndex(dataNodeName, numDocs);
     }
 
@@ -88,9 +95,10 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
         assertHitCount(prepareSearch(INDEX).setSize(0).setTrackTotalHits(true), numDocs);
     }
 
-    private void createReindexTaskAndShutdown(final String coordNodeName) throws Exception {
+    private BulkByScrollTask createReindexTaskAndShutdown(String coordNodeName) throws Exception {
         AbstractBulkByScrollRequestBuilder<?, ?> builder = reindex(coordNodeName).source(INDEX).destination(DEST_INDEX);
         AbstractBulkByScrollRequest<?> reindexRequest = builder.request();
+        reindexRequest.setEligibleForRelocationOnShutdown(true);
         ShutdownPrepareService shutdownPrepareService = internalCluster().getInstance(ShutdownPrepareService.class, coordNodeName);
 
         // Now execute the reindex action...
@@ -110,9 +118,11 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
         internalCluster().client(coordNodeName).execute(ReindexAction.INSTANCE, reindexRequest, reindexListener);
 
         // Check for reindex task to appear in the tasks list and Immediately stop coordinating node
-        waitForTask(ReindexAction.INSTANCE.name(), coordNodeName);
+        BulkByScrollTask task = asInstanceOf(BulkByScrollTask.class, waitForTask(ReindexAction.INSTANCE.name(), coordNodeName));
+        assertThat(task.isRelocationRequested(), is(false));
         shutdownPrepareService.prepareForShutdown();
         internalCluster().stopNode(coordNodeName);
+        return task;
     }
 
     // Make sure all documents from the source index have been re-indexed into the destination index
@@ -122,15 +132,18 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
         assertBusy(() -> { assertHitCount(prepareSearch(DEST_INDEX).setSize(0).setTrackTotalHits(true), numDocs); });
     }
 
-    private static void waitForTask(String actionName, String nodeName) throws Exception {
+    private static Task waitForTask(String actionName, String nodeName) throws Exception {
+        AtomicReference<Task> reindexTask = new AtomicReference<>();
         assertBusy(() -> {
-            ListTasksResponse tasks = clusterAdmin().prepareListTasks(nodeName).setActions(actionName).setDetailed(true).get();
-            tasks.rethrowFailures("Find my task");
-            for (TaskInfo taskInfo : tasks.getTasks()) {
+            Map<Long, Task> tasks = internalCluster().getInstance(TransportService.class, nodeName).getTaskManager().getTasks();
+            tasks.values()
+                .stream()
+                .filter(task -> task.getAction().equals(actionName))
                 // Skip tasks with a parent because those are children of the task we want
-                if (taskInfo.parentTaskId().isSet() == false) return;
-            }
-            fail("Couldn't find task after waiting, tasks=" + tasks.getTasks());
+                .filter(task -> task.getParentTaskId().isSet() == false)
+                .findAny()
+                .ifPresentOrElse(reindexTask::set, () -> fail("Couldn't find task after waiting, tasks=" + tasks));
         }, 10, TimeUnit.SECONDS);
+        return reindexTask.get();
     }
 }

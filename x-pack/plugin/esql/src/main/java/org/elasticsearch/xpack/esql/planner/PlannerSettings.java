@@ -59,10 +59,47 @@ public class PlannerSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * The threshold number of grouping keys for a partial aggregation to start emitting intermediate results early.
+     * While emitting partial results can reduce memory pressure and allow for incremental downstream processing,
+     * it might emit the same keys multiple times, incurring serialization and network overhead. This setting,
+     * in conjunction with {@link #PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD}, helps mitigate these costs by
+     * only triggering early emission when a significant number of keys have been collected and most are unique,
+     * thus lowering the probability of re-emitting the same keys.
+     * <p>
+     * NOTE that the defaults are chosen somewhat arbitrarily but are partially based on other systems.
+     * Other systems sometimes default to a lower threshold (e.g., 10,000) without a uniqueness threshold.
+     * We may lower these defaults after benchmarking more use cases.
+     */
+    public static final Setting<Integer> PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD = Setting.intSetting(
+        "esql.partial_agg_emit_keys_threshold",
+        100_000,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * The uniqueness threshold of grouping keys for partial aggregation to start emitting keys early.
+     * This threshold controls the trade-off between the benefits of early emission and the costs of
+     * repeated serialization and network transfer of the same keys. A higher uniqueness ratio ensures early emission
+     * only if keys are not repeatedly seen in incoming data and are unlikely to appear again in future data.
+     */
+    public static final Setting<Double> PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD = Setting.doubleSetting(
+        "esql.partial_agg_emit_unique_threshold",
+        0.5,
+        0.0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private volatile DataPartitioning defaultDataPartitioning;
     private volatile ByteSizeValue valuesLoadingJumboSize;
     private volatile int luceneTopNLimit;
     private volatile ByteSizeValue intermediateLocalRelationMaxSize;
+
+    private volatile int partialEmitKeysThreshold;
+    private volatile double partialEmitUniquenessThreshold;
 
     /**
      * Ctor for prod that listens for updates from the {@link ClusterService}.
@@ -73,6 +110,8 @@ public class PlannerSettings {
         clusterSettings.initializeAndWatch(VALUES_LOADING_JUMBO_SIZE, v -> this.valuesLoadingJumboSize = v);
         clusterSettings.initializeAndWatch(LUCENE_TOPN_LIMIT, v -> this.luceneTopNLimit = v);
         clusterSettings.initializeAndWatch(INTERMEDIATE_LOCAL_RELATION_MAX_SIZE, v -> this.intermediateLocalRelationMaxSize = v);
+        clusterSettings.initializeAndWatch(PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD, v -> this.partialEmitKeysThreshold = v);
+        clusterSettings.initializeAndWatch(PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD, v -> this.partialEmitUniquenessThreshold = v);
     }
 
     /**
@@ -82,12 +121,16 @@ public class PlannerSettings {
         DataPartitioning defaultDataPartitioning,
         ByteSizeValue valuesLoadingJumboSize,
         int luceneTopNLimit,
-        ByteSizeValue intermediateLocalRelationMaxSize
+        ByteSizeValue intermediateLocalRelationMaxSize,
+        int partialEmitKeysThreshold,
+        double partialEmitUniquenessThreshold
     ) {
         this.defaultDataPartitioning = defaultDataPartitioning;
         this.valuesLoadingJumboSize = valuesLoadingJumboSize;
         this.luceneTopNLimit = luceneTopNLimit;
         this.intermediateLocalRelationMaxSize = intermediateLocalRelationMaxSize;
+        this.partialEmitKeysThreshold = partialEmitKeysThreshold;
+        this.partialEmitUniquenessThreshold = partialEmitUniquenessThreshold;
     }
 
     public DataPartitioning defaultDataPartitioning() {
@@ -118,5 +161,13 @@ public class PlannerSettings {
 
     public ByteSizeValue intermediateLocalRelationMaxSize() {
         return intermediateLocalRelationMaxSize;
+    }
+
+    public int partialEmitKeysThreshold() {
+        return partialEmitKeysThreshold;
+    }
+
+    public double partialEmitUniquenessThreshold() {
+        return partialEmitUniquenessThreshold;
     }
 }

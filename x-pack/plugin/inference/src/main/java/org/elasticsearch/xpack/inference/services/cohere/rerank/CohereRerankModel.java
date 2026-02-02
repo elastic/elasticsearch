@@ -14,6 +14,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.cohere.CohereModel;
+import org.elasticsearch.xpack.inference.services.cohere.CohereRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.cohere.action.CohereActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
@@ -47,11 +48,18 @@ public class CohereRerankModel extends CohereModel {
         CohereRerankTaskSettings taskSettings,
         @Nullable DefaultSecretSettings secretSettings
     ) {
-        super(
+        this(
             new ModelConfigurations(modelId, TaskType.RERANK, CohereService.NAME, serviceSettings, taskSettings),
-            new ModelSecrets(secretSettings),
-            secretSettings,
-            serviceSettings
+            new ModelSecrets(secretSettings)
+        );
+    }
+
+    public CohereRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(
+            modelConfigurations,
+            modelSecrets,
+            (DefaultSecretSettings) modelSecrets.getSecretSettings(),
+            (CohereRateLimitServiceSettings) modelConfigurations.getServiceSettings()
         );
     }
 

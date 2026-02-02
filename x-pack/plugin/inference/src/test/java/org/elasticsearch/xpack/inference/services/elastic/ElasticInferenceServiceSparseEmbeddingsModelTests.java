@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.TaskType;
@@ -18,19 +19,34 @@ import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.Elast
 public class ElasticInferenceServiceSparseEmbeddingsModelTests extends ESTestCase {
 
     public static ElasticInferenceServiceSparseEmbeddingsModel createModel(String url, String modelId) {
-        return createModel(url, modelId, null);
+        return createModel(url, modelId, null, null);
     }
 
-    public static ElasticInferenceServiceSparseEmbeddingsModel createModel(String url, String modelId, Integer maxInputTokens) {
+    public static ElasticInferenceServiceSparseEmbeddingsModel createModel(
+        String url,
+        String modelId,
+        Integer maxInputTokens,
+        Integer maxBatchSize
+    ) {
+        return createModel(url, modelId, maxInputTokens, maxBatchSize, ChunkingSettingsBuilder.DEFAULT_SETTINGS);
+    }
+
+    public static ElasticInferenceServiceSparseEmbeddingsModel createModel(
+        String url,
+        String modelId,
+        Integer maxInputTokens,
+        Integer maxBatchSize,
+        ChunkingSettings chunkingSettings
+    ) {
         return new ElasticInferenceServiceSparseEmbeddingsModel(
             "id",
             TaskType.SPARSE_EMBEDDING,
             "service",
-            new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, maxInputTokens),
+            new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, maxInputTokens, maxBatchSize),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
             ElasticInferenceServiceComponents.of(url),
-            ChunkingSettingsBuilder.DEFAULT_SETTINGS
+            chunkingSettings
         );
     }
 }

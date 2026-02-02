@@ -72,7 +72,7 @@ public abstract sealed class Selector extends UnaryPlan implements PromqlPlan pe
 
     @Override
     public boolean expressionsResolved() {
-        return series.resolved() && Resolvables.resolved(labels);
+        return (series == null || series.resolved()) && Resolvables.resolved(labels);
     }
 
     @Override

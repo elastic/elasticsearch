@@ -526,7 +526,7 @@ public final class EsqlTestUtils {
     public static final Configuration TEST_CFG = configuration(new QueryPragmas(Settings.EMPTY));
 
     public static TransportVersion randomMinimumVersion() {
-        return TransportVersionUtils.randomCompatibleVersion(ESTestCase.random());
+        return TransportVersionUtils.randomCompatibleVersion();
     }
 
     // TODO: make this even simpler, remove the enrichResolution for tests that do not require it (most tests)
@@ -593,7 +593,9 @@ public final class EsqlTestUtils {
         DataPartitioning.AUTO,
         ByteSizeValue.ofMb(1),
         10_000,
-        ByteSizeValue.ofMb(1)
+        ByteSizeValue.ofMb(1),
+        1000,
+        0.1
     );
 
     public static final TransportActionServices MOCK_TRANSPORT_ACTION_SERVICES = new TransportActionServices(
@@ -653,7 +655,8 @@ public final class EsqlTestUtils {
             false,
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
-            null
+            null,
+            Map.of()
         );
     }
 

@@ -20,7 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService;
-import org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorServiceTests;
+import org.elasticsearch.cluster.routing.allocation.shards.StatefulShardsAvailabilityHealthIndicatorServiceTests;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.Lifecycle;
@@ -827,7 +827,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
             "shards_availability",
             YELLOW,
             null,
-            new SimpleHealthIndicatorDetails(ShardsAvailabilityHealthIndicatorServiceTests.addDefaults(Map.of())),
+            new SimpleHealthIndicatorDetails(StatefulShardsAvailabilityHealthIndicatorServiceTests.addDefaults(Map.of())),
             List.of(
                 new HealthIndicatorImpact(
                     ShardsAvailabilityHealthIndicatorService.NAME,
@@ -857,7 +857,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
             "shards_availability",
             GREEN,
             null,
-            new SimpleHealthIndicatorDetails(ShardsAvailabilityHealthIndicatorServiceTests.addDefaults(Map.of())),
+            new SimpleHealthIndicatorDetails(StatefulShardsAvailabilityHealthIndicatorServiceTests.addDefaults(Map.of())),
             null,
             null
         );
@@ -872,7 +872,9 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
             "shards_availability",
             RED,
             null,
-            new SimpleHealthIndicatorDetails(ShardsAvailabilityHealthIndicatorServiceTests.addDefaults(Map.of("unassigned_primaries", 1))),
+            new SimpleHealthIndicatorDetails(
+                StatefulShardsAvailabilityHealthIndicatorServiceTests.addDefaults(Map.of("unassigned_primaries", 1))
+            ),
             null,
             null
         );

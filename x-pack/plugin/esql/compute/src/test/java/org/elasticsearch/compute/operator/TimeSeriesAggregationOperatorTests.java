@@ -23,7 +23,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
 
     public void testValuesAggregator() {
         BlockFactory blockFactory = blockFactory();
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, "test");
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null, "test");
         List<BiFunction<List<Integer>, DriverContext, GroupingAggregatorFunction>> functions = List.of(
             ValuesBooleanGroupingAggregatorFunction::create,
             ValuesIntGroupingAggregatorFunction::create,

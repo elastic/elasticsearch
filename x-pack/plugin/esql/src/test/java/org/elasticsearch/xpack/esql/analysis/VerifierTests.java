@@ -122,11 +122,11 @@ public class VerifierTests extends ESTestCase {
 
     public void testIncompatibleTypesInMathOperation() {
         assertEquals(
-            "1:40: second argument of [a + c] must be [date_nanos, datetime or numeric], found value [c] type [keyword]",
+            "1:40: second argument of [a + c] must be [date_nanos, datetime, numeric or dense_vector], found value [c] type [keyword]",
             error("row a = 1, b = 2, c = \"xxx\" | eval y = a + c")
         );
         assertEquals(
-            "1:40: second argument of [a - c] must be [date_nanos, datetime or numeric], found value [c] type [keyword]",
+            "1:40: second argument of [a - c] must be [date_nanos, datetime, numeric or dense_vector], found value [c] type [keyword]",
             error("row a = 1, b = 2, c = \"xxx\" | eval y = a - c")
         );
     }
@@ -1197,7 +1197,7 @@ public class VerifierTests extends ESTestCase {
             error("FROM test | STATS count(network.bytes_out)", tsdb),
             equalTo(
                 "1:19: argument of [count(network.bytes_out)] must be"
-                    + " [any type except counter types, tdigest, histogram, exponential_histogram, or date_range],"
+                    + " [any type except counter types, histogram, or date_range],"
                     + " found value [network.bytes_out] type [counter_long]"
             )
         );
@@ -3302,7 +3302,7 @@ public class VerifierTests extends ESTestCase {
             ),
             equalTo(
                 "1:27: Validation Failed: 1: [chunking_settings] Invalid value [5.0]. "
-                    + "[max_chunk_size] must be a greater than or equal to [20.0];"
+                    + "[max_chunk_size] must be greater than or equal to [20.0];"
             )
         );
         assertThat(
@@ -3313,7 +3313,7 @@ public class VerifierTests extends ESTestCase {
             ),
             equalTo(
                 "1:27: Validation Failed: 1: [chunking_settings] Invalid value [5.0]. "
-                    + "[max_chunk_size] must be a greater than or equal to [20.0];2: sentence_overlap[5] must be either 0 or 1;"
+                    + "[max_chunk_size] must be greater than or equal to [20.0];2: sentence_overlap[5] must be either 0 or 1;"
             )
         );
         assertThat(
@@ -3512,6 +3512,99 @@ public class VerifierTests extends ESTestCase {
 
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {
         query("from test | eval similarity = " + functionInvocation, fullTextAnalyzer);
+    }
+
+    public void testUnsupportedMetadata() {
+        // GroupByAll
+        assertThat(
+            error("FROM k8s METADATA unknown_field"),
+            equalTo("1:1: unresolved metadata fields: [?unknown_field]\nline 1:19: Unresolved metadata pattern [unknown_field]")
+        );
+    }
+
+    public void testMMRDiversifyFieldIsValid() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10");
+
+        assertThat(
+            error("row dense_embedding=\"hello\" | mmr on dense_embedding limit 10", defaultAnalyzer, VerificationException.class),
+            equalTo("1:31: MMR diversify field must be a dense vector field")
+        );
+    }
+
+    public void testMMRLimitIsValid() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10");
+
+        assertThat(
+            error(
+                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit -5",
+                defaultAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:58: MMR limit must be a positive integer")
+        );
+    }
+
+    public void testMMRResolvedQueryVectorIsValid() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        query(
+            "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr [0.5, 0.4, 0.3, 0.2]::dense_vector on dense_embedding limit 10"
+        );
+
+        assertThat(
+            error(
+                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr \"not_a_dense_vector\" on dense_embedding limit 10",
+                defaultAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:58: MMR query vector must be resolved to a dense vector type")
+        );
+    }
+
+    public void testMMRLambdaValueIsValid() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"lambda\": 0.5 }");
+
+        assertThat(
+            error(
+                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"unknown\": true }",
+                defaultAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:58: Invalid option [unknown] in <MMR>, expected one of [[lambda]]")
+        );
+
+        assertThat(
+            error(
+                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with "
+                    + "{ \"lambda\": 0.5, \"unknown_extra\": true }",
+                defaultAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:58: Invalid option [unknown_extra] in <MMR>, expected one of [[lambda]]")
+        );
+
+        assertThat(
+            error(
+                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"lambda\": 2.5 }",
+                defaultAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:58: MMR lambda value must be a number between 0.0 and 1.0")
+        );
+        assertThat(
+            error(
+                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"lambda\": -2.5 }",
+                defaultAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:58: MMR lambda value must be a number between 0.0 and 1.0")
+        );
     }
 
     private void query(String query) {

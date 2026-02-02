@@ -50,11 +50,11 @@ public class PlanStreamOutputTests extends ESTestCase {
 
     public void testTransportVersion() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
-        TransportVersion v1 = TransportVersionUtils.randomCompatibleVersion(random());
+        TransportVersion v1 = TransportVersionUtils.randomCompatibleVersion();
         out.setTransportVersion(v1);
         PlanStreamOutput planOut = new PlanStreamOutput(out, randomBoolean() ? null : randomConfiguration());
         assertThat(planOut.getTransportVersion(), equalTo(v1));
-        TransportVersion v2 = TransportVersionUtils.randomCompatibleVersion(random());
+        TransportVersion v2 = TransportVersionUtils.randomCompatibleVersion();
         planOut.setTransportVersion(v2);
         assertThat(planOut.getTransportVersion(), equalTo(v2));
         assertThat(out.getTransportVersion(), equalTo(v2));

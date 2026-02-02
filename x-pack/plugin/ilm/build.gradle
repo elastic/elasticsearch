@@ -1,5 +1,7 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 esplugin {
   name = 'x-pack-ilm'
@@ -19,7 +21,26 @@ dependencies {
   testImplementation project(xpackModule('ccr'))
   testImplementation project(xpackModule('slm')) // used by LifecycleOperationSnapshotTests
   testImplementation project(':modules:data-streams')
+
+  yamlRestTestImplementation project(':x-pack:qa')
+
+  javaRestTestImplementation project(xpackModule('ilm'))
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('ccr')), 'javaRestTest'))
+
+  clusterModules project(':modules:analysis-common')
+  clusterModules project(xpackModule('ilm'))
+  clusterModules project(xpackModule('slm'))
+  clusterModules project(xpackModule('ccr'))
+  clusterModules project(xpackModule('downsample'))
+  clusterModules project(xpackModule('searchable-snapshots'))
+  clusterModules project(':modules:data-streams')
 }
 
 addQaCheckDependencies(project)
 
+restResources {
+  restApi {
+    include '_common', 'cluster', 'indices', 'index', 'snapshot', 'ilm', 'slm', 'health_report', 'capabilities'
+  }
+}

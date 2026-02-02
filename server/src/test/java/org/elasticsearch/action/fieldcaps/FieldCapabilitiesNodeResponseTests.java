@@ -111,7 +111,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
         );
         Randomness.shuffle(indexResponses);
         FieldCapabilitiesNodeResponse inNode = randomNodeResponse(indexResponses);
-        final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+        final TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
         final FieldCapabilitiesNodeResponse outNode = copyInstance(inNode, version);
         assertThat(outNode.getFailures().keySet(), equalTo(inNode.getFailures().keySet()));
         assertThat(outNode.getUnmatchedShardIds(), equalTo(inNode.getUnmatchedShardIds()));

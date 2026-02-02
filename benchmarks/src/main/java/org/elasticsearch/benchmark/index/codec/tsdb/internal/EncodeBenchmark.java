@@ -24,37 +24,69 @@ import java.util.function.Supplier;
  */
 public final class EncodeBenchmark extends AbstractTSDBCodecBenchmark {
 
-    private ByteArrayDataOutput dataOutput;
+    private ByteArrayDataOutput[] dataOutputs;
     private long[] originalInput;
-    private long[] input;
-    private byte[] output;
+    private long[][] inputs;
+    private byte[][] outputs;
+
+    private int blocksPerInvocation;
+
+    /**
+     * Sum of encoded sizes for the last benchmark invocation.
+     * Used for blackhole consumption and for computing aggregate throughput.
+     */
+    private int lastEncodedBytesSum;
 
     @Override
     public void setupTrial(Supplier<long[]> arraySupplier) throws IOException {
         this.originalInput = arraySupplier.get();
-        this.input = new long[originalInput.length];
-        this.output = new byte[Long.BYTES * blockSize + EXTRA_METADATA_SIZE];
-        this.dataOutput = new ByteArrayDataOutput(this.output);
     }
 
+    /**
+     * Configures how many blocks are encoded in each measured benchmark invocation.
+     *
+     * <p>This is intentionally not a compile-time constant: it is controlled by the JMH harness
+     * and may be tuned without changing benchmark logic.
+     */
     @Override
-    public void setupInvocation() {
-        System.arraycopy(originalInput, 0, input, 0, originalInput.length);
-        dataOutput.reset(this.output);
+    public void setBlocksPerInvocation(int blocksPerInvocation) {
+        if (this.blocksPerInvocation == blocksPerInvocation) {
+            return; // already configured, skip reallocation
+        }
+        this.blocksPerInvocation = blocksPerInvocation;
+
+        this.inputs = new long[blocksPerInvocation][originalInput.length];
+        this.outputs = new byte[blocksPerInvocation][Long.BYTES * blockSize + EXTRA_METADATA_SIZE];
+        this.dataOutputs = new ByteArrayDataOutput[blocksPerInvocation];
+
+        for (int i = 0; i < blocksPerInvocation; i++) {
+            this.dataOutputs[i] = new ByteArrayDataOutput(this.outputs[i]);
+        }
     }
 
     @Override
     public void run() throws IOException {
-        encoder.encode(this.input, this.dataOutput);
+        int sum = 0;
+        for (int i = 0; i < blocksPerInvocation; i++) {
+            System.arraycopy(originalInput, 0, inputs[i], 0, originalInput.length);
+            dataOutputs[i].reset(outputs[i]);
+            encoder.encode(inputs[i], dataOutputs[i]);
+            sum += dataOutputs[i].getPosition(); // sum, not xor: identical sizes would xor to zero
+        }
+        lastEncodedBytesSum = sum;
     }
 
     @Override
     protected Object getOutput() {
-        return this.dataOutput;
+        return lastEncodedBytesSum;
     }
 
     @Override
     public int getEncodedSize() {
-        return dataOutput.getPosition();
+        return dataOutputs[0].getPosition();
+    }
+
+    public int getBlocksPerInvocation() {
+        return blocksPerInvocation;
     }
 }

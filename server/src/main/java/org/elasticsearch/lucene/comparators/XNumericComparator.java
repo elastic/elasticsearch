@@ -17,7 +17,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.DocValuesRangeIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.Pruning;
@@ -531,8 +530,7 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
 
         @Override
         protected void doUpdateCompetitiveIterator() {
-            TwoPhaseIterator twoPhaseIterator = new DocValuesRangeIterator(innerTwoPhase, skipper, minValueAsLong, maxValueAsLong, false);
-            competitiveIterator.update(TwoPhaseIterator.asDocIdSetIterator(twoPhaseIterator));
+            competitiveIterator.update(new XSkipBlockRangeIterator(skipper, minValueAsLong, maxValueAsLong));
         }
     }
 }

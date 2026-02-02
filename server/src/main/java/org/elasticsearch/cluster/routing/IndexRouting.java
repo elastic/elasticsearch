@@ -276,7 +276,8 @@ public abstract class IndexRouting {
         @Override
         public int getShard(String id, @Nullable String routing) {
             checkRoutingRequired(id, routing);
-            return shardId(id, routing);
+            int shardId = shardId(id, routing);
+            return rerouteSearchIfResharding(shardId);
         }
 
         private void checkRoutingRequired(String id, @Nullable String routing) {

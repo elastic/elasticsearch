@@ -35,7 +35,7 @@ public class VersionCheckingStreamOutputTests extends ESTestCase {
     }
 
     public void testCheckVersionCompatibility() throws IOException {
-        TransportVersion streamVersion = TransportVersionUtils.randomVersionNotSupporting(random(), TransportVersion.current());
+        TransportVersion streamVersion = TransportVersionUtils.randomVersionNotSupporting(TransportVersion.current());
         try (VersionCheckingStreamOutput out = new VersionCheckingStreamOutput(streamVersion)) {
             out.writeNamedWriteable(QueryBuilders.matchAllQuery());
 

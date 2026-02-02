@@ -42,12 +42,14 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -156,6 +158,7 @@ public class TokenServiceTests extends ESTestCase {
         .build();
     private MockLicenseState licenseState;
     private SecurityContext securityContext;
+    private MockBytesRefRecycler bytesRefRecycler;
 
     @Before
     public void setupClient() {
@@ -235,6 +238,8 @@ public class TokenServiceTests extends ESTestCase {
             // tokens docs on a separate index)
             pre72OldNode = addAnother7071DataNode(this.clusterService);
         }
+
+        bytesRefRecycler = new MockBytesRefRecycler();
     }
 
     private static DiscoveryNode addAnother7071DataNode(ClusterService clusterService) {
@@ -254,6 +259,9 @@ public class TokenServiceTests extends ESTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         clusterService.close();
+        // wait for any async threads to release their recycler pages
+        assertBusy(() -> assertEquals(0, bytesRefRecycler.activePageCount()));
+        Releasables.closeExpectNoException(bytesRefRecycler);
     }
 
     @BeforeClass
@@ -671,7 +679,8 @@ public class TokenServiceTests extends ESTestCase {
             securityContext,
             securityMainIndex,
             securityTokensIndex,
-            clusterService
+            clusterService,
+            bytesRefRecycler
         );
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
@@ -796,7 +805,8 @@ public class TokenServiceTests extends ESTestCase {
             garbledRefreshToken[garbledByteIdx] = (byte) (garbledRefreshToken[garbledByteIdx] ^ (byte) (random().nextInt(255) + 1));
             String testRefreshToken = TokenService.prependVersionAndEncodeRefreshToken(
                 tokenService.getTokenVersionCompatibility(),
-                garbledRefreshToken
+                garbledRefreshToken,
+                bytesRefRecycler
             );
             PlainActionFuture<TokensInvalidationResult> future = new PlainActionFuture<>();
             tokenService.invalidateRefreshToken(testRefreshToken, future);
@@ -1021,7 +1031,7 @@ public class TokenServiceTests extends ESTestCase {
             );
         }
         assertThat(
-            TokenService.prependVersionAndEncodeRefreshToken(version, newTokenBytes.v2()),
+            TokenService.prependVersionAndEncodeRefreshToken(version, newTokenBytes.v2(), bytesRefRecycler),
             equalTo(tokenFuture.get().getRefreshToken())
         );
     }
@@ -1059,7 +1069,8 @@ public class TokenServiceTests extends ESTestCase {
             securityContext,
             securityMainIndex,
             securityTokensIndex,
-            clusterService
+            clusterService,
+            bytesRefRecycler
         );
     }
 

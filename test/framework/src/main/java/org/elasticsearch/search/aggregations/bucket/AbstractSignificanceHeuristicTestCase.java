@@ -72,7 +72,7 @@ public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
     protected abstract SignificanceHeuristic getHeuristic();
 
     protected TransportVersion randomVersion() {
-        return TransportVersionUtils.randomVersion(random());
+        return TransportVersionUtils.randomVersion();
     }
 
     // test that stream output can actually be read - does not replace bwc test

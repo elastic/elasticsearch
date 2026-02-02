@@ -1,20 +1,19 @@
 
 ```yaml {applies_to}
-serverless: preview
-stack: preview 9.2.0
+serverless: ga
+stack: preview 9.2-9.3, ga 9.4.0+
 ```
 
 The `RERANK` command uses an inference model to compute a new relevance score
 for an initial set of documents, directly within your ES|QL queries.
 
-:::::{important}
-**RERANK processes each row through an inference model, which impacts performance and costs.**
+::::{tab-set}
 
-::::{applies-switch}
+:::{tab-item} 9.3.0+
 
-:::{applies-item} stack: ga 9.3+
-
-`RERANK` automatically limits processing to **1000 rows by default** to prevent accidental high consumption. This limit is applied before the `RERANK` command executes.
+Starting in version 9.3.0, `RERANK` automatically limits processing to **1000
+rows by default** to prevent accidental high consumption. This limit is applied
+before the `RERANK` command executes.
 
 If you need to process more rows, you can adjust the limit using the cluster setting:
 ```
@@ -37,7 +36,7 @@ PUT _cluster/settings
 ```
 :::
 
-:::{applies-item} stack: ga =9.2
+:::{tab-item} 9.2.x
 
 No automatic row limit is applied. **You should always use `LIMIT` before or after `RERANK` to control the number of documents processed**, to avoid accidentally reranking large datasets which can result in high latency and increased costs.
 
@@ -52,7 +51,6 @@ FROM books
 :::
 
 ::::
-:::::
 
 **Syntax**
 
@@ -93,6 +91,10 @@ reduced to the top results (for example, 100) using `LIMIT`. The `RERANK`
 command then processes this smaller, refined subset, which is a good balance
 between performance and accuracy.
 
+When using `RERANK` with a multivalue column, each value is ranked individually.
+The score column is then assigned the maximum score resulting from ranking the
+individual values.
+
 **Requirements**
 
 To use this command, you must deploy your reranking model in Elasticsearch as
@@ -108,18 +110,16 @@ necessary.
 
 How you increase the timeout depends on your deployment type:
 
-::::::{applies-switch}
-
-:::::{applies-item} ess:
+::::{tab-set}
+:::{tab-item} {{ech}}
 
 * You can adjust {{es}} settings in
   the [Elastic Cloud Console](docs-content://deploy-manage/deploy/elastic-cloud/edit-stack-settings.md)
 * You can also adjust the `search.default_search_timeout` cluster setting
   using [Kibana's Advanced settings](kibana://reference/advanced-settings.md#kibana-search-settings)
+  :::
 
-:::::
-
-:::::{applies-item} self:
+:::{tab-item} Self-managed
 
 * You can configure at the cluster level by setting
   `search.default_search_timeout` in `elasticsearch.yml` or updating
@@ -127,17 +127,14 @@ How you increase the timeout depends on your deployment type:
 * You can also adjust the `search:timeout` setting
   using [Kibana's Advanced settings](kibana://reference/advanced-settings.md#kibana-search-settings)
 * Alternatively, you can add timeout parameters to individual queries
+  :::
 
-:::::
-
-:::::{applies-item} serverless:
+:::{tab-item} {{serverless-full}}
 
 * Requires a manual override from Elastic Support because you cannot modify
   timeout settings directly
-
-:::::
-
-::::::
+  :::
+  ::::
 
 If you don't want to increase the timeout limit, try the following:
 
@@ -164,4 +161,10 @@ in a column named `rerank_score`:
 Combine the original score with the reranked score:
 
 :::{include} ../examples/rerank.csv-spec/combine.md
+:::
+
+Rerank using snippets extracted from the document with the `TOP_SNIPPETS`
+function:
+
+:::{include} ../examples/rerank.csv-spec/rerank-top-snippets.md
 :::

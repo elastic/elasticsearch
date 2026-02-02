@@ -588,6 +588,95 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         assertIgnoredSourceIsEmpty(doc);
     }
 
+    /**
+     * Tests that phrase queries work correctly for a match_only_text field that is a sub-field of a keyword field
+     * with ignore_above set, when the index was created before STORE_IGNORED_KEYWORDS_IN_BINARY_DOC_VALUES.
+     */
+    public void testPhraseQueryWithMatchOnlyTextSubFieldOfKeywordWithIgnoreAboveOnOldIndex() throws IOException {
+        var settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+
+        // use a low ignore_above value so the test value exceeds it and triggers the fallback storage
+        var mapping = mapping(b -> {
+            b.startObject("parent");
+            b.field("type", "keyword");
+            b.field("ignore_above", 5);
+            b.startObject("fields");
+            b.startObject("text");
+            b.field("type", "match_only_text");
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        });
+
+        // use an index version before STORE_IGNORED_KEYWORDS_IN_BINARY_DOC_VALUES
+        MapperService mapperService = createMapperService(IndexVersions.DISK_BBQ_LICENSE_ENFORCEMENT, settings, () -> true, mapping);
+
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+            LuceneDocument doc = mapperService.documentMapper()
+                .parse(source(b -> b.field("parent", "this value exceeds ignore_above")))
+                .rootDoc();
+            iw.addDocument(doc);
+            iw.close();
+
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                SearchExecutionContext context = createSearchExecutionContext(mapperService, newSearcher(reader));
+                // this triggers getValueFetcherProvider() -> parentFieldFetcher() -> ignoredValuesDocValuesFieldFetcher()
+                MatchPhraseQueryBuilder queryBuilder = new MatchPhraseQueryBuilder("parent.text", "this value exceeds");
+                TopDocs docs = context.searcher().search(queryBuilder.toQuery(context), 1);
+                assertThat(docs.totalHits.value(), equalTo(1L));
+                assertThat(docs.totalHits.relation(), equalTo(TotalHits.Relation.EQUAL_TO));
+            }
+        }
+    }
+
+    /**
+     * Tests that phrase queries work correctly for a match_only_text field with a keyword delegate (multi-field)
+     * that has ignore_above set, when the index was created before STORE_FALLBACK_MOT_FIELDS_IN_BINARY_DOC_VALUES.
+     */
+    public void testPhraseQueryWithMatchOnlyTextWithKeywordDelegateWithIgnoreAboveOnOldIndex() throws IOException {
+        var settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+
+        // use a low ignore_above value so the test value exceeds it and triggers the fallback storage
+        var mapping = mapping(b -> {
+            b.startObject("field");
+            b.field("type", "match_only_text");
+            b.startObject("fields");
+            b.startObject("keyword");
+            b.field("type", "keyword");
+            b.field("ignore_above", 5);
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        });
+
+        // use STORE_FALLBACK_TEXT_FIELDS_IN_BINARY_DOC_VALUES which is just before STORE_FALLBACK_MOT_FIELDS_IN_BINARY_DOC_VALUES
+        MapperService mapperService = createMapperService(
+            IndexVersions.STORE_FALLBACK_TEXT_FIELDS_IN_BINARY_DOC_VALUES,
+            settings,
+            () -> true,
+            mapping
+        );
+
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+            LuceneDocument doc = mapperService.documentMapper()
+                .parse(source(b -> b.field("field", "this value exceeds ignore_above")))
+                .rootDoc();
+            iw.addDocument(doc);
+            iw.close();
+
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                SearchExecutionContext context = createSearchExecutionContext(mapperService, newSearcher(reader));
+                // this triggers getValueFetcherProvider() -> delegateFieldFetcher() -> fallbackFetcher
+                MatchPhraseQueryBuilder queryBuilder = new MatchPhraseQueryBuilder("field", "this value exceeds");
+                TopDocs docs = context.searcher().search(queryBuilder.toQuery(context), 1);
+                assertThat(docs.totalHits.value(), equalTo(1L));
+                assertThat(docs.totalHits.relation(), equalTo(TotalHits.Relation.EQUAL_TO));
+            }
+        }
+    }
+
     @Override
     protected List<SortShortcutSupport> getSortShortcutSupport() {
         return List.of();

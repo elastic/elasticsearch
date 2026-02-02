@@ -318,6 +318,28 @@ emp_no:integer | languages:integer | cnt:long | client_ip:ip
 null           | null              | 4        | 172.21.3.15
 ;
 
+subqueryInFromWithSortInSubqueryWithoutExplicitLimit
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_append_implicit_limit_to_unbounded_sort_in_subquery
+
+FROM employees, (FROM sample_data
+                                | STATS cnt = count(*) by client_ip
+                                | SORT cnt DESC)
+| WHERE ( emp_no >= 10091 AND emp_no < 10094)  OR emp_no IS NULL
+| SORT emp_no, client_ip
+| KEEP emp_no, languages, cnt, client_ip
+;
+
+emp_no:integer | languages:integer | cnt:long | client_ip:ip
+10091          | 3                 | null     | null
+10092          | 1                 | null     | null
+10093          | 3                 | null     | null
+null           | null              | 1        | 172.21.0.5
+null           | null              | 1        | 172.21.2.113
+null           | null              | 1        | 172.21.2.162
+null           | null              | 4        | 172.21.3.15
+;
+
 subqueryWithCountStarAndDateTrunc
 required_capability: subquery_in_from_command
 
@@ -1031,4 +1053,18 @@ book_no:keyword | title:text                                                    
 5948            | That We Are Gentle Creatures                                                                                                   | Fyodor Dostoevsky                                    | OUP Oxford              | 4.33
 8534            | Crime and Punishment (Oxford World's Classics)                                                                                 | Fyodor Dostoevsky                                    | Oxford University Press | 4.38
 9801            | The Karamazov Brothers (Oxford World's Classics)                                                                               | Fyodor Dostoevsky                                    | Oxford University Press | 4.4
+;
+
+subqueryWithNoResults
+
+required_capability: subquery_in_from_command
+required_capability: match_function
+
+FROM (FROM books | EVAL x = 1 | WHERE x > 100 | KEEP author),
+     (FROM employees | WHERE emp_no > 100 | KEEP emp_no)
+| WHERE author:"Faulkner"
+| SORT author DESC
+;
+
+author:text | emp_no:long
 ;

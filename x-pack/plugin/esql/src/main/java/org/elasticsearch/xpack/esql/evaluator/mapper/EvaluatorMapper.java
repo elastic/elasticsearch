@@ -148,7 +148,7 @@ public interface EvaluatorMapper {
                 throw new UnsupportedOperationException();
             }
         }, CircuitBreaker.REQUEST).withCircuitBreaking();
-        DriverContext driverCtx = new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
+        DriverContext driverCtx = new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays), null);
 
         /*
          * Finally we can call toEvaluator on ourselves! It'll fold our children,

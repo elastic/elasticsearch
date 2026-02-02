@@ -208,7 +208,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestTests extends ES
         var traceParent = randomAlphaOfLength(10);
         var traceState = randomAlphaOfLength(10);
 
-        var model = ElasticInferenceServiceCompletionModelTests.createModel(url, modelId);
+        var model = ElasticInferenceServiceCompletionModelTests.createModel(url, modelId, TaskType.COMPLETION);
         var unifiedChatInput = new UnifiedChatInput(List.of("input"), "user", false);
         var request = new ElasticInferenceServiceUnifiedChatCompletionRequest(
             unifiedChatInput,
@@ -233,7 +233,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestTests extends ES
         List<String> inputs,
         boolean stream
     ) {
-        var model = ElasticInferenceServiceCompletionModelTests.createModel(url, modelId);
+        var model = ElasticInferenceServiceCompletionModelTests.createModel(url, modelId, TaskType.COMPLETION);
         var unifiedChatInput = new UnifiedChatInput(inputs, "user", stream);
 
         return new ElasticInferenceServiceUnifiedChatCompletionRequest(

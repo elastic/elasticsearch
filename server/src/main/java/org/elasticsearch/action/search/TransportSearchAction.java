@@ -2018,6 +2018,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         logger,
                         namedWriteableRegistry,
                         searchTransportService,
+                        searchService.getBigArrays(),
                         connectionLookup,
                         aliasFilter,
                         concreteIndexBoosts,
@@ -2032,7 +2033,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         clusters,
                         client,
                         searchResponseMetrics,
-                        searchRequestAttributes
+                        searchRequestAttributes,
+                        searchService.isPitRelocationEnabled()
                     );
                 } else {
                     assert searchRequest.searchType() == QUERY_THEN_FETCH : searchRequest.searchType();
@@ -2040,6 +2042,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         logger,
                         namedWriteableRegistry,
                         searchTransportService,
+                        searchService.getBigArrays(),
                         connectionLookup,
                         aliasFilter,
                         concreteIndexBoosts,
@@ -2054,6 +2057,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         clusters,
                         client,
                         searchService.batchQueryPhase(),
+                        searchService.isPitRelocationEnabled(),
                         searchResponseMetrics,
                         searchRequestAttributes
                     );
@@ -2310,11 +2314,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         ShardSearchContextId shardSearchContextId = perNode.getSearchContextId();
                         if (shardSearchContextId.isRetryable()) {
                             for (ShardRouting shard : shards) {
-                                if (shard.currentNodeId().equals(perNode.getNode()) == false) {
+                                if (shard.isSearchable() && shard.currentNodeId().equals(perNode.getNode()) == false) {
                                     targetNodes.add(shard.currentNodeId());
                                 }
                             }
                         }
+                        logger.trace("PIT retryable - adding shard copy on nodes [{}]", targetNodes);
                     } catch (IndexNotFoundException | ShardNotFoundException e) {
                         // We can hit these exceptions if the index was deleted after creating PIT or the cluster state on
                         // this coordinating node is outdated. It's fine to ignore these extra "retry-able" target shards

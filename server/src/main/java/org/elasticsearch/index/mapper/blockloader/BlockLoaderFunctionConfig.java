@@ -50,6 +50,7 @@ public interface BlockLoaderFunctionConfig {
         AMD_MAX,
         AMD_MIN,
         AMD_SUM,
+        BYTE_LENGTH,
         MV_MAX,
         MV_MIN,
         LENGTH,

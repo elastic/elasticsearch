@@ -1,0 +1,259 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.datastreams.lifecycle.transitions.steps;
+
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
+import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.lifecycle.transitions.DlmStep;
+import org.elasticsearch.datastreams.lifecycle.transitions.DlmStepContext;
+import org.elasticsearch.index.Index;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Locale;
+import java.util.Map;
+
+import static org.elasticsearch.common.logging.Loggers.getLogger;
+import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY;
+import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY;
+
+/**
+ * This step clones the index into a new index with 0 replicas.
+ */
+public class CloneStep implements DlmStep {
+
+    private static final String DLM_INDEX_TO_BE_MERGED_KEY = "dlm_index_to_be_force_merged";
+    private static final IndicesOptions IGNORE_MISSING_OPTIONS = IndicesOptions.fromOptions(true, true, false, false);
+    private static final Logger logger = getLogger(CloneStep.class);
+
+    @Override
+    public boolean stepCompleted(Index index, ProjectState projectState) {
+        // the index can either be "cloned" or the original index if it had 0 replicas
+        String indexToBeForceMerged = getIndexToBeForceMerged(index.getName(), projectState);
+        if (indexToBeForceMerged == null) {
+            return false;
+        }
+        boolean cloneExists = projectState.metadata().indices().containsKey(indexToBeForceMerged);
+        if (cloneExists == false) {
+            return false;
+        }
+        return projectState.routingTable().index(index).allPrimaryShardsActive();
+    }
+
+    @Override
+    public void execute(DlmStepContext stepContext) {
+        Index index = stepContext.index();
+        String indexName = index.getName();
+        ProjectState projectState = stepContext.projectState();
+        ProjectId projectId = stepContext.projectId();
+        ProjectMetadata projectMetadata = projectState.metadata();
+        IndexMetadata indexMetadata = projectMetadata.index(index);
+
+        if (isForceMergeComplete(indexMetadata)) {
+            logger.info("Skipping clone step for index [{}] as force merge is already complete", indexName);
+            return;
+        }
+        if (indexMetadata.getNumberOfReplicas() == 0) {
+            logger.info(
+                "Skipping clone step for index [{}] as it already has 0 replicas and can be used for force merge directly",
+                indexName
+            );
+            // mark the index to be force merged directly
+            markIndexToBeForceMerged(indexName, indexName, stepContext);
+            return;
+        }
+        String cloneIndexName = generateCloneIndexName(indexName);
+        if (projectMetadata.indices().containsKey(cloneIndexName)) {
+            logger.info("DLM cleaning up clone index [{}] for index [{}] as it already exists.", cloneIndexName, indexName);
+            deleteCloneIndexIfExists(stepContext);
+        }
+
+        ResizeRequest cloneIndexRequest = new ResizeRequest(
+            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+            AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+            ResizeType.CLONE,
+            indexName,
+            cloneIndexName
+        );
+        cloneIndexRequest.setTargetIndexSettings(Settings.builder().put("index.number_of_replicas", 0));
+        stepContext.executeDeduplicatedRequest(
+            cloneIndexRequest,
+            Strings.format("DLM service encountered an error when trying to clone index [%s]", indexName),
+            (req, reqListener) -> cloneIndex(projectId, cloneIndexRequest, reqListener, stepContext)
+        );
+    }
+
+    @Override
+    public String stepName() {
+        return "Clone Index";
+    }
+
+    private static class CloneIndexResizeActionListener implements ActionListener<CreateIndexResponse> {
+        private final String sourceIndexName;
+        private final String targetIndexName;
+        private final ActionListener<Void> listener;
+        private final DlmStepContext stepContext;
+
+        private CloneIndexResizeActionListener(
+            String sourceIndexName,
+            String targetIndexName,
+            ActionListener<Void> listener,
+            DlmStepContext stepContext
+        ) {
+            this.sourceIndexName = sourceIndexName;
+            this.targetIndexName = targetIndexName;
+            this.listener = listener;
+            this.stepContext = stepContext;
+        }
+
+        @Override
+        public void onResponse(CreateIndexResponse createIndexResponse) {
+            logger.debug("DLM successfully cloned index [{}] to index [{}]", sourceIndexName, targetIndexName);
+            // on success, write the cloned index name to the custom metadata of the index metadata of original index
+            markIndexToBeForceMerged(sourceIndexName, targetIndexName, stepContext);
+            listener.onResponse(null);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            logger.error(() -> Strings.format("DLM failed to clone index [%s] to index [%s]", sourceIndexName, targetIndexName), e);
+            deleteCloneIndexIfExists(stepContext);
+            listener.onFailure(e);
+        }
+    }
+
+    private void cloneIndex(ProjectId projectId, ResizeRequest cloneRequest, ActionListener<Void> listener, DlmStepContext stepContext) {
+        assert cloneRequest.indices() != null && cloneRequest.indices().length == 1 : "DLM should clone one index at a time";
+        String sourceIndex = cloneRequest.getSourceIndex();
+        String targetIndex = cloneRequest.getTargetIndexRequest().index();
+        logger.trace("DLM issuing request to clone index [{}] to index [{}]", sourceIndex, targetIndex);
+        CloneIndexResizeActionListener responseListener = new CloneIndexResizeActionListener(
+            sourceIndex,
+            targetIndex,
+            listener,
+            stepContext
+        );
+        stepContext.client().projectClient(projectId).execute(TransportResizeAction.TYPE, cloneRequest, responseListener);
+    }
+
+    /*
+     * Generates a unique name deterministically for the clone index based on the original index name.
+     */
+    private static String generateCloneIndexName(String originalName) {
+        String hash = MessageDigests.toHexString(MessageDigests.sha256().digest(originalName.getBytes(StandardCharsets.UTF_8)))
+            .substring(0, 8);
+        return originalName + "-dlm-clone-" + hash;
+    }
+
+    /*
+     * Returns true if a value has been set for the custom index metadata field "force_merge_completed_timestamp" within the field
+     * "data_stream_lifecycle".
+     */
+    private static boolean isForceMergeComplete(IndexMetadata backingIndex) {
+        Map<String, String> customMetadata = backingIndex.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
+        return customMetadata != null && customMetadata.containsKey(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY);
+    }
+
+    /*
+     * Updates the custom metadata of the index metadata of the source index to mark the target index as that to be force merged by DLM
+     *
+     */
+    private static void markIndexToBeForceMerged(String sourceIndex, String indexToBeForceMerged, DlmStepContext stepContext) {
+        IndexMetadata sourceIndexMetadata = stepContext.projectState().metadata().index(sourceIndex);
+        Map<String, String> customMetadata = sourceIndexMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
+        if (customMetadata != null) {
+            customMetadata.put(DLM_INDEX_TO_BE_MERGED_KEY, indexToBeForceMerged);
+        } else {
+            customMetadata = Map.of(DLM_INDEX_TO_BE_MERGED_KEY, indexToBeForceMerged);
+        }
+        IndexMetadata updatedSourceIndexMetadata = IndexMetadata.builder(sourceIndexMetadata)
+            .putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, customMetadata)
+            .build();
+        stepContext.projectState()
+            .updateProject(ProjectMetadata.builder(stepContext.projectState().metadata()).put(updatedSourceIndexMetadata, true).build());
+    }
+
+    /*
+     * Returns the name of index to be force merged from the custom metadata of the index metadata of the source index.
+     * If no such index has been marked in the custom metadata, returns null.
+     */
+    private static String getIndexToBeForceMerged(String sourceIndex, ProjectState projectState) {
+        IndexMetadata sourceIndexMetadata = projectState.metadata().index(sourceIndex);
+        Map<String, String> customMetadata = sourceIndexMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
+        if (customMetadata == null) {
+            return null;
+        } else {
+            return customMetadata.get(DLM_INDEX_TO_BE_MERGED_KEY);
+        }
+    }
+
+    private static void deleteCloneIndexIfExists(DlmStepContext stepContext) {
+        String cloneIndex = generateCloneIndexName(stepContext.indexName());
+        logger.debug("Attempting to delete index [{}]", cloneIndex);
+
+        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(cloneIndex).indicesOptions(IGNORE_MISSING_OPTIONS)
+            .masterNodeTimeout(TimeValue.MAX_VALUE);
+        String errorMessage = String.format(Locale.ROOT, "Failed to acknowledge delete of index [%s]", cloneIndex);
+        DeleteCloneIndexActionListener listener = new DeleteCloneIndexActionListener(cloneIndex, stepContext);
+        stepContext.client()
+            .projectClient(stepContext.projectId())
+            .admin()
+            .indices()
+            .delete(deleteIndexRequest, failIfNotAcknowledged(listener, errorMessage));
+    }
+
+    private static class DeleteCloneIndexActionListener implements ActionListener<AcknowledgedResponse> {
+        private final String targetIndex;
+
+        private DeleteCloneIndexActionListener(String targetIndex, DlmStepContext stepContext) {
+            this.targetIndex = targetIndex;
+        }
+
+        @Override
+        public void onResponse(AcknowledgedResponse response) {
+            logger.debug("DLM successfully deleted clone index [{}]", targetIndex);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            logger.error(() -> Strings.format("DLM failed to delete clone index [%s]", targetIndex), e);
+        }
+    }
+
+    private static <U extends AcknowledgedResponse> ActionListener<U> failIfNotAcknowledged(
+        ActionListener<U> listener,
+        String errorMessage
+    ) {
+        return listener.delegateFailure((delegate, response) -> {
+            if (response.isAcknowledged()) {
+                delegate.onResponse(null);
+            } else {
+                delegate.onFailure(new ElasticsearchException(errorMessage));
+            }
+        });
+    }
+}

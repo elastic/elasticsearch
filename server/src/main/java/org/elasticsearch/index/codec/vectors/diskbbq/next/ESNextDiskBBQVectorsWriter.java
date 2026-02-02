@@ -236,7 +236,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         // write the posting lists
         final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
         final PackedLongValues.Builder lengths = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
-        DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(quantEncoding.bits(), BULK_SIZE, postingsOutput);
+        DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(quantEncoding.bits(), BULK_SIZE, postingsOutput, false, true);
         OnHeapQuantizedVectors onHeapQuantizedVectors = new OnHeapQuantizedVectors(
             floatVectorValues,
             fieldInfo.getVectorSimilarityFunction(),
@@ -411,7 +411,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 quantEncoding,
                 fieldInfo.getVectorDimension()
             );
-            DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(quantEncoding.bits(), BULK_SIZE, postingsOutput);
+            DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(quantEncoding.bits(), BULK_SIZE, postingsOutput, false, true);
             // write the posting lists
             final int[] docIds = new int[maxPostingListSize];
             final int[] docDeltas = new int[maxPostingListSize];
@@ -611,7 +611,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         IndexOutput centroidOutput,
         CentroidGroups centroidGroups
     ) throws IOException {
-        DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(7, BULK_SIZE, centroidOutput, true);
+        DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(7, BULK_SIZE, centroidOutput, true, true);
         final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
         centroidOutput.writeVInt(centroidGroups.centroids().length);
         centroidOutput.writeVInt(centroidGroups.maxVectorsPerCentroidLength());
@@ -666,7 +666,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         IndexOutput centroidOutput
     ) throws IOException {
         centroidOutput.writeVInt(0);
-        DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(7, BULK_SIZE, centroidOutput, true);
+        DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(7, BULK_SIZE, centroidOutput, true, true);
         final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
         QuantizedCentroids quantizedCentroids = new QuantizedCentroids(
             centroidSupplier,
@@ -780,8 +780,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         indexOutput.writeInt(Float.floatToIntBits(corrections.lowerInterval()));
         indexOutput.writeInt(Float.floatToIntBits(corrections.upperInterval()));
         indexOutput.writeInt(Float.floatToIntBits(corrections.additionalCorrection()));
-        assert corrections.quantizedComponentSum() >= 0 && corrections.quantizedComponentSum() <= 0xffff;
-        indexOutput.writeShort((short) corrections.quantizedComponentSum());
+        indexOutput.writeInt(corrections.quantizedComponentSum());
     }
 
     static class OffHeapCentroidSupplier implements CentroidSupplier {
@@ -975,7 +974,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         OffHeapQuantizedVectors(IndexInput quantizedVectorsInput, ESNextDiskBBQVectorsFormat.QuantEncoding encoding, int dimension) {
             this.quantizedVectorsInput = quantizedVectorsInput;
             this.binaryScratch = new byte[encoding.getDocPackedLength(dimension)];
-            this.vectorByteSize = (binaryScratch.length + 3 * Float.BYTES + Short.BYTES);
+            this.vectorByteSize = (binaryScratch.length + 3 * Float.BYTES + Integer.BYTES);
         }
 
         private void reset(int count, IntToBooleanFunction isOverspill, IntToIntFunction ordTransformer) {
@@ -1019,7 +1018,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             quantizedVectorsInput.seek(offset);
             quantizedVectorsInput.readBytes(binaryScratch, 0, binaryScratch.length);
             quantizedVectorsInput.readFloats(corrections, 0, 3);
-            bitSum = Short.toUnsignedInt(quantizedVectorsInput.readShort());
+            bitSum = quantizedVectorsInput.readInt();
         }
     }
 }

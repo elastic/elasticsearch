@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
+import org.elasticsearch.xpack.esql.plan.physical.SampledAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
@@ -199,8 +201,8 @@ public class MapperUtils {
     }
 
     static AggregateExec aggExec(Aggregate aggregate, PhysicalPlan child, AggregatorMode aggMode, List<Attribute> intermediateAttributes) {
-        if (aggregate instanceof TimeSeriesAggregate ts) {
-            return new TimeSeriesAggregateExec(
+        return switch (aggregate) {
+            case TimeSeriesAggregate ts -> new TimeSeriesAggregateExec(
                 aggregate.source(),
                 child,
                 aggregate.groupings(),
@@ -210,8 +212,18 @@ public class MapperUtils {
                 null,
                 ts.timeBucket()
             );
-        } else {
-            return new AggregateExec(
+            case SampledAggregate sample -> new SampledAggregateExec(
+                sample.source(),
+                child,
+                sample.groupings(),
+                sample.aggregates(),
+                sample.originalAggregates(),
+                sample.sampleProbability(),
+                aggMode,
+                intermediateAttributes,
+                null
+            );
+            default -> new AggregateExec(
                 aggregate.source(),
                 child,
                 aggregate.groupings(),
@@ -220,7 +232,7 @@ public class MapperUtils {
                 intermediateAttributes,
                 null
             );
-        }
+        };
     }
 
     static PhysicalPlan unsupported(LogicalPlan p) {

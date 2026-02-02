@@ -16,20 +16,26 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
-import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.SampledAggregateExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
@@ -41,43 +47,62 @@ import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_
 /**
  * Looks for the case where certain stats exist right before the query and thus can be pushed down.
  */
-public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<AggregateExec, LocalPhysicalOptimizerContext> {
+public class PushSampledStatsToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
+    SampledAggregateExec,
+    LocalPhysicalOptimizerContext> {
 
     @Override
-    protected PhysicalPlan rule(AggregateExec aggregateExec, LocalPhysicalOptimizerContext context) {
-        PhysicalPlan plan = aggregateExec;
-        if (aggregateExec.child() instanceof EsQueryExec queryExec) {
-            var tuple = pushableStats(aggregateExec, context);
+    protected PhysicalPlan rule(SampledAggregateExec sampledAggregateExec, LocalPhysicalOptimizerContext context) {
+        PhysicalPlan plan = sampledAggregateExec;
+        if (sampledAggregateExec.child() instanceof EvalExec evalExec && evalExec.child() instanceof EsQueryExec queryExec) {
+            var tuple = pushableStats(sampledAggregateExec, context);
 
             // for the moment support pushing count just for one field
             List<EsStatsQueryExec.Stat> stats = tuple.v2();
-            if (stats.size() != 1 || stats.size() != aggregateExec.aggregates().size()) {
-                return aggregateExec;
+            if (stats.size() != 1 || stats.size() != sampledAggregateExec.originalAggregates().size()) {
+                return sampledAggregateExec;
             }
 
             // TODO: handle case where some aggs cannot be pushed down by breaking the aggs into two sources (regular + stats) + union
             // use the stats since the attributes are larger in size (due to seen)
             plan = new EsStatsQueryExec(
-                aggregateExec.source(),
+                sampledAggregateExec.source(),
                 queryExec.indexPattern(),
                 queryExec.query(),
                 queryExec.limit(),
                 tuple.v1(),
                 stats.get(0)
             );
+
+            List<Alias> nullBuckets = new ArrayList<>();
+            List<NamedExpression> projections = new ArrayList<>();
+            Map<String, Attribute> outputColumns = plan.outputSet().stream().collect(Collectors.toMap(Attribute::name, a -> a));
+            for (Attribute attr : sampledAggregateExec.outputSet()) {
+                Attribute newAttr = outputColumns.get(attr.name());
+                if (newAttr == null) {
+                    System.out.println(" *** NULLIFY: " + attr);
+                    nullBuckets.add(new Alias(Source.EMPTY, attr.name(), Literal.NULL, attr.id()));
+                    projections.add(attr);
+                } else {
+                    System.out.println(" *** KEEP   : " + attr);
+                    projections.add(newAttr);
+                }
+            }
+            plan = new EvalExec(Source.EMPTY, plan, nullBuckets);
+            plan = new ProjectExec(Source.EMPTY, plan, projections);
         }
         return plan;
     }
 
     private static Tuple<List<Attribute>, List<EsStatsQueryExec.Stat>> pushableStats(
-        AggregateExec aggregate,
+        SampledAggregateExec aggregate,
         LocalPhysicalOptimizerContext context
     ) {
         AttributeMap.Builder<EsStatsQueryExec.Stat> statsBuilder = AttributeMap.builder();
         Tuple<List<Attribute>, List<EsStatsQueryExec.Stat>> tuple = new Tuple<>(new ArrayList<>(), new ArrayList<>());
 
         if (aggregate.groupings().isEmpty()) {
-            for (NamedExpression agg : aggregate.aggregates()) {
+            for (NamedExpression agg : aggregate.originalAggregates()) {
                 var attribute = agg.toAttribute();
                 EsStatsQueryExec.Stat stat = statsBuilder.computeIfAbsent(attribute, a -> {
                     if (agg instanceof Alias as) {

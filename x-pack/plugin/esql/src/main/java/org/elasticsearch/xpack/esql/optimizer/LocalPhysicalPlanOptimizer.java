@@ -19,9 +19,11 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushCountQuer
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushSampleToSource;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushSampledStatsToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceRoundToWithQueryAndTags;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSampledStats;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialDocValuesExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialShapeBoundsExtraction;
@@ -75,6 +77,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             esSourceRules.add(new PushFiltersToSource());
             esSourceRules.add(new PushSampleToSource());
             esSourceRules.add(new PushStatsToSource());
+            esSourceRules.add(new PushSampledStatsToSource());
             esSourceRules.add(new EnableSpatialDistancePushdown());
         }
 
@@ -97,6 +100,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         var fieldExtraction = new Batch<>(
             "Field extraction",
             Limiter.ONCE,
+            new ReplaceSampledStats(),
             new ExtractDimensionFieldsAfterAggregation(),
             new InsertFieldExtraction(),
             new SpatialDocValuesExtraction(),

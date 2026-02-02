@@ -110,6 +110,7 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
             in.resultTruncationMaxSize(true),
             in.resultTruncationDefaultSize(true),
             null,
+            null,
             Map.of()
         );
     }

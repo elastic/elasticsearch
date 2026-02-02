@@ -7,11 +7,15 @@
 
 package org.elasticsearch.xpack.esql.approximation;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -21,7 +25,7 @@ import java.util.Map;
  * @param confidenceLevel The confidence level of the confidence intervals returned by query approximation.
  *                       If {@code null}, the default will be used.
  */
-public record ApproximationSettings(Integer rows, Double confidenceLevel) {
+public record ApproximationSettings(Integer rows, Double confidenceLevel) implements Writeable {
     public static final ApproximationSettings DEFAULT = new ApproximationSettings(null, null);
 
     public static ApproximationSettings parse(Expression expression) {
@@ -67,5 +71,15 @@ public record ApproximationSettings(Integer rows, Double confidenceLevel) {
         } else {
             throw new IllegalArgumentException("Invalid approximation configuration [" + expression + "]");
         }
+    }
+
+    public ApproximationSettings(StreamInput in) throws IOException {
+        this(in.readInt(), in.readOptionalDouble());
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalInt(rows);
+        out.writeOptionalDouble(confidenceLevel);
     }
 }

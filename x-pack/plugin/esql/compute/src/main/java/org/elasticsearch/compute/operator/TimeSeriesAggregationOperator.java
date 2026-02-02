@@ -34,7 +34,9 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -59,6 +61,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             return new TimeSeriesAggregationOperator(
                 timeBucket,
                 dateNanos ? DateFieldMapper.Resolution.NANOSECONDS : DateFieldMapper.Resolution.MILLISECONDS,
+                aggregatorMode,
                 aggregators,
                 () -> BlockHash.build(
                     groups,
@@ -87,11 +90,12 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
     public TimeSeriesAggregationOperator(
         Rounding.Prepared timeBucket,
         DateFieldMapper.Resolution timeResolution,
+        AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregators,
         Supplier<BlockHash> blockHash,
         DriverContext driverContext
     ) {
-        super(aggregators, blockHash, driverContext);
+        super(aggregatorMode, aggregators, blockHash, Integer.MAX_VALUE, 1.0, driverContext);
         this.timeBucket = timeBucket;
         this.timeResolution = timeResolution;
     }
@@ -100,6 +104,11 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
     public void finish() {
         expandWindowBuckets();
         super.finish();
+    }
+
+    @Override
+    protected boolean shouldEmitPartialResultsPeriodically() {
+        return false;
     }
 
     private long largestWindowMillis() {
@@ -172,10 +181,8 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
      * ```
      */
     private void expandWindowBuckets() {
-        for (GroupingAggregator aggregator : aggregators) {
-            if (aggregator.mode().isOutputPartial()) {
-                return;
-            }
+        if (aggregatorMode.isOutputPartial()) {
+            return;
         }
         final long windowMillis = largestWindowMillis();
         if (windowMillis <= 0) {
@@ -186,18 +193,19 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         if (numGroups == 0) {
             return;
         }
+        Rounding.Prepared optimizedTimeBucket = optimizeRoundingForTimeRange(tsBlockHash.getMinLongKey(), tsBlockHash.getMaxLongKey());
         this.expandingGroups = new ExpandingGroups(driverContext.bigArrays());
         for (long groupId = 0; groupId < numGroups; groupId++) {
             long tsid = tsBlockHash.getBytesRefKeyFromGroup(groupId);
             long endTimestamp = tsBlockHash.getLongKeyFromGroup(groupId);
-            long bucket = timeBucket.nextRoundingValue(endTimestamp - timeResolution.convert(largestWindowMillis()));
+            long bucket = optimizedTimeBucket.nextRoundingValue(endTimestamp - timeResolution.convert(largestWindowMillis()));
             bucket = Math.max(bucket, tsBlockHash.getMinLongKey());
             // Fill the missing buckets between (timestamp-window, timestamp)
             while (bucket < endTimestamp) {
                 if (tsBlockHash.addGroup(tsid, bucket) >= 0) {
                     expandingGroups.addGroup(Math.toIntExact(groupId));
                 }
-                bucket = timeBucket.nextRoundingValue(bucket);
+                bucket = optimizedTimeBucket.nextRoundingValue(bucket);
             }
         }
     }
@@ -311,8 +319,13 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         final BytesRefLongBlockHash hash = (BytesRefLongBlockHash) blockHash;
 
         final LongBlock timestamps = keys[0].elementType() == ElementType.LONG ? (LongBlock) keys[0] : (LongBlock) keys[1];
+        Rounding.Prepared optimizedTimeBucket = optimizeRoundingForTimeRange(hash.getMinLongKey(), hash.getMaxLongKey());
+
         // block hash so that we can look key
         return new TimeSeriesGroupingAggregatorEvaluationContext(driverContext) {
+            IntArray prevGroupIds;
+            IntArray nextGroupIds;
+
             @Override
             public long rangeStartInMillis(int groupId) {
                 return timeResolution.roundDownToMillis(timestamps.getLong(groupId));
@@ -320,7 +333,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
             @Override
             public long rangeEndInMillis(int groupId) {
-                return timeBucket.nextRoundingValue(timeResolution.roundDownToMillis(timestamps.getLong(groupId)));
+                return optimizedTimeBucket.nextRoundingValue(timeResolution.roundDownToMillis(timestamps.getLong(groupId)));
             }
 
             @Override
@@ -330,7 +343,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 List<Integer> results = new ArrayList<>();
                 results.add(startingGroupId);
                 long endTimestamp = bucket + timeResolution.convert(window.toMillis());
-                while ((bucket = timeBucket.nextRoundingValue(bucket)) < endTimestamp) {
+                while ((bucket = optimizedTimeBucket.nextRoundingValue(bucket)) < endTimestamp) {
                     long nextGroupId = hash.getGroupId(tsid, bucket);
                     if (nextGroupId != -1) {
                         results.add(Math.toIntExact(nextGroupId));
@@ -341,21 +354,58 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
             @Override
             public int previousGroupId(int currentGroupId) {
-                long tsid = hash.getBytesRefKeyFromGroup(currentGroupId);
-                long currentBucketTs = timestamps.getLong(currentGroupId);
-                long nextBucketTs = timeBucket.nextRoundingValue(currentBucketTs);
-                long previousBucketTS = currentBucketTs - (nextBucketTs - currentBucketTs);
-                return Math.toIntExact(hash.getGroupId(tsid, previousBucketTS));
+                return prevGroupIds.get(currentGroupId);
             }
 
             @Override
             public int nextGroupId(int currentGroupId) {
-                long tsid = hash.getBytesRefKeyFromGroup(currentGroupId);
-                long currentBucketTs = timestamps.getLong(currentGroupId);
-                long nextBucketTs = timeBucket.nextRoundingValue(currentBucketTs);
-                return Math.toIntExact(hash.getGroupId(tsid, nextBucketTs));
+                return nextGroupIds.get(currentGroupId);
+            }
+
+            @Override
+            public void computeAdjacentGroupIds() {
+                if (nextGroupIds != null) {
+                    return;
+                }
+                long numGroups = hash.numGroups();
+                nextGroupIds = driverContext.bigArrays().newIntArray(numGroups);
+                nextGroupIds.fill(0, numGroups, -1);
+                prevGroupIds = driverContext.bigArrays().newIntArray(numGroups);
+                prevGroupIds.fill(0, numGroups, -1);
+                Map<Long, Long> nextTimestamps = new HashMap<>(); // cached the rounded up timestamps
+                for (int groupId = 0; groupId < numGroups; groupId++) {
+                    long tsid = hash.getBytesRefKeyFromGroup(groupId);
+                    long bucketTs = hash.getLongKeyFromGroup(groupId);
+                    long nextBucketTs = nextTimestamps.computeIfAbsent(bucketTs, optimizedTimeBucket::nextRoundingValue);
+                    int nextGroupId = Math.toIntExact(hash.getGroupId(tsid, nextBucketTs));
+                    if (nextGroupId >= 0) {
+                        nextGroupIds.set(groupId, nextGroupId);
+                        prevGroupIds.set(nextGroupId, groupId);
+                    }
+                }
+            }
+
+            @Override
+            public void close() {
+                Releasables.close(nextGroupIds, prevGroupIds, super::close);
             }
         };
+    }
+
+    /**
+     * When running queries from timezones with daylight savings, we by default use the slow JavaTime-based rounding,
+     * because when collecting the partial results we initially have no information about the time range covered.
+     * As soon as we have the actual populated groups and their timestamps, we can optimize the rounding in case
+     * it does not intersect with any daylight savings transition.
+     */
+    private Rounding.Prepared optimizeRoundingForTimeRange(long minTimestamp, long maxTimestamp) {
+        if (minTimestamp <= maxTimestamp) {
+            long startMillis = timeResolution.roundDownToMillis(minTimestamp);
+            long endMillis = timeResolution.roundUpToMillis(maxTimestamp);
+            return timeBucket.getUnprepared().prepare(startMillis, endMillis);
+        } else {
+            return timeBucket;
+        }
     }
 
     static class ExpandingGroups extends AbstractRefCounted implements Releasable {

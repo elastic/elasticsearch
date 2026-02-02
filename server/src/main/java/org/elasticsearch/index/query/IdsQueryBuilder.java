@@ -125,6 +125,11 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        if (ids.size() > context.indexSettings.getMaxResultWindow()) {
+            throw new IllegalStateException(
+                "Too many ids specified, allowed max result window is [" + context.indexSettings.getMaxResultWindow() + "]"
+            );
+        }
         MappedFieldType idField = context.getFieldType(IdFieldMapper.NAME);
         if (idField == null || ids.isEmpty()) {
             throw new IllegalStateException("Rewrite first");

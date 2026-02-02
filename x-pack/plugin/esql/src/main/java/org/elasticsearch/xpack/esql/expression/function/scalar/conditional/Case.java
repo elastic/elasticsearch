@@ -272,6 +272,22 @@ public final class Case extends EsqlScalarFunction {
         return elseValue.foldable();
     }
 
+    @Override
+    public Object fold(FoldContext ctx) {
+        DataType type = dataType();
+        if (type == DataType.DATE_PERIOD || type == DataType.TIME_DURATION) {
+            // These can't be managed by evaluators, we have to fold them manually.
+            // TODO manage warnings for MV condition (evaluators take care of that, here we don't have the components)
+            for (Condition condition : conditions) {
+                if (Boolean.TRUE.equals(condition.condition.fold(ctx))) {
+                    return condition.value.fold(ctx);
+                }
+            }
+            return elseValue.fold(ctx);
+        }
+        return super.fold(ctx);
+    }
+
     /**
      * Fold the arms of {@code CASE} statements.
      * <ol>
@@ -366,12 +382,7 @@ public final class Case extends EsqlScalarFunction {
                  * Rather than go into depth about this in the warning message,
                  * we just say "false".
                  */
-                Warnings.createWarningsTreatedAsFalse(
-                    driverContext.warningsMode(),
-                    conditionSource.source().getLineNumber(),
-                    conditionSource.source().getColumnNumber(),
-                    conditionSource.text()
-                ),
+                Warnings.createWarningsTreatedAsFalse(driverContext.warningsMode(), conditionSource),
                 condition.get(driverContext),
                 value.get(driverContext)
             );

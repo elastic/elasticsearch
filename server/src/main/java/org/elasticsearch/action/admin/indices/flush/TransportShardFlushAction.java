@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.replication.BroadcastRequestSplitHelper;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -89,10 +90,10 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
     // and that on the primary shard node. We assume that the request is exactly 1 reshard split behind
     // the current state.
     @Override
-    protected Map<ShardId, ShardFlushRequest> splitRequestOnPrimary(ShardFlushRequest request) {
+    protected Map<ShardId, ShardFlushRequest> splitRequestOnPrimary(ShardFlushRequest request, ProjectMetadata project) {
         return BroadcastRequestSplitHelper.splitRequest(
             request,
-            projectResolver.getProjectMetadata(clusterService.state()),
+            project,
             (targetShard, shardCountSummary) -> new ShardFlushRequest(request.getRequest(), targetShard, shardCountSummary)
         );
     }

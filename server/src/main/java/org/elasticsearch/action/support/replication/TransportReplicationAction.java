@@ -342,7 +342,7 @@ public abstract class TransportReplicationAction<
      * and that on the primary shard node. We assume that the request is exactly 1 reshard split behind
      * the current state.
      */
-    protected Map<ShardId, Request> splitRequestOnPrimary(Request request) {
+    protected Map<ShardId, Request> splitRequestOnPrimary(Request request, ProjectMetadata project) {
         return Map.of(request.shardId(), request);
     }
 
@@ -533,7 +533,7 @@ public abstract class TransportReplicationAction<
                             TransportResponseHandler.TRANSPORT_WORKER
                         )
                     );
-                } else if (ReplicationSplitHelper.needsSplitCoordination(primaryRequest.getRequest(), indexMetadata)) {
+                } else if (ReplicationSplitHelper.needsSplitCoordination(logger, primaryRequest.getRequest(), indexMetadata)) {
                     ReplicationSplitHelper<Request, ReplicaRequest, Response>.SplitCoordinator splitCoordinator = splitHelper
                         .newSplitRequest(
                             TransportReplicationAction.this,

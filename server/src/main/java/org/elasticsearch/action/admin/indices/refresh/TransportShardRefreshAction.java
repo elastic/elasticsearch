@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -116,10 +117,10 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
     // and that on the primary shard node. We assume that the request is exactly 1 reshard split behind
     // the current state.
     @Override
-    protected Map<ShardId, BasicReplicationRequest> splitRequestOnPrimary(BasicReplicationRequest request) {
+    protected Map<ShardId, BasicReplicationRequest> splitRequestOnPrimary(BasicReplicationRequest request, ProjectMetadata project) {
         return BroadcastRequestSplitHelper.splitRequest(
             request,
-            projectResolver.getProjectMetadata(clusterService.state()),
+            project,
             (targetShard, shardCountSummary) -> new BasicReplicationRequest(targetShard, shardCountSummary)
         );
     }

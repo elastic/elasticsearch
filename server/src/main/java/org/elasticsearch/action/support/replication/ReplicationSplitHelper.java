@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -66,6 +67,7 @@ public class ReplicationSplitHelper<
     }
 
     public static <Request extends ReplicationRequest<Request>> boolean needsSplitCoordination(
+        final Logger logger,
         final Request primaryRequest,
         final IndexMetadata indexMetadata
     ) throws Exception {
@@ -79,12 +81,17 @@ public class ReplicationSplitHelper<
                 return false;
             } else {  // check that resharding is ongoing and the latest shard count is exactly 2 times the shard count in the request
                 if (indexMetadata.getReshardingMetadata() == null
-                    || latestSplitSummary.asInt() != IndexMetadata.RESHARD_SPLIT_FACTOR * requestSplitSummary.asInt()) {
-                    throw new StaleRequestException(
-                        "Request stale due to concurrent reshard operation, expected shardCountSummary [{}] but found [{}]",
-                        requestSplitSummary.asInt(),
-                        latestSplitSummary.asInt()
-                    );
+                    || latestSplitSummary.asInt() != IndexReshardingMetadata.RESHARD_SPLIT_FACTOR * requestSplitSummary.asInt()) {
+                    if (indexMetadata.getReshardingMetadata() == null) {
+                        logger.debug("Request is stale, expected resharding metadata but none found");
+                    } else {
+                        logger.debug(
+                            "Request is stale due to concurrent reshard operation, expected shardCountSummary [{}] but found [{}]",
+                            requestSplitSummary.asInt(),
+                            latestSplitSummary.asInt()
+                        );
+                    }
+                    throw new StaleRequestException("Request stale due to concurrent reshard operation, retry after sometime");
                 }
                 return true;
             }
@@ -154,7 +161,7 @@ public class ReplicationSplitHelper<
         }
 
         public void coordinate() throws Exception {
-            Map<ShardId, Request> splitRequests = action.splitRequestOnPrimary(originalRequest);
+            Map<ShardId, Request> splitRequests = action.splitRequestOnPrimary(originalRequest, project);
 
             int numSplitRequests = splitRequests.size();
 

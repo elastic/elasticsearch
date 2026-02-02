@@ -31,6 +31,6 @@ public class StaleRequestException extends ElasticsearchException {
 
     @Override
     public final RestStatus status() {
-        return RestStatus.INTERNAL_SERVER_ERROR;
+        return RestStatus.SERVICE_UNAVAILABLE;
     }
 }

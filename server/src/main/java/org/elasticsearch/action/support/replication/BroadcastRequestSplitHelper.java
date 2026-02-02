@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
@@ -41,6 +42,11 @@ public final class BroadcastRequestSplitHelper {
      * {@link org.elasticsearch.action.bulk.BulkShardRequest}
      * We are here because there was a mismatch between the SplitShardCountSummary in the request
      * and that on the primary shard node.
+     *
+     * Note that {@link org.elasticsearch.cluster.metadata.IndexReshardingMetadata} cannot be NULL here
+     * because it is evaluated in {@link ReplicationSplitHelper#needsSplitCoordination(Logger, ReplicationRequest, IndexMetadata)}
+     * with the same metadata before arriving here. The request would have been rejected there if there was no Resharding metadata found.
+     *
      * TODO:
      * We assume here that the request is exactly 1 reshard split behind
      * the current state. We might either revise this assumption or enforce it
@@ -61,6 +67,7 @@ public final class BroadcastRequestSplitHelper {
         // Create a request for original source shard and for each target shard.
         // New requests that are to be handled by target shards should contain the
         // latest ShardCountSummary.
+        assert indexMetadata.getReshardingMetadata() != null;
         int targetShardId = indexMetadata.getReshardingMetadata().getSplit().targetShard(sourceShard.id());
         ShardId targetShard = new ShardId(sourceShard.getIndex(), targetShardId);
 

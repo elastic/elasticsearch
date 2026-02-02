@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.evaluator.command;
 
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
 
 import java.util.List;
@@ -113,7 +114,27 @@ public class UriPartsFunctionBridgeTests extends AbstractCompoundOutputEvaluator
         List<String> requestedFields = List.of(DOMAIN, PORT);
         List<String> input = List.of("not a valid url");
         List<Object[]> expected = List.of(new Object[] { null }, new Object[] { null });
-        Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, 1, 2, "invalid_input");
+        Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new WarningSourceLocation() {
+            @Override
+            public int lineNumber() {
+                return 1;
+            }
+
+            @Override
+            public int columnNumber() {
+                return 2;
+            }
+
+            @Override
+            public String viewName() {
+                return null;
+            }
+
+            @Override
+            public String text() {
+                return "invalid_input";
+            }
+        });
         evaluateAndCompare(input, requestedFields, expected, warnings);
         assertCriticalWarnings(
             "Line 1:2: evaluation of [invalid_input] failed, treating result as null. Only first 20 failures recorded.",

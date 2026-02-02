@@ -337,12 +337,7 @@ public class LocalExecutionPlanner {
 
         Layout layout = layoutBuilder.build();
 
-        final Warnings warnings = Warnings.createWarnings(
-            context.warningsMode,
-            coe.source().source().getLineNumber(),
-            coe.source().source().getColumnNumber(),
-            coe.source().text()
-        );
+        final Warnings warnings = Warnings.createWarnings(context.warningsMode, coe.source());
 
         final CompoundOutputEvaluator.OutputFieldsCollector outputFieldsCollector = coe.createOutputFieldsCollector();
 

@@ -33,7 +33,7 @@ public class SourceMutabilityTests extends ESTestCase {
         assertTrue("Should be empty", s2.source().isEmpty());
         assertMapIsImmutable(s2.source());
 
-        //empty map returns a mutable map?!
+        // empty map returns a mutable map?!
         Source s3 = Source.fromBytes(new BytesArray("{}"));
         assertTrue("Should be empty", s3.source().isEmpty());
         assertMapIsMutable("fromBytes('{}')", s3.source());
@@ -42,8 +42,8 @@ public class SourceMutabilityTests extends ESTestCase {
         assertFalse("Should not be empty", s4.source().isEmpty());
         assertMapIsMutable("fromBytes(non-empty)", s4.source());
 
-        //unrelated issue...empty map still returns mutable map even with trailing content...
-        //no parse exception?!?!?!
+        // unrelated issue...empty map still returns mutable map even with trailing content...
+        // no parse exception?!?!?!
         Source s5 = Source.fromBytes(new BytesArray("{}trailing-content-is-ignored{\"field\":\"value\"}"));
         assertTrue("Should be empty", s5.source().isEmpty());
         assertMapIsMutable("fromBytes('{}')", s5.source());
@@ -59,12 +59,12 @@ public class SourceMutabilityTests extends ESTestCase {
         assertTrue("Should be empty", s2.source().isEmpty());
         assertMapIsImmutable(s2.source());
 
-        //mutable map can be converted to immutable
+        // mutable map can be converted to immutable
         Source s3 = Source.fromMap(new LinkedHashMap<>(), XContentType.JSON);
         assertTrue("Should be empty", s3.source().isEmpty());
         assertMapIsImmutable(s3.source());
 
-        //immutable map remains immutable
+        // immutable map remains immutable
         Source s4 = Source.fromMap(Map.of("field", "value"), XContentType.JSON);
         assertFalse("Should not be empty", s4.source().isEmpty());
         assertMapIsImmutable(s4.source());

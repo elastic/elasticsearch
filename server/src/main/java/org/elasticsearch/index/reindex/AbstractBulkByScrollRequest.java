@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -45,6 +46,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     public static final int AUTO_SLICES = 0;
     public static final String AUTO_SLICES_VALUE = "auto";
     private static final int DEFAULT_SLICES = 1;
+    private static final TransportVersion BULK_BY_SCROLL_REQUEST_INCLUDES_RELOCATION_FIELD_TRANSPORT_VERSION = TransportVersion.fromName(
+        "bulk_by_scroll_request_includes_relocation_field"
+    );
 
     /**
      * The search to be executed.
@@ -100,6 +104,8 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      */
     private boolean shouldStoreResult;
 
+    private boolean eligibleForRelocationOnShutdown;
+
     /**
      * The number of slices this task should be divided into. Defaults to 1 meaning the task isn't sliced into subtasks.
      */
@@ -117,6 +123,11 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         maxRetries = in.readVInt();
         requestsPerSecond = in.readFloat();
         slices = in.readVInt();
+        if (in.getTransportVersion().supports(BULK_BY_SCROLL_REQUEST_INCLUDES_RELOCATION_FIELD_TRANSPORT_VERSION)) {
+            // N.B. Prior to this transport version, shouldStoreResult was not serialized (this does not seem to have caused any problems)
+            shouldStoreResult = in.readBoolean();
+            eligibleForRelocationOnShutdown = in.readBoolean();
+        }
     }
 
     /**
@@ -355,7 +366,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     }
 
     /**
-     * Should this task store its result after it has finished?
+     * Should this task store its result in the tasks index after it has finished?
      */
     public Self setShouldStoreResult(boolean shouldStoreResult) {
         this.shouldStoreResult = shouldStoreResult;
@@ -365,6 +376,20 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     @Override
     public boolean getShouldStoreResult() {
         return shouldStoreResult;
+    }
+
+    /**
+     * Returns whether we should attempt to relocate this task to another node when the current node is preparing to shut down.
+     */
+    public boolean isEligibleForRelocationOnShutdown() {
+        return eligibleForRelocationOnShutdown;
+    }
+
+    /**
+     * Sets whether we should attempt to relocate this task to another node when the current node is preparing to shut down.
+     */
+    public void setEligibleForRelocationOnShutdown(boolean eligibleForRelocationOnShutdown) {
+        this.eligibleForRelocationOnShutdown = eligibleForRelocationOnShutdown;
     }
 
     /**
@@ -439,7 +464,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new BulkByScrollTask(id, type, action, getDescription(), parentTaskId, headers);
+        return new BulkByScrollTask(id, type, action, getDescription(), parentTaskId, headers, eligibleForRelocationOnShutdown);
     }
 
     @Override
@@ -455,6 +480,11 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         out.writeVInt(maxRetries);
         out.writeFloat(requestsPerSecond);
         out.writeVInt(slices);
+        if (out.getTransportVersion().supports(BULK_BY_SCROLL_REQUEST_INCLUDES_RELOCATION_FIELD_TRANSPORT_VERSION)) {
+            // N.B. Prior to this transport version, shouldStoreResult was not serialized (this does not seem to have caused any problems)
+            out.writeBoolean(shouldStoreResult);
+            out.writeBoolean(eligibleForRelocationOnShutdown);
+        }
     }
 
     /**

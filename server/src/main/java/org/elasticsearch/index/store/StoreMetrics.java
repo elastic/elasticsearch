@@ -15,10 +15,12 @@ import java.io.IOException;
 import java.util.function.Supplier;
 
 public class StoreMetrics implements DirectoryMetrics.PluggableMetrics<StoreMetrics> {
-    public static final PluggableDirectoryMetricsHolder<StoreMetrics> NOOP_HOLDER = PluggableDirectoryMetricsHolder.noop(new StoreMetrics() {
-        @Override
-        public void addBytesRead(long amount) {}
-    });
+    public static final PluggableDirectoryMetricsHolder<StoreMetrics> NOOP_HOLDER = PluggableDirectoryMetricsHolder.noop(
+        new StoreMetrics() {
+            @Override
+            public void addBytesRead(long amount) {}
+        }
+    );
 
     private long bytesRead;
 

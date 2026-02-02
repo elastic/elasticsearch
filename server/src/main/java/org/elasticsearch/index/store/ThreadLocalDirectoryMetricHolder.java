@@ -11,7 +11,9 @@ package org.elasticsearch.index.store;
 
 import java.util.function.Supplier;
 
-public class ThreadLocalDirectoryMetricHolder<M extends DirectoryMetrics.PluggableMetrics<M>> implements PluggableDirectoryMetricsHolder<M> {
+public class ThreadLocalDirectoryMetricHolder<M extends DirectoryMetrics.PluggableMetrics<M>>
+    implements
+        PluggableDirectoryMetricsHolder<M> {
     private final Supplier<? extends M> metricsSupplier;
     private final ThreadLocal<M> threadLocal = new ThreadLocal<>() {
         @Override

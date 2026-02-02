@@ -61,7 +61,8 @@ public class StoreMetricsIndexInput extends FilterIndexInput {
         RandomAccessInput delegate = in.randomAccessSlice(offset, length);
 
         return new RandomAccessInput() {
-            private final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = StoreMetricsIndexInput.this.metricHolder.singleThreaded();
+            private final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = StoreMetricsIndexInput.this.metricHolder
+                .singleThreaded();
 
             @Override
             public long length() {

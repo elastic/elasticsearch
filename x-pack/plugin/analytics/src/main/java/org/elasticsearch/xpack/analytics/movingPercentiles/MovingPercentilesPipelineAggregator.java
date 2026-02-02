@@ -19,7 +19,6 @@ import org.elasticsearch.search.aggregations.metrics.HistogramUnionState;
 import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentiles;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
 import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;

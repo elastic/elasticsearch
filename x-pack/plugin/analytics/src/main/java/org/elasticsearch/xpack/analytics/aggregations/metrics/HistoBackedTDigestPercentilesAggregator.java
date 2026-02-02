@@ -13,7 +13,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.HistogramUnionState;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
 import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 

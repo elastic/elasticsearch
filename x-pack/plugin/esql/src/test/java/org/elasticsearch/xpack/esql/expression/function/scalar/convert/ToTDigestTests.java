@@ -7,81 +7,55 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.Example;
-import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
-import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+import java.util.function.Supplier;
 
-public class ToTDigest extends AbstractConvertFunction {
+import static org.elasticsearch.test.ReadableMatchers.matchesBytesRef;
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Expression.class,
-        "ToTDigest",
-        ToTDigest::new
-    );
+public class ToTDigestTests extends AbstractScalarFunctionTestCase {
 
-    private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(DataType.TDIGEST, (source, field) -> field),
-        Map.entry(DataType.HISTOGRAM, ToTDigestFromHistogramEvaluator.Factory::new)
-    );
-
-    @FunctionInfo(
-        returnType = "tdigest",
-        description = "Converts an untyped histogram to a TDigest, assuming the values are centroids.",
-        examples = { @Example(file = "histogram", tag = "to_tdigest"), }
-    )
-    public ToTDigest(
-        Source source,
-        @Param(name = "field", type = { "histogram" }, description = "The histogram value to be converted") Expression field
-    ) {
-        super(source, field);
+    public ToTDigestTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+        this.testCase = testCaseSupplier.get();
     }
 
-    protected ToTDigest(StreamInput in) throws IOException {
-        super(in);
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        final List<TestCaseSupplier> suppliers = new ArrayList<>();
+
+        TestCaseSupplier.forUnaryHistogram(
+            suppliers,
+            "ToTDigestFromHistogramEvaluator[in=Attribute[channel=0]]",
+            DataType.TDIGEST,
+            ToTDigestTests::fromHistogram,
+            List.of()
+        );
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     @Override
-    public DataType dataType() {
-        return DataType.TDIGEST;
+    protected Expression build(Source source, List<Expression> args) {
+        return new ToTDigest(source, args.getFirst());
     }
 
-    @Override
-    protected Map<DataType, BuildFactory> factories() {
-        return EVALUATORS;
-    }
 
-    @Override
-    public Expression replaceChildren(List<Expression> newChildren) {
-        return new ToTDigest(source(), newChildren.get(0));
-    }
-
-    @Override
-    protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, ToTDigest::new, field());
-    }
-
-    @Override
-    public String getWriteableName() {
-        return ENTRY.name;
-    }
-
-    @ConvertEvaluator(extraName = "FromHistogram", warnExceptions = { IllegalArgumentException.class })
     static TDigestHolder fromHistogram(BytesRef in) {
         if (in.length > ByteSizeUnit.MB.toBytes(2)) {
             throw new IllegalArgumentException("Histogram length is greater than 2MB");
@@ -116,5 +90,4 @@ public class ToTDigest extends AbstractConvertFunction {
             throw new IllegalArgumentException(e.getMessage());
         }
     }
-
 }

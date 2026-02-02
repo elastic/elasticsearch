@@ -2,5 +2,5 @@
 
 **Description**
 
-Calculates the latest value of a field, and can operate on null values.
+Converts an untyped histogram to a TDigest, assuming the values are centroids.
 

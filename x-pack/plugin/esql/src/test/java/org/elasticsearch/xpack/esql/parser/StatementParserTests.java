@@ -4336,7 +4336,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testMMRCommandWithLimitOnly() {
         assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
 
-        var cmd = processingCommand("mmr dense_embedding limit 10");
+        var cmd = processingCommand("mmr on dense_embedding limit 10");
         assertEquals(MMR.class, cmd.getClass());
         MMR mmrCmd = (MMR) cmd;
 
@@ -4351,7 +4351,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testMMRCommandWithLimitAndLambda() {
         assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
 
-        var cmd = processingCommand("mmr dense_embedding limit 10 with { \"lambda\": 0.5 }");
+        var cmd = processingCommand("mmr on dense_embedding limit 10 with { \"lambda\": 0.5 }");
         assertEquals(MMR.class, cmd.getClass());
         MMR mmrCmd = (MMR) cmd;
 
@@ -4472,11 +4472,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testInvalidMMRCommands() {
         assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
 
-        expectError("row a = 1 | mmr some_field", "line 1:27: mismatched input '<EOF>' expecting {'.', MMR_LIMIT}");
-        expectError("row a = 1 | mmr some_field limit", "line 1:33: mismatched input '<EOF>' expecting {INTEGER_LITERAL, '+', '-'}");
+        expectError("row a = 1 | mmr on some_field", "line 1:30: mismatched input '<EOF>' expecting {'.', MMR_LIMIT}");
+        expectError("row a = 1 | mmr on some_field limit", "line 1:36: mismatched input '<EOF>' expecting {INTEGER_LITERAL, '+', '-'}");
         expectError(
-            "row a = 1 | mmr some_field limit 5 {\"unknown\": true}",
-            "line 1:36: mismatched input '{' expecting {<EOF>, '|', 'with'}"
+            "row a = 1 | mmr on some_field limit 5 {\"unknown\": true}",
+            "line 1:39: mismatched input '{' expecting {<EOF>, '|', 'with'}"
         );
     }
 

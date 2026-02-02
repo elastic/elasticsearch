@@ -994,6 +994,22 @@ M
 null
 ;
 
+
+aggsByFirstNameWithoutStats
+from employees | stats by f=first_name | stats c = count(f);
+
+c:long
+90
+;
+
+aggsByLastNameWithoutStats
+from employees | stats by f=last_name | stats c = count(f);
+
+c:long
+96
+;
+
+
 aggsWithoutStatsTwo
 FROM employees | STATS BY gender, still_hired | SORT gender, still_hired;
 

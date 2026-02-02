@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.denseembeddings;
 
-import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
@@ -108,11 +107,9 @@ public class ElasticInferenceServiceDenseEmbeddingsModel extends ElasticInferenc
         try {
             // TODO, consider transforming the base URL into a URI for better error handling.
             if (getConfigurations().getTaskType().equals(TaskType.TEXT_EMBEDDING)) {
-                return new URIBuilder(elasticInferenceServiceComponents().elasticInferenceServiceUrl()).setPath(TEXT_EMBEDDING_PATH)
-                    .build();
+                return getBaseURIBuilder().setPath(TEXT_EMBEDDING_PATH).build();
             } else {
-                return new URIBuilder(elasticInferenceServiceComponents().elasticInferenceServiceUrl()).setPath(MULTIMODAL_EMBEDDING_PATH)
-                    .build();
+                return getBaseURIBuilder().setPath(MULTIMODAL_EMBEDDING_PATH).build();
             }
         } catch (URISyntaxException e) {
             throw new ElasticsearchStatusException(

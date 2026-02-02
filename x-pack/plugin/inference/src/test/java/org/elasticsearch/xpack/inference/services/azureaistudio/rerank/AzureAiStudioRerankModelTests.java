@@ -100,6 +100,11 @@ public class AzureAiStudioRerankModelTests extends ESTestCase {
         assertThat(model.getEndpointUri().toString(), is(TARGET_URI + "/v1/rerank"));
     }
 
+    public void testSetsProperUrlForCohereTokenModel_WithTrailingSlash() throws URISyntaxException {
+        final var model = createModel(MODEL_ID, TARGET_URI + "/", AzureAiStudioProvider.COHERE, AzureAiStudioEndpointType.TOKEN, API_KEY);
+        assertThat(model.getEndpointUri().toString(), is(TARGET_URI + "/v1/rerank"));
+    }
+
     public static AzureAiStudioRerankModel createModel(
         String id,
         String target,

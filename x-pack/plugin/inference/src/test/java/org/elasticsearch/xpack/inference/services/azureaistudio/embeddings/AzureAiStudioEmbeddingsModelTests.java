@@ -95,6 +95,11 @@ public class AzureAiStudioEmbeddingsModelTests extends ESTestCase {
         assertThat(model.getEndpointUri().toString(), is("http://testtarget.local/v1/embeddings"));
     }
 
+    public void testSetsProperUrlForCohereModel_WithTrailingSlash() throws URISyntaxException {
+        var model = createModel("id", "http://testtarget.local/", AzureAiStudioProvider.COHERE, AzureAiStudioEndpointType.TOKEN, "apikey");
+        assertThat(model.getEndpointUri().toString(), is("http://testtarget.local/v1/embeddings"));
+    }
+
     public static AzureAiStudioEmbeddingsModel createModel(
         String inferenceId,
         String target,

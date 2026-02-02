@@ -366,6 +366,9 @@ tests:
 - class: org.elasticsearch.compute.operator.topn.TopNOomRaceTests
   method: testRace {repeats = 15}
   issue: https://github.com/elastic/elasticsearch/issues/141471
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
+  method: testIndicesDeletedFromRepository
+  issue: https://github.com/elastic/elasticsearch/issues/141660
 
 # Examples:
 #

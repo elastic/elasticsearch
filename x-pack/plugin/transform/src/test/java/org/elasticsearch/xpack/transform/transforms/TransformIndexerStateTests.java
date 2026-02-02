@@ -401,6 +401,11 @@ public class TransformIndexerStateTests extends ESTestCase {
             listener.onResponse(null);
         }
 
+        @Override
+        void prepareCrossProjectSearch(ActionListener<Void> listener) {
+            listener.onResponse(null);
+        }
+
         public void initialize() {
             this.initializeFunction();
         }

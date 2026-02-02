@@ -43,13 +43,15 @@ import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -89,14 +91,13 @@ import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationRes
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException.Feature;
+import org.elasticsearch.xpack.security.support.SecureBytesRefRecycler;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager.IndexState;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -228,6 +229,7 @@ public class TokenService {
     private final boolean enabled;
     private final XPackLicenseState licenseState;
     private final SecurityContext securityContext;
+    private final Recycler<BytesRef> bytesRefRecycler;
     private volatile TokenKeys keyCache;
     private volatile long lastExpirationRunMs;
     private final AtomicLong createdTimeStamps = new AtomicLong(-1);
@@ -244,7 +246,8 @@ public class TokenService {
         SecurityContext securityContext,
         SecurityIndexManager securityMainIndex,
         SecurityIndexManager securityTokensIndex,
-        ClusterService clusterService
+        ClusterService clusterService,
+        Recycler<BytesRef> bytesRefRecycler
     ) throws GeneralSecurityException {
         byte[] saltArr = new byte[SALT_BYTES];
         secureRandom.nextBytes(saltArr);
@@ -257,6 +260,7 @@ public class TokenService {
         this.securityContext = securityContext;
         this.securityMainIndex = securityMainIndex;
         this.securityTokensIndex = securityTokensIndex;
+        this.bytesRefRecycler = new SecureBytesRefRecycler(bytesRefRecycler);
         this.lastExpirationRunMs = client.threadPool().relativeTimeInMillis();
         this.deleteInterval = DELETE_INTERVAL.get(settings);
         this.enabled = isTokenServiceEnabled(settings);
@@ -381,7 +385,7 @@ public class TokenService {
                             RAW_TOKEN_BYTES_TOTAL_LENGTH
                         ) : "the last bytes of paired access and refresh tokens should be the same";
                         refreshTokenToStore = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(sha256().digest(refreshTokenBytes));
-                        refreshTokenToReturn = prependVersionAndEncodeRefreshToken(tokenVersion, refreshTokenBytes);
+                        refreshTokenToReturn = prependVersionAndEncodeRefreshToken(tokenVersion, refreshTokenBytes, bytesRefRecycler);
                     } else {
                         refreshTokenToStore = refreshTokenToReturn = null;
                     }
@@ -392,7 +396,7 @@ public class TokenService {
                     if (refreshTokenBytes != null) {
                         assert refreshTokenBytes.length == RAW_TOKEN_BYTES_LENGTH;
                         refreshTokenToStore = hashTokenString(Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(refreshTokenBytes));
-                        refreshTokenToReturn = prependVersionAndEncodeRefreshToken(tokenVersion, refreshTokenBytes);
+                        refreshTokenToReturn = prependVersionAndEncodeRefreshToken(tokenVersion, refreshTokenBytes, bytesRefRecycler);
                     } else {
                         refreshTokenToStore = refreshTokenToReturn = null;
                     }
@@ -675,27 +679,29 @@ public class TokenService {
                 final BytesKey decodedSalt = new BytesKey(in.readByteArray());
                 final BytesKey passphraseHash = new BytesKey(in.readByteArray());
                 final byte[] iv = in.readByteArray();
-                final BytesStreamOutput out = new BytesStreamOutput();
-                Streams.copy(in, out);
-                final byte[] encryptedTokenId = BytesReference.toBytes(out.bytes());
                 final KeyAndCache keyAndCache = keyCache.get(passphraseHash);
                 if (keyAndCache != null) {
-                    getKeyAsync(decodedSalt, keyAndCache, ActionListener.wrap(decodeKey -> {
+                    final ReleasableBytesReference encryptedTokenId;
+                    try (var recyclerBytesStreamOutput = new RecyclerBytesStreamOutput(bytesRefRecycler)) {
+                        recyclerBytesStreamOutput.writeAllBytesFrom(in);
+                        encryptedTokenId = recyclerBytesStreamOutput.moveToBytesReference();
+                    }
+                    getKeyAsync(decodedSalt, keyAndCache, ActionListener.releaseAfter(listener.delegateFailure((delegate, decodeKey) -> {
                         if (decodeKey != null) {
                             try {
                                 final Cipher cipher = getDecryptionCipher(iv, decodeKey, version, decodedSalt);
                                 final String tokenId = decryptTokenId(encryptedTokenId, cipher, version);
-                                getAndValidateUserToken(tokenId, version, null, validateUserToken, listener);
+                                getAndValidateUserToken(tokenId, version, null, validateUserToken, delegate);
                             } catch (IOException | GeneralSecurityException e) {
                                 // could happen with a token that is not ours
                                 logger.warn("invalid token", e);
-                                listener.onResponse(null);
+                                delegate.onResponse(null);
                             }
                         } else {
                             // could happen with a token that is not ours
-                            listener.onResponse(null);
+                            delegate.onResponse(null);
                         }
-                    }, listener::onFailure));
+                    }), encryptedTokenId));
                 } else {
                     logger.debug(() -> format("invalid key %s key: %s", passphraseHash, keyCache.cache.keySet()));
                     listener.onResponse(null);
@@ -1500,7 +1506,8 @@ public class TokenService {
                                         ),
                                         prependVersionAndEncodeRefreshToken(
                                             refreshTokenStatus.getTransportVersion(),
-                                            Base64.getUrlDecoder().decode(decryptedTokens[1])
+                                            Base64.getUrlDecoder().decode(decryptedTokens[1]),
+                                            bytesRefRecycler
                                         ),
                                         authentication
                                     )
@@ -2028,26 +2035,21 @@ public class TokenService {
     public String prependVersionAndEncodeAccessToken(TransportVersion version, byte[] accessTokenBytes) throws IOException,
         GeneralSecurityException {
         if (version.supports(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
-            try (BytesStreamOutput out = new BytesStreamOutput(VERSION_BYTES + RAW_TOKEN_BYTES_TOTAL_LENGTH)) {
+            try (var out = new RecyclerBytesStreamOutput(bytesRefRecycler)) {
                 out.setTransportVersion(version);
                 TransportVersion.writeVersion(version, out);
                 out.writeByteArray(accessTokenBytes);
-                return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
+                return out.toBase64String(Base64.getEncoder());
             }
         } else if (version.supports(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
-            try (BytesStreamOutput out = new BytesStreamOutput(MINIMUM_BASE64_BYTES)) {
+            try (var out = new RecyclerBytesStreamOutput(bytesRefRecycler)) {
                 out.setTransportVersion(version);
                 TransportVersion.writeVersion(version, out);
                 out.writeString(Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(accessTokenBytes));
-                return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
+                return out.toBase64String(Base64.getEncoder());
             }
         } else {
-            // we know that the minimum length is larger than the default of the ByteArrayOutputStream so set the size to this explicitly
-            try (
-                ByteArrayOutputStream os = new ByteArrayOutputStream(LEGACY_MINIMUM_BASE64_BYTES);
-                OutputStream base64 = Base64.getEncoder().wrap(os);
-                StreamOutput out = new OutputStreamStreamOutput(base64)
-            ) {
+            try (var out = new RecyclerBytesStreamOutput(bytesRefRecycler)) {
                 out.setTransportVersion(version);
                 KeyAndCache keyAndCache = keyCache.activeKeyCache;
                 TransportVersion.writeVersion(version, out);
@@ -2057,7 +2059,7 @@ public class TokenService {
                 out.writeByteArray(initializationVector);
                 try (
                     CipherOutputStream encryptedOutput = new CipherOutputStream(
-                        out,
+                        Streams.noCloseStream(out),
                         getEncryptionCipher(initializationVector, keyAndCache, version)
                     );
                     StreamOutput encryptedStreamOutput = new OutputStreamStreamOutput(encryptedOutput)
@@ -2066,26 +2068,30 @@ public class TokenService {
                     encryptedStreamOutput.writeString(Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(accessTokenBytes));
                     // StreamOutput needs to be closed explicitly because it wraps CipherOutputStream
                     encryptedStreamOutput.close();
-                    return new String(os.toByteArray(), StandardCharsets.UTF_8);
+                    return out.toBase64String(Base64.getEncoder());
                 }
             }
         }
     }
 
-    public static String prependVersionAndEncodeRefreshToken(TransportVersion version, byte[] refreshTokenBytes) throws IOException {
+    public static String prependVersionAndEncodeRefreshToken(
+        TransportVersion version,
+        byte[] refreshTokenBytes,
+        Recycler<BytesRef> bytesRefRecycler
+    ) throws IOException {
         if (version.supports(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
-            try (BytesStreamOutput out = new BytesStreamOutput(VERSION_BYTES + RAW_TOKEN_BYTES_TOTAL_LENGTH)) {
+            try (var out = new RecyclerBytesStreamOutput(bytesRefRecycler)) {
                 out.setTransportVersion(version);
                 TransportVersion.writeVersion(version, out);
                 out.writeByteArray(refreshTokenBytes);
-                return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
+                return out.toBase64String(Base64.getEncoder());
             }
         } else {
-            try (BytesStreamOutput out = new BytesStreamOutput(VERSION_BYTES + TOKEN_LENGTH)) {
+            try (var out = new RecyclerBytesStreamOutput(bytesRefRecycler)) {
                 out.setTransportVersion(version);
                 TransportVersion.writeVersion(version, out);
                 out.writeString(Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(refreshTokenBytes));
-                return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
+                return out.toBase64String(Base64.getEncoder());
             }
         }
     }
@@ -2134,10 +2140,9 @@ public class TokenService {
         }
     }
 
-    private static String decryptTokenId(byte[] encryptedTokenId, Cipher cipher, TransportVersion version) throws IOException {
+    private static String decryptTokenId(BytesReference encryptedTokenId, Cipher cipher, TransportVersion version) throws IOException {
         try (
-            ByteArrayInputStream bais = new ByteArrayInputStream(encryptedTokenId);
-            CipherInputStream cis = new CipherInputStream(bais, cipher);
+            CipherInputStream cis = new CipherInputStream(encryptedTokenId.streamInput(), cipher);
             StreamInput decryptedInput = new InputStreamStreamInput(cis)
         ) {
             decryptedInput.setTransportVersion(version);

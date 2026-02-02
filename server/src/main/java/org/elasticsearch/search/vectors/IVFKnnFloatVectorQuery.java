@@ -8,12 +8,19 @@
  */
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
+import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -21,7 +28,8 @@ import java.util.Arrays;
 /** A {@link IVFKnnFloatVectorQuery} that uses the IVF search strategy. */
 public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
 
-    private final float[] query;
+    private boolean isQueryPreconditioned = false;
+    private float[] query;
 
     /**
      * Creates a new {@link IVFKnnFloatVectorQuery} with the given parameters.
@@ -32,8 +40,16 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
      * @param filter the filter to apply to the results
      * @param visitRatio the ratio of vectors to score for the IVF search strategy
      */
-    public IVFKnnFloatVectorQuery(String field, float[] query, int k, int numCands, Query filter, float visitRatio) {
-        super(field, visitRatio, k, numCands, filter);
+    public IVFKnnFloatVectorQuery(
+        String field,
+        float[] query,
+        int k,
+        int numCands,
+        Query filter,
+        float visitRatio,
+        boolean doPrecondition
+    ) {
+        super(field, visitRatio, k, numCands, filter, doPrecondition);
         this.query = query;
     }
 
@@ -72,6 +88,36 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         int result = super.hashCode();
         result = 31 * result + Arrays.hashCode(query);
         return result;
+    }
+
+    @Override
+    protected void preconditionQuery(LeafReaderContext context) throws IOException {
+        if (isQueryPreconditioned) {
+            // already preconditioned
+            return;
+        }
+        LeafReader reader = context.reader();
+        SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(reader);
+        if (segmentReader == null) {
+            // ignore and continue to the next leaf context to see if we can get a segment reader there
+            return;
+        }
+        KnnVectorsReader fieldsReader = segmentReader.getVectorReader();
+        if (fieldsReader instanceof PerFieldKnnVectorsFormat.FieldsReader) {
+            KnnVectorsReader knnVectorsReader = ((PerFieldKnnVectorsFormat.FieldsReader) fieldsReader).getFieldReader(field);
+            if (knnVectorsReader instanceof VectorPreconditioner) {
+                FieldInfo fieldInfo = segmentReader.getFieldInfos().fieldInfo(field);
+                Preconditioner preconditioner = ((VectorPreconditioner) knnVectorsReader).getPreconditioner(fieldInfo);
+                if (preconditioner != null) {
+                    final float[] out = new float[query.length];
+                    preconditioner.applyTransform(query, out);
+                    // have to keep the copy to avoid issues with reused arrays by the caller of IVFKnnFloatVectorQuery which expects
+                    // a non-preconditioned query vector to still exist
+                    query = out;
+                    isQueryPreconditioned = true;
+                }
+            }
+        }
     }
 
     @Override

@@ -124,6 +124,15 @@ public class DeepSeekChatCompletionModel extends Model {
         this.secretSettings = secretSettings;
     }
 
+    public DeepSeekChatCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        this(
+            (DeepSeekServiceSettings) modelConfigurations.getServiceSettings(),
+            (DefaultSecretSettings) modelSecrets.getSecretSettings(),
+            modelConfigurations,
+            modelSecrets
+        );
+    }
+
     public Optional<SecureString> apiKey() {
         return Optional.ofNullable(secretSettings).map(DefaultSecretSettings::apiKey);
     }
@@ -152,11 +161,11 @@ public class DeepSeekChatCompletionModel extends Model {
         return new DeepSeekServiceSettings(model, uri);
     }
 
-    private record DeepSeekServiceSettings(String modelId, URI uri) implements ServiceSettings {
+    public record DeepSeekServiceSettings(String modelId, URI uri) implements ServiceSettings {
         private static final String NAME = "deep_seek_service_settings";
         private static final TransportVersion ML_INFERENCE_DEEPSEEK = TransportVersion.fromName("ml_inference_deepseek");
 
-        DeepSeekServiceSettings {
+        public DeepSeekServiceSettings {
             Objects.requireNonNull(modelId);
         }
 

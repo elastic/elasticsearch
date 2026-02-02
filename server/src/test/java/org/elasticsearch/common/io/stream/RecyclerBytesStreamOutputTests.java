@@ -21,11 +21,12 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.transport.BytesRefRecycler;
+import org.junit.After;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -34,6 +35,8 @@ import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -60,11 +63,16 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
- * Tests for {@link StreamOutput}.
+ * Tests for {@link RecyclerBytesStreamOutput}.
  */
 public class RecyclerBytesStreamOutputTests extends ESTestCase {
 
-    private final Recycler<BytesRef> recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
+    private final MockBytesRefRecycler recycler = new MockBytesRefRecycler();
+
+    @After
+    public void closeRecycler() {
+        recycler.close();
+    }
 
     public void testEmpty() throws Exception {
         RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
@@ -589,6 +597,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
 
         assertThat(loaded.size(), equalTo(expected.size()));
         assertThat(expected, equalTo(loaded));
+        out.close();
     }
 
     public void testWriteImmutableMap() throws IOException {
@@ -605,6 +614,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         final ImmutableOpenMap<String, String> loaded = in.readImmutableOpenMap(StreamInput::readString, StreamInput::readString);
 
         assertThat(expected, equalTo(loaded));
+        out.close();
     }
 
     public void testWriteImmutableMapOfWritable() throws IOException {
@@ -621,6 +631,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         final ImmutableOpenMap<TestWriteable, TestWriteable> loaded = in.readImmutableOpenMap(TestWriteable::new, TestWriteable::new);
 
         assertThat(expected, equalTo(loaded));
+        out.close();
     }
 
     public void testWriteMapAsList() throws IOException {
@@ -638,6 +649,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
 
         assertThat(loaded.size(), equalTo(expected.size()));
         assertThat(expected, equalTo(loaded));
+        out.close();
     }
 
     private abstract static class BaseNamedWriteable implements NamedWriteable {
@@ -728,7 +740,25 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
     }
 
     public void testRandomWritesAndSeeks() throws IOException {
-        try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler)) {
+        try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(new Recycler<>() {
+            @Override
+            public V<BytesRef> obtain() {
+                final var result = recycler.obtain();
+                final var bytesRef = result.v();
+                // This seems kinda trappy: a recycler doesn't guarantee anything about the contents of the buffers it supplies, and in
+                // practice it might contain data left there by the previous user. As used today this is all ok, we always overwrite
+                // everything eventually in all production usages, but it seems like it might cause problems at some point.
+                // TODO should we wipe these contents when extending the stream with a seek like this just to be on the safe side?
+                // In the meantime, for this test only, zero out the buffer contents so that it matches expectedBuffer.
+                Arrays.fill(bytesRef.bytes, bytesRef.offset, bytesRef.offset + bytesRef.length, (byte) 0);
+                return result;
+            }
+
+            @Override
+            public int pageSize() {
+                return recycler.pageSize();
+            }
+        })) {
 
             final byte[] expectedBuffer = new byte[between(0, PageCacheRecycler.BYTE_PAGE_SIZE * 4)];
             int currentPos = 0;
@@ -758,9 +788,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
                 }
             }
 
-            final byte[] expected = new byte[currentPos];
-            System.arraycopy(expectedBuffer, 0, expected, 0, currentPos);
-            assertArrayEquals(expected, BytesReference.toBytes(out.bytes()));
+            assertThat(out.bytes(), equalBytes(new BytesArray(expectedBuffer, 0, currentPos)));
         }
     }
 
@@ -859,7 +887,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
                 output.writeString(s);
             }
 
-            try (StreamInput streamInput = output.bytes().streamInput()) {
+            try (output; StreamInput streamInput = output.bytes().streamInput()) {
                 for (int i = 0; i < numStrings; i++) {
                     String s = streamInput.readString();
                     assertEquals(strings.get(i), s);
@@ -878,7 +906,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         assertEquals("expands to 4 bytes", 4, new BytesRef(deseretLetter).length);
         try (RecyclerBytesStreamOutput output = new RecyclerBytesStreamOutput(recycler)) {
             output.writeString(largeString);
-            try (StreamInput streamInput = output.bytes().streamInput()) {
+            try (output; StreamInput streamInput = output.bytes().streamInput()) {
                 assertEquals(largeString, streamInput.readString());
             }
         }
@@ -895,7 +923,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
             for (int i = 0; i < 10; i++) {
                 output.writeInt(i);
             }
-            try (StreamInput streamInput = output.bytes().streamInput()) {
+            try (output; StreamInput streamInput = output.bytes().streamInput()) {
                 int[] ints = streamInput.readIntArray();
                 for (int i = 0; i < 10; i++) {
                     assertEquals(i, ints[i]);
@@ -962,16 +990,17 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         }
         simple.writeByte((byte) i);
         assertEquals(simple.bytes().toBytesRef().toString(), output.bytes().toBytesRef().toString());
+        simple.close();
 
         StreamInput input = output.bytes().streamInput();
         assertEquals(value, input.readVInt());
+        output.close();
     }
 
     public void testVLong() throws IOException {
         final long value = randomLong();
-        {
+        try (RecyclerBytesStreamOutput output = new RecyclerBytesStreamOutput(recycler)) {
             // Read works for positive and negative numbers
-            RecyclerBytesStreamOutput output = new RecyclerBytesStreamOutput(recycler);
             output.writeVLongNoCheck(value); // Use NoCheck variant so we can write negative numbers
             StreamInput input = output.bytes().streamInput();
             assertEquals(value, input.readVLong());
@@ -981,6 +1010,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
             RecyclerBytesStreamOutput output = new RecyclerBytesStreamOutput(recycler);
             Exception e = expectThrows(IllegalStateException.class, () -> output.writeVLong(value));
             assertEquals("Negative longs unsupported, use writeLong or writeZLong for negative numbers [" + value + "]", e.getMessage());
+            output.close();
         }
     }
 
@@ -997,6 +1027,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         StreamInput input = output.bytes().streamInput();
         assertEquals(value, input.readEnum(TestEnum.class));
         assertEquals(0, input.available());
+        output.close();
     }
 
     public void testInvalidEnum() throws IOException {
@@ -1012,6 +1043,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
             assertEquals("Unknown TestEnum ordinal [" + randomNumber + "]", ex.getMessage());
         }
         assertEquals(0, input.available());
+        output.close();
     }
 
     private void assertEqualityAfterSerialize(TimeValue value, int expectedSize) throws IOException {
@@ -1025,6 +1057,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         assertThat(inValue, equalTo(value));
         assertThat(inValue.duration(), equalTo(value.duration()));
         assertThat(inValue.timeUnit(), equalTo(value.timeUnit()));
+        out.close();
     }
 
     public void testTimeValueSerialize() throws Exception {
@@ -1037,6 +1070,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
         out.writeZLong(timeValue.duration());
         assertEqualityAfterSerialize(timeValue, 1 + out.bytes().length());
+        out.close();
     }
 
     public void testOverflow() {
@@ -1098,6 +1132,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         byte b = randomByte();
         out.writeByte(b);
         assertEquals(b, out.bytes().get(PageCacheRecycler.BYTE_PAGE_SIZE));
+        out.close();
     }
 
     public void testWriteIntFallbackToSuperClass() throws IOException {
@@ -1177,24 +1212,29 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
     }
 
     public void testMoveToBytesReference() throws IOException {
-        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
-        byte[] testData = randomizedByteArrayWithSize(100);
-        out.writeBytes(testData);
+        final var testData = randomByteArrayOfLength(between(0, PageCacheRecycler.BYTE_PAGE_SIZE * 4));
+        final ReleasableBytesReference releasableBytesReference;
+        try (var out = new RecyclerBytesStreamOutput(recycler)) {
+            out.writeBytes(testData);
 
-        ReleasableBytesReference ref = out.moveToBytesReference();
-        assertArrayEquals(testData, BytesReference.toBytes(ref));
+            releasableBytesReference = out.moveToBytesReference();
+            assertThat(releasableBytesReference, equalBytes(new BytesArray(testData)));
 
-        // Verify that pages are nulled after move
-        assertEquals(0, out.size());
+            // Verify that pages are nulled after move
+            assertEquals(0, out.size());
 
-        // ISE after close
-        expectThrows(IllegalStateException.class, () -> out.write(randomByte()));
-        expectThrows(IllegalStateException.class, () -> out.write(randomByteArrayOfLength(1)));
+            // ISE after close
+            expectThrows(IllegalStateException.class, () -> out.write(randomByte()));
+            expectThrows(IllegalStateException.class, () -> out.write(randomByteArrayOfLength(1)));
 
-        // Verify that close becomes noop after move
-        out.close(); // Should not throw
+            assertThat(recycler.activePageCount(), greaterThan(0));
 
-        ref.close();
+        } // Verifies that closing after move does not throw
+
+        assertThat(recycler.activePageCount(), greaterThan(0));
+        assertThat(releasableBytesReference, equalBytes(new BytesArray(testData)));
+        releasableBytesReference.close();
+        assertThat(recycler.activePageCount(), equalTo(0));
     }
 
     public void testMultipleCloseOperations() throws IOException {
@@ -1477,5 +1517,57 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         assertEquals(writeable.value, read.value);
 
         out.close();
+    }
+
+    public void testToBase64String() throws IOException {
+        Base64.Encoder encoder;
+        Base64.Decoder decoder;
+
+        switch (between(1, 3)) {
+            case 1 -> {
+                encoder = Base64.getEncoder();
+                decoder = Base64.getDecoder();
+            }
+            case 2 -> {
+                encoder = Base64.getUrlEncoder();
+                decoder = Base64.getUrlDecoder();
+            }
+            case 3 -> {
+                encoder = Base64.getMimeEncoder(between(1, 1000), new byte[0]);
+                decoder = Base64.getMimeDecoder();
+            }
+            default -> throw new AssertionError("impossible");
+        }
+
+        try (var out = new RecyclerBytesStreamOutput(recycler)) {
+            final var contents = randomByteArrayOfLength(between(0, recycler.pageSize() * 3));
+            out.write(contents);
+
+            if (Assertions.ENABLED) {
+                // line-breaking encoder not permitted
+                expectThrows(AssertionError.class, () -> out.toBase64String(Base64.getMimeEncoder()));
+                expectThrows(AssertionError.class, () -> out.toBase64String(Base64.getMimeEncoder(10, new byte[] { 0x0a })));
+                expectThrows(AssertionError.class, () -> out.toBase64String(Base64.getMimeEncoder(120, new byte[] { 0x0a })));
+            }
+
+            assertArrayEquals(contents, decoder.decode(out.toBase64String(encoder)));
+        }
+    }
+
+    public void testWriteAllBytesFrom() throws IOException {
+        final var bytes = randomBytesReference(between(0, PageCacheRecycler.BYTE_PAGE_SIZE * 4));
+        try (var out = new RecyclerBytesStreamOutput(recycler)) {
+            if (randomBoolean()) {
+                out.writeAllBytesFrom(bytes.streamInput());
+            } else {
+                var remaining = bytes;
+                while (remaining.length() > 0) {
+                    var thisSlice = remaining.slice(0, between(1, remaining.length()));
+                    remaining = remaining.slice(thisSlice.length(), remaining.length() - thisSlice.length());
+                    out.writeAllBytesFrom(thisSlice.streamInput());
+                }
+            }
+            assertThat(out.bytes(), equalBytes(bytes));
+        }
     }
 }

@@ -14,6 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 
 import java.io.IOException;
 
@@ -46,7 +47,7 @@ public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValue
         if (singleton != null) {
             return singletonReader(singleton);
         }
-        return new ConstantNullsReader();
+        return ConstantNull.READER;
     }
 
     protected abstract AllReader singletonReader(SortedDocValues docValues);

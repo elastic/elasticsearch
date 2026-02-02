@@ -119,7 +119,7 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
             GoogleVertexAiEmbeddingsServiceSettings.fromMap(serviceSettingsMap, ConfigurationParseContext.PERSISTENT);
         });
 
-        assertThat(exception.getMessage(), containsString("[max_batch_size] must be a less than or equal to [250.0]"));
+        assertThat(exception.getMessage(), containsString("[max_batch_size] must be less than or equal to [250.0]"));
     }
 
     public void testFromMap_NegativeMaxBatchSize_ThrowsValidationException() {
@@ -228,7 +228,7 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
             );
         });
 
-        assertThat(exception.getMessage(), containsString("[max_batch_size] must be a less than or equal to [250.0]"));
+        assertThat(exception.getMessage(), containsString("[max_batch_size] must be less than or equal to [250.0]"));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {

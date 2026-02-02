@@ -16,6 +16,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.mapper.blockloader.ConstantBytes;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxLongsFromDocValuesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinLongsFromDocValuesBlockLoader;
@@ -93,7 +95,7 @@ import java.util.Map;
  *     For a field to be supported by ESQL fully it has to be loadable if it was configured to be
  *     stored in any way. It's possible to turn off storage entirely by turning off
  *     {@code doc_values} and {@code _source} and {@code stored} fields. In that case, it's
- *     acceptable to return {@link ConstantNullsReader}. User turned the field off, best we can do
+ *     acceptable to return {@link ConstantNull}. User turned the field off, best we can do
  *     is {@code null}.
  * </p>
  * <p>
@@ -163,10 +165,12 @@ import java.util.Map;
  */
 public interface BlockLoader {
     /**
-     * The {@link BlockLoader.Builder} for data of this type. Called when
-     * loading from a multi-segment or unsorted block.
+     * @deprecated remove me once serverless migrates
      */
-    Builder builder(BlockFactory factory, int expectedCount);
+    @Deprecated
+    static BlockLoader constantBytes(BytesRef value) {
+        return new ConstantBytes(value);
+    }
 
     interface Reader {
         /**
@@ -219,6 +223,25 @@ public interface BlockLoader {
         ) throws IOException;
     }
 
+    /**
+     * An interface for readers that attempt to load BytesRef length values directly without loading BytesRefs.
+     * <p>
+     * Implementations may return {@code null} if they are unable to load the requested values,
+     * for example due to unsupported underlying data.
+     * This allows callers to optimistically try optimized loading strategies first, and fall back if necessary.
+     */
+    interface OptionalLengthReader {
+        /**
+         * Attempts to read the values of all documents in {@code docs}
+         * Returns {@code null} if unable to load the values.
+         *
+         * @param nullsFiltered  if {@code true}, then target docs are guaranteed to have a value for the field.
+         *                       see {@link ColumnAtATimeReader#read(BlockFactory, Docs, int, boolean)}
+         */
+        @Nullable
+        BlockLoader.Block tryReadLength(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException;
+    }
+
     interface RowStrideReader extends Reader {
         /**
          * Reads the values of the given document into the builder.
@@ -248,7 +271,19 @@ public interface BlockLoader {
          * @return stored fields for the current document
          */
         Map<String, List<Object>> storedFields() throws IOException;
+
+        /**
+         * Whether stored fields have already been loaded for the current document.
+         * If the stored fields are not loaded yet, the block loader might avoid loading them when not needed.
+         */
+        boolean loaded();
     }
+
+    /**
+     * The {@link BlockLoader.Builder} for data of this type. Called when
+     * loading from a multi-segment or unsorted block.
+     */
+    Builder builder(BlockFactory factory, int expectedCount);
 
     /**
      * Build a column-at-a-time reader. <strong>May</strong> return {@code null}
@@ -283,37 +318,93 @@ public interface BlockLoader {
     SortedSetDocValues ordinals(LeafReaderContext context) throws IOException;
 
     /**
-     * In support of 'Union Types', we sometimes desire that Blocks loaded from source are immediately
-     * converted in some way. Typically, this would be a type conversion, or an encoding conversion.
-     * @param block original block loaded from source
-     * @return converted block (or original if no conversion required)
+     * A {@link BlockLoader} that conditionally selects one of two underlying loaders based on the underlying data.
+     * It prefers the {@code preferLoader} when possible, falling back to the {@code fallbackLoader} otherwise.
+     * <p>
+     * For example, a text field with a synthetic source can be loaded from its child keyword field when possible,
+     * which is faster than loading from stored fields:
+     * <pre>
+     * {
+     *     "parent_text_field": {
+     *         "type": "text",
+     *         "fields": {
+     *             "child_keyword_field": {
+     *                 "type": "keyword",
+     *                 "ignore_above": 256
+     *             }
+     *         }
+     *     }
+     * }
+     * </pre>
+     * If no values in a segment exceed the 256-character limit, then we can safely use the block loader from the
+     * keyword field for the entire segment. Alternatively, on a per-document basis, if doc-1 has the value "a"
+     * (under the limit) and doc-2 has the value "bcd..." (exceeds the limit), we can load doc-1 from the doc_values
+     * of keyword field and doc-2 from the slower stored fields.
      */
-    default Block convert(Block block) {
-        return block;
-    }
+    abstract class ConditionalBlockLoader implements BlockLoader {
+        private final BlockLoader preferLoader;
+        private final BlockLoader fallbackLoader;
 
-    /**
-     * Load blocks with only null.
-     */
-    BlockLoader CONSTANT_NULLS = new BlockLoader() {
+        protected ConditionalBlockLoader(BlockLoader preferLoader, BlockLoader fallbackLoader) {
+            this.preferLoader = preferLoader;
+            this.fallbackLoader = fallbackLoader;
+        }
+
         @Override
         public Builder builder(BlockFactory factory, int expectedCount) {
-            return factory.nulls(expectedCount);
+            return fallbackLoader.builder(factory, expectedCount);
+        }
+
+        /**
+         * Determines whether the preferred loader can be used for all documents in the given leaf context.
+         */
+        protected abstract boolean canUsePreferLoaderForLeaf(LeafReaderContext context) throws IOException;
+
+        /**
+         * Whether we can use the prefer loader for the given doc ID. If {@code true}, then the preferred loader is used
+         * to avoid loading stored fields or source.
+         */
+        protected abstract boolean canUsePreferLoaderForDoc(int docId) throws IOException;
+
+        @Override
+        public ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
+            if (canUsePreferLoaderForLeaf(context)) {
+                return preferLoader.columnAtATimeReader(context);
+            } else {
+                return fallbackLoader.columnAtATimeReader(context);
+            }
         }
 
         @Override
-        public ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) {
-            return new ConstantNullsReader();
-        }
+        public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
+            if (preferLoader.rowStrideStoredFieldSpec().noRequirements() == false) {
+                return fallbackLoader.rowStrideReader(context);
+            }
+            RowStrideReader preferReader = preferLoader.rowStrideReader(context);
+            if (canUsePreferLoaderForLeaf(context)) {
+                return preferReader;
+            }
+            RowStrideReader fallbackReader = fallbackLoader.rowStrideReader(context);
+            return new RowStrideReader() {
+                @Override
+                public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
+                    if (storedFields.loaded() == false && canUsePreferLoaderForDoc(docId)) {
+                        preferReader.read(docId, storedFields, builder);
+                    } else {
+                        fallbackReader.read(docId, storedFields, builder);
+                    }
+                }
 
-        @Override
-        public RowStrideReader rowStrideReader(LeafReaderContext context) {
-            return new ConstantNullsReader();
+                @Override
+                public boolean canReuse(int startingDocID) {
+                    return fallbackReader.canReuse(startingDocID) && preferReader.canReuse(startingDocID);
+                }
+            };
         }
 
         @Override
         public StoredFieldsSpec rowStrideStoredFieldSpec() {
-            return StoredFieldsSpec.NO_REQUIREMENTS;
+            return fallbackLoader.rowStrideStoredFieldSpec();
         }
 
         @Override
@@ -322,194 +413,8 @@ public interface BlockLoader {
         }
 
         @Override
-        public SortedSetDocValues ordinals(LeafReaderContext context) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public String toString() {
-            return "ConstantNull";
-        }
-    };
-
-    /**
-     * Implementation of {@link ColumnAtATimeReader} and {@link RowStrideReader} that always
-     * loads {@code null}.
-     */
-    class ConstantNullsReader implements AllReader {
-        @Override
-        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-            return factory.constantNulls(docs.count() - offset);
-        }
-
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            builder.appendNull();
-        }
-
-        @Override
-        public boolean canReuse(int startingDocID) {
-            return true;
-        }
-
-        @Override
-        public String toString() {
-            return "constant_nulls";
-        }
-    }
-
-    /**
-     * Load blocks with only {@code value}.
-     */
-    static BlockLoader constantBytes(BytesRef value) {
-        return new BlockLoader() {
-            @Override
-            public Builder builder(BlockFactory factory, int expectedCount) {
-                return factory.bytesRefs(expectedCount);
-            }
-
-            @Override
-            public ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) {
-                return new ColumnAtATimeReader() {
-                    @Override
-                    public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) {
-                        return factory.constantBytes(value, docs.count() - offset);
-                    }
-
-                    @Override
-                    public boolean canReuse(int startingDocID) {
-                        return true;
-                    }
-
-                    @Override
-                    public String toString() {
-                        return "constant[" + value + "]";
-                    }
-                };
-            }
-
-            @Override
-            public RowStrideReader rowStrideReader(LeafReaderContext context) {
-                return new RowStrideReader() {
-                    @Override
-                    public void read(int docId, StoredFields storedFields, Builder builder) {
-                        ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(value);
-                    }
-
-                    @Override
-                    public boolean canReuse(int startingDocID) {
-                        return true;
-                    }
-
-                    @Override
-                    public String toString() {
-                        return "constant[" + value + "]";
-                    }
-                };
-            }
-
-            @Override
-            public StoredFieldsSpec rowStrideStoredFieldSpec() {
-                return StoredFieldsSpec.NO_REQUIREMENTS;
-            }
-
-            @Override
-            public boolean supportsOrdinals() {
-                return false;
-            }
-
-            @Override
-            public SortedSetDocValues ordinals(LeafReaderContext context) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public String toString() {
-                return "ConstantBytes[" + value + "]";
-            }
-        };
-    }
-
-    abstract class Delegating implements BlockLoader {
-        protected final BlockLoader delegate;
-
-        protected Delegating(BlockLoader delegate) {
-            this.delegate = delegate;
-        }
-
-        @Override
-        public Builder builder(BlockFactory factory, int expectedCount) {
-            return delegate.builder(factory, expectedCount);
-        }
-
-        @Override
-        public ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
-            ColumnAtATimeReader reader = delegate.columnAtATimeReader(context);
-            if (reader == null) {
-                return null;
-            }
-            return new ColumnAtATimeReader() {
-                @Override
-                public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-                    return reader.read(factory, docs, offset, nullsFiltered);
-                }
-
-                @Override
-                public boolean canReuse(int startingDocID) {
-                    return reader.canReuse(startingDocID);
-                }
-
-                @Override
-                public String toString() {
-                    return "Delegating[to=" + delegatingTo() + ", impl=" + reader + "]";
-                }
-            };
-        }
-
-        @Override
-        public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
-            RowStrideReader reader = delegate.rowStrideReader(context);
-            if (reader == null) {
-                return null;
-            }
-            return new RowStrideReader() {
-                @Override
-                public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-                    reader.read(docId, storedFields, builder);
-                }
-
-                @Override
-                public boolean canReuse(int startingDocID) {
-                    return reader.canReuse(startingDocID);
-                }
-
-                @Override
-                public String toString() {
-                    return "Delegating[to=" + delegatingTo() + ", impl=" + reader + "]";
-                }
-            };
-        }
-
-        @Override
-        public StoredFieldsSpec rowStrideStoredFieldSpec() {
-            return delegate.rowStrideStoredFieldSpec();
-        }
-
-        @Override
-        public boolean supportsOrdinals() {
-            return delegate.supportsOrdinals();
-        }
-
-        @Override
         public SortedSetDocValues ordinals(LeafReaderContext context) throws IOException {
-            return delegate.ordinals(context);
-        }
-
-        protected abstract String delegatingTo();
-
-        @Override
-        public final String toString() {
-            return "Delegating[to=" + delegatingTo() + ", impl=" + delegate + "]";
+            return null;
         }
     }
 

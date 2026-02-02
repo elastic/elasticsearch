@@ -129,6 +129,8 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                 mode,
                 List.of(supplier.groupingAggregatorFactory(mode, channels(mode))),
                 randomPageSize(),
+                between(1, 1000),
+                randomDoubleBetween(0.1, 1.0, true),
                 null
             );
         } else {
@@ -137,6 +139,8 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                 mode,
                 List.of(supplier.groupingAggregatorFactory(mode, channels(mode))),
                 randomPageSize(),
+                between(1, 1000),
+                randomDoubleBetween(0.1, 1.0, true),
                 null
             );
         }
@@ -235,6 +239,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     }
 
     public final void testMixedMultivaluedNullGroupsAndValues() {
+        assumeTrue("Multivalues support is required for the tested type", supportsMultiValues());
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         int end = between(50, 60);
@@ -298,6 +303,8 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                         case DOUBLE -> randomDouble();
                         case INT -> 1;
                         case LONG -> 1L;
+                        case EXPONENTIAL_HISTOGRAM -> BlockTestUtils.randomExponentialHistogram();
+                        case TDIGEST -> BlockTestUtils.randomTDigest();
                         default -> throw new UnsupportedOperationException();
                     });
                 }
@@ -346,7 +353,12 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         };
     }
 
+    protected boolean supportsMultiValues() {
+        return true;
+    }
+
     public final void testMultivalued() {
+        assumeTrue("Multivalues support is required for the tested type", supportsMultiValues());
         DriverContext driverContext = driverContext();
         int end = between(1_000, 100_000);
         List<Page> input = CannedSourceOperator.collectPages(
@@ -358,6 +370,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     }
 
     public final void testMulitvaluedNullGroupsAndValues() {
+        assumeTrue("Multivalues support is required for the tested type", supportsMultiValues());
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         int end = between(50, 60);
@@ -370,6 +383,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     }
 
     public final void testMulitvaluedNullGroup() {
+        assumeTrue("Multivalues support is required for the tested type", supportsMultiValues());
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         int end = between(1, 2);  // TODO revert
@@ -381,6 +395,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     }
 
     public final void testMulitvaluedNullValues() {
+        assumeTrue("Multivalues support is required for the tested type", supportsMultiValues());
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         int end = between(50, 60);
@@ -887,6 +902,8 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregators,
         int maxPageSize,
+        int partialEmitKeysThreshold,
+        double partialEmitUniquenessThreshold,
         AnalysisRegistry analysisRegistry
     ) implements Operator.OperatorFactory {
 
@@ -934,10 +951,22 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                             }
                         });
                     }
+
+                    @Override
+                    public int numKeys() {
+                        return blockHash.numKeys();
+                    }
                 };
             };
 
-            return new HashAggregationOperator(aggregators, blockHashSupplier, driverContext);
+            return new HashAggregationOperator(
+                aggregatorMode,
+                aggregators,
+                blockHashSupplier,
+                partialEmitKeysThreshold,
+                partialEmitUniquenessThreshold,
+                driverContext
+            );
         }
 
         @Override
@@ -947,6 +976,8 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                 aggregatorMode,
                 aggregators,
                 maxPageSize,
+                partialEmitKeysThreshold,
+                partialEmitUniquenessThreshold,
                 analysisRegistry
             ).describe();
         }

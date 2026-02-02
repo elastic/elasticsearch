@@ -16,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
@@ -23,8 +24,13 @@ import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.plugins.Plugin;
@@ -36,6 +42,8 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
@@ -49,6 +57,7 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
+import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
@@ -101,6 +110,9 @@ import static org.mockito.Mockito.when;
 public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
 
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+    private static final String URL_VALUE = "http://eis-gateway.com";
+    private static final String INFERENCE_ENTITY_ID = "id";
+    private static final String MODEL_ID_VALUE = "some model id";
     private final MockWebServer webServer = new MockWebServer();
 
     private ThreadPool threadPool;
@@ -137,7 +149,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             }, e -> fail("Model parsing should have succeeded, but failed: " + e.getMessage()));
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ENTITY_ID,
                 TaskType.SPARSE_EMBEDDING,
                 getRequestConfigMap(Map.of(ServiceFields.MODEL_ID, ElserModels.ELSER_V2_MODEL), Map.of(), Map.of()),
                 modelListener
@@ -154,7 +166,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             }, e -> fail("Model parsing should have succeeded, but failed: " + e.getMessage()));
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ENTITY_ID,
                 TaskType.RERANK,
                 getRequestConfigMap(Map.of(ServiceFields.MODEL_ID, "my-rerank-model-id"), Map.of(), Map.of()),
                 modelListener
@@ -171,7 +183,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 ElasticsearchStatusException.class,
                 "Configuration contains settings [{extra_key=value}] unknown to the [elastic] service"
             );
-            service.parseRequestConfig("id", TaskType.SPARSE_EMBEDDING, config, failureListener);
+            service.parseRequestConfig(INFERENCE_ENTITY_ID, TaskType.SPARSE_EMBEDDING, config, failureListener);
         }
     }
 
@@ -186,7 +198,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 ElasticsearchStatusException.class,
                 "Configuration contains settings [{extra_key=value}] unknown to the [elastic] service"
             );
-            service.parseRequestConfig("id", TaskType.SPARSE_EMBEDDING, config, failureListener);
+            service.parseRequestConfig(INFERENCE_ENTITY_ID, TaskType.SPARSE_EMBEDDING, config, failureListener);
         }
     }
 
@@ -208,7 +220,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 "Validation Failed: 1: [service_settings] rate limit settings are not permitted for "
                     + "service [elastic] and task type [sparse_embedding];"
             );
-            service.parseRequestConfig("id", TaskType.SPARSE_EMBEDDING, config, failureListener);
+            service.parseRequestConfig(INFERENCE_ENTITY_ID, TaskType.SPARSE_EMBEDDING, config, failureListener);
         }
     }
 
@@ -222,7 +234,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 ElasticsearchStatusException.class,
                 "Configuration contains settings [{extra_key=value}] unknown to the [elastic] service"
             );
-            service.parseRequestConfig("id", TaskType.SPARSE_EMBEDDING, config, failureListener);
+            service.parseRequestConfig(INFERENCE_ENTITY_ID, TaskType.SPARSE_EMBEDDING, config, failureListener);
         }
     }
 
@@ -236,7 +248,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 ElasticsearchStatusException.class,
                 "Configuration contains settings [{extra_key=value}] unknown to the [elastic] service"
             );
-            service.parseRequestConfig("id", TaskType.SPARSE_EMBEDDING, config, failureListener);
+            service.parseRequestConfig(INFERENCE_ENTITY_ID, TaskType.SPARSE_EMBEDDING, config, failureListener);
         }
     }
 
@@ -249,7 +261,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             );
 
             var model = service.parsePersistedConfigWithSecrets(
-                "id",
+                INFERENCE_ENTITY_ID,
                 TaskType.SPARSE_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets()
@@ -274,7 +286,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             persistedConfig.config().put("extra_key", "value");
 
             var model = service.parsePersistedConfigWithSecrets(
-                "id",
+                INFERENCE_ENTITY_ID,
                 TaskType.SPARSE_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets()
@@ -297,7 +309,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             var persistedConfig = getPersistedConfigMap(serviceSettingsMap, Map.of(), Map.of());
 
             var model = service.parsePersistedConfigWithSecrets(
-                "id",
+                INFERENCE_ENTITY_ID,
                 TaskType.SPARSE_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets()
@@ -326,7 +338,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             var persistedConfig = getPersistedConfigMap(serviceSettingsMap, Map.of(), Map.of());
 
             var model = service.parsePersistedConfigWithSecrets(
-                "id",
+                INFERENCE_ENTITY_ID,
                 TaskType.SPARSE_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets()
@@ -356,7 +368,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             );
 
             var model = service.parsePersistedConfigWithSecrets(
-                "id",
+                INFERENCE_ENTITY_ID,
                 TaskType.SPARSE_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets()
@@ -382,7 +394,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             );
 
             var model = service.parsePersistedConfigWithSecrets(
-                "id",
+                INFERENCE_ENTITY_ID,
                 TaskType.SPARSE_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets()
@@ -726,7 +738,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
 
             // Create completion model
             var model = new ElasticInferenceServiceCompletionModel(
-                "id",
+                INFERENCE_ENTITY_ID,
                 TaskType.CHAT_COMPLETION,
                 "elastic",
                 new ElasticInferenceServiceCompletionServiceSettings("my-model-id"),
@@ -933,6 +945,85 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testBatching_GivenSparseAndMultipleChunksFittingInSingleBatch() throws IOException {
+        var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(
+            getUrl(webServer),
+            "my-sparse-model-id",
+            null,
+            10,
+            new WordBoundaryChunkingSettings(1, 0)
+        );
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = createService(senderFactory, getUrl(webServer))) {
+            EmbeddingRequestChunker<?> embeddingRequestChunker = service.createEmbeddingRequestChunker(
+                model,
+                List.of(new ChunkInferenceInput("hello world plus"))
+            );
+            List<EmbeddingRequestChunker.BatchRequestAndListener> batches = embeddingRequestChunker.batchRequestsWithListeners(null);
+            assertThat(batches, hasSize(1));
+            assertThatBatchContains(batches.get(0), List.of(List.of("hello"), List.of(" world"), List.of(" plus")));
+        }
+    }
+
+    public void testBatching_GivenSparseAndBatchSizeOfOne() throws IOException {
+        var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(
+            getUrl(webServer),
+            "my-sparse-model-id",
+            null,
+            1,
+            new WordBoundaryChunkingSettings(1, 0)
+        );
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = createService(senderFactory, getUrl(webServer))) {
+            EmbeddingRequestChunker<?> embeddingRequestChunker = service.createEmbeddingRequestChunker(
+                model,
+                List.of(new ChunkInferenceInput("hello world"))
+            );
+            List<EmbeddingRequestChunker.BatchRequestAndListener> batches = embeddingRequestChunker.batchRequestsWithListeners(null);
+            assertThat(batches, hasSize(2));
+            assertThatBatchContains(batches.get(0), List.of(List.of("hello")));
+            assertThatBatchContains(batches.get(1), List.of(List.of(" world")));
+        }
+    }
+
+    public void testBatching_GivenSparseAndBatchSizeOfTwo() throws IOException {
+        var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(
+            getUrl(webServer),
+            "my-sparse-model-id",
+            null,
+            2,
+            new WordBoundaryChunkingSettings(1, 0)
+        );
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = createService(senderFactory, getUrl(webServer))) {
+            EmbeddingRequestChunker<?> embeddingRequestChunker = service.createEmbeddingRequestChunker(
+                model,
+                List.of(new ChunkInferenceInput("hello world plus"))
+            );
+            List<EmbeddingRequestChunker.BatchRequestAndListener> batches = embeddingRequestChunker.batchRequestsWithListeners(null);
+            assertThat(batches, hasSize(2));
+            assertThatBatchContains(batches.get(0), List.of(List.of("hello"), List.of(" world")));
+            assertThatBatchContains(batches.get(1), List.of(List.of(" plus")));
+        }
+    }
+
+    private static void assertThatBatchContains(EmbeddingRequestChunker.BatchRequestAndListener batch, List<List<String>> expectedChunks) {
+        List<InferenceStringGroup> inferenceStringGroups = batch.batch().inputs().get();
+        assertThat(inferenceStringGroups, hasSize(expectedChunks.size()));
+        for (int i = 0; i < expectedChunks.size(); i++) {
+            assertThat(
+                inferenceStringGroups.get(i).inferenceStrings().stream().map(InferenceString::value).toList(),
+                equalTo(expectedChunks.get(i))
+            );
+        }
+    }
+
     public void testHideFromConfigurationApi_ThrowsUnsupported() throws Exception {
         try (var service = createServiceWithMockSender()) {
             expectThrows(UnsupportedOperationException.class, service::hideFromConfigurationApi);
@@ -963,6 +1054,15 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                            "updatable": false,
                            "type": "int",
                            "supported_task_types": ["text_embedding", "sparse_embedding"]
+                       },
+                       "max_batch_size": {
+                           "description": "Allows you to specify the maximum number of chunks per batch.",
+                           "label": "Maximum Batch Size",
+                           "required": false,
+                           "sensitive": false,
+                           "updatable": true,
+                           "type": "int",
+                           "supported_task_types": ["sparse_embedding"]
                        }
                    }
                }
@@ -1003,6 +1103,15 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                            "updatable": false,
                            "type": "int",
                            "supported_task_types": ["text_embedding", "sparse_embedding"]
+                       },
+                       "max_batch_size": {
+                           "description": "Allows you to specify the maximum number of chunks per batch.",
+                           "label": "Maximum Batch Size",
+                           "required": false,
+                           "sensitive": false,
+                           "updatable": true,
+                           "type": "int",
+                           "supported_task_types": ["sparse_embedding"]
                        }
                    }
                }
@@ -1120,10 +1229,10 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         try (var service = createService(senderFactory, elasticInferenceServiceURL)) {
             webServer.enqueue(new MockResponse().setResponseCode(responseCode).setBody(responseJson));
             var model = new ElasticInferenceServiceCompletionModel(
-                "id",
+                INFERENCE_ENTITY_ID,
                 TaskType.CHAT_COMPLETION,
                 "elastic",
-                new ElasticInferenceServiceCompletionServiceSettings("model_id"),
+                new ElasticInferenceServiceCompletionServiceSettings(MODEL_ID_VALUE),
                 EmptyTaskSettings.INSTANCE,
                 EmptySecretSettings.INSTANCE,
                 ElasticInferenceServiceComponents.of(elasticInferenceServiceURL)
@@ -1159,7 +1268,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
     }
 
     private ElasticInferenceService createService(HttpRequestSender.Factory senderFactory) {
-        return createService(senderFactory, null);
+        return createService(senderFactory, URL_VALUE);
     }
 
     private ElasticInferenceService createService(HttpRequestSender.Factory senderFactory, String elasticInferenceServiceURL) {
@@ -1172,5 +1281,84 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         );
         service.init();
         return service;
+    }
+
+    public void testBuildModelFromConfigAndSecrets_TextEmbedding() throws IOException {
+        var model = createTestModel(TaskType.TEXT_EMBEDDING);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_SparseEmbedding() throws IOException {
+        var model = createTestModel(TaskType.SPARSE_EMBEDDING);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_Completion() throws IOException {
+        var model = createTestModel(TaskType.COMPLETION);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_ChatCompletion() throws IOException {
+        var model = createTestModel(TaskType.CHAT_COMPLETION);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_Rerank() throws IOException {
+        var model = createTestModel(TaskType.RERANK);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_UnsupportedTaskType() throws IOException {
+        var modelConfigurations = new ModelConfigurations(
+            INFERENCE_ENTITY_ID,
+            TaskType.ANY,
+            ElasticInferenceService.NAME,
+            mock(ServiceSettings.class)
+        );
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var inferenceService = createService(senderFactory)) {
+            var thrownException = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> inferenceService.buildModelFromConfigAndSecrets(modelConfigurations, mock(ModelSecrets.class))
+            );
+            assertThat(
+                thrownException.getMessage(),
+                is(
+                    Strings.format(
+                        """
+                            Failed to parse stored model [%s] for [%s] service, error: [The [%s] service does not support task type [%s]]. \
+                            Please delete and add the service again""",
+                        INFERENCE_ENTITY_ID,
+                        ElasticInferenceService.NAME,
+                        ElasticInferenceService.NAME,
+                        TaskType.ANY
+                    )
+                )
+
+            );
+        }
+    }
+
+    private Model createTestModel(TaskType taskType) {
+        return switch (taskType) {
+            case TEXT_EMBEDDING -> ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(URL_VALUE, MODEL_ID_VALUE);
+            case SPARSE_EMBEDDING -> ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(URL_VALUE, MODEL_ID_VALUE);
+            case COMPLETION -> ElasticInferenceServiceCompletionModelTests.createModel(URL_VALUE, MODEL_ID_VALUE, TaskType.COMPLETION);
+            case CHAT_COMPLETION -> ElasticInferenceServiceCompletionModelTests.createModel(
+                URL_VALUE,
+                MODEL_ID_VALUE,
+                TaskType.CHAT_COMPLETION
+            );
+            case RERANK -> ElasticInferenceServiceRerankModelTests.createModel(URL_VALUE, MODEL_ID_VALUE);
+            default -> throw new IllegalArgumentException("Unsupported task type: " + taskType);
+        };
+    }
+
+    private void validateModelBuilding(Model model) throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var inferenceService = createService(senderFactory)) {
+            var resultModel = inferenceService.buildModelFromConfigAndSecrets(model.getConfigurations(), model.getSecrets());
+            assertThat(resultModel, is(model));
+        }
     }
 }

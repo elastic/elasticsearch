@@ -115,6 +115,13 @@ public class DecisionTests extends ESTestCase {
         assertEffectiveDecision(YES);
     }
 
+    public void testMinimumDecisionTypeThrottleOrYes() {
+        assertEquals(Decision.Type.THROTTLE, Decision.minimumDecisionTypeThrottleOrYes(Decision.THROTTLE, Decision.YES));
+        assertEquals(Decision.Type.THROTTLE, Decision.minimumDecisionTypeThrottleOrYes(Decision.YES, Decision.THROTTLE));
+        assertEquals(Decision.Type.THROTTLE, Decision.minimumDecisionTypeThrottleOrYes(Decision.THROTTLE, Decision.THROTTLE));
+        assertEquals(Decision.Type.YES, Decision.minimumDecisionTypeThrottleOrYes(Decision.YES, Decision.YES));
+    }
+
     private void assertEffectiveDecision(Decision.Type effectiveDecision, Decision.Single... decisions) {
         final var multi = new Decision.Multi(shuffledList(List.of(decisions)));
         assertEquals(effectiveDecision, multi.type());

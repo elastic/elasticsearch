@@ -81,6 +81,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MapMatcher;
+import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -387,72 +388,90 @@ public abstract class ESRestTestCase extends ESTestCase {
     @Before
     public void initClient() throws IOException {
         if (client == null) {
-            assert adminClient == null;
-            assert clusterHosts == null;
-            assert availableFeatures == null;
-            assert nodesVersions == null;
-            assert testFeatureServiceInitialized() == false;
-            clusterHosts = parseClusterHosts(getTestRestCluster());
-            logger.info("initializing REST clients against {}", clusterHosts);
-            // We add the project ID to the client settings afterward because a lot of subclasses don't call super.restClientSettings(),
-            // meaning the project ID would be removed from the settings.
-            var clientSettings = addProjectIdToSettings(restClientSettings());
-            var adminSettings = restAdminSettings();
-            var cleanupSettings = cleanupClientSettings();
-            var hosts = clusterHosts.toArray(new HttpHost[0]);
-            client = buildClient(clientSettings, hosts);
-            adminClient = clientSettings.equals(adminSettings) ? client : buildClient(adminSettings, hosts);
-            cleanupClient = adminSettings.equals(cleanupSettings) ? adminClient : buildClient(cleanupSettings, hosts);
+            boolean success = false;
+            try {
+                assert adminClient == null;
+                assert clusterHosts == null;
+                assert availableFeatures == null;
+                assert nodesVersions == null;
+                assert testFeatureServiceInitialized() == false;
+                clusterHosts = parseClusterHosts(getTestRestCluster());
+                logger.info("initializing REST clients against {}", clusterHosts);
+                // We add the project ID to the client settings afterward because a lot of subclasses don't call super.restClientSettings(),
+                // meaning the project ID would be removed from the settings.
+                var clientSettings = addProjectIdToSettings(restClientSettings());
+                var adminSettings = restAdminSettings();
+                var cleanupSettings = cleanupClientSettings();
+                var hosts = clusterHosts.toArray(new HttpHost[0]);
+                client = buildClient(clientSettings, hosts);
+                adminClient = clientSettings.equals(adminSettings) ? client : buildClient(adminSettings, hosts);
+                cleanupClient = adminSettings.equals(cleanupSettings) ? adminClient : buildClient(cleanupSettings, hosts);
 
-            availableFeatures = EnumSet.of(ProductFeature.LEGACY_TEMPLATES);
-            Set<String> versions = new HashSet<>();
-            boolean serverless = false;
+                availableFeatures = EnumSet.of(ProductFeature.LEGACY_TEMPLATES);
+                Set<String> versions = new HashSet<>();
+                boolean serverless = false;
 
-            for (Map<?, ?> nodeInfo : getNodesInfo(adminClient).values()) {
-                var nodeVersion = nodeInfo.get("version").toString();
-                versions.add(nodeVersion);
-                for (Object module : (List<?>) nodeInfo.get("modules")) {
-                    Map<?, ?> moduleInfo = (Map<?, ?>) module;
-                    final String moduleName = moduleInfo.get("name").toString();
-                    if (moduleName.startsWith("x-pack")) {
-                        availableFeatures.add(ProductFeature.XPACK);
+                for (Map<?, ?> nodeInfo : getNodesInfo(adminClient).values()) {
+                    var nodeVersion = nodeInfo.get("version").toString();
+                    versions.add(nodeVersion);
+                    for (Object module : (List<?>) nodeInfo.get("modules")) {
+                        Map<?, ?> moduleInfo = (Map<?, ?>) module;
+                        final String moduleName = moduleInfo.get("name").toString();
+                        if (moduleName.startsWith("x-pack")) {
+                            availableFeatures.add(ProductFeature.XPACK);
+                        }
+                        if (moduleName.equals("x-pack-ilm")) {
+                            availableFeatures.add(ProductFeature.ILM);
+                            availableFeatures.add(ProductFeature.SLM);
+                        }
+                        if (moduleName.equals("x-pack-rollup")) {
+                            availableFeatures.add(ProductFeature.ROLLUPS);
+                        }
+                        if (moduleName.equals("x-pack-ccr")) {
+                            availableFeatures.add(ProductFeature.CCR);
+                        }
+                        if (moduleName.equals("x-pack-shutdown")) {
+                            availableFeatures.add(ProductFeature.SHUTDOWN);
+                        }
+                        if (moduleName.equals("searchable-snapshots")) {
+                            availableFeatures.add(ProductFeature.SEARCHABLE_SNAPSHOTS);
+                        }
+                        if (moduleName.startsWith("serverless-")) {
+                            serverless = true;
+                        }
                     }
-                    if (moduleName.equals("x-pack-ilm")) {
-                        availableFeatures.add(ProductFeature.ILM);
-                        availableFeatures.add(ProductFeature.SLM);
-                    }
-                    if (moduleName.equals("x-pack-rollup")) {
-                        availableFeatures.add(ProductFeature.ROLLUPS);
-                    }
-                    if (moduleName.equals("x-pack-ccr")) {
-                        availableFeatures.add(ProductFeature.CCR);
-                    }
-                    if (moduleName.equals("x-pack-shutdown")) {
-                        availableFeatures.add(ProductFeature.SHUTDOWN);
-                    }
-                    if (moduleName.equals("searchable-snapshots")) {
-                        availableFeatures.add(ProductFeature.SEARCHABLE_SNAPSHOTS);
-                    }
-                    if (moduleName.startsWith("serverless-")) {
-                        serverless = true;
+                    if (serverless) {
+                        availableFeatures.removeAll(
+                            List.of(
+                                ProductFeature.ILM,
+                                ProductFeature.SLM,
+                                ProductFeature.ROLLUPS,
+                                ProductFeature.CCR,
+                                ProductFeature.LEGACY_TEMPLATES
+                            )
+                        );
                     }
                 }
-                if (serverless) {
-                    availableFeatures.removeAll(
-                        List.of(
-                            ProductFeature.ILM,
-                            ProductFeature.SLM,
-                            ProductFeature.ROLLUPS,
-                            ProductFeature.CCR,
-                            ProductFeature.LEGACY_TEMPLATES
-                        )
-                    );
+                nodesVersions = Collections.unmodifiableSet(versions);
+                testFeatureService = createTestFeatureService(getClusterStateFeatures(adminClient), fromSemanticVersions(nodesVersions));
+
+                configureProjects();
+                success = true;
+            } finally {
+                if (success == false) {
+                    // clean up partially-initialized state on failure
+                    try {
+                        IOUtils.close(client, adminClient, cleanupClient);
+                    } finally {
+                        client = null;
+                        adminClient = null;
+                        clusterHosts = null;
+                        availableFeatures = null;
+                        nodesVersions = null;
+                        testFeatureService = ALL_FEATURES;
+                    }
                 }
             }
-            nodesVersions = Collections.unmodifiableSet(versions);
-            testFeatureService = createTestFeatureService(getClusterStateFeatures(adminClient), fromSemanticVersions(nodesVersions));
-
-            configureProjects();
         }
 
         assert testFeatureServiceInitialized();
@@ -1397,7 +1416,8 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected void deleteRepository(String repoName) throws IOException {
         logger.debug("wiping snapshot repository [{}]", repoName);
-        cleanupClient().performRequest(new Request("DELETE", "_snapshot/" + repoName));
+        final var response = cleanupClient().performRequest(new Request("DELETE", "_snapshot/" + repoName));
+        assertOK(response);
     }
 
     /**
@@ -2161,7 +2181,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Note that this message is also permitted in certain YAML test cases, it can be removed there too.
      * See https://github.com/elastic/elasticsearch/issues/66419 and https://github.com/elastic/elasticsearch/pull/119594 for more details.
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
     private static final String WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE = "the default value for the ?wait_for_active_shards "
         + "parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' "
         + "to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour";
@@ -2287,12 +2307,29 @@ public abstract class ESRestTestCase extends ESTestCase {
         assertAcked("Failed to create repository [" + repository + "] of type [" + type + "]: " + response, response);
     }
 
-    protected static void createSnapshot(String repository, String snapshot, boolean waitForCompletion) throws IOException {
-        createSnapshot(client(), repository, snapshot, waitForCompletion);
+    protected static XContentTestUtils.JsonMapView getRepository(String repoName) throws IOException {
+        final var response = client().performRequest(new Request("GET", "/_snapshot/" + repoName));
+        assertOK(response);
+        return new XContentTestUtils.JsonMapView(entityAsMap(response));
     }
 
-    protected static void createSnapshot(RestClient restClient, String repository, String snapshot, boolean waitForCompletion)
+    protected static void assertRepositoryNotFound(String repoName) throws IOException {
+        final var e = assertThrows(ResponseException.class, () -> client().performRequest(new Request("GET", "/_snapshot/" + repoName)));
+        final var statusLine = e.getResponse().getStatusLine();
+        assertEquals("expected 404, got " + statusLine, 404, statusLine.getStatusCode());
+    }
+
+    protected static XContentTestUtils.JsonMapView createSnapshot(String repository, String snapshot, boolean waitForCompletion)
         throws IOException {
+        return createSnapshot(client(), repository, snapshot, waitForCompletion);
+    }
+
+    protected static XContentTestUtils.JsonMapView createSnapshot(
+        RestClient restClient,
+        String repository,
+        String snapshot,
+        boolean waitForCompletion
+    ) throws IOException {
         final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot);
         request.addParameter("wait_for_completion", Boolean.toString(waitForCompletion));
 
@@ -2302,6 +2339,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             response.getStatusLine().getStatusCode(),
             equalTo(RestStatus.OK.getStatus())
         );
+        return new XContentTestUtils.JsonMapView(entityAsMap(response));
     }
 
     protected static void restoreSnapshot(String repository, String snapshot, boolean waitForCompletion) throws IOException {
@@ -2314,6 +2352,14 @@ public abstract class ESRestTestCase extends ESTestCase {
             response.getStatusLine().getStatusCode(),
             equalTo(RestStatus.OK.getStatus())
         );
+    }
+
+    protected XContentTestUtils.JsonMapView listAllSnapshots(String repository) throws IOException {
+        return new XContentTestUtils.JsonMapView(getAsMap("_snapshot/" + repository + "/" + randomFrom("*", "_all")));
+    }
+
+    protected XContentTestUtils.JsonMapView getIndexRecovery(String indexName) throws IOException {
+        return new XContentTestUtils.JsonMapView(getAsMap(indexName + "/_recovery"));
     }
 
     protected static void deleteSnapshot(String repository, String snapshot, boolean ignoreMissing) throws IOException {
@@ -2806,6 +2852,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             .entry("preanalysis", instanceOf(Map.class))
             .entry("dependency_resolution", instanceOf(Map.class))
             .entry("analysis", instanceOf(Map.class))
+            .entry("field_caps_calls", instanceOf(Integer.class))
             .entry("drivers", instanceOf(List.class))
             .entry("plans", instanceOf(List.class))
             .entry("minimumTransportVersion", instanceOf(Integer.class));
@@ -2949,15 +2996,32 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
-    protected void cleanUpProjects() throws IOException {
+    protected void cleanUpProjects() throws Exception {
         assert multiProjectEnabled;
         final var projectIds = getProjectIds(adminClient());
         for (String projectId : projectIds) {
             if (projectId.equals(ProjectId.DEFAULT.id())) {
                 continue;
             }
-            deleteProject(projectId);
+            try {
+                deleteProject(projectId);
+            } catch (ResponseException e) {
+                // Ignore errors for projects that don't exist (might have been deleted already)
+                if (e.getResponse().getStatusLine().getStatusCode() == 400) {
+                    final String reason = ObjectPath.createFromResponse(e.getResponse()).evaluate("error.reason");
+                    if (reason != null && reason.contains("does not exist")) {
+                        logger.warn("Project {} does not exist, ignoring deletion error", projectId);
+                        continue;
+                    }
+                }
+                throw e;
+            }
         }
+        assertBusy(() -> {
+            final var projectIdsLeft = getProjectIds(adminClient());
+            assertThat(projectIdsLeft.size(), equalTo(1));
+            assertTrue(projectIdsLeft.contains(ProjectId.DEFAULT.id()));
+        });
     }
 
     private void deleteProject(String project) throws IOException {

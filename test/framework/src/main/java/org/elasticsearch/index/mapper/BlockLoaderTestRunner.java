@@ -15,11 +15,9 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.BaseMatcher;
@@ -31,11 +29,9 @@ import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.newDirectory;
 import static org.apache.lucene.tests.util.LuceneTestCase.random;
-import static org.elasticsearch.index.mapper.BlockLoaderTestRunner.PrettyEqual.prettyEqualTo;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -45,13 +41,31 @@ public class BlockLoaderTestRunner {
     private final BlockLoaderTestCase.Params params;
     private final boolean allowDummyDocs;
 
+    public interface ResultMatcher {
+        void match(Object expected, Object actual);
+    }
+
     public BlockLoaderTestRunner(BlockLoaderTestCase.Params params, boolean allowDummyDocs) {
         this.params = params;
         this.allowDummyDocs = allowDummyDocs;
     }
 
+    public void defaultMatcher(Object expected, Object actual) {
+        assertThat(expected, PrettyEqual.prettyEqualTo(actual));
+    }
+
     public void runTest(MapperService mapperService, Map<String, Object> document, Object expected, String blockLoaderFieldName)
         throws IOException {
+        runTest(mapperService, document, expected, blockLoaderFieldName, this::defaultMatcher);
+    }
+
+    public void runTest(
+        MapperService mapperService,
+        Map<String, Object> document,
+        Object expected,
+        String blockLoaderFieldName,
+        ResultMatcher matcher
+    ) throws IOException {
         var documentXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(document);
         var source = new SourceToParse(
             "1",
@@ -65,13 +79,23 @@ public class BlockLoaderTestRunner {
             null
         );
         var parsedDoc = mapperService.documentMapper().parse(source);
-        runTest(mapperService, parsedDoc, expected, blockLoaderFieldName);
+        runTest(mapperService, parsedDoc, expected, blockLoaderFieldName, matcher);
     }
 
     public void runTest(MapperService mapperService, ParsedDocument parsedDoc, Object expected, String blockLoaderFieldName)
         throws IOException {
+        runTest(mapperService, parsedDoc, expected, blockLoaderFieldName, this::defaultMatcher);
+    }
+
+    public void runTest(
+        MapperService mapperService,
+        ParsedDocument parsedDoc,
+        Object expected,
+        String blockLoaderFieldName,
+        ResultMatcher matcher
+    ) throws IOException {
         Object blockLoaderResult = setupAndInvokeBlockLoader(mapperService, parsedDoc, blockLoaderFieldName);
-        assertThat(blockLoaderResult, prettyEqualTo(expected));
+        matcher.match(expected, blockLoaderResult);
     }
 
     private Object setupAndInvokeBlockLoader(MapperService mapperService, ParsedDocument parsedDoc, String fieldName) throws IOException {
@@ -151,42 +175,10 @@ public class BlockLoaderTestRunner {
     }
 
     private BlockLoader createBlockLoader(MapperService mapperService, String fieldName) {
-        SearchLookup searchLookup = new SearchLookup(mapperService.mappingLookup().fieldTypesLookup()::get, null, null);
-
-        return mapperService.fieldType(fieldName).blockLoader(new MappedFieldType.BlockLoaderContext() {
-            @Override
-            public String indexName() {
-                return mapperService.getIndexSettings().getIndex().getName();
-            }
-
-            @Override
-            public IndexSettings indexSettings() {
-                return mapperService.getIndexSettings();
-            }
-
+        return mapperService.fieldType(fieldName).blockLoader(new DummyBlockLoaderContext.MapperServiceBlockLoaderContext(mapperService) {
             @Override
             public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
                 return params.preference();
-            }
-
-            @Override
-            public SearchLookup lookup() {
-                return searchLookup;
-            }
-
-            @Override
-            public Set<String> sourcePaths(String name) {
-                return mapperService.mappingLookup().sourcePaths(name);
-            }
-
-            @Override
-            public String parentField(String field) {
-                return mapperService.mappingLookup().parentField(field);
-            }
-
-            @Override
-            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
-                return (FieldNamesFieldMapper.FieldNamesFieldType) mapperService.fieldType(FieldNamesFieldMapper.NAME);
             }
         });
     }

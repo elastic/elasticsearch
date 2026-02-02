@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.esql.expression.function.vector.Magnitude;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -110,13 +111,14 @@ import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
-import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Period;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -1546,7 +1548,7 @@ public class AnalyzerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         limit = as(limit.child(), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(2));
-        var project = as(limit.child(), EsqlProject.class);
+        var project = as(limit.child(), Project.class);
         var eval = as(project.child(), Eval.class);
         assertEmptyEsRelation(eval.child());
     }
@@ -2182,7 +2184,7 @@ public class AnalyzerTests extends ESTestCase {
             matchesList().item(startsWith("int{f}")).item(startsWith("name{f}"))
         );
 
-        var project = as(lookup.child(), EsqlProject.class);
+        var project = as(lookup.child(), Project.class);
         assertThat(project.projections().stream().map(Object::toString).toList(), hasItem(matchesRegex("languages\\{f}#\\d+ AS int#\\d+")));
 
         var esRelation = as(project.child(), EsRelation.class);
@@ -2343,14 +2345,20 @@ public class AnalyzerTests extends ESTestCase {
 
         assertThat(
             e.getMessage(),
-            containsString("first argument of [concat(\"2024\", \"-04\", \"-01\") + 1 day] must be [date_nanos, datetime or numeric]")
+            containsString(
+                "first argument of [concat(\"2024\", \"-04\", \"-01\") + 1 day] must be "
+                    + "[date_nanos, datetime, numeric or dense_vector]"
+            )
         );
 
         e = expectThrows(VerificationException.class, () -> analyze("""
              from test | eval x = to_string(null) - 1 day
             """));
 
-        assertThat(e.getMessage(), containsString("first argument of [to_string(null) - 1 day] must be [date_nanos, datetime or numeric]"));
+        assertThat(
+            e.getMessage(),
+            containsString("first argument of [to_string(null) - 1 day] must be " + "[date_nanos, datetime, numeric or dense_vector]")
+        );
 
         e = expectThrows(VerificationException.class, () -> analyze("""
              from test | eval x = concat("2024", "-04", "-01") + "1 day"
@@ -2358,7 +2366,10 @@ public class AnalyzerTests extends ESTestCase {
 
         assertThat(
             e.getMessage(),
-            containsString("first argument of [concat(\"2024\", \"-04\", \"-01\") + \"1 day\"] must be [date_nanos, datetime or numeric]")
+            containsString(
+                "first argument of [concat(\"2024\", \"-04\", \"-01\") + \"1 day\"] must be "
+                    + "[date_nanos, datetime, numeric or dense_vector]"
+            )
         );
 
         e = expectThrows(VerificationException.class, () -> analyze("""
@@ -2583,7 +2594,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testLimitForPromQL() {
-        assumeTrue("Requires promql support", EsqlCapabilities.Cap.PROMQL_PRE_TECH_PREVIEW_V12.isEnabled());
         Analyzer analyzer = analyzer(tsdbIndexResolution());
         assertDefaultLimitForQuery(analyzer, """
             PROMQL index=test
@@ -2642,8 +2652,8 @@ public class AnalyzerTests extends ESTestCase {
 
     private void validateConditionalFunctions(LogicalPlan plan) {
         var limit = as(plan, Limit.class);
-        var esqlProject = as(limit.child(), EsqlProject.class);
-        List<?> projections = esqlProject.projections();
+        var project = as(limit.child(), Project.class);
+        List<?> projections = project.projections();
         var projection = as(projections.get(0), ReferenceAttribute.class);
         assertEquals(projection.name(), "x");
         assertEquals(projection.dataType(), DataType.DOUBLE);
@@ -3163,6 +3173,7 @@ public class AnalyzerTests extends ESTestCase {
 
         IndexResolution resolution = IndexResolver.mergedMappings(
             "foo,bar",
+            false,
             fieldsInfoOnCurrentVersion(
                 new FieldCapabilitiesResponse(
                     List.of(
@@ -3189,6 +3200,7 @@ public class AnalyzerTests extends ESTestCase {
 
         IndexResolution resolution = IndexResolver.mergedMappings(
             "foo,bar",
+            false,
             fieldsInfoOnCurrentVersion(
                 new FieldCapabilitiesResponse(
                     List.of(
@@ -3216,6 +3228,7 @@ public class AnalyzerTests extends ESTestCase {
 
         IndexResolution resolution = IndexResolver.mergedMappings(
             "foo,bar",
+            false,
             fieldsInfoOnCurrentVersion(
                 new FieldCapabilitiesResponse(
                     List.of(
@@ -3243,6 +3256,7 @@ public class AnalyzerTests extends ESTestCase {
 
         IndexResolution resolution = IndexResolver.mergedMappings(
             "foo,bar",
+            false,
             fieldsInfoOnCurrentVersion(
                 new FieldCapabilitiesResponse(
                     List.of(
@@ -3267,6 +3281,7 @@ public class AnalyzerTests extends ESTestCase {
 
         IndexResolution resolution = IndexResolver.mergedMappings(
             "foo,bar",
+            false,
             fieldsInfoOnCurrentVersion(
                 new FieldCapabilitiesResponse(
                     List.of(
@@ -3295,6 +3310,7 @@ public class AnalyzerTests extends ESTestCase {
 
         IndexResolution resolution = IndexResolver.mergedMappings(
             "foo,bar",
+            false,
             fieldsInfoOnCurrentVersion(
                 new FieldCapabilitiesResponse(
                     List.of(
@@ -3327,6 +3343,7 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
+                false,
                 new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true),
                 IndexResolver.DO_NOT_GROUP
             );
@@ -3337,6 +3354,7 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
+                false,
                 new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false),
                 IndexResolver.DO_NOT_GROUP
             );
@@ -3360,6 +3378,7 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
+                false,
                 new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true),
                 IndexResolver.DO_NOT_GROUP
             );
@@ -3373,6 +3392,7 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
+                false,
                 new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true),
                 IndexResolver.DO_NOT_GROUP
             );
@@ -3404,7 +3424,7 @@ public class AnalyzerTests extends ESTestCase {
         // fork branch 1
         limit = as(subPlans.get(0), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
-        EsqlProject project = as(limit.child(), EsqlProject.class);
+        Project project = as(limit.child(), Project.class);
         List<String> projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
         assertThat(projectColumns, equalTo(expectedOutput));
         Eval eval = as(project.child(), Eval.class);
@@ -3414,14 +3434,14 @@ public class AnalyzerTests extends ESTestCase {
 
         filter = as(filter.child(), Filter.class);
         assertThat(as(filter.condition(), Equals.class).right(), equalTo(string("Chris")));
-        project = as(filter.child(), EsqlProject.class);
+        project = as(filter.child(), Project.class);
         var esRelation = as(project.child(), EsRelation.class);
         assertThat(esRelation.indexPattern(), equalTo("test"));
 
         // fork branch 2
         limit = as(subPlans.get(1), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
-        project = as(limit.child(), EsqlProject.class);
+        project = as(limit.child(), Project.class);
         projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
         assertThat(projectColumns, equalTo(expectedOutput));
         eval = as(project.child(), Eval.class);
@@ -3431,14 +3451,14 @@ public class AnalyzerTests extends ESTestCase {
 
         filter = as(filter.child(), Filter.class);
         assertThat(as(filter.condition(), Equals.class).right(), equalTo(string("Chris")));
-        project = as(filter.child(), EsqlProject.class);
+        project = as(filter.child(), Project.class);
         esRelation = as(project.child(), EsRelation.class);
         assertThat(esRelation.indexPattern(), equalTo("test"));
 
         // fork branch 3
         limit = as(subPlans.get(2), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
-        project = as(limit.child(), EsqlProject.class);
+        project = as(limit.child(), Project.class);
         projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
         assertThat(projectColumns, equalTo(expectedOutput));
         eval = as(project.child(), Eval.class);
@@ -3450,14 +3470,14 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(as(filter.condition(), GreaterThan.class).right(), equalTo(literal(3)));
         filter = as(filter.child(), Filter.class);
         assertThat(as(filter.condition(), Equals.class).right(), equalTo(string("Chris")));
-        project = as(filter.child(), EsqlProject.class);
+        project = as(filter.child(), Project.class);
         esRelation = as(project.child(), EsRelation.class);
         assertThat(esRelation.indexPattern(), equalTo("test"));
 
         // fork branch 4
         limit = as(subPlans.get(3), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
-        project = as(limit.child(), EsqlProject.class);
+        project = as(limit.child(), Project.class);
         projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
         assertThat(projectColumns, equalTo(expectedOutput));
         eval = as(project.child(), Eval.class);
@@ -3465,14 +3485,14 @@ public class AnalyzerTests extends ESTestCase {
         orderBy = as(eval.child(), OrderBy.class);
         filter = as(orderBy.child(), Filter.class);
         assertThat(as(filter.condition(), Equals.class).right(), equalTo(string("Chris")));
-        project = as(filter.child(), EsqlProject.class);
+        project = as(filter.child(), Project.class);
         esRelation = as(project.child(), EsRelation.class);
         assertThat(esRelation.indexPattern(), equalTo("test"));
 
         // fork branch 5
         limit = as(subPlans.get(4), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
-        project = as(limit.child(), EsqlProject.class);
+        project = as(limit.child(), Project.class);
         projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
         assertThat(projectColumns, equalTo(expectedOutput));
         eval = as(project.child(), Eval.class);
@@ -3481,7 +3501,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(9));
         filter = as(limit.child(), Filter.class);
         assertThat(as(filter.condition(), Equals.class).right(), equalTo(string("Chris")));
-        project = as(filter.child(), EsqlProject.class);
+        project = as(filter.child(), Project.class);
         esRelation = as(project.child(), EsRelation.class);
         assertThat(esRelation.indexPattern(), equalTo("test"));
     }
@@ -3507,7 +3527,7 @@ public class AnalyzerTests extends ESTestCase {
         // fork branch 1
         limit = as(subPlans.get(0), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
-        EsqlProject project = as(limit.child(), EsqlProject.class);
+        Project project = as(limit.child(), Project.class);
         List<String> projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
         assertThat(projectColumns, equalTo(expectedOutput));
 
@@ -3529,7 +3549,7 @@ public class AnalyzerTests extends ESTestCase {
         Filter filter = as(orderBy.child(), Filter.class);
         assertThat(as(filter.condition(), GreaterThan.class).right(), equalTo(literal(3)));
 
-        project = as(filter.child(), EsqlProject.class);
+        project = as(filter.child(), Project.class);
         filter = as(project.child(), Filter.class);
         assertThat(as(filter.condition(), Equals.class).right(), equalTo(string("Chris")));
         var esRelation = as(filter.child(), EsRelation.class);
@@ -3538,7 +3558,7 @@ public class AnalyzerTests extends ESTestCase {
         // fork branch 2
         limit = as(subPlans.get(1), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
-        project = as(limit.child(), EsqlProject.class);
+        project = as(limit.child(), Project.class);
         projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
         assertThat(projectColumns, equalTo(expectedOutput));
         eval = as(project.child(), Eval.class);
@@ -3559,7 +3579,7 @@ public class AnalyzerTests extends ESTestCase {
         filter = as(eval.child(), Filter.class);
         assertThat(as(filter.condition(), GreaterThan.class).right(), equalTo(literal(2)));
 
-        project = as(filter.child(), EsqlProject.class);
+        project = as(filter.child(), Project.class);
         filter = as(project.child(), Filter.class);
         assertThat(as(filter.condition(), Equals.class).right(), equalTo(string("Chris")));
         esRelation = as(filter.child(), EsRelation.class);
@@ -3568,7 +3588,7 @@ public class AnalyzerTests extends ESTestCase {
         // fork branch 3
         limit = as(subPlans.get(2), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
-        project = as(limit.child(), EsqlProject.class);
+        project = as(limit.child(), Project.class);
         projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
         assertThat(projectColumns, equalTo(expectedOutput));
         eval = as(project.child(), Eval.class);
@@ -3604,7 +3624,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(dissect.parser().pattern(), equalTo("%{d} %{e} %{f}"));
         assertThat(as(dissect.input(), FieldAttribute.class).name(), equalTo("first_name"));
 
-        project = as(dissect.child(), EsqlProject.class);
+        project = as(dissect.child(), Project.class);
         filter = as(project.child(), Filter.class);
         assertThat(as(filter.condition(), Equals.class).right(), equalTo(string("Chris")));
         esRelation = as(filter.child(), EsRelation.class);
@@ -3826,7 +3846,7 @@ public class AnalyzerTests extends ESTestCase {
             new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD)
         );
         IndexResolver.FieldsInfo caps = fieldsInfoOnCurrentVersion(new FieldCapabilitiesResponse(idxResponses, List.of()));
-        IndexResolution resolution = IndexResolver.mergedMappings("test*", caps, IndexResolver.DO_NOT_GROUP);
+        IndexResolution resolution = IndexResolver.mergedMappings("test*", false, caps, IndexResolver.DO_NOT_GROUP);
         var analyzer = analyzer(indexResolutions(resolution), TEST_VERIFIER, configuration(query));
         return analyze(query, analyzer);
     }
@@ -3986,8 +4006,8 @@ public class AnalyzerTests extends ESTestCase {
 
             Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
             Rerank rerank = as(limit.child(), Rerank.class);
-            EsqlProject keep = as(rerank.child(), EsqlProject.class);
-            EsqlProject drop = as(keep.child(), EsqlProject.class);
+            Project keep = as(rerank.child(), Project.class);
+            Project drop = as(keep.child(), Project.class);
             Filter filter = as(drop.child(), Filter.class);
             EsRelation relation = as(filter.child(), EsRelation.class);
 
@@ -4005,7 +4025,7 @@ public class AnalyzerTests extends ESTestCase {
             LogicalPlan plan = analyze("""
                 FROM books METADATA _score
                 | WHERE title:"food"
-                | RERANK "food" ON title, description=SUBSTRING(description, 0, 100), yearRenamed=year
+                | RERANK "food" ON title, description=SUBSTRING(description, 0, 100)
                   WITH { "inference_id" : "reranking-inference-id" }
                 """, "mapping-books.json");
 
@@ -4017,7 +4037,7 @@ public class AnalyzerTests extends ESTestCase {
             assertThat(rerank.queryText(), equalTo(string("food")));
             assertThat(rerank.inferenceId(), equalTo(string("reranking-inference-id")));
 
-            assertThat(rerank.rerankFields(), hasSize(3));
+            assertThat(rerank.rerankFields(), hasSize(2));
             Attribute titleAttribute = getAttributeByName(relation.output(), "title");
             assertThat(titleAttribute, notNullValue());
             assertThat(rerank.rerankFields().get(0), equalToIgnoringIds(alias("title", titleAttribute)));
@@ -4030,10 +4050,6 @@ public class AnalyzerTests extends ESTestCase {
                 as(descriptionAlias.child(), Substring.class).children(),
                 equalTo(List.of(descriptionAttribute, literal(0), literal(100)))
             );
-
-            Attribute yearAttribute = getAttributeByName(relation.output(), "year");
-            assertThat(yearAttribute, notNullValue());
-            assertThat(rerank.rerankFields().get(2), equalToIgnoringIds(alias("yearRenamed", yearAttribute)));
 
             assertThat(rerank.scoreAttribute(), equalTo(getAttributeByName(relation.output(), MetadataAttribute.SCORE)));
         }
@@ -4138,7 +4154,23 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRerankFieldsInvalidTypes() {
-        List<String> invalidFieldNames = List.of("date", "date_nanos", "ip", "version", "dense_vector");
+        List<String> invalidFieldNames = List.of(
+            "boolean",
+            "byte",
+            "date",
+            "date_nanos",
+            "dense_vector",
+            "double",
+            "float",
+            "half_float",
+            "integer",
+            "ip",
+            "long",
+            "scaled_float",
+            "short",
+            "unsigned_long",
+            "version"
+        );
 
         for (String fieldName : invalidFieldNames) {
             LogManager.getLogger(AnalyzerTests.class).warn("[{}]", fieldName);
@@ -4148,49 +4180,27 @@ public class AnalyzerTests extends ESTestCase {
                     + " WITH { \"inference_id\" : \"reranking-inference-id\" }",
                 "mapping-all-types.json",
                 new QueryParams(),
-                "rerank field must be a valid string, numeric or boolean expression, found [" + fieldName + "]"
+                "rerank field must be a valid string expression, found [" + fieldName + "]"
             );
         }
     }
 
     public void testRerankFieldValidTypes() {
-        List<String> validFieldNames = List.of(
-            "boolean",
-            "byte",
-            "constant_keyword-foo",
-            "double",
-            "float",
-            "half_float",
-            "scaled_float",
-            "integer",
-            "keyword",
-            "long",
-            "unsigned_long",
-            "short",
-            "text",
-            "wildcard"
-        );
+        List<String> validFieldNames = List.of("`constant_keyword-foo`", "keyword", "text", "wildcard");
 
         for (String fieldName : validFieldNames) {
             LogicalPlan plan = analyze(
-                "FROM books METADATA _score | RERANK rerank_score = \"test query\" ON `"
+                "FROM books METADATA _score | RERANK rerank_score = \"test query\" ON "
                     + fieldName
-                    + "` WITH { \"inference_id\" : \"reranking-inference-id\" }",
+                    + " WITH { \"inference_id\" : \"reranking-inference-id\" }",
                 "mapping-all-types.json"
             );
 
             Rerank rerank = as(as(plan, Limit.class).child(), Rerank.class);
             EsRelation relation = as(rerank.child(), EsRelation.class);
             Attribute fieldAttribute = getAttributeByName(relation.output(), fieldName);
-            if (DataType.isString(fieldAttribute.dataType())) {
-                assertThat(rerank.rerankFields(), equalToIgnoringIds(List.of(alias(fieldName, fieldAttribute))));
-
-            } else {
-                assertThat(
-                    rerank.rerankFields(),
-                    equalToIgnoringIds(List.of(alias(fieldName, new ToString(fieldAttribute.source(), fieldAttribute))))
-                );
-            }
+            assertEquals(1, rerank.rerankFields().size());
+            assertEquals(fieldName, rerank.rerankFields().getFirst().child().sourceText());
         }
     }
 
@@ -4498,6 +4508,107 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(oneYear, literal);
     }
 
+    public void testProjectionForUnionTypeResolution() {
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put("keyword", Set.of("union_index_1"));
+        typesToIndices.put("integer", Set.of("union_index_2"));
+
+        EsField idField = new InvalidMappedField("id", typesToIndices);
+        EsField fooField = new EsField("foo", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+
+        EsIndex index = new EsIndex(
+            "union_index*",
+            Map.of("id", idField, "foo", fooField), // Updated mapping keys
+            Map.of("union_index_1", IndexMode.STANDARD, "union_index_2", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
+            Set.of()
+        );
+        IndexResolution resolution = IndexResolution.valid(index);
+        Analyzer analyzer = analyzer(resolution);
+
+        String query = "FROM union_index* | KEEP id, foo | MV_EXPAND foo | EVAL id = id::keyword";
+        LogicalPlan plan = analyze(query, analyzer);
+
+        Project project = as(plan, Project.class);
+        Eval eval = as(project.child().children().getFirst(), Eval.class);
+        FieldAttribute convertedFa = as(eval.output().get(1), FieldAttribute.class);
+
+        // The synthetic field used for the conversion should be propagated through intermediate nodes (like MV_EXPAND) but ultimately
+        // stripped from the final output, leaving only the aliased 'id' and 'foo'.
+        verifyNameAndType(convertedFa.name(), convertedFa.dataType(), "$$id$converted_to$keyword", KEYWORD);
+
+        eval.forEachDown(Project.class, p -> {
+            if (p.inputSet().contains(convertedFa)) {
+                assertTrue(p.outputSet().contains(convertedFa));
+            }
+        });
+
+        var output = plan.output();
+        assertThat(output, hasSize(2));
+
+        var fooAttr = output.getFirst();
+        var idAttr = output.getLast();
+        assertThat(fooAttr.dataType(), equalTo(KEYWORD));
+        assertThat(idAttr.dataType(), equalTo(KEYWORD));
+        assertThat(idAttr.name(), equalTo("id"));
+    }
+
+    public void testExplicitRetainOriginalFieldWithCast() {
+        // Use the existing union index fixture (id has keyword/integer union types)
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put("keyword", Set.of("test1"));
+        typesToIndices.put("integer", Set.of("test2"));
+        EsField idField = new InvalidMappedField("id", typesToIndices);
+        EsIndex index = new EsIndex(
+            "union_index*",
+            Map.of("id", idField),
+            Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
+            Set.of()
+        );
+        IndexResolution resolution = IndexResolution.valid(index);
+        Analyzer analyzer = analyzer(resolution);
+
+        String query = """
+            FROM union_index*
+            | KEEP id
+            | EVAL x = id::long
+            """;
+        LogicalPlan plan = analyze(query, analyzer);
+
+        Project topProject = as(plan, Project.class);
+        var projections = topProject.projections();
+        assertThat(projections, hasSize(2));
+        assertThat(projections.get(0).name(), equalTo("id"));
+        assertThat(projections.get(0).dataType(), equalTo(UNSUPPORTED));
+
+        ReferenceAttribute xRef = as(projections.get(1), ReferenceAttribute.class);
+        assertThat(xRef.name(), equalTo("x"));
+        assertThat(xRef.dataType(), equalTo(LONG));
+
+        Limit limit = as(topProject.child(), Limit.class);
+        Eval eval = as(limit.child(), Eval.class);
+        Alias xAlias = as(eval.fields().get(0), Alias.class);
+        assertThat(xAlias.name(), equalTo("x"));
+        FieldAttribute syntheticFieldAttr = as(xAlias.child(), FieldAttribute.class);
+        assertThat(syntheticFieldAttr.name(), equalTo("$$id$converted_to$long"));
+        assertThat(xRef, is(xAlias.toAttribute()));
+
+        Project innerProject = as(eval.child(), Project.class);
+        EsRelation relation = as(innerProject.child(), EsRelation.class);
+        assertEquals("union_index*", relation.indexPattern());
+        var relationOutput = relation.output();
+        assertThat(relationOutput, hasSize(2));
+        assertThat(relationOutput.get(0).name(), equalTo("id"));
+        assertThat(relationOutput.get(0).dataType(), equalTo(UNSUPPORTED));
+        var syntheticField = relationOutput.get(1);
+        assertThat(syntheticField.name(), equalTo("$$id$converted_to$long"));
+        assertThat(syntheticField.dataType(), equalTo(LONG));
+        assertThat(syntheticFieldAttr.id(), equalTo(syntheticField.id()));
+    }
+
     public void testImplicitCastingForDateAndDateNanosFields() {
         IndexResolution indexWithUnionTypedFields = indexWithDateDateNanosUnionType();
         Analyzer analyzer = AnalyzerTestUtils.analyzer(indexWithUnionTypedFields);
@@ -4768,10 +4879,7 @@ public class AnalyzerTests extends ESTestCase {
         UnionAll unionAll = as(filter.child(), UnionAll.class);
         assertEquals(2, unionAll.children().size());
 
-        Limit subqueryLimit = as(unionAll.children().get(0), Limit.class);
-        Literal limitLiteral = as(subqueryLimit.limit(), Literal.class);
-        assertEquals(1000, limitLiteral.value());
-        EsqlProject subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
         List<? extends NamedExpression> projections = subqueryProject.projections();
         assertEquals(13, projections.size()); // all fields from the two indices
         Eval subqueryEval = as(subqueryProject.child(), Eval.class);
@@ -4788,10 +4896,7 @@ public class AnalyzerTests extends ESTestCase {
         EsRelation subqueryIndex = as(subqueryEval.child(), EsRelation.class);
         assertEquals("test", subqueryIndex.indexPattern());
 
-        subqueryLimit = as(unionAll.children().get(1), Limit.class);
-        limitLiteral = as(subqueryLimit.limit(), Literal.class);
-        assertEquals(1000, limitLiteral.value());
-        subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        subqueryProject = as(unionAll.children().get(1), Project.class);
         projections = subqueryProject.projections();
         assertEquals(13, projections.size()); // all fields from the two indices
         subqueryEval = as(subqueryProject.child(), Eval.class);
@@ -4847,7 +4952,7 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("languageCode", mvExpandTarget.name());
         ReferenceAttribute mvExpandExpanded = as(mvExpand.expanded(), ReferenceAttribute.class);
         assertEquals("languageCode", mvExpandExpanded.name());
-        EsqlProject rename = as(mvExpand.child(), EsqlProject.class);
+        Project rename = as(mvExpand.child(), Project.class);
         List<? extends NamedExpression> projections = rename.projections();
         assertEquals(3, projections.size());
         Alias a = as(projections.get(1), Alias.class);
@@ -4878,10 +4983,7 @@ public class AnalyzerTests extends ESTestCase {
         UnionAll unionAll = as(filter.child(), UnionAll.class);
         assertEquals(4, unionAll.children().size());
 
-        Limit subqueryLimit = as(unionAll.children().get(0), Limit.class);
-        Literal limitLiteral = as(subqueryLimit.limit(), Literal.class);
-        assertEquals(1000, limitLiteral.value());
-        EsqlProject subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
         projections = subqueryProject.projections();
         assertEquals(15, projections.size()); // all fields from the other legs
         Eval subqueryEval = as(subqueryProject.child(), Eval.class);
@@ -4890,15 +4992,14 @@ public class AnalyzerTests extends ESTestCase {
         EsRelation subqueryIndex = as(subqueryEval.child(), EsRelation.class);
         assertEquals("test", subqueryIndex.indexPattern());
 
-        subqueryLimit = as(unionAll.children().get(1), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        subqueryProject = as(unionAll.children().get(1), Project.class);
         projections = subqueryProject.projections();
         assertEquals(15, projections.size()); // all fields from the other legs
         subqueryEval = as(subqueryProject.child(), Eval.class);
         aliases = subqueryEval.fields(); // nullEvals from the other legs
         assertEquals(13, aliases.size());
         Subquery subquery = as(subqueryEval.child(), Subquery.class);
-        rename = as(subquery.child(), EsqlProject.class);
+        rename = as(subquery.child(), Project.class);
         List<? extends NamedExpression> renameProjections = rename.projections();
         assertEquals(2, renameProjections.size());
         FieldAttribute language_code = as(renameProjections.get(0), FieldAttribute.class);
@@ -4916,8 +5017,7 @@ public class AnalyzerTests extends ESTestCase {
         subqueryIndex = as(subqueryFilter.child(), EsRelation.class);
         assertEquals("languages", subqueryIndex.indexPattern());
 
-        subqueryLimit = as(unionAll.children().get(2), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        subqueryProject = as(unionAll.children().get(2), Project.class);
         projections = subqueryProject.projections();
         assertEquals(15, projections.size()); // all fields from the other legs
         subqueryEval = as(subqueryProject.child(), Eval.class);
@@ -4928,8 +5028,7 @@ public class AnalyzerTests extends ESTestCase {
         subqueryIndex = as(subqueryAggregate.child(), EsRelation.class);
         assertEquals("sample_data", subqueryIndex.indexPattern());
 
-        subqueryLimit = as(unionAll.children().get(3), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        subqueryProject = as(unionAll.children().get(3), Project.class);
         projections = subqueryProject.projections();
         assertEquals(15, projections.size()); // all fields from the other legs
         subqueryEval = as(subqueryProject.child(), Eval.class);
@@ -4962,7 +5061,7 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("languageCode", mvExpandTarget.name());
         ReferenceAttribute mvExpandExpanded = as(mvExpand.expanded(), ReferenceAttribute.class);
         assertEquals("languageCode", mvExpandExpanded.name());
-        EsqlProject rename = as(mvExpand.child(), EsqlProject.class);
+        Project rename = as(mvExpand.child(), Project.class);
         List<? extends NamedExpression> projections = rename.projections();
         assertEquals(3, projections.size());
         Alias a = as(projections.get(1), Alias.class);
@@ -4993,8 +5092,7 @@ public class AnalyzerTests extends ESTestCase {
         UnionAll unionAll = as(filter.child(), UnionAll.class);
         assertEquals(3, unionAll.children().size());
 
-        Limit subqueryLimit = as(unionAll.children().get(0), Limit.class);
-        EsqlProject subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
         projections = subqueryProject.projections();
         assertEquals(15, projections.size()); // all fields from the other legs
         Eval subqueryEval = as(subqueryProject.child(), Eval.class);
@@ -5008,15 +5106,14 @@ public class AnalyzerTests extends ESTestCase {
         subqueryIndex = as(subqueryEval.child(), EsRelation.class);
         assertEquals("test", subqueryIndex.indexPattern());
 
-        subqueryLimit = as(unionAll.children().get(1), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        subqueryProject = as(unionAll.children().get(1), Project.class);
         projections = subqueryProject.projections();
         assertEquals(15, projections.size()); // all fields from the other legs
         subqueryEval = as(subqueryProject.child(), Eval.class);
         aliases = subqueryEval.fields(); // nullEvals from the other legs
         assertEquals(13, aliases.size());
         subquery = as(subqueryEval.child(), Subquery.class);
-        rename = as(subquery.child(), EsqlProject.class);
+        rename = as(subquery.child(), Project.class);
         List<? extends NamedExpression> renameProjections = rename.projections();
         assertEquals(2, renameProjections.size());
         FieldAttribute language_code = as(renameProjections.get(0), FieldAttribute.class);
@@ -5034,8 +5131,7 @@ public class AnalyzerTests extends ESTestCase {
         subqueryIndex = as(subqueryFilter.child(), EsRelation.class);
         assertEquals("languages", subqueryIndex.indexPattern());
 
-        subqueryLimit = as(unionAll.children().get(2), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        subqueryProject = as(unionAll.children().get(2), Project.class);
         projections = subqueryProject.projections();
         assertEquals(15, projections.size()); // all fields from the other legs
         subqueryEval = as(subqueryProject.child(), Eval.class);
@@ -5062,27 +5158,24 @@ public class AnalyzerTests extends ESTestCase {
         UnionAll unionAll = as(filter.child(), UnionAll.class);
         assertEquals(2, unionAll.children().size());
 
-        Limit subqueryLimit = as(unionAll.children().get(0), Limit.class);
-        EsqlProject subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
         Eval subqueryEval = as(subqueryProject.child(), Eval.class);
         EsRelation subqueryIndex = as(subqueryEval.child(), EsRelation.class);
         assertEquals("test", subqueryIndex.indexPattern());
-        subqueryLimit = as(unionAll.children().get(1), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+
+        subqueryProject = as(unionAll.children().get(1), Project.class);
         subqueryEval = as(subqueryProject.child(), Eval.class);
         Subquery subquery = as(subqueryEval.child(), Subquery.class);
         Filter subqueryFilter = as(subquery.child(), Filter.class);
         unionAll = as(subqueryFilter.child(), UnionAll.class);
         assertEquals(2, unionAll.children().size());
 
-        subqueryLimit = as(unionAll.children().get(0), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        subqueryProject = as(unionAll.children().get(0), Project.class);
         subqueryEval = as(subqueryProject.child(), Eval.class);
         subqueryIndex = as(subqueryEval.child(), EsRelation.class);
         assertEquals("languages", subqueryIndex.indexPattern());
 
-        subqueryLimit = as(unionAll.children().get(1), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        subqueryProject = as(unionAll.children().get(1), Project.class);
         subqueryEval = as(subqueryProject.child(), Eval.class);
         subquery = as(subqueryEval.child(), Subquery.class);
         Aggregate subqueryAggregate = as(subquery.child(), Aggregate.class);
@@ -5104,8 +5197,7 @@ public class AnalyzerTests extends ESTestCase {
         UnionAll unionAll = as(filter.child(), UnionAll.class);
         assertEquals(2, unionAll.children().size());
 
-        Limit subqueryLimit = as(unionAll.children().get(0), Limit.class);
-        EsqlProject subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
         Eval subqueryEval = as(subqueryProject.child(), Eval.class);
         EsRelation subqueryIndex = as(subqueryEval.child(), EsRelation.class);
         assertEquals("test", subqueryIndex.indexPattern());
@@ -5114,24 +5206,21 @@ public class AnalyzerTests extends ESTestCase {
         MetadataAttribute metadataAttribute = as(output.get(11), MetadataAttribute.class);
         assertEquals("_index", metadataAttribute.name());
 
-        subqueryLimit = as(unionAll.children().get(1), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        subqueryProject = as(unionAll.children().get(1), Project.class);
         subqueryEval = as(subqueryProject.child(), Eval.class);
         Subquery subquery = as(subqueryEval.child(), Subquery.class);
         Filter subqueryFilter = as(subquery.child(), Filter.class);
         unionAll = as(subqueryFilter.child(), UnionAll.class);
         assertEquals(2, unionAll.children().size());
 
-        subqueryLimit = as(unionAll.children().get(0), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        subqueryProject = as(unionAll.children().get(0), Project.class);
         subqueryEval = as(subqueryProject.child(), Eval.class);
         subqueryIndex = as(subqueryEval.child(), EsRelation.class);
         assertEquals("languages", subqueryIndex.indexPattern());
         output = subqueryIndex.output();
         assertEquals(2, output.size());
 
-        subqueryLimit = as(unionAll.children().get(1), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        subqueryProject = as(unionAll.children().get(1), Project.class);
         subqueryEval = as(subqueryProject.child(), Eval.class);
         subquery = as(subqueryEval.child(), Subquery.class);
         Aggregate subqueryAggregate = as(subquery.child(), Aggregate.class);
@@ -5168,14 +5257,12 @@ public class AnalyzerTests extends ESTestCase {
         UnionAll unionAll = as(filter.child(), UnionAll.class);
         assertEquals(2, unionAll.children().size());
 
-        Limit subqueryLimit = as(unionAll.children().get(0), Limit.class);
-        EsqlProject subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
         Eval subqueryEval = as(subqueryProject.child(), Eval.class);
         EsRelation subqueryIndex = as(subqueryEval.child(), EsRelation.class);
         assertEquals("test", subqueryIndex.indexPattern());
 
-        subqueryLimit = as(unionAll.children().get(1), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        subqueryProject = as(unionAll.children().get(1), Project.class);
         subqueryEval = as(subqueryProject.child(), Eval.class);
         Subquery subquery = as(subqueryEval.child(), Subquery.class);
         Aggregate subqueryAggregate = as(subquery.child(), Aggregate.class);
@@ -5215,8 +5302,7 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(26, output.size());
         assertEquals(2, unionAll.children().size());
 
-        Limit subqueryLimit = as(unionAll.children().get(0), Limit.class);
-        EsqlProject subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
         Eval implicitCastingEval = as(subqueryProject.child(), Eval.class);
         assertEquals(10, implicitCastingEval.fields().size());
         Eval explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
@@ -5226,8 +5312,7 @@ public class AnalyzerTests extends ESTestCase {
         EsRelation subqueryIndex = as(missingFieldEval.child(), EsRelation.class);
         assertEquals("test", subqueryIndex.indexPattern());
 
-        subqueryLimit = as(unionAll.children().get(1), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        subqueryProject = as(unionAll.children().get(1), Project.class);
         implicitCastingEval = as(subqueryProject.child(), Eval.class);
         assertEquals(9, implicitCastingEval.fields().size());
         explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
@@ -5286,8 +5371,7 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(28, output.size());
         assertEquals(2, unionAll.children().size());
 
-        Limit subqueryLimit = as(unionAll.children().get(0), Limit.class);
-        EsqlProject subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
         Eval implicitCastingEval = as(subqueryProject.child(), Eval.class);
         assertEquals(10, implicitCastingEval.fields().size());
         Eval explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
@@ -5297,8 +5381,7 @@ public class AnalyzerTests extends ESTestCase {
         EsRelation subqueryIndex = as(missingFieldEval.child(), EsRelation.class);
         assertEquals("test", subqueryIndex.indexPattern());
 
-        subqueryLimit = as(unionAll.children().get(1), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        subqueryProject = as(unionAll.children().get(1), Project.class);
         implicitCastingEval = as(subqueryProject.child(), Eval.class);
         assertEquals(9, implicitCastingEval.fields().size());
         explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
@@ -5369,8 +5452,7 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(31, output.size());
         assertEquals(2, unionAll.children().size());
 
-        Limit subqueryLimit = as(unionAll.children().get(0), Limit.class);
-        EsqlProject subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
         Eval implicitCastingEval = as(subqueryProject.child(), Eval.class);
         assertEquals(10, implicitCastingEval.fields().size());
         Eval explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
@@ -5380,8 +5462,7 @@ public class AnalyzerTests extends ESTestCase {
         EsRelation subqueryIndex = as(missingFieldEval.child(), EsRelation.class);
         assertEquals("test", subqueryIndex.indexPattern());
 
-        subqueryLimit = as(unionAll.children().get(1), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        subqueryProject = as(unionAll.children().get(1), Project.class);
         implicitCastingEval = as(subqueryProject.child(), Eval.class);
         assertEquals(9, implicitCastingEval.fields().size());
         explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
@@ -5433,16 +5514,14 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(25, output.size());
         assertEquals(2, unionAll.children().size());
 
-        Limit subqueryLimit = as(unionAll.children().get(0), Limit.class);
-        EsqlProject subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
         Eval implicitCastingEval = as(subqueryProject.child(), Eval.class);
         Eval explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
         Eval missingFieldEval = as(explicitCastingEval.child(), Eval.class);
         EsRelation subqueryIndex = as(missingFieldEval.child(), EsRelation.class);
         assertEquals("test", subqueryIndex.indexPattern());
 
-        subqueryLimit = as(unionAll.children().get(1), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        subqueryProject = as(unionAll.children().get(1), Project.class);
         implicitCastingEval = as(subqueryProject.child(), Eval.class);
         explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
         missingFieldEval = as(explicitCastingEval.child(), Eval.class);
@@ -5472,25 +5551,22 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(24, output.size());
         assertEquals(3, unionAll.children().size());
 
-        limit = as(unionAll.children().get(0), Limit.class);
-        EsqlProject esqlProject = as(limit.child(), EsqlProject.class);
-        Eval eval = as(esqlProject.child(), Eval.class);
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
+        Eval eval = as(subqueryProject.child(), Eval.class);
         eval = as(eval.child(), Eval.class);
         EsRelation relation = as(eval.child(), EsRelation.class);
         assertEquals("k8s", relation.indexPattern());
         assertEquals(IndexMode.STANDARD, relation.indexMode());
 
-        limit = as(unionAll.children().get(1), Limit.class);
-        esqlProject = as(limit.child(), EsqlProject.class);
-        eval = as(esqlProject.child(), Eval.class);
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        eval = as(subqueryProject.child(), Eval.class);
         Subquery subquery = as(eval.child(), Subquery.class);
         relation = as(subquery.child(), EsRelation.class);
         assertEquals("sample_data", relation.indexPattern());
         assertEquals(IndexMode.STANDARD, relation.indexMode());
 
-        limit = as(unionAll.children().get(2), Limit.class);
-        esqlProject = as(limit.child(), EsqlProject.class);
-        eval = as(esqlProject.child(), Eval.class);
+        subqueryProject = as(unionAll.children().get(2), Project.class);
+        eval = as(subqueryProject.child(), Eval.class);
         subquery = as(eval.child(), Subquery.class);
         filter = as(subquery.child(), Filter.class);
         relation = as(filter.child(), EsRelation.class);
@@ -5514,16 +5590,14 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(26, output.size());
         assertEquals(3, unionAll.children().size());
 
-        limit = as(unionAll.children().get(0), Limit.class);
-        EsqlProject esqlProject = as(limit.child(), EsqlProject.class);
-        Eval eval = as(esqlProject.child(), Eval.class);
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
+        Eval eval = as(subqueryProject.child(), Eval.class);
         EsRelation relation = as(eval.child(), EsRelation.class);
         assertEquals("sample_data", relation.indexPattern());
         assertEquals(IndexMode.STANDARD, relation.indexMode());
 
-        limit = as(unionAll.children().get(1), Limit.class);
-        esqlProject = as(limit.child(), EsqlProject.class);
-        eval = as(esqlProject.child(), Eval.class);
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        eval = as(subqueryProject.child(), Eval.class);
         eval = as(eval.child(), Eval.class);
         Subquery subquery = as(eval.child(), Subquery.class);
         InlineStats inlineStats = as(subquery.child(), InlineStats.class);
@@ -5533,9 +5607,8 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("k8s", relation.indexPattern());
         assertEquals(IndexMode.STANDARD, relation.indexMode());
 
-        limit = as(unionAll.children().get(2), Limit.class);
-        esqlProject = as(limit.child(), EsqlProject.class);
-        eval = as(esqlProject.child(), Eval.class);
+        subqueryProject = as(unionAll.children().get(2), Project.class);
+        eval = as(subqueryProject.child(), Eval.class);
         subquery = as(eval.child(), Subquery.class);
         filter = as(subquery.child(), Filter.class);
         relation = as(filter.child(), EsRelation.class);
@@ -5559,17 +5632,15 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(26, output.size());
         assertEquals(3, unionAll.children().size());
 
-        limit = as(unionAll.children().get(0), Limit.class);
-        EsqlProject esqlProject = as(limit.child(), EsqlProject.class);
-        Eval eval = as(esqlProject.child(), Eval.class);
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
+        Eval eval = as(subqueryProject.child(), Eval.class);
         eval = as(eval.child(), Eval.class);
         EsRelation relation = as(eval.child(), EsRelation.class);
         assertEquals("k8s", relation.indexPattern());
         assertEquals(IndexMode.STANDARD, relation.indexMode());
 
-        limit = as(unionAll.children().get(1), Limit.class);
-        esqlProject = as(limit.child(), EsqlProject.class);
-        eval = as(esqlProject.child(), Eval.class);
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        eval = as(subqueryProject.child(), Eval.class);
         eval = as(eval.child(), Eval.class);
         Subquery subquery = as(eval.child(), Subquery.class);
         InlineStats inlineStats = as(subquery.child(), InlineStats.class);
@@ -5579,9 +5650,8 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("k8s", relation.indexPattern());
         assertEquals(IndexMode.STANDARD, relation.indexMode());
 
-        limit = as(unionAll.children().get(2), Limit.class);
-        esqlProject = as(limit.child(), EsqlProject.class);
-        eval = as(esqlProject.child(), Eval.class);
+        subqueryProject = as(unionAll.children().get(2), Project.class);
+        eval = as(subqueryProject.child(), Eval.class);
         subquery = as(eval.child(), Subquery.class);
         filter = as(subquery.child(), Filter.class);
         relation = as(filter.child(), EsRelation.class);
@@ -5609,13 +5679,11 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(4, output.size());
         assertEquals(2, unionAll.children().size());
 
-        Limit subqueryLimit = as(unionAll.children().get(0), Limit.class);
-        EsqlProject subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
         EsRelation subqueryIndex = as(subqueryProject.child(), EsRelation.class);
         assertEquals("sample_data", subqueryIndex.indexPattern());
 
-        subqueryLimit = as(unionAll.children().get(1), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        subqueryProject = as(unionAll.children().get(1), Project.class);
         Subquery subquery = as(subqueryProject.child(), Subquery.class);
         Filter subqueryFilter = as(subquery.child(), Filter.class);
         MatchOperator matchOperator = as(subqueryFilter.condition(), MatchOperator.class);
@@ -5629,6 +5697,11 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testPruneEmptySubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue(
+            "Requires subquery in FROM command support",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
+        );
+
         LogicalPlan plan = analyze("""
             FROM test, (FROM remote:missingIndex | WHERE message:"error"), (FROM sample_data)
             | WHERE match(client_ip,"127.0.0.1")
@@ -5644,17 +5717,145 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(15, output.size());
         // the subquery with remote:missingIndex is pruned, validate PruneEmptyUnionAllBranch
         assertEquals(2, unionAll.children().size());
-        Limit subqueryLimit = as(unionAll.children().get(0), Limit.class);
-        EsqlProject subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
         Eval subqueryEval = as(subqueryProject.child(), Eval.class);
         EsRelation subqueryIndex = as(subqueryEval.child(), EsRelation.class);
         assertEquals("test", subqueryIndex.indexPattern());
-        subqueryLimit = as(unionAll.children().get(1), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+
+        subqueryProject = as(unionAll.children().get(1), Project.class);
         subqueryEval = as(subqueryProject.child(), Eval.class);
         Subquery subquery = as(subqueryEval.child(), Subquery.class);
         subqueryIndex = as(subquery.child(), EsRelation.class);
         assertEquals("sample_data", subqueryIndex.indexPattern());
+    }
+
+    // no_fields_index has empty mapping, however there is entry in indexNameWithModes,originalIndices and concreteIndices
+    public void testSubqueryInFromWithNoFieldsIndices() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue(
+            "Requires subquery in FROM command support",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
+        );
+
+        LogicalPlan plan = analyze("""
+            FROM
+                no_fields_index,
+                (FROM no_fields_index),
+                (FROM no_fields_index)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        List<Attribute> output = unionAll.output();
+        assertEquals(0, output.size());
+        assertEquals(3, unionAll.children().size());
+
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
+        List<Attribute> projectOutput = subqueryProject.output();
+        assertEquals(NO_FIELDS, projectOutput);
+        EsRelation subqueryIndex = as(subqueryProject.child(), EsRelation.class);
+        assertEquals("no_fields_index", subqueryIndex.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        projectOutput = subqueryProject.output();
+        assertEquals(NO_FIELDS, projectOutput);
+        Subquery subquery = as(subqueryProject.child(), Subquery.class);
+        subqueryIndex = as(subquery.child(), EsRelation.class);
+        assertEquals("no_fields_index", subqueryIndex.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(2), Project.class);
+        projectOutput = subqueryProject.output();
+        assertEquals(NO_FIELDS, projectOutput);
+        subquery = as(subqueryProject.child(), Subquery.class);
+        subqueryIndex = as(subquery.child(), EsRelation.class);
+        assertEquals("no_fields_index", subqueryIndex.indexPattern());
+    }
+
+    // empty_index has empty mapping,indexNameWithModes,originalIndices and concreteIndices
+    public void testSubqueryInFromWithEmptyIndex() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue(
+            "Requires subquery in FROM command support",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
+        );
+
+        LogicalPlan plan = analyze("""
+            FROM
+                empty_index,
+                (FROM empty_index),
+                (FROM empty_index)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        List<Attribute> output = unionAll.output();
+        assertEquals(0, output.size());
+        assertEquals(3, unionAll.children().size());
+
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
+        List<Attribute> projectOutput = subqueryProject.output();
+        assertEquals(NO_FIELDS, projectOutput);
+        EsRelation subqueryIndex = as(subqueryProject.child(), EsRelation.class);
+        assertEquals("empty_index", subqueryIndex.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        projectOutput = subqueryProject.output();
+        assertEquals(NO_FIELDS, projectOutput);
+        Subquery subquery = as(subqueryProject.child(), Subquery.class);
+        subqueryIndex = as(subquery.child(), EsRelation.class);
+        assertEquals("empty_index", subqueryIndex.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(2), Project.class);
+        projectOutput = subqueryProject.output();
+        assertEquals(NO_FIELDS, projectOutput);
+        subquery = as(subqueryProject.child(), Subquery.class);
+        subqueryIndex = as(subquery.child(), EsRelation.class);
+        assertEquals("empty_index", subqueryIndex.indexPattern());
+    }
+
+    // no_fields_index has empty mapping, however there is entry in indexNameWithModes,originalIndices and concreteIndices
+    // empty_index has empty mapping,indexNameWithModes,originalIndices and concreteIndices
+    public void testSubqueryInFromWithNoFieldsAndEmptyIndex() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue(
+            "Requires subquery in FROM command support",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
+        );
+
+        LogicalPlan plan = analyze("""
+            FROM
+                (FROM no_fields_index),
+                (FROM no_fields_index),
+                (FROM empty_index)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        List<Attribute> output = unionAll.output();
+        assertEquals(0, output.size());
+        assertEquals(3, unionAll.children().size());
+
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
+        List<Attribute> projectOutput = subqueryProject.output();
+        assertEquals(NO_FIELDS, projectOutput);
+        Subquery subquery = as(subqueryProject.child(), Subquery.class);
+        EsRelation subqueryIndex = as(subquery.child(), EsRelation.class);
+        assertEquals("no_fields_index", subqueryIndex.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        projectOutput = subqueryProject.output();
+        assertEquals(NO_FIELDS, projectOutput);
+        subquery = as(subqueryProject.child(), Subquery.class);
+        subqueryIndex = as(subquery.child(), EsRelation.class);
+        assertEquals("no_fields_index", subqueryIndex.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(2), Project.class);
+        projectOutput = subqueryProject.output();
+        assertEquals(NO_FIELDS, projectOutput);
+        subquery = as(subqueryProject.child(), Subquery.class);
+        subqueryIndex = as(subquery.child(), EsRelation.class);
+        assertEquals("empty_index", subqueryIndex.indexPattern());
     }
 
     public void testLookupJoinOnFieldNotAnywhereElse() {
@@ -5673,7 +5874,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(limit.limit(), instanceOf(Literal.class));
         assertEquals(1000, as(limit.limit(), Literal.class).value());
 
-        EsqlProject project = as(limit.child(), EsqlProject.class);
+        Project project = as(limit.child(), Project.class);
         assertEquals(1, project.projections().size());
 
         LookupJoin lookupJoin = as(project.child(), LookupJoin.class);
@@ -5750,6 +5951,132 @@ public class AnalyzerTests extends ESTestCase {
             RLikePatternList patternlist = as(rlikelist.pattern(), RLikePatternList.class);
             assertEquals("(\"Anna*\", \"Chris*\")", patternlist.pattern());
         }
+    }
+
+    public void testConfigurationAwareResolved() {
+        var query = """
+            from test
+            | eval a = hire_date + 1d, b = hire_date - 1d
+            """;
+        Configuration configuration = configuration(query);
+        var analyzer = analyzer(
+            Map.of(new IndexPattern(Source.EMPTY, "test"), loadMapping("mapping-basic.json", "test")),
+            TEST_VERIFIER,
+            configuration
+        );
+        var plan = analyze(query, analyzer);
+
+        var limit = as(plan, Limit.class);
+        var eval = as(limit.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), is(List.of("a", "b")));
+        var add = as(Alias.unwrap(eval.fields().get(0)), Add.class);
+        var sub = as(Alias.unwrap(eval.fields().get(1)), Sub.class);
+        assertThat(add.configuration(), is(configuration));
+        assertThat(sub.configuration(), is(configuration));
+    }
+
+    public void testConfigurationAwareCastsResolved() {
+        var query = """
+            from test
+            | eval string = hire_date::string, date = first_name::date, nanos = first_name::date_nanos
+            """;
+        Configuration configuration = configuration(query);
+        var analyzer = analyzer(
+            Map.of(new IndexPattern(Source.EMPTY, "test"), loadMapping("mapping-basic.json", "test")),
+            TEST_VERIFIER,
+            configuration
+        );
+        var plan = analyze(query, analyzer);
+
+        var limit = as(plan, Limit.class);
+        var eval = as(limit.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), is(List.of("string", "date", "nanos")));
+        var stringCast = as(Alias.unwrap(eval.fields().get(0)), ToString.class);
+        var dateCast = as(Alias.unwrap(eval.fields().get(1)), ToDatetime.class);
+        var nanosCast = as(Alias.unwrap(eval.fields().get(2)), ToDateNanos.class);
+        assertThat(stringCast.configuration(), is(configuration));
+        assertThat(dateCast.configuration(), is(configuration));
+        assertThat(nanosCast.configuration(), is(configuration));
+    }
+
+    public void testMetadataWildcards() {
+        var query = """
+            from test METADATA _inde*
+            """;
+        Configuration configuration = configuration(query);
+        var analyzer = analyzer(
+            Map.of(new IndexPattern(Source.EMPTY, "test"), loadMapping("mapping-basic.json", "test")),
+            TEST_VERIFIER,
+            configuration
+        );
+        var plan = analyze(query, analyzer);
+        var limit = as(plan, Limit.class);
+        var relation = as(limit.child(), EsRelation.class);
+        var output = relation.output();
+        var metadata = output.stream().filter(MetadataAttribute.class::isInstance).toList();
+        assertEquals(2, metadata.size());
+        verifyNameAndType(metadata.get(0).name(), metadata.get(0).dataType(), "_index", DataType.KEYWORD);
+        verifyNameAndType(metadata.get(1).name(), metadata.get(1).dataType(), "_index_mode", DataType.KEYWORD);
+    }
+
+    public void testMetadataWildcardsWithRepetitions() {
+        var query = """
+            from test METADATA  _index, _inde*
+            """;
+        Configuration configuration = configuration(query);
+        var analyzer = analyzer(
+            Map.of(new IndexPattern(Source.EMPTY, "test"), loadMapping("mapping-basic.json", "test")),
+            TEST_VERIFIER,
+            configuration
+        );
+        var plan = analyze(query, analyzer);
+        var limit = as(plan, Limit.class);
+        var relation = as(limit.child(), EsRelation.class);
+        var output = relation.output();
+        var metadata = output.stream().filter(MetadataAttribute.class::isInstance).toList();
+        assertEquals(2, metadata.size());
+        verifyNameAndType(metadata.get(0).name(), metadata.get(0).dataType(), "_index", DataType.KEYWORD);
+        verifyNameAndType(metadata.get(1).name(), metadata.get(1).dataType(), "_index_mode", DataType.KEYWORD);
+    }
+
+    public void testMetadataWildcardsWithRepetitionsWildcardFirst() {
+        var query = """
+            from test METADATA  _inde*, _index
+            """;
+        Configuration configuration = configuration(query);
+        var analyzer = analyzer(
+            Map.of(new IndexPattern(Source.EMPTY, "test"), loadMapping("mapping-basic.json", "test")),
+            TEST_VERIFIER,
+            configuration
+        );
+        var plan = analyze(query, analyzer);
+        var limit = as(plan, Limit.class);
+        var relation = as(limit.child(), EsRelation.class);
+        var output = relation.output();
+        var metadata = output.stream().filter(MetadataAttribute.class::isInstance).toList();
+        assertEquals(2, metadata.size());
+        verifyNameAndType(metadata.get(0).name(), metadata.get(0).dataType(), "_index_mode", DataType.KEYWORD);
+        verifyNameAndType(metadata.get(1).name(), metadata.get(1).dataType(), "_index", DataType.KEYWORD);
+    }
+
+    public void testMetadataLeadingAndTrailingWildcards() {
+        var query = """
+            from test METADATA *nde*
+            """;
+        Configuration configuration = configuration(query);
+        var analyzer = analyzer(
+            Map.of(new IndexPattern(Source.EMPTY, "test"), loadMapping("mapping-basic.json", "test")),
+            TEST_VERIFIER,
+            configuration
+        );
+        var plan = analyze(query, analyzer);
+        var limit = as(plan, Limit.class);
+        var relation = as(limit.child(), EsRelation.class);
+        var output = relation.output();
+        var metadata = output.stream().filter(MetadataAttribute.class::isInstance).toList();
+        assertEquals(2, metadata.size());
+        verifyNameAndType(metadata.get(0).name(), metadata.get(0).dataType(), "_index", DataType.KEYWORD);
+        verifyNameAndType(metadata.get(1).name(), metadata.get(1).dataType(), "_index_mode", DataType.KEYWORD);
     }
 
     private void verifyNameAndTypeAndMultiTypeEsField(

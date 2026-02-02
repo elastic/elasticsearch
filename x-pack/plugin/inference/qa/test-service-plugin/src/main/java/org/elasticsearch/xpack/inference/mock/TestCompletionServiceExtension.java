@@ -42,6 +42,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 public class TestCompletionServiceExtension implements InferenceServiceExtension {
     @Override
@@ -106,6 +107,10 @@ public class TestCompletionServiceExtension implements InferenceServiceExtension
             TimeValue timeout,
             ActionListener<InferenceServiceResults> listener
         ) {
+            if (Objects.equals(((TestTaskSettings) model.getTaskSettings()).shouldFailValidation(), Boolean.TRUE)) {
+                listener.onFailure(new RuntimeException("validation call intentionally failed based on task settings"));
+                return;
+            }
             switch (model.getConfigurations().getTaskType()) {
                 case COMPLETION -> listener.onResponse(makeChatCompletionResults(input));
                 default -> listener.onFailure(

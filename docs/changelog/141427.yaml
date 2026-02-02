@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 136956
+pr: 141427
+summary: Add mapper-size plugin's `_size` metadata attribute
+type: enhancement

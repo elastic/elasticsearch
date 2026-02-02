@@ -205,7 +205,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
      * @param serviceName
      * @return a new object representing the updated model
      */
-    private Model combineExistingModelWithNewSettings(
+    protected Model combineExistingModelWithNewSettings(
         Model existingParsedModel,
         UpdateInferenceModelAction.Settings settingsToUpdate,
         String serviceName,

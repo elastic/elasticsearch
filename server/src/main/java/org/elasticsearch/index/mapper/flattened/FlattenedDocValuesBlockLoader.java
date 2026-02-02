@@ -92,8 +92,8 @@ public class FlattenedDocValuesBlockLoader implements BlockLoader {
             public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
                 try (BlockLoader.BytesRefBuilder builder = factory.bytesRefs(docs.count() - offset)) {
                     for (int i = offset; i < docs.count(); i++) {
-                        int doc = docs.get(i);
-                        read(doc, builder);
+                        int docId = docs.get(i);
+                        read(docId, builder);
                     }
                     return builder.build();
                 }

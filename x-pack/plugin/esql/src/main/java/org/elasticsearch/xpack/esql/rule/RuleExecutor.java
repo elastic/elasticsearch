@@ -12,6 +12,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 
+import java.util.Objects;
 import java.util.function.Function;
 
 public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
@@ -96,37 +97,6 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
 
     protected abstract Iterable<RuleExecutor.Batch<TreeType>> batches();
 
-    public class Transformation {
-        private final TreeType before, after;
-        private final String name;
-        private Boolean lazyHasChanged;
-
-        Transformation(String name, TreeType plan, Function<TreeType, TreeType> transform) {
-            this.name = name;
-            this.before = plan;
-            this.after = transform.apply(before);
-        }
-
-        public boolean hasChanged() {
-            if (lazyHasChanged == null) {
-                lazyHasChanged = before.equals(after) == false;
-            }
-            return lazyHasChanged;
-        }
-
-        public String name() {
-            return name;
-        }
-
-        public TreeType before() {
-            return before;
-        }
-
-        public TreeType after() {
-            return after;
-        }
-    }
-
     public class ExecutionInfo {
 
         private final TreeType before, after;
@@ -175,13 +145,15 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
                     if (log.isTraceEnabled()) {
                         log.trace("About to apply rule {}", rule);
                     }
-                    Transformation tf = new Transformation(rule.name(), currentPlan, transform(rule));
-                    currentPlan = tf.after;
 
-                    if (tf.hasChanged()) {
+                    TreeType beforeRule = currentPlan;
+                    TreeType afterRule = transform(rule).apply(currentPlan);
+                    currentPlan = afterRule;
+
+                    if (Objects.equals(beforeRule, afterRule) == false) {
                         hasChanged = true;
                         if (changeLog.isTraceEnabled()) {
-                            changeLog.trace("Rule {} applied with change\n{}", rule, NodeUtils.diffString(tf.before, tf.after));
+                            changeLog.trace("Rule {} applied with change\n{}", rule, NodeUtils.diffString(beforeRule, afterRule));
                         }
                     } else {
                         if (log.isTraceEnabled()) {

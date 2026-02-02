@@ -21,12 +21,14 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Locale;
+import java.util.Map;
 import java.util.StringJoiner;
 
 public class TSDBSyntheticIdUpgradeIT extends AbstractRollingUpgradeTestCase {
@@ -89,7 +91,17 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractRollingUpgradeTestCase {
 
     private static void assertIndexRead(String indexName) throws IOException {
         assertTrue("Expected index [" + indexName + "] to exist, but did not", indexExists(indexName));
+        Map<String, Object> indexSettingsAsMap = getIndexSettingsAsMap(indexName);
+        assertThat(indexSettingsAsMap.get(IndexSettings.USE_SYNTHETIC_ID.getKey()), Matchers.equalTo("true"));
         assertDocCount(client(), indexName, DOC_COUNT);
+        assertThat(invertedIndexSize(indexName), Matchers.equalTo(0));
+    }
+
+    private static int invertedIndexSize(String indexName) throws IOException {
+        var diskUsage = new Request("POST", "/" + indexName + "/_disk_usage?run_expensive_tasks=true");
+        Response response = client().performRequest(diskUsage);
+        ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        return objectPath.evaluate(indexName + ".all_fields.inverted_index.total_in_bytes");
     }
 
     private static void assertIndexCanBeCreated(String indexName) throws IOException {

@@ -326,7 +326,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                             sourceSizeInBytes,
                             sourcePageScratch,
                             targetPageScratch,
-                            firstBloomFilter.get() && i == 0
+                            firstBloomFilter.get()
                         );
                     }
                 }

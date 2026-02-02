@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.denseembeddings;
 
+import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
@@ -28,6 +29,8 @@ import java.util.Map;
 
 public class ElasticInferenceServiceDenseEmbeddingsModel extends ElasticInferenceServiceModel {
 
+    public static final String TEXT_EMBEDDING_PATH = "/api/v1/embed/text/dense";
+    public static final String MULTIMODAL_EMBEDDING_PATH = "/api/v1/embed/dense";
     private final URI uri;
 
     public ElasticInferenceServiceDenseEmbeddingsModel(
@@ -105,9 +108,11 @@ public class ElasticInferenceServiceDenseEmbeddingsModel extends ElasticInferenc
         try {
             // TODO, consider transforming the base URL into a URI for better error handling.
             if (getConfigurations().getTaskType().equals(TaskType.TEXT_EMBEDDING)) {
-                return new URI(elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/embed/text/dense");
+                return new URIBuilder(elasticInferenceServiceComponents().elasticInferenceServiceUrl()).setPath(TEXT_EMBEDDING_PATH)
+                    .build();
             } else {
-                return new URI(elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/embed/dense");
+                return new URIBuilder(elasticInferenceServiceComponents().elasticInferenceServiceUrl()).setPath(MULTIMODAL_EMBEDDING_PATH)
+                    .build();
             }
         } catch (URISyntaxException e) {
             throw new ElasticsearchStatusException(

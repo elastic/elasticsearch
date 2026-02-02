@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.inference.services.elastic;
 
 import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -37,6 +37,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -152,13 +153,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
 
     public void testParseRequestConfig_CreatesASparseEmbeddingsModel() throws IOException {
         try (var service = createServiceWithMockSender()) {
-            ActionListener<Model> modelListener = ActionListener.wrap(model -> {
-                assertThat(model, instanceOf(ElasticInferenceServiceSparseEmbeddingsModel.class));
-
-                var sparseEmbeddingsModel = (ElasticInferenceServiceSparseEmbeddingsModel) model;
-                assertThat(sparseEmbeddingsModel.getServiceSettings().modelId(), is(ElserModels.ELSER_V2_MODEL));
-
-            }, e -> fail("Model parsing should have succeeded, but failed: " + e.getMessage()));
+            var modelListener = new TestPlainActionFuture<Model>();
 
             service.parseRequestConfig(
                 INFERENCE_ENTITY_ID,
@@ -166,6 +161,12 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 getRequestConfigMap(Map.of(ServiceFields.MODEL_ID, ElserModels.ELSER_V2_MODEL), Map.of(), Map.of()),
                 modelListener
             );
+
+            var model = modelListener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+            assertThat(model, instanceOf(ElasticInferenceServiceSparseEmbeddingsModel.class));
+
+            var sparseEmbeddingsModel = (ElasticInferenceServiceSparseEmbeddingsModel) model;
+            assertThat(sparseEmbeddingsModel.getServiceSettings().modelId(), is(ElserModels.ELSER_V2_MODEL));
         }
     }
 
@@ -186,20 +187,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             var chunkingStrategy = "word";
             var maxChunkSize = 24;
             var overlap = maxChunkSize / 4;
-            ActionListener<Model> modelListener = ActionListener.wrap(model -> {
-                assertThat(model, instanceOf(ElasticInferenceServiceDenseEmbeddingsModel.class));
-                assertThat(model.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
-                assertThat(model.getSecretSettings(), is(EmptySecretSettings.INSTANCE));
-                assertThat(model.getConfigurations().getTaskType(), is(taskType));
-                assertThat(model.getConfigurations().getChunkingSettings(), is(new WordBoundaryChunkingSettings(maxChunkSize, overlap)));
-
-                var serviceSettings = ((ElasticInferenceServiceDenseEmbeddingsModel) model).getServiceSettings();
-                assertThat(serviceSettings.modelId(), is(modelId));
-                assertThat(serviceSettings.dimensions(), is(dimensions));
-                assertThat(serviceSettings.similarity(), is(SimilarityMeasure.fromString(similarity)));
-                assertThat(serviceSettings.maxInputTokens(), is(maxInputTokens));
-
-            }, e -> fail("Model parsing should have succeeded, but failed: " + e.getMessage()));
+            var modelListener = new TestPlainActionFuture<Model>();
 
             Map<String, Object> chunkingSettingsMap = new HashMap<>();
             chunkingSettingsMap.put(ChunkingSettingsOptions.STRATEGY.toString(), chunkingStrategy);
@@ -225,16 +213,26 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 ),
                 modelListener
             );
+
+            var model = modelListener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+
+            assertThat(model, instanceOf(ElasticInferenceServiceDenseEmbeddingsModel.class));
+            assertThat(model.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
+            assertThat(model.getSecretSettings(), is(EmptySecretSettings.INSTANCE));
+            assertThat(model.getConfigurations().getTaskType(), is(taskType));
+            assertThat(model.getConfigurations().getChunkingSettings(), is(new WordBoundaryChunkingSettings(maxChunkSize, overlap)));
+
+            var serviceSettings = ((ElasticInferenceServiceDenseEmbeddingsModel) model).getServiceSettings();
+            assertThat(serviceSettings.modelId(), is(modelId));
+            assertThat(serviceSettings.dimensions(), is(dimensions));
+            assertThat(serviceSettings.similarity(), is(SimilarityMeasure.fromString(similarity)));
+            assertThat(serviceSettings.maxInputTokens(), is(maxInputTokens));
         }
     }
 
     public void testParseRequestConfig_CreatesARerankModel() throws IOException {
         try (var service = createServiceWithMockSender()) {
-            ActionListener<Model> modelListener = ActionListener.wrap(model -> {
-                assertThat(model, instanceOf(ElasticInferenceServiceRerankModel.class));
-                ElasticInferenceServiceRerankModel rerankModel = (ElasticInferenceServiceRerankModel) model;
-                assertThat(rerankModel.getServiceSettings().modelId(), is("my-rerank-model-id"));
-            }, e -> fail("Model parsing should have succeeded, but failed: " + e.getMessage()));
+            var modelListener = new TestPlainActionFuture<Model>();
 
             service.parseRequestConfig(
                 INFERENCE_ENTITY_ID,
@@ -242,6 +240,12 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 getRequestConfigMap(Map.of(ServiceFields.MODEL_ID, "my-rerank-model-id"), Map.of(), Map.of()),
                 modelListener
             );
+
+            var model = modelListener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+
+            assertThat(model, instanceOf(ElasticInferenceServiceRerankModel.class));
+            ElasticInferenceServiceRerankModel rerankModel = (ElasticInferenceServiceRerankModel) model;
+            assertThat(rerankModel.getServiceSettings().modelId(), is("my-rerank-model-id"));
         }
     }
 

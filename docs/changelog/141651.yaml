@@ -1,0 +1,5 @@
+area: "ES|QL, ES|QL"
+issues: []
+pr: 141651
+summary: "[TEST] Fix discrepancy in docs & kibana generation"
+type: bug

@@ -86,6 +86,12 @@ class DfsQueryPhase extends SearchPhase {
         );
 
         List<DfsKnnResults> knnResults = mergeKnnResults(context.getRequest(), searchResults);
+        if (context.getRequest().source() != null) {
+            var source = context.getRequest().source();
+            if (source.knnSearch().size() == 1 && source.subSearches().isEmpty()) {
+                source.size(source.knnSearch().getFirst().k());
+            }
+        }
         for (final DfsSearchResult dfsResult : searchResults) {
             final SearchShardTarget shardTarget = dfsResult.getSearchShardTarget();
             final int shardIndex = dfsResult.getShardIndex();

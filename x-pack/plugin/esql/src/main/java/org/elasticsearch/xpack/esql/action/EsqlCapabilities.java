@@ -1481,12 +1481,6 @@ public class EsqlCapabilities {
         DECAY_FUNCTION,
 
         /**
-         * FIRST and LAST aggregate functions.
-         */
-        AGG_FIRST_LAST(Build.current().isSnapshot()),
-        AGG_FIRST_LAST_STRING(Build.current().isSnapshot()),
-
-        /**
          * Support correct counting of skipped shards.
          */
         CORRECT_SKIPPED_SHARDS_COUNT,
@@ -1841,12 +1835,12 @@ public class EsqlCapabilities {
         /**
          * Make FIRST agg work with null and multi-value fields.
          */
-        FIRST_AGG_WITH_NULL_AND_MV_SUPPORT(),
+        FIRST_AGG_WITH_NULL_AND_MV_SUPPORT,
 
         /**
          * Make LAST agg work with null and multi-value fields.
          */
-        LAST_AGG_WITH_NULL_AND_MV_SUPPORT(),
+        LAST_AGG_WITH_NULL_AND_MV_SUPPORT,
 
         /**
          * Allow ST_EXTENT_AGG to gracefully handle missing spatial shapes

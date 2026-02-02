@@ -9,81 +9,38 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.plugins.ClusterPlugin;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Before;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ClusterServiceUtils.addTemporaryStateListener;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.in;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class AllocateUnassignedIT extends ESIntegTestCase {
+public class AllocateUnassignedIT extends AbstractAllocationDecisionTestCase {
 
-    private static final Set<String> NOT_PREFERRED_NODES = Collections.newSetFromMap(new ConcurrentHashMap<>());
-    private static final Set<String> THROTTLE_NODES = Collections.newSetFromMap(new ConcurrentHashMap<>());
-    private static final Set<String> NO_NODES = Collections.newSetFromMap(new ConcurrentHashMap<>());
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), TestAllocationPlugin.class);
-    }
-
-    @Before
-    public void clearTestDeciderState() {
-        NOT_PREFERRED_NODES.clear();
-        THROTTLE_NODES.clear();
-        NO_NODES.clear();
-    }
-
-    public void testNewShardsAreAllocatedToPreferredNodesWhenPresent() {
+    public void testNewShardsAreAllocatedToYesNodesWhenPresent() {
         final var nodes = createNodes(randomIntBetween(1, 3), randomIntBetween(1, 3), 0, randomIntBetween(1, 3));
 
         createSingleShardAndAssertItIsAssignedToAppropriateNode(nodes.yesNodes());
     }
 
-    public void testNewShardsAreAllocatedToNotPreferredNodesWhenNoThrottleOrYesNodesArePresent() {
-        final var nodes = createNodes(randomIntBetween(1, 3), randomIntBetween(1, 3), 0, 0);
-
-        createSingleShardAndAssertItIsAssignedToAppropriateNode(nodes.notPreferredNodes());
-    }
-
     public void testNewShardsAreAllocatedToThrottleNodesWhenNoYesNodesArePresent() {
         final var nodes = createNodes(randomIntBetween(1, 3), randomIntBetween(1, 3), randomIntBetween(1, 3), 0);
-
         final var indexName = randomIdentifier();
 
-        ActionFuture<CreateIndexResponse> createIndexFuture = prepareCreate(indexName).setSettings(indexSettings(1, 0)).execute();
+        final var createIndexFuture = prepareCreate(indexName).setSettings(indexSettings(1, 0)).execute();
         ensureRed(indexName);
 
-        ClusterState state = internalCluster().clusterService().state();
-        IndexRoutingTable index = state.routingTable(ProjectId.DEFAULT).index(indexName);
+        final var state = internalCluster().clusterService().state();
+        final var index = state.routingTable(ProjectId.DEFAULT).index(indexName);
 
         // No shards should be assigned (because we're waiting for the throttled nodes)
         assertEquals(0, index.shard(0).assignedShards().size());
@@ -92,12 +49,18 @@ public class AllocateUnassignedIT extends ESIntegTestCase {
         final var firstAllocationListener = waitForFirstAllocation(indexName);
 
         // Un-throttle the nodes, re-route should see them allocated to one of the previously throttled nodes
-        THROTTLE_NODES.clear();
+        THROTTLED_NODES.clear();
         ClusterRerouteUtils.reroute(client());
 
         final var firstAllocatedNode = safeAwait(firstAllocationListener);
         assertThat(firstAllocatedNode.getName(), in(nodes.throttleNodes()));
         safeGet(createIndexFuture);
+    }
+
+    public void testNewShardsAreAllocatedToNotPreferredNodesWhenNoThrottleOrYesNodesArePresent() {
+        final var nodes = createNodes(randomIntBetween(1, 3), randomIntBetween(1, 3), 0, 0);
+
+        createSingleShardAndAssertItIsAssignedToAppropriateNode(nodes.notPreferredNodes());
     }
 
     public void testNewShardsAreNotAllocatedToNoNodes() {
@@ -148,67 +111,5 @@ public class AllocateUnassignedIT extends ESIntegTestCase {
             }
             return false;
         }).andThenApply(v -> firstAllocationNode.get());
-    }
-
-    private CreatedNodes createNodes(int noNodes, int notPreferredNodes, int throttleNodes, int yesNodes) {
-        final var noNodeNames = new HashSet<String>(noNodes);
-        final var notPreferredNodeNames = new HashSet<String>(notPreferredNodes);
-        final var throttleNodeNames = new HashSet<String>(throttleNodes);
-        final var yesNodeNames = new HashSet<String>(yesNodes);
-        final int totalNodes = notPreferredNodes + noNodes + throttleNodes + yesNodes;
-        final var allNodeNames = new HashSet<>(internalCluster().startNodes(totalNodes));
-        for (int i = 0; i < yesNodes; i++) {
-            final var yesNode = randomFrom(allNodeNames);
-            allNodeNames.remove(yesNode);
-            yesNodeNames.add(yesNode);
-        }
-        allocateNodesAndUpdateSets(throttleNodes, allNodeNames, THROTTLE_NODES, throttleNodeNames);
-        allocateNodesAndUpdateSets(notPreferredNodes, allNodeNames, NOT_PREFERRED_NODES, notPreferredNodeNames);
-        allocateNodesAndUpdateSets(noNodes, allNodeNames, NO_NODES, noNodeNames);
-        assert allNodeNames.isEmpty() : "all nodes should have been used: " + allNodeNames;
-        ensureStableCluster(totalNodes);
-        final var createdNodes = new CreatedNodes(noNodeNames, notPreferredNodeNames, throttleNodeNames, yesNodeNames);
-        logger.info("--> created nodes {}", createdNodes);
-        return createdNodes;
-    }
-
-    private static void allocateNodesAndUpdateSets(
-        int noNodes,
-        Set<String> allNodeNames,
-        Set<String> deciderSet,
-        HashSet<String> nodeNameSet
-    ) {
-        for (int i = 0; i < noNodes; i++) {
-            final var nodeName = randomFrom(allNodeNames);
-            allNodeNames.remove(nodeName);
-            deciderSet.add(getNodeId(nodeName));
-            nodeNameSet.add(nodeName);
-        }
-    }
-
-    private record CreatedNodes(Set<String> noNodes, Set<String> notPreferredNodes, Set<String> throttleNodes, Set<String> yesNodes) {}
-
-    public static class TestAllocationPlugin extends Plugin implements ClusterPlugin {
-        @Override
-        public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
-            return List.of(new TestAllocationDecider());
-        }
-    }
-
-    public static class TestAllocationDecider extends AllocationDecider {
-
-        @Override
-        public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-            if (NO_NODES.contains(node.nodeId())) {
-                return Decision.NO;
-            }
-            if (NOT_PREFERRED_NODES.contains(node.nodeId())) {
-                return Decision.NOT_PREFERRED;
-            }
-            if (THROTTLE_NODES.contains(node.nodeId()) && allocation.isSimulating() == false) {
-                return Decision.THROTTLE;
-            }
-            return Decision.YES;
-        }
     }
 }

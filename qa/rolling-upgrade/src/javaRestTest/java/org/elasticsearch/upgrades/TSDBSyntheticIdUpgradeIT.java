@@ -129,8 +129,12 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractRollingUpgradeTestCase {
     }
 
     private static void assertNoWriteIndex(String indexName) {
+        String setting = IndexSettings.USE_SYNTHETIC_ID.getKey();
+        String unknownSetting = "unknown setting [" + setting + "]";
+        String versionTooLow = "The setting [" + setting + "] is set to [true] but index metadata has a different value [false]";
+
         ResponseException e = assertThrows(ResponseException.class, () -> createSyntheticIdIndex(indexName));
-        assertThat(e.getMessage(), Matchers.containsString("unknown setting [" + IndexSettings.USE_SYNTHETIC_ID.getKey() + "]"));
+        assertThat(e.getMessage(), Matchers.either(Matchers.containsString(unknownSetting)).or(Matchers.containsString(versionTooLow)));
         assertThat(e.getMessage(), Matchers.containsString("illegal_argument_exception"));
     }
 

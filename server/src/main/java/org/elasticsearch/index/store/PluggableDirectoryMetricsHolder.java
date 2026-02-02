@@ -28,7 +28,17 @@ public interface PluggableDirectoryMetricsHolder<M extends DirectoryMetrics.Plug
         };
     }
 
+    /**
+     * Get the instance to record metrics on.
+     * @return the instance to record metrics on.
+     */
     M instance();
 
+    /**
+     * Get an instance that can be used in a single threaded scope. This may be an instance optimized for single
+     * threaded use. It cannot be tied to a single thread, but can rely on external synchronization in case it is
+     * passed between threads.
+     * @return single threaded instance.
+     */
     PluggableDirectoryMetricsHolder<M> singleThreaded();
 }

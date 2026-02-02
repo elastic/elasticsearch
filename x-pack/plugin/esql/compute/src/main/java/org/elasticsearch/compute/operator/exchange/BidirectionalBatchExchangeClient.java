@@ -209,6 +209,16 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     }
 
     /**
+     * Returns true if there are pages ready to be output (in correct order).
+     * Unlike {@link #pageCacheSize()}, this only returns true when pages are
+     * actually ready for consumption, not when they're buffered waiting for
+     * out-of-order pages to arrive.
+     */
+    public boolean hasReadyPages() {
+        return sortedSource.hasReadyPages();
+    }
+
+    /**
      * Send batch exchange status request to server before page communication starts.
      * The server will reply after batch processing completes.
      * Called internally from connectToServerSink().

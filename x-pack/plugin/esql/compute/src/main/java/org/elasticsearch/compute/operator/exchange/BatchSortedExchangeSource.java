@@ -78,22 +78,33 @@ public class BatchSortedExchangeSource implements Closeable {
             return ready;
         }
 
-        // Poll from delegate
+        // Try to poll and sort from delegate
+        pollAndSortFromDelegate();
+        return outputQueue.poll();
+    }
+
+    /**
+     * Polls a page from the delegate and adds it to the sorter.
+     * The page may end up in the output queue (if in-order) or be buffered (if out-of-order).
+     *
+     * @return true if a page was polled from delegate, false if delegate had no pages
+     */
+    private boolean pollAndSortFromDelegate() {
         Page page = delegate.pollPage();
         if (page == null) {
-            return null;
+            return false;
         }
 
         // Must be a BatchPage
         if ((page instanceof BatchPage) == false) {
+            page.releaseBlocks();
             throw new IllegalArgumentException(
                 "BatchSortedExchangeSource requires BatchPage input, got: " + page.getClass().getSimpleName()
             );
         }
 
-        // Add to sorter and return next in-order page
         addToSorter((BatchPage) page);
-        return outputQueue.poll();
+        return true;
     }
 
     /**
@@ -181,16 +192,49 @@ public class BatchSortedExchangeSource implements Closeable {
 
     /**
      * Returns an {@link IsBlockedResult} that resolves when a page is available.
+     * <p>
+     * This method eagerly polls and sorts pages from the delegate until either:
+     * <ul>
+     *   <li>An in-order page is available in the output queue</li>
+     *   <li>The delegate is blocked (returns the delegate's future)</li>
+     *   <li>The delegate is finished</li>
+     * </ul>
+     * This prevents busy-spinning in the driver when pages arrive out of order.
      *
-     * @return NOT_BLOCKED if a page is available, otherwise a blocked result
+     * @return NOT_BLOCKED if a page is available or delegate is finished, otherwise a blocked result
      */
     public IsBlockedResult waitForReading() {
         // If we have pages ready in output queue, not blocked
         if (outputQueue.isEmpty() == false) {
             return NOT_BLOCKED;
         }
-        // Otherwise delegate to the underlying source
-        return delegate.waitForReading();
+
+        // Eagerly poll and sort pages from delegate until we have an in-order page
+        // or the delegate is blocked/finished
+        while (outputQueue.isEmpty()) {
+            IsBlockedResult delegateBlocked = delegate.waitForReading();
+            if (delegateBlocked.listener().isDone() == false) {
+                // Delegate is blocked waiting for more pages
+                return delegateBlocked;
+            }
+
+            // Delegate has pages or is finished - try to poll and sort
+            if (pollAndSortFromDelegate() == false) {
+                return NOT_BLOCKED;
+            }
+        }
+
+        // We have an in-order page ready
+        return NOT_BLOCKED;
+    }
+
+    /**
+     * Returns true if there are pages ready to be output (in correct order).
+     * This only counts pages in the output queue, not out-of-order pages
+     * buffered internally or pages in the delegate's buffer.
+     */
+    public boolean hasReadyPages() {
+        return outputQueue.isEmpty() == false;
     }
 
     /**

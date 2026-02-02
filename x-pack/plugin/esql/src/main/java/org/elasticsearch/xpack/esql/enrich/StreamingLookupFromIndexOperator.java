@@ -536,14 +536,16 @@ public class StreamingLookupFromIndexOperator implements Operator {
     public boolean canProduceMoreDataWithoutExtraInput() {
         // Return true only if we have actual data ready to emit:
         // 1. Any batch received last page (needs trailing nulls computed)
-        // 2. We have pages in the cache ready to process
+        // 2. We have pages ready in the output queue (not just buffered out-of-order pages)
         for (BatchState batch : activeBatches.values()) {
             if (batch.receivedLastPage) {
                 return true;
             }
         }
-        // Check if there are pages ready in the cache
-        if (client != null && client.pageCacheSize() > 0) {
+        // Check if there are pages ready to output (in correct order).
+        // Using hasReadyPages() instead of pageCacheSize() > 0 prevents busy-spinning
+        // when pages arrive out-of-order and are buffered waiting for earlier pages.
+        if (client != null && client.hasReadyPages()) {
             return true;
         }
         return false;

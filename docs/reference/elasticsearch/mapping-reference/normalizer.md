@@ -178,7 +178,7 @@ serverless: ga
 stack: ga 9.3.0
 ```
 
-When [synthetic source](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) is enabled on an index, keyword fields with a normalizer store the original pre-normalized value separately so that it can be included in the synthetic source. This can cause elevated disk usage since values are essentially stored twice: once pre-normalized, and once normalized.
+When [synthetic source](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) is enabled on an index, keyword fields with a normalizer store the original pre-normalized value separately so that it can be included in the synthetic source. This can cause elevated disk usage since values are stored twice: once pre-normalized, and once normalized.
 
 To reduce disk usage, the `normalizer_skip_store_original_value` mapping parameter can be set to `true`. When enabled, the original value is not stored, and the normalized value is used in the reconstructed source instead.
 

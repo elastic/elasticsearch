@@ -291,16 +291,17 @@ public final class TextStructureUtils {
         SortedMap<String, Object> mappings = new TreeMap<>();
         SortedMap<String, FieldStats> fieldStats = new TreeMap<>();
 
-        List<Map<String, List<Object>>> flattenedRecords = sampleRecords.stream()
+        Map<String, List<Object>> fieldToValues = sampleRecords.stream()
             .map(record -> flattenRecord(record, timeoutChecker, mappingDepthLimit))
-            .toList();
-        Set<String> uniqueFieldNames = flattenedRecords.stream().flatMap(record -> record.keySet().stream()).collect(Collectors.toSet());
+            .flatMap(flattened -> flattened.entrySet().stream())
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> new ArrayList<>(entry.getValue()), (list1, list2) -> {
+                list1.addAll(list2);
+                return list1;
+            }));
 
-        for (String fieldName : uniqueFieldNames) {
-            List<Object> fieldValues = flattenedRecords.stream()
-                .map(record -> record.get(fieldName))
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
+        for (Map.Entry<String, List<Object>> entry : fieldToValues.entrySet()) {
+            String fieldName = entry.getKey();
+            List<Object> fieldValues = entry.getValue();
 
             Tuple<Map<String, String>, FieldStats> mappingAndFieldStats = guessMappingAndCalculateFieldStats(
                 explanation,

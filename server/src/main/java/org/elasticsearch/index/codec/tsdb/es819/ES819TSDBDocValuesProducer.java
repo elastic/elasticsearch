@@ -282,7 +282,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     }
 
                     @Override
-                    public int getLength() {
+                    int getLength() {
                         return length;
                     }
                 };
@@ -361,7 +361,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     }
 
                     @Override
-                    public int getLength() {
+                    int getLength() {
                         return (int) (addresses.get(doc + 1L) - addresses.get(doc));
                     }
                 };
@@ -389,7 +389,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     }
 
                     @Override
-                    public int getLength() {
+                    int getLength() {
                         return length;
                     }
                 };
@@ -410,7 +410,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     }
 
                     @Override
-                    public int getLength() {
+                    int getLength() {
                         final int index = disi.index();
                         return (int) (addresses.get(index + 1L) - addresses.get(index));
                     }
@@ -482,7 +482,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 @Override
-                public int getLength() throws IOException {
+                int getLength() throws IOException {
                     return decoder.decodeLength(doc, entry.numCompressedBlocks);
                 }
             };
@@ -517,7 +517,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 @Override
-                public int getLength() throws IOException {
+                int getLength() throws IOException {
                     return decoder.decodeLength(disi.index(), entry.numCompressedBlocks);
                 }
             };
@@ -808,7 +808,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             return null;
         }
 
-        public abstract int getLength() throws IOException;
+        abstract int getLength() throws IOException;
 
         @Override
         @Nullable
@@ -919,7 +919,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             return null;
         }
 
-        public abstract int getLength() throws IOException;
+        abstract int getLength() throws IOException;
 
         @Override
         @Nullable

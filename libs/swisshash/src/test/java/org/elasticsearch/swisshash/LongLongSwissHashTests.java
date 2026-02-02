@@ -41,9 +41,9 @@ public class LongLongSwissHashTests extends ESTestCase {
             params.add(new Object[] { addType, "tiny", 5, 0, 1, 1 });
             params.add(new Object[] { addType, "small", LongLongSwissHash.INITIAL_CAPACITY / 2, 0, 1, 1 });
             params.add(new Object[] { addType, "two key pages", PageCacheRecycler.PAGE_SIZE_IN_BYTES / (Long.BYTES * 2), 1, 2, 1 });
-            params.add(new Object[] { addType, "two id pages", PageCacheRecycler.PAGE_SIZE_IN_BYTES / Integer.BYTES, 3, 8, 2 });
-            params.add(new Object[] { addType, "many", PageCacheRecycler.PAGE_SIZE_IN_BYTES, 5, 32, 8 });
-            params.add(new Object[] { addType, "huge", 100_000, 7, 128, 32 });
+            params.add(new Object[] { addType, "two id pages", PageCacheRecycler.PAGE_SIZE_IN_BYTES / Integer.BYTES, 3, 7, 2 });
+            params.add(new Object[] { addType, "many", PageCacheRecycler.PAGE_SIZE_IN_BYTES, 5, 28, 8 });
+            params.add(new Object[] { addType, "huge", 100_000, 7, 112, 32 });
         }
         return params;
     }
@@ -80,7 +80,7 @@ public class LongLongSwissHashTests extends ESTestCase {
         Set<Long> values2 = randomValues(count);
         assert values1.size() == values2.size();
         long[] v1 = values1.stream().mapToLong(Long::longValue).toArray();
-        long[] v2 = values1.stream().mapToLong(Long::longValue).toArray();
+        long[] v2 = values2.stream().mapToLong(Long::longValue).toArray();
 
         TestRecycler recycler = new TestRecycler();
         CircuitBreaker breaker = new NoopCircuitBreaker("test");

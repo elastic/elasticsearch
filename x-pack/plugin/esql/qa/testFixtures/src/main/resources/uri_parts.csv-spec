@@ -1,13 +1,17 @@
 basic
 required_capability: compound_output_eval
 
-ROW uri = "https://www.example.com:8080"
+// tag::basic[]
+ROW uri = "http://myusername:mypassword@www.example.com:80/foo.gif?key1=val1&key2=val2#fragment"
 | URI_PARTS_🐔 parts = uri
-| KEEP parts.port, parts.scheme, parts.domain
+| KEEP parts.*
+// end::basic[]
 ;
 
-parts.port:integer | parts.scheme:keyword | parts.domain:keyword
-8080               | https                | www.example.com
+// tag::basic-result[]
+parts.domain:keyword | parts.fragment:keyword | parts.path:keyword | parts.extension:keyword | parts.port:integer | parts.query:keyword | parts.scheme:keyword | parts.user_info:keyword | parts.username:keyword | parts.password:keyword
+www.example.com | fragment | /foo.gif | gif | 80 | key1=val1&key2=val2 | http | myusername:mypassword | myusername | mypassword
+// end::basic-result[]
 ;
 
 

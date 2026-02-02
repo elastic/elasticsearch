@@ -17,9 +17,9 @@ import org.apache.lucene.store.RandomAccessInput;
 import java.io.IOException;
 
 public class StoreMetricsIndexInput extends FilterIndexInput {
-    private final DirectoryMetricHolder<StoreMetrics> metricHolder;
+    private final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder;
 
-    public StoreMetricsIndexInput(String resourceDescription, IndexInput in, DirectoryMetricHolder<StoreMetrics> metricHolder) {
+    public StoreMetricsIndexInput(String resourceDescription, IndexInput in, PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder) {
         super(resourceDescription, in);
         this.metricHolder = metricHolder;
     }
@@ -61,7 +61,7 @@ public class StoreMetricsIndexInput extends FilterIndexInput {
         RandomAccessInput delegate = in.randomAccessSlice(offset, length);
 
         return new RandomAccessInput() {
-            private final DirectoryMetricHolder<StoreMetrics> metricHolder = StoreMetricsIndexInput.this.metricHolder;
+            private final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = StoreMetricsIndexInput.this.metricHolder;
 
             @Override
             public long length() {

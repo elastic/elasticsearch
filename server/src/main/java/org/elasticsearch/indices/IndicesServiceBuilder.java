@@ -31,7 +31,7 @@ import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.shard.SearchOperationListener;
-import org.elasticsearch.index.store.DirectoryMetricHolder;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -90,7 +90,7 @@ public class IndicesServiceBuilder {
     QueryRewriteInterceptor queryRewriteInterceptor = null;
     ActionLoggingFieldsProvider loggingFieldsProvider = (context) -> new ActionLoggingFields(context) {
     };
-    Map<String, DirectoryMetricHolder<?>> directoryMetricHolderMap;
+    Map<String, PluggableDirectoryMetricsHolder<?>> directoryMetricHolderMap;
     ThreadLocalDirectoryMetricHolder<StoreMetrics> storeMetricsHolder;
 
     public IndicesServiceBuilder settings(Settings settings) {
@@ -248,9 +248,9 @@ public class IndicesServiceBuilder {
             .toList();
 
         directoryMetricHolderMap = new HashMap<>();
-        var directoryMetricsRegistrator = new BiConsumer<String, DirectoryMetricHolder<?>>() {
+        var directoryMetricsRegistrator = new BiConsumer<String, PluggableDirectoryMetricsHolder<?>>() {
             @Override
-            public void accept(String s, DirectoryMetricHolder<?> metricHolder) {
+            public void accept(String s, PluggableDirectoryMetricsHolder<?> metricHolder) {
                 directoryMetricHolderMap.put(s, metricHolder);
             }
         };

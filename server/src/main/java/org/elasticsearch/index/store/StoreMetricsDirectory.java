@@ -15,9 +15,9 @@ import org.apache.lucene.store.IndexInput;
 import java.io.IOException;
 
 public class StoreMetricsDirectory extends ByteSizeDirectory {
-    private final DirectoryMetricHolder<StoreMetrics> metricHandler;
+    private final PluggableDirectoryMetricsHolder<StoreMetrics> metricHandler;
 
-    public StoreMetricsDirectory(ByteSizeDirectory in, DirectoryMetricHolder<StoreMetrics> metricHandler) {
+    public StoreMetricsDirectory(ByteSizeDirectory in, PluggableDirectoryMetricsHolder<StoreMetrics> metricHandler) {
         super(in);
         this.metricHandler = metricHandler;
     }

@@ -82,7 +82,7 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.shard.ShardNotInPrimaryModeException;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.index.store.DirectoryMetricHolder;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.index.translog.Translog;
@@ -174,7 +174,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexingStatsSettings indexingStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
     private final MergeMetrics mergeMetrics;
-    private final DirectoryMetricHolder<StoreMetrics> metricHolder;
+    private final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder;
 
     @SuppressWarnings("this-escape")
     public IndexService(
@@ -214,7 +214,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexingStatsSettings indexingStatsSettings,
         SearchStatsSettings searchStatsSettings,
         MergeMetrics mergeMetrics,
-        DirectoryMetricHolder<StoreMetrics> metricHolder
+        PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder
     ) {
         super(indexSettings);
         assert indexCreationContext != IndexCreationContext.RELOAD_ANALYZERS

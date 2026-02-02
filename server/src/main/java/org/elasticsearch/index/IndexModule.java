@@ -57,7 +57,7 @@ import org.elasticsearch.index.shard.IndexingStatsSettings;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.index.store.DirectoryMetricHolder;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.indices.IndicesQueryCache;
@@ -185,7 +185,7 @@ public final class IndexModule {
     private final IndexingStatsSettings indexingStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
     private final MergeMetrics mergeMetrics;
-    private final DirectoryMetricHolder<StoreMetrics> metricHolder;
+    private final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder;
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -211,7 +211,7 @@ public final class IndexModule {
         final IndexingStatsSettings indexingStatsSettings,
         final SearchStatsSettings searchStatsSettings,
         final MergeMetrics mergeMetrics,
-        DirectoryMetricHolder<StoreMetrics> metricHolder
+        PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder
     ) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;

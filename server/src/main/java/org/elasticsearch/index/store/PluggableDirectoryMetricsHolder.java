@@ -9,12 +9,12 @@
 
 package org.elasticsearch.index.store;
 
-public interface DirectoryMetricHolder<M extends DirectoryMetrics.PluggableMetrics<M>> {
-    static <M extends DirectoryMetrics.PluggableMetrics<M>> DirectoryMetricHolder<M> noop(M noopData) {
-        return new DirectoryMetricHolder<>() {
+public interface PluggableDirectoryMetricsHolder<M extends DirectoryMetrics.PluggableMetrics<M>> {
+    static <M extends DirectoryMetrics.PluggableMetrics<M>> PluggableDirectoryMetricsHolder<M> noop(M noopData) {
+        return new PluggableDirectoryMetricsHolder<>() {
 
             @Override
-            public DirectoryMetricHolder<M> singleThreaded() {
+            public PluggableDirectoryMetricsHolder<M> singleThreaded() {
                 return this;
             }
 
@@ -27,5 +27,5 @@ public interface DirectoryMetricHolder<M extends DirectoryMetrics.PluggableMetri
 
     M instance();
 
-    DirectoryMetricHolder<M> singleThreaded();
+    PluggableDirectoryMetricsHolder<M> singleThreaded();
 }

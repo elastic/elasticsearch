@@ -202,7 +202,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         ShardLock shardLock,
         OnClose onClose,
         boolean hasIndexSort,
-        DirectoryMetricHolder<StoreMetrics> metricHolder
+        PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder
     ) {
         super(shardId, indexSettings);
         this.directory = new StoreDirectory(

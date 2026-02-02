@@ -9,7 +9,7 @@
 
 package org.elasticsearch.index.store;
 
-public class SingleThreadDirectoryMetricHolder<M extends DirectoryMetrics.PluggableMetrics<M>> implements DirectoryMetricHolder<M> {
+public class SingleThreadDirectoryMetricHolder<M extends DirectoryMetrics.PluggableMetrics<M>> implements PluggableDirectoryMetricsHolder<M> {
     private final ThreadLocalDirectoryMetricHolder<M> delegate;
     private Thread owner;
     private M current;
@@ -25,7 +25,7 @@ public class SingleThreadDirectoryMetricHolder<M extends DirectoryMetrics.Plugga
     }
 
     @Override
-    public DirectoryMetricHolder<M> singleThreaded() {
+    public PluggableDirectoryMetricsHolder<M> singleThreaded() {
         return new SingleThreadDirectoryMetricHolder<>(this);
     }
 

@@ -93,7 +93,6 @@ public class BinaryDocValuesLengthQuery extends Query {
                     };
                 }
 
-
                 return new DefaultScorerSupplier(new ConstantScoreScorer(score(), scoreMode, iterator));
             }
 
@@ -116,11 +115,7 @@ public class BinaryDocValuesLengthQuery extends Query {
     }
 
     public String toString(String field) {
-        return "BinaryDocValuesLengthQuery(fieldName="
-            + field
-            + ",length="
-            + length
-            + ")";
+        return "BinaryDocValuesLengthQuery(fieldName=" + field + ",length=" + length + ")";
     }
 
     @Override
@@ -132,8 +127,7 @@ public class BinaryDocValuesLengthQuery extends Query {
             return false;
         }
         BinaryDocValuesLengthQuery that = (BinaryDocValuesLengthQuery) o;
-        return Objects.equals(fieldName, that.fieldName)
-            && length == that.length;
+        return Objects.equals(fieldName, that.fieldName) && length == that.length;
     }
 
     @Override

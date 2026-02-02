@@ -97,29 +97,7 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
 
     protected abstract Iterable<RuleExecutor.Batch<TreeType>> batches();
 
-    public class ExecutionInfo {
-
-        private final TreeType before, after;
-
-        ExecutionInfo(TreeType before, TreeType after) {
-            this.before = before;
-            this.after = after;
-        }
-
-        public TreeType before() {
-            return before;
-        }
-
-        public TreeType after() {
-            return after;
-        }
-    }
-
     protected final TreeType execute(TreeType plan) {
-        return executeWithInfo(plan).after;
-    }
-
-    protected final ExecutionInfo executeWithInfo(TreeType plan) {
         TreeType currentPlan = plan;
 
         long totalDuration = 0;
@@ -181,7 +159,7 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
             log.debug("Tree transformation took {}\n{}", TimeValue.timeValueMillis(totalDuration), NodeUtils.diffString(plan, currentPlan));
         }
 
-        return new ExecutionInfo(plan, currentPlan);
+        return currentPlan;
     }
 
     protected Function<TreeType, TreeType> transform(Rule<?, TreeType> rule) {

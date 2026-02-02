@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsUtils;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
@@ -68,6 +69,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
         var similarity = SimilarityMeasure.COSINE;
         var dimensions = 384;
         var maxInputTokens = 512;
+        var maxBatchSize = randomIntBetween(1, ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE_UPPER_BOUND);
 
         var serviceSettings = ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.fromMap(
             new HashMap<>(
@@ -199,7 +201,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
         String xContentResult = Strings.toString(builder);
 
         String expectedResult = Strings.format("""
-            {"similarity":"%s","dimensions":%d,"max_input_tokens":%d,"model_id":"%s"}""", similarity, dimensions, maxInputTokens, modelId);
+            {"model_id":"%s","similarity":"%s","dimensions":%d,"max_input_tokens":%d}""", modelId, similarity, dimensions, maxInputTokens);
 
         assertThat(xContentResult, is(expectedResult));
     }
@@ -234,8 +236,21 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
         String xContentResult = Strings.toString(builder);
 
         // Only model_id and rate_limit should be in exposed fields
-        assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
-            {"model_id":"%s"}""", modelId))));
+        assertThat(
+            xContentResult,
+            is(
+                XContentHelper.stripWhitespace(
+                    Strings.format(
+                        """
+                            {"model_id":"%s","similarity":"%s","dimensions":%d,"max_input_tokens":%d}""",
+                        modelId,
+                        serviceSettings.similarity(),
+                        serviceSettings.dimensions(),
+                        serviceSettings.maxInputTokens()
+                    )
+                )
+            )
+        );
     }
 
     public static ElasticInferenceServiceDenseTextEmbeddingsServiceSettings createRandom() {

@@ -13,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -71,6 +72,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -88,6 +90,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -116,6 +119,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestat
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy.DEFAULT;
@@ -687,6 +691,30 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     "<logstash-{now/M{yyyy.MM}}>::data,<logstash-{now/d{yyyy.MM.dd|+12:00}}>::failures",
                     command + " <logstash-{now/M{yyyy.MM}}>::data, \"<logstash-{now/d{yyyy.MM.dd|+12:00}}>::failures\""
                 );
+
+                assertStringAsIndexPattern("cluster:foo::data", command + " cluster:foo::data");
+                assertStringAsIndexPattern("cluster:foo::failures", command + " cluster:foo::failures");
+
+                assertStringAsIndexPattern("cluster:foo::data", command + " \"cluster:foo::data\"");
+                assertStringAsIndexPattern("cluster:foo::failures", command + " \"cluster:foo::failures\"");
+
+                // Wildcards
+                assertStringAsIndexPattern("cluster:*::data", command + " cluster:*::data");
+                assertStringAsIndexPattern("cluster:*::failures", command + " cluster:*::failures");
+                assertStringAsIndexPattern("*:index::data", command + " *:index::data");
+                assertStringAsIndexPattern("*:index::failures", command + " *:index::failures");
+                assertStringAsIndexPattern("*:index*::data", command + " *:index*::data");
+                assertStringAsIndexPattern("*:index*::failures", command + " *:index*::failures");
+                assertStringAsIndexPattern("*:*::data", command + " *:*::data");
+                assertStringAsIndexPattern("*:*::failures", command + " *:*::failures");
+                assertStringAsIndexPattern("cluster:*::data", command + " \"cluster:*::data\"");
+                assertStringAsIndexPattern("cluster:*::failures", command + " \"cluster:*::failures\"");
+                assertStringAsIndexPattern("*:index::data", command + " \"*:index::data\"");
+                assertStringAsIndexPattern("*:index::failures", command + " \"*:index::failures\"");
+                assertStringAsIndexPattern("*:index*::data", command + " \"*:index*::data\"");
+                assertStringAsIndexPattern("*:index*::failures", command + " \"*:index*::failures\"");
+                assertStringAsIndexPattern("*:*::data", command + " \"*:*::data\"");
+                assertStringAsIndexPattern("*:*::failures", command + " \"*:*::failures\"");
             }
         }
     }
@@ -774,15 +802,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 expectInvalidIndexNameErrorWithLineNumber(command, "index::dat", lineNumber);
                 expectInvalidIndexNameErrorWithLineNumber(command, "index::failure", lineNumber);
 
-                // Cluster name cannot be combined with selector yet.
-                int parseLineNumber = 6;
-                if (command.startsWith("TS")) {
-                    parseLineNumber = 4;
-                }
-
-                expectDoubleColonErrorWithLineNumber(command, "cluster:foo::data", parseLineNumber + 11);
-                expectDoubleColonErrorWithLineNumber(command, "cluster:foo::failures", parseLineNumber + 11);
-
                 // Index pattern cannot be quoted if cluster string is present.
                 expectErrorWithLineNumber(
                     command,
@@ -797,46 +816,23 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     "mismatched input '\"foo\"' expecting UNQUOTED_SOURCE"
                 );
 
+                // Index pattern cannot be clubbed together with cluster string without including selector if present
+                int parseLineNumber = 6;
+                if (command.startsWith("TS")) {
+                    parseLineNumber = 4;
+                }
+
                 expectDoubleColonErrorWithLineNumber(command, "\"cluster:foo\"::data", parseLineNumber + 13);
                 expectDoubleColonErrorWithLineNumber(command, "\"cluster:foo\"::failures", parseLineNumber + 13);
 
-                expectErrorWithLineNumber(
-                    command,
-                    "\"cluster:foo::data\"",
-                    lineNumber,
-                    "Invalid index name [cluster:foo::data], Selectors are not yet supported on remote cluster patterns"
-                );
-                expectErrorWithLineNumber(
-                    command,
-                    "\"cluster:foo::failures\"",
-                    lineNumber,
-                    "Invalid index name [cluster:foo::failures], Selectors are not yet supported on remote cluster patterns"
-                );
-
-                // Wildcards
-                expectDoubleColonErrorWithLineNumber(command, "cluster:*::data", parseLineNumber + 9);
-                expectDoubleColonErrorWithLineNumber(command, "cluster:*::failures", parseLineNumber + 9);
-                expectDoubleColonErrorWithLineNumber(command, "*:index::data", parseLineNumber + 7);
-                expectDoubleColonErrorWithLineNumber(command, "*:index::failures", parseLineNumber + 7);
-                expectDoubleColonErrorWithLineNumber(command, "*:index*::data", parseLineNumber + 8);
-                expectDoubleColonErrorWithLineNumber(command, "*:index*::failures", parseLineNumber + 8);
-                expectDoubleColonErrorWithLineNumber(command, "*:*::data", parseLineNumber + 3);
-                expectDoubleColonErrorWithLineNumber(command, "*:*::failures", parseLineNumber + 3);
-
                 // Too many colons
-                expectInvalidIndexNameErrorWithLineNumber(
-                    command,
-                    "\"index:::data\"",
-                    lineNumber,
-                    "index:::data",
-                    "Selectors are not yet supported on remote cluster patterns"
-                );
+                expectInvalidIndexNameErrorWithLineNumber(command, "\"index:::data\"", lineNumber, "index:", "must not contain ':'");
                 expectInvalidIndexNameErrorWithLineNumber(
                     command,
                     "\"index::::data\"",
                     lineNumber,
                     "index::::data",
-                    "Invalid usage of :: separator"
+                    "Invalid usage of :: separator, only one :: separator is allowed per expression"
                 );
 
                 expectErrorWithLineNumber(
@@ -1259,18 +1255,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testMetadataFieldMultipleDeclarations() {
         expectError("from test metadata _index, _version, _index", "1:38: metadata field [_index] already declared [@1:20]");
-    }
-
-    public void testMetadataFieldUnsupportedCustomType() {
-        expectError("from test metadata _feature", "line 1:20: unsupported metadata field [_feature]");
-    }
-
-    public void testMetadataFieldNotFoundNonExistent() {
-        expectError("from test metadata _doesnot_compute", "line 1:20: unsupported metadata field [_doesnot_compute]");
-    }
-
-    public void testMetadataFieldNotFoundNormalField() {
-        expectError("from test metadata emp_no", "line 1:20: unsupported metadata field [emp_no]");
     }
 
     public void testDissectPattern() {
@@ -3211,7 +3195,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         String map = "{\"option1\":\"string\", \"option2\":1}";
 
         Map<String, String> commands = Map.ofEntries(
-            Map.entry("from {}", "line 1:7: mismatched input '\"option1\"' expecting {<EOF>, '|', ',', 'metadata'}"),
+            Map.entry("from {}", "line 1:7: mismatched input '\"option1\"' expecting {<EOF>, '|', '::', ',', 'metadata'}"),
             Map.entry("row x = {}", "line 1:9: extraneous input '{' expecting {QUOTED_STRING, INTEGER_LITERAL"),
             Map.entry("eval x = {}", "line 1:22: extraneous input '{' expecting {QUOTED_STRING, INTEGER_LITERAL"),
             Map.entry("where x > {}", "line 1:23: no viable alternative at input 'x > {'"),
@@ -3374,18 +3358,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
 
         if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
-            // If a stream in on a remote and the pattern is entirely quoted, we should be able to validate it.
-            // Note: invalid selector syntax is covered in a different test.
-            {
-                var fromPattern = randomIndexPattern();
-                var malformedIndexSelectorPattern = quote(
-                    (randomIdentifier()) + ":" + unquoteIndexPattern(randomIndexPattern(INDEX_SELECTOR, without(CROSS_CLUSTER)))
-                );
-                // Format: FROM <some index>, "<cluster alias>:<some index>::<data|failures>"
-                var query = "FROM " + fromPattern + "," + malformedIndexSelectorPattern;
-                expectError(query, "Selectors are not yet supported on remote cluster patterns");
-            }
-
             // If a stream in on a remote and the cluster alias and index pattern are separately quoted, we should
             // still be able to validate it.
             // Note: invalid selector syntax is covered in a different test.
@@ -3759,11 +3731,28 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testRerankComputedFieldsWithoutName() {
-        // Unnamed alias are forbidden
-        expectError(
-            "FROM books METADATA _score | RERANK \"food\" ON title, SUBSTRING(description, 0, 100), yearRenamed=year`",
-            "line 1:63: mismatched input '(' expecting {<EOF>, '|', '=', ',', '.', 'with'}"
+        var plan = processingCommand("""
+            RERANK "statement text" ON title, SUBSTRING(description, 0, 100), yearRenamed=year WITH { "inference_id": "inferenceID" }
+            """);
+        var rerank = as(plan, Rerank.class);
+
+        assertThat(rerank.queryText(), equalTo(literalString("statement text")));
+        assertThat(rerank.inferenceId(), equalTo(literalString("inferenceID")));
+        assertThat(
+            rerank.rerankFields(),
+            equalToIgnoringIds(
+                List.of(
+                    alias("title", attribute("title")),
+                    alias(
+                        "SUBSTRING(description, 0, 100)",
+                        function("SUBSTRING", List.of(attribute("description"), integer(0), integer(100)))
+                    ),
+                    alias("yearRenamed", attribute("year"))
+                )
+            )
         );
+        assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("_score")));
+        assertThat(rerank.rowLimit(), equalTo(integer(1_000)));
     }
 
     public void testRerankWithPositionalParameters() {
@@ -4172,7 +4161,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
 
         expectError("from test)", "line -1:-1: Invalid query [from test)]");
-        expectError("from te()st", "line 1:8: mismatched input '(' expecting {<EOF>, '|', ',', 'metadata'");
+        expectError("from te()st", "line 1:8: mismatched input '(' expecting {<EOF>, '|', '::', ',', 'metadata'");
         expectError("from test | enrich foo)", "line -1:-1: Invalid query [from test | enrich foo)]");
         expectError("from test | lookup join foo) on bar", "line 1:28: token recognition error at: ')'");
         if (EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()) {
@@ -4320,6 +4309,153 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     }
 
+    public void testMMRCommandWithLimitOnly() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        var cmd = processingCommand("mmr on dense_embedding limit 10");
+        assertEquals(MMR.class, cmd.getClass());
+        MMR mmrCmd = (MMR) cmd;
+
+        assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
+        assertThat(mmrCmd.limit().dataType(), equalTo(INTEGER));
+        int limitValue = (Integer) (((Literal) mmrCmd.limit()).value());
+        assertThat(limitValue, equalTo(10));
+        assertNull(mmrCmd.queryVector());
+        verifyMMRLambdaValue(mmrCmd, null);
+    }
+
+    public void testMMRCommandWithLimitAndLambda() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        var cmd = processingCommand("mmr on dense_embedding limit 10 with { \"lambda\": 0.5 }");
+        assertEquals(MMR.class, cmd.getClass());
+        MMR mmrCmd = (MMR) cmd;
+
+        assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
+
+        assertThat(mmrCmd.limit().dataType(), equalTo(INTEGER));
+        int limitValue = (Integer) (((Literal) mmrCmd.limit()).value());
+        assertThat(limitValue, equalTo(10));
+
+        verifyMMRLambdaValue(mmrCmd, 0.5);
+
+        assertNull(mmrCmd.queryVector());
+    }
+
+    public void testMMRCommandWithConstantQueryVector() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        var mmrCmd = as(processingCommand("mmr [0.5, 0.4, 0.3, 0.2] on dense_embedding limit 10 with { \"lambda\": 0.5 }"), MMR.class);
+        assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
+
+        assertThat(mmrCmd.limit().dataType(), equalTo(INTEGER));
+        int limitValue = (Integer) (((Literal) mmrCmd.limit()).value());
+        assertThat(limitValue, equalTo(10));
+
+        verifyMMRLambdaValue(mmrCmd, 0.5);
+
+        Expression queryVectorExpression = mmrCmd.queryVector();
+        if (queryVectorExpression instanceof Literal litExpression) {
+            var thisValue = litExpression.value();
+            if (thisValue instanceof Collection<?> litCollection) {
+                assertEquals(List.of(0.5, 0.4, 0.3, 0.2), litCollection);
+            }
+        } else {
+            fail("query vector expression [" + queryVectorExpression + "] is not a literal double collection");
+        }
+    }
+
+    public void testMMRCommandWithFieldQueryVector() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        var queryParams = new QueryParams(List.of(paramAsConstant("query_vector_field", "[0.5, 0.4, 0.3, 0.2]")));
+        var mmrCmd = as(
+            parser.parseQuery("row a = 1 | mmr ?query_vector_field on dense_embedding limit 10 with { \"lambda\": 0.5 }", queryParams),
+            MMR.class
+        );
+
+        assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
+
+        assertThat(mmrCmd.limit().dataType(), equalTo(INTEGER));
+        int limitValue = (Integer) (((Literal) mmrCmd.limit()).value());
+        assertThat(limitValue, equalTo(10));
+
+        verifyMMRLambdaValue(mmrCmd, 0.5);
+
+        Expression queryVectorExpression = mmrCmd.queryVector();
+        if (queryVectorExpression instanceof Literal litExpression) {
+            var thisValue = litExpression.value();
+            if (thisValue instanceof Collection<?> litCollection) {
+                assertEquals(List.of(0.5, 0.4, 0.3, 0.2), litCollection);
+            }
+        } else {
+            fail("query vector expression [" + queryVectorExpression + "] is not a literal double collection");
+        }
+    }
+
+    public void testMMRCommandWithTextEmbeddingQueryVector() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        var mmrCmd = as(
+            processingCommand(
+                "mmr TEXT_EMBEDDING(\"test text\", \"test_inference_id\") on dense_embedding limit 10 with { \"lambda\": 0.5 }"
+            ),
+            MMR.class
+        );
+
+        assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
+
+        assertThat(mmrCmd.limit().dataType(), equalTo(INTEGER));
+        int limitValue = (Integer) (((Literal) mmrCmd.limit()).value());
+        assertThat(limitValue, equalTo(10));
+
+        verifyMMRLambdaValue(mmrCmd, 0.5);
+
+        Expression queryVectorExpression = mmrCmd.queryVector();
+        if (queryVectorExpression instanceof UnresolvedFunction uaFunctioon) {
+            assertThat(uaFunctioon.name(), equalTo("TEXT_EMBEDDING"));
+            assertThat(uaFunctioon.source().text(), equalTo("TEXT_EMBEDDING(\"test text\", \"test_inference_id\")"));
+        } else {
+            fail("query vector expression [" + queryVectorExpression + "] is not a literal double collection");
+        }
+    }
+
+    private void verifyMMRLambdaValue(MMR mmrCmd, Double value) {
+        if (value == null) {
+            assertNull(mmrCmd.options());
+            return;
+        }
+
+        assertTrue(mmrCmd.options() instanceof MapExpression);
+        assertEquals(getLambdaFromMMROptions((MapExpression) mmrCmd.options()), value);
+    }
+
+    public Double getLambdaFromMMROptions(@Nullable MapExpression options) {
+        if (options == null) {
+            return null;
+        }
+
+        Map<String, Expression> optionsMap = options.keyFoldedMap();
+
+        Expression lambdaValueExpression = optionsMap.remove(MMR.LAMBDA_OPTION_NAME);
+        assertNotNull(lambdaValueExpression);
+        Literal litLambdaValue = (Literal) lambdaValueExpression;
+        assertNotNull(litLambdaValue);
+        assertEquals(DOUBLE, litLambdaValue.dataType());
+        return (Double) litLambdaValue.value();
+    }
+
+    public void testInvalidMMRCommands() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        expectError("row a = 1 | mmr on some_field", "line 1:30: mismatched input '<EOF>' expecting {'.', MMR_LIMIT}");
+        expectError("row a = 1 | mmr on some_field limit", "line 1:36: mismatched input '<EOF>' expecting {INTEGER_LITERAL, '+', '-'}");
+        expectError(
+            "row a = 1 | mmr on some_field limit 5 {\"unknown\": true}",
+            "line 1:39: mismatched input '{' expecting {<EOF>, '|', 'with'}"
+        );
+    }
+
     public void testInvalidSample() {
         expectError(
             "row a = 1 | sample \"foo\"",
@@ -4338,4 +4474,5 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "1:13: invalid value for SAMPLE probability [1], expecting a number between 0 and 1, exclusive"
         );
     }
+
 }

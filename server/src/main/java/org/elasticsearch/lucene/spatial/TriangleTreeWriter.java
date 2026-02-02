@@ -197,7 +197,7 @@ public class TriangleTreeWriter {
                 long rightSize = right.nodeSize(true, maxX, maxY, countingBuffer);
                 countingBuffer.reset();
                 countingBuffer.writeVLong(rightSize);
-                size += countingBuffer.size(); // jump size
+                size += countingBuffer.position(); // jump size
                 size += rightSize;
             }
             if (includeBox) {
@@ -206,7 +206,7 @@ public class TriangleTreeWriter {
                 countingBuffer.writeVLong((long) parentMaxX - maxX);
                 countingBuffer.writeVLong((long) parentMaxY - maxY);
                 countingBuffer.writeVLong(jumpSize);
-                size += countingBuffer.size(); // box size
+                size += countingBuffer.position(); // box size
             }
             return size;
         }
@@ -229,7 +229,7 @@ public class TriangleTreeWriter {
                 countingBuffer.writeVLong((long) maxX - component.cX);
                 countingBuffer.writeVLong((long) maxY - component.cY);
             }
-            return countingBuffer.size();
+            return countingBuffer.position();
         }
     }
 }

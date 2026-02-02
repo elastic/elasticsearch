@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.core.expression;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -23,6 +24,8 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -32,6 +35,7 @@ public class MetadataAttribute extends TypedAttribute {
     public static final String SCORE = "_score";
     public static final String INDEX = "_index";
     public static final String TIMESERIES = "_timeseries";
+    public static final String SIZE = "_size";
 
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
@@ -39,18 +43,37 @@ public class MetadataAttribute extends TypedAttribute {
         MetadataAttribute::readFrom
     );
 
-    private static final Map<String, MetadataAttributeConfiguration> ATTRIBUTES_MAP = Map.ofEntries(
-        Map.entry("_version", new MetadataAttributeConfiguration(DataType.LONG, false)),
-        Map.entry(INDEX, new MetadataAttributeConfiguration(DataType.KEYWORD, true)),
-        // actually _id is searchable, but fielddata access on it is disallowed by default
-        Map.entry(IdFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, false)),
-        Map.entry(IgnoredFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)),
-        Map.entry(SourceFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.SOURCE, false)),
-        Map.entry(IndexModeFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)),
-        Map.entry(DataTierFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)),
-        Map.entry(SCORE, new MetadataAttributeConfiguration(DataType.DOUBLE, false)),
-        Map.entry(TSID_FIELD, new MetadataAttributeConfiguration(DataType.TSID_DATA_TYPE, false))
+    public static final Map<String, MetadataAttributeConfiguration> ATTRIBUTES_MAP = createMetadataAttributes(
+        // Regular attributes
+        List.of(
+            Map.entry("_version", new MetadataAttributeConfiguration(DataType.LONG, false)),
+            Map.entry(INDEX, new MetadataAttributeConfiguration(DataType.KEYWORD, true)),
+            // actually _id is searchable, but fielddata access on it is disallowed by default
+            Map.entry(IdFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, false)),
+            Map.entry(IgnoredFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)),
+            Map.entry(SourceFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.SOURCE, false)),
+            Map.entry(IndexModeFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)),
+            Map.entry(SCORE, new MetadataAttributeConfiguration(DataType.DOUBLE, false)),
+            Map.entry(TSID_FIELD, new MetadataAttributeConfiguration(DataType.TSID_DATA_TYPE, false)),
+            // Searchable field added by the mapper-size plugin.
+            // See https://www.elastic.co/docs/reference/elasticsearch/plugins/mapper-size-usage
+            Map.entry(SIZE, new MetadataAttributeConfiguration(DataType.INTEGER, true))
+        ),
+        // Snapshot only attributes
+        List.of(Map.entry(DataTierFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)))
     );
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, MetadataAttributeConfiguration> createMetadataAttributes(
+        List<Map.Entry<String, MetadataAttributeConfiguration>> attributes,
+        List<Map.Entry<String, MetadataAttributeConfiguration>> snapshotOnlyAttributes
+    ) {
+        var entries = new ArrayList<>(attributes);
+        if (Build.current().isSnapshot()) {
+            entries.addAll(snapshotOnlyAttributes);
+        }
+        return Map.ofEntries(entries.toArray(Map.Entry[]::new));
+    }
 
     private record MetadataAttributeConfiguration(DataType dataType, boolean searchable) {}
 
@@ -146,9 +169,13 @@ public class MetadataAttribute extends TypedAttribute {
         return searchable;
     }
 
-    public static MetadataAttribute create(Source source, String name) {
+    public static NamedExpression create(Source source, String name) {
         var t = ATTRIBUTES_MAP.get(name);
-        return t != null ? new MetadataAttribute(source, name, t.dataType(), t.searchable()) : null;
+        if (t != null) {
+            return new MetadataAttribute(source, name, t.dataType(), t.searchable());
+        }
+
+        return new UnresolvedMetadataAttributeExpression(source, name);
     }
 
     public static DataType dataType(String name) {

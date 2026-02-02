@@ -39,14 +39,7 @@ class SpatialCentroidGeoShapeSourceValuesAggregator extends CentroidShapeAggrega
         if (weight > 0) {
             // CentroidCalculator returns weighted x and y sums, so we need to pass them as-is
             // The final centroid is computed as xSum/weight, ySum/weight
-            current.add(
-                calculator.getX() * weight,
-                0d,
-                calculator.getY() * weight,
-                0d,
-                weight,
-                calculator.getDimensionalShapeType()
-            );
+            current.add(calculator.getX() * weight, 0d, calculator.getY() * weight, 0d, weight, calculator.getDimensionalShapeType());
         }
     }
 

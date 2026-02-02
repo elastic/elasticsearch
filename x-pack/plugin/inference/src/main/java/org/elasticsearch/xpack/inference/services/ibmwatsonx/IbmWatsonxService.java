@@ -40,15 +40,18 @@ import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.action.IbmWatsonxActionCreator;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.completion.IbmWatsonxChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.completion.IbmWatsonxChatCompletionModelCreator;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxChatCompletionRequest;
-import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModel;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModelCreator;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 
 import java.util.EnumSet;
@@ -61,7 +64,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
@@ -72,7 +74,7 @@ import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxSe
 public class IbmWatsonxService extends SenderService implements RerankingInferenceService {
 
     private static final String SERVICE_NAME = "IBM watsonx";
-    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(
         TaskType.TEXT_EMBEDDING,
         TaskType.COMPLETION,
         TaskType.CHAT_COMPLETION,
@@ -81,6 +83,17 @@ public class IbmWatsonxService extends SenderService implements RerankingInferen
     private static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new IbmWatsonUnifiedChatCompletionResponseHandler(
         "IBM watsonx chat completions",
         OpenAiChatCompletionResponseEntity::fromResponse
+    );
+    private static final IbmWatsonxChatCompletionModelCreator CHAT_COMPLETION_MODEL_CREATOR = new IbmWatsonxChatCompletionModelCreator();
+    private static final Map<TaskType, ModelCreator<? extends IbmWatsonxModel>> MODEL_CREATORS = Map.of(
+        TaskType.TEXT_EMBEDDING,
+        new IbmWatsonxEmbeddingsModelCreator(),
+        TaskType.COMPLETION,
+        CHAT_COMPLETION_MODEL_CREATOR,
+        TaskType.CHAT_COMPLETION,
+        CHAT_COMPLETION_MODEL_CREATOR,
+        TaskType.RERANK,
+        new IbmWatsonxRerankModelCreator()
     );
 
     public static final String NAME = "watsonxai";
@@ -156,36 +169,16 @@ public class IbmWatsonxService extends SenderService implements RerankingInferen
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return switch (taskType) {
-            case TEXT_EMBEDDING -> new IbmWatsonxEmbeddingsModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                serviceSettings,
-                taskSettings,
-                chunkingSettings,
-                secretSettings,
-                context
-            );
-            case RERANK -> new IbmWatsonxRerankModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                serviceSettings,
-                taskSettings,
-                secretSettings,
-                context
-            );
-            case CHAT_COMPLETION, COMPLETION -> new IbmWatsonxChatCompletionModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                serviceSettings,
-                secretSettings,
-                context
-            );
-            default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
-        };
+        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, context).createFromMaps(
+            inferenceEntityId,
+            taskType,
+            NAME,
+            serviceSettings,
+            taskSettings,
+            chunkingSettings,
+            secretSettings,
+            context
+        );
     }
 
     @Override
@@ -215,13 +208,24 @@ public class IbmWatsonxService extends SenderService implements RerankingInferen
     }
 
     @Override
+    public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return retrieveModelCreatorFromMapOrThrow(
+            MODEL_CREATORS,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.PERSISTENT
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
+    }
+
+    @Override
     public InferenceServiceConfiguration getConfiguration() {
         return Configuration.get();
     }
 
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
-        return supportedTaskTypes;
+        return SUPPORTED_TASK_TYPES;
     }
 
     private static IbmWatsonxModel createModelFromPersistent(
@@ -377,16 +381,16 @@ public class IbmWatsonxService extends SenderService implements RerankingInferen
 
     public static class Configuration {
         public static InferenceServiceConfiguration get() {
-            return configuration.getOrCompute();
+            return CONFIGURATION.getOrCompute();
         }
 
-        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
+        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> CONFIGURATION = new LazyInitializable<>(
             () -> {
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
 
                 configurationMap.put(
                     API_VERSION,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("The IBM watsonx API version ID to use.")
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription("The IBM watsonx API version ID to use.")
                         .setLabel("API Version")
                         .setRequired(true)
                         .setSensitive(false)
@@ -397,7 +401,7 @@ public class IbmWatsonxService extends SenderService implements RerankingInferen
 
                 configurationMap.put(
                     PROJECT_ID,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("")
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription("")
                         .setLabel("Project ID")
                         .setRequired(true)
                         .setSensitive(false)
@@ -408,7 +412,7 @@ public class IbmWatsonxService extends SenderService implements RerankingInferen
 
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
                         "The name of the model to use for the inference task."
                     )
                         .setLabel("Model ID")
@@ -421,7 +425,7 @@ public class IbmWatsonxService extends SenderService implements RerankingInferen
 
                 configurationMap.put(
                     URL,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("")
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription("")
                         .setLabel("URL")
                         .setRequired(true)
                         .setSensitive(false)
@@ -445,7 +449,7 @@ public class IbmWatsonxService extends SenderService implements RerankingInferen
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)
-                    .setTaskTypes(supportedTaskTypes)
+                    .setTaskTypes(SUPPORTED_TASK_TYPES)
                     .setConfigurations(configurationMap)
                     .build();
             }

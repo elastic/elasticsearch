@@ -382,9 +382,14 @@ public abstract class GoldenTestCase extends ESTestCase {
     }
 
     private static String toString(Node<?> plan) {
-        return IDENTIFIER_PATTERN.matcher(plan.toString(Node.NodeStringFormat.FULL)).replaceAll("");
+        String planString = plan.toString(Node.NodeStringFormat.FULL);
+        String withoutSyntheticPatterns = SYNTHETIC_PATTERN.matcher(planString).replaceAll("\\$\\$$1");
+        return IDENTIFIER_PATTERN.matcher(withoutSyntheticPatterns).replaceAll("");
     }
 
+    // Matches synthetic names like $$alias$1$2#3, since those $digits are generated during the test run and may differ each time. The
+    // #digit are removed by the next pattern.
+    private static final Pattern SYNTHETIC_PATTERN = Pattern.compile("\\$\\$([^$\\s]+)(\\$\\d+)*(?=[{#])");
     private static final Pattern IDENTIFIER_PATTERN = Pattern.compile("#\\d+");
 
     private static Test.TestResult verifyExisting(Path output, QueryPlan<?> plan) throws IOException {

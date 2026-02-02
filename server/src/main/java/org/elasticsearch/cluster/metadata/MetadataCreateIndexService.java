@@ -588,7 +588,6 @@ public class MetadataCreateIndexService {
         final IndexMetadata.Builder tmpImdBuilder = IndexMetadata.builder(request.index());
         tmpImdBuilder.setRoutingNumShards(routingNumShards);
         tmpImdBuilder.settings(indexSettings);
-        tmpImdBuilder.transportVersion(TransportVersion.current());
         tmpImdBuilder.system(isSystem);
 
         // Set up everything, now locally create the index to see that things are ok, and apply
@@ -1366,6 +1365,7 @@ public class MetadataCreateIndexService {
     ) {
         IndexMetadata.Builder indexMetadataBuilder = createIndexMetadataBuilder(indexName, sourceMetadata, indexSettings, routingNumShards);
         indexMetadataBuilder.system(isSystem);
+        indexMetadataBuilder.transportVersion(minClusterTransportVersion);
         if (minClusterTransportVersion.before(TransportVersions.V_8_15_0)) {
             // promote to UNKNOWN for older versions since they don't know how to handle event.ingested in cluster state
             indexMetadataBuilder.eventIngestedRange(IndexLongFieldRange.UNKNOWN, minClusterTransportVersion);

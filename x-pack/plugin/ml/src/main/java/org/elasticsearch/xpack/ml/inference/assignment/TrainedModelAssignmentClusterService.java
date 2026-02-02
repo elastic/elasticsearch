@@ -854,6 +854,16 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 listener.onFailure(validationException);
                 return;
             }
+            if (adaptiveAllocationsSettings != null
+                && adaptiveAllocationsSettings.getMaxNumberOfAllocations() != null
+                && adaptiveAllocationsSettings.getMaxNumberOfAllocations() > 1) {
+                ValidationException validationException = new ValidationException();
+                validationException.addValidationError(
+                    "[" + AdaptiveAllocationsSettings.MAX_NUMBER_OF_ALLOCATIONS + "] must be 1 when [" + PRIORITY + "] is low"
+                );
+                listener.onFailure(validationException);
+                return;
+            }
         }
 
         boolean hasUpdates = hasUpdates(numberOfAllocations, adaptiveAllocationsSettingsUpdates, existingAssignment);

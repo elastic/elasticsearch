@@ -11,7 +11,6 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -295,32 +294,6 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                     assertThat(getValuesList(resp), hasSize(indexToNumDocs.get(index)));
                 }
                 assertThat(queriedIndices, equalTo(Set.of(index)));
-            }
-        } finally {
-            cleanAllTransportRules();
-        }
-    }
-
-    public void testSkipOnTierName() {
-        var tiers = List.of("hot", "warm", "cold");
-        for (String tier : tiers) {
-            assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareCreate("index-" + tier)
-                    .setSettings(Settings.builder().put(DataTier.TIER_PREFERENCE, "data_" + tier))
-            );
-            indexRandom(true, "index-" + tier, 1);
-        }
-
-        var queriedIndices = captureQueriedIndices();
-        try {
-            for (String tier : tiers) {
-                queriedIndices.clear();
-                try (EsqlQueryResponse resp = run("from index-* METADATA _tier | WHERE _tier == \"data_" + tier + "\"")) {
-                    assertThat(getValuesList(resp), hasSize(1));
-                    assertThat(queriedIndices, equalTo(Set.of("index-" + tier)));
-                }
             }
         } finally {
             cleanAllTransportRules();

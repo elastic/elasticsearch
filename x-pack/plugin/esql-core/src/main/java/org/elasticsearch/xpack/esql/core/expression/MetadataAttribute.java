@@ -15,7 +15,6 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.IndexModeFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -46,7 +45,6 @@ public class MetadataAttribute extends TypedAttribute {
         Map.entry(IgnoredFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)),
         Map.entry(SourceFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.SOURCE, false)),
         Map.entry(IndexModeFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)),
-        Map.entry(DataTierFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)),
         Map.entry(SCORE, new MetadataAttributeConfiguration(DataType.DOUBLE, false))
     );
 

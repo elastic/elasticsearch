@@ -19,7 +19,7 @@ import com.sun.jna.WString;
 import com.sun.jna.ptr.IntByReference;
 import com.sun.jna.win32.StdCallLibrary;
 
-import org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler;
+import org.elasticsearch.nativeaccess.WindowsNativeAccess.ConsoleCtrlHandler;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
 
 import java.util.List;

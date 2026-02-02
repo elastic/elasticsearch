@@ -32,6 +32,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -85,6 +86,40 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 fileSystemOperations
             );
         });
+
+        // Also set up the "main" project which is just used for arbitrary overrides. See InternalDistributionDownloadPlugin.
+        if (System.getProperty("tests.bwc.main.version") != null) {
+            configureBwcProject(
+                project.project(":distribution:bwc:main"),
+                buildParams,
+                new BwcVersions.UnreleasedVersionInfo(
+                    Version.fromString(System.getProperty("tests.bwc.main.version")),
+                    "main",
+                    ":distribution:bwc:main"
+                ),
+                providerFactory,
+                objectFactory,
+                toolChainService,
+                isCi,
+                fileSystemOperations
+            );
+        }
+
+        // We need source access to unmaintained previous major for our yamlRestTest compatibility tests but we do not
+        // want bwc coverage for this atm.
+        Optional<BwcVersions.UnreleasedVersionInfo> unmaintainedPreviousMajor = buildParams.getBwcVersions().getUnmaintainedPreviousMajor();
+        if (unmaintainedPreviousMajor.isPresent()) {
+            configureBwcProject(
+                project.project(unmaintainedPreviousMajor.get().gradleProjectPath()),
+                buildParams,
+                unmaintainedPreviousMajor.get(),
+                providerFactory,
+                objectFactory,
+                toolChainService,
+                isCi,
+                fileSystemOperations
+            );
+        }
     }
 
     private static void configureBwcProject(

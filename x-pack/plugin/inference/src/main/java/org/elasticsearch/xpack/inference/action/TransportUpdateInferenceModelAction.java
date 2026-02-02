@@ -224,11 +224,14 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         }
         if (settingsToUpdate.serviceSettings() != null && settingsToUpdate.serviceSettings().containsKey(NUM_ALLOCATIONS)) {
             // In cluster services can only have their num_allocations updated, so this is a special case
-            if (newServiceSettings instanceof ElasticsearchInternalServiceSettings elasticServiceSettings) {
+            if (settingsToUpdate.serviceSettings().containsKey(NUM_ALLOCATIONS)
+                && newServiceSettings instanceof ElasticsearchInternalServiceSettings elasticServiceSettings) {
                 newServiceSettings = new ElasticsearchInternalServiceSettings(
                     elasticServiceSettings,
                     (Integer) settingsToUpdate.serviceSettings().get(NUM_ALLOCATIONS)
                 );
+            } else {
+                newServiceSettings = newServiceSettings.updateServiceSettings(settingsToUpdate.serviceSettings());
             }
         }
         if (settingsToUpdate.taskSettings() != null && existingTaskSettings != null) {

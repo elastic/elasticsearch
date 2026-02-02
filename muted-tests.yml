@@ -330,21 +330,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
   method: testSearchWhileRelocating
   issue: https://github.com/elastic/elasticsearch/issues/128500
-- class: org.elasticsearch.xpack.inference.InferenceRestIT
-  method: test {p0=inference/70_text_similarity_rank_retriever/Text similarity reranker with min_score zero includes all docs}
-  issue: https://github.com/elastic/elasticsearch/issues/137732
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test050BasicApiTests
-  issue: https://github.com/elastic/elasticsearch/issues/120911
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test070BindMountCustomPathConfAndJvmOptions
-  issue: https://github.com/elastic/elasticsearch/issues/131366
 - class: org.elasticsearch.qa.verify_version_constants.VerifyVersionConstantsIT
   method: testLuceneVersionConstant
   issue: https://github.com/elastic/elasticsearch/issues/139816
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test071BindMountCustomPathWithDifferentUID
-  issue: https://github.com/elastic/elasticsearch/issues/120917
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test130JavaHasCorrectOwnership
-  issue: https://github.com/elastic/elasticsearch/issues/131369
+- class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
+  method: testSearchWithRandomDisconnects
+  issue: https://github.com/elastic/elasticsearch/issues/138128

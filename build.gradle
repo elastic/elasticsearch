@@ -96,7 +96,7 @@ tasks.named('zipAggregation').configure {
 ext.testArtifact = { p, String name = "test" ->
   def projectDependency = p.dependencies.create(p)
   projectDependency.capabilities {
-    requireCapabilities("org.elasticsearch.gradle:${projectDependency.name}-${name}-artifacts")
+    requireCapabilities("${p.group}:${projectDependency.name}-${name}-artifacts")
   };
 }
 
@@ -337,9 +337,14 @@ allprojects {
     if (project.path == ':') {
       resolveJavaToolChain = true
     }
-    // ensure we have best possible caching of bwc builds
+    project.pluginManager.withPlugin('elasticsearch.mrjar') {
+      // ensure we implicitly resolve all jdks needed from the java toolchain resolution
+      println "Configuring resolveAllDependencies to depend on JavaCompile tasks for project ${project.path} because it applies the mrjar plugin"
+      dependsOn project.getTasks().withType(JavaCompile.class)
+    }
+    // we run the packer script for all active branches. so we should be able to skip bwc here
     if(project.path.startsWith(":distribution:bwc:")) {
-      dependsOn project.tasks.matching { it.name == 'buildBwcLinuxTar' }
+      enabled = false
     }
     if (project.path.contains("fixture")) {
       dependsOn tasks.withType(ComposePull)

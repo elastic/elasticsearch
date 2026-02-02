@@ -68,8 +68,10 @@ class JULBridge extends Handler {
         final String message;
         if (rawMessage == null) {
             message = "<null message>";
-        } else {
+        } else if (record.getParameters() != null && record.getParameters().length > 0) {
             message = new MessageFormat(rawMessage, Locale.ROOT).format(record.getParameters());
+        } else {
+            message = rawMessage;
         }
 
         if (thrown == null) {

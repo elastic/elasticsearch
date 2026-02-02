@@ -93,10 +93,7 @@ public class BinaryMvMinBytesRefsTests extends ESTestCase {
                 var mvMinReader = mvMinLoader.reader(ctx);
                 assertThat(mvMinReader, readerMatcher());
                 BlockLoader.Docs docs = TestBlock.docs(ctx);
-                try (
-                    TestBlock strings = read(stringsLoader, stringsReader, docs);
-                    TestBlock mins = read(mvMinLoader, mvMinReader, docs)
-                ) {
+                try (TestBlock strings = read(stringsLoader, stringsReader, docs); TestBlock mins = read(mvMinLoader, mvMinReader, docs)) {
                     checkBlocks(strings, mins);
                 }
 

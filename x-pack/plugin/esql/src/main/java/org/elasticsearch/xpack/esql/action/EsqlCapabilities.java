@@ -2023,6 +2023,11 @@ public class EsqlCapabilities {
         APPROXIMATION(Build.current().isSnapshot()),
 
         /**
+         * Create a ScoreOperator only when shard contexts are available
+         */
+        FIX_SCORE_OPERATOR_PLANNING,
+
+        /**
          * Periodically emit partial aggregation results when the number of groups exceeds the threshold.
          */
         PERIODIC_EMIT_PARTIAL_AGGREGATION_RESULTS,

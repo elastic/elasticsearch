@@ -32,6 +32,7 @@ import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -53,6 +54,13 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.Mockito.mock;
 
+@TestLogging(
+    value = "org.elasticsearch.compute.operator.exchange.BatchDriver:TRACE,"
+        + "org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeClient:TRACE,"
+        + "org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeServer:TRACE,"
+        + "org.elasticsearch.compute.operator.exchange.BatchContext:TRACE",
+    reason = "debugging batch driver and bidirectional exchange"
+)
 public class BidirectionalBatchExchangeTests extends ESTestCase {
     private static final Logger logger = LogManager.getLogger(BidirectionalBatchExchangeTests.class);
 

@@ -90,6 +90,7 @@ public class LookupFromIndexOperator extends AsyncOperator<LookupFromIndexOperat
                     matchFields,
                     sessionId,
                     parentTask,
+                    maxOutstandingRequests,
                     lookupService.apply(driverContext),
                     lookupIndexPattern,
                     lookupIndex,

@@ -49,6 +49,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     private ActionListener<Void> batchExchangeStatusListener; // Listener for batch exchange status completion
     private final SubscribableListener<Void> serverResponseListener = new SubscribableListener<>(); // Listener for server response
     private volatile boolean requestSent = false; // Track if batch exchange status request was sent
+    private volatile boolean closed = false; // Track if close() has been called (for idempotency)
     // Track batch counts to ensure all batches complete before closing
     private final AtomicInteger startedBatchCount = new AtomicInteger(0);
     private final AtomicInteger completedBatchCount = new AtomicInteger(0);
@@ -362,6 +363,19 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         // Use compareAndSet to ensure only the first failure triggers the listener
         if (failureRef.compareAndSet(null, failure)) {
             logger.error("[LookupJoinClient] Failure from {} will be reported: {}", context, failure.getMessage());
+            // Notify the operator's failure listener FIRST, before unblocking the driver.
+            // This ensures that when finishEarly() wakes up the driver thread, the operator's
+            // failure field is already set, so getOutput() will throw immediately.
+            if (batchExchangeStatusListener != null) {
+                logger.debug(
+                    "[LookupJoinClient] Calling batch exchange status listener onFailure (from {}), failure={}",
+                    context,
+                    failure.getMessage()
+                );
+                batchExchangeStatusListener.onFailure(failure);
+                logger.debug("[LookupJoinClient] Batch exchange status listener onFailure completed");
+            }
+            // NOW unblock the driver - the failure is already set in the operator
             // Finish the server-to-client source handler to unblock the client driver
             // The driver is waiting for pages from this exchange, so we need to signal completion
             if (serverToClientSourceHandler != null) {
@@ -373,15 +387,6 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
             if (sortedSource != null) {
                 logger.debug("[LookupJoinClient] Closing sorted source due to failure");
                 sortedSource.close();
-            }
-            if (batchExchangeStatusListener != null) {
-                logger.debug(
-                    "[LookupJoinClient] Calling batch exchange status listener onFailure (from {}), failure={}",
-                    context,
-                    failure.getMessage()
-                );
-                batchExchangeStatusListener.onFailure(failure);
-                logger.debug("[LookupJoinClient] Batch exchange status listener onFailure completed");
             }
         } else {
             // Failure already stored - just log, don't notify again
@@ -408,6 +413,10 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
 
     @Override
     public void close() {
+        if (closed) {
+            return;
+        }
+        closed = true;
         logger.debug("[LookupJoinClient] Closing BidirectionalBatchExchangeClient");
 
         // Finish client-to-server exchange FIRST to signal the server that no more batches will be sent

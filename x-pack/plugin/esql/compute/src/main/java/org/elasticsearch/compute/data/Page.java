@@ -27,7 +27,9 @@ import java.util.Objects;
  * The number of blocks can be retrieved via {@link #getBlockCount()}, and the respective
  * blocks can be retrieved via their index {@link #getBlock(int)}.
  *
- * <p> Pages are immutable and can be passed between threads.
+ * <p> Pages are immutable and can be passed between threads. This class may be subclassed to
+ * add metadata (e.g., batch information for streaming exchanges). Subclasses must maintain
+ * the immutability and thread-safety guarantees.
  */
 public class Page implements Writeable, Releasable {
 

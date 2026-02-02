@@ -93,8 +93,7 @@ public final class ExchangeSourceHandler {
         @Override
         public Page pollPage() {
             checkFailure();
-            Page page = buffer.pollPage();
-            return page;
+            return buffer.pollPage();
         }
 
         @Override

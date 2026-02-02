@@ -234,6 +234,10 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
+        return simple(options, QueryPragmas.ENRICH_MAX_WORKERS.getDefault(Settings.EMPTY));
+    }
+
+    protected Operator.OperatorFactory simple(SimpleOptions options, int maxOutstandingRequests) {
         String sessionId = "test";
         CancellableTask parentTask = new CancellableTask(0, "test", "test", "test", TaskId.EMPTY_TASK_ID, Map.of());
         DataType inputDataType = DataType.LONG;
@@ -301,6 +305,7 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
                     finalMatchFields,
                     sessionId,
                     parentTask,
+                    maxOutstandingRequests,
                     service,
                     lookupIndex,
                     lookupIndex,
@@ -560,18 +565,7 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
     }
 
     /**
-     * Verify the MAX_CONCURRENT_BATCHES constant is accessible and has a reasonable value.
-     */
-    public void testMaxConcurrentBatchesConstant() {
-        assertThat(
-            "MAX_CONCURRENT_BATCHES should be positive",
-            StreamingLookupFromIndexOperator.MAX_CONCURRENT_BATCHES,
-            greaterThanOrEqualTo(1)
-        );
-    }
-
-    /**
-     * Test that the operator accepts exactly MAX_CONCURRENT_BATCHES before blocking.
+     * Test that the operator accepts exactly maxOutstandingRequests batches before blocking.
      * This verifies that pipelining allows multiple batches in flight simultaneously.
      */
     public void testConcurrentBatchPipelining() {
@@ -580,8 +574,8 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
             return;
         }
 
-        int maxBatches = StreamingLookupFromIndexOperator.MAX_CONCURRENT_BATCHES;
-        int numPages = maxBatches + 2; // More pages than max concurrent
+        int maxBatches = 5;
+        int numPages = maxBatches * 100 + 1;
 
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
@@ -605,7 +599,7 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
             assertThat("Each page should have 1 row", p.getPositionCount(), equalTo(1));
         }
 
-        Operator.OperatorFactory factory = simple();
+        Operator.OperatorFactory factory = simple(SimpleOptions.DEFAULT, maxBatches);
         Operator operator = factory.get(driverContext);
         List<Page> results = new ArrayList<>();
 
@@ -623,18 +617,18 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
             int pagesAccepted = 0;
             int pageIndex = 0;
 
-            // Send up to MAX_CONCURRENT_BATCHES pages - all should be accepted
+            // Send up to maxBatches pages - all should be accepted
             for (int i = 0; i < maxBatches && pageIndex < inputPages.size(); i++) {
                 assertTrue("Should accept batch " + i, operator.needsInput());
                 operator.addInput(inputPages.get(pageIndex++));
                 pagesAccepted++;
             }
 
-            // Verify we accepted exactly MAX_CONCURRENT_BATCHES
-            assertThat("Should accept exactly MAX_CONCURRENT_BATCHES before blocking", pagesAccepted, equalTo(maxBatches));
+            // Verify we accepted exactly maxBatches
+            assertThat("Should accept exactly maxOutstandingRequests batches before blocking", pagesAccepted, equalTo(maxBatches));
 
-            // After MAX_CONCURRENT_BATCHES, needsInput should return false
-            assertFalse("Should NOT accept more than MAX_CONCURRENT_BATCHES in flight", operator.needsInput());
+            // After maxBatches, needsInput should return false
+            assertFalse("Should NOT accept more than maxOutstandingRequests batches in flight", operator.needsInput());
 
             // Now drive the operator to completion, feeding remaining pages as space becomes available
             while (operator.isFinished() == false) {

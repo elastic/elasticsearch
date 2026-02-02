@@ -133,8 +133,10 @@ import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
+import org.elasticsearch.repositories.LocalPrimarySnapshotShardContextFactory;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.SnapshotMetrics;
+import org.elasticsearch.repositories.SnapshotShardContextFactory;
 import org.elasticsearch.repositories.VerifyNodeRepositoryAction;
 import org.elasticsearch.repositories.VerifyNodeRepositoryCoordinationAction;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -697,7 +699,8 @@ public class SnapshotResiliencyTestHelper {
                     clusterService,
                     repositoriesService,
                     transportService,
-                    indicesService
+                    indicesService,
+                    createSnapshotShardContextFactory()
                 );
                 shardStateAction = new ShardStateAction(clusterService, transportService, allocationService, rerouteService, threadPool);
                 nodeConnectionsService = new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService);
@@ -1109,6 +1112,10 @@ public class SnapshotResiliencyTestHelper {
             }
 
             protected void doInit(Map<ActionType<?>, TransportAction<?, ?>> actions, ActionFilters actionFilters) {}
+
+            protected SnapshotShardContextFactory createSnapshotShardContextFactory() {
+                return new LocalPrimarySnapshotShardContextFactory(clusterService, indicesService);
+            }
 
             /**
              * Maybe execute the given transport runnable inline. If executed, return true, else return false to schedule it.

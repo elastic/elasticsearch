@@ -69,7 +69,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsModel extends ElasticInfe
         ChunkingSettings chunkingSettings,
         @Nullable EndpointMetadata endpointMetadata
     ) {
-        super(
+        this(
             new ModelConfigurations(
                 inferenceEntityId,
                 taskType,
@@ -80,7 +80,19 @@ public class ElasticInferenceServiceDenseTextEmbeddingsModel extends ElasticInfe
                 endpointMetadata
             ),
             new ModelSecrets(),
-            serviceSettings,
+            elasticInferenceServiceComponents
+        );
+    }
+
+    public ElasticInferenceServiceDenseTextEmbeddingsModel(
+        ModelConfigurations modelConfigurations,
+        ModelSecrets modelSecrets,
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents
+    ) {
+        super(
+            modelConfigurations,
+            modelSecrets,
+            (ElasticInferenceServiceDenseTextEmbeddingsServiceSettings) modelConfigurations.getServiceSettings(),
             elasticInferenceServiceComponents
         );
         this.uri = createUri();

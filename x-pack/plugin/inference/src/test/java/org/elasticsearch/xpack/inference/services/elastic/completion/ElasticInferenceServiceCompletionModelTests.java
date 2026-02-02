@@ -19,13 +19,7 @@ import static org.hamcrest.Matchers.is;
 public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
 
     public void testOverridingModelId() {
-        var originalModel = new ElasticInferenceServiceCompletionModel(
-            "id",
-            TaskType.COMPLETION,
-            "elastic",
-            new ElasticInferenceServiceCompletionServiceSettings("model_id"),
-            ElasticInferenceServiceComponents.of("url")
-        );
+        var originalModel = createModel("url", "model_id", TaskType.COMPLETION);
 
         var request = new UnifiedCompletionRequest(
             List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("message"), "user", null, null)),
@@ -46,7 +40,7 @@ public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
 
     public void testUriCreation() {
         var url = "http://eis-gateway.com";
-        var model = createModel(url, "my-model-id");
+        var model = createModel(url, "my-model-id", TaskType.COMPLETION);
 
         var uri = model.uri();
         assertThat(uri.toString(), is(url + "/api/v1/chat"));
@@ -54,14 +48,14 @@ public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
 
     public void testGetServiceSettings() {
         var modelId = "test-model";
-        var model = createModel("http://eis-gateway.com", modelId);
+        var model = createModel("http://eis-gateway.com", modelId, TaskType.COMPLETION);
 
         var serviceSettings = model.getServiceSettings();
         assertThat(serviceSettings.modelId(), is(modelId));
     }
 
     public void testGetTaskType() {
-        var model = createModel("http://eis-gateway.com", "my-model-id");
+        var model = createModel("http://eis-gateway.com", "my-model-id", TaskType.COMPLETION);
         assertThat(model.getTaskType(), is(TaskType.COMPLETION));
     }
 
@@ -79,7 +73,7 @@ public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
     }
 
     public void testModelWithOverriddenServiceSettings() {
-        var originalModel = createModel("http://eis-gateway.com", "original-model");
+        var originalModel = createModel("http://eis-gateway.com", "original-model", TaskType.COMPLETION);
         var newServiceSettings = new ElasticInferenceServiceCompletionServiceSettings("new-model");
 
         var overriddenModel = new ElasticInferenceServiceCompletionModel(originalModel, newServiceSettings);
@@ -89,10 +83,10 @@ public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
         assertThat(overriddenModel.uri().toString(), is(originalModel.uri().toString()));
     }
 
-    public static ElasticInferenceServiceCompletionModel createModel(String url, String modelId) {
+    public static ElasticInferenceServiceCompletionModel createModel(String url, String modelId, TaskType taskType) {
         return new ElasticInferenceServiceCompletionModel(
             "id",
-            TaskType.COMPLETION,
+            taskType,
             "elastic",
             new ElasticInferenceServiceCompletionServiceSettings(modelId),
             ElasticInferenceServiceComponents.of(url)

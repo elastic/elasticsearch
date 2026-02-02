@@ -66,7 +66,6 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
     ) {
         super(model, serviceSettings);
         this.uri = createUri();
-
     }
 
     public ElasticInferenceServiceCompletionModel(
@@ -87,7 +86,7 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
         @Nullable EndpointMetadata endpointMetadata
     ) {
-        super(
+        this(
             new ModelConfigurations(
                 inferenceEntityId,
                 taskType,
@@ -98,10 +97,21 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
                 endpointMetadata
             ),
             new ModelSecrets(),
-            serviceSettings,
             elasticInferenceServiceComponents
         );
+    }
 
+    public ElasticInferenceServiceCompletionModel(
+        ModelConfigurations modelConfigurations,
+        ModelSecrets modelSecrets,
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents
+    ) {
+        super(
+            modelConfigurations,
+            modelSecrets,
+            (ElasticInferenceServiceCompletionServiceSettings) modelConfigurations.getServiceSettings(),
+            elasticInferenceServiceComponents
+        );
         this.uri = createUri();
     }
 

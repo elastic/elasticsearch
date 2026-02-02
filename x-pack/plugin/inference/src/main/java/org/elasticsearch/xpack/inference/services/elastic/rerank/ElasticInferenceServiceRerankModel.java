@@ -64,7 +64,7 @@ public class ElasticInferenceServiceRerankModel extends ElasticInferenceServiceM
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
         @Nullable EndpointMetadata endpointMetadata
     ) {
-        super(
+        this(
             new ModelConfigurations(
                 inferenceEntityId,
                 taskType,
@@ -75,7 +75,19 @@ public class ElasticInferenceServiceRerankModel extends ElasticInferenceServiceM
                 endpointMetadata
             ),
             new ModelSecrets(),
-            serviceSettings,
+            elasticInferenceServiceComponents
+        );
+    }
+
+    public ElasticInferenceServiceRerankModel(
+        ModelConfigurations modelConfigurations,
+        ModelSecrets modelSecrets,
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents
+    ) {
+        super(
+            modelConfigurations,
+            modelSecrets,
+            (ElasticInferenceServiceRerankServiceSettings) modelConfigurations.getServiceSettings(),
             elasticInferenceServiceComponents
         );
         this.uri = createUri();

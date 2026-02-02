@@ -67,11 +67,20 @@ public class LlamaChatCompletionModel extends LlamaModel {
         LlamaChatCompletionServiceSettings serviceSettings,
         SecretSettings secrets
     ) {
-        super(
+        this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, EmptyTaskSettings.INSTANCE),
             new ModelSecrets(secrets)
         );
-        setPropertiesFromServiceSettings(serviceSettings);
+    }
+
+    /**
+     * Constructor for creating a LlamaChatCompletionModel from model configurations and secrets.
+     * @param modelConfigurations the configurations for the model
+     * @param modelSecrets the secret settings for the model
+     */
+    public LlamaChatCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets);
+        setPropertiesFromServiceSettings((LlamaChatCompletionServiceSettings) modelConfigurations.getServiceSettings());
     }
 
     /**

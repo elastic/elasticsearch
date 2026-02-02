@@ -77,7 +77,7 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
         ChunkingSettings chunkingSettings,
         @Nullable EndpointMetadata endpointMetadata
     ) {
-        super(
+        this(
             new ModelConfigurations(
                 inferenceEntityId,
                 taskType,
@@ -88,7 +88,19 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
                 endpointMetadata
             ),
             new ModelSecrets(),
-            serviceSettings,
+            elasticInferenceServiceComponents
+        );
+    }
+
+    public ElasticInferenceServiceSparseEmbeddingsModel(
+        ModelConfigurations modelConfigurations,
+        ModelSecrets modelSecrets,
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents
+    ) {
+        super(
+            modelConfigurations,
+            modelSecrets,
+            (ElasticInferenceServiceSparseEmbeddingsServiceSettings) modelConfigurations.getServiceSettings(),
             elasticInferenceServiceComponents
         );
         this.uri = createUri();

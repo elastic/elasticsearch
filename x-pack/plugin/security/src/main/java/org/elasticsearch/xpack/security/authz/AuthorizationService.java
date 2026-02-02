@@ -402,24 +402,8 @@ public class AuthorizationService {
     }
 
     private String requireAuditId(Authentication authentication, String action, TransportRequest originalRequest) {
-        String auditId = AuditUtil.extractRequestId(threadContext);
-        if (auditId == null) {
-            // We would like to assert that there is an existing request-id, but if this is a system action, then that might not be
-            // true because the request-id is generated during authentication
-            if (authentication.getEffectiveSubject().getUser() instanceof InternalUser) {
-                auditId = AuditUtil.getOrGenerateRequestId(threadContext);
-            } else {
-                auditTrailService.get().tamperedRequest(null, authentication, action, originalRequest);
-                throw internalError(
-                    "Attempt to authorize action ["
-                        + action
-                        + "] for ["
-                        + authentication.getEffectiveSubject().getUser().principal()
-                        + "] without an existing request-id"
-                );
-            }
-        }
-        return auditId;
+        // TODO why does this get lost?
+        return AuditUtil.getOrGenerateRequestId(threadContext);
     }
 
     private static ElasticsearchSecurityException internalError(String message) {

@@ -31,6 +31,7 @@ import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValue
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -232,7 +233,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     private final List<SearchSourceBuilder.ScriptField> scriptFields;
     private final Integer scrollSize;
     private final ChunkingConfig chunkingConfig;
-    private final Map<String, String> headers;
+    private Map<String, String> headers;
     private final DelayedDataCheckConfig delayedDataCheckConfig;
     private final Integer maxEmptySearches;
     private final IndicesOptions indicesOptions;
@@ -265,7 +266,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         this.scriptFields = scriptFields == null ? null : Collections.unmodifiableList(scriptFields);
         this.scrollSize = scrollSize;
         this.chunkingConfig = chunkingConfig;
-        this.headers = Collections.unmodifiableMap(headers);
+        setHeaders(headers);
         this.delayedDataCheckConfig = delayedDataCheckConfig;
         this.maxEmptySearches = maxEmptySearches;
         this.indicesOptions = ExceptionsHelper.requireNonNull(indicesOptions, INDICES_OPTIONS);
@@ -299,6 +300,23 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         maxEmptySearches = in.readOptionalVInt();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         runtimeMappings = in.readGenericMap();
+    }
+
+    public static DatafeedConfig withCrossProjectModeIfEnabled(DatafeedConfig datafeed, CrossProjectModeDecider crossProjectModeDecider) {
+        Objects.requireNonNull(datafeed, "datafeed must not be null");
+        Objects.requireNonNull(crossProjectModeDecider, "crossProjectModeDecider must not be null");
+
+        if (crossProjectModeDecider.crossProjectEnabled()) {
+            IndicesOptions baseOptions = datafeed.getIndicesOptions();
+            // Only rebuild if CPS mode is not already enabled to avoid unnecessary object creation
+            if (baseOptions.resolveCrossProjectIndexExpression() == false) {
+                IndicesOptions modifiedOptions = IndicesOptions.builder(baseOptions)
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .build();
+                return new DatafeedConfig.Builder(datafeed).setIndicesOptions(modifiedOptions).build();
+            }
+        }
+        return datafeed;
     }
 
     /**
@@ -488,6 +506,11 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
     public Map<String, String> getHeaders() {
         return headers;
+    }
+
+    public DatafeedConfig setHeaders(Map<String, String> headers) {
+        this.headers = headers == null ? Collections.emptyMap() : Collections.unmodifiableMap(headers);
+        return this;
     }
 
     public DelayedDataCheckConfig getDelayedDataCheckConfig() {
@@ -1052,7 +1075,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             if (indicesOptions == null) {
                 indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED;
             }
-            if (indicesOptions.resolveCrossProjectIndexExpression()) {
+
+            if (indicesOptions.crossProjectModeOptions().resolveIndexExpression()) {
                 throw new ElasticsearchStatusException("Cross-project search is not enabled for Datafeeds", RestStatus.FORBIDDEN);
             }
 

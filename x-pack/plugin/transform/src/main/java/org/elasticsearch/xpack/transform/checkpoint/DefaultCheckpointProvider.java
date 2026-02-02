@@ -87,19 +87,59 @@ class DefaultCheckpointProvider implements CheckpointProvider {
         final long timestamp = clock.millis();
         final long checkpoint = TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? 1 : lastCheckpoint.getCheckpoint() + 1;
 
-        getIndexCheckpoints(INTERNAL_GET_INDEX_CHECKPOINTS_TIMEOUT, ActionListener.wrap(checkpointsByIndex -> {
-            reportSourceIndexChanges(
-                TransformCheckpoint.isNullOrEmpty(lastCheckpoint)
-                    ? Collections.emptySet()
-                    : lastCheckpoint.getIndicesCheckpoints().keySet(),
-                checkpointsByIndex.keySet()
-            );
+        // Only execute cross-project headers action if feature flag is enabled and transform uses remote indices
+        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() && transformConfig.getSource().requiresRemoteCluster()) {
+            CrossProjectHeadersHelper.executeWithCrossProjectHeaders(
+                client,
+                transformConfig,
+                ActionListener.wrap(
+                    v -> getIndexCheckpoints(INTERNAL_GET_INDEX_CHECKPOINTS_TIMEOUT, ActionListener.wrap(checkpointsByIndex -> {
+                        reportSourceIndexChanges(
+                            TransformCheckpoint.isNullOrEmpty(lastCheckpoint)
+                                ? Collections.emptySet()
+                                : lastCheckpoint.getIndicesCheckpoints().keySet(),
+                            checkpointsByIndex.keySet()
+                        );
 
-            listener.onResponse(new TransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, 0L));
-        }, listener::onFailure));
+                        listener.onResponse(
+                            new TransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, 0L)
+                        );
+                    }, listener::onFailure)),
+                    e -> {
+                        logger.warn(
+                            () -> format("[%s] failed to prepare headers for checkpoint [%d]", transformConfig.getId(), checkpoint),
+                            e
+                        );
+                        listener.onFailure(e);
+                    }
+                )
+            );
+        } else {
+            getIndexCheckpoints(INTERNAL_GET_INDEX_CHECKPOINTS_TIMEOUT, ActionListener.wrap(checkpointsByIndex -> {
+                reportSourceIndexChanges(
+                    TransformCheckpoint.isNullOrEmpty(lastCheckpoint)
+                        ? Collections.emptySet()
+                        : lastCheckpoint.getIndicesCheckpoints().keySet(),
+                    checkpointsByIndex.keySet()
+                );
+
+                listener.onResponse(new TransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, 0L));
+            }, listener::onFailure));
+        }
     }
 
     protected void getIndexCheckpoints(TimeValue timeout, ActionListener<Map<String, long[]>> listener) {
+        // Only execute cross-project headers action if feature flag is enabled and transform uses remote indices
+        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() && transformConfig.getSource().requiresRemoteCluster()) {
+            CrossProjectHeadersHelper.executeWithCrossProjectHeaders(client, transformConfig, ActionListener.wrap(v -> {
+                executeGetIndexCheckpoints(timeout, listener);
+            }, listener::onFailure));
+        } else {
+            executeGetIndexCheckpoints(timeout, listener);
+        }
+    }
+
+    private void executeGetIndexCheckpoints(TimeValue timeout, ActionListener<Map<String, long[]>> listener) {
         try {
             ResolvedIndices resolvedIndexes = remoteClusterResolver.resolve(transformConfig.getSource().getIndex());
             ActionListener<Map<String, long[]>> groupedListener = listener;

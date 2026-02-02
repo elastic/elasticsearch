@@ -104,6 +104,7 @@ public class Constants {
         "cluster:admin/features/get",
         "cluster:admin/features/reset",
         "cluster:admin/tasks/cancel",
+        "cluster:admin/transform/cross_project/headers/get",
         "cluster:admin/transform/delete",
         "cluster:admin/transform/node_stats",
         "cluster:admin/transform/preview",

@@ -33,6 +33,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.WorkerResumeInfo;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ClientScrollableHitSource;
@@ -344,7 +345,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         }
     }
 
-    private void resumeWorker(AbstractBulkByScrollRequest.WorkerResumeInfo workerResumeInfo) {
+    private void resumeWorker(WorkerResumeInfo workerResumeInfo) {
         startTime.set(workerResumeInfo.startTime());
         worker.restoreState(workerResumeInfo.status());
         scrollSource.resume(workerResumeInfo);

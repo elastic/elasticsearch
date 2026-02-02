@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.ScrollWorkerResumeInfo;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
@@ -76,8 +77,8 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
 
     @Override
     protected void restoreState(AbstractBulkByScrollRequest.WorkerResumeInfo resumeInfo, ActionListener<Void> doSearchListener) {
-        assert resumeInfo instanceof AbstractBulkByScrollRequest.ScrollWorkerResumeInfo;
-        var scrollResumeInfo = (AbstractBulkByScrollRequest.ScrollWorkerResumeInfo) resumeInfo;
+        assert resumeInfo instanceof ScrollWorkerResumeInfo;
+        var scrollResumeInfo = (ScrollWorkerResumeInfo) resumeInfo;
         setScroll(scrollResumeInfo.scrollId());
         doSearchListener.onResponse(null);
     }

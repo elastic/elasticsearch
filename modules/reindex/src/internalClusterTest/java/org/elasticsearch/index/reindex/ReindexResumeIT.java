@@ -75,7 +75,7 @@ public class ReindexResumeIT extends ESIntegTestCase {
         // Resume reindexing from the manual scroll search
         BulkByScrollTask.Status randomStats = randomStats();
         // random start time in the past to ensure that "took" is updated
-        long startTime = System.nanoTime() - randomTimeValue(2,10, TimeUnit.HOURS).nanos();
+        long startTime = System.nanoTime() - randomTimeValue(2, 10, TimeUnit.HOURS).nanos();
         ReindexRequest request = new ReindexRequest().setSourceIndices(sourceIndex)
             .setDestIndex(destIndex)
             .setSourceBatchSize(batchSize)
@@ -133,7 +133,7 @@ public class ReindexResumeIT extends ESIntegTestCase {
         // Resume reindexing from the manual scroll with remote search
         BulkByScrollTask.Status randomStats = randomStats();
         // random start time in the past to ensure that "took" is updated
-        long startTime = System.nanoTime() - randomTimeValue(2,10, TimeUnit.HOURS).nanos();
+        long startTime = System.nanoTime() - randomTimeValue(2, 10, TimeUnit.HOURS).nanos();
         InetSocketAddress remoteAddress = randomFrom(cluster().httpAddresses());
         ReindexRequest request = new ReindexRequest().setSourceIndices(sourceIndex)
             .setDestIndex(destIndex)

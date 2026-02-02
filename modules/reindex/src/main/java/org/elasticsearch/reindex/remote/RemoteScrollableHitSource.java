@@ -30,7 +30,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.ScrollWorkerResumeInfo;
+import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.WorkerResumeInfo;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.RetryListener;
@@ -89,9 +90,9 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
     }
 
     @Override
-    public void restoreState(AbstractBulkByScrollRequest.WorkerResumeInfo resumeInfo, ActionListener<Void> doSearchListener) {
-        assert resumeInfo instanceof AbstractBulkByScrollRequest.ScrollWorkerResumeInfo;
-        var scrollResumeInfo = (AbstractBulkByScrollRequest.ScrollWorkerResumeInfo) resumeInfo;
+    public void restoreState(WorkerResumeInfo resumeInfo, ActionListener<Void> doSearchListener) {
+        assert resumeInfo instanceof ScrollWorkerResumeInfo;
+        var scrollResumeInfo = (ScrollWorkerResumeInfo) resumeInfo;
         lookupRemoteVersion(
             new RetryListener<>(logger, threadPool, backoffPolicy, this::lookupRemoteVersion, ActionListener.wrap(version -> {
                 remoteVersion = version;

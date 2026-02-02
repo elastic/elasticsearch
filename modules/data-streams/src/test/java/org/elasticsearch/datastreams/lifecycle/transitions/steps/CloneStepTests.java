@@ -271,7 +271,10 @@ public class CloneStepTests extends ESTestCase {
 
     private ProjectState createProjectState(String indexName, int numberOfReplicas, Map<String, String> customMetadata) {
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
+            .settings(Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+                .build())
             .numberOfShards(1)
             .numberOfReplicas(numberOfReplicas);
 
@@ -288,7 +291,10 @@ public class CloneStepTests extends ESTestCase {
 
     private ProjectState createProjectStateWithClone(String sourceIndexName, String cloneIndexName, Map<String, String> customMetadata) {
         IndexMetadata.Builder sourceIndexBuilder = IndexMetadata.builder(sourceIndexName)
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
+            .settings(Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+                .build())
             .numberOfShards(1)
             .numberOfReplicas(1);
 
@@ -318,7 +324,10 @@ public class CloneStepTests extends ESTestCase {
         boolean allShardsActive
     ) {
         IndexMetadata.Builder sourceIndexBuilder = IndexMetadata.builder(sourceIndexName)
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
+            .settings(Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+                .build())
             .numberOfShards(1)
             .numberOfReplicas(1);
 
@@ -366,7 +375,10 @@ public class CloneStepTests extends ESTestCase {
         boolean allShardsActive
     ) {
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
+            .settings(Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+                .build())
             .numberOfShards(1)
             .numberOfReplicas(numberOfReplicas);
 

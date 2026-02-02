@@ -53,7 +53,7 @@ public class HistogramUnionState implements Releasable, Accountable {
     private TDigestState tDigestState;
     private ExponentialHistogramState exponentialHistogramState;
 
-    // this acts as a cache when mixed data is queried multiple times
+    // Acts as a cache when mixed data is queried multiple times
     private ExponentialHistogramState combinedState;
 
     private HistogramUnionState(

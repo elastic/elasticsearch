@@ -422,12 +422,7 @@ public class LookupExecutionPlanner {
             IndexedByShardId<? extends ShardContext> shardContexts = new IndexedByShardIdFromSingleton<>(shardContext, shardId);
 
             // Create warnings here when creating the operator from the factory
-            Warnings warnings = Warnings.createWarnings(
-                DriverContext.WarningsMode.COLLECT,
-                lookupDriverContext.request().source.source().getLineNumber(),
-                lookupDriverContext.request().source.source().getColumnNumber(),
-                lookupDriverContext.request().source.text()
-            );
+            Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, lookupDriverContext.request().source);
 
             // Create queryList when creating the operator from the factory
             LookupEnrichQueryGenerator queryList = lookupDriverContext.queryListFactory()

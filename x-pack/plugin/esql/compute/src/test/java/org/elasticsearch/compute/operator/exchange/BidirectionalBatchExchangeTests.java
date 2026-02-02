@@ -520,8 +520,6 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
     ) throws Exception {
         logger.info("[TEST-CLIENT] Creating BidirectionalBatchExchangeClient with sessionId={}", sessionId);
         Task mockTask = mock(Task.class);
-        logger.info("[TEST-CLIENT] Creating client driver context");
-        DriverContext driverContext = driverContext();
         BidirectionalBatchExchangeClient client = new BidirectionalBatchExchangeClient(
             sessionId,
             "test-cluster",
@@ -532,9 +530,6 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             mockTask,
             infra.serverTransportService().getLocalNode(),
             batchExchangeStatusListener,
-            driverContext.bigArrays(),
-            driverContext.blockFactory().breaker(),  // Pass the breaker, not the blockFactory
-            threadPool.getThreadContext(),
             SINGLE_CLIENT_SETTINGS
         );
         logger.info("[TEST-CLIENT] Client initialized successfully");

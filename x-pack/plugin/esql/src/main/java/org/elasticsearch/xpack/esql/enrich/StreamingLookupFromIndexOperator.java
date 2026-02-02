@@ -167,9 +167,6 @@ public class StreamingLookupFromIndexOperator implements Operator {
                 parentTask,
                 serverNode,
                 ActionListener.wrap(v -> handleBatchExchangeSuccess(), this::handleBatchExchangeFailure),
-                driverContext.bigArrays(),
-                lookupService.getBreaker(),
-                lookupService.getThreadContext(),
                 lookupService.getSettings()
             );
 

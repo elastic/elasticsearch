@@ -66,6 +66,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -110,6 +111,13 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.mockito.Mockito.mock;
 
+@TestLogging(
+    value = "org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeClient:TRACE,"
+        + "org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeServer:TRACE,"
+        + "org.elasticsearch.compute.operator.exchange.BatchSortedExchangeSource:TRACE,"
+        + "org.elasticsearch.xpack.esql.enrich.StreamingLookupFromIndexOperator:TRACE",
+    reason = "debugging streaming lookup performance"
+)
 public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
     private static final int LOOKUP_SIZE = 1000;
     private static final int LESS_THAN_VALUE = 40;

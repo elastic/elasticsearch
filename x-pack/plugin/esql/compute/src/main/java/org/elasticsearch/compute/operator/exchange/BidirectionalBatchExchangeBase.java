@@ -76,7 +76,7 @@ abstract class BidirectionalBatchExchangeBase implements Releasable {
      * This is a common pattern used by both server and client to establish
      * transport-based connections for bidirectional exchange.
      * <p>
-     * The {@link BatchPageSorterOperator} ensures pages are delivered in order within each batch.
+     * The {@link BatchSortedExchangeSource} ensures pages are delivered in order within each batch.
      */
     protected void connectRemoteSink(
         DiscoveryNode node,

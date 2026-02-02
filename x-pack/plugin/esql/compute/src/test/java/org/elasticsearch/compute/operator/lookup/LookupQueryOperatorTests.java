@@ -28,6 +28,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.operator.WarningsTests.TestWarningsSource;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -329,7 +330,7 @@ public class LookupQueryOperatorTests extends OperatorTestCase {
     }
 
     private static Warnings warnings() {
-        return Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, -1, -1, "test");
+        return Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test"));
     }
 
     private record DirectoryData(

@@ -1,0 +1,5 @@
+pr: 140735
+summary: Use `IndexOrDocValuesQuery` in `IpFieldType#termQuery`
+area: Search
+type: enhancement
+issues: []

@@ -64,6 +64,7 @@ import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFromBinaryBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.ByteLengthFromBytesRefDocValuesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.Utf8CodePointsFromOrdsBlockLoader;
@@ -548,6 +549,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final FieldValues<String> scriptValues;
         private final boolean isDimension;
         private final boolean usesBinaryDocValues;
+        private final boolean usesBinaryDocValuesForIgnoredFields;
 
         public KeywordFieldType(
             String name,
@@ -577,6 +579,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.scriptValues = builder.scriptValues();
             this.isDimension = builder.dimension.getValue();
             this.usesBinaryDocValues = builder.usesBinaryDocValues();
+            this.usesBinaryDocValuesForIgnoredFields = builder.indexSettings.getIndexVersionCreated()
+                .onOrAfter(IndexVersions.STORE_IGNORED_KEYWORDS_IN_BINARY_DOC_VALUES);
         }
 
         public KeywordFieldType(String name) {
@@ -602,6 +606,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.scriptValues = null;
             this.isDimension = false;
             this.usesBinaryDocValues = usesBinaryDocValues;
+            this.usesBinaryDocValuesForIgnoredFields = false;
         }
 
         public KeywordFieldType(String name, FieldType fieldType, boolean isSyntheticSource) {
@@ -621,6 +626,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.scriptValues = null;
             this.isDimension = false;
             this.usesBinaryDocValues = false;
+            this.usesBinaryDocValuesForIgnoredFields = false;
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
@@ -640,10 +646,15 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.scriptValues = null;
             this.isDimension = false;
             this.usesBinaryDocValues = false;
+            this.usesBinaryDocValuesForIgnoredFields = false;
         }
 
         public boolean usesBinaryDocValues() {
             return usesBinaryDocValues;
+        }
+
+        public boolean usesBinaryDocValuesForIgnoredFields() {
+            return usesBinaryDocValuesForIgnoredFields;
         }
 
         @Override
@@ -866,6 +877,10 @@ public final class KeywordFieldMapper extends FieldMapper {
                     }
                 }
                 return switch (cfg.function()) {
+                    case BYTE_LENGTH -> new ByteLengthFromBytesRefDocValuesBlockLoader(
+                        ((BlockLoaderFunctionConfig.JustWarnings) cfg).warnings(),
+                        name()
+                    );
                     case LENGTH -> new Utf8CodePointsFromOrdsBlockLoader(((BlockLoaderFunctionConfig.JustWarnings) cfg).warnings(), name());
                     case MV_MAX -> usesBinaryDocValues
                         ? new MvMaxBytesRefsFromBinaryBlockLoader(name())
@@ -903,6 +918,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
             if (hasDocValues() && (preference != FieldExtractPreference.STORED || isSyntheticSourceEnabled())) {
                 return switch (config.function()) {
+                    // Only push BYTE_LENGTH to load if using doc values
+                    case BYTE_LENGTH -> usesBinaryDocValues;
                     case LENGTH, MV_MAX, MV_MIN -> true;
                     default -> false;
                 };

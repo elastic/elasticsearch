@@ -62,16 +62,20 @@ public class MixedbreadService extends SenderService implements RerankingInferen
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.RERANK);
 
     private static final Map<String, Integer> RERANKERS_INPUT_SIZE = Map.of(
-        "mixedbread-ai/mxbai-rerank-xsmall-v1",
-        512,
-        "mixedbread-ai/mxbai-rerank-base-v1",
-        512,
-        "mixedbread-ai/mxbai-rerank-large-v1",
-        512
         // Windows size.
         // The v1 models: 512
         // The v2 models: at least 8k
         // https://www.mixedbread.com/docs/models/reranking/mxbai-rerank-large-v1
+
+        // rerankerWindowSize() method returns the size in words, not in tokens, so we'll need to translate
+        // tokens to words by multiplying by 0.75 and rounding down
+        // https://github.com/elastic/elasticsearch/pull/132169
+        "mixedbread-ai/mxbai-rerank-xsmall-v1",
+        300,
+        "mixedbread-ai/mxbai-rerank-base-v1",
+        300,
+        "mixedbread-ai/mxbai-rerank-large-v1",
+        300
     );
 
     /**

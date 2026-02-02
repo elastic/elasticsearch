@@ -36,7 +36,7 @@ public final class MixedbreadUtils {
     /**
      * TransportVersion indicating when Mixedbread features were added.
      */
-    public static final TransportVersion INFERENCE_MIXEDBREAD_ADDED = TransportVersion.fromName("ml_inference_mixedbread_added");
+    public static final TransportVersion INFERENCE_MIXEDBREAD_ADDED = TransportVersion.fromName("inference_mixedbread_added");
 
     /**
      * Checks if the given TransportVersion supports Mixedbread features.

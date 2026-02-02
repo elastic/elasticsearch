@@ -32,6 +32,7 @@ public class MixedbreadRerankResponseEntity {
      * Parses the Mixedbread rerank response.
 
      * For a request like:
+     * <pre>
      *{
      *   "model": "mixedbread-ai/mxbai-rerank-xsmall-v1",
      *   "query": "Who is the author of To Kill a Mockingbird?",
@@ -46,6 +47,7 @@ public class MixedbreadRerankResponseEntity {
      *   "top_k": 3,
      *   "return_input": false
      * }
+     * </pre>
      * <p>
      *  The response will look like (without whitespace):
      *  <pre>

@@ -42,7 +42,6 @@ public class MixedbreadRerankRequest implements Request {
         this.query = Objects.requireNonNull(query);
         this.returnDocuments = returnDocuments;
         this.topN = topN;
-        model.getTaskSettings();
         this.model = Objects.requireNonNull(model);
     }
 

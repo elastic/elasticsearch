@@ -30,7 +30,7 @@ import java.util.Objects;
 public abstract class MixedbreadModel extends RateLimitGroupingModel {
     private final SecureString apiKey;
     private final RateLimitSettings rateLimitServiceSettings;
-    protected URI uri;
+    private final URI uri;
 
     public MixedbreadModel(
         ModelConfigurations configurations,

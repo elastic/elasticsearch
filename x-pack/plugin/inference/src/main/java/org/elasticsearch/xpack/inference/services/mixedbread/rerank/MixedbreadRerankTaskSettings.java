@@ -40,17 +40,17 @@ public class MixedbreadRerankTaskSettings implements TaskSettings {
         }
 
         Boolean returnDocuments = extractOptionalBoolean(map, RETURN_DOCUMENTS, validationException);
-        Integer topNDocumentsOnly = extractOptionalPositiveInteger(map, TOP_N, ModelConfigurations.TASK_SETTINGS, validationException);
+        Integer topN = extractOptionalPositiveInteger(map, TOP_N, ModelConfigurations.TASK_SETTINGS, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        if (returnDocuments == null && topNDocumentsOnly == null) {
+        if (returnDocuments == null && topN == null) {
             return EMPTY_SETTINGS;
         }
 
-        return new MixedbreadRerankTaskSettings(topNDocumentsOnly, returnDocuments);
+        return new MixedbreadRerankTaskSettings(topN, returnDocuments);
     }
 
     /**
@@ -69,37 +69,35 @@ public class MixedbreadRerankTaskSettings implements TaskSettings {
             return originalSettings;
         }
         return new MixedbreadRerankTaskSettings(
-            requestTaskSettings.getTopNDocumentsOnly() != null
-                ? requestTaskSettings.getTopNDocumentsOnly()
-                : originalSettings.getTopNDocumentsOnly(),
+            requestTaskSettings.getTopN() != null ? requestTaskSettings.getTopN() : originalSettings.getTopN(),
             requestTaskSettings.getReturnDocuments() != null
                 ? requestTaskSettings.getReturnDocuments()
                 : originalSettings.getReturnDocuments()
         );
     }
 
-    private final Integer topNDocumentsOnly;
+    private final Integer topN;
     private final Boolean returnDocuments;
 
     public MixedbreadRerankTaskSettings(StreamInput in) throws IOException {
         this(in.readOptionalVInt(), in.readOptionalBoolean());
     }
 
-    public MixedbreadRerankTaskSettings(@Nullable Integer topNDocumentsOnly, @Nullable Boolean doReturnDocuments) {
-        this.topNDocumentsOnly = topNDocumentsOnly;
+    public MixedbreadRerankTaskSettings(@Nullable Integer topN, @Nullable Boolean doReturnDocuments) {
+        this.topN = topN;
         this.returnDocuments = doReturnDocuments;
     }
 
     @Override
     public boolean isEmpty() {
-        return topNDocumentsOnly == null && returnDocuments == null;
+        return topN == null && returnDocuments == null;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (topNDocumentsOnly != null) {
-            builder.field(TOP_N, topNDocumentsOnly);
+        if (topN != null) {
+            builder.field(TOP_N, topN);
         }
         if (returnDocuments != null) {
             builder.field(RETURN_DOCUMENTS, returnDocuments);
@@ -126,7 +124,7 @@ public class MixedbreadRerankTaskSettings implements TaskSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalVInt(topNDocumentsOnly);
+        out.writeOptionalVInt(topN);
         out.writeOptionalBoolean(returnDocuments);
     }
 
@@ -135,16 +133,16 @@ public class MixedbreadRerankTaskSettings implements TaskSettings {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         MixedbreadRerankTaskSettings that = (MixedbreadRerankTaskSettings) o;
-        return Objects.equals(returnDocuments, that.returnDocuments) && Objects.equals(topNDocumentsOnly, that.topNDocumentsOnly);
+        return Objects.equals(returnDocuments, that.returnDocuments) && Objects.equals(topN, that.topN);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(returnDocuments, topNDocumentsOnly);
+        return Objects.hash(returnDocuments, topN);
     }
 
-    public Integer getTopNDocumentsOnly() {
-        return topNDocumentsOnly;
+    public Integer getTopN() {
+        return topN;
     }
 
     public Boolean getReturnDocuments() {

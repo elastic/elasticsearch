@@ -77,11 +77,11 @@ public class MixedbreadRerankModelTests extends ESTestCase {
         String apiKey,
         @Nullable Integer topN,
         @Nullable Boolean returnDocuments,
-        String uri
+        @Nullable String uri
     ) {
         return new MixedbreadRerankModel(
             model,
-            new MixedbreadRerankServiceSettings(model, null, null),
+            new MixedbreadRerankServiceSettings(model, null),
             new MixedbreadRerankTaskSettings(topN, returnDocuments),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
             uri

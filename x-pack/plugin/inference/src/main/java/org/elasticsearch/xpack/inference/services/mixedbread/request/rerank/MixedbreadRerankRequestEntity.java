@@ -43,8 +43,8 @@ public record MixedbreadRerankRequestEntity(
 
         if (topN != null) {
             builder.field(MixedbreadUtils.TOP_K_FIELD, topN);
-        } else if (taskSettings.getTopNDocumentsOnly() != null) {
-            builder.field(MixedbreadUtils.TOP_K_FIELD, taskSettings.getTopNDocumentsOnly());
+        } else if (taskSettings.getTopN() != null) {
+            builder.field(MixedbreadUtils.TOP_K_FIELD, taskSettings.getTopN());
         }
 
         if (returnDocuments != null) {

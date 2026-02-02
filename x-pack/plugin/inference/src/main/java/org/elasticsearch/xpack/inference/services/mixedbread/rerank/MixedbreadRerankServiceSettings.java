@@ -26,26 +26,22 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
 public class MixedbreadRerankServiceSettings extends FilteredXContentObject implements ServiceSettings {
 
     public static final String NAME = "mixedbread_rerank_service_settings";
-    public static final String WINDOWS_SIZE = "windows_size";
 
     /**
      * Free subscription tier 100 req / min
      * <a href="https://www.mixedbread.com/pricing">Rate Limiting</a>.
      */
     public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(100);
-    private static final Integer DEFAULT_WINDOWS_SIZE = 8000;
 
     public static MixedbreadRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
         String model = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer windowsSize = extractOptionalInteger(map, WINDOWS_SIZE, ModelConfigurations.SERVICE_SETTINGS, validationException);
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,
@@ -58,24 +54,21 @@ public class MixedbreadRerankServiceSettings extends FilteredXContentObject impl
             throw validationException;
         }
 
-        return new MixedbreadRerankServiceSettings(model, rateLimitSettings, windowsSize);
+        return new MixedbreadRerankServiceSettings(model, rateLimitSettings);
     }
 
     private final String model;
 
     private final RateLimitSettings rateLimitSettings;
-    private final Integer windowsSize;
 
-    public MixedbreadRerankServiceSettings(String model, @Nullable RateLimitSettings rateLimitSettings, @Nullable Integer windowsSize) {
+    public MixedbreadRerankServiceSettings(String model, @Nullable RateLimitSettings rateLimitSettings) {
         this.model = model;
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
-        this.windowsSize = Objects.requireNonNullElse(windowsSize, DEFAULT_WINDOWS_SIZE);
     }
 
     public MixedbreadRerankServiceSettings(StreamInput in) throws IOException {
         this.model = in.readOptionalString();
         this.rateLimitSettings = new RateLimitSettings(in);
-        this.windowsSize = in.readOptionalInt();
     }
 
     @Override
@@ -111,8 +104,6 @@ public class MixedbreadRerankServiceSettings extends FilteredXContentObject impl
 
         rateLimitSettings.toXContent(builder, params);
 
-        builder.field(WINDOWS_SIZE, windowsSize);
-
         return builder;
     }
 
@@ -131,7 +122,6 @@ public class MixedbreadRerankServiceSettings extends FilteredXContentObject impl
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(model);
         rateLimitSettings.writeTo(out);
-        out.writeOptionalInt(windowsSize);
     }
 
     @Override

@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
 public class GetTransformCrossProjectHeadersAction extends ActionType<GetTransformCrossProjectHeadersAction.Response> {
 
-    public static final String NAME = "indices:data/cross_project/headers/get";
+    public static final String NAME = "cluster:admin/transform/cross_project/headers/get";
     public static final GetTransformCrossProjectHeadersAction INSTANCE = new GetTransformCrossProjectHeadersAction(NAME);
 
     public GetTransformCrossProjectHeadersAction(String name) {

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.elastic.densetextembeddings;
+package org.elasticsearch.xpack.inference.services.elastic.denseembeddings;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
@@ -19,18 +19,18 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import java.util.Map;
 
 /**
- * Creates {@link ElasticInferenceServiceDenseTextEmbeddingsModel} instances from config maps
+ * Creates {@link ElasticInferenceServiceDenseEmbeddingsModel} instances from config maps
  * or {@link ModelConfigurations} and {@link ModelSecrets} objects.
  */
-public class ElasticInferenceServiceDenseTextEmbeddingsModelCreator extends ElasticInferenceServiceModelCreator<
-    ElasticInferenceServiceDenseTextEmbeddingsModel> {
+public class ElasticInferenceServiceDenseEmbeddingsModelCreator extends ElasticInferenceServiceModelCreator<
+    ElasticInferenceServiceDenseEmbeddingsModel> {
 
-    public ElasticInferenceServiceDenseTextEmbeddingsModelCreator(ElasticInferenceServiceComponents elasticInferenceServiceComponents) {
+    public ElasticInferenceServiceDenseEmbeddingsModelCreator(ElasticInferenceServiceComponents elasticInferenceServiceComponents) {
         super(elasticInferenceServiceComponents);
     }
 
     @Override
-    public ElasticInferenceServiceDenseTextEmbeddingsModel createFromMaps(
+    public ElasticInferenceServiceDenseEmbeddingsModel createFromMaps(
         String inferenceId,
         TaskType taskType,
         String service,
@@ -40,7 +40,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsModelCreator extends Elas
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return new ElasticInferenceServiceDenseTextEmbeddingsModel(
+        return new ElasticInferenceServiceDenseEmbeddingsModel(
             inferenceId,
             taskType,
             service,
@@ -54,10 +54,10 @@ public class ElasticInferenceServiceDenseTextEmbeddingsModelCreator extends Elas
     }
 
     @Override
-    public ElasticInferenceServiceDenseTextEmbeddingsModel createFromModelConfigurationsAndSecrets(
+    public ElasticInferenceServiceDenseEmbeddingsModel createFromModelConfigurationsAndSecrets(
         ModelConfigurations config,
         ModelSecrets secrets
     ) {
-        return new ElasticInferenceServiceDenseTextEmbeddingsModel(config, secrets, elasticInferenceServiceComponents);
+        return new ElasticInferenceServiceDenseEmbeddingsModel(config, secrets, elasticInferenceServiceComponents);
     }
 }

@@ -58,7 +58,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -384,23 +387,66 @@ public abstract class GoldenTestCase extends ESTestCase {
         if (output.toString().contains("extra")) {
             throw new IllegalStateException("Extra output files should not be created automatically:" + output);
         }
-        Files.writeString(output, toString(plan), StandardCharsets.UTF_8);
+        Files.writeString(output, normalizeNameIds(plan), StandardCharsets.UTF_8);
         return Test.TestResult.CREATED;
     }
 
-    private static String toString(Node<?> plan) {
-        String planString = plan.toString(Node.NodeStringFormat.FULL);
-        String withoutSyntheticPatterns = SYNTHETIC_PATTERN.matcher(planString).replaceAll("\\$\\$$1");
-        return IDENTIFIER_PATTERN.matcher(withoutSyntheticPatterns).replaceAll("");
+    /**
+     * Rewrites node IDs ({@code #n}) in the plan string to a stable numbering by order of first appearance.
+     * Actual IDs assi;ned during plan building can vary between runs, so this is needed to keep golden output deterministic.
+     */
+    private static String normalizeNameIds(Node<?> plan) {
+        String full = plan.toString(Node.NodeStringFormat.FULL);
+        String normalized = normalizeSyntheticNames(full);
+        Matcher matcher = IDENTIFIER_PATTERN.matcher(normalized);
+        StringBuilder sb = new StringBuilder();
+        int lastEnd = 0;
+        var idMap = new IdMap<Integer>();
+        while (matcher.find()) {
+            sb.append(normalized, lastEnd, matcher.start());
+            int originalId = Integer.parseInt(matcher.group().substring(1)); // Drop the initial '#' prefix
+            sb.append("#").append(idMap.getId(originalId));
+            lastEnd = matcher.end();
+        }
+        sb.append(normalized, lastEnd, normalized.length());
+        return sb.toString();
+    }
+
+    /**
+     * Normalizes synthetic attribute names of the form $$something($something)* that are followed by # (node id).
+     * Replaces them with $$firstSegment$runningInt so golden output is stable across runs.
+     */
+    private static String normalizeSyntheticNames(String full) {
+        Matcher matcher = SYNTHETIC_PATTERN.matcher(full);
+        StringBuilder sb = new StringBuilder();
+        int lastEnd = 0;
+        var idMap = new IdMap<String>();
+        while (matcher.find()) {
+            sb.append(full, lastEnd, matcher.start());
+            String firstSegment = matcher.group(1);
+            sb.append("$$").append(firstSegment).append("$").append(idMap.getId(firstSegment));
+            lastEnd = matcher.end();
+        }
+        sb.append(full, lastEnd, full.length());
+        return sb.toString();
     }
 
     // Matches synthetic names like $$alias$1$2#3, since those $digits are generated during the test run and may differ each time. The
     // #digit are removed by the next pattern.
-    private static final Pattern SYNTHETIC_PATTERN = Pattern.compile("\\$\\$([^$\\s]+)(\\$\\d+)*(?=[{#])");
+    private static final Pattern SYNTHETIC_PATTERN = Pattern.compile("\\$\\$([^$\\s]+)(\\$\\d+)+(?=[{#])");
     private static final Pattern IDENTIFIER_PATTERN = Pattern.compile("#\\d+");
 
+    private static class IdMap<K> {
+        private final Map<K, Integer> map = new HashMap<>();
+        private int counter = 0;
+
+        public int getId(K key) {
+            return map.computeIfAbsent(key, k -> counter++);
+        }
+    }
+
     private static Test.TestResult verifyExisting(Path output, QueryPlan<?> plan) throws IOException {
-        String testString = normalize(toString(plan));
+        String testString = normalize(normalizeNameIds(plan));
         if (testString.equals(normalize(Files.readString(output)))) {
             if (System.getProperty("golden.cleanactual") != null) {
                 Path path = actualPath(output);

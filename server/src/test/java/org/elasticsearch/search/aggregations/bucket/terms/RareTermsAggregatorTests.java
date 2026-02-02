@@ -417,6 +417,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                                 assertThat(topHits.getHits().getMaxScore(), equalTo(Float.NaN));
                                 counter += 1;
                             }
+                            result.close();
                         }
                     }
                 }

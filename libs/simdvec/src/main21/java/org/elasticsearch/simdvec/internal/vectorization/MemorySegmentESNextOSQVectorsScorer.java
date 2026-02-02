@@ -26,7 +26,6 @@ import java.lang.foreign.MemorySegment;
 /** Panamized scorer for quantized vectors stored as a {@link MemorySegment}. */
 public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsScorer {
 
-    private final MemorySegment memorySegment;
     private final MemorySegmentScorer scorer;
 
     public MemorySegmentESNextOSQVectorsScorer(
@@ -39,7 +38,6 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
         MemorySegment memorySegment
     ) {
         super(in, queryBits, indexBits, dimensions, dataLength);
-        this.memorySegment = memorySegment;
         if (queryBits == 4 && indexBits == 1) {
             this.scorer = new MSBitToInt4ESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize, memorySegment);
         } else if (queryBits == 4 && indexBits == 4) {
@@ -111,7 +109,9 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
         static final boolean NATIVE_SUPPORTED = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
         static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
 
-        static final float FOUR_BIT_SCALE = 1f / ((1 << 4) - 1);
+        static final float ONE_BIT_SCALE = ESNextOSQVectorsScorer.BIT_SCALES[0];
+        static final float FOUR_BIT_SCALE = ESNextOSQVectorsScorer.BIT_SCALES[3];
+
         static final VectorSpecies<Integer> INT_SPECIES_128 = IntVector.SPECIES_128;
 
         static final VectorSpecies<Long> LONG_SPECIES_128 = LongVector.SPECIES_128;

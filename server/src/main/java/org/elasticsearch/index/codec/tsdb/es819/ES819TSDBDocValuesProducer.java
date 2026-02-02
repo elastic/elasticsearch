@@ -282,7 +282,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     }
 
                     @Override
-                    int getLength() {
+                    public int getLength() {
                         return length;
                     }
                 };
@@ -361,7 +361,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     }
 
                     @Override
-                    int getLength() {
+                    public int getLength() {
                         return (int) (addresses.get(doc + 1L) - addresses.get(doc));
                     }
                 };
@@ -389,7 +389,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     }
 
                     @Override
-                    int getLength() {
+                    public int getLength() {
                         return length;
                     }
                 };
@@ -410,7 +410,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     }
 
                     @Override
-                    int getLength() {
+                    public int getLength() {
                         final int index = disi.index();
                         return (int) (addresses.get(index + 1L) - addresses.get(index));
                     }
@@ -482,7 +482,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 @Override
-                int getLength() throws IOException {
+                public int getLength() throws IOException {
                     return decoder.decodeLength(doc, entry.numCompressedBlocks);
                 }
             };
@@ -517,7 +517,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 @Override
-                int getLength() throws IOException {
+                public int getLength() throws IOException {
                     return decoder.decodeLength(disi.index(), entry.numCompressedBlocks);
                 }
             };
@@ -808,7 +808,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             return null;
         }
 
-        abstract int getLength() throws IOException;
+        public abstract int getLength() throws IOException;
 
         @Override
         @Nullable
@@ -825,6 +825,15 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
                 return builder.build();
             }
+        }
+
+        @Override
+        public LengthReader tryGetLengthReader() {
+            return docID -> {
+                boolean advance = advanceExact(docID);
+                assert advance;
+                return getLength();
+            };
         }
     }
 
@@ -883,7 +892,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             return null;
         }
 
-        abstract int getLength() throws IOException;
+        public abstract int getLength() throws IOException;
 
         @Override
         @Nullable
@@ -901,6 +910,18 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
                 return builder.build();
             }
+        }
+
+        @Override
+        @Nullable
+        public LengthReader tryGetLengthReader() {
+            return docID -> {
+                if (advanceExact(docID)) {
+                    return getLength();
+                } else {
+                    return null;
+                }
+            };
         }
     }
 

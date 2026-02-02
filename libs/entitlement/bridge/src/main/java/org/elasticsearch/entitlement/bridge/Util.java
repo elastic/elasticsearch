@@ -22,8 +22,7 @@ public class Util {
      *
      * @see StackWalker#getCallerClass()
      */
-    public static final Class<?> NO_CLASS = new Object() {
-    }.getClass();
+    public static final Class<?> NO_CLASS = new Object() {}.getClass();
 
     private static final Set<String> skipInternalPackages = Set.of("java.lang.invoke", "java.lang.reflect", "jdk.internal.reflect");
 

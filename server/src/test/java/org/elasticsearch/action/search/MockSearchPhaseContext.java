@@ -159,8 +159,7 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
         Transport.Connection shard,
         SearchActionListener<SearchPhaseResult> listener
     ) {
-        onShardResult(new SearchPhaseResult() {
-        });
+        onShardResult(new SearchPhaseResult() {});
     }
 
     @Override

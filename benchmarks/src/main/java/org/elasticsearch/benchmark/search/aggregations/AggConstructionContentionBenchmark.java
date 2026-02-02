@@ -96,8 +96,7 @@ public class AggConstructionContentionBenchmark {
     private final Index index = new Index("test", "uuid");
     private final IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(
         Settings.EMPTY,
-        new IndexFieldDataCache.Listener() {
-        }
+        new IndexFieldDataCache.Listener() {}
     );
 
     private CircuitBreakerService breakerService;
@@ -213,8 +212,11 @@ public class AggConstructionContentionBenchmark {
 
         @Override
         protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
-            IndexFieldDataCache indexFieldDataCache = indicesFieldDataCache.buildIndexFieldDataCache(new IndexFieldDataCache.Listener() {
-            }, index, ft.name());
+            IndexFieldDataCache indexFieldDataCache = indicesFieldDataCache.buildIndexFieldDataCache(
+                new IndexFieldDataCache.Listener() {},
+                index,
+                ft.name()
+            );
             return ft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "benchmark")).build(indexFieldDataCache, breakerService);
         }
 

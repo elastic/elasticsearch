@@ -354,14 +354,12 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     public void testFieldDataCacheExpire() {
         {
             Settings settings = Settings.EMPTY;
-            IndicesFieldDataCache cache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
-            });
+            IndicesFieldDataCache cache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {});
             assertThat(cache.getCache().getExpireAfterAccessNanos(), equalTo(3_600_000_000_000L));
         }
         {
             Settings settings = Settings.builder().put(IndicesFieldDataCache.INDICES_FIELDDATA_CACHE_EXPIRE.getKey(), "5s").build();
-            IndicesFieldDataCache cache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
-            });
+            IndicesFieldDataCache cache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {});
             assertThat(cache.getCache().getExpireAfterAccessNanos(), equalTo(5_000_000_000L));
         }
     }

@@ -4,23 +4,23 @@
 
 | field | window | result |
 | --- | --- | --- |
-| aggregate_metric_double | | long |
-| boolean | | long |
-| cartesian_point | | long |
-| cartesian_shape | | long |
-| date | | long |
-| date_nanos | | long |
-| double | | long |
-| geo_point | | long |
-| geo_shape | | long |
-| geohash | | long |
-| geohex | | long |
-| geotile | | long |
-| integer | | long |
-| ip | | long |
-| keyword | | long |
-| long | | long |
-| text | | long |
-| unsigned_long | | long |
-| version | | long |
+| aggregate_metric_double | time_duration {applies_to}`stack: preview 9.3.0` | long |
+| boolean | time_duration {applies_to}`stack: preview 9.3.0` | long |
+| cartesian_point | time_duration {applies_to}`stack: preview 9.3.0` | long |
+| cartesian_shape | time_duration {applies_to}`stack: preview 9.3.0` | long |
+| date | time_duration {applies_to}`stack: preview 9.3.0` | long |
+| date_nanos | time_duration {applies_to}`stack: preview 9.3.0` | long |
+| double | time_duration {applies_to}`stack: preview 9.3.0` | long |
+| geo_point | time_duration {applies_to}`stack: preview 9.3.0` | long |
+| geo_shape | time_duration {applies_to}`stack: preview 9.3.0` | long |
+| geohash | time_duration {applies_to}`stack: preview 9.3.0` | long |
+| geohex | time_duration {applies_to}`stack: preview 9.3.0` | long |
+| geotile | time_duration {applies_to}`stack: preview 9.3.0` | long |
+| integer | time_duration {applies_to}`stack: preview 9.3.0` | long |
+| ip | time_duration {applies_to}`stack: preview 9.3.0` | long |
+| keyword | time_duration {applies_to}`stack: preview 9.3.0` | long |
+| long | time_duration {applies_to}`stack: preview 9.3.0` | long |
+| text | time_duration {applies_to}`stack: preview 9.3.0` | long |
+| unsigned_long | time_duration {applies_to}`stack: preview 9.3.0` | long |
+| version | time_duration {applies_to}`stack: preview 9.3.0` | long |
 

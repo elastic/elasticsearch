@@ -30,7 +30,7 @@ public interface TemplateDecoratorProvider extends Supplier<Template.TemplateDec
         return requireNonNull(TEMPLATE_DECORATOR.get(), "TemplateDecoratorProvider not initialized");
     }
 
-    static void init(List<? extends TemplateDecoratorProvider> providers) {
+    static void initOnce(List<? extends TemplateDecoratorProvider> providers) {
         Template.TemplateDecorator decorator = switch (providers.size()) {
             case 0 -> Template.TemplateDecorator.DEFAULT;
             case 1 -> requireNonNull(providers.get(0).get());

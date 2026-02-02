@@ -604,7 +604,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         // there's no isolation between tests in the same JVM
         // skip initialization if we're running internal cluster tests to allow initialization per local cluster
         if (System.getProperty("tests.task", "").endsWith(":test")) {
-            TemplateDecoratorProvider.init(List.of());
+            TemplateDecoratorProvider.initOnce(List.of());
         }
     }
 

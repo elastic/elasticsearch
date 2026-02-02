@@ -122,7 +122,8 @@ public class PerFieldFormatSupplier {
             DEFAULT_BEAM_WIDTH,
             DenseVectorFieldMapper.ElementType.FLOAT,
             maxMergingWorkers,
-            mergingExecutorService
+            mergingExecutorService,
+            -1
         );
     }
 

@@ -1874,7 +1874,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         // These are the default index options for dense_vector fields, and used for semantic_text fields incompatible with BBQ.
         int m = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
         int efConstruction = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
-        return new DenseVectorFieldMapper.Int8HnswIndexOptions(m, efConstruction, null, false, null);
+        return new DenseVectorFieldMapper.Int8HnswIndexOptions(m, efConstruction, null, false, null, -1);
     }
 
     private static SemanticTextIndexOptions defaultDenseVectorSemanticIndexOptions() {
@@ -1885,7 +1885,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         int m = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
         int efConstruction = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
         DenseVectorFieldMapper.RescoreVector rescoreVector = new DenseVectorFieldMapper.RescoreVector(DEFAULT_RESCORE_OVERSAMPLE);
-        return new DenseVectorFieldMapper.BBQHnswIndexOptions(m, efConstruction, false, rescoreVector);
+        return new DenseVectorFieldMapper.BBQHnswIndexOptions(m, efConstruction, false, rescoreVector, -1);
     }
 
     private static SemanticTextIndexOptions defaultBbqHnswSemanticTextIndexOptions() {
@@ -1974,7 +1974,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             null,
             new SemanticTextIndexOptions(
                 SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
-                new DenseVectorFieldMapper.Int4HnswIndexOptions(25, 100, null, false, null)
+                new DenseVectorFieldMapper.Int4HnswIndexOptions(25, 100, null, false, null, -1)
             )
         );
 
@@ -2094,7 +2094,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             null,
             new SemanticTextIndexOptions(
                 SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
-                new DenseVectorFieldMapper.Int4HnswIndexOptions(20, 90, 0.4f, false, null)
+                new DenseVectorFieldMapper.Int4HnswIndexOptions(20, 90, 0.4f, false, null, -1)
             )
         );
 
@@ -2121,7 +2121,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             null,
             new SemanticTextIndexOptions(
                 SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
-                new DenseVectorFieldMapper.Int4HnswIndexOptions(16, 100, 0f, false, null)
+                new DenseVectorFieldMapper.Int4HnswIndexOptions(16, 100, 0f, false, null, -1)
             )
         );
 

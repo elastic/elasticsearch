@@ -79,12 +79,22 @@ public final class CompoundOutputEvaluator implements ColumnExtractOperator.Eval
         }
     }
 
+    @Override
+    public String toString() {
+        return "CompoundOutputEvaluator[collector=" + outputFieldsCollector + "]";
+    }
+
     /**
      * The base class for output fields collectors.
      * Concrete collectors would implement interfaces that correspond to their corresponding evaluating function, in addition to
      * extending this class.
      */
     public abstract static class OutputFieldsCollector {
+        @Override
+        public String toString() {
+            return getClass().getSimpleName();
+        }
+
         /**
          * A {@link Block.Builder[]} holder that is being set before each row evaluation.
          * In addition, it tracks the status of the output fields for the current row.

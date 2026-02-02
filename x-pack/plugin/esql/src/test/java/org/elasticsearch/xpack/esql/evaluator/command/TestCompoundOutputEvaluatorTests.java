@@ -188,4 +188,23 @@ public class TestCompoundOutputEvaluatorTests extends AbstractCompoundOutputEval
         }
         return result;
     }
+
+    /*****************************************************************************************************
+     * Implementing AbstractCompoundOutputEvaluatorTests methods for the OperatorTestCase framework
+     *****************************************************************************************************/
+
+    @Override
+    protected List<String> getRequestedFieldsForSimple() {
+        return List.of("field_a", "field_b", "field_c");
+    }
+
+    @Override
+    protected List<String> getSampleInputForSimple() {
+        return List.of("field_a:valueA-field_b:2-field_c:valueC", "field_c:valueC-field_b:3-field_d:valueD");
+    }
+
+    @Override
+    protected List<Object[]> getExpectedOutputForSimple() {
+        return List.of(new Object[] { "valueA", null }, new Object[] { 2, 3 }, new Object[] { "valueC", "valueC" });
+    }
 }

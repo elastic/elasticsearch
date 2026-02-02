@@ -120,4 +120,38 @@ public class UriPartsFunctionBridgeTests extends AbstractCompoundOutputEvaluator
             "Line 1:2: java.lang.IllegalArgumentException: unable to parse URI [not a valid url]"
         );
     }
+
+    /*****************************************************************************************************
+     * Implementing AbstractCompoundOutputEvaluatorTests methods for the OperatorTestCase framework
+     *****************************************************************************************************/
+
+    @Override
+    protected List<String> getRequestedFieldsForSimple() {
+        return List.of(SCHEME, DOMAIN, PORT, PATH, EXTENSION, QUERY, FRAGMENT, USER_INFO, USERNAME, PASSWORD);
+    }
+
+    @Override
+    protected List<String> getSampleInputForSimple() {
+        return List.of(
+            "http://user:pass@example.com:8080/path/to/file.html?query=val#fragment",
+            "https://elastic.co/downloads",
+            "ftp://ftp.example.org/resource.txt"
+        );
+    }
+
+    @Override
+    protected List<Object[]> getExpectedOutputForSimple() {
+        return List.of(
+            new Object[] { "http", "https", "ftp" },
+            new Object[] { "example.com", "elastic.co", "ftp.example.org" },
+            new Object[] { 8080, null, null },
+            new Object[] { "/path/to/file.html", "/downloads", "/resource.txt" },
+            new Object[] { "html", null, "txt" },
+            new Object[] { "query=val", null, null },
+            new Object[] { "fragment", null, null },
+            new Object[] { "user:pass", null, null },
+            new Object[] { "user", null, null },
+            new Object[] { "pass", null, null }
+        );
+    }
 }

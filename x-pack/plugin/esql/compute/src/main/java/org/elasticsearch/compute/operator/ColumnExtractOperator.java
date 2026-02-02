@@ -76,11 +76,17 @@ public class ColumnExtractOperator extends AbstractPageMappingOperator {
                 }
 
                 Block[] blocks = new Block[blockBuilders.length];
-                for (int i = 0; i < blockBuilders.length; i++) {
-                    blocks[i] = blockBuilders[i].build();
-                }
+                try {
+                    for (int i = 0; i < blockBuilders.length; i++) {
+                        blocks[i] = blockBuilders[i].build();
+                    }
 
-                return page.appendBlocks(blocks);
+                    return page.appendBlocks(blocks);
+                } catch (Exception e) {
+                    // If we built blocks but failed to append them, we need to release them
+                    Releasables.closeExpectNoException(blocks);
+                    throw e;
+                }
             }
         } finally {
             Releasables.closeExpectNoException(blockBuilders);

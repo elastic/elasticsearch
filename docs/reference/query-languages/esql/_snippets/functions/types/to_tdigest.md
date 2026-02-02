@@ -5,4 +5,5 @@
 | field | result |
 | --- | --- |
 | histogram | tdigest |
+| tdigest | tdigest |
 

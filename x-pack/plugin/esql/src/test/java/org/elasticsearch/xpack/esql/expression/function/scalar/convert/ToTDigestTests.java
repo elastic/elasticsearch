@@ -20,14 +20,12 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.test.ReadableMatchers.matchesBytesRef;
 
 public class ToTDigestTests extends AbstractScalarFunctionTestCase {
 
@@ -45,6 +43,15 @@ public class ToTDigestTests extends AbstractScalarFunctionTestCase {
             "ToTDigestFromHistogramEvaluator[in=Attribute[channel=0]]",
             DataType.TDIGEST,
             ToTDigestTests::fromHistogram,
+            List.of()
+        );
+
+        TestCaseSupplier.forUnaryTDigest(
+            suppliers,
+            // This gets optimized to a no-op
+            "Attribute[channel=0]",
+            DataType.TDIGEST,
+            h -> h,
             List.of()
         );
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);

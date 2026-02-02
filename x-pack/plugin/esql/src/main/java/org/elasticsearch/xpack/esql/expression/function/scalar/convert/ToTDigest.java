@@ -47,7 +47,7 @@ public class ToTDigest extends AbstractConvertFunction {
     )
     public ToTDigest(
         Source source,
-        @Param(name = "field", type = { "histogram" }, description = "The histogram value to be converted") Expression field
+        @Param(name = "field", type = { "histogram", "tdigest" }, description = "The histogram value to be converted") Expression field
     ) {
         super(source, field);
     }

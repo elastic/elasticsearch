@@ -15,6 +15,18 @@
       ],
       "variadic" : false,
       "returnType" : "tdigest"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "tdigest",
+          "optional" : false,
+          "description" : "The histogram value to be converted"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "tdigest"
     }
   ],
   "examples" : [

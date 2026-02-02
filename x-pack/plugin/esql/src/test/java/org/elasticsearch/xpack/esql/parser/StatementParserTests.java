@@ -1265,18 +1265,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("from test metadata _index, _version, _index", "1:38: metadata field [_index] already declared [@1:20]");
     }
 
-    public void testMetadataFieldUnsupportedCustomType() {
-        expectError("from test metadata _feature", "line 1:20: unsupported metadata field [_feature]");
-    }
-
-    public void testMetadataFieldNotFoundNonExistent() {
-        expectError("from test metadata _doesnot_compute", "line 1:20: unsupported metadata field [_doesnot_compute]");
-    }
-
-    public void testMetadataFieldNotFoundNormalField() {
-        expectError("from test metadata emp_no", "line 1:20: unsupported metadata field [emp_no]");
-    }
-
     public void testDissectPattern() {
         LogicalPlan cmd = processingCommand("dissect a \"%{foo}\"");
         assertEquals(Dissect.class, cmd.getClass());
@@ -3763,11 +3751,28 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testRerankComputedFieldsWithoutName() {
-        // Unnamed alias are forbidden
-        expectError(
-            "FROM books METADATA _score | RERANK \"food\" ON title, SUBSTRING(description, 0, 100), yearRenamed=year`",
-            "line 1:63: mismatched input '(' expecting {<EOF>, '|', '=', ',', '.', 'with'}"
+        var plan = processingCommand("""
+            RERANK "statement text" ON title, SUBSTRING(description, 0, 100), yearRenamed=year WITH { "inference_id": "inferenceID" }
+            """);
+        var rerank = as(plan, Rerank.class);
+
+        assertThat(rerank.queryText(), equalTo(literalString("statement text")));
+        assertThat(rerank.inferenceId(), equalTo(literalString("inferenceID")));
+        assertThat(
+            rerank.rerankFields(),
+            equalToIgnoringIds(
+                List.of(
+                    alias("title", attribute("title")),
+                    alias(
+                        "SUBSTRING(description, 0, 100)",
+                        function("SUBSTRING", List.of(attribute("description"), integer(0), integer(100)))
+                    ),
+                    alias("yearRenamed", attribute("year"))
+                )
+            )
         );
+        assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("_score")));
+        assertThat(rerank.rowLimit(), equalTo(integer(1_000)));
     }
 
     public void testRerankWithPositionalParameters() {
@@ -4327,7 +4332,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testMMRCommandWithLimitOnly() {
         assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
 
-        var cmd = processingCommand("mmr dense_embedding limit 10");
+        var cmd = processingCommand("mmr on dense_embedding limit 10");
         assertEquals(MMR.class, cmd.getClass());
         MMR mmrCmd = (MMR) cmd;
 
@@ -4342,7 +4347,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testMMRCommandWithLimitAndLambda() {
         assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
 
-        var cmd = processingCommand("mmr dense_embedding limit 10 with { \"lambda\": 0.5 }");
+        var cmd = processingCommand("mmr on dense_embedding limit 10 with { \"lambda\": 0.5 }");
         assertEquals(MMR.class, cmd.getClass());
         MMR mmrCmd = (MMR) cmd;
 
@@ -4463,11 +4468,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testInvalidMMRCommands() {
         assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
 
-        expectError("row a = 1 | mmr some_field", "line 1:27: mismatched input '<EOF>' expecting {'.', MMR_LIMIT}");
-        expectError("row a = 1 | mmr some_field limit", "line 1:33: mismatched input '<EOF>' expecting {INTEGER_LITERAL, '+', '-'}");
+        expectError("row a = 1 | mmr on some_field", "line 1:30: mismatched input '<EOF>' expecting {'.', MMR_LIMIT}");
+        expectError("row a = 1 | mmr on some_field limit", "line 1:36: mismatched input '<EOF>' expecting {INTEGER_LITERAL, '+', '-'}");
         expectError(
-            "row a = 1 | mmr some_field limit 5 {\"unknown\": true}",
-            "line 1:36: mismatched input '{' expecting {<EOF>, '|', 'with'}"
+            "row a = 1 | mmr on some_field limit 5 {\"unknown\": true}",
+            "line 1:39: mismatched input '{' expecting {<EOF>, '|', 'with'}"
         );
     }
 

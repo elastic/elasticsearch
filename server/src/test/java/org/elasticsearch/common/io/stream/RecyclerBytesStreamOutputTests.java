@@ -21,6 +21,7 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
@@ -35,6 +36,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -1515,5 +1517,57 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         assertEquals(writeable.value, read.value);
 
         out.close();
+    }
+
+    public void testToBase64String() throws IOException {
+        Base64.Encoder encoder;
+        Base64.Decoder decoder;
+
+        switch (between(1, 3)) {
+            case 1 -> {
+                encoder = Base64.getEncoder();
+                decoder = Base64.getDecoder();
+            }
+            case 2 -> {
+                encoder = Base64.getUrlEncoder();
+                decoder = Base64.getUrlDecoder();
+            }
+            case 3 -> {
+                encoder = Base64.getMimeEncoder(between(1, 1000), new byte[0]);
+                decoder = Base64.getMimeDecoder();
+            }
+            default -> throw new AssertionError("impossible");
+        }
+
+        try (var out = new RecyclerBytesStreamOutput(recycler)) {
+            final var contents = randomByteArrayOfLength(between(0, recycler.pageSize() * 3));
+            out.write(contents);
+
+            if (Assertions.ENABLED) {
+                // line-breaking encoder not permitted
+                expectThrows(AssertionError.class, () -> out.toBase64String(Base64.getMimeEncoder()));
+                expectThrows(AssertionError.class, () -> out.toBase64String(Base64.getMimeEncoder(10, new byte[] { 0x0a })));
+                expectThrows(AssertionError.class, () -> out.toBase64String(Base64.getMimeEncoder(120, new byte[] { 0x0a })));
+            }
+
+            assertArrayEquals(contents, decoder.decode(out.toBase64String(encoder)));
+        }
+    }
+
+    public void testWriteAllBytesFrom() throws IOException {
+        final var bytes = randomBytesReference(between(0, PageCacheRecycler.BYTE_PAGE_SIZE * 4));
+        try (var out = new RecyclerBytesStreamOutput(recycler)) {
+            if (randomBoolean()) {
+                out.writeAllBytesFrom(bytes.streamInput());
+            } else {
+                var remaining = bytes;
+                while (remaining.length() > 0) {
+                    var thisSlice = remaining.slice(0, between(1, remaining.length()));
+                    remaining = remaining.slice(thisSlice.length(), remaining.length() - thisSlice.length());
+                    out.writeAllBytesFrom(thisSlice.streamInput());
+                }
+            }
+            assertThat(out.bytes(), equalBytes(bytes));
+        }
     }
 }

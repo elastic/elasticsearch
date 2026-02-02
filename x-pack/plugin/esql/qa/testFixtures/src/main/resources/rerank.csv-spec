@@ -64,26 +64,6 @@ book_no:keyword | title:text                                            | author
 5327            | War and Peace                                         | Leo Tolstoy                                 | 0.08
 ;
 
-reranker using a non text fields
-required_capability: rerank
-required_capability: match_operator_colon
-
-FROM books METADATA _score
-| WHERE title:"war and peace" AND author:"Tolstoy"
-| RERANK "war and peace" ON ratings WITH { "inference_id" : "test_reranker" }
-| EVAL _score=ROUND(_score, 2), ratings = ROUND(ratings, 2)
-| SORT _score DESC, book_no ASC
-| KEEP book_no, title, ratings, _score
-;
-
-book_no:keyword | title:text                                            | ratings:double | _score:double
-2776            | The Devil and Other Stories (Oxford World's Classics) | 5.0            | 0.33
-4536            | War and Peace (Signet Classics)                       | 4.75           | 0.25
-5327            | War and Peace                                         | 3.84           | 0.06
-9032            | War and Peace: A Novel (6 Volumes)                    | 3.81           | 0.06
-;
-
-
 reranker using a sparse input field
 required_capability: rerank
 required_capability: match_operator_colon
@@ -118,32 +98,11 @@ FROM books METADATA _score
 ;
 
 book_no:keyword | title:text                                            | author:text                                 | _score:double
-5327            | War and Peace                                         | Leo Tolstoy                                 | 0.02
-2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy                                 | 0.01
-4536            | War and Peace (Signet Classics)                       | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.01
-9032            | War and Peace: A Novel (6 Volumes)                    | Tolstoy Leo                                 | 0.01     
+4536            | War and Peace (Signet Classics)                       | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.1
+2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy                                 | 0.09
+5327            | War and Peace                                         | Leo Tolstoy                                 | 0.09
+9032            | War and Peace: A Novel (6 Volumes)                    | Tolstoy Leo                                 | 0.09     
 ;
-
-
-reranker using multiple fields with some non text fields
-required_capability: rerank
-required_capability: match_operator_colon
-
-FROM books METADATA _score
-| WHERE title:"war and peace" AND author:"Tolstoy"
-| RERANK "war and peace" ON title, ratings WITH { "inference_id" : "test_reranker" }
-| EVAL _score=ROUND(_score, 2), ratings = ROUND(ratings, 2)
-| SORT _score DESC, book_no ASC
-| KEEP book_no, title, ratings, _score
-;
-
-book_no:keyword | title:text                                            | ratings:double | _score:double
-4536            | War and Peace (Signet Classics)                       | 4.75           | 0.02
-5327            | War and Peace                                         | 3.84           | 0.02
-2776            | The Devil and Other Stories (Oxford World's Classics) | 5.0            | 0.01
-9032            | War and Peace: A Novel (6 Volumes)                    | 3.81           | 0.01     
-;
-
 
 reranker after a limit
 required_capability: rerank
@@ -263,17 +222,17 @@ FROM books METADATA _score
 | SORT _score DESC
 | LIMIT 100
 | RERANK rerank_score = "hobbit" ON description, author WITH { "inference_id" : "test_reranker" }
-| SORT rerank_score
+| SORT rerank_score DESC, book_no DESC
 | LIMIT 3
-| KEEP title, _score, rerank_score
 // end::two-queries[]
+| KEEP title, _score, rerank_score
 ;
 
 // tag::two-queries-result[]
-title:text                                                       | _score:double      | rerank_score:double
-Return of the Shadow                                             | 3.4218082427978516 | 5.740527994930744E-4
-Return of the King Being the Third Part of The Lord of the Rings | 2.8398752212524414 | 9.000900317914784E-4
-The Lays of Beleriand                                            | 1.5629040002822876 | 9.36329597607255E-4
+title:text                                                                 | _score:double      | rerank_score:double
+The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1) | 0.7976278066635132 | 0.125
+A Middle English Reader and Vocabulary                                     | 1.043297290802002  | 0.07692307978868484
+FINAL WITNESS                                                              | 1.4058171510696411 | 0.07692307978868484
 // end::two-queries-result[]
 ;
 
@@ -286,19 +245,19 @@ FROM books METADATA _score
 | WHERE MATCH(description, "hobbit") OR MATCH(author, "Tolkien")
 | SORT _score DESC
 | LIMIT 100
-| RERANK rerank_score = "hobbit" ON description, author WITH { "inference_id" : "test_reranker" }
+| RERANK rerank_score = "hobbit" ON title, description WITH { "inference_id" : "test_reranker" }
 | EVAL original_score = _score, _score = rerank_score + original_score
 | SORT _score
 | LIMIT 3
-| KEEP title, original_score, rerank_score, _score
 // end::combine[]
+| KEEP title, original_score, rerank_score, _score
 ;
 
 // tag::combine-result[]
-title:text                                                       | _score:double      | rerank_score:double  | rerank_score:double
-Poems from the Hobbit                                            | 4.012462615966797  | 0.001396648003719747 | 0.001396648003719747
-The Lord of the Rings - Boxed Set                                | 3.768855094909668  | 0.0010020040208473802 | 0.001396648003719747
-Return of the King Being the Third Part of The Lord of the Rings | 3.6248698234558105 | 9.000900317914784E-4 | 0.001396648003719747
+title:text                                                                 | _score:double | rerank_score:double
+The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1) | 0.7976278     | 0.125
+A Middle English Reader and Vocabulary                                     | 1.043297      | 0.07692308
+FINAL WITNESS                                                              | 1.405817      | 0.07692308
 // end::combine-result[]
 ;
 
@@ -315,4 +274,59 @@ FROM books METADATA _score
 
 count_book:long
 2
+;
+
+rerank using snippets
+required_capability: rerank
+required_capability: top_snippets_function
+required_capability: match_function
+
+// tag::rerank-top-snippets[]
+FROM books
+| WHERE MATCH(title, "return")
+| RERANK "Tolkien" ON TOP_SNIPPETS(description, "Tolkien", { "num_snippets": 3, "num_words": 25 }) WITH { "inference_id" : "test_reranker" }
+// end::rerank-top-snippets[]
+| KEEP book_no, title, _score;
+ignoreOrder: true
+
+// tag::rerank-top-snippets-result[]
+book_no:keyword | title:text                                                           | _score:double 
+2714            | Return of the King Being the Third Part of The Lord of the Rings     | 0.007092198356986046            
+7350            | Return of the Shadow                                                 | 0.012500000186264515
+// end::rerank-top-snippets-result[]
+;
+
+rerank with row filtering null scores
+required_capability: rerank
+required_capability: fix_score_operator_planning
+
+ROW a = ["abc", "def", "ghi"]
+| MV_EXPAND a
+| EVAL a = case(a == "def", null,  a)
+| RERANK "foo" ON a WITH { "inference_id" : "test_reranker" }
+| WHERE _score IS NOT NULL
+| SORT a
+;
+
+a:keyword | _score:double
+abc       | 0.3333333432674408
+ghi       | 0.3333333432674408
+;
+
+rerank with null score filtering
+required_capability: rerank
+required_capability: fix_score_operator_planning
+
+FROM books METADATA _id, _index, _score
+| WHERE MATCH(description, "hobbit") OR MATCH(author, "Tolkien")
+| SORT _score DESC
+| LIMIT 3
+| EVAL title = CASE(book_no == "4289", NULL, title)
+| RERANK "hobbit" ON title WITH { "inference_id" : "test_reranker" }
+| KEEP book_no, title, _score
+| WHERE _score IS NULL
+;
+
+book_no:keyword | title:keyword | _score: double
+4289            | null          | null
 ;

@@ -50,7 +50,7 @@ EXPORT void vec_dot7u_bulk_offsets(
     const int32_t count,
     f32_t* results);
 
-EXPORT int32_t vec_sqr7u(const int8_t *a, const int8_t *b, const int32_t length);
+EXPORT int32_t vec_sqr7u(const int8_t* a, const int8_t* b, const int32_t length);
 
 EXPORT void vec_sqr7u_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results);
 

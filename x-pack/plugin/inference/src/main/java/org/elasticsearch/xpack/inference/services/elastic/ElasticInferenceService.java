@@ -294,11 +294,10 @@ public class ElasticInferenceService extends SenderService {
                 inferenceEntityId,
                 taskType,
                 serviceSettingsMap,
-                taskSettingsMap,
                 chunkingSettings,
-                serviceSettingsMap,
                 elasticInferenceServiceComponents,
-                ConfigurationParseContext.REQUEST
+                ConfigurationParseContext.REQUEST,
+                null
             );
 
             throwIfNotEmptyMap(config, NAME);
@@ -343,9 +342,7 @@ public class ElasticInferenceService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
-        @Nullable Map<String, Object> secretSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
         ConfigurationParseContext context,
         @Nullable EndpointMetadata endpointMetadata
@@ -366,8 +363,6 @@ public class ElasticInferenceService extends SenderService {
                 taskType,
                 NAME,
                 serviceSettings,
-                taskSettings,
-                secretSettings,
                 elasticInferenceServiceComponents,
                 context,
                 endpointMetadata
@@ -377,18 +372,15 @@ public class ElasticInferenceService extends SenderService {
                 taskType,
                 NAME,
                 serviceSettings,
-                taskSettings,
-                secretSettings,
                 elasticInferenceServiceComponents,
-                context
+                context,
+                endpointMetadata
             );
             case TEXT_EMBEDDING -> new ElasticInferenceServiceDenseTextEmbeddingsModel(
                 inferenceEntityId,
                 taskType,
                 NAME,
                 serviceSettings,
-                taskSettings,
-                secretSettings,
                 elasticInferenceServiceComponents,
                 context,
                 chunkingSettings,
@@ -405,8 +397,9 @@ public class ElasticInferenceService extends SenderService {
         var taskType = unparsedModel.taskType();
 
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-        Map<String, Object> secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
+        // These aren't used by EIS endpoints so we'll remove them to avoid potential validation issues
+        removeFromMap(config, ModelConfigurations.TASK_SETTINGS);
+        removeFromMap(secrets, ModelSecrets.SECRET_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
         if (TaskType.SPARSE_EMBEDDING.equals(taskType) || TaskType.TEXT_EMBEDDING.equals(taskType)) {
@@ -417,9 +410,7 @@ public class ElasticInferenceService extends SenderService {
             unparsedModel.inferenceEntityId(),
             taskType,
             serviceSettingsMap,
-            taskSettingsMap,
             chunkingSettings,
-            secretSettingsMap,
             unparsedModel.endpointMetadata()
         );
     }
@@ -431,20 +422,21 @@ public class ElasticInferenceService extends SenderService {
         Map<String, Object> config,
         Map<String, Object> secrets
     ) {
-        throw new UnsupportedOperationException(Strings.format("[%s] requires an unparsed model"));
+        throw new UnsupportedOperationException(Strings.format("[%s] requires an unparsed model", NAME));
     }
 
     @Override
     public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
+        // Not by EIS endpoints so removing to avoid potential validation issues
+        removeFromMap(config, ModelConfigurations.TASK_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
         if (TaskType.SPARSE_EMBEDDING.equals(taskType) || TaskType.TEXT_EMBEDDING.equals(taskType)) {
             chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 
-        return createModelFromPersistent(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, chunkingSettings, null);
+        return createModelFromPersistent(inferenceEntityId, taskType, serviceSettingsMap, chunkingSettings, null);
     }
 
     @Override
@@ -456,18 +448,14 @@ public class ElasticInferenceService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
-        @Nullable Map<String, Object> secretSettings,
-        EndpointMetadata endpointMetadata
+        @Nullable EndpointMetadata endpointMetadata
     ) {
         return createModel(
             inferenceEntityId,
             taskType,
             serviceSettings,
-            taskSettings,
             chunkingSettings,
-            secretSettings,
             elasticInferenceServiceComponents,
             ConfigurationParseContext.PERSISTENT,
             endpointMetadata

@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.inference.services.elastic.response;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.EmptySecretSettings;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.EndpointMetadata;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.StatusHeuristic;
@@ -103,7 +101,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 "multilingual"
               ],
               "release_date": "2024-05-01",
-              "end_of_life_date": "2025-12-31",
+              "end_of_life_date": "2024-05-02",
               "kibana_connector_name": "Rainbow Sprinkles Elastic",
               "fingerprint": "fingerprint123"
             }
@@ -188,7 +186,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 "multilingual"
               ],
               "release_date": "2024-05-01",
-              "end_of_life_date": "2025-12-31",
+              "end_of_life_date": "2024-05-02",
               "kibana_connector_name": "Rainbow Sprinkles Elastic",
               "fingerprint": "fingerprint123"
             },
@@ -287,6 +285,11 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
         }
         """;
 
+    private static final String RELEASE_DATE_STRING = "2024-05-01";
+    private static final String END_OF_LIFE_DATE_STRING = "2024-05-02";
+    private static final LocalDate RELEASE_DATE_PARSED = LocalDate.parse(RELEASE_DATE_STRING);
+    private static final LocalDate END_OF_LIFE_DATE_PARSED = LocalDate.parse(END_OF_LIFE_DATE_STRING);
+
     public static EisAuthorizationResponse getEisElserAuthorizationResponse(String url) {
         var authorizedEndpoints = List.of(createElserAuthorizedEndpoint());
 
@@ -311,12 +314,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             new ElasticInferenceServiceComponents(url),
             new SentenceBoundaryChunkingSettings(250, 1),
             new EndpointMetadata(
-                new EndpointMetadata.Heuristics(
-                    List.of("english"),
-                    StatusHeuristic.fromString("preview"),
-                    LocalDate.parse("2024-05-01"),
-                    null
-                ),
+                new EndpointMetadata.Heuristics(List.of("english"), StatusHeuristic.fromString("preview"), RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal("fingerprint789", ENDPOINT_VERSION),
                 "Elser 2 Elastic"
             )
@@ -330,7 +328,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             createTaskTypeObject(EIS_SPARSE_PATH, "sparse_embedding"),
             "preview",
             List.of("english"),
-            "2024-05-01",
+            RELEASE_DATE_STRING,
             null,
             new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(
                 null,
@@ -386,8 +384,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             createTaskTypeObject(EIS_CHAT_PATH, "chat_completion"),
             "ga",
             List.of("multilingual"),
-            "2024-05-01",
-            "2025-12-31",
+            RELEASE_DATE_STRING,
+            END_OF_LIFE_DATE_STRING,
             null,
             "Rainbow Sprinkles Elastic",
             "fingerprint123"
@@ -400,16 +398,9 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             TaskType.CHAT_COMPLETION,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(GP_LLM_V2_MODEL_NAME),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
-                new EndpointMetadata.Heuristics(
-                    List.of("multilingual"),
-                    StatusHeuristic.fromString("ga"),
-                    LocalDate.parse("2024-05-01"),
-                    null
-                ),
+                new EndpointMetadata.Heuristics(List.of("multilingual"), StatusHeuristic.fromString("ga"), RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal("fingerprint234", ENDPOINT_VERSION),
                 "Gp Llm V2 Chat Completion"
             )
@@ -422,16 +413,9 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             TaskType.COMPLETION,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(GP_LLM_V2_MODEL_NAME),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
-                new EndpointMetadata.Heuristics(
-                    List.of("multilingual"),
-                    StatusHeuristic.fromString("ga"),
-                    LocalDate.parse("2024-05-01"),
-                    null
-                ),
+                new EndpointMetadata.Heuristics(List.of("multilingual"), StatusHeuristic.fromString("ga"), RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal("fingerprint345", ENDPOINT_VERSION),
                 "Gp Llm V2 Completion"
             )
@@ -445,7 +429,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             createTaskTypeObject(EIS_CHAT_PATH, "chat_completion"),
             "ga",
             List.of("multilingual"),
-            "2024-05-01",
+            RELEASE_DATE_STRING,
             null,
             null,
             "Gp Llm V2 Chat Completion",
@@ -460,7 +444,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             createTaskTypeObject(EIS_CHAT_PATH, "completion"),
             "ga",
             List.of("multilingual"),
-            "2024-05-01",
+            RELEASE_DATE_STRING,
             null,
             null,
             "Gp Llm V2 Completion",
@@ -474,15 +458,13 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             TaskType.CHAT_COMPLETION,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(RAINBOW_SPRINKLES_MODEL_NAME),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(
                     List.of("multilingual"),
                     StatusHeuristic.fromString("ga"),
-                    LocalDate.parse("2024-05-01"),
-                    LocalDate.parse("2025-12-31")
+                    RELEASE_DATE_PARSED,
+                    END_OF_LIFE_DATE_PARSED
                 ),
                 new EndpointMetadata.Internal("fingerprint123", ENDPOINT_VERSION),
                 "Rainbow Sprinkles Elastic"
@@ -527,7 +509,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             createTaskTypeObject(EIS_EMBED_PATH, "text_embedding"),
             "beta",
             List.of("multilingual", "open-weights"),
-            "2024-05-01",
+            RELEASE_DATE_STRING,
             null,
             new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(
                 "cosine",
@@ -546,15 +528,13 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             TaskType.TEXT_EMBEDDING,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(JINA_EMBED_V3_MODEL_NAME, SimilarityMeasure.COSINE, 1024, null),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
             new WordBoundaryChunkingSettings(500, 2),
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(
                     List.of("multilingual", "open-weights"),
                     StatusHeuristic.fromString("beta"),
-                    LocalDate.parse("2024-05-01"),
+                    RELEASE_DATE_PARSED,
                     null
                 ),
                 new EndpointMetadata.Internal("fingerprint456", ENDPOINT_VERSION),
@@ -570,7 +550,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             createTaskTypeObject(EIS_RERANK_PATH, "rerank"),
             "preview",
             List.of(),
-            "2024-05-01",
+            RELEASE_DATE_STRING,
             null,
             null,
             "Jina Reranker V2",
@@ -584,11 +564,9 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             TaskType.RERANK,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceRerankServiceSettings(RERANK_V1_MODEL_NAME),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
-                new EndpointMetadata.Heuristics(List.of(), StatusHeuristic.fromString("preview"), LocalDate.parse("2024-05-01"), null),
+                new EndpointMetadata.Heuristics(List.of(), StatusHeuristic.fromString("preview"), RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal("fingerprint567", ENDPOINT_VERSION),
                 "Jina Reranker V2"
             )
@@ -635,8 +613,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
                 status,
                 null,
-                "",
-                "",
+                RELEASE_DATE_STRING,
+                null,
                 null,
                 "Chat Completion Connector",
                 fingerprintPrefix + randomAlphaOfLength(5)
@@ -647,8 +625,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 createTaskTypeObject(EIS_SPARSE_PATH, TaskType.SPARSE_EMBEDDING.toString()),
                 status,
                 null,
-                "",
-                "",
+                RELEASE_DATE_STRING,
+                null,
                 null,
                 "Sparse Embedding Connector",
                 fingerprintPrefix + randomAlphaOfLength(5)
@@ -659,8 +637,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
                 status,
                 null,
-                "",
-                "",
+                RELEASE_DATE_STRING,
+                null,
                 new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(
                     randomFrom(SimilarityMeasure.values()).toString(),
                     randomInt(),
@@ -676,8 +654,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 createTaskTypeObject(EIS_RERANK_PATH, TaskType.RERANK.toString()),
                 status,
                 null,
-                "",
-                "",
+                RELEASE_DATE_STRING,
+                null,
                 null,
                 "Rerank Connector",
                 fingerprintPrefix + randomAlphaOfLength(5)
@@ -688,8 +666,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 createTaskTypeObject(EIS_CHAT_PATH, TaskType.COMPLETION.toString()),
                 status,
                 null,
-                "",
-                "",
+                RELEASE_DATE_STRING,
+                END_OF_LIFE_DATE_STRING,
                 null,
                 "Completion Connector",
                 fingerprintPrefix + randomAlphaOfLength(5)

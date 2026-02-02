@@ -11,6 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.EndpointMetadata;
+import org.elasticsearch.inference.StatusHeuristic;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.TaskId;
@@ -39,6 +41,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.elastic.authorization.EndpointSchemaMigration.ENDPOINT_VERSION;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeatureTests.createMockCCMFeature;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMServiceTests.createMockCCMService;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.createAuthorizedEndpoint;
@@ -223,7 +226,28 @@ public class AuthorizationPollerTests extends ESTestCase {
         poller.sendAuthorizationRequest();
         verify(mockClient).execute(eq(StoreInferenceEndpointsAction.INSTANCE), requestArgCaptor.capture(), any());
         var capturedRequest = requestArgCaptor.getValue();
-        assertThat(capturedRequest.getModels(), is(List.of(createSparseEndpoint(sparseModel.id(), sparseModel.modelName(), url))));
+        assertThat(
+            capturedRequest.getModels(),
+            is(
+                List.of(
+                    createSparseEndpoint(
+                        sparseModel.id(),
+                        sparseModel.modelName(),
+                        url,
+                        new EndpointMetadata(
+                            new EndpointMetadata.Heuristics(
+                                List.of(),
+                                StatusHeuristic.fromString(sparseModel.status()),
+                                sparseModel.releaseDate(),
+                                sparseModel.endOfLifeDate()
+                            ),
+                            new EndpointMetadata.Internal(sparseModel.fingerprint(), ENDPOINT_VERSION),
+                            sparseModel.kibanaConnectorName()
+                        )
+                    )
+                )
+            )
+        );
 
         verify(mockPersistentTasksService, never()).sendCompletionRequest(
             eq(persistentTaskId),
@@ -235,14 +259,20 @@ public class AuthorizationPollerTests extends ESTestCase {
         );
     }
 
-    private ElasticInferenceServiceSparseEmbeddingsModel createSparseEndpoint(String endpointId, String modelName, String url) {
+    private ElasticInferenceServiceSparseEmbeddingsModel createSparseEndpoint(
+        String endpointId,
+        String modelName,
+        String url,
+        EndpointMetadata endpointMetadata
+    ) {
         return new ElasticInferenceServiceSparseEmbeddingsModel(
             endpointId,
             TaskType.SPARSE_EMBEDDING,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelName, null, null),
             new ElasticInferenceServiceComponents(url),
-            ChunkingSettingsBuilder.DEFAULT_SETTINGS
+            ChunkingSettingsBuilder.DEFAULT_SETTINGS,
+            endpointMetadata
         );
     }
 
@@ -294,7 +324,29 @@ public class AuthorizationPollerTests extends ESTestCase {
         poller.sendAuthorizationRequest();
         verify(mockClient).execute(eq(StoreInferenceEndpointsAction.INSTANCE), requestArgCaptor.capture(), any());
         var capturedRequest = requestArgCaptor.getValue();
-        assertThat(capturedRequest.getModels(), is(List.of(createSparseEndpoint(sparseModel.id(), sparseModel.modelName(), url))));
+
+        assertThat(
+            capturedRequest.getModels(),
+            is(
+                List.of(
+                    createSparseEndpoint(
+                        sparseModel.id(),
+                        sparseModel.modelName(),
+                        url,
+                        new EndpointMetadata(
+                            new EndpointMetadata.Heuristics(
+                                List.of(),
+                                StatusHeuristic.fromString(sparseModel.status()),
+                                sparseModel.releaseDate(),
+                                sparseModel.endOfLifeDate()
+                            ),
+                            new EndpointMetadata.Internal(sparseModel.fingerprint(), ENDPOINT_VERSION),
+                            sparseModel.kibanaConnectorName()
+                        )
+                    )
+                )
+            )
+        );
 
         verify(mockPersistentTasksService, never()).sendCompletionRequest(
             eq(persistentTaskId),

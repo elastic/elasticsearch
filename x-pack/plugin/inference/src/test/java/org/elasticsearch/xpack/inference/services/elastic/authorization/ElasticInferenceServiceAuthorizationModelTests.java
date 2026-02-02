@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.inference.services.elastic.authorization;
 
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkingStrategy;
-import org.elasticsearch.inference.EmptySecretSettings;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.EndpointMetadata;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.StatusHeuristic;
@@ -200,8 +198,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             TaskType.CHAT_COMPLETION,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(name1),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
             DEFAULT_ENDPOINT_METADATA
         );
@@ -268,8 +264,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             TaskType.CHAT_COMPLETION,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(name1),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
             DEFAULT_ENDPOINT_METADATA
         );
@@ -278,8 +272,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             TaskType.TEXT_EMBEDDING,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(name2, similarity, dimensions, null),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS,
             DEFAULT_ENDPOINT_METADATA
@@ -351,8 +343,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             TaskType.CHAT_COMPLETION,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(name1),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
             DEFAULT_ENDPOINT_METADATA
         );
@@ -496,8 +486,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             TaskType.CHAT_COMPLETION,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(name),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
             DEFAULT_ENDPOINT_METADATA
         );
@@ -631,8 +619,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             TaskType.TEXT_EMBEDDING,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(name, similarityMeasure, dimensions, null),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS,
             DEFAULT_ENDPOINT_METADATA
@@ -643,8 +629,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             TaskType.TEXT_EMBEDDING,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(name, similarityMeasure, dimensions, null),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS,
             DEFAULT_ENDPOINT_METADATA
@@ -655,8 +639,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             TaskType.TEXT_EMBEDDING,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(name, similarityMeasure, dimensions, null),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS,
             DEFAULT_ENDPOINT_METADATA
@@ -772,8 +754,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TaskType.COMPLETION,
                     ElasticInferenceService.NAME,
                     new ElasticInferenceServiceCompletionServiceSettings(nameCompletion),
-                    EmptyTaskSettings.INSTANCE,
-                    EmptySecretSettings.INSTANCE,
                     new ElasticInferenceServiceComponents(url),
                     DEFAULT_ENDPOINT_METADATA
                 ),
@@ -782,8 +762,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TaskType.CHAT_COMPLETION,
                     ElasticInferenceService.NAME,
                     new ElasticInferenceServiceCompletionServiceSettings(nameChat),
-                    EmptyTaskSettings.INSTANCE,
-                    EmptySecretSettings.INSTANCE,
                     new ElasticInferenceServiceComponents(url),
                     DEFAULT_ENDPOINT_METADATA
                 ),
@@ -801,8 +779,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TaskType.TEXT_EMBEDDING,
                     ElasticInferenceService.NAME,
                     new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(nameDense, similarity, dimensions, null),
-                    EmptyTaskSettings.INSTANCE,
-                    EmptySecretSettings.INSTANCE,
                     new ElasticInferenceServiceComponents(url),
                     ChunkingSettingsBuilder.DEFAULT_SETTINGS,
                     DEFAULT_ENDPOINT_METADATA
@@ -812,8 +788,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TaskType.RERANK,
                     ElasticInferenceService.NAME,
                     new ElasticInferenceServiceRerankServiceSettings(nameRerank),
-                    EmptyTaskSettings.INSTANCE,
-                    EmptySecretSettings.INSTANCE,
                     new ElasticInferenceServiceComponents(url),
                     DEFAULT_ENDPOINT_METADATA
                 )
@@ -853,8 +827,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             TaskType.CHAT_COMPLETION,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(name),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(properties, statusHeuristic, TEST_RELEASE_DATE_PARSED, TEST_END_OF_LIFE_DATE_PARSED),
@@ -898,8 +870,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             TaskType.CHAT_COMPLETION,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(name),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(
@@ -948,8 +918,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             TaskType.CHAT_COMPLETION,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(name),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(
@@ -998,8 +966,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             TaskType.CHAT_COMPLETION,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(name),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of(), statusHeuristic, TEST_RELEASE_DATE_PARSED, TEST_END_OF_LIFE_DATE_PARSED),
@@ -1043,8 +1009,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             TaskType.CHAT_COMPLETION,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(name),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of(), statusHeuristic, TEST_RELEASE_DATE_PARSED, null),
@@ -1242,8 +1206,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             TaskType.TEXT_EMBEDDING,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(name, similarity, dimensions, null),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.fromMap(chunkingSettings),
             new EndpointMetadata(
@@ -1338,8 +1300,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             TaskType.CHAT_COMPLETION,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(name),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(
@@ -1434,8 +1394,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             TaskType.CHAT_COMPLETION,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(name1),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(properties, StatusHeuristic.fromString(status), TEST_RELEASE_DATE_PARSED, null),

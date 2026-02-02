@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.inference.services.elastic.authorization;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.inference.EmptySecretSettings;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.EndpointMetadata;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -173,8 +171,6 @@ public class ElasticInferenceServiceAuthorizationModel {
             taskType,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(authorizedEndpoint.modelName()),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             components,
             endpointMetadata
         );
@@ -232,8 +228,6 @@ public class ElasticInferenceServiceAuthorizationModel {
                 config.dimensions(),
                 null
             ),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             components,
             ChunkingSettingsBuilder.fromMap(getChunkingSettingsMap(config)),
             endpointMetadata
@@ -293,8 +287,6 @@ public class ElasticInferenceServiceAuthorizationModel {
             TaskType.RERANK,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceRerankServiceSettings(authorizedEndpoint.modelName()),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             components,
             endpointMetadata
         );

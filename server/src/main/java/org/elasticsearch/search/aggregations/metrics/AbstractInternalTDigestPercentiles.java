@@ -10,10 +10,8 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
@@ -30,15 +28,11 @@ import java.util.Objects;
 
 abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetricsAggregation.MultiValue {
 
-    private static final TransportVersion QUERYDSL_PERCENTILES_EXPONENTIAL_HISTOGRAM_SUPPORT =
-        TransportVersion.fromName("query_dsl_percentiles_exponential_histogram_support");
+    private static final TransportVersion QUERYDSL_PERCENTILES_EXPONENTIAL_HISTOGRAM_SUPPORT = TransportVersion.fromName(
+        "query_dsl_percentiles_exponential_histogram_support"
+    );
 
     protected static final Iterator<Percentile> EMPTY_ITERATOR = Collections.emptyIterator();
-
-    // NOTE: using compression = 1.0 empty histograms will track just about 5 centroids.
-    // This reduces the amount of data to serialize and deserialize.
-    //TODO: Make immutable
-    private static final HistogramUnionState EMPTY_HISTOGRAM = HistogramUnionState.wrap(new NoopCircuitBreaker("empty-state-cb"), new EmptyTDigestState());
 
     protected final double[] keys;
     protected final HistogramUnionState state;
@@ -120,7 +114,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
      * Return the internal {@link HistogramUnionState} sketch for this metric.
      */
     public HistogramUnionState getState() {
-        return state == null ? EMPTY_HISTOGRAM : state;
+        return state == null ? HistogramUnionState.EMPTY : state;
     }
 
     /**
@@ -155,7 +149,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
 
             @Override
             public InternalAggregation get() {
-                return createReduced(getName(), keys, merged == null ? EMPTY_HISTOGRAM : merged, keyed, getMetadata());
+                return createReduced(getName(), keys, merged == null ? HistogramUnionState.EMPTY : merged, keyed, getMetadata());
             }
         };
     }

@@ -42,6 +42,37 @@ import java.util.Objects;
  */
 public class HistogramUnionState implements Releasable, Accountable {
 
+    public static final HistogramUnionState EMPTY = new HistogramUnionState(
+        new NoopCircuitBreaker("empty-state-cb"),
+        new EmptyTDigestState(),
+        null
+    ) {
+        @Override
+        public void add(HistogramUnionState other) {
+            throw new UnsupportedOperationException("Immutable Empty HistogramUnionState");
+        }
+
+        @Override
+        public void add(ExponentialHistogram histogram) {
+            throw new UnsupportedOperationException("Immutable Empty HistogramUnionState");
+        }
+
+        @Override
+        public void add(double value) {
+            throw new UnsupportedOperationException("Immutable Empty HistogramUnionState");
+        }
+
+        @Override
+        public void add(double value, long count) {
+            throw new UnsupportedOperationException("Immutable Empty HistogramUnionState");
+        }
+
+        @Override
+        public void add(TDigestState tdigest) {
+            throw new UnsupportedOperationException("Immutable Empty HistogramUnionState");
+        }
+    };
+
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(HistogramUnionState.class);
 
     public static final CircuitBreaker NOOP_BREAKER = new NoopCircuitBreaker("histogram-union-state-noop-breaker");

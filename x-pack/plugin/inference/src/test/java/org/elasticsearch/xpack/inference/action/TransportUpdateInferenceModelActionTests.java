@@ -419,7 +419,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     }
 
     public void testCombineExistingModelWithNewSettings_NewServiceAndTaskSettings_UpdatesConfig() {
-        Map<String, Object> newServiceSettingsMap = Map.of("some_service_key", "some_service_value", "num_allocations", 5);
+        Map<String, Object> newServiceSettingsMap = Map.of("some_service_key", "some_service_value");
         var originalServiceSettings = mock(ServiceSettings.class);
         var updatedServiceSettings = mock(ServiceSettings.class);
         when(originalServiceSettings.updateServiceSettings(newServiceSettingsMap)).thenReturn(updatedServiceSettings);

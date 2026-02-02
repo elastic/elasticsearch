@@ -299,21 +299,33 @@ class ClientTransformIndexer extends TransformIndexer {
 
     @Override
     void doGetInitialProgress(SearchRequest request, ActionListener<SearchResponse> responseListener) {
-        CrossProjectHeadersHelper.executeWithCrossProjectHeaders(
-            client,
-            transformConfig,
-            ActionListener.wrap(
-                r -> ClientHelper.executeWithHeadersAsync(
-                    transformConfig.getHeaders(),
-                    ClientHelper.TRANSFORM_ORIGIN,
-                    client,
-                    TransportSearchAction.TYPE,
-                    request,
-                    responseListener
-                ),
-                responseListener::onFailure
-            )
-        );
+        // Only execute cross-project headers action if feature flag is enabled and transform uses remote indices
+        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() && transformConfig.getSource().requiresRemoteCluster()) {
+            CrossProjectHeadersHelper.executeWithCrossProjectHeaders(
+                client,
+                transformConfig,
+                ActionListener.wrap(
+                    r -> ClientHelper.executeWithHeadersAsync(
+                        transformConfig.getHeaders(),
+                        ClientHelper.TRANSFORM_ORIGIN,
+                        client,
+                        TransportSearchAction.TYPE,
+                        request,
+                        responseListener
+                    ),
+                    responseListener::onFailure
+                )
+            );
+        } else {
+            ClientHelper.executeWithHeadersAsync(
+                transformConfig.getHeaders(),
+                ClientHelper.TRANSFORM_ORIGIN,
+                client,
+                TransportSearchAction.TYPE,
+                request,
+                responseListener
+            );
+        }
     }
 
     @Override
@@ -348,12 +360,17 @@ class ClientTransformIndexer extends TransformIndexer {
 
     @Override
     void prepareCrossProjectSearch(ActionListener<Void> listener) {
-        // TODO would be conditional IRL
-        // Need to call resolve index API (in addition?)
-        CrossProjectHeadersHelper.executeWithCrossProjectHeaders(client, transformConfig, ActionListener.wrap(r -> {
-            logger.info("[{}] prepared cross-project search.", getJobId());
+        // Only prepare cross-project search if:
+        // 1. The feature flag is enabled
+        // 2. The transform actually uses remote cluster indices
+        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() && transformConfig.getSource().requiresRemoteCluster()) {
+            CrossProjectHeadersHelper.executeWithCrossProjectHeaders(client, transformConfig, ActionListener.wrap(r -> {
+                logger.info("[{}] prepared cross-project search.", getJobId());
+                listener.onResponse(null);
+            }, listener::onFailure));
+        } else {
             listener.onResponse(null);
-        }, listener::onFailure));
+        }
     }
 
     /**
@@ -626,11 +643,16 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     void doSearch(Tuple<String, SearchRequest> namedSearchRequest, ActionListener<SearchResponse> listener) {
-        CrossProjectHeadersHelper.executeWithCrossProjectHeaders(
-            client,
-            transformConfig,
-            ActionListener.wrap(v -> doSearchInternal(namedSearchRequest, listener), listener::onFailure)
-        );
+        // Only execute cross-project headers action if feature flag is enabled and transform uses remote indices
+        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() && transformConfig.getSource().requiresRemoteCluster()) {
+            CrossProjectHeadersHelper.executeWithCrossProjectHeaders(
+                client,
+                transformConfig,
+                ActionListener.wrap(v -> doSearchInternal(namedSearchRequest, listener), listener::onFailure)
+            );
+        } else {
+            doSearchInternal(namedSearchRequest, listener);
+        }
     }
 
     private void doSearchInternal(Tuple<String, SearchRequest> namedSearchRequest, ActionListener<SearchResponse> listener) {

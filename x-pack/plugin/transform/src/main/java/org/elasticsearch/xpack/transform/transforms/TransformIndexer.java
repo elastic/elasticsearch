@@ -1136,9 +1136,13 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         request.allowPartialSearchResults(false) // shard failures should fail the request
             .indicesOptions(
                 IndicesOptions.builder(IndicesOptions.LENIENT_EXPAND_OPEN)
-                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .crossProjectModeOptions(
+                        new IndicesOptions.CrossProjectModeOptions(
+                            TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() && getConfig().getSource().requiresRemoteCluster()
+                        )
+                    )
                     .build()
-            ); // TODO: make configurable
+            );
 
         changeCollector.buildChangesQuery(sourceBuilder, position != null ? position.getBucketsPosition() : null, context.getPageSize());
 
@@ -1203,9 +1207,13 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             .allowPartialSearchResults(false) // shard failures should fail the request
             .indicesOptions(
                 IndicesOptions.builder(IndicesOptions.LENIENT_EXPAND_OPEN)
-                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .crossProjectModeOptions(
+                        new IndicesOptions.CrossProjectModeOptions(
+                            TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() && getConfig().getSource().requiresRemoteCluster()
+                        )
+                    )
                     .build()
-            ); // TODO: make configurable
+            );
     }
 
     /**

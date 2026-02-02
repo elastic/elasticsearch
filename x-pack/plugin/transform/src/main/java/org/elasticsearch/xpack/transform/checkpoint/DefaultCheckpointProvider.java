@@ -87,10 +87,27 @@ class DefaultCheckpointProvider implements CheckpointProvider {
         final long timestamp = clock.millis();
         final long checkpoint = TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? 1 : lastCheckpoint.getCheckpoint() + 1;
 
-        CrossProjectHeadersHelper.executeWithCrossProjectHeaders(
-            client,
-            transformConfig,
-            ActionListener.wrap(v -> getIndexCheckpoints(INTERNAL_GET_INDEX_CHECKPOINTS_TIMEOUT, ActionListener.wrap(checkpointsByIndex -> {
+        // Only execute cross-project headers action if feature flag is enabled and transform uses remote indices
+        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() && transformConfig.getSource().requiresRemoteCluster()) {
+            CrossProjectHeadersHelper.executeWithCrossProjectHeaders(
+                client,
+                transformConfig,
+                ActionListener.wrap(v -> getIndexCheckpoints(INTERNAL_GET_INDEX_CHECKPOINTS_TIMEOUT, ActionListener.wrap(checkpointsByIndex -> {
+                    reportSourceIndexChanges(
+                        TransformCheckpoint.isNullOrEmpty(lastCheckpoint)
+                            ? Collections.emptySet()
+                            : lastCheckpoint.getIndicesCheckpoints().keySet(),
+                        checkpointsByIndex.keySet()
+                    );
+
+                    listener.onResponse(new TransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, 0L));
+                }, listener::onFailure)), e -> {
+                    logger.warn(() -> format("[%s] failed to prepare headers for checkpoint [%d]", transformConfig.getId(), checkpoint), e);
+                    listener.onFailure(e);
+                })
+            );
+        } else {
+            getIndexCheckpoints(INTERNAL_GET_INDEX_CHECKPOINTS_TIMEOUT, ActionListener.wrap(checkpointsByIndex -> {
                 reportSourceIndexChanges(
                     TransformCheckpoint.isNullOrEmpty(lastCheckpoint)
                         ? Collections.emptySet()
@@ -99,74 +116,81 @@ class DefaultCheckpointProvider implements CheckpointProvider {
                 );
 
                 listener.onResponse(new TransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, 0L));
-            }, listener::onFailure)), e -> {
-                logger.warn(() -> format("[%s] failed to prepare headers for checkpoint [%d]", transformConfig.getId(), checkpoint), e);
-            })
-        );
+            }, listener::onFailure));
+        }
     }
 
     protected void getIndexCheckpoints(TimeValue timeout, ActionListener<Map<String, long[]>> listener) {
-        CrossProjectHeadersHelper.executeWithCrossProjectHeaders(client, transformConfig, ActionListener.wrap(v -> {
-            try {
-                ResolvedIndices resolvedIndexes = remoteClusterResolver.resolve(transformConfig.getSource().getIndex());
-                ActionListener<Map<String, long[]>> groupedListener = listener;
+        // Only execute cross-project headers action if feature flag is enabled and transform uses remote indices
+        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() && transformConfig.getSource().requiresRemoteCluster()) {
+            CrossProjectHeadersHelper.executeWithCrossProjectHeaders(client, transformConfig, ActionListener.wrap(v -> {
+                executeGetIndexCheckpoints(timeout, listener);
+            }, listener::onFailure));
+        } else {
+            executeGetIndexCheckpoints(timeout, listener);
+        }
+    }
 
-                if (resolvedIndexes.numClusters() == 0) {
-                    var indices = String.join(",", transformConfig.getSource().getIndex());
-                    listener.onFailure(new CheckpointException("No clusters exist for [{}]", indices));
-                    return;
-                }
+    private void executeGetIndexCheckpoints(TimeValue timeout, ActionListener<Map<String, long[]>> listener) {
+        try {
+            ResolvedIndices resolvedIndexes = remoteClusterResolver.resolve(transformConfig.getSource().getIndex());
+            ActionListener<Map<String, long[]>> groupedListener = listener;
 
-                if (resolvedIndexes.numClusters() > 1) {
-                    ActionListener<Collection<Map<String, long[]>>> mergeMapsListener = ActionListener.wrap(indexCheckpoints -> {
-                        listener.onResponse(
-                            indexCheckpoints.stream()
-                                .flatMap(m -> m.entrySet().stream())
-                                .collect(Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue()))
-                        );
-                    }, listener::onFailure);
-
-                    groupedListener = new GroupedActionListener<>(resolvedIndexes.numClusters(), mergeMapsListener);
-                }
-
-                final var threadContext = client.threadPool().getThreadContext();
-
-                if (resolvedIndexes.getLocalIndices().isEmpty() == false) {
-                    getCheckpointsFromOneCluster(
-                        threadContext,
-                        CheckpointClient.local(client),
-                        timeout,
-                        transformConfig.getHeaders(),
-                        resolvedIndexes.getLocalIndices().toArray(new String[0]),
-                        transformConfig.getSource().getQueryConfig().getQuery(),
-                        RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
-                        groupedListener
-                    );
-                }
-
-                for (Map.Entry<String, List<String>> remoteIndex : resolvedIndexes.getRemoteIndicesPerClusterAlias().entrySet()) {
-                    String cluster = remoteIndex.getKey();
-                    getCheckpointsFromOneCluster(
-                        threadContext,
-                        CheckpointClient.remote(
-                            client.getRemoteClusterClient(
-                                cluster,
-                                EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                                RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
-                            )
-                        ),
-                        timeout,
-                        transformConfig.getHeaders(),
-                        remoteIndex.getValue().toArray(new String[0]),
-                        transformConfig.getSource().getQueryConfig().getQuery(),
-                        cluster,
-                        groupedListener
-                    );
-                }
-            } catch (Exception e) {
-                listener.onFailure(e);
+            if (resolvedIndexes.numClusters() == 0) {
+                var indices = String.join(",", transformConfig.getSource().getIndex());
+                listener.onFailure(new CheckpointException("No clusters exist for [{}]", indices));
+                return;
             }
-        }, listener::onFailure));
+
+            if (resolvedIndexes.numClusters() > 1) {
+                ActionListener<Collection<Map<String, long[]>>> mergeMapsListener = ActionListener.wrap(indexCheckpoints -> {
+                    listener.onResponse(
+                        indexCheckpoints.stream()
+                            .flatMap(m -> m.entrySet().stream())
+                            .collect(Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue()))
+                    );
+                }, listener::onFailure);
+
+                groupedListener = new GroupedActionListener<>(resolvedIndexes.numClusters(), mergeMapsListener);
+            }
+
+            final var threadContext = client.threadPool().getThreadContext();
+
+            if (resolvedIndexes.getLocalIndices().isEmpty() == false) {
+                getCheckpointsFromOneCluster(
+                    threadContext,
+                    CheckpointClient.local(client),
+                    timeout,
+                    transformConfig.getHeaders(),
+                    resolvedIndexes.getLocalIndices().toArray(new String[0]),
+                    transformConfig.getSource().getQueryConfig().getQuery(),
+                    RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
+                    groupedListener
+                );
+            }
+
+            for (Map.Entry<String, List<String>> remoteIndex : resolvedIndexes.getRemoteIndicesPerClusterAlias().entrySet()) {
+                String cluster = remoteIndex.getKey();
+                getCheckpointsFromOneCluster(
+                    threadContext,
+                    CheckpointClient.remote(
+                        client.getRemoteClusterClient(
+                            cluster,
+                            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                            RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+                        )
+                    ),
+                    timeout,
+                    transformConfig.getHeaders(),
+                    remoteIndex.getValue().toArray(new String[0]),
+                    transformConfig.getSource().getQueryConfig().getQuery(),
+                    cluster,
+                    groupedListener
+                );
+            }
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     private void getCheckpointsFromOneCluster(

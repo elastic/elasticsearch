@@ -60,6 +60,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -306,13 +307,16 @@ public class ValuesSourceReaderBenchmark {
     @Benchmark
     @OperationsPerInvocation(INDEX_SIZE)
     public void benchmark() {
+        List<ValuesSourceReaderOperator.FieldInfo> fields = fields(name);
+        boolean reuseColumnLoaders = fields.size() <= PlannerSettings.REUSE_COLUMN_LOADERS_THRESHOLD.get(Settings.EMPTY);
         ValuesSourceReaderOperator op = new ValuesSourceReaderOperator(
             new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null),
             ByteSizeValue.ofMb(1).getBytes(),
-            fields(name),
+            fields,
             new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths) -> {
                 throw new UnsupportedOperationException("can't load _source here");
             }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY))),
+            reuseColumnLoaders,
             0
         );
         long sum = 0;

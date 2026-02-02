@@ -9,7 +9,6 @@
 
 package org.elasticsearch.search.vectors;
 
-import org.apache.lucene.queryparser.xml.builders.BooleanQueryBuilder;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.TransportVersion;
@@ -181,13 +180,13 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         var query = new KnnScoreDocQuery(scoreDocs, context.getIndexReader());
-        if(oversample == null){
+        if (oversample == null) {
             return query;
         }
         var fieldType = (DenseVectorFieldMapper.DenseVectorFieldType) context.getFieldType(fieldName);
         if (fieldType.needsRescore(oversample)) {
             var q = new BoolQueryBuilder();
-            q.filter(new KnnScoreDocQueryBuilder(scoreDocs,  fieldName, queryVector, vectorSimilarity, filterQueries, null, k));
+            q.filter(new KnnScoreDocQueryBuilder(scoreDocs, fieldName, queryVector, vectorSimilarity, filterQueries, null, k));
             QueryBuilder exactKnnQuery = new ExactKnnQueryBuilder(queryVector, fieldName, vectorSimilarity);
             q.must(exactKnnQuery);
             if (false == filterQueries.isEmpty()) {
@@ -199,18 +198,18 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
                 }
             }
             return q.toQuery(context);
-//            int localK = k == null ? scoreDocs.length : k;
-//            var similarityFunction = fieldType.getSimilarity()
-//                .vectorSimilarityFunction(context.indexVersionCreated(), DenseVectorFieldMapper.ElementType.FLOAT);
-//            var rescoreK = scoreDocs.length;
-//            return RescoreKnnVectorQuery.fromInnerQuery(
-//                fieldName,
-//                queryVector.asFloatVector(),
-//                similarityFunction,
-//                localK,
-//                rescoreK,
-//                query
-//            );
+            // int localK = k == null ? scoreDocs.length : k;
+            // var similarityFunction = fieldType.getSimilarity()
+            // .vectorSimilarityFunction(context.indexVersionCreated(), DenseVectorFieldMapper.ElementType.FLOAT);
+            // var rescoreK = scoreDocs.length;
+            // return RescoreKnnVectorQuery.fromInnerQuery(
+            // fieldName,
+            // queryVector.asFloatVector(),
+            // similarityFunction,
+            // localK,
+            // rescoreK,
+            // query
+            // );
         }
         return query;
     }

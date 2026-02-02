@@ -241,9 +241,7 @@ class DfsQueryPhase extends SearchPhase {
             // keep k results as specified by DFSSearchResult (i.e. account for potential oversampling) otherwise
             // ask knn-search from the request
             TopDocs mergedTopDocs = TopDocs.merge(finalResults, topDocsLists.get(i).toArray(new TopDocs[0]));
-            mergedResults.add(
-                new DfsKnnResults(nestedPath.get(i).get(), mergedTopDocs.scoreDocs, oversampling[i], localK)
-            );
+            mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), mergedTopDocs.scoreDocs, oversampling[i], localK));
         }
         return mergedResults;
     }

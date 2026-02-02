@@ -62,7 +62,7 @@ public class ShardSnapshotTaskRunner {
 
         @SuppressWarnings("resource")
         private ShardId shardId() {
-            return context().store().shardId();
+            return context().shardId();
         }
 
         private static final Comparator<SnapshotTask> COMPARATOR = Comparator

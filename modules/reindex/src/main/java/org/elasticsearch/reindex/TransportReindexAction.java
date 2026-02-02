@@ -111,7 +111,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         reindexer.initTask(
             bulkByScrollTask,
             request,
-            listener.delegateFailure((l, v) -> reindexer.execute(bulkByScrollTask, request, getBulkClient(), l))
+            listener.delegateFailure((l, v) -> reindexer.executeWithScroll(bulkByScrollTask, request, getBulkClient(), l))
         );
     }
 

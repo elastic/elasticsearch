@@ -11,6 +11,7 @@ package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.ConstantScoreScorer;
@@ -55,14 +56,18 @@ public class BinaryDocValuesLengthQuery extends Query {
                     return null;
                 }
 
-                final NumericDocValues counts = context.reader().getNumericDocValues(fieldName + COUNT_FIELD_SUFFIX);
-                final var countSkipper = context.reader().getDocValuesSkipper(fieldName + COUNT_FIELD_SUFFIX);
+                String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
+                final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
+                DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
+                assert countsSkipper != null : "no skipper for counts field [" + countsFieldName + "]";
                 final TwoPhaseIterator iterator;
-                if (countSkipper != null && countSkipper.maxValue() <= 1 && values instanceof BlockLoader.OptionalLengthReader direct) {
-                    iterator = new TwoPhaseIterator(values) {
+                if (countsSkipper.maxValue() == 1 && values instanceof BlockLoader.OptionalLengthReader direct) {
+                    NumericDocValues lengthReader = direct.toLengthReader();
+                    assert lengthReader != null;
+                    iterator = new TwoPhaseIterator(lengthReader) {
                         @Override
                         public boolean matches() throws IOException {
-                            return direct.getLength() == length;
+                            return lengthReader.longValue() == length;
                         }
 
                         @Override

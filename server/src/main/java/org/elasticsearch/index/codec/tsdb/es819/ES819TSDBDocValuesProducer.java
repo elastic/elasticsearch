@@ -828,11 +828,38 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
 
         @Override
-        public LengthReader tryGetLengthReader() {
-            return docID -> {
-                boolean advance = advanceExact(docID);
-                assert advance;
-                return getLength();
+        public NumericDocValues toLengthReader() {
+            DenseBinaryDocValues binaryDocValues = this;
+            return new NumericDocValues() {
+                @Override
+                public long longValue() throws IOException {
+                    return binaryDocValues.getLength();
+                }
+
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    return binaryDocValues.advanceExact(target);
+                }
+
+                @Override
+                public int docID() {
+                    return binaryDocValues.docID();
+                }
+
+                @Override
+                public int nextDoc() throws IOException {
+                    return binaryDocValues.nextDoc();
+                }
+
+                @Override
+                public int advance(int target) throws IOException {
+                    return binaryDocValues.advance(target);
+                }
+
+                @Override
+                public long cost() {
+                    return binaryDocValues.cost();
+                }
             };
         }
     }
@@ -913,13 +940,37 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
 
         @Override
-        @Nullable
-        public LengthReader tryGetLengthReader() {
-            return docID -> {
-                if (advanceExact(docID)) {
-                    return getLength();
-                } else {
-                    return null;
+        public NumericDocValues toLengthReader() {
+            SparseBinaryDocValues binaryDocValues = this;
+            return new NumericDocValues() {
+                @Override
+                public long longValue() throws IOException {
+                    return binaryDocValues.getLength();
+                }
+
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    return binaryDocValues.advanceExact(target);
+                }
+
+                @Override
+                public int docID() {
+                    return binaryDocValues.docID();
+                }
+
+                @Override
+                public int nextDoc() throws IOException {
+                    return binaryDocValues.nextDoc();
+                }
+
+                @Override
+                public int advance(int target) throws IOException {
+                    return binaryDocValues.advance(target);
+                }
+
+                @Override
+                public long cost() {
+                    return binaryDocValues.cost();
                 }
             };
         }

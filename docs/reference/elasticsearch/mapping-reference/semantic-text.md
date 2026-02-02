@@ -37,7 +37,7 @@ PUT semantic-embeddings
 ```
 % TEST[skip:Requires {{infer}} endpoint]
 
-1. (Optional) Specifies the [{{infer}} endpoint](/reference/elasticsearch/mapping-reference/semantic-text-reference.md#configuring-inference-endpoints) used to generate embeddings for this field. If you don’t specify an `inference_id`, the `semantic_text` field uses a [default {{infer}} endpoint](/reference/elasticsearch/mapping-reference/semantic-text-setup-configuration#default-and-preconfigured-endpoints).
+1. (Optional) Specifies the [{{infer}} endpoint](/reference/elasticsearch/mapping-reference/semantic-text-reference.md#configuring-inference-endpoints) used to generate embeddings for this field. If you don’t specify an `inference_id`, the `semantic_text` field uses a [default {{infer}} endpoint](/reference/elasticsearch/mapping-reference/semantic-text-setup-configuration.md#default-and-preconfigured-endpoints).
 
 2. (Optional) Controls how vectors are indexed for kNN search. In this example, `bbq_disk` enables [disk-based binary quantization](/reference/elasticsearch/mapping-reference/bbq.md#bbq-disk), which can significantly reduce memory usage for large vector datasets.
 If you don’t specify `index_options`, {{es}} automatically selects a default indexing strategy based on the vector type and dimensions.

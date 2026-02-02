@@ -62,7 +62,11 @@ public class CloneStep implements DlmStep {
         if (cloneExists == false) {
             return false;
         }
-        IndexRoutingTable indexRoutingTable = projectState.routingTable().index(index);
+        IndexMetadata indexToBeForceMergedMetadata = projectState.metadata().index(indexToBeForceMerged);
+        if (indexToBeForceMergedMetadata == null) {
+            return false;
+        }
+        IndexRoutingTable indexRoutingTable = projectState.routingTable().index(indexToBeForceMerged);
         if (indexRoutingTable == null) {
             return false;
         }

@@ -72,7 +72,6 @@ public class CloneStepTests extends ESTestCase {
     private ResultDeduplicator<Tuple<ProjectId, TransportRequest>, Void> deduplicator;
     private AtomicReference<ActionListener<CreateIndexResponse>> capturedCloneListener;
     private AtomicReference<ActionListener<AcknowledgedResponse>> capturedDeleteListener;
-    private AtomicReference<ActionListener<AcknowledgedResponse>> capturedMarkListener;
     private AtomicReference<ResizeRequest> capturedResizeRequest;
     private AtomicReference<DeleteIndexRequest> capturedDeleteRequest;
     private AtomicReference<MarkIndexToBeForceMergedAction.Request> capturedMarkRequest;
@@ -88,7 +87,6 @@ public class CloneStepTests extends ESTestCase {
         deduplicator = new ResultDeduplicator<>(threadPool.getThreadContext());
         capturedCloneListener = new AtomicReference<>();
         capturedDeleteListener = new AtomicReference<>();
-        capturedMarkListener = new AtomicReference<>();
         capturedResizeRequest = new AtomicReference<>();
         capturedDeleteRequest = new AtomicReference<>();
         capturedMarkRequest = new AtomicReference<>();
@@ -109,7 +107,7 @@ public class CloneStepTests extends ESTestCase {
                     capturedDeleteListener.set((ActionListener<AcknowledgedResponse>) listener);
                 } else if (request instanceof MarkIndexToBeForceMergedAction.Request markRequest) {
                     capturedMarkRequest.set(markRequest);
-                    capturedMarkListener.set((ActionListener<AcknowledgedResponse>) listener);
+                    // listener type is action-specific (AcknowledgedResponse). We don't need to invoke it in tests.
                 }
             }
         };
@@ -142,17 +140,17 @@ public class CloneStepTests extends ESTestCase {
         assertTrue(cloneStep.stepCompleted(index, projectState));
     }
 
-    public void testStepCompletedWhenOriginalIndexMarkedWithZeroReplicas() {
-        Map<String, String> customMetadata = Map.of("dlm_index_to_be_force_merged", indexName);
-        ProjectState projectState = createProjectStateWithRouting(indexName, 0, customMetadata, true);
-        assertTrue(cloneStep.stepCompleted(index, projectState));
-    }
-
     public void testStepNotCompletedWhenShardsNotActive() {
         String cloneIndexName = generateExpectedCloneName(indexName);
         Map<String, String> customMetadata = Map.of("dlm_index_to_be_force_merged", cloneIndexName);
         ProjectState projectState = createProjectStateWithCloneAndRouting(indexName, cloneIndexName, customMetadata, false);
         assertFalse(cloneStep.stepCompleted(index, projectState));
+    }
+
+    public void testStepCompletedWhenOriginalIndexMarkedWithZeroReplicas() {
+        Map<String, String> customMetadata = Map.of("dlm_index_to_be_force_merged", indexName);
+        ProjectState projectState = createProjectStateWithRouting(indexName, 0, customMetadata, true);
+        assertTrue(cloneStep.stepCompleted(index, projectState));
     }
 
     public void testExecuteSkipsWhenForceMergeComplete() {
@@ -175,10 +173,8 @@ public class CloneStepTests extends ESTestCase {
 
         cloneStep.execute(stepContext);
 
-        // No clone request should be issued
         assertThat(capturedResizeRequest.get(), is(nullValue()));
 
-        // But the mark action should be called to mark the index to be force merged directly
         assertThat(capturedMarkRequest.get(), is(notNullValue()));
         assertThat(capturedMarkRequest.get().getSourceIndex(), equalTo(indexName));
         assertThat(capturedMarkRequest.get().getIndexToBeForceMerged(), equalTo(indexName));
@@ -215,11 +211,12 @@ public class CloneStepTests extends ESTestCase {
 
         cloneStep.execute(stepContext);
 
+        assertThat("clone listener should be captured", capturedCloneListener.get(), is(notNullValue()));
+
         String cloneIndexName = generateExpectedCloneName(indexName);
         CreateIndexResponse response = new CreateIndexResponse(true, true, cloneIndexName);
         capturedCloneListener.get().onResponse(response);
 
-        // Verify that the mark action was called with correct parameters
         assertThat(capturedMarkRequest.get(), is(notNullValue()));
         assertThat(capturedMarkRequest.get().getSourceIndex(), equalTo(indexName));
         assertThat(capturedMarkRequest.get().getIndexToBeForceMerged(), equalTo(cloneIndexName));
@@ -349,7 +346,6 @@ public class CloneStepTests extends ESTestCase {
         }
 
         IndexMetadata sourceIndexMetadata = sourceIndexBuilder.build();
-        Index sourceIndex = sourceIndexMetadata.getIndex();
 
         IndexMetadata cloneIndexMetadata = IndexMetadata.builder(cloneIndexName)
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
@@ -361,15 +357,16 @@ public class CloneStepTests extends ESTestCase {
             .put(sourceIndexMetadata, false)
             .put(cloneIndexMetadata, false);
 
-        // Create routing table with shard status
+        // Routing should reflect the index that will be force merged (the clone)
+        Index cloneIndex = cloneIndexMetadata.getIndex();
         ShardRouting primaryShard = TestShardRouting.newShardRouting(
-            new ShardId(sourceIndex, 0),
+            new ShardId(cloneIndex, 0),
             "node1",
             true,
             allShardsActive ? ShardRoutingState.STARTED : ShardRoutingState.INITIALIZING
         );
 
-        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(sourceIndex).addShard(primaryShard);
+        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(cloneIndex).addShard(primaryShard);
 
         RoutingTable routingTable = RoutingTable.builder().add(indexRoutingTableBuilder).build();
 

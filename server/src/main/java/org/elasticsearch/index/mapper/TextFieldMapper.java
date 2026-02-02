@@ -116,7 +116,7 @@ public final class TextFieldMapper extends FieldMapper {
 
     public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
         false,
-        DocValuesParameter.Values.Cardinality.LOW
+        DocValuesParameter.Values.Cardinality.HIGH
     );
 
     public static class Defaults {

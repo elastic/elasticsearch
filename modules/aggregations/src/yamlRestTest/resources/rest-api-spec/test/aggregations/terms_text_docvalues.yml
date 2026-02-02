@@ -14,6 +14,7 @@
             properties:
               text_field:
                 type: text
+                index: false
                 doc_values: true
 
   - do:
@@ -70,6 +71,7 @@
             properties:
               text_field:
                 type: text
+                index: false
                 doc_values: true
 
   - do:

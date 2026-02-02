@@ -472,6 +472,7 @@ text with doc_values:
             properties:
               text:
                 type: text
+                index: false
                 doc_values: true
 
   - do:
@@ -511,6 +512,7 @@ text with doc_values multi-value:
             properties:
               text:
                 type: text
+                index: false
                 doc_values: true
 
   - do:

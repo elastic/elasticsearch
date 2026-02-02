@@ -137,12 +137,7 @@ public class CloneStepTests extends ESTestCase {
 
     public void testStepCompletedWhenOriginalIndexMarkedWithZeroReplicas() {
         Map<String, String> customMetadata = Map.of("dlm_index_to_be_force_merged", indexName);
-        ProjectState projectState = createProjectStateWithRouting(
-            indexName,
-            0,
-            customMetadata,
-            true
-        );
+        ProjectState projectState = createProjectStateWithRouting(indexName, 0, customMetadata, true);
         assertTrue(cloneStep.stepCompleted(index, projectState));
     }
 
@@ -204,10 +199,7 @@ public class CloneStepTests extends ESTestCase {
         assertThat(capturedResizeRequest.get(), is(notNullValue()));
         assertThat(capturedResizeRequest.get().getSourceIndex(), equalTo(indexName));
         assertThat(capturedResizeRequest.get().getTargetIndexRequest().index(), containsString(indexName + "-dlm-clone-"));
-        assertThat(
-            capturedResizeRequest.get().getTargetIndexRequest().settings().get("index.number_of_replicas"),
-            equalTo("0")
-        );
+        assertThat(capturedResizeRequest.get().getTargetIndexRequest().settings().get("index.number_of_replicas"), equalTo("0"));
     }
 
     public void testExecuteWithSuccessfulCloneResponse() {
@@ -287,8 +279,7 @@ public class CloneStepTests extends ESTestCase {
             indexMetadataBuilder.putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, customMetadata);
         }
 
-        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId)
-            .put(indexMetadataBuilder.build(), false);
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId).put(indexMetadataBuilder.build(), false);
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();
 
@@ -356,8 +347,7 @@ public class CloneStepTests extends ESTestCase {
             allShardsActive ? ShardRoutingState.STARTED : ShardRoutingState.INITIALIZING
         );
 
-        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(sourceIndex)
-            .addShard(primaryShard);
+        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(sourceIndex).addShard(primaryShard);
 
         RoutingTable routingTable = RoutingTable.builder().add(indexRoutingTableBuilder).build();
 
@@ -397,8 +387,7 @@ public class CloneStepTests extends ESTestCase {
             allShardsActive ? ShardRoutingState.STARTED : ShardRoutingState.INITIALIZING
         );
 
-        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(idx)
-            .addShard(primaryShard);
+        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(idx).addShard(primaryShard);
 
         RoutingTable routingTable = RoutingTable.builder().add(indexRoutingTableBuilder).build();
 

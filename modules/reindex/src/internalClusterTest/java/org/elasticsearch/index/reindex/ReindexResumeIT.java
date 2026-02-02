@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -73,13 +74,15 @@ public class ReindexResumeIT extends ESIntegTestCase {
 
         // Resume reindexing from the manual scroll search
         BulkByScrollTask.Status randomStats = randomStats();
+        // random start time in the past to ensure that "took" is updated
+        long startTime = System.nanoTime() - randomTimeValue(2,10, TimeUnit.HOURS).nanos();
         ReindexRequest request = new ReindexRequest().setSourceIndices(sourceIndex)
             .setDestIndex(destIndex)
             .setSourceBatchSize(batchSize)
             .setRefresh(true)
             .setResumeInfo(
                 new AbstractBulkByScrollRequest.ResumeInfo(
-                    new AbstractBulkByScrollRequest.ScrollWorkerResumeInfo(scrollId, System.nanoTime(), randomStats),
+                    new AbstractBulkByScrollRequest.ScrollWorkerResumeInfo(scrollId, startTime, randomStats),
                     null
                 )
             );
@@ -99,6 +102,7 @@ public class ReindexResumeIT extends ESIntegTestCase {
         assertEquals(randomStats.getBulkRetries(), response.getBulkRetries());
         assertEquals(randomStats.getSearchRetries(), response.getSearchRetries());
         assertEquals(randomStats.getRequestsPerSecond(), response.getStatus().getRequestsPerSecond(), 0);
+        assertTrue(response.getTook().nanos() > TimeValue.ONE_HOUR.nanos());
 
         // ensure remaining docs were indexed
         assertHitCount(prepareSearch(destIndex), remainingDocs);
@@ -128,6 +132,8 @@ public class ReindexResumeIT extends ESIntegTestCase {
 
         // Resume reindexing from the manual scroll with remote search
         BulkByScrollTask.Status randomStats = randomStats();
+        // random start time in the past to ensure that "took" is updated
+        long startTime = System.nanoTime() - randomTimeValue(2,10, TimeUnit.HOURS).nanos();
         InetSocketAddress remoteAddress = randomFrom(cluster().httpAddresses());
         ReindexRequest request = new ReindexRequest().setSourceIndices(sourceIndex)
             .setDestIndex(destIndex)
@@ -149,7 +155,7 @@ public class ReindexResumeIT extends ESIntegTestCase {
             )
             .setResumeInfo(
                 new AbstractBulkByScrollRequest.ResumeInfo(
-                    new AbstractBulkByScrollRequest.ScrollWorkerResumeInfo(scrollId, System.nanoTime(), randomStats),
+                    new AbstractBulkByScrollRequest.ScrollWorkerResumeInfo(scrollId, startTime, randomStats),
                     null
                 )
             );
@@ -169,6 +175,7 @@ public class ReindexResumeIT extends ESIntegTestCase {
         assertEquals(randomStats.getBulkRetries(), response.getBulkRetries());
         assertEquals(randomStats.getSearchRetries(), response.getSearchRetries());
         assertEquals(randomStats.getRequestsPerSecond(), response.getStatus().getRequestsPerSecond(), 0);
+        assertTrue(response.getTook().nanos() > TimeValue.ONE_HOUR.nanos());
 
         // ensure remaining docs were indexed
         assertHitCount(prepareSearch(destIndex), remainingDocs);

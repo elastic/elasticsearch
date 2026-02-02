@@ -1,4 +1,4 @@
-area: "ES|QL, Geo"
+area: "ES|QL"
 issues: []
 pr: 141657
 summary: Support shapes in ST_CENTROID_AGG

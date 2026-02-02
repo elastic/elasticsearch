@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Settings;
@@ -34,10 +35,11 @@ import org.elasticsearch.datastreams.lifecycle.transitions.DlmStepContext;
 import org.elasticsearch.index.Index;
 
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.common.logging.Loggers.getLogger;
+import static org.apache.logging.log4j.LogManager.getLogger;
 import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY;
 
@@ -61,7 +63,11 @@ public class CloneStep implements DlmStep {
         if (cloneExists == false) {
             return false;
         }
-        return projectState.routingTable().index(index).allPrimaryShardsActive();
+        IndexRoutingTable indexRoutingTable = projectState.routingTable().index(index);
+        if (indexRoutingTable == null) {
+            return false;
+        }
+        return indexRoutingTable.allPrimaryShardsActive();
     }
 
     @Override
@@ -72,6 +78,11 @@ public class CloneStep implements DlmStep {
         ProjectId projectId = stepContext.projectId();
         ProjectMetadata projectMetadata = projectState.metadata();
         IndexMetadata indexMetadata = projectMetadata.index(index);
+
+        if (indexMetadata == null) {
+            logger.warn("Index [{}] not found in project metadata, skipping clone step", indexName);
+            return;
+        }
 
         if (isForceMergeComplete(indexMetadata)) {
             logger.info("Skipping clone step for index [{}] as force merge is already complete", indexName);
@@ -184,9 +195,12 @@ public class CloneStep implements DlmStep {
      */
     private static void markIndexToBeForceMerged(String sourceIndex, String indexToBeForceMerged, DlmStepContext stepContext) {
         IndexMetadata sourceIndexMetadata = stepContext.projectState().metadata().index(sourceIndex);
-        Map<String, String> customMetadata = sourceIndexMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
-        if (customMetadata != null) {
-            customMetadata.put(DLM_INDEX_TO_BE_MERGED_KEY, indexToBeForceMerged);
+        Map<String, String> existingCustomMetadata = sourceIndexMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
+        Map<String, String> customMetadata;
+        if (existingCustomMetadata != null) {
+            customMetadata = new HashMap<>(existingCustomMetadata);
+            customMetadata.put(DLM_INDEX_TO_BE_MERGED_KEY, indexToBeForceMerged
+            );
         } else {
             customMetadata = Map.of(DLM_INDEX_TO_BE_MERGED_KEY, indexToBeForceMerged);
         }
@@ -203,6 +217,9 @@ public class CloneStep implements DlmStep {
      */
     private static String getIndexToBeForceMerged(String sourceIndex, ProjectState projectState) {
         IndexMetadata sourceIndexMetadata = projectState.metadata().index(sourceIndex);
+        if (sourceIndexMetadata == null) {
+            return null;
+        }
         Map<String, String> customMetadata = sourceIndexMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
         if (customMetadata == null) {
             return null;

@@ -261,14 +261,15 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 Map.of()
             );
 
-            var unparsedModel = new UnparsedModel(
-                INFERENCE_ENTITY_ID,
-                TaskType.SPARSE_EMBEDDING,
-                ElasticInferenceService.NAME,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfigWithSecrets(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID,
+                    TaskType.SPARSE_EMBEDDING,
+                    ElasticInferenceService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
-            var model = service.parsePersistedConfigWithSecrets(unparsedModel);
 
             assertThat(model, instanceOf(ElasticInferenceServiceSparseEmbeddingsModel.class));
 
@@ -288,14 +289,15 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             );
             persistedConfig.config().put("extra_key", "value");
 
-            var unparsedModel = new UnparsedModel(
-                INFERENCE_ENTITY_ID,
-                TaskType.SPARSE_EMBEDDING,
-                ElasticInferenceService.NAME,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfigWithSecrets(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID,
+                    TaskType.SPARSE_EMBEDDING,
+                    ElasticInferenceService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
-            var model = service.parsePersistedConfigWithSecrets(unparsedModel);
 
             assertThat(model, instanceOf(ElasticInferenceServiceSparseEmbeddingsModel.class));
 
@@ -313,14 +315,15 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
 
             var persistedConfig = getPersistedConfigMap(serviceSettingsMap, Map.of(), Map.of());
 
-            var unparsedModel = new UnparsedModel(
-                INFERENCE_ENTITY_ID,
-                TaskType.SPARSE_EMBEDDING,
-                ElasticInferenceService.NAME,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfigWithSecrets(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID,
+                    TaskType.SPARSE_EMBEDDING,
+                    ElasticInferenceService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
-            var model = service.parsePersistedConfigWithSecrets(unparsedModel);
 
             assertThat(model, instanceOf(ElasticInferenceServiceSparseEmbeddingsModel.class));
 
@@ -344,14 +347,15 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
 
             var persistedConfig = getPersistedConfigMap(serviceSettingsMap, Map.of(), Map.of());
 
-            var unparsedModel = new UnparsedModel(
-                INFERENCE_ENTITY_ID,
-                TaskType.SPARSE_EMBEDDING,
-                ElasticInferenceService.NAME,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfigWithSecrets(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID,
+                    TaskType.SPARSE_EMBEDDING,
+                    ElasticInferenceService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
-            var model = service.parsePersistedConfigWithSecrets(unparsedModel);
 
             assertThat(model, instanceOf(ElasticInferenceServiceSparseEmbeddingsModel.class));
 
@@ -376,14 +380,15 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 Map.of()
             );
 
-            var unparsedModel = new UnparsedModel(
-                INFERENCE_ENTITY_ID,
-                TaskType.SPARSE_EMBEDDING,
-                ElasticInferenceService.NAME,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfigWithSecrets(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID,
+                    TaskType.SPARSE_EMBEDDING,
+                    ElasticInferenceService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
-            var model = service.parsePersistedConfigWithSecrets(unparsedModel);
 
             assertThat(model, instanceOf(ElasticInferenceServiceSparseEmbeddingsModel.class));
 
@@ -404,14 +409,15 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 secretSettingsMap
             );
 
-            var unparsedModel = new UnparsedModel(
-                INFERENCE_ENTITY_ID,
-                TaskType.SPARSE_EMBEDDING,
-                ElasticInferenceService.NAME,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfigWithSecrets(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID,
+                    TaskType.SPARSE_EMBEDDING,
+                    ElasticInferenceService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
-            var model = service.parsePersistedConfigWithSecrets(unparsedModel);
 
             assertThat(model, instanceOf(ElasticInferenceServiceSparseEmbeddingsModel.class));
 

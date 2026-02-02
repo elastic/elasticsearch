@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.EndpointMetadata;
@@ -16,14 +17,24 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
+import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserInternalServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserMlNodeTaskSettings;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension.TestServiceSettings.HIDDEN_FIELD_KEY;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCase<ModelConfigurations> {
 
@@ -169,5 +180,77 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
                 EndpointMetadata.EMPTY
             );
         }
+    }
+
+    public void testToXContentIncludesHiddenFieldsInServiceSettings() throws IOException {
+        String hiddenValue = "secret_value";
+        ServiceSettings serviceSettings = new TestSparseInferenceServiceExtension.TestServiceSettings("test_model", hiddenValue, false);
+        ModelConfigurations modelConfigurations = new ModelConfigurations(
+            "test_entity_id",
+            TaskType.SPARSE_EMBEDDING,
+            TestSparseInferenceServiceExtension.TestInferenceService.NAME,
+            serviceSettings,
+            ElserMlNodeTaskSettings.DEFAULT,
+            null,
+            null
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        modelConfigurations.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        String json = Strings.toString(builder);
+
+        // TODO parse the json and verify the hidden field by looking at the map
+        assertThat(json, containsString(ModelConfigurations.SERVICE_SETTINGS));
+        assertThat(json, containsString(HIDDEN_FIELD_KEY));
+        assertThat(json, containsString(hiddenValue));
+    }
+
+    public void testToFilteredXContentExcludesHiddenFieldsFromServiceSettings() throws IOException {
+        String hiddenValue = "secret_value";
+        ServiceSettings serviceSettings = new TestSparseInferenceServiceExtension.TestServiceSettings("test_model", hiddenValue, false);
+        ModelConfigurations modelConfigurations = new ModelConfigurations(
+            "test_entity_id",
+            TaskType.SPARSE_EMBEDDING,
+            TestSparseInferenceServiceExtension.TestInferenceService.NAME,
+            serviceSettings,
+            ElserMlNodeTaskSettings.DEFAULT,
+            null,
+            null
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        modelConfigurations.toFilteredXContent(builder, ToXContent.EMPTY_PARAMS);
+        String json = Strings.toString(builder);
+
+        assertThat(json, containsString(ModelConfigurations.SERVICE_SETTINGS));
+        assertThat(json, containsString("test_model"));
+        assertThat(
+            "Hidden field must not appear in filtered output when shouldReturnHiddenField is false",
+            json,
+            not(containsString(HIDDEN_FIELD_KEY))
+        );
+        assertThat("Hidden value must not appear in filtered output", json, not(containsString(hiddenValue)));
+    }
+
+    public void testToFilteredXContentIncludesHiddenFieldWhenAllowedByServiceSettings() throws IOException {
+        String hiddenValue = "allowed_secret";
+        ServiceSettings serviceSettings = new TestSparseInferenceServiceExtension.TestServiceSettings("test_model", hiddenValue, true);
+        ModelConfigurations modelConfigurations = new ModelConfigurations(
+            "test_entity_id",
+            TaskType.SPARSE_EMBEDDING,
+            TestSparseInferenceServiceExtension.TestInferenceService.NAME,
+            serviceSettings,
+            ElserMlNodeTaskSettings.DEFAULT,
+            null,
+            null
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        modelConfigurations.toFilteredXContent(builder, ToXContent.EMPTY_PARAMS);
+        String json = Strings.toString(builder);
+
+        assertThat(json, containsString(ModelConfigurations.SERVICE_SETTINGS));
+        assertThat(json, containsString(HIDDEN_FIELD_KEY));
+        assertThat(json, containsString(hiddenValue));
     }
 }

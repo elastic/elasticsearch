@@ -56,8 +56,8 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.Numbers.isPowerOfTwo;
 import static org.elasticsearch.index.codec.bloomfilter.BloomFilterHashFunctions.MurmurHash3.hash64;
@@ -284,6 +284,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             final var pageSizeInBytes = PageCacheRecycler.PAGE_SIZE_IN_BYTES;
             final var sourcePageScratch = new BytesRef(pageSizeInBytes);
             final var targetPageScratch = new BytesRef(pageSizeInBytes);
+            final var firstBloomFilter = new AtomicBoolean(true);
             bloomFilterReaders.forEach(bloomFilterFieldReader -> {
                 assert bitSetBuffer != null;
                 bloomFilterFieldReader.checkIntegrity();
@@ -305,7 +306,8 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                             0,
                             targetBitSetSizeInBytes,
                             sourcePageScratch,
-                            targetPageScratch
+                            targetPageScratch,
+                            firstBloomFilter.get() && i == 0
                         );
                     }
                 } else {
@@ -317,9 +319,18 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                     // (hash mod targetSize) mod sourceSize == hash mod sourceSize
                     int expandFactor = targetBitSetSizeInBytes / sourceSizeInBytes;
                     for (int i = 0; i < expandFactor; i++) {
-                        orRegion(bloomFilterData, 0, i * sourceSizeInBytes, sourceSizeInBytes, sourcePageScratch, targetPageScratch);
+                        orRegion(
+                            bloomFilterData,
+                            0,
+                            i * sourceSizeInBytes,
+                            sourceSizeInBytes,
+                            sourcePageScratch,
+                            targetPageScratch,
+                            firstBloomFilter.get() && i == 0
+                        );
                     }
                 }
+                firstBloomFilter.set(false);
             });
         }
 
@@ -329,7 +340,8 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             int targetOffset,
             int length,
             BytesRef sourcePageScratch,
-            BytesRef targetPageScratch
+            BytesRef targetPageScratch,
+            boolean firstPass
         ) throws IOException {
             assert sourcePageScratch.bytes.length == PageCacheRecycler.PAGE_SIZE_IN_BYTES
                 : sourcePageScratch.bytes.length + " vs " + PageCacheRecycler.PAGE_SIZE_IN_BYTES;
@@ -344,25 +356,35 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                 int pageLen = Math.min(PageCacheRecycler.PAGE_SIZE_IN_BYTES, length - offset);
 
                 source.readBytes(sourceOffset + offset, sourcePageScratch.bytes, 0, pageLen);
-                bitSetBuffer.get(targetOffset + offset, pageLen, scratchRef);
-                // Unfortunately we have to copy the bytes that we read from bitSetBuffer since the
-                // BigArrays ByteArray just provides a view from the page that shouldn't be mutated.
-                System.arraycopy(scratchRef.bytes, scratchRef.offset, targetPageScratch.bytes, 0, pageLen);
+                var materialized = bitSetBuffer.get(targetOffset + offset, pageLen, scratchRef);
+                assert materialized == false : "Unexpected materialized array";
 
-                int i = 0;
-                for (; i + Long.BYTES <= pageLen; i += Long.BYTES) {
-                    long existing = (long) BitUtil.VH_LE_LONG.get(sourcePageScratch.bytes, i);
-                    long current = (long) BitUtil.VH_LE_LONG.get(targetPageScratch.bytes, i);
-                    BitUtil.VH_LE_LONG.set(targetPageScratch.bytes, i, existing | current);
+                if (firstPass) {
+                    // If we're just processing the first bloom filter the first pass, we can just copy the
+                    // bytes from the source bloom filter into the new bloom filter and skip all the OR operations.
+                    bitSetBuffer.set(targetOffset + offset, sourcePageScratch.bytes, 0, pageLen);
+                } else {
+                    // Unfortunately we have to copy the bytes that we read from bitSetBuffer since the
+                    // BigArrays ByteArray just provides a view from the page that shouldn't be mutated
+                    // (this mostly apply to the initial empty pages which are shared across all the byte buffers).
+                    System.arraycopy(scratchRef.bytes, scratchRef.offset, targetPageScratch.bytes, 0, pageLen);
+
+                    int i = 0;
+                    for (; i + Long.BYTES <= pageLen; i += Long.BYTES) {
+                        long existing = (long) BitUtil.VH_LE_LONG.get(sourcePageScratch.bytes, i);
+                        long current = (long) BitUtil.VH_LE_LONG.get(targetPageScratch.bytes, i);
+                        BitUtil.VH_LE_LONG.set(targetPageScratch.bytes, i, existing | current);
+                    }
+
+                    // OR any remaining bytes if length isn't a multiple of 8.
+                    // In practice this only applies for segments with 1 document where the bloom filter size is 4 bytes
+                    for (; i < pageLen; i++) {
+                        targetPageScratch.bytes[i] |= sourcePageScratch.bytes[i];
+                    }
+
+                    bitSetBuffer.set(targetOffset + offset, targetPageScratch.bytes, 0, pageLen);
                 }
 
-                // OR any remaining bytes if length isn't a multiple of 8.
-                // In practice this only applies for segments with 1 document where the bloom filter size is 4 bytes
-                for (; i < pageLen; i++) {
-                    targetPageScratch.bytes[i] |= sourcePageScratch.bytes[i];
-                }
-
-                bitSetBuffer.set(targetOffset + offset, targetPageScratch.bytes, 0, pageLen);
                 offset += pageLen;
             }
         }
@@ -507,8 +529,8 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             return buffer.get(position);
         }
 
-        void get(long index, int length, BytesRef bytesRef) {
-            buffer.get(index, length, bytesRef);
+        boolean get(long index, int length, BytesRef bytesRef) {
+            return buffer.get(index, length, bytesRef);
         }
 
         void set(int position, byte value) {

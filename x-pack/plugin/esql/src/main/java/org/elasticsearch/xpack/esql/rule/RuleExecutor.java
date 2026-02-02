@@ -13,9 +13,7 @@ import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Function;
 
 public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
@@ -134,12 +132,10 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
     public class ExecutionInfo {
 
         private final TreeType before, after;
-        private final Map<Batch<TreeType>, List<Transformation>> transformations;
 
-        ExecutionInfo(TreeType before, TreeType after, Map<Batch<TreeType>, List<Transformation>> transformations) {
+        ExecutionInfo(TreeType before, TreeType after) {
             this.before = before;
             this.after = after;
-            this.transformations = transformations;
         }
 
         public TreeType before() {
@@ -148,10 +144,6 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
 
         public TreeType after() {
             return after;
-        }
-
-        public Map<Batch<TreeType>, List<Transformation>> transformations() {
-            return transformations;
         }
     }
 
@@ -164,7 +156,6 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
 
         long totalDuration = 0;
 
-        Map<Batch<TreeType>, List<Transformation>> transformations = new LinkedHashMap<>();
         if (batches == null) {
             batches = batches();
         }
@@ -172,7 +163,6 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
         for (Batch<TreeType> batch : batches) {
             int batchRuns = 0;
             List<Transformation> tfs = new ArrayList<>();
-            transformations.put(batch, tfs);
 
             boolean hasChanged = false;
             long batchStart = System.currentTimeMillis();
@@ -227,7 +217,7 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
             log.debug("Tree transformation took {}\n{}", TimeValue.timeValueMillis(totalDuration), NodeUtils.diffString(plan, currentPlan));
         }
 
-        return new ExecutionInfo(plan, currentPlan, transformations);
+        return new ExecutionInfo(plan, currentPlan);
     }
 
     protected Function<TreeType, TreeType> transform(Rule<?, TreeType> rule) {

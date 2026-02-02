@@ -1950,56 +1950,61 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     for (IndexId index : indices) {
                         executor.execute(ActionRunnable.run(allMetaListeners.acquire(), () -> {
                             final IndexMetadata indexMetaData = projectMetadata.index(index.getName());
+                            Optional<IndexMetadata> possiblyAdjustedMetadata = adjustIndexMetadataIfNeeded(
+                                index,
+                                indexMetaData,
+                                finalizeSnapshotContext.updatedShardGenerations().liveIndices()
+                            );
                             if (writeIndexGens) {
-                                String identifier = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetaData);
-                                String metaUUID = existingRepositoryData.indexMetaDataGenerations().getIndexMetaBlobId(identifier);
-                                if (metaUUID == null) {
-                                    // We don't yet have this version of the metadata so we write it
-                                    metaUUID = UUIDs.base64UUID();
-                                    Optional<IndexMetadata> possiblyAdjusted = adjustIndexMetadataIfNeeded(
-                                        index,
-                                        indexMetaData,
-                                        finalizeSnapshotContext.updatedShardGenerations().liveIndices()
-                                    );
+                                if (possiblyAdjustedMetadata.isPresent()) {
+                                    // We have adjusted the index metadata and because of that we shouldn't ever deduplicate/reuse it.
+                                    //
+                                    // It's possible that we are already using the latest identifier
+                                    // in terms of `IndexMetaDataGenerations.buildUniqueIdentifier`.
+                                    // For example a resharding operation is already complete and therefore any changes done to
+                                    // index settings are already captured in the metadata and the identifier.
+                                    // In this case the next snapshot of this index would create the same identifier
+                                    // since none of the data used to create it changed.
+                                    // As such it will deduplicate and reuse the adjusted metadata which is
+                                    // wrong since we want to either use a "clean" (non-adjusted) post resharding state metadata
+                                    // or possibly metadata with different adjustement.
+                                    //
+                                    // By using a unique identifier here we make sure that the next non-adjusted snapshot doesn't reuse
+                                    // this metadata blob.
+                                    // E.g. the next non-adjusted snapshot will look up existing index metadata blob using
+                                    // `<uuid>-<histuuid>-13-<mapversion>-<aliasversion>` as an identifier but
+                                    // adjusted identifier is unique and won't match forcing new metadata write.
+                                    // If multiple snapshots in a row need to adjust the metadata they'll all enter this block
+                                    // and write a separate blob every time.
 
-                                    if (possiblyAdjusted.isPresent()) {
-                                        // Create custom deliberately unique identifier for the adjusted index metadata.
-                                        //
-                                        // We are adjusting the metadata, but it's possible that we are already using the latest identifier.
-                                        // For example a resharding operation is already complete and therefore any changes done to
-                                        // index settings are already captured in the metadata and the identifier.
-                                        // In this case the next snapshot of this index would create the same identifier
-                                        // since none of the data used to create it changed.
-                                        // As such the snapshot will deduplicate and reuse the adjusted metadata which is
-                                        // wrong since we want to use a "clean" (non-adjusted) post resharding state metadata.
-                                        //
-                                        // By creating a unique identifier here we make sure that the next snapshot doesn't see this
-                                        // metadata blob. That is because it is going to query metadata blobs using a properly created
-                                        // identifier and get `null`. We know that because resharding bumps the index settings version
-                                        // when modifying metadata to add new shards.
-                                        // So the only metadata blobs that can exist are:
-                                        // 1. Pre-resharding with lower index settings version and therefore non-matching identifier
-                                        // 2. Adjusted for resharding with unique identifier
-                                        // Neither of these will be returned when a snapshot performs a
-                                        // `getIndexMetaBlobId(identifier)` lookup.
-                                        // With that we ensured that adjusted index metadata blobs are not reused.
-                                        // Resharding is not frequent, and so we are not concerned with size or writes of these
-                                        // non-deduplicated blobs.
-                                        identifier = RESHARDED_METADATA_IDENTIFIER_PREFIX + UUIDs.base64UUID();
-                                        INDEX_METADATA_FORMAT.write(possiblyAdjusted.get(), indexContainer(index), metaUUID, compress);
-                                    } else {
+                                    String customIdentifier = RESHARDED_METADATA_IDENTIFIER_PREFIX + UUIDs.base64UUID();
+                                    String metadataBlobUUID = UUIDs.base64UUID();
+                                    INDEX_METADATA_FORMAT.write(
+                                        possiblyAdjustedMetadata.get(),
+                                        indexContainer(index),
+                                        metadataBlobUUID,
+                                        compress
+                                    );
+                                    metadataWriteResult.indexMetas().put(index, customIdentifier);
+                                    metadataWriteResult.indexMetaIdentifiers().put(customIdentifier, metadataBlobUUID);
+                                } else {
+                                    final String identifiers = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetaData);
+                                    String metaUUID = existingRepositoryData.indexMetaDataGenerations().getIndexMetaBlobId(identifiers);
+                                    if (metaUUID == null) {
+                                        // We don't yet have this version of the metadata so we write it
+                                        metaUUID = UUIDs.base64UUID();
                                         INDEX_METADATA_FORMAT.write(indexMetaData, indexContainer(index), metaUUID, compress);
-                                    }
-                                    metadataWriteResult.indexMetaIdentifiers().put(identifier, metaUUID);
-                                } // else this task was largely a no-op - TODO no need to fork in that case
-                                metadataWriteResult.indexMetas().put(index, identifier);
+                                        metadataWriteResult.indexMetaIdentifiers().put(identifiers, metaUUID);
+                                    } // else this task was largely a no-op - TODO no need to fork in that case
+                                    metadataWriteResult.indexMetas().put(index, identifiers);
+                                }
                             } else {
-                                IndexMetadata possiblyAdjusted = adjustIndexMetadataIfNeeded(
-                                    index,
-                                    indexMetaData,
-                                    finalizeSnapshotContext.updatedShardGenerations().liveIndices()
-                                ).orElse(indexMetaData);
-                                INDEX_METADATA_FORMAT.write(possiblyAdjusted, indexContainer(index), snapshotId.getUUID(), compress);
+                                INDEX_METADATA_FORMAT.write(
+                                    possiblyAdjustedMetadata.orElse(indexMetaData),
+                                    indexContainer(index),
+                                    snapshotId.getUUID(),
+                                    compress
+                                );
                             }
                         }));
                     }

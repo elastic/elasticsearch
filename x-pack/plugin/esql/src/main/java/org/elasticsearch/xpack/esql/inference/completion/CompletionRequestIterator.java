@@ -95,10 +95,17 @@ class CompletionRequestIterator implements BulkInferenceRequestItemIterator {
             return null;
         }
 
-        return InferenceAction.Request.builder(inferenceId, TaskType.COMPLETION)
-            .setInput(List.of(prompt))
-            .setTaskSettings(taskSettings)
-            .build();
+        InferenceAction.Request.Builder builder = InferenceAction.Request.builder(inferenceId, TaskType.COMPLETION)
+            .setInput(List.of(prompt));
+
+        // Only set task settings if explicitly provided by the user.
+        // This preserves backward compatibility and avoids sending empty
+        // maps to the inference service, which could have unexpected behavior.
+        if (taskSettings != null && !taskSettings.isEmpty()) {
+            builder.setTaskSettings(taskSettings);
+        }
+
+        return builder.build();
     }
 
     @Override

@@ -24,9 +24,21 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 /**
- * The source of a document.  Note that, while objects returned from {@link #source()}
- * and {@link #internalSourceRef()} are immutable, objects implementing this interface
- * may not be immutable themselves.
+ * A read-only view of a document's source.
+ *
+ * <p>This interface provides access to source content as either bytes or a parsed map.
+ * While a {@code Source} instance represents a stable snapshot of a particular document's
+ * data (it won't change which document it refers to), the actual data structures returned
+ * may or may not be immutable:
+ *
+ * <ul>
+ * <li>{@link #internalSourceRef()} returns an immutable {@link BytesReference}</li>
+ * <li>{@link #source()} may return either a mutable or immutable map, depending on
+ *     how the Source was constructed. Callers must not assume mutability - see method
+ *     documentation for details.</li>
+ * </ul>
+ *
+ * @see #source() for important guidance on map mutability
  */
 public interface Source {
 
@@ -37,6 +49,13 @@ public interface Source {
 
     /**
      * A map representation of the source
+     *
+     * <p><b>IMPORTANT</b>: The returned map may be immutable. Callers that need
+     * to modify the map MUST create a defensive copy:
+     * <pre>
+     *   Map&lt;String, Object&gt; mutableMap = new LinkedHashMap&lt;&gt;(source.source());
+     * </pre>
+     *
      * <p>
      * Important: This can lose precision on numbers with a decimal point. It
      * converts numbers like {@code "n": 1234.567} to a {@code double} which

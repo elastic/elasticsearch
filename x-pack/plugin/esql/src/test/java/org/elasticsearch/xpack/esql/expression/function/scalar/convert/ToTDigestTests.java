@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
-
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
@@ -26,13 +25,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-
 public class ToTDigestTests extends AbstractScalarFunctionTestCase {
 
     public ToTDigestTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
-
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
@@ -61,7 +58,6 @@ public class ToTDigestTests extends AbstractScalarFunctionTestCase {
     protected Expression build(Source source, List<Expression> args) {
         return new ToTDigest(source, args.getFirst());
     }
-
 
     static TDigestHolder fromHistogram(BytesRef in) {
         if (in.length > ByteSizeUnit.MB.toBytes(2)) {

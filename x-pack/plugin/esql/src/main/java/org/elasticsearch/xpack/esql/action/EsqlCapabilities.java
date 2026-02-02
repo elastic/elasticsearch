@@ -2037,6 +2037,11 @@ public class EsqlCapabilities {
          */
         METADATA_SIZE_FIELD,
 
+        /**
+         * Support for the METRICS_INFO command to retrieve metrics-related metadata.
+         */
+        METRICS_INFO_COMMAND,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

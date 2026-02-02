@@ -119,6 +119,7 @@ public class TopNBenchmark {
             List.of(),
             ClusterSettings.createBuiltInClusterSettings()
         );
+        int[] groupKeys = new int[0];
         return new TopNOperator(
             blockFactory,
             breakerService.getBreaker(CircuitBreaker.REQUEST),
@@ -126,6 +127,7 @@ public class TopNBenchmark {
             elementTypes,
             encoders,
             IntStream.range(0, count).mapToObj(c -> new TopNOperator.SortOrder(c, false, false)).toList(),
+            groupKeys,
             16 * 1024
         );
     }

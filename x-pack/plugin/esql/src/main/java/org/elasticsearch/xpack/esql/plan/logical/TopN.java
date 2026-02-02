@@ -21,22 +21,27 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.plan.logical.Limit.ESQL_LIMIT_PER;
+
 public class TopN extends UnaryPlan implements PipelineBreaker, ExecutesOn {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "TopN", TopN::new);
 
     private final List<Order> order;
     private final Expression limit;
+    private List<Expression> groupings;
+
     /**
      * Local topn is not a pipeline breaker, and is applied only to the local node's data.
      * It should always end up inside a fragment.
      */
     private final transient boolean local;
 
-    public TopN(Source source, LogicalPlan child, List<Order> order, Expression limit, boolean local) {
+    public TopN(Source source, LogicalPlan child, List<Order> order, Expression limit, List<Expression> groupings, boolean local) {
         super(source, child);
         this.order = order;
         this.limit = limit;
         this.local = local;
+        this.groupings = groupings;
     }
 
     private TopN(StreamInput in) throws IOException {
@@ -45,8 +50,13 @@ public class TopN extends UnaryPlan implements PipelineBreaker, ExecutesOn {
             in.readNamedWriteable(LogicalPlan.class),
             in.readCollectionAsList(Order::new),
             in.readNamedWriteable(Expression.class),
+            List.of(),
             false
         );
+
+        if (in.getTransportVersion().supports(ESQL_LIMIT_PER)) {
+            this.groupings = in.readNamedWriteableCollectionAsList(Expression.class);
+        }
     }
 
     @Override
@@ -55,6 +65,11 @@ public class TopN extends UnaryPlan implements PipelineBreaker, ExecutesOn {
         out.writeNamedWriteable(child());
         out.writeCollection(order);
         out.writeNamedWriteable(limit);
+        if (out.getTransportVersion().supports(ESQL_LIMIT_PER)) {
+            out.writeNamedWriteableCollection(groupings);
+        } else if (groupings.isEmpty() == false) {
+            throw new IllegalArgumentException("LIMIT PER is not supported by all nodes in the cluster");
+        }
     }
 
     @Override
@@ -64,21 +79,21 @@ public class TopN extends UnaryPlan implements PipelineBreaker, ExecutesOn {
 
     @Override
     public boolean expressionsResolved() {
-        return limit.resolved() && Resolvables.resolved(order);
+        return limit.resolved() && Resolvables.resolved(order) && Resolvables.resolved(groupings);
     }
 
     @Override
     protected NodeInfo<TopN> info() {
-        return NodeInfo.create(this, TopN::new, child(), order, limit, local);
+        return NodeInfo.create(this, TopN::new, child(), order, limit, groupings, local);
     }
 
     @Override
     public TopN replaceChild(LogicalPlan newChild) {
-        return new TopN(source(), newChild, order, limit, local);
+        return new TopN(source(), newChild, order, limit, groupings, local);
     }
 
     public TopN withLocal(boolean local) {
-        return new TopN(source(), child(), order, limit, local);
+        return new TopN(source(), child(), order, limit, groupings, local);
     }
 
     public boolean local() {
@@ -93,16 +108,23 @@ public class TopN extends UnaryPlan implements PipelineBreaker, ExecutesOn {
         return order;
     }
 
+    public List<Expression> groupings() {
+        return groupings;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), order, limit, local);
+        return Objects.hash(super.hashCode(), order, limit, groupings, local);
     }
 
     @Override
     public boolean equals(Object obj) {
         if (super.equals(obj)) {
             var other = (TopN) obj;
-            return Objects.equals(order, other.order) && Objects.equals(limit, other.limit) && local == other.local;
+            return Objects.equals(order, other.order)
+                && Objects.equals(limit, other.limit)
+                && Objects.equals(groupings, other.groupings)
+                && local == other.local;
         }
         return false;
     }

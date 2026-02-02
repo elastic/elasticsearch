@@ -31,7 +31,7 @@ public final class CombineLimitTopN extends OptimizerRules.OptimizerRule<Limit> 
             if (topNValue <= thisLimitValue) {
                 return topn;
             } else {
-                return new TopN(topn.source(), topn.child(), topn.order(), limit.limit(), topn.local());
+                return new TopN(topn.source(), topn.child(), topn.order(), limit.limit(), topn.groupings(), topn.local());
             }
         }
         if (limit.child() instanceof Project proj) {

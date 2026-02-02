@@ -11157,4 +11157,60 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(mvAvgAlias.child(), instanceOf(MvAvg.class));
         as(leftEval.child(), EsRelation.class);
     }
+
+    public void testTopNWithGroupingsPlan() {
+        var query = """
+            FROM employees
+            | SORT salary DESC
+            | LIMIT 5 PER_🐔 languages
+            """;
+
+        var plan = optimizedPlan(query);
+
+        var groupedTopN = as(plan, TopN.class);
+        var limit = as(groupedTopN.limit(), Literal.class);
+        assertThat(limit.value(), equalTo(5));
+        assertThat(groupedTopN.order().size(), equalTo(1));
+
+        assertThat(groupedTopN.groupings(), everyItem(instanceOf(FieldAttribute.class)));
+        assertThat(groupedTopN.groupings().size(), equalTo(1));
+        var groupKey = as(groupedTopN.groupings().getFirst(), FieldAttribute.class);
+        assertThat(groupKey.name(), equalTo("languages"));
+
+        var order = as(groupedTopN.order().getFirst(), Order.class);
+        var orderAttr = as(order.child(), FieldAttribute.class);
+        assertThat(orderAttr.name(), equalTo("salary"));
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+
+        var esRelation = as(groupedTopN.child(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), equalTo("employees"));
+    }
+
+    public void testTopNWithGroupingsQualifiedNamePlan() {
+        var query = """
+            FROM employees
+            | SORT salary DESC
+            | LIMIT 5 PER_🐔 [employees].[languages]
+            """;
+
+        var plan = optimizedPlan(query);
+
+        var groupedTopN = as(plan, TopN.class);
+        var limit = as(groupedTopN.limit(), Literal.class);
+        assertThat(limit.value(), equalTo(5));
+        assertThat(groupedTopN.order().size(), equalTo(1));
+
+        assertThat(groupedTopN.groupings(), everyItem(instanceOf(FieldAttribute.class)));
+        assertThat(groupedTopN.groupings().size(), equalTo(1));
+        var groupKey = as(groupedTopN.groupings().getFirst(), FieldAttribute.class);
+        assertThat(groupKey.name(), equalTo("languages"));
+
+        var order = as(groupedTopN.order().getFirst(), Order.class);
+        var orderAttr = as(order.child(), FieldAttribute.class);
+        assertThat(orderAttr.name(), equalTo("salary"));
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+
+        var esRelation = as(groupedTopN.child(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), equalTo("employees"));
+    }
 }

@@ -67,7 +67,7 @@ public enum Releasables {
     }
 
     /** Release the provided {@link Releasable} expecting no exception to by thrown. */
-    public static void closeExpectNoException(Releasable releasable) {
+    public static void closeExpectNoException(@Nullable Releasable releasable) {
         try {
             close(releasable);
         } catch (RuntimeException e) {

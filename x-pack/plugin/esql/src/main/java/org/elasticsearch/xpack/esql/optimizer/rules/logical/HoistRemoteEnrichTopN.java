@@ -60,7 +60,7 @@ public final class HoistRemoteEnrichTopN extends OptimizerRules.OptimizerRule<En
                     if (missingAttributes.isEmpty()) {
                         // No need for aliasing - then it's simple, just copy the TopN on top of Enrich and mark the original as local
                         LogicalPlan transformedEnrich = en.transformDown(TopN.class, t -> t == topN ? topN.withLocal(true) : t);
-                        return new TopN(topN.source(), transformedEnrich, topN.order(), topN.limit(), false);
+                        return new TopN(topN.source(), transformedEnrich, topN.order(), topN.limit(), topN.groupings(), false);
                     } else {
                         Set<String> missingNames = new HashSet<>(Expressions.names(missingAttributes));
                         AttributeMap.Builder<Alias> aliasesForReplacedAttributesBuilder = AttributeMap.builder();
@@ -127,7 +127,7 @@ public final class HoistRemoteEnrichTopN extends OptimizerRules.OptimizerRule<En
                         }
 
                         // Create a copy of TopN with the rewritten attributes on top on Enrich
-                        var copyTop = new TopN(topN.source(), transformedEnrich, newOrder, topN.limit(), false);
+                        var copyTop = new TopN(topN.source(), transformedEnrich, newOrder, topN.limit(), topN.groupings(), false);
                         // And use the Project to remove the fields that we don't need anymore
                         return new Project(en.source(), copyTop, outputs);
                     }

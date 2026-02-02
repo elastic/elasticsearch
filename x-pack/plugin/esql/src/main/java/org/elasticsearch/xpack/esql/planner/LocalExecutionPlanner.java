@@ -460,9 +460,10 @@ public class LocalExecutionPlanner {
         assert rowSize != null && rowSize > 0 : "estimated row size [" + rowSize + "] wasn't set";
         PhysicalOperation source = plan(topNExec.child(), context);
 
-        ElementType[] elementTypes = new ElementType[source.layout.numberOfChannels()];
-        TopNEncoder[] encoders = new TopNEncoder[source.layout.numberOfChannels()];
-        List<Layout.ChannelSet> inverse = source.layout.inverse();
+        Layout layout = source.layout;
+        ElementType[] elementTypes = new ElementType[layout.numberOfChannels()];
+        TopNEncoder[] encoders = new TopNEncoder[layout.numberOfChannels()];
+        List<Layout.ChannelSet> inverse = layout.inverse();
         for (int channel = 0; channel < inverse.size(); channel++) {
             var fieldExtractPreference = fieldExtractPreference(topNExec, inverse.get(channel).nameIds());
             elementTypes[channel] = PlannerUtils.toElementType(inverse.get(channel).type(), fieldExtractPreference);
@@ -481,19 +482,17 @@ public class LocalExecutionPlanner {
             };
         }
         List<TopNOperator.SortOrder> orders = topNExec.order().stream().map(order -> {
-            int sortByChannel;
-            if (order.child() instanceof Attribute a) {
-                sortByChannel = source.layout.get(a.id()).channel();
-            } else {
-                throw new EsqlIllegalArgumentException("order by expression must be an attribute");
-            }
-
+            int sortByChannel = getAttributeChannel(order.child(), layout, "order by expression must be an attribute");
             return new TopNOperator.SortOrder(
                 sortByChannel,
                 order.direction().equals(Order.OrderDirection.ASC),
                 order.nullsPosition().equals(Order.NullsPosition.FIRST)
             );
         }).toList();
+        List<Integer> groupKeys = topNExec.groupings()
+            .stream()
+            .map(grouping -> getAttributeChannel(grouping, layout, "expression in LIMIT PER must be an attribute"))
+            .toList();
 
         int limit;
         if (topNExec.limit() instanceof Literal literal) {
@@ -503,9 +502,17 @@ public class LocalExecutionPlanner {
             throw new EsqlIllegalArgumentException("limit only supported with literal values");
         }
         return source.with(
-            new TopNOperatorFactory(limit, asList(elementTypes), asList(encoders), orders, context.pageSize(topNExec, rowSize)),
-            source.layout
+            new TopNOperatorFactory(limit, asList(elementTypes), asList(encoders), orders, groupKeys, context.pageSize(topNExec, rowSize)),
+            layout
         );
+    }
+
+    private static int getAttributeChannel(Expression expression, Layout layout, String errMessage) {
+        if (expression instanceof Attribute a) {
+            return layout.get(a.id()).channel();
+        } else {
+            throw new EsqlIllegalArgumentException(errMessage);
+        }
     }
 
     private static MappedFieldType.FieldExtractPreference fieldExtractPreference(TopNExec topNExec, Set<NameId> nameIds) {

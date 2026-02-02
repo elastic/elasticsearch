@@ -2008,6 +2008,11 @@ public class EsqlCapabilities {
         MMR(Build.current().isSnapshot()),
 
         /**
+         * Enables the bucketing in the LIMIT command (in conjunction with SORT)
+         */
+        SORT_PER_LIMIT,
+
+        /**
          * Allow wildcards in FROM METADATA, eg FROM idx METADATA _ind*
          */
         METADATA_WILDCARDS,

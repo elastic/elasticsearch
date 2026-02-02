@@ -185,3 +185,276 @@ network.bytes_in:long | @timestamp:datetime      | cluster:keyword | pod:keyword
 1007                  | 2024-05-10T00:19:48.000Z | prod            | two
 1006                  | 2024-05-10T00:13:50.000Z | qa              | one
 ;
+
+sortPerLimit
+required_capability: sort_per_limit
+
+FROM employees
+| SORT salary DESC
+| LIMIT 5 PER_🐔 languages
+| KEEP first_name, last_name, salary, languages
+| SORT languages DESC nulls last, salary DESC
+;
+
+first_name:keyword | last_name:keyword | salary:integer | languages:integer
+Arumugam           | Ossenbruggen      | 66817          | 5
+Bezalel            | Simmel            | 56371          | 5
+Hironoby           | Sidou             | 54518          | 5
+Premal             | Baek              | 52833          | 5
+Gao                | Dolinsky          | 51956          | 5
+Tzvetan            | Zielinski         | 74572          | 4
+Hironobu           | Haraldson         | 68431          | 4
+Mayumi             | Schueller         | 65367          | 4
+Parto              | Bamford           | 61805          | 4
+null               | Portugali         | 60781          | 4
+Moss               | Shanbhogue        | 74970          | 3
+Remzi              | Waschkowski       | 71165          | 3
+null               | Demeyer           | 67492          | 3
+Anoosh             | Peyn              | 65030          | 3
+Erez               | Ritzmann          | 62405          | 3
+Valter             | Sullins           | 73578          | 2
+Danel              | Mondadori         | 69904          | 2
+Kazuhito           | Cappelletti       | 61358          | 2
+Cristinel          | Bouloucos         | 58715          | 2
+Georgi             | Facello           | 57305          | 2
+Lillian            | Haddadi           | 73717          | 1
+null               | Merlo             | 70011          | 1
+Somnath            | Foote             | 68547          | 1
+Sumant             | Peac              | 66174          | 1
+Kyoichi            | Maliniak          | 63528          | 1
+Otmar              | Herbst            | 74999          | null
+Divier             | Reistad           | 73851          | null
+Suzette            | Pettey            | 64675          | null
+Ramzi              | Erde              | 60408          | null
+Shahaf             | Famili            | 48233          | null
+;
+
+sortPerLimitMultiColumn
+required_capability: sort_per_limit
+
+FROM employees
+| SORT salary DESC
+| LIMIT 1 PER_🐔 languages, gender
+| KEEP first_name, last_name, salary, languages, gender
+| SORT languages DESC nulls last, gender DESC nulls last, salary DESC
+;
+
+first_name:keyword | last_name:keyword | salary:integer | languages:integer | gender:keyword
+Premal             | Baek              | 52833          | 5                 | M
+Arumugam           | Ossenbruggen      | 66817          | 5                 | F
+Patricio           | Bridgland         | 48942          | 5                 | null
+Mayumi             | Schueller         | 65367          | 4                 | M
+Tzvetan            | Zielinski         | 74572          | 4                 | F
+Duangkaew          | Piveteau          | 45797          | 4                 | null
+Moss               | Shanbhogue        | 74970          | 3                 | M
+Erez               | Ritzmann          | 62405          | 3                 | F
+Georgi             | Facello           | 57305          | 2                 | M
+Valter             | Sullins           | 73578          | 2                 | F
+Kazuhito           | Cappelletti       | 61358          | 2                 | null
+null               | Merlo             | 70011          | 1                 | M
+Sumant             | Peac              | 66174          | 1                 | F
+Lillian            | Haddadi           | 73717          | 1                 | null
+Otmar              | Herbst            | 74999          | null              | M
+Divier             | Reistad           | 73851          | null              | F
+;
+
+sortPerLimitQualifiedName
+required_capability: sort_per_limit
+
+FROM employees
+| SORT salary DESC
+| LIMIT 1 PER_🐔 [employees].[languages], [employees].[gender]
+| KEEP first_name, last_name, salary, languages, gender
+| SORT languages DESC nulls last, gender DESC nulls last, salary DESC
+;
+
+first_name:keyword | last_name:keyword | salary:integer | languages:integer | gender:keyword
+Premal             | Baek              | 52833          | 5                 | M
+Arumugam           | Ossenbruggen      | 66817          | 5                 | F
+Patricio           | Bridgland         | 48942          | 5                 | null
+Mayumi             | Schueller         | 65367          | 4                 | M
+Tzvetan            | Zielinski         | 74572          | 4                 | F
+Duangkaew          | Piveteau          | 45797          | 4                 | null
+Moss               | Shanbhogue        | 74970          | 3                 | M
+Erez               | Ritzmann          | 62405          | 3                 | F
+Georgi             | Facello           | 57305          | 2                 | M
+Valter             | Sullins           | 73578          | 2                 | F
+Kazuhito           | Cappelletti       | 61358          | 2                 | null
+null               | Merlo             | 70011          | 1                 | M
+Sumant             | Peac              | 66174          | 1                 | F
+Lillian            | Haddadi           | 73717          | 1                 | null
+Otmar              | Herbst            | 74999          | null              | M
+Divier             | Reistad           | 73851          | null              | F
+;
+
+sortPerLimitIsIdempotent
+required_capability: sort_per_limit
+
+FROM employees
+| SORT salary DESC
+| LIMIT 5 PER_🐔 languages
+| SORT salary DESC
+| LIMIT 5 PER_🐔 languages
+| KEEP first_name, last_name, salary, languages
+| SORT languages DESC nulls last, salary DESC, first_name, last_name
+;
+
+first_name:keyword | last_name:keyword | salary:integer | languages:integer
+Arumugam           | Ossenbruggen      | 66817          | 5
+Bezalel            | Simmel            | 56371          | 5
+Hironoby           | Sidou             | 54518          | 5
+Premal             | Baek              | 52833          | 5
+Gao                | Dolinsky          | 51956          | 5
+Tzvetan            | Zielinski         | 74572          | 4
+Hironobu           | Haraldson         | 68431          | 4
+Mayumi             | Schueller         | 65367          | 4
+Parto              | Bamford           | 61805          | 4
+null               | Portugali         | 60781          | 4
+Moss               | Shanbhogue        | 74970          | 3
+Remzi              | Waschkowski       | 71165          | 3
+null               | Demeyer           | 67492          | 3
+Anoosh             | Peyn              | 65030          | 3
+Erez               | Ritzmann          | 62405          | 3
+Valter             | Sullins           | 73578          | 2
+Danel              | Mondadori         | 69904          | 2
+Kazuhito           | Cappelletti       | 61358          | 2
+Cristinel          | Bouloucos         | 58715          | 2
+Georgi             | Facello           | 57305          | 2
+Lillian            | Haddadi           | 73717          | 1
+null               | Merlo             | 70011          | 1
+Somnath            | Foote             | 68547          | 1
+Sumant             | Peac              | 66174          | 1
+Kyoichi            | Maliniak          | 63528          | 1
+Otmar              | Herbst            | 74999          | null
+Divier             | Reistad           | 73851          | null
+Suzette            | Pettey            | 64675          | null
+Ramzi              | Erde              | 60408          | null
+Shahaf             | Famili            | 48233          | null
+;
+
+sortPerLimitThenSortPerLimit
+required_capability: sort_per_limit
+
+FROM employees
+| SORT salary DESC
+| LIMIT 5 PER_🐔 languages
+| SORT salary DESC
+| LIMIT 1 PER_🐔 languages
+| KEEP first_name, last_name, salary, languages
+| SORT languages DESC nulls last
+;
+
+first_name:keyword | last_name:keyword | salary:integer | languages:integer
+Arumugam           | Ossenbruggen      | 66817          | 5
+Tzvetan            | Zielinski         | 74572          | 4
+Moss               | Shanbhogue        | 74970          | 3
+Valter             | Sullins           | 73578          | 2
+Lillian            | Haddadi           | 73717          | 1
+Otmar              | Herbst            | 74999          | null
+;
+
+sortPerLimitZero
+required_capability: sort_per_limit
+
+FROM employees
+| SORT salary DESC
+| LIMIT 0 PER_🐔 languages
+| KEEP first_name, last_name, salary, languages
+;
+
+first_name:keyword | last_name:keyword | salary:integer | languages:integer
+;
+
+sortLimitThenSortPerLimit
+required_capability: sort_per_limit
+
+FROM employees
+| SORT salary DESC
+| LIMIT 10
+| SORT salary DESC
+| LIMIT 1 PER_🐔 languages
+| KEEP first_name, last_name, salary, languages
+| SORT languages DESC nulls last, salary DESC
+;
+
+first_name:keyword | last_name:keyword | salary:integer | languages:integer
+Tzvetan            | Zielinski         | 74572          | 4
+Moss               | Shanbhogue        | 74970          | 3
+Valter             | Sullins           | 73578          | 2
+Lillian            | Haddadi           | 73717          | 1
+Otmar              | Herbst            | 74999          | null
+;
+
+sortPerLimitThenLimit
+required_capability: sort_per_limit
+
+FROM employees
+| SORT salary
+| LIMIT 5 PER_🐔 languages
+| SORT languages ASC nulls last, salary ASC
+| LIMIT 10
+| KEEP first_name, last_name, salary, languages
+;
+
+first_name:keyword | last_name:keyword | salary:integer | languages:integer
+Valdiodio          | Niizuma           | 25976          | 1
+Tuval              | Kalloufi          | 28035          | 1
+Yishay             | Tzvieli           | 34341          | 1
+Vishv              | Zockler           | 39110          | 1
+Mingsen            | Casley            | 39728          | 1
+Breannda           | Billingsley       | 29175          | 2
+Kshitij            | Gils              | 32263          | 2
+Brendon            | Bernini           | 33370          | 2
+null               | Brender           | 36051          | 2
+null               | Makrucki          | 37691          | 2
+;
+
+sortPerLimitNullsFirst
+required_capability: sort_per_limit
+
+FROM employees
+| SORT is_rehired ASC NULLS FIRST
+| LIMIT 2 PER_🐔 languages
+| SORT languages ASC NULLS FIRST, is_rehired ASC, first_name, last_name
+| KEEP first_name, last_name, languages, is_rehired
+;
+
+first_name:keyword | last_name:keyword | languages:integer | is_rehired:boolean
+Mayuko             | Warwick           | null              | [false, true, true]
+Shahaf             | Famili            | null              | [false, true]
+Sumant             | Peac              | 1                 | null
+Uri                | Lenart            | 1                 | null
+Georgi             | Facello           | 2                 | [false, true]
+Saniya             | Kalloufi          | 2                 | [false, true]
+Anneke             | Preusig           | 3                 | null
+Magy               | Stamatiou         | 3                 | null
+Parto              | Bamford           | 4                 | null
+null               | Lortz             | 4                 | null
+Basil              | Tramer            | 5                 | null
+Berni              | Genin             | 5                 | null        
+;
+
+sortPerLimitNullsLast
+required_capability: sort_per_limit
+
+FROM employees
+| SORT is_rehired ASC NULLS LAST
+| LIMIT 2 PER_🐔 languages
+| SORT languages ASC NULLS LAST, is_rehired ASC, first_name, last_name
+| KEEP first_name, last_name, languages, is_rehired
+;
+
+first_name:keyword | last_name:keyword | languages:integer | is_rehired:boolean
+Kyoichi            | Maliniak          | 1                 | [false, false, false, true]
+Lillian            | Haddadi           | 1                 | [false, false]
+Georgi             | Facello           | 2                 | [false, true]
+Saniya             | Kalloufi          | 2                 | [false, true]
+null               | Demeyer           | 3                 | [false, false, true]
+null               | Reistad           | 3                 | [false, false]
+Duangkaew          | Piveteau          | 4                 | [false, false, true, true]
+Tzvetan            | Zielinski         | 4                 | [false, false, true, true]
+Bezalel            | Simmel            | 5                 | [false, false]
+Patricio           | Bridgland         | 5                 | [false, false, true, true]
+Mayuko             | Warwick           | null              | [false, true, true]
+Shahaf             | Famili            | null              | [false, true]          
+;

@@ -1,0 +1,4 @@
+Limit[10000[INTEGER],[],false,false]
+\_Limit[2[INTEGER],[languages{f}],false,false]
+  \_OrderBy[[Order[salary{f},ASC,LAST]]]
+    \_EsRelation[employees][avg_worked_seconds{f}, birth_date{f}, emp_no{f}, first_name{f}, gender{f}, height{f}, height.float{f}, height.half_float{f}, height.scaled_float{f}, hire_date{f}, is_rehired{f}, job_positions{f}, languages{f}, languages.byte{f}, languages.long{f}, languages.short{f}, last_name{f}, salary{f}, salary_change{f}, salary_change.int{f}, salary_change.keyword{f}, salary_change.long{f}, still_hired{f}]

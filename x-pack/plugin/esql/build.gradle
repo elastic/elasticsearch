@@ -404,7 +404,6 @@ tasks.register("regenParser", JavaExec) {
     '-package', 'org.elasticsearch.xpack.esql.parser',
     '-listener',
     '-visitor',
-    '-lib', outputPath,
     '-lib', "${file(grammarPath)}/parser",
     '-o', outputPath,
     "${file(grammarPath)}/EsqlBaseParser.g4"

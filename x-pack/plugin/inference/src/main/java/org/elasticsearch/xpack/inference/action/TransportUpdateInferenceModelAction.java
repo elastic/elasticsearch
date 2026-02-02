@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalModel;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings;
+import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -161,7 +162,19 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                 if (isInClusterService(service.get().name())) {
                     updateInClusterEndpoint(request, newModel, existingParsedModel, listener);
                 } else {
-                    modelRegistry.updateModelTransaction(newModel, existingParsedModel, listener);
+                    ActionListener<Model> updateModelListener = listener.delegateFailureAndWrap(
+                        (delegate, verifiedModel) -> modelRegistry.updateModelTransaction(
+                            verifiedModel,
+                            existingParsedModel,
+                            delegate
+                        )
+                    );
+
+                    ModelValidatorBuilder.buildModelValidator(newModel.getTaskType(), service.get())
+                        .validate(service.get(),
+                        newModel,
+                        request.masterNodeTimeout(),
+                        updateModelListener);
                 }
             })
             .<ModelConfigurations>andThen((listener, didUpdate) -> {

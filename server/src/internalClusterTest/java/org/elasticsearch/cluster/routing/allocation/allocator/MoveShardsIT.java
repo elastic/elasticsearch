@@ -32,18 +32,18 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class MoveShardsIT extends AbstractAllocationDecisionTestCase {
 
-    private static final Set<String> CAN_REMAIN_NO_NODES = Collections.newSetFromMap(new ConcurrentHashMap<>());
-    private static final Set<String> CAN_REMAIN_NOT_PREFERRED_NODES = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private static final Set<String> CAN_REMAIN_NO_NODE_IDS = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private static final Set<String> CAN_REMAIN_NOT_PREFERRED_NODE_IDS = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), TestPlugin.class);
+        return CollectionUtils.appendToCopy(super.nodePlugins(), TestCanRemainPlugin.class);
     }
 
     @Before
     public final void clearCanRemainDeciderState() {
-        CAN_REMAIN_NO_NODES.clear();
-        CAN_REMAIN_NOT_PREFERRED_NODES.clear();
+        CAN_REMAIN_NO_NODE_IDS.clear();
+        CAN_REMAIN_NOT_PREFERRED_NODE_IDS.clear();
     }
 
     public void testShardsWillBeMovedToYesNodesWhenPresent() {
@@ -56,7 +56,7 @@ public class MoveShardsIT extends AbstractAllocationDecisionTestCase {
 
         CreatedNodes nodes = createNodes(randomIntBetween(1, 3), randomIntBetween(1, 3), 0, randomIntBetween(1, 3));
 
-        randomFrom(CAN_REMAIN_NO_NODES, CAN_REMAIN_NOT_PREFERRED_NODES).add(getNodeId(initialNode));
+        randomFrom(CAN_REMAIN_NO_NODE_IDS, CAN_REMAIN_NOT_PREFERRED_NODE_IDS).add(getNodeId(initialNode));
         ClusterRerouteUtils.reroute(client());
 
         ensureShardAllocatedToAppropriateNode(indexName, nodes.yesNodes());
@@ -72,7 +72,7 @@ public class MoveShardsIT extends AbstractAllocationDecisionTestCase {
 
         CreatedNodes nodes = createNodes(randomIntBetween(1, 3), randomIntBetween(1, 3), randomIntBetween(1, 3), 0);
 
-        randomFrom(CAN_REMAIN_NO_NODES, CAN_REMAIN_NOT_PREFERRED_NODES).add(getNodeId(initialNode));
+        randomFrom(CAN_REMAIN_NO_NODE_IDS, CAN_REMAIN_NOT_PREFERRED_NODE_IDS).add(getNodeId(initialNode));
         ClusterRerouteUtils.reroute(client());
 
         // The shard shouldn't have moved because it's waiting for the throttle to clear
@@ -83,7 +83,7 @@ public class MoveShardsIT extends AbstractAllocationDecisionTestCase {
         );
 
         // Clear the throttle, reroute should result in shard being allocated to the previously throttled node
-        THROTTLED_NODES.clear();
+        CAN_ALLOCATE_THROTTLE_NODE_IDS.clear();
         ClusterRerouteUtils.reroute(client());
 
         ensureShardAllocatedToAppropriateNode(indexName, nodes.throttleNodes());
@@ -99,7 +99,7 @@ public class MoveShardsIT extends AbstractAllocationDecisionTestCase {
 
         CreatedNodes nodes = createNodes(randomIntBetween(1, 3), randomIntBetween(1, 3), 0, 0);
 
-        CAN_REMAIN_NO_NODES.add(getNodeId(initialNode));
+        CAN_REMAIN_NO_NODE_IDS.add(getNodeId(initialNode));
         ClusterRerouteUtils.reroute(client());
 
         ensureShardAllocatedToAppropriateNode(indexName, nodes.notPreferredNodes());
@@ -115,7 +115,7 @@ public class MoveShardsIT extends AbstractAllocationDecisionTestCase {
 
         CreatedNodes nodes = createNodes(randomIntBetween(1, 3), randomIntBetween(1, 3), 0, 0);
 
-        CAN_REMAIN_NOT_PREFERRED_NODES.add(getNodeId(initialNode));
+        CAN_REMAIN_NOT_PREFERRED_NODE_IDS.add(getNodeId(initialNode));
         ClusterRerouteUtils.reroute(client());
 
         // The shard shouldn't have moved because we don't take a not_preferred over a not_preferred
@@ -126,7 +126,7 @@ public class MoveShardsIT extends AbstractAllocationDecisionTestCase {
         );
 
         // Clear the not-preferred flag, reroute should result in shard being moved
-        NOT_PREFERRED_NODES.clear();
+        CAN_ALLOCATE_NOT_PREFERRED_NODE_IDS.clear();
         ClusterRerouteUtils.reroute(client());
 
         ensureShardAllocatedToAppropriateNode(indexName, nodes.notPreferredNodes());
@@ -147,21 +147,21 @@ public class MoveShardsIT extends AbstractAllocationDecisionTestCase {
         });
     }
 
-    public static class TestPlugin extends Plugin implements ClusterPlugin {
+    public static class TestCanRemainPlugin extends Plugin implements ClusterPlugin {
 
         @Override
         public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
-            return List.of(new TestAllocationDecider());
+            return List.of(new TestCanRemainDecider());
         }
     }
 
-    public static class TestAllocationDecider extends AllocationDecider {
+    public static class TestCanRemainDecider extends AllocationDecider {
 
         @Override
         public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-            if (CAN_REMAIN_NO_NODES.contains(node.nodeId())) {
+            if (CAN_REMAIN_NO_NODE_IDS.contains(node.nodeId())) {
                 return Decision.NO;
-            } else if (CAN_REMAIN_NOT_PREFERRED_NODES.contains(node.nodeId())) {
+            } else if (CAN_REMAIN_NOT_PREFERRED_NODE_IDS.contains(node.nodeId())) {
                 return Decision.NOT_PREFERRED;
             }
             return Decision.YES;

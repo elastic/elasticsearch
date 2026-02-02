@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.Strings;
 
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -49,7 +48,7 @@ public class AllocateUnassignedIT extends AbstractAllocationDecisionTestCase {
         final var firstAllocationListener = waitForFirstAllocation(indexName);
 
         // Un-throttle the nodes, re-route should see them allocated to one of the previously throttled nodes
-        THROTTLED_NODES.clear();
+        CAN_ALLOCATE_THROTTLE_NODE_IDS.clear();
         ClusterRerouteUtils.reroute(client());
 
         final var firstAllocatedNode = safeAwait(firstAllocationListener);
@@ -73,7 +72,7 @@ public class AllocateUnassignedIT extends AbstractAllocationDecisionTestCase {
         ensureRed(indexName);
     }
 
-    private void createSingleShardAndAssertItIsAssignedToAppropriateNode(Set<String> expectedNodes) {
+    private void createSingleShardAndAssertItIsAssignedToAppropriateNode(Set<String> expectedNodeNames) {
         final var indexName = randomIdentifier();
         final var firstAllocationListener = waitForFirstAllocation(indexName);
 
@@ -82,12 +81,7 @@ public class AllocateUnassignedIT extends AbstractAllocationDecisionTestCase {
         ensureGreen(indexName);
 
         final var firstAllocatedNode = safeAwait(firstAllocationListener);
-        final String message = Strings.format(
-            "Expected shard to be allocated to one of %s but it was allocated to %s",
-            expectedNodes,
-            firstAllocatedNode.getName()
-        );
-        assertTrue(message, expectedNodes.contains(firstAllocatedNode.getName()));
+        assertThat(firstAllocatedNode.getName(), in(expectedNodeNames));
     }
 
     private SubscribableListener<DiscoveryNode> waitForFirstAllocation(String indexName) {

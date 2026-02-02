@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -32,20 +33,20 @@ import java.util.concurrent.ConcurrentHashMap;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public abstract class AbstractAllocationDecisionTestCase extends ESIntegTestCase {
 
-    protected static final Set<String> NOT_PREFERRED_NODES = Collections.newSetFromMap(new ConcurrentHashMap<>());
-    protected static final Set<String> THROTTLED_NODES = Collections.newSetFromMap(new ConcurrentHashMap<>());
-    protected static final Set<String> NO_NODES = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    protected static final Set<String> CAN_ALLOCATE_NOT_PREFERRED_NODE_IDS = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    protected static final Set<String> CAN_ALLOCATE_THROTTLE_NODE_IDS = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    protected static final Set<String> CAN_ALLOCATE_NO_IDS = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     @Before
     public final void clearCanAllocateDeciderState() {
-        NOT_PREFERRED_NODES.clear();
-        THROTTLED_NODES.clear();
-        NO_NODES.clear();
+        CAN_ALLOCATE_NOT_PREFERRED_NODE_IDS.clear();
+        CAN_ALLOCATE_THROTTLE_NODE_IDS.clear();
+        CAN_ALLOCATE_NO_IDS.clear();
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), TestAllocationPlugin.class);
+        return CollectionUtils.appendToCopy(super.nodePlugins(), TestCanAllocatePlugin.class);
     }
 
     protected record CreatedNodes(Set<String> noNodes, Set<String> notPreferredNodes, Set<String> throttleNodes, Set<String> yesNodes) {}
@@ -58,14 +59,10 @@ public abstract class AbstractAllocationDecisionTestCase extends ESIntegTestCase
         final var yesNodeNames = new HashSet<String>(yesNodes);
         final int totalNodes = notPreferredNodes + noNodes + throttleNodes + yesNodes;
         final var allNodeNames = new HashSet<>(internalCluster().startNodes(totalNodes));
-        for (int i = 0; i < yesNodes; i++) {
-            final var yesNode = randomFrom(allNodeNames);
-            allNodeNames.remove(yesNode);
-            yesNodeNames.add(yesNode);
-        }
-        allocateNodesAndUpdateSets(throttleNodes, allNodeNames, THROTTLED_NODES, throttleNodeNames);
-        allocateNodesAndUpdateSets(notPreferredNodes, allNodeNames, NOT_PREFERRED_NODES, notPreferredNodeNames);
-        allocateNodesAndUpdateSets(noNodes, allNodeNames, NO_NODES, noNodeNames);
+        allocateNodesAndUpdateSets(yesNodes, allNodeNames, null, yesNodeNames);
+        allocateNodesAndUpdateSets(throttleNodes, allNodeNames, CAN_ALLOCATE_THROTTLE_NODE_IDS, throttleNodeNames);
+        allocateNodesAndUpdateSets(notPreferredNodes, allNodeNames, CAN_ALLOCATE_NOT_PREFERRED_NODE_IDS, notPreferredNodeNames);
+        allocateNodesAndUpdateSets(noNodes, allNodeNames, CAN_ALLOCATE_NO_IDS, noNodeNames);
         assert allNodeNames.isEmpty() : "all nodes should have been used: " + allNodeNames;
         ensureStableCluster(preExistingNodeCount + totalNodes);
         final var createdNodes = new CreatedNodes(noNodeNames, notPreferredNodeNames, throttleNodeNames, yesNodeNames);
@@ -74,27 +71,30 @@ public abstract class AbstractAllocationDecisionTestCase extends ESIntegTestCase
     }
 
     private static void allocateNodesAndUpdateSets(
-        int noNodes,
+        int nodeCount,
         Set<String> allNodeNames,
-        Set<String> deciderSet,
-        HashSet<String> nodeNameSet
+        @Nullable Set<String> deciderSet,
+        Set<String> nodeNameSet
     ) {
-        for (int i = 0; i < noNodes; i++) {
+        for (int i = 0; i < nodeCount; i++) {
             final var nodeName = randomFrom(allNodeNames);
             allNodeNames.remove(nodeName);
-            deciderSet.add(getNodeId(nodeName));
+            if (deciderSet != null) {
+                deciderSet.add(getNodeId(nodeName));
+            }
             nodeNameSet.add(nodeName);
         }
     }
 
-    public static class TestAllocationPlugin extends Plugin implements ClusterPlugin {
+    public static class TestCanAllocatePlugin extends Plugin implements ClusterPlugin {
+
         @Override
         public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
-            return List.of(new TestAllocationDecider());
+            return List.of(new TestCanAllocateDecider());
         }
     }
 
-    public static class TestAllocationDecider extends AllocationDecider {
+    public static class TestCanAllocateDecider extends AllocationDecider {
 
         /**
          * These tests aren't about rebalancing, disable it so it doesn't interfere with the results
@@ -106,13 +106,13 @@ public abstract class AbstractAllocationDecisionTestCase extends ESIntegTestCase
 
         @Override
         public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-            if (NO_NODES.contains(node.nodeId())) {
+            if (CAN_ALLOCATE_NO_IDS.contains(node.nodeId())) {
                 return Decision.NO;
             }
-            if (NOT_PREFERRED_NODES.contains(node.nodeId())) {
+            if (CAN_ALLOCATE_NOT_PREFERRED_NODE_IDS.contains(node.nodeId())) {
                 return Decision.NOT_PREFERRED;
             }
-            if (THROTTLED_NODES.contains(node.nodeId()) && allocation.isSimulating() == false) {
+            if (CAN_ALLOCATE_THROTTLE_NODE_IDS.contains(node.nodeId()) && allocation.isSimulating() == false) {
                 return Decision.THROTTLE;
             }
             return Decision.YES;

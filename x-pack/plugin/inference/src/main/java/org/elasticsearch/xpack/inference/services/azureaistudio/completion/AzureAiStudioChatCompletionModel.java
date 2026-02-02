@@ -48,7 +48,11 @@ public class AzureAiStudioChatCompletionModel extends AzureAiStudioModel {
         AzureAiStudioChatCompletionTaskSettings taskSettings,
         DefaultSecretSettings secrets
     ) {
-        super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+        this(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+    }
+
+    public AzureAiStudioChatCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets);
     }
 
     public AzureAiStudioChatCompletionModel(

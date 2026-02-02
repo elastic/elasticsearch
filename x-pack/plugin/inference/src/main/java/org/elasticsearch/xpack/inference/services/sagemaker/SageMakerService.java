@@ -25,6 +25,8 @@ import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
@@ -121,12 +123,17 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
 
     @Override
     public Model parsePersistedConfigWithSecrets(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
         Map<String, Object> secrets
     ) {
-        return modelBuilder.fromStorage(modelId, taskType, NAME, config, secrets);
+        return modelBuilder.fromStorage(inferenceEntityId, taskType, NAME, config, secrets);
+    }
+
+    @Override
+    public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return modelBuilder.fromStorage(config, secrets);
     }
 
     @Override

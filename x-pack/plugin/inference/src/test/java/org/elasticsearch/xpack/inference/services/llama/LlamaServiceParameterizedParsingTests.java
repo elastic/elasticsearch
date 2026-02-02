@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.inference.services.llama;
 
-import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceParameterizedTests;
+import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceParameterizedParsingTests;
 
-public class LlamaServiceParameterizedTests extends AbstractInferenceServiceParameterizedTests {
-    public LlamaServiceParameterizedTests(AbstractInferenceServiceParameterizedTests.TestCase testCase) {
+public class LlamaServiceParameterizedParsingTests extends AbstractInferenceServiceParameterizedParsingTests {
+    public LlamaServiceParameterizedParsingTests(AbstractInferenceServiceParameterizedParsingTests.TestCase testCase) {
         super(LlamaServiceTests.createTestConfiguration(), testCase);
     }
 }

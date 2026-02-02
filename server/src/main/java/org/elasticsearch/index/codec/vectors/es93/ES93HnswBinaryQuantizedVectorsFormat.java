@@ -125,14 +125,7 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFor
         ExecutorService mergeExec,
         int hnswGraphThreshold
     ) {
-        super(
-            NAME,
-            maxConn,
-            beamWidth,
-            numMergeWorkers,
-            mergeExec,
-            resolveThreshold(hnswGraphThreshold, BBQ_HNSW_GRAPH_THRESHOLD)
-        );
+        super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, resolveThreshold(hnswGraphThreshold, BBQ_HNSW_GRAPH_THRESHOLD));
         flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(elementType, useDirectIO);
     }
 

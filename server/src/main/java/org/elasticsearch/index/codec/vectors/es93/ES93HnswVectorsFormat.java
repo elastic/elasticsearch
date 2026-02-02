@@ -71,14 +71,7 @@ public class ES93HnswVectorsFormat extends AbstractHnswVectorsFormat {
         ExecutorService mergeExec,
         int hnswGraphThreshold
     ) {
-        super(
-            NAME,
-            maxConn,
-            beamWidth,
-            numMergeWorkers,
-            mergeExec,
-            resolveThreshold(hnswGraphThreshold, HNSW_GRAPH_THRESHOLD)
-        );
+        super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, resolveThreshold(hnswGraphThreshold, HNSW_GRAPH_THRESHOLD));
         flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, false);
     }
 

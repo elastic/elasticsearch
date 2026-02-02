@@ -88,25 +88,16 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseHnswVectorsFo
     }
 
     public void testToString() {
-        String expected = "ES93HnswBinaryQuantizedVectorsFormat("
-            + "name=ES93HnswBinaryQuantizedVectorsFormat, maxConn=10, beamWidth=20, flatVectorFormat=%s)";
-        expected = format(
-            Locale.ROOT,
-            expected,
-            "ES93BinaryQuantizedVectorsFormat(name=ES93BinaryQuantizedVectorsFormat, rawVectorFormat=%s,"
-                + " scorer=ES818BinaryFlatVectorsScorer(nonQuantizedDelegate={}))"
-        );
-        expected = format(Locale.ROOT, expected, "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)");
-        expected = format(
-            Locale.ROOT,
-            expected,
-            "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=ES93FlatVectorScorer(delegate={}))"
-        );
-        String defaultScorer = expected.replaceAll("\\{}", "DefaultFlatVectorScorer()");
-        String memSegScorer = expected.replaceAll("\\{}", "Lucene99MemorySegmentFlatVectorsScorer()");
-
-        KnnVectorsFormat format = createFormat(10, 20, 1, null);
-        assertThat(format, hasToString(oneOf(defaultScorer, memSegScorer)));
+        int hnswGraphThreshold = random().nextInt(1, 1001);
+        KnnVectorsFormat format = createFormat(10, 20, 1, null, hnswGraphThreshold);
+        assertThat(format, hasToString(containsString("name=ES93HnswBinaryQuantizedVectorsFormat")));
+        assertThat(format, hasToString(containsString("maxConn=10")));
+        assertThat(format, hasToString(containsString("beamWidth=20")));
+        assertThat(format, hasToString(containsString("hnswGraphThreshold=" + hnswGraphThreshold)));
+        assertThat(format, hasToString(containsString("ES93BinaryQuantizedVectorsFormat")));
+        assertThat(format, hasToString(containsString("ES93GenericFlatVectorsFormat")));
+        assertThat(format, hasToString(containsString("Lucene99FlatVectorsFormat")));
+        assertThat(format, hasToString(containsString("ES93FlatVectorScorer")));
     }
 
     public void testDefaultHnswGraphThreshold() {
@@ -135,15 +126,6 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseHnswVectorsFo
             format,
             hasToString(containsString("hnswGraphThreshold=" + ES93HnswBinaryQuantizedVectorsFormat.BBQ_HNSW_GRAPH_THRESHOLD))
         );
-    }
-
-    public void testToString() {
-        int hnswGraphThreshold = random().nextInt(1, 1001);
-        KnnVectorsFormat format = createFormat(10, 20, 1, null, hnswGraphThreshold);
-        assertThat(format, hasToString(containsString("name=ES93HnswBinaryQuantizedVectorsFormat")));
-        assertThat(format, hasToString(containsString("maxConn=10")));
-        assertThat(format, hasToString(containsString("beamWidth=20")));
-        assertThat(format, hasToString(containsString("hnswGraphThreshold=" + hnswGraphThreshold)));
     }
 
     public void testSimpleOffHeapSize() throws IOException {

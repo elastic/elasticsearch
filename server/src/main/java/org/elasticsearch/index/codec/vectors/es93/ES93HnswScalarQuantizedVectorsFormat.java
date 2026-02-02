@@ -77,14 +77,7 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
         ExecutorService mergeExec,
         int hnswGraphThreshold
     ) {
-        super(
-            NAME,
-            maxConn,
-            beamWidth,
-            numMergeWorkers,
-            mergeExec,
-            resolveThreshold(hnswGraphThreshold, HNSW_GRAPH_THRESHOLD)
-        );
+        super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, resolveThreshold(hnswGraphThreshold, HNSW_GRAPH_THRESHOLD));
         flatVectorFormat = new ES93ScalarQuantizedVectorsFormat(elementType, confidenceInterval, bits, compress, useDirectIO);
     }
 

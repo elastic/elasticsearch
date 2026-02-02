@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.common.parser;
 
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
-
 import java.util.Map;
 
 public class NumberParser {

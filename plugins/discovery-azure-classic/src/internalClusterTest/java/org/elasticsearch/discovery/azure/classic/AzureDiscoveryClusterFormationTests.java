@@ -92,10 +92,7 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
     public static final ExternalResource MUTE_IN_IPV6 = new ExternalResource() {
         @Override
         protected void before() {
-            assumeFalse(
-                "Tests not currently working correctly with IPv6",
-                Boolean.getBoolean("java.net.preferIPv6Addresses")
-            );
+            assumeFalse("Tests not currently working correctly with IPv6", Boolean.getBoolean("java.net.preferIPv6Addresses"));
         }
     };
 

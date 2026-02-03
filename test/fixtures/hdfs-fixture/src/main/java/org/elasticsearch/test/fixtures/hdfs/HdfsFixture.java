@@ -106,10 +106,7 @@ public class HdfsFixture extends ExternalResource {
         // link-local IPv6 addresses with zone IDs (e.g., fe80::1%eth0). The zone ID contains
         // '%' which gets URL-encoded to '%25' and breaks URI parsing in HDFS file paths.
         boolean preferIPv6 = Boolean.getBoolean("java.net.preferIPv6Addresses");
-        Assume.assumeFalse(
-            "HDFS tests are not compatible with IPv6 due to link-local address zone ID issues in BlockPoolId",
-            preferIPv6
-        );
+        Assume.assumeFalse("HDFS tests are not compatible with IPv6 due to link-local address zone ID issues in BlockPoolId", preferIPv6);
 
         boolean fixtureSupported = false;
         if (isWindows()) {

@@ -105,7 +105,8 @@ public final class Krb5kDcContainer extends DockerEnvironmentAwareTestContainer 
     @Override
     public void start() {
         // Skip Kerberos tests when running with IPv6 preferred.
-        // There are various issues with ipv6, such as SPNEGO requiring hostnames, but localhost resolving to ::1, but the kerberos tests forcing ipv4
+        // There are various issues with ipv6, such as SPNEGO requiring hostnames, but localhost resolving to ::1, but the kerberos tests
+        // forcing ipv4
         assumeFalse(
             "Kerberos KDC tests are not compatible with IPv6 due to network configuration issues",
             Boolean.getBoolean("java.net.preferIPv6Addresses")

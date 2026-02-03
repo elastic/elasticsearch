@@ -11,7 +11,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
@@ -25,8 +24,6 @@ import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.esql.arrow.ArrowFormat;
-import org.elasticsearch.xpack.esql.arrow.ArrowResponse;
 import org.elasticsearch.xpack.esql.formatter.TextFormat;
 import org.elasticsearch.xpack.esql.plugin.EsqlMediaTypeParser;
 
@@ -139,13 +136,6 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
                     ChunkedRestResponseBodyPart.fromTextChunks(format.contentType(restRequest), format.format(restRequest, esqlResponse)),
                     releasable
                 );
-            } else if (mediaType == ArrowFormat.INSTANCE) {
-                ArrowResponse arrowResponse = new ArrowResponse(
-                    // Map here to avoid cyclic dependencies between the arrow subproject and its parent
-                    esqlResponse.columns().stream().map(c -> new ArrowResponse.Column(c.outputType(), c.name())).toList(),
-                    esqlResponse.pages()
-                );
-                restResponse = RestResponse.chunked(RestStatus.OK, arrowResponse, Releasables.wrap(arrowResponse, releasable));
             } else {
                 restResponse = RestResponse.chunked(
                     RestStatus.OK,

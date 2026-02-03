@@ -6,48 +6,85 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 
 import java.util.List;
 import java.util.Objects;
 
 /**
- * Abstract base class for external data source relations (e.g., Iceberg table, Parquet file).
+ * Logical plan node for external data source relations (e.g., Iceberg table, Parquet file).
  * This plan node is executed on the coordinator only (no dispatch to data nodes).
  * <p>
  * Unlike EsRelation which wraps into FragmentExec for data node dispatch,
- * ExternalRelation and its subclasses map directly to physical source operators via LocalMapper,
+ * ExternalRelation maps directly to physical source operators via LocalMapper,
  * similar to how LocalRelation works.
  * <p>
- * Subclasses should implement source-specific functionality:
+ * This class provides a source-agnostic logical plan node for external data sources.
+ * It can represent any external source (Iceberg, Parquet, CSV, etc.) without requiring
+ * source-specific subclasses in core ESQL code.
+ * <p>
+ * The source-specific metadata is stored in the {@link SourceMetadata} interface, which
+ * provides:
  * <ul>
- *   <li>{@link IcebergRelation} - for Iceberg tables and Parquet files</li>
+ *   <li>Schema attributes via {@link SourceMetadata#schema()}</li>
+ *   <li>Source type via {@link SourceMetadata#sourceType()}</li>
+ *   <li>Configuration via {@link SourceMetadata#config()}</li>
+ *   <li>Opaque source metadata via {@link SourceMetadata#sourceMetadata()}</li>
  * </ul>
+ * <p>
+ * The {@link #toPhysicalExec()} method creates a generic {@link ExternalSourceExec} that
+ * carries all necessary information for the operator factory to create the appropriate
+ * source operator via the SPI.
  */
-public abstract class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator {
+public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator {
 
     private final String sourcePath;
     private final List<Attribute> output;
+    private final SourceMetadata metadata;
 
-    /**
-     * Creates an ExternalRelation.
-     *
-     * @param source the source location in the query
-     * @param sourcePath the path or identifier of the external source (e.g., S3 URI, local file path)
-     * @param output the schema attributes
-     */
-    protected ExternalRelation(Source source, String sourcePath, List<Attribute> output) {
+    public ExternalRelation(Source source, String sourcePath, SourceMetadata metadata, List<Attribute> output) {
         super(source);
-        this.sourcePath = Objects.requireNonNull(sourcePath, "sourcePath must not be null");
-        this.output = Objects.requireNonNull(output, "output must not be null");
+        if (sourcePath == null) {
+            throw new IllegalArgumentException("sourcePath must not be null");
+        }
+        if (metadata == null) {
+            throw new IllegalArgumentException("metadata must not be null");
+        }
+        if (output == null) {
+            throw new IllegalArgumentException("output must not be null");
+        }
+        this.sourcePath = sourcePath;
+        this.metadata = metadata;
+        this.output = output;
     }
 
-    /**
-     * @return the path or identifier of the external source (e.g., S3 URI, local file path)
-     */
+    @Override
+    public void writeTo(StreamOutput out) {
+        throw new UnsupportedOperationException("ExternalRelation is not yet serializable for cross-cluster operations");
+    }
+
+    @Override
+    public String getWriteableName() {
+        throw new UnsupportedOperationException("ExternalRelation is not yet serializable for cross-cluster operations");
+    }
+
+    @Override
+    protected NodeInfo<ExternalRelation> info() {
+        return NodeInfo.create(this, ExternalRelation::new, sourcePath, metadata, output);
+    }
+
     public String sourcePath() {
         return sourcePath;
+    }
+
+    public SourceMetadata metadata() {
+        return metadata;
     }
 
     @Override
@@ -60,22 +97,25 @@ public abstract class ExternalRelation extends LeafPlan implements ExecutesOn.Co
         return true;
     }
 
-    /**
-     * @return a string identifying the type of external source (e.g., "iceberg", "parquet")
-     */
-    public abstract String sourceType();
+    public String sourceType() {
+        return metadata.sourceType();
+    }
 
-    /**
-     * Creates the corresponding physical plan execution node for this external relation.
-     * This is used by the mapper to convert logical plans to physical plans.
-     *
-     * @return the physical plan node that reads from this external source
-     */
-    public abstract org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec toPhysicalExec();
+    public ExternalSourceExec toPhysicalExec() {
+        return new ExternalSourceExec(
+            source(),
+            sourcePath,
+            metadata.sourceType(),
+            output,
+            metadata.config(),          // Generic config map
+            metadata.sourceMetadata(),  // Opaque source metadata
+            null                        // No pushed filter initially (set by optimizer)
+        );
+    }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sourcePath, output);
+        return Objects.hash(sourcePath, metadata, output);
     }
 
     @Override
@@ -89,6 +129,17 @@ public abstract class ExternalRelation extends LeafPlan implements ExecutesOn.Co
         }
 
         ExternalRelation other = (ExternalRelation) obj;
-        return Objects.equals(sourcePath, other.sourcePath) && Objects.equals(output, other.output);
+        return Objects.equals(sourcePath, other.sourcePath)
+            && Objects.equals(metadata, other.metadata)
+            && Objects.equals(output, other.output);
+    }
+
+    @Override
+    public String nodeString(NodeStringFormat format) {
+        return nodeName() + "[" + sourcePath + "][" + sourceType() + "]" + NodeUtils.toString(output, format);
+    }
+
+    public ExternalRelation withAttributes(List<Attribute> newAttributes) {
+        return new ExternalRelation(source(), sourcePath, metadata, newAttributes);
     }
 }

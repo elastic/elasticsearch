@@ -7,50 +7,136 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
- * Abstract base class for physical plan nodes that read from external data sources
- * (e.g., Iceberg tables, Parquet files).
+ * Generic physical plan node for reading from external data sources (e.g., Iceberg tables, Parquet files).
  * <p>
- * This mirrors the logical layer design where {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation}
- * is the base class for external source logical plan nodes.
+ * This is the unified physical plan node for all external sources, replacing source-specific nodes
+ * It uses generic maps for configuration and metadata to avoid leaking
+ * source-specific types (like S3Configuration) into core ESQL code.
  * <p>
- * Subclasses should implement source-specific functionality:
+ * Key design principles:
  * <ul>
- *   <li>{@link IcebergSourceExec} - for Iceberg tables and Parquet files</li>
+ *   <li><b>Generic configuration</b>: Uses {@code Map<String, Object>} for config instead of
+ *       source-specific classes like S3Configuration</li>
+ *   <li><b>Opaque metadata</b>: Source-specific data (native schema, etc.) is stored in
+ *       {@link #sourceMetadata()} and passed through without core understanding it</li>
+ *   <li><b>Opaque pushed filter</b>: The {@link #pushedFilter()} is an opaque Object that only
+ *       the source-specific operator factory interprets. It is NOT serialized because external
+ *       sources execute on coordinator only ({@link ExecutesOn.Coordinator})</li>
+ *   <li><b>Coordinator-only execution</b>: External sources run entirely on the coordinator node,
+ *       so no cross-node serialization of source-specific data is needed</li>
  * </ul>
  */
-public abstract class ExternalSourceExec extends LeafExec implements EstimatesRowSize {
+public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, ExecutesOn.Coordinator {
+
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        PhysicalPlan.class,
+        "ExternalSourceExec",
+        ExternalSourceExec::readFrom
+    );
 
     private final String sourcePath;
+    private final String sourceType;
     private final List<Attribute> attributes;
+    private final Map<String, Object> config;
+    private final Map<String, Object> sourceMetadata;
+    private final Object pushedFilter; // Opaque filter - NOT serialized (coordinator only)
     private final Integer estimatedRowSize;
 
-    /**
-     * Creates an ExternalSourceExec.
-     *
-     * @param source the source location in the query
-     * @param sourcePath the path or identifier of the external source (e.g., S3 URI, local file path)
-     * @param attributes the schema attributes
-     * @param estimatedRowSize the estimated size of each row in bytes (nullable, set by optimizer)
-     */
-    protected ExternalSourceExec(Source source, String sourcePath, List<Attribute> attributes, Integer estimatedRowSize) {
+    public ExternalSourceExec(
+        Source source,
+        String sourcePath,
+        String sourceType,
+        List<Attribute> attributes,
+        Map<String, Object> config,
+        Map<String, Object> sourceMetadata,
+        Object pushedFilter,
+        Integer estimatedRowSize
+    ) {
         super(source);
-        this.sourcePath = Objects.requireNonNull(sourcePath, "sourcePath must not be null");
-        this.attributes = Objects.requireNonNull(attributes, "attributes must not be null");
+        if (sourcePath == null) {
+            throw new IllegalArgumentException("sourcePath must not be null");
+        }
+        if (sourceType == null) {
+            throw new IllegalArgumentException("sourceType must not be null");
+        }
+        if (attributes == null) {
+            throw new IllegalArgumentException("attributes must not be null");
+        }
+        this.sourcePath = sourcePath;
+        this.sourceType = sourceType;
+        this.attributes = attributes;
+        this.config = config != null ? Map.copyOf(config) : Map.of();
+        this.sourceMetadata = sourceMetadata != null ? Map.copyOf(sourceMetadata) : Map.of();
+        this.pushedFilter = pushedFilter;
         this.estimatedRowSize = estimatedRowSize;
     }
 
-    /**
-     * @return the path or identifier of the external source (e.g., S3 URI, local file path)
-     */
+    public ExternalSourceExec(
+        Source source,
+        String sourcePath,
+        String sourceType,
+        List<Attribute> attributes,
+        Map<String, Object> config,
+        Map<String, Object> sourceMetadata,
+        Integer estimatedRowSize
+    ) {
+        this(source, sourcePath, sourceType, attributes, config, sourceMetadata, null, estimatedRowSize);
+    }
+
+    private static ExternalSourceExec readFrom(StreamInput in) throws IOException {
+        var source = Source.readFrom((PlanStreamInput) in);
+        String sourcePath = in.readString();
+        String sourceType = in.readString();
+        var attributes = in.readNamedWriteableCollectionAsList(Attribute.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> config = (Map<String, Object>) in.readGenericValue();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> sourceMetadata = (Map<String, Object>) in.readGenericValue();
+        // pushedFilter is NOT serialized - it's created during local optimization and consumed locally
+        Integer estimatedRowSize = in.readOptionalVInt();
+
+        return new ExternalSourceExec(source, sourcePath, sourceType, attributes, config, sourceMetadata, null, estimatedRowSize);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        out.writeString(sourcePath);
+        out.writeString(sourceType);
+        out.writeNamedWriteableCollection(attributes);
+        out.writeGenericValue(config);
+        out.writeGenericValue(sourceMetadata);
+        // pushedFilter is NOT serialized - it's coordinator-only
+        out.writeOptionalVInt(estimatedRowSize);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
     public String sourcePath() {
         return sourcePath;
+    }
+
+    public String sourceType() {
+        return sourceType;
     }
 
     @Override
@@ -58,17 +144,25 @@ public abstract class ExternalSourceExec extends LeafExec implements EstimatesRo
         return attributes;
     }
 
-    /**
-     * @return the estimated size of each row in bytes, or null if not yet estimated
-     */
+    public Map<String, Object> config() {
+        return config;
+    }
+
+    public Map<String, Object> sourceMetadata() {
+        return sourceMetadata;
+    }
+
+    public Object pushedFilter() {
+        return pushedFilter;
+    }
+
     public Integer estimatedRowSize() {
         return estimatedRowSize;
     }
 
-    /**
-     * @return a string identifying the type of external source (e.g., "iceberg", "parquet")
-     */
-    public abstract String sourceType();
+    public ExternalSourceExec withPushedFilter(Object newFilter) {
+        return new ExternalSourceExec(source(), sourcePath, sourceType, attributes, config, sourceMetadata, newFilter, estimatedRowSize);
+    }
 
     @Override
     public PhysicalPlan estimateRowSize(EstimatesRowSize.State state) {
@@ -77,18 +171,37 @@ public abstract class ExternalSourceExec extends LeafExec implements EstimatesRo
         return Objects.equals(this.estimatedRowSize, size) ? this : withEstimatedRowSize(size);
     }
 
-    /**
-     * Create a new instance with the given estimated row size.
-     * Used by the EstimatesRowSize optimizer.
-     *
-     * @param newEstimatedRowSize the new estimated row size
-     * @return a new instance with the updated estimated row size
-     */
-    protected abstract ExternalSourceExec withEstimatedRowSize(Integer newEstimatedRowSize);
+    protected ExternalSourceExec withEstimatedRowSize(Integer newEstimatedRowSize) {
+        return new ExternalSourceExec(
+            source(),
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            newEstimatedRowSize
+        );
+    }
+
+    @Override
+    protected NodeInfo<? extends PhysicalPlan> info() {
+        return NodeInfo.create(
+            this,
+            ExternalSourceExec::new,
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            estimatedRowSize
+        );
+    }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sourcePath, attributes, estimatedRowSize);
+        return Objects.hash(sourcePath, sourceType, attributes, config, sourceMetadata, pushedFilter, estimatedRowSize);
     }
 
     @Override
@@ -103,7 +216,17 @@ public abstract class ExternalSourceExec extends LeafExec implements EstimatesRo
 
         ExternalSourceExec other = (ExternalSourceExec) obj;
         return Objects.equals(sourcePath, other.sourcePath)
+            && Objects.equals(sourceType, other.sourceType)
             && Objects.equals(attributes, other.attributes)
+            && Objects.equals(config, other.config)
+            && Objects.equals(sourceMetadata, other.sourceMetadata)
+            && Objects.equals(pushedFilter, other.pushedFilter)
             && Objects.equals(estimatedRowSize, other.estimatedRowSize);
+    }
+
+    @Override
+    public String nodeString(NodeStringFormat format) {
+        String filterStr = pushedFilter != null ? "[filter=" + pushedFilter + "]" : "";
+        return nodeName() + "[" + sourcePath + "][" + sourceType + "]" + filterStr + NodeUtils.toString(attributes, format);
     }
 }

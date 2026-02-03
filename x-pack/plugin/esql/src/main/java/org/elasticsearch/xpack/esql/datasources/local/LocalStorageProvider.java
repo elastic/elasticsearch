@@ -68,11 +68,11 @@ public final class LocalStorageProvider implements StorageProvider {
         validateFileScheme(directory);
         Path dirPath = toFilePath(directory);
 
-        if (!Files.exists(dirPath)) {
+        if (Files.exists(dirPath) == false) {
             throw new IOException("Directory does not exist: " + dirPath);
         }
 
-        if (!Files.isDirectory(dirPath)) {
+        if (Files.isDirectory(dirPath) == false) {
             throw new IOException("Path is not a directory: " + dirPath);
         }
 
@@ -101,7 +101,7 @@ public final class LocalStorageProvider implements StorageProvider {
      */
     private void validateFileScheme(StoragePath path) {
         String scheme = path.scheme().toLowerCase();
-        if (!scheme.equals("file")) {
+        if (scheme.equals("file") == false) {
             throw new IllegalArgumentException("LocalStorageProvider only supports file:// scheme, got: " + scheme);
         }
     }
@@ -173,7 +173,7 @@ public final class LocalStorageProvider implements StorageProvider {
 
         @Override
         public StorageEntry next() {
-            if (!hasNext()) {
+            if (hasNext() == false) {
                 throw new NoSuchElementException();
             }
             return iterator.next();

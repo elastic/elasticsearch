@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.net.http.HttpClient;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -93,32 +94,23 @@ public final class HttpStorageProvider implements StorageProvider {
     }
 
     @Override
-    public void close() throws IOException {
-        // HttpClient doesn't require explicit cleanup
-        // The executor is managed externally
+    public void close() {
+        // HttpClient implements AutoCloseable in Java 21+
+        // Closing it shuts down the internal selector thread and connection pool
+        httpClient.close();
     }
 
-    /**
-     * Validates that the path uses an HTTP or HTTPS scheme.
-     */
     private void validateHttpScheme(StoragePath path) {
-        String scheme = path.scheme().toLowerCase();
-        if (!scheme.equals("http") && !scheme.equals("https")) {
+        String scheme = path.scheme().toLowerCase(Locale.ROOT);
+        if ("http".equals(scheme) == false && "https".equals(scheme) == false) {
             throw new IllegalArgumentException("HttpStorageProvider only supports http:// and https:// schemes, got: " + scheme);
         }
     }
 
-    /**
-     * Returns the HttpClient used by this provider.
-     * Useful for testing and advanced use cases.
-     */
     public HttpClient httpClient() {
         return httpClient;
     }
 
-    /**
-     * Returns the configuration used by this provider.
-     */
     public HttpConfiguration config() {
         return config;
     }

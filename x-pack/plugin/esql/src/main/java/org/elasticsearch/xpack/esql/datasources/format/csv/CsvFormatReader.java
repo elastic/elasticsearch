@@ -25,7 +25,10 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.io.BufferedReader;
@@ -60,7 +63,16 @@ public class CsvFormatReader implements FormatReader {
     }
 
     @Override
-    public List<Attribute> getSchema(StorageObject object) throws IOException {
+    public SourceMetadata metadata(StorageObject object) throws IOException {
+        List<Attribute> schema = readSchema(object);
+        StoragePath objectPath = object.path();
+        return new SimpleSourceMetadata(schema, formatName(), objectPath.toString());
+    }
+
+    /**
+     * Reads the schema from the CSV file's first non-comment line.
+     */
+    private List<Attribute> readSchema(StorageObject object) throws IOException {
         try (
             InputStream stream = object.newStream();
             BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))
@@ -110,13 +122,15 @@ public class CsvFormatReader implements FormatReader {
         List<Attribute> attributes = new ArrayList<>(columns.length);
 
         for (String column : columns) {
-            String[] parts = column.trim().split(":");
+            String trimmedColumn = column.trim();
+            String[] parts = trimmedColumn.split(":");
             if (parts.length != 2) {
                 throw new ParsingException("Invalid CSV schema format: [{}]. Expected 'name:type'", column);
             }
 
             String name = parts[0].trim();
-            String typeName = parts[1].trim().toUpperCase();
+            String trimmedType = parts[1].trim();
+            String typeName = trimmedType.toUpperCase();
             DataType dataType = parseDataType(typeName);
 
             EsField field = new EsField(name, dataType, java.util.Map.of(), true, EsField.TimeSeriesFieldType.NONE);
@@ -189,7 +203,7 @@ public class CsvFormatReader implements FormatReader {
 
         @Override
         public Page next() {
-            if (!hasNext()) {
+            if (hasNext() == false) {
                 throw new NoSuchElementException();
             }
             Page result = nextPage;
@@ -199,7 +213,7 @@ public class CsvFormatReader implements FormatReader {
 
         @Override
         public void close() throws IOException {
-            if (!closed) {
+            if (closed == false) {
                 closed = true;
                 reader.close();
                 stream.close();
@@ -245,8 +259,14 @@ public class CsvFormatReader implements FormatReader {
                     row[i] = val != null ? val.toString() : null;
                 }
                 // Skip comment lines (Jackson doesn't have native comment support)
-                if (row.length > 0 && row[0] != null && row[0].trim().startsWith("//")) {
-                    continue;
+                if (row.length > 0) {
+                    String firstCell = row[0];
+                    if (firstCell != null) {
+                        String trimmedFirstCell = firstCell.trim();
+                        if (trimmedFirstCell.startsWith("//")) {
+                            continue;
+                        }
+                    }
                 }
                 rows.add(row);
             }
@@ -273,7 +293,8 @@ public class CsvFormatReader implements FormatReader {
             for (String colName : projectedColumns) {
                 int index = -1;
                 for (int i = 0; i < schema.size(); i++) {
-                    if (schema.get(i).name().equals(colName)) {
+                    Attribute attr = schema.get(i);
+                    if (attr.name().equals(colName)) {
                         index = i;
                         break;
                     }
@@ -322,14 +343,17 @@ public class CsvFormatReader implements FormatReader {
                         }
 
                         Object converted = convertValue(value, attr.dataType());
-                        builders[i].append().accept(converted);
+                        BlockUtils.BuilderWrapper wrapper = builders[i];
+                        wrapper.append().accept(converted);
                     }
                 }
 
                 // Build blocks
                 Block[] blocks = new Block[columnCount];
                 for (int i = 0; i < columnCount; i++) {
-                    blocks[i] = builders[i].builder().build();
+                    BlockUtils.BuilderWrapper wrapper = builders[i];
+                    Block.Builder builder = wrapper.builder();
+                    blocks[i] = builder.build();
                 }
 
                 return new Page(rowCount, blocks);

@@ -65,11 +65,11 @@ public final class LocalStorageObject implements StorageObject {
 
     @Override
     public InputStream newStream() throws IOException {
-        if (!Files.exists(filePath)) {
+        if (Files.exists(filePath) == false) {
             throw new IOException("File does not exist: " + filePath);
         }
 
-        if (!Files.isRegularFile(filePath)) {
+        if (Files.isRegularFile(filePath) == false) {
             throw new IOException("Path is not a regular file: " + filePath);
         }
 
@@ -85,11 +85,11 @@ public final class LocalStorageObject implements StorageObject {
             throw new IllegalArgumentException("length must be non-negative, got: " + length);
         }
 
-        if (!Files.exists(filePath)) {
+        if (Files.exists(filePath) == false) {
             throw new IOException("File does not exist: " + filePath);
         }
 
-        if (!Files.isRegularFile(filePath)) {
+        if (Files.isRegularFile(filePath) == false) {
             throw new IOException("Path is not a regular file: " + filePath);
         }
 

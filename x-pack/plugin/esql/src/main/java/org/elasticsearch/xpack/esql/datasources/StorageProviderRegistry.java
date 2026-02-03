@@ -7,9 +7,14 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
+import java.io.Closeable;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -18,17 +23,14 @@ import java.util.concurrent.ConcurrentHashMap;
  * Registry for StorageProvider implementations, keyed by URI scheme.
  * Allows pluggable discovery of storage providers based on the scheme
  * portion of a StoragePath (e.g., "http", "https", "s3", "file").
+ *
+ * This registry implements Closeable to properly close all registered providers
+ * when the registry is no longer needed.
  */
-public class StorageProviderRegistry {
+public class StorageProviderRegistry implements Closeable {
     private final Map<String, StorageProviderFactory> factories = new ConcurrentHashMap<>();
+    private final List<StorageProvider> createdProviders = new ArrayList<>();
 
-    /**
-     * Registers a StorageProviderFactory for a specific URI scheme.
-     *
-     * @param scheme the URI scheme (e.g., "http", "s3")
-     * @param factory the factory to create StorageProvider instances
-     * @throws IllegalArgumentException if scheme is null or empty
-     */
     public void register(String scheme, StorageProviderFactory factory) {
         if (scheme == null || scheme.isEmpty()) {
             throw new IllegalArgumentException("Scheme cannot be null or empty");
@@ -39,12 +41,19 @@ public class StorageProviderRegistry {
         factories.put(scheme.toLowerCase(Locale.ROOT), factory);
     }
 
-    /**
-     * Unregisters a StorageProviderFactory for a specific URI scheme.
-     *
-     * @param scheme the URI scheme to unregister
-     * @return the previously registered factory, or null if none was registered
-     */
+    public void registerWithProvider(String scheme, StorageProvider provider) {
+        if (scheme == null || scheme.isEmpty()) {
+            throw new IllegalArgumentException("Scheme cannot be null or empty");
+        }
+        if (provider == null) {
+            throw new IllegalArgumentException("Provider cannot be null");
+        }
+        factories.put(scheme.toLowerCase(Locale.ROOT), path -> provider);
+        synchronized (createdProviders) {
+            createdProviders.add(provider);
+        }
+    }
+
     public StorageProviderFactory unregister(String scheme) {
         if (scheme == null || scheme.isEmpty()) {
             return null;
@@ -52,14 +61,7 @@ public class StorageProviderRegistry {
         return factories.remove(scheme.toLowerCase(Locale.ROOT));
     }
 
-    /**
-     * Gets a StorageProvider for the given path.
-     *
-     * @param path the storage path
-     * @return a StorageProvider instance
-     * @throws IllegalArgumentException if no provider is registered for the scheme
-     */
-    public StorageProvider getProvider(StoragePath path) {
+    public StorageProvider provider(StoragePath path) {
         if (path == null) {
             throw new IllegalArgumentException("Path cannot be null");
         }
@@ -72,16 +74,20 @@ public class StorageProviderRegistry {
         return factory.create(path);
     }
 
-    /**
-     * Checks if a provider is registered for the given scheme.
-     *
-     * @param scheme the URI scheme to check
-     * @return true if a provider is registered, false otherwise
-     */
     public boolean hasProvider(String scheme) {
         if (scheme == null || scheme.isEmpty()) {
             return false;
         }
         return factories.containsKey(scheme.toLowerCase(Locale.ROOT));
+    }
+
+    @Override
+    public void close() throws IOException {
+        List<StorageProvider> toClose;
+        synchronized (createdProviders) {
+            toClose = new ArrayList<>(createdProviders);
+            createdProviders.clear();
+        }
+        IOUtils.close(toClose);
     }
 }

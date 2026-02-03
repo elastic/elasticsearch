@@ -100,7 +100,7 @@ public class IcebergParsingTests extends AbstractStatementParserTests {
 
         var plan = query("EXTERNAL \"s3://bucket/table\" | WHERE age > 25 | LIMIT 10");
 
-        // The plan should be a Limit with Filter underneath, and UnresolvedIcebergRelation at the bottom
+        // The plan should be a Limit with Filter underneath, and UnresolvedExternalRelation at the bottom
         assertNotNull(plan);
         assertThat(plan, instanceOf(org.elasticsearch.xpack.esql.plan.logical.Limit.class));
     }

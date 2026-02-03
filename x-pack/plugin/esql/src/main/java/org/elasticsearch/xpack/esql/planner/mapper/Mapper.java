@@ -83,7 +83,7 @@ public class Mapper {
             return new FragmentExec(esRelation);
         }
 
-        // ExternalRelation subclasses (IcebergRelation, etc.) are handled by MapperUtils.mapLeaf()
+        // ExternalRelation is handled by MapperUtils.mapLeaf()
         // which calls toPhysicalExec() to create coordinator-only source operators
         return MapperUtils.mapLeaf(leaf);
     }

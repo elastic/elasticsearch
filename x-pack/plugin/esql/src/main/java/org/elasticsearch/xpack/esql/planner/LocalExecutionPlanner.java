@@ -86,9 +86,9 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceOperatorFactory;
-import org.elasticsearch.xpack.esql.datasources.datalake.iceberg.IcebergSourceOperatorFactory;
-import org.elasticsearch.xpack.esql.datasources.format.parquet.ParquetSourceOperatorFactory;
+import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
@@ -123,7 +123,6 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.FuseScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
-import org.elasticsearch.xpack.esql.plan.physical.IcebergSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
@@ -179,6 +178,7 @@ public class LocalExecutionPlanner {
     private final LookupFromIndexService lookupFromIndexService;
     private final InferenceService inferenceService;
     private final PhysicalOperationProviders physicalOperationProviders;
+    private final OperatorFactoryRegistry operatorFactoryRegistry;
 
     public LocalExecutionPlanner(
         String sessionId,
@@ -193,7 +193,8 @@ public class LocalExecutionPlanner {
         EnrichLookupService enrichLookupService,
         LookupFromIndexService lookupFromIndexService,
         InferenceService inferenceService,
-        PhysicalOperationProviders physicalOperationProviders
+        PhysicalOperationProviders physicalOperationProviders,
+        OperatorFactoryRegistry operatorFactoryRegistry
     ) {
 
         this.sessionId = sessionId;
@@ -209,6 +210,7 @@ public class LocalExecutionPlanner {
         this.lookupFromIndexService = lookupFromIndexService;
         this.inferenceService = inferenceService;
         this.physicalOperationProviders = physicalOperationProviders;
+        this.operatorFactoryRegistry = operatorFactoryRegistry;
     }
 
     /**
@@ -307,8 +309,8 @@ public class LocalExecutionPlanner {
             return planShow(show);
         } else if (node instanceof ExchangeSourceExec exchangeSource) {
             return planExchangeSource(exchangeSource, exchangeSourceSupplier);
-        } else if (node instanceof IcebergSourceExec icebergSource) {
-            return planIcebergSource(icebergSource, context);
+        } else if (node instanceof ExternalSourceExec externalSource) {
+            return planExternalSource(externalSource, context);
         }
         // lookups and joins
         else if (node instanceof EnrichExec enrich) {
@@ -865,52 +867,68 @@ public class LocalExecutionPlanner {
         return PhysicalOperation.fromSource(new LocalSourceFactory(() -> operator), layout.build());
     }
 
-    private PhysicalOperation planIcebergSource(IcebergSourceExec icebergSource, LocalExecutionPlannerContext context) {
+    /**
+     * Plans a generic external source using the OperatorFactoryRegistry.
+     *
+     * <p>This method uses the registry to create the appropriate operator factory based on
+     * the source type and path. The registry will:
+     * <ol>
+     *   <li>Check if a plugin has registered a custom factory for the source type</li>
+     *   <li>Fall back to the generic AsyncExternalSourceOperatorFactory using
+     *       storage and format registries</li>
+     * </ol>
+     *
+     * <p>Example usage:
+     * <pre>
+     * // The OperatorFactoryRegistry is injected into LocalExecutionPlanner
+     * // It contains all registered storage providers, format readers, and plugin factories
+     * return planExternalSourceGeneric(externalSource, context);
+     * </pre>
+     *
+     * @param externalSource the external source physical plan node
+     * @param context the planner context
+     * @return the physical operation
+     */
+    private PhysicalOperation planExternalSource(ExternalSourceExec externalSource, LocalExecutionPlannerContext context) {
         // Create layout with output attributes
         Layout.Builder layout = new Layout.Builder();
-        layout.append(icebergSource.output());
+        layout.append(externalSource.output());
 
         // Determine page size based on estimated row size
-        Integer estimatedRowSize = icebergSource.estimatedRowSize();
+        Integer estimatedRowSize = externalSource.estimatedRowSize();
         int pageSize = (estimatedRowSize != null && estimatedRowSize > 0)
             ? Math.max(SourceOperator.MIN_TARGET_PAGE_SIZE, SourceOperator.TARGET_PAGE_SIZE / estimatedRowSize)
             : 1000;
 
-        // Use a simple direct executor (runs in same thread)
-        // In production, use a dedicated executor pool for external I/O
-        // to avoid blocking the Driver thread during S3 reads
-        java.util.concurrent.Executor executor = Runnable::run; // Direct executor for simplicity
+        // Parse the storage path
+        StoragePath path = StoragePath.of(externalSource.sourcePath());
 
-        // Get Iceberg table metadata from the physical plan node
-        // The schema and S3 configuration are already resolved by ExternalSourceResolver
-        org.apache.iceberg.Schema icebergSchema = resolveIcebergSchema(icebergSource);
+        // Extract column names from attributes
+        List<String> projectedColumns = new ArrayList<>();
+        for (Attribute attr : externalSource.output()) {
+            projectedColumns.add(attr.name());
+        }
 
-        // Create the appropriate factory based on source type
+        // Create the operator factory using the registry
         SourceOperator.SourceOperatorFactory factory;
-        if ("parquet".equals(icebergSource.sourceType())) {
-            // Use ParquetSourceOperatorFactory for standalone Parquet files
-            factory = new ParquetSourceOperatorFactory(
-                executor,
-                icebergSource.tablePath(),
-                icebergSource.s3Config(),
-                icebergSchema,
-                icebergSource.output(),
-                pageSize,
-                10  // Buffer size - allow up to 10 pages in buffer
-            );
+        if (operatorFactoryRegistry != null) {
+            // Build the operator context with all available metadata
+            SourceOperatorContext operatorContext = SourceOperatorContext.builder()
+                .sourceType(externalSource.sourceType())
+                .path(path)
+                .projectedColumns(projectedColumns)
+                .attributes(externalSource.output())
+                .batchSize(pageSize)
+                .maxBufferSize(10)
+                .executor(operatorFactoryRegistry.executor())
+                .config(externalSource.config())           // Generic config (replaces S3Configuration)
+                .sourceMetadata(externalSource.sourceMetadata()) // Opaque source metadata (native schema, etc.)
+                .pushedFilter(externalSource.pushedFilter())     // Opaque pushed filter
+                .build();
+
+            factory = operatorFactoryRegistry.factory(operatorContext);
         } else {
-            // Use IcebergSourceOperatorFactory for Iceberg tables
-            factory = new IcebergSourceOperatorFactory(
-                executor,
-                icebergSource.tablePath(),
-                icebergSource.s3Config(),
-                icebergSource.sourceType(),
-                icebergSource.filter(),  // Filter expression (nullable)
-                icebergSchema,
-                icebergSource.output(),
-                pageSize,
-                10  // Buffer size - allow up to 10 pages in buffer
-            );
+            throw new IllegalStateException("OperatorFactoryRegistry is required for external sources");
         }
 
         // Set driver parallelism to 1 for now (can be optimized later with file splitting)
@@ -920,65 +938,8 @@ public class LocalExecutionPlanner {
     }
 
     /**
-     * Resolve Iceberg schema from the physical plan node.
-     * The schema is determined from the ESQL attributes using type mapping.
-     */
-    private org.apache.iceberg.Schema resolveIcebergSchema(IcebergSourceExec icebergSource) {
-        // Reconstruct the Iceberg schema from ESQL attributes
-        // The metadata comes from the resolved ExternalSourceResolution
-        java.util.List<org.apache.iceberg.types.Types.NestedField> fields = new java.util.ArrayList<>();
-        int fieldId = 1;
-
-        for (org.elasticsearch.xpack.esql.core.expression.Attribute attr : icebergSource.output()) {
-            org.apache.iceberg.types.Type icebergType = mapEsqlTypeToIceberg(attr.dataType());
-            if (icebergType != null) {
-                fields.add(org.apache.iceberg.types.Types.NestedField.optional(fieldId++, attr.name(), icebergType));
-            }
-        }
-        return new org.apache.iceberg.Schema(fields);
-    }
-
-    /**
-     * Map ESQL DataType to Iceberg Type.
-     * This is the inverse of the mapping in IcebergTableMetadata.
-     */
-    private org.apache.iceberg.types.Type mapEsqlTypeToIceberg(org.elasticsearch.xpack.esql.core.type.DataType esqlType) {
-        String typeName = esqlType.typeName();
-        return switch (typeName) {
-            case "boolean" -> org.apache.iceberg.types.Types.BooleanType.get();
-            case "integer" -> org.apache.iceberg.types.Types.IntegerType.get();
-            case "long" -> org.apache.iceberg.types.Types.LongType.get();
-            case "double" -> org.apache.iceberg.types.Types.DoubleType.get();
-            case "keyword", "text" -> org.apache.iceberg.types.Types.StringType.get();
-            case "datetime" -> org.apache.iceberg.types.Types.TimestampType.withoutZone();
-            default -> org.apache.iceberg.types.Types.StringType.get(); // Fallback to string
-        };
-    }
-
-    /**
-     * Plans a generic external source using the StorageProvider and FormatReader abstractions.
-     * This method demonstrates how to use the new pluggable architecture for external data sources.
-     *
-     * Example usage with registries:
-     * <pre>
-     * // Setup registries (typically done at initialization)
-     * StorageProviderRegistry storageRegistry = new StorageProviderRegistry();
-     * storageRegistry.register("http", path -> new HttpStorageProvider(httpConfig, executor));
-     * storageRegistry.register("https", path -> new HttpStorageProvider(httpConfig, executor));
-     * storageRegistry.register("s3", path -> new S3StorageProvider(s3Config));
-     * storageRegistry.register("file", path -> new LocalStorageProvider());
-     *
-     * FormatReaderRegistry formatRegistry = new FormatReaderRegistry();
-     * formatRegistry.register(new CsvFormatReader());
-     * formatRegistry.register(new ParquetFormatReader());
-     *
-     * // Use in planner
-     * StoragePath path = StoragePath.of(externalSource.sourcePath());
-     * StorageProvider provider = storageRegistry.getProvider(path);
-     * FormatReader reader = formatRegistry.getByExtension(path.objectName());
-     *
-     * return planExternalSourceGeneric(externalSource, provider, reader, context);
-     * </pre>
+     * Plans a generic external source using explicit StorageProvider and FormatReader.
+     * This method is kept for backward compatibility and testing.
      *
      * @param externalSource the external source physical plan node
      * @param storageProvider the storage provider for the source

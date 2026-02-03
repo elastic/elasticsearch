@@ -124,8 +124,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
-import org.elasticsearch.xpack.esql.plan.logical.IcebergRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
@@ -224,7 +224,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Limiter.ONCE,
             new ResolveConfigurationAware(),
             new ResolveTable(),
-            new ResolveIcebergRelations(),
+            new ResolveExternalRelations(),
             new PruneEmptyUnionAllBranch(),
             new ResolveEnrich(),
             new ResolveLookupTables(),
@@ -444,8 +444,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     /**
      * Resolves UnresolvedExternalRelation nodes using pre-resolved metadata from ExternalSourceResolver.
      * This rule mirrors the ResolveTable pattern but uses ExternalSourceResolution instead of IndexResolution.
+     * <p>
+     * This rule creates {@link ExternalRelation} nodes from any SourceMetadata,
+     * avoiding the need for source-specific logical plan nodes in core ESQL code.
      */
-    private static class ResolveIcebergRelations extends ParameterizedAnalyzerRule<UnresolvedExternalRelation, AnalyzerContext> {
+    private static class ResolveExternalRelations extends ParameterizedAnalyzerRule<UnresolvedExternalRelation, AnalyzerContext> {
 
         @Override
         protected LogicalPlan rule(UnresolvedExternalRelation plan, AnalyzerContext context) {
@@ -464,14 +467,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return plan;
             }
 
-            // Check if metadata is IcebergTableMetadata
-            if (externalMetadata instanceof org.elasticsearch.xpack.esql.datasources.datalake.iceberg.IcebergTableMetadata icebergMetadata) {
-                // Create IcebergRelation with resolved metadata
-                return new IcebergRelation(plan.source(), tablePath, icebergMetadata, icebergMetadata.attributes());
-            }
-
-            // Unknown metadata type - should not happen
-            return plan;
+            // Create ExternalRelation with resolved metadata
+            // This works for any SourceMetadata implementation (Iceberg, Parquet, CSV, etc.)
+            return new ExternalRelation(plan.source(), tablePath, externalMetadata, externalMetadata.schema());
         }
 
         private String extractTablePath(Expression tablePath) {

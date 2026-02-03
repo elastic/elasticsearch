@@ -67,8 +67,8 @@ public class LocalMapper {
             return new EsSourceExec(esRelation);
         }
 
-        // ExternalRelation subclasses (IcebergRelation, etc.) are handled by MapperUtils.mapLeaf()
-        // via their toPhysicalExec() method, bypassing FragmentExec/ExchangeExec dispatch
+        // ExternalRelation is handled by MapperUtils.mapLeaf()
+        // via its toPhysicalExec() method, bypassing FragmentExec/ExchangeExec dispatch
         return MapperUtils.mapLeaf(leaf);
     }
 

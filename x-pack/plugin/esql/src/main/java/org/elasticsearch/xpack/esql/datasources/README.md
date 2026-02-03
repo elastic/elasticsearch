@@ -4,25 +4,102 @@ This package provides a pluggable abstraction for accessing external data source
 
 ## Architecture Overview
 
-The abstraction consists of two main layers:
+The ESQL data source architecture uses a modular plugin-based design with three main layers:
 
 1. **Storage Layer** - Protocol-agnostic access to storage objects (files, blobs, etc.)
 2. **Format Layer** - Data format parsing into ESQL Page batches
+3. **Catalog Layer** - Table metadata management for data lake formats (Iceberg, Delta Lake)
 
 ```
-┌─────────────────────────────────────────┐
-│         ESQL Query Pipeline             │
-└─────────────────┬───────────────────────┘
-                  │
-┌─────────────────▼───────────────────────┐
-│   ExternalSourceOperatorFactory         │
-│   (Combines Storage + Format)           │
-└─────────┬──────────────────┬────────────┘
-          │                  │
-┌─────────▼─────────┐ ┌─────▼──────────┐
-│ StorageProvider   │ │ FormatReader   │
-│ (HTTP, S3, Local) │ │ (CSV, Parquet) │
-└───────────────────┘ └────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           ESQL Query Engine                                      │
+│                                                                                  │
+│  1. Resolve source → get SourceMetadata                                          │
+│  2. Plan execution (use schema, statistics)                                      │
+│  3. Execute (use FormatReader/TableCatalog for data)                             │
+└─────────────────────────────────────────────────────────────────────────────────┘
+                                     │
+                           ┌─────────┴─────────┐
+                           │   SourceMetadata  │  (unified metadata output)
+                           │   - schema()      │
+                           │   - sourceType()  │
+                           │   - location()    │
+                           │   - statistics()  │
+                           └─────────┬─────────┘
+                                     │
+           ┌─────────────────────────┼─────────────────────────┐
+           │                         │                         │
+           ▼                         ▼                         ▼
+┌───────────────────┐    ┌────────────────────┐    ┌────────────────────────┐
+│   FormatReader    │    │   TableCatalog     │    │   SchemaRegistry       │
+│   .metadata()     │    │   .metadata()      │    │   (future: Glue,       │
+│                   │    │                    │    │    Hive Metastore)     │
+│   Parquet, CSV    │    │   Iceberg, Delta   │    │                        │
+└─────────┬─────────┘    └─────────┬──────────┘    └────────────────────────┘
+          │                        │
+          │                        │ (reuses FormatReader for data)
+          │                        ▼
+          │                ┌───────────────────┐
+          │                │   FormatReader    │  (for actual data reading)
+          │                │   .read()         │
+          │                └───────────────────┘
+          │
+          ▼
+┌───────────────────┐
+│  StorageProvider  │  (byte access layer)
+│  S3, HTTP, etc    │
+└───────────────────┘
+```
+
+## Plugin Architecture
+
+The data source system uses Elasticsearch's plugin mechanism for extensibility. Each data source
+capability is provided by a plugin implementing the `DataSourcePlugin` interface.
+
+### DataSourcePlugin Interface
+
+```java
+public interface DataSourcePlugin {
+    // Storage providers for accessing data (S3, GCS, Azure, HTTP)
+    Map<String, StorageProviderFactory> storageProviders(Settings settings);
+    
+    // Format readers for parsing data files (Parquet, CSV, ORC)
+    Map<String, FormatReaderFactory> formatReaders(Settings settings);
+    
+    // Table catalog connectors (Iceberg, Delta Lake)
+    Map<String, TableCatalogFactory> tableCatalogs(Settings settings);
+    
+    // Custom operator factories for complex datasources
+    Map<String, SourceOperatorFactoryProvider> operatorFactories(Settings settings);
+    
+    // Filter pushdown support for predicate pushdown optimization
+    Map<String, FilterPushdownSupport> filterPushdownSupport(Settings settings);
+}
+```
+
+### Available Plugins
+
+| Plugin Module | Description | Provides |
+|---------------|-------------|----------|
+| **Built-in** (esql core) | Basic storage and format support | HTTP/HTTPS, Local filesystem, CSV format |
+| **esql-datasource-parquet** | Parquet file format support | Parquet format reader |
+| **esql-datasource-s3** | AWS S3 storage support | S3 storage provider (s3://, s3a://, s3n://) |
+| **esql-datasource-iceberg** | Apache Iceberg table support | Iceberg table catalog, Arrow vectorized reading |
+
+### Plugin Discovery
+
+Plugins are discovered at startup via Java's ServiceLoader mechanism:
+
+```
+src/main/resources/META-INF/services/org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin
+```
+
+The `DataSourceModule` collects all plugins and populates the registries:
+
+```java
+// In EsqlPlugin.createComponents()
+List<DataSourcePlugin> plugins = pluginsService.filterPlugins(DataSourcePlugin.class);
+DataSourceModule module = new DataSourceModule(plugins, settings, blockFactory);
 ```
 
 ## Core Interfaces
@@ -40,10 +117,12 @@ public interface StorageProvider extends Closeable {
 }
 ```
 
-**Implementations:**
+**Built-in Implementations:**
 - `HttpStorageProvider` - HTTP/HTTPS access with Range request support
-- `S3StorageProvider` - AWS S3 access
 - `LocalStorageProvider` - Local filesystem access (for testing/development)
+
+**Plugin Implementations:**
+- `S3StorageProvider` - AWS S3 access (in esql-datasource-s3)
 
 ### StorageObject
 
@@ -66,229 +145,194 @@ Parses data formats into ESQL Pages:
 
 ```java
 public interface FormatReader extends Closeable {
-    List<Attribute> getSchema(StorageObject object) throws IOException;
-    CloseableIterator<Page> read(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize
-    ) throws IOException;
+    SourceMetadata metadata(StorageObject object) throws IOException;
+    CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException;
     String formatName();
     List<String> fileExtensions();
 }
 ```
 
-**Implementations:**
+**Built-in Implementations:**
 - `CsvFormatReader` - CSV/TSV files
-- `ParquetFormatReader` - Apache Parquet columnar format
+
+**Plugin Implementations:**
+- `ParquetFormatReader` - Apache Parquet columnar format (in esql-datasource-parquet)
+
+### TableCatalog
+
+Connects to table catalog systems for data lake formats:
+
+```java
+public interface TableCatalog extends Closeable {
+    SourceMetadata metadata(String tablePath, Map<String, Object> config) throws IOException;
+    List<DataFile> planScan(String tablePath, Map<String, Object> config, List<Object> predicates) throws IOException;
+    String catalogType();
+    boolean canHandle(String path);
+}
+```
+
+**Plugin Implementations:**
+- `IcebergTableCatalog` - Apache Iceberg tables (in esql-datasource-iceberg)
+
+### SourceMetadata
+
+Unified metadata output from any schema discovery mechanism:
+
+```java
+public interface SourceMetadata {
+    List<Attribute> schema();
+    String sourceType();
+    String location();
+    Optional<SourceStatistics> statistics();
+    Optional<List<String>> partitionColumns();
+}
+```
 
 ## Usage Examples
 
 ### Example 1: Reading a CSV file over HTTP
 
 ```java
-// Create storage provider
-HttpConfiguration config = new HttpConfiguration(
-    Duration.ofSeconds(30),  // connect timeout
-    Duration.ofMinutes(5),   // request timeout
-    true,                    // follow redirects
-    Map.of()                 // custom headers
-);
-HttpStorageProvider storageProvider = new HttpStorageProvider(config, executor);
-
-// Create format reader
-CsvFormatReader formatReader = new CsvFormatReader();
-
-// Create storage path
+// Storage provider and format reader are automatically selected based on URI
 StoragePath path = StoragePath.of("https://example.com/data/sales.csv");
 
-// Define schema
-List<Attribute> attributes = List.of(
-    new FieldAttribute(Source.EMPTY, "product", DataType.KEYWORD),
-    new FieldAttribute(Source.EMPTY, "amount", DataType.DOUBLE),
-    new FieldAttribute(Source.EMPTY, "region", DataType.KEYWORD)
-);
+// Get provider from registry (populated by plugins)
+StorageProvider provider = storageProviderRegistry.getProvider(path);
+FormatReader reader = formatReaderRegistry.getByExtension(path.objectName());
 
 // Create operator factory
-ExternalSourceOperatorFactory factory = new ExternalSourceOperatorFactory(
-    storageProvider,
-    formatReader,
-    path,
-    attributes,
-    1000  // batch size
-);
-
-// Use in LocalExecutionPlanner
-SourceOperator operator = factory.get(driverContext);
-```
-
-### Example 2: Reading a Parquet file from local filesystem
-
-```java
-// Create storage provider
-LocalStorageProvider storageProvider = new LocalStorageProvider();
-
-// Create format reader
-ParquetFormatReader formatReader = new ParquetFormatReader();
-
-// Create storage path
-StoragePath path = StoragePath.of("file:///data/warehouse/sales.parquet");
-
-// Define schema (inferred from Parquet metadata)
-StorageObject object = storageProvider.newObject(path);
-List<Attribute> attributes = formatReader.getSchema(object);
-
-// Create operator factory
-ExternalSourceOperatorFactory factory = new ExternalSourceOperatorFactory(
-    storageProvider,
-    formatReader,
-    path,
-    attributes,
-    5000  // batch size
-);
-```
-
-### Example 3: Using Registries for Pluggable Discovery
-
-```java
-// Setup registries (typically done at initialization)
-StorageProviderRegistry storageRegistry = new StorageProviderRegistry();
-storageRegistry.register("http", path -> new HttpStorageProvider(httpConfig, executor));
-storageRegistry.register("https", path -> new HttpStorageProvider(httpConfig, executor));
-storageRegistry.register("s3", path -> new S3StorageProvider(s3Config));
-storageRegistry.register("file", path -> new LocalStorageProvider());
-
-FormatReaderRegistry formatRegistry = new FormatReaderRegistry();
-formatRegistry.register(new CsvFormatReader());
-formatRegistry.register(new ParquetFormatReader());
-
-// Use in query planning
-String uri = "https://example.com/data/sales.csv";
-StoragePath path = StoragePath.of(uri);
-
-// Automatic provider selection based on scheme
-StorageProvider provider = storageRegistry.getProvider(path);
-
-// Automatic format selection based on file extension
-FormatReader reader = formatRegistry.getByExtension(path.objectName());
-
-// Create operator
 ExternalSourceOperatorFactory factory = new ExternalSourceOperatorFactory(
     provider,
     reader,
     path,
     attributes,
-    1000
+    1000  // batch size
 );
 ```
 
-## Integration with LocalExecutionPlanner
-
-The `LocalExecutionPlanner` includes a method `planExternalSourceGeneric()` that demonstrates
-how to integrate the generic abstraction:
+### Example 2: Reading a Parquet file from S3
 
 ```java
-private PhysicalOperation planExternalSourceGeneric(
-    ExternalSourceExec externalSource,
-    StorageProvider storageProvider,
-    FormatReader formatReader,
-    LocalExecutionPlannerContext context
-) {
-    // Parse the storage path
-    StoragePath path = StoragePath.of(externalSource.sourcePath());
-    
-    // Determine page size based on estimated row size
-    int pageSize = calculatePageSize(externalSource.estimatedRowSize());
-    
-    // Create the operator factory
-    SourceOperator.SourceOperatorFactory factory = new ExternalSourceOperatorFactory(
-        storageProvider,
-        formatReader,
-        path,
-        externalSource.output(),
-        pageSize
-    );
-    
-    return PhysicalOperation.fromSource(factory, layout.build());
+// Requires esql-datasource-s3 and esql-datasource-parquet plugins
+StoragePath path = StoragePath.of("s3://my-bucket/data/sales.parquet");
+
+StorageProvider provider = storageProviderRegistry.getProvider(path);  // S3StorageProvider
+FormatReader reader = formatReaderRegistry.getByExtension(".parquet"); // ParquetFormatReader
+
+ExternalSourceOperatorFactory factory = new ExternalSourceOperatorFactory(
+    provider,
+    reader,
+    path,
+    attributes,
+    5000
+);
+```
+
+### Example 3: Reading an Iceberg table
+
+```java
+// Requires esql-datasource-iceberg plugin
+TableCatalog catalog = dataSourceModule.createTableCatalog("iceberg", settings);
+
+// Get table metadata (schema, statistics, partitions)
+SourceMetadata metadata = catalog.metadata("s3://bucket/warehouse/db/table", config);
+
+// Plan scan with predicate pushdown
+List<DataFile> files = catalog.planScan(tablePath, config, predicates);
+
+// Read data files using ParquetFormatReader
+for (DataFile file : files) {
+    StorageObject obj = storageProvider.newObject(file.path());
+    Iterator<Page> pages = parquetReader.read(obj, columns, batchSize);
+    // process pages...
 }
 ```
 
 ## Design Principles
 
-1. **Pure Java APIs** - No dependencies on Iceberg, Hadoop, or other external frameworks in core interfaces
-2. **Standard InputStream** - Uses `java.io.InputStream` for compatibility with existing Elasticsearch code
-3. **Range-based reads** - `newStream(position, length)` pattern for efficient columnar format access
-4. **Simple cases first** - CSV over HTTP works without pulling in datalake dependencies
-5. **Pluggable** - New storage protocols and formats can be added independently
+1. **Plugin Isolation** - Heavy dependencies (Parquet, Iceberg, AWS SDK) are isolated in separate plugin modules to avoid jar hell
+2. **Pure Java SPI** - Core interfaces use only Java stdlib types, ESQL compute types, or other SPI types
+3. **Unified Metadata** - All schema sources return `SourceMetadata` for consistency
+4. **Standard InputStream** - Uses `java.io.InputStream` for compatibility with existing Elasticsearch code
+5. **Range-based reads** - `newStream(position, length)` pattern for efficient columnar format access
+6. **Pluggable** - New storage protocols and formats can be added independently via plugins
 
 ## Adding New Storage Providers
 
 To add a new storage provider (e.g., GCS, Azure Blob):
 
-1. Implement `StorageProvider` interface
-2. Implement `StorageObject` interface
-3. Register with `StorageProviderRegistry`
+1. Create a new plugin module: `x-pack/plugin/esql-datasource-gcs/`
+2. Implement `StorageProvider` and `StorageObject` interfaces
+3. Create a `DataSourcePlugin` implementation
+4. Register via `META-INF/services/org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin`
 
 Example:
 
 ```java
-public class GcsStorageProvider implements StorageProvider {
-    private final Storage gcsClient;
-    
+public class GcsDataSourcePlugin extends Plugin implements DataSourcePlugin {
     @Override
-    public StorageObject newObject(StoragePath path) {
-        String bucket = path.host();
-        String blobName = path.path();
-        return new GcsStorageObject(gcsClient, bucket, blobName, path);
+    public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+        return Map.of("gs", s -> new GcsStorageProvider(s));
     }
-    
-    @Override
-    public List<String> supportedSchemes() {
-        return List.of("gs");
-    }
-    
-    // ... other methods
 }
-
-// Register
-storageRegistry.register("gs", path -> new GcsStorageProvider(gcsConfig));
 ```
 
 ## Adding New Format Readers
 
 To add a new format reader (e.g., ORC, Avro):
 
-1. Implement `FormatReader` interface
-2. Register with `FormatReaderRegistry`
+1. Create a new plugin module or add to existing one
+2. Implement `FormatReader` interface
+3. Register via `DataSourcePlugin.formatReaders()`
 
 Example:
 
 ```java
 public class OrcFormatReader implements FormatReader {
     @Override
-    public CloseableIterator<Page> read(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize
-    ) throws IOException {
+    public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
         InputStream stream = object.newStream();
         // Use ORC library to parse data
-        // Convert to ESQL Pages
         return new OrcBatchIterator(stream, projectedColumns, batchSize);
     }
     
     @Override
-    public String formatName() {
-        return "orc";
-    }
+    public String formatName() { return "orc"; }
     
     @Override
-    public List<String> fileExtensions() {
-        return List.of(".orc");
-    }
+    public List<String> fileExtensions() { return List.of(".orc"); }
 }
+```
 
-// Register
-formatRegistry.register(new OrcFormatReader());
+## Module Structure
+
+```
+x-pack/plugin/
+├── esql/                              # Core ESQL plugin
+│   └── src/main/java/.../datasources/
+│       ├── spi/                       # SPI interfaces (DataSourcePlugin, FormatReader, etc.)
+│       ├── builtin/                   # Built-in plugin (HTTP, Local, CSV)
+│       ├── DataSourceModule.java      # Plugin discovery and registry population
+│       └── ...
+│
+├── esql-datasource-parquet/           # Parquet format plugin
+│   ├── build.gradle                   # Parquet, Hadoop dependencies
+│   └── src/main/java/.../parquet/
+│       ├── ParquetDataSourcePlugin.java
+│       └── ParquetFormatReader.java
+│
+├── esql-datasource-s3/                # S3 storage plugin
+│   ├── build.gradle                   # AWS SDK dependencies
+│   └── src/main/java/.../s3/
+│       ├── S3DataSourcePlugin.java
+│       └── S3StorageProvider.java
+│
+└── esql-datasource-iceberg/           # Iceberg table catalog plugin
+    ├── build.gradle                   # Iceberg, Arrow, AWS SDK dependencies
+    └── src/main/java/.../iceberg/
+        ├── IcebergDataSourcePlugin.java
+        ├── IcebergTableCatalog.java
+        └── ...
 ```
 
 ## Testing
@@ -297,19 +341,31 @@ The abstraction includes comprehensive tests:
 
 - `LocalStorageProviderTests` - Tests for local filesystem access
 - `HttpStorageProviderTests` - Tests for HTTP/HTTPS access
+- `CsvFormatReaderTests` - Tests for CSV parsing
+- `DataSourceModuleTests` - Integration tests for plugin discovery
 - `ExternalSourceOperatorFactoryTests` - Integration tests
 
 Run tests:
 
 ```bash
+# Core ESQL tests
 ./gradlew :x-pack:plugin:esql:test --tests "*LocalStorageProvider*"
-./gradlew :x-pack:plugin:esql:test --tests "*ExternalSourceOperatorFactory*"
+./gradlew :x-pack:plugin:esql:test --tests "*DataSourceModule*"
+
+# Plugin-specific tests
+./gradlew :x-pack:plugin:esql-datasource-parquet:test
+./gradlew :x-pack:plugin:esql-datasource-s3:test
+./gradlew :x-pack:plugin:esql-datasource-iceberg:test
+
+# Integration tests
+./gradlew :x-pack:plugin:esql-datasource-iceberg:qa:javaRestTest
+./gradlew :x-pack:plugin:esql-datasource-parquet:qa:javaRestTest
 ```
 
 ## Future Enhancements
 
-1. **Datalake Support** - Higher-level adapters for Iceberg, Delta Lake (already implemented)
-2. **Additional Protocols** - GCS, Azure Blob, HDFS
-3. **Additional Formats** - ORC, Avro, JSON Lines
+1. **Additional Storage Providers** - GCS, Azure Blob, HDFS
+2. **Additional Format Readers** - ORC, Avro, JSON Lines
+3. **Additional Table Catalogs** - Delta Lake, Apache Hudi
 4. **Performance Optimizations** - File splitting, parallel reads, caching
-5. **Filter Pushdown** - Push predicates to storage/format layer
+5. **Filter Pushdown** - Extended predicate pushdown for all formats

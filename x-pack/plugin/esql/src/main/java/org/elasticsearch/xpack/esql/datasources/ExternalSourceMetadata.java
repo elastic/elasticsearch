@@ -7,27 +7,72 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 
 import java.util.List;
 
 /**
- * Base interface for external data source metadata.
- * Represents resolved metadata from external sources like Iceberg tables or Parquet files.
+ * Extended interface for external data source metadata.
+ * <p>
+ * This interface extends {@link SourceMetadata} to provide a unified metadata type
+ * for all external sources (Iceberg tables, Parquet files, etc.) while maintaining
+ * backward compatibility with existing code that uses the legacy method names.
+ * <p>
+ * New implementations should prefer using {@link SourceMetadata} methods directly:
+ * <ul>
+ *   <li>{@link #location()} instead of {@link #tablePath()}</li>
+ *   <li>{@link #schema()} instead of {@link #attributes()}</li>
+ * </ul>
+ * <p>
+ * For table-based sources (Iceberg, Delta Lake), implementations should store
+ * native schema and source-specific data in {@link #sourceMetadata()} to avoid
+ * re-resolving the table during execution.
  */
-public interface ExternalSourceMetadata {
+public interface ExternalSourceMetadata extends SourceMetadata {
 
     /**
-     * @return The path or identifier of the external source (e.g., S3 path)
+     * Returns the path or identifier of the external source (e.g., S3 path).
+     *
+     * @return the source path
+     * @deprecated Use {@link #location()} instead
      */
-    String tablePath();
+    @Deprecated
+    default String tablePath() {
+        return location();
+    }
 
     /**
-     * @return List of attributes representing the schema of the external source
+     * Returns the list of attributes representing the schema of the external source.
+     *
+     * @return list of attributes
+     * @deprecated Use {@link #schema()} instead
      */
-    List<Attribute> attributes();
+    @Deprecated
+    default List<Attribute> attributes() {
+        return schema();
+    }
 
     /**
-     * @return The type of external source (e.g., "iceberg", "parquet")
+     * Default implementation of {@link SourceMetadata#location()} that delegates
+     * to {@link #tablePath()} for backward compatibility.
+     * <p>
+     * Implementations should override either this method or {@link #tablePath()}.
      */
-    String sourceType();
+    @Override
+    default String location() {
+        // This will be overridden by implementations
+        throw new UnsupportedOperationException("Implementation must override either location() or tablePath()");
+    }
+
+    /**
+     * Default implementation of {@link SourceMetadata#schema()} that delegates
+     * to {@link #attributes()} for backward compatibility.
+     * <p>
+     * Implementations should override either this method or {@link #attributes()}.
+     */
+    @Override
+    default List<Attribute> schema() {
+        // This will be overridden by implementations
+        throw new UnsupportedOperationException("Implementation must override either schema() or attributes()");
+    }
 }

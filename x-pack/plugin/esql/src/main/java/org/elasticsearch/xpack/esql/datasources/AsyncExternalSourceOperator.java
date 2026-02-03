@@ -84,7 +84,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
     @Override
     public Status status() {
-        return new Status(buffer.size(), pagesEmitted, rowsEmitted, buffer.getFailure());
+        return new Status(buffer.size(), pagesEmitted, rowsEmitted, buffer.failure());
     }
 
     public static class Status implements Operator.Status {

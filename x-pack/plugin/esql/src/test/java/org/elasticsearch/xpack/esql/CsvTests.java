@@ -816,7 +816,8 @@ public class CsvTests extends ESTestCase {
             mock(EnrichLookupService.class),
             mock(LookupFromIndexService.class),
             mock(InferenceService.class),
-            physicalOperationProviders
+            physicalOperationProviders,
+            null  // OperatorFactoryRegistry - not needed for CSV tests
         );
 
         List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());

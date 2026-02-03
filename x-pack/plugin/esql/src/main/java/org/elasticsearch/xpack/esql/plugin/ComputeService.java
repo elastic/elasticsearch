@@ -667,7 +667,8 @@ public class ComputeService {
                 enrichLookupService,
                 lookupFromIndexService,
                 inferenceService,
-                physicalOperationProviders
+                physicalOperationProviders,
+                null  // OperatorFactoryRegistry - not yet wired up
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);

@@ -356,6 +356,20 @@ POST /_query
 ```
 % TEST[setup:library]
 
+When using named parameters in math expressions against `NOW()`, you must first convert 
+to its [time span](https://www.elastic.co/docs/reference/query-languages/esql/esql-time-spans) 
+value using `TO_DATEPERIOD` or `TO_TIMEDURATION`.
+
+```console
+POST /_query
+{
+  "query": """
+    FROM library | WHERE created_date >= NOW() - TO_DATEPERIOD(?duration)
+  """,
+  "params": [{"duration" : "5 days"}]
+}
+```
+
 Positional parameters use question mark placeholders (`?`) followed by an integer.
 
 ```console

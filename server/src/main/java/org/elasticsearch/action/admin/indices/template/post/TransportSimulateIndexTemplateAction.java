@@ -328,7 +328,7 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
                 xContentRegistry,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
-                tempIndexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
+                tempIndexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap(), null, null),
                 IndexService.dateMathExpressionResolverAt(),
                 systemIndices::isSystemName
             )

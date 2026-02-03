@@ -1,3 +1,4 @@
+#!/bin/bash
 #
 # Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
 # or more contributor license agreements. Licensed under the Elastic License
@@ -7,7 +8,6 @@
 # Run-time script: container entrypoint. Waits for override.properties (written
 # by the test via copyFileToContainer after the container starts), then starts Tomcat.
 
-#!/bin/bash
 set -e
 
 until [ -f /config/c2id/override.properties ]; do

@@ -133,6 +133,11 @@ final class LongArrayVector extends AbstractVector implements LongVector {
     }
 
     @Override
+    public long[] backingLongArray() {
+        return values;
+    }
+
+    @Override
     public long ramBytesUsed() {
         return ramBytesEstimated(values);
     }

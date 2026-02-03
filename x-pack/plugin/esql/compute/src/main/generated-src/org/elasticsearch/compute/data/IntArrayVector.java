@@ -173,6 +173,11 @@ final class IntArrayVector extends AbstractVector implements IntVector {
     }
 
     @Override
+    public int[] backingIntArray() {
+        return values;
+    }
+
+    @Override
     public long ramBytesUsed() {
         return ramBytesEstimated(values);
     }

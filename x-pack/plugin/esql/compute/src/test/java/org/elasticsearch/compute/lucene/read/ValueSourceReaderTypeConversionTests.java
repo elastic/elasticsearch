@@ -243,6 +243,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 return loaderAndConverter;
             })),
             new IndexedByShardIdFromList<>(shardContexts),
+            randomBoolean(),
             0
         );
     }
@@ -280,8 +281,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
 
     private void initMapping(String indexKey) throws IOException {
         TestIndexMappingConfig indexMappingConfig = INDICES.get(indexKey);
-        mapperServices.put(indexKey, new MapperServiceTestCase() {
-        }.createMapperService(MapperServiceTestCase.mapping(b -> {
+        mapperServices.put(indexKey, new MapperServiceTestCase() {}.createMapperService(MapperServiceTestCase.mapping(b -> {
             fieldExamples(b, "key", "integer"); // unique key per-index to use for looking up test values to compare to
             fieldExamples(b, "indexKey", "keyword");  // index name (can be used to choose index-specific test values)
             fieldExamples(b, "int", "integer");
@@ -495,6 +495,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 ByteSizeValue.ofGb(1),
                 List.of(testCase.info, fieldInfo(mapperService(indexKey).fieldType("key"), ElementType.INT)),
                 new IndexedByShardIdFromList<>(shardContexts),
+                randomBoolean(),
                 0
             ).get(driverContext)
         );
@@ -569,6 +570,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     fieldInfo(mapperService("index1").fieldType("indexKey"), ElementType.BYTES_REF)
                 ),
                 new IndexedByShardIdFromList<>(shardContexts),
+                randomBoolean(),
                 0
             ).get(driverContext)
         );
@@ -582,6 +584,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     ByteSizeValue.ofGb(1),
                     b.stream().map(i -> i.info).toList(),
                     new IndexedByShardIdFromList<>(shardContexts),
+                    randomBoolean(),
                     0
                 ).get(driverContext)
             );
@@ -692,6 +695,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     ByteSizeValue.ofGb(1),
                     List.of(i.info),
                     new IndexedByShardIdFromList<>(shardContexts),
+                    randomBoolean(),
                     0
                 ).get(driverContext)
             )
@@ -1242,8 +1246,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
 
     public void testWithNulls() throws IOException {
         String indexKey = "index1";
-        mapperServices.put(indexKey, new MapperServiceTestCase() {
-        }.createMapperService(MapperServiceTestCase.mapping(b -> {
+        mapperServices.put(indexKey, new MapperServiceTestCase() {}.createMapperService(MapperServiceTestCase.mapping(b -> {
             fieldExamples(b, "i", "integer");
             fieldExamples(b, "j", "long");
             fieldExamples(b, "d", "double");
@@ -1382,6 +1385,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                             )
                         ),
                         new IndexedByShardIdFromList<>(shardContexts),
+                        randomBoolean(),
                         0
                     ).get(driverContext)
                 ),
@@ -1416,6 +1420,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             new IndexedByShardIdFromSingleton<>(
                 new ValuesSourceReaderOperator.ShardContext(reader(indexKey), (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE, 0.2)
             ),
+            randomBoolean(),
             0
         );
         assertThat(factory.describe(), equalTo("ValuesSourceReaderOperator[fields = [" + cases.size() + " fields]]"));
@@ -1466,6 +1471,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     return ValuesSourceReaderOperator.load(ft.blockLoader(blContext()));
                 })),
                 new IndexedByShardIdFromList<>(readerShardContexts),
+                randomBoolean(),
                 0
             );
             DriverContext driverContext = driverContext();

@@ -715,7 +715,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * @return the shard-level search statistics, or {@code null} if none are set
      */
     @Nullable
-    public ShardSearchStats shardSearchStats() {
+    public ShardSearchStats stats() {
         return shardSearchStats;
     }
 }

@@ -190,8 +190,9 @@ public class Cache<K, V> {
         Map<K, CompletableFuture<Entry<K, V>>> map;
 
         /**
-         * get an entry from the segment with cancellation support; expired entries will be returned as null but not removed from the cache until the LRU list is
-         * pruned or a manual {@link Cache#refresh()} is performed however a caller can take action using the provided callback
+         * get an entry from the segment with cancellation support; expired entries will be returned as null but not removed from the
+         * cache until the LRU list is pruned or a manual {@link Cache#refresh()} is performed however a caller can take action using
+         * the provided callback
          *
          * @param key                   the key of the entry to get from the cache
          * @param now                   the access time of this entry

@@ -73,8 +73,6 @@ Search:
 Snapshot/Restore:
 * Fix race condition in `CancellableRateLimitedFluxIterator` [#141323](https://github.com/elastic/elasticsearch/pull/141323)
 
-
-
 ## 9.1.10 [elasticsearch-9.1.10-release-notes]
 
 ### Features and enhancements [elasticsearch-9.1.10-features-enhancements]
@@ -166,14 +164,11 @@ Transform:
 * Reduce task match load [#139857](https://github.com/elastic/elasticsearch/pull/139857) (issue: [#139252](https://github.com/elastic/elasticsearch/issues/139252))
 
 
-
 ## 9.1.9 [elasticsearch-9.1.9-release-notes]
 
 ### Features and enhancements [elasticsearch-9.1.9-features-enhancements]
-
 Infra/Core:
 * Bump lz4 dependency [#138806](https://github.com/elastic/elasticsearch/pull/138806)
-
 Infra/Logging:
 * Upgrade ECS logging layout [#138854](https://github.com/elastic/elasticsearch/pull/138854)
 
@@ -207,7 +202,6 @@ Infra/Core:
 
 Ingest Node:
 * Handle individual doc parsing failure in bulk request with pipeline [#138624](https://github.com/elastic/elasticsearch/pull/138624) (issue: [#138445](https://github.com/elastic/elasticsearch/issues/138445))
-
 Machine Learning:
 * Correctly handle empty inputs in `chunkedInfer()` [#138632](https://github.com/elastic/elasticsearch/pull/138632)
 
@@ -219,7 +213,6 @@ Security:
 
 Stats:
 * Improving performance of stats APIs when the number of shards is very large [#138126](https://github.com/elastic/elasticsearch/pull/138126) (issue: [#97222](https://github.com/elastic/elasticsearch/issues/97222))
-
 
 
 ## 9.2.3 [elasticsearch-9.2.3-release-notes]
@@ -282,7 +275,6 @@ Stats:
 
 Vector Search:
 * Disallow index types updates to bbq_disk, revert [#139061](https://github.com/elastic/elasticsearch/pull/139061)
-
 
 
 ## 9.2.2 [elasticsearch-9.2.2-release-notes]

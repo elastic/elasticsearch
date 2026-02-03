@@ -511,13 +511,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
             List<Index> indicesEligibleForAction;
             if (action.appliesToFailureStore()) {
-                indicesEligibleForAction = dataStream.getIndicesPastRetention(
+                indicesEligibleForAction = dataStream.getIndicesOlderThan(
                     indexName -> projectState.metadata().index(indexName),
                     nowSupplier,
                     actionSchedule
                 );
             } else {
-                indicesEligibleForAction = dataStream.getIndicesPastRetention(
+                indicesEligibleForAction = dataStream.getIndicesOlderThan(
                     indexName -> projectState.metadata().index(indexName),
                     nowSupplier,
                     actionSchedule,
@@ -1099,18 +1099,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         if (dataRetention == null && failureRetention == null) {
             return Set.of();
         }
-        List<Index> backingIndicesOlderThanRetention = dataStream.getIndicesPastRetention(
-            project::index,
-            nowSupplier,
-            dataRetention,
-            false
-        );
-        List<Index> failureIndicesOlderThanRetention = dataStream.getIndicesPastRetention(
-            project::index,
-            nowSupplier,
-            failureRetention,
-            true
-        );
+        List<Index> backingIndicesOlderThanRetention = dataStream.getIndicesOlderThan(project::index, nowSupplier, dataRetention, false);
+        List<Index> failureIndicesOlderThanRetention = dataStream.getIndicesOlderThan(project::index, nowSupplier, failureRetention, true);
         if (backingIndicesOlderThanRetention.isEmpty() && failureIndicesOlderThanRetention.isEmpty()) {
             return Set.of();
         }

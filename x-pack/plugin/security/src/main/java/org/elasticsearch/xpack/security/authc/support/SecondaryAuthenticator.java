@@ -145,7 +145,7 @@ public class SecondaryAuthenticator {
                 UsernamePasswordToken.BASIC_AUTH_HEADER
             );
             threadContext.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, header);
-            
+
             if (false == additionalHeaders.isEmpty()) {
                 threadContext.putHeader(additionalHeaders);
             }

@@ -297,6 +297,20 @@ s:keyword | ip:ip
 // end::to_ip_leading_zeros_octal-result[]
 ;
 
+// https://github.com/elastic/elasticsearch/issues/141627
+convertFromStringInvalidLeadingZeros141627
+required_capability: to_ip_leading_zeros
+ROW 
+  input = "192.400.168.1"
+| EVAL octal = TO_IP(input, {"leading_zeros":"octal"})
+| EVAL decimal = TO_IP(input, {"leading_zeros":"decimal"})
+| EVAL reject = TO_IP(input, {"leading_zeros":"reject"})
+;
+
+input:keyword | octal:ip | decimal:ip | reject:ip
+192.400.168.1 | null	 | null       | null
+;
+
 convertFromStringFancy
 required_capability: to_ip_leading_zeros
 FROM logs

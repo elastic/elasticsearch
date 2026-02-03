@@ -130,10 +130,10 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
         if (limit instanceof Literal litLimit && litLimit.dataType() == INTEGER) {
             int limitValue = (Integer) litLimit.value();
             if (limitValue < 1) {
-                failures.add(fail(this, "MMR limit must be an positive integer"));
+                failures.add(fail(this, "MMR limit must be a positive integer"));
             }
         } else {
-            failures.add(fail(this, "MMR limit must be an positive integer"));
+            failures.add(fail(this, "MMR limit must be a positive integer"));
         }
 
         // ensure query_vector, if given, is resolved to a DENSE_VECTOR type

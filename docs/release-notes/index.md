@@ -547,7 +547,58 @@ Vector Search:
 * Ensure we parse `on_disk_rescore` as its valid to pass false [#141158](https://github.com/elastic/elasticsearch/pull/141158)
 * Intercept filters to knn queries [#138457](https://github.com/elastic/elasticsearch/pull/138457) (issue: [#138410](https://github.com/elastic/elasticsearch/issues/138410))
 
+## 9.2.5 [elasticsearch-9.2.5-release-notes]
+```{applies_to}
+stack: ga 9.2.5
+```
 
+### Features and enhancements [elasticsearch-9.2.5-features-enhancements]
+
+ES|QL:
+* `BlockSourceReader` should always apply source filtering [#136438](https://github.com/elastic/elasticsearch/pull/136438)
+
+IdentityProvider:
+* Support `LimitedRole` in idp role resolution [#140536](https://github.com/elastic/elasticsearch/pull/140536)
+
+Inference:
+* Add `max_batch_size` setting to EIS dense and sparse service settings [#141185](https://github.com/elastic/elasticsearch/pull/141185)
+
+Snapshot/Restore:
+* Retry bulk-delete items in GCS [#138951](https://github.com/elastic/elasticsearch/pull/138951) (issue: [#138364](https://github.com/elastic/elasticsearch/issues/138364))
+
+
+### Fixes [elasticsearch-9.2.5-fixes]
+
+Allocation:
+* Handle deleted source index in allocation deciders [#140699](https://github.com/elastic/elasticsearch/pull/140699) (issue: [#140630](https://github.com/elastic/elasticsearch/issues/140630))
+
+EQL:
+* Fix `_index` on missing events in CCS [#140886](https://github.com/elastic/elasticsearch/pull/140886)
+
+ES|QL:
+* Fix folding of case() function with date period and time duration [#141157](https://github.com/elastic/elasticsearch/pull/141157)
+* Use sub keyword block loader with `ignore_above` for text fields [#140622](https://github.com/elastic/elasticsearch/pull/140622)
+
+ILM:
+* Remove ILM-stopped-check before the cluster update in `migrateToDataTiersRouting` [#140892](https://github.com/elastic/elasticsearch/pull/140892) (issue: [#140885](https://github.com/elastic/elasticsearch/issues/140885))
+
+Inference:
+* [Inference API] Include rerank in supported tasks for IBM watsonx integration [#140331](https://github.com/elastic/elasticsearch/pull/140331) (issue: [#140328](https://github.com/elastic/elasticsearch/issues/140328))
+
+Machine Learning:
+* Disallow `max_number_of_allocations` > 1 for low priority model deployments [#140163](https://github.com/elastic/elasticsearch/pull/140163) (issue: [#111227](https://github.com/elastic/elasticsearch/issues/111227))
+
+Packaging:
+* Fix stderr leak in Docker ES process detection [#140701](https://github.com/elastic/elasticsearch/pull/140701)
+
+Reindex:
+* Disable `_delete_by_query` and `_update_by_query` for CCS/stateful [#140301](https://github.com/elastic/elasticsearch/pull/140301)
+
+Search:
+* Fix date fields sort formatting with missing values [#135899](https://github.com/elastic/elasticsearch/pull/135899) (issue: [#81960](https://github.com/elastic/elasticsearch/issues/81960))
+
+Snapshot/Restore:
+* Fix race condition in `CancellableRateLimitedFluxIterator` [#141323](https://github.com/elastic/elasticsearch/pull/141323)
 
 ## 9.1.10 [elasticsearch-9.1.10-release-notes]
 
@@ -640,14 +691,11 @@ Transform:
 * Reduce task match load [#139857](https://github.com/elastic/elasticsearch/pull/139857) (issue: [#139252](https://github.com/elastic/elasticsearch/issues/139252))
 
 
-
 ## 9.1.9 [elasticsearch-9.1.9-release-notes]
 
 ### Features and enhancements [elasticsearch-9.1.9-features-enhancements]
-
 Infra/Core:
 * Bump lz4 dependency [#138806](https://github.com/elastic/elasticsearch/pull/138806)
-
 Infra/Logging:
 * Upgrade ECS logging layout [#138854](https://github.com/elastic/elasticsearch/pull/138854)
 
@@ -681,7 +729,6 @@ Infra/Core:
 
 Ingest Node:
 * Handle individual doc parsing failure in bulk request with pipeline [#138624](https://github.com/elastic/elasticsearch/pull/138624) (issue: [#138445](https://github.com/elastic/elasticsearch/issues/138445))
-
 Machine Learning:
 * Correctly handle empty inputs in `chunkedInfer()` [#138632](https://github.com/elastic/elasticsearch/pull/138632)
 
@@ -693,7 +740,6 @@ Security:
 
 Stats:
 * Improving performance of stats APIs when the number of shards is very large [#138126](https://github.com/elastic/elasticsearch/pull/138126) (issue: [#97222](https://github.com/elastic/elasticsearch/issues/97222))
-
 
 
 ## 9.2.3 [elasticsearch-9.2.3-release-notes]
@@ -756,7 +802,6 @@ Stats:
 
 Vector Search:
 * Disallow index types updates to bbq_disk, revert [#139061](https://github.com/elastic/elasticsearch/pull/139061)
-
 
 
 ## 9.2.2 [elasticsearch-9.2.2-release-notes]
@@ -3595,5 +3640,3 @@ Vector Search:
 
 Watcher:
 * Watcher history index has too many indexed fields - [#117701](https://github.com/elastic/elasticsearch/pull/117701) (issue: [#71479](https://github.com/elastic/elasticsearch/issues/71479))
-
-

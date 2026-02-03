@@ -53,7 +53,7 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
         super(model, serviceSettings);
     }
 
-    // Should only be used directly for testing
+    // Should be used directly only for testing
     GoogleVertexAiRerankModel(
         String inferenceEntityId,
         TaskType taskType,
@@ -62,13 +62,13 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
         GoogleVertexAiRerankTaskSettings taskSettings,
         @Nullable GoogleVertexAiSecretSettings secrets
     ) {
-        super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
-            new ModelSecrets(secrets),
-            serviceSettings
-        );
+        this(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+    }
+
+    public GoogleVertexAiRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets, (GoogleVertexAiRerankServiceSettings) modelConfigurations.getServiceSettings());
         try {
-            this.nonStreamingUri = buildUri(serviceSettings.projectId());
+            this.nonStreamingUri = buildUri(((GoogleVertexAiRerankServiceSettings) modelConfigurations.getServiceSettings()).projectId());
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }

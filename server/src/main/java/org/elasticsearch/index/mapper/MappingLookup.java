@@ -70,6 +70,7 @@ public final class MappingLookup {
      * Creates a new {@link MappingLookup} instance by parsing the provided mapping and extracting its field definitions.
      *
      * @param mapping the mapping source
+     * @param indexMode the mode of the index
      * @return the newly created lookup instance
      */
     public static MappingLookup fromMapping(Mapping mapping, IndexMode indexMode) {

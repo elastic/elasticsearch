@@ -271,11 +271,6 @@ public class TransformIndexerStateTests extends ESTestCase {
         }
 
         @Override
-        void prepareCrossProjectSearch(ActionListener<Void> listener) {
-            listener.onResponse(null);
-        }
-
-        @Override
         protected void onFinish(ActionListener<Void> listener) {
             try {
                 super.onFinish(listener);

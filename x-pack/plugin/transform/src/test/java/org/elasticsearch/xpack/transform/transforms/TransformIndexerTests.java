@@ -294,11 +294,6 @@ public class TransformIndexerTests extends ESTestCase {
             listener.onResponse(null);
         }
 
-        @Override
-        void prepareCrossProjectSearch(ActionListener<Void> listener) {
-            listener.onResponse(null);
-        }
-
         public void addAfterFinishOrFailureLatch() {
             afterFinishOrFailureLatch = new CountDownLatch(1);
         }

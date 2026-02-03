@@ -133,6 +133,14 @@ public class FlattenedFieldMatcher implements FieldSpecificMatcher {
         }
 
         @Override
+        public MatchResult match() {
+            var actual = SourceTransforms.normalize(this.actual, mappingLookup);
+            var expected = SourceTransforms.normalize(this.expected, mappingLookup);
+
+            return compareSource(actual, expected);
+        }
+
+        @Override
         protected MatchResult matchWithFieldSpecificMatcher(String fieldName, List<Object> actualValues, List<Object> expectedValues) {
             var expectedNormalized = normalize(expectedValues);
             var actualNormalized = normalize(actualValues);

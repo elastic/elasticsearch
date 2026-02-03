@@ -227,6 +227,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         return p;
     }
 
+    // TODO: see ResolveUnmapped#patchFork comment
     private static LogicalPlan pruneColumnsInFork(Fork fork, AttributeSet.Builder used) {
 
         // exit early for UnionAll

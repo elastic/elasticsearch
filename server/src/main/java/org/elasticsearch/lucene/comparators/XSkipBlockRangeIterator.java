@@ -13,10 +13,17 @@ import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.search.AbstractDocIdSetIterator;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.index.IndexVersion;
 
 import java.io.IOException;
 
 public class XSkipBlockRangeIterator extends AbstractDocIdSetIterator {
+
+    static {
+        if (IndexVersion.current().luceneVersion().onOrAfter(org.apache.lucene.util.Version.fromBits(10, 4, 0))) {
+            throw new IllegalStateException("Remove this class after upgrading to lucene 10.4");
+        }
+    }
 
     private final DocValuesSkipper skipper;
     private final long minValue;
@@ -65,8 +72,7 @@ public class XSkipBlockRangeIterator extends AbstractDocIdSetIterator {
     public int docIDRunEnd() throws IOException {
         int maxDoc = skipper.maxDocID(0);
         int nextLevel = 1;
-        while (nextLevel < skipper.numLevels() && skipper.minValue(nextLevel) < maxValue
-            && skipper.maxValue(nextLevel) > minValue) {
+        while (nextLevel < skipper.numLevels() && skipper.minValue(nextLevel) < maxValue && skipper.maxValue(nextLevel) > minValue) {
             maxDoc = skipper.maxDocID(nextLevel);
             nextLevel++;
         }

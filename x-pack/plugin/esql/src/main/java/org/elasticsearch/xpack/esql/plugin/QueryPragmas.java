@@ -224,6 +224,20 @@ public final class QueryPragmas implements Writeable {
         return FORK_IMPLICIT_LIMIT.get(settings);
     }
 
+    public int partialAggregationEmitKeysThreshold(int defaultThreshold) {
+        if (settings.hasValue(PlannerSettings.PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getKey())) {
+            return PlannerSettings.PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.get(settings);
+        }
+        return defaultThreshold;
+    }
+
+    public double partialAggregationEmitUniquenessThreshold(double defaultThreshold) {
+        if (settings.hasValue(PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getKey())) {
+            return PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.get(settings);
+        }
+        return defaultThreshold;
+    }
+
     public boolean isEmpty() {
         return settings.isEmpty();
     }

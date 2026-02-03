@@ -235,8 +235,9 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
 
     /**
      * Decodes an encoded string (hex or base64) to VectorData based on the element type and dimensions.
-     * Hex encoding is only supported for BYTE and BIT element types.
      * Base64 encoding is supported for all element types with proper byte interpretation.
+     * Hex encoding produces byte vectors and is supported for BYTE and BIT element types, and for FLOAT/BFLOAT16
+     * when the decoded byte length matches the expected dimensions.
      *
      * @param encoded the encoded vector string
      * @param elementType the element type (BYTE, FLOAT, BFLOAT16, BIT)
@@ -245,29 +246,25 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
      * @throws IllegalArgumentException if the string cannot be decoded or doesn't match expected dimensions
      */
     public static VectorData decodeQueryVector(String encoded, ElementType elementType, int dims) {
-        // For FLOAT/BFLOAT16, only try base64
-        if (elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16) {
-            byte[] base64Bytes = tryParseBase64(encoded);
-            if (base64Bytes == null) {
-                throw invalidEncodedVector();
-            }
-            if (matchesExpectedBase64Length(base64Bytes.length, elementType, dims)) {
-                return decodeBase64Vector(base64Bytes, elementType, dims);
-            }
-            throw invalidBase64Length(base64Bytes.length, elementType);
+        byte[] hexBytes = tryParseHex(encoded);
+
+        // Prefer hex if it matches expected dimensions (hex always produces byte[])
+        if (hexBytes != null && hexBytes.length == dims) {
+            return VectorData.fromBytes(hexBytes);
         }
 
-        // For BIT/BYTE: try hex first, only fall back to base64 if hex fails or doesn't match
-        byte[] hexBytes = tryParseHex(encoded);
-        if (hexBytes != null) {
-            int expectedHexLen = elementType == ElementType.BIT ? dims / Byte.SIZE : dims;
-            if (hexBytes.length == expectedHexLen) {
-                return VectorData.fromBytes(hexBytes);
-            }
-            // Hex parsed but wrong length - try base64 before falling back
+        // For BIT element type, check hex with bit dimensions
+        if (elementType == ElementType.BIT && hexBytes != null && hexBytes.length == dims / Byte.SIZE) {
+            return VectorData.fromBytes(hexBytes);
         }
 
         byte[] base64Bytes = tryParseBase64(encoded);
+
+        if (hexBytes == null && base64Bytes == null) {
+            throw invalidEncodedVector();
+        }
+
+        // Try base64 if it matches expected dimensions for the element type
         if (base64Bytes != null && matchesExpectedBase64Length(base64Bytes.length, elementType, dims)) {
             return decodeBase64Vector(base64Bytes, elementType, dims);
         }
@@ -277,9 +274,7 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
             return VectorData.fromBytes(hexBytes);
         }
 
-        if (base64Bytes == null) {
-            throw invalidEncodedVector();
-        }
+        // base64 was parsed but doesn't match dimensions
         throw invalidBase64Length(base64Bytes.length, elementType);
     }
 

@@ -26,6 +26,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HexFormat;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -160,6 +161,62 @@ public class VectorDataTests extends ESTestCase {
         }
     }
 
+    public void testParseHexByteVectorForFloatField() throws IOException {
+        float[] expected = new float[] { 64f, 10f, -30f };
+        String toParse = "\"400ae2\"";
+        try (
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                XContentParserConfiguration.EMPTY,
+                new BytesArray(toParse),
+                XContentType.JSON
+            )
+        ) {
+            parser.nextToken();
+            VectorData parsed = VectorData.parseXContent(parser);
+            DenseVectorFieldType fieldType = new DenseVectorFieldType(
+                "f",
+                IndexVersion.current(),
+                ElementType.FLOAT,
+                expected.length,
+                false,
+                VectorSimilarity.L2_NORM,
+                null,
+                Collections.emptyMap(),
+                false
+            );
+            VectorData resolved = fieldType.resolveQueryVector(parsed);
+            assertArrayEquals(expected, resolved.asFloatVector(), DELTA);
+        }
+    }
+
+    public void testParseHexFloatBytesRejectedForFloatField() throws IOException {
+        float[] floats = new float[] { 1.0f, 2.0f, 3.0f };
+        String toParse = "\"" + encodeToHexBytes(floats) + "\"";
+        try (
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                XContentParserConfiguration.EMPTY,
+                new BytesArray(toParse),
+                XContentType.JSON
+            )
+        ) {
+            parser.nextToken();
+            VectorData parsed = VectorData.parseXContent(parser);
+            DenseVectorFieldType fieldType = new DenseVectorFieldType(
+                "f",
+                IndexVersion.current(),
+                ElementType.FLOAT,
+                floats.length,
+                false,
+                VectorSimilarity.L2_NORM,
+                null,
+                Collections.emptyMap(),
+                false
+            );
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> fieldType.resolveQueryVector(parsed));
+            assertThat(ex.getMessage(), containsString("different number of dimensions"));
+        }
+    }
+
     public void testParseBase64InvalidEncoding() throws IOException {
         String toParse = "\"not-valid-base64!!!\"";
         try (
@@ -288,5 +345,13 @@ public class VectorDataTests extends ESTestCase {
             buffer.putFloat(value);
         }
         return Base64.getEncoder().encodeToString(buffer.array());
+    }
+
+    private static String encodeToHexBytes(float[] vector) {
+        ByteBuffer buffer = ByteBuffer.allocate(vector.length * Float.BYTES).order(ByteOrder.BIG_ENDIAN);
+        for (float value : vector) {
+            buffer.putFloat(value);
+        }
+        return HexFormat.of().formatHex(buffer.array());
     }
 }

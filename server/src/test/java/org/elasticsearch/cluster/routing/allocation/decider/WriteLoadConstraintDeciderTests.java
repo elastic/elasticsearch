@@ -351,8 +351,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             movedShards.addAll(routingNode.shardsWithState(ShardRoutingState.INITIALIZING).collect(Collectors.toSet()));
         }
         movedShards.forEach(shardRouting -> {
-            routingAllocation.routingNodes().startShard(shardRouting, new RoutingChangesObserver() {
-            }, randomNonNegativeLong());
+            routingAllocation.routingNodes().startShard(shardRouting, new RoutingChangesObserver() {}, randomNonNegativeLong());
             clusterInfoSimulator.simulateShardStarted(shardRouting);
         });
 

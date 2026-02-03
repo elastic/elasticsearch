@@ -44,4 +44,14 @@ public interface DlmAction {
      */
     List<DlmStep> steps();
 
+    /**
+     * Indicates whether this action applies to the failure store.
+     * By default, actions do not apply to the failure store.
+     *
+     * @return true if the action applies to the failure store, false otherwise.
+     */
+    default boolean appliesToFailureStore() {
+        return false;
+    }
+
 }

@@ -201,8 +201,8 @@ public abstract class GoldenTestCase extends ESTestCase {
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
             var statement = EsqlParser.INSTANCE.createStatement(esqlQuery);
             var parsedPlan = statement.plan();
-            Files.createDirectories(PathUtils.get(basePath.toString(), testName));
-            Files.writeString(PathUtils.get(basePath.toString(), testName, "query.esql"), esqlQuery);
+            Files.createDirectories(PathUtils.get(basePath.toString(), pathArray(0)));
+            Files.writeString(outputPath("query.esql"), esqlQuery);
             var analyzer = new Analyzer(
                 new AnalyzerContext(
                     EsqlTestUtils.TEST_CFG,
@@ -303,6 +303,14 @@ public abstract class GoldenTestCase extends ESTestCase {
             return result;
         }
 
+        // FIXME(gal, NOCOMMIT) Not a fan of this signature
+        private String[] pathArray(int extraElements) {
+            var paths = new String[nestedPath.length + 1 + extraElements];
+            paths[0] = testName;
+            System.arraycopy(nestedPath, 0, paths, 1, nestedPath.length);
+            return paths;
+        }
+
         private enum TestResult {
             SUCCESS,
             FAILURE,
@@ -335,7 +343,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         }
 
         private <T extends QueryPlan<T>> TestResult verifyOrWrite(T plan, Stage stage) throws IOException {
-            return verifyOrWrite(plan, outputPath(stage));
+            return verifyOrWrite(plan, stageOutputPath(stage));
         }
 
         private <T extends QueryPlan<T>> TestResult verifyOrWrite(T plan, Path outputFile) throws IOException {
@@ -352,15 +360,17 @@ public abstract class GoldenTestCase extends ESTestCase {
             }
         }
 
-        private Path outputPath(Stage stage) {
-            return outputPath(((SingleFileOutput) stage.fileOutput).output());
+        private Path stageOutputPath(Stage stage) {
+            return stageOutputPath(((SingleFileOutput) stage.fileOutput).output());
         }
 
-        private Path outputPath(String stageName) {
-            var paths = new String[nestedPath.length + 2];
-            paths[0] = testName;
-            System.arraycopy(nestedPath, 0, paths, 1, nestedPath.length);
-            paths[paths.length - 1] = Strings.format("%s.expected", stageName);
+        private Path stageOutputPath(String stageName) {
+            return outputPath(stageName + ".expected");
+        }
+
+        private Path outputPath(String fileName) {
+            var paths = pathArray(1);
+            paths[paths.length - 1] = fileName;
             return PathUtils.get(basePath.toString(), paths);
         }
 

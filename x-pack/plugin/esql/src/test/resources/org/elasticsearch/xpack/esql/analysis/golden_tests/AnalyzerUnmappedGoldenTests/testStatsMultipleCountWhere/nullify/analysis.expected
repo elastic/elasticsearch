@@ -1,5 +1,5 @@
 Limit[1000[INTEGER],false,false]
 \_Aggregate[[],[FilteredExpression[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]),TOLONG(does_not_exist1{r}#0) > 0[INTEGER] OR emp_no{f}#1
-485 > 0[INTEGER] OR TOLONG(does_not_exist2{r}#2) < 100[INTEGER]] AS c1#3, FilteredExpression[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]),ISNULL(does_not_exist3{r}#4)] AS c2#5]]
+7 > 0[INTEGER] OR TOLONG(does_not_exist2{r}#2) < 100[INTEGER]] AS c1#3, FilteredExpression[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]),ISNULL(does_not_exist3{r}#4)] AS c2#5]]
   \_Eval[[null[NULL] AS does_not_exist1#0, null[NULL] AS does_not_exist2#2, null[NULL] AS does_not_exist3#4]]
     \_EsRelation[employees][avg_worked_seconds{f}#6, birth_date{f}#7, emp_no{f}#8, first_name{f}#9, gender{f}#10, height{f}#11, height.float{f}#12, height.half_float{f}#13, height.scaled_float{f}#14, hire_date{f}#15, is_rehired{f}#16, job_positions{f}#17, languages{f}#18, languages.byte{f}#19, languages.long{f}#20, languages.short{f}#21, last_name{f}#22, salary{f}#23, salary_change{f}#24, salary_change.int{f}#25, salary_change.keyword{f}#26, salary_change.long{f}#27, still_hired{f}#28]

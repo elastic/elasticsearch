@@ -22,6 +22,6 @@ public class SpatialCentroidAggregationIT extends SpatialCentroidAggregationTest
 
     @Override
     public void testStCentroidAggregationWithShapes() {
-        assertStCentroidFromIndex("index_geo_shape");
+        assertStCentroidFromIndex("index_geo_shape", 1e-9);
     }
 }

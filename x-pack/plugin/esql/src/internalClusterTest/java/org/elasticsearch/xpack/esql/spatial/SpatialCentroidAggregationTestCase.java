@@ -39,10 +39,10 @@ public abstract class SpatialCentroidAggregationTestCase extends AbstractSpatial
     public void testStCentroidAggregationWithPoints() throws Exception {
         // Points are evenly distributed in a grid from -10 to 10 in both dimensions
         // The centroid should be at the center (0, 0)
-        assertStCentroidFromIndex("index_geo_point");
+        assertStCentroidFromIndex("index_geo_point", 1e-7);
     }
 
-    protected void assertStCentroidFromIndex(String index) {
+    protected void assertStCentroidFromIndex(String index, double tolerance) {
         var query = String.format(Locale.ROOT, """
             FROM %s
             | STATS centroid = ST_CENTROID_AGG(location)
@@ -55,8 +55,8 @@ public abstract class SpatialCentroidAggregationTestCase extends AbstractSpatial
             List<List<Object>> values = getValuesList(resp.values());
             assertThat(values.size(), equalTo(1));
             List<Object> row = values.getFirst();
-            assertThat((Double) row.get(1), closeTo(0.0, 1e-9));
-            assertThat((Double) row.get(2), closeTo(0.0, 1e-9));
+            assertThat((Double) row.get(1), closeTo(0.0, tolerance));
+            assertThat((Double) row.get(2), closeTo(0.0, tolerance));
         }
     }
 

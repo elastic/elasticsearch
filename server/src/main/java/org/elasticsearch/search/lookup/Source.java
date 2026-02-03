@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -80,7 +81,7 @@ public interface Source {
      */
     default Source withMutations(java.util.function.Consumer<Map<String, Object>> mutator) {
         Map<String, Object> sourceMap = source();
-        Map<String, Object> mutableMap = sourceMap == null ? new java.util.LinkedHashMap<>() : new java.util.LinkedHashMap<>(sourceMap);
+        Map<String, Object> mutableMap = sourceMap == null ? new HashMap<>() : new HashMap<>(sourceMap);
         mutator.accept(mutableMap);
         return Source.fromMap(mutableMap, sourceContentType());
     }

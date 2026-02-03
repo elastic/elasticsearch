@@ -24,10 +24,10 @@ import static java.util.Objects.requireNonNull;
  * Note: currently decorators are not applied in any particular order.
  */
 public interface TemplateDecoratorProvider extends Supplier<Template.TemplateDecorator> {
-    AtomicReference<Template.TemplateDecorator> TEMPLATE_DECORATOR = new AtomicReference<>();
+    InstanceHolder TEMPLATE_DECORATOR = new InstanceHolder();
 
     static Template.TemplateDecorator getInstance() {
-        return requireNonNull(TEMPLATE_DECORATOR.get(), "TemplateDecoratorProvider not initialized");
+        return requireNonNull(TEMPLATE_DECORATOR.instance.get(), "TemplateDecoratorProvider not initialized");
     }
 
     static void initOnce(List<? extends TemplateDecoratorProvider> providers) {
@@ -56,8 +56,16 @@ public interface TemplateDecoratorProvider extends Supplier<Template.TemplateDec
                 }
             };
         };
-        if (TEMPLATE_DECORATOR.compareAndSet(null, decorator) == false) {
+        if (TEMPLATE_DECORATOR.instance.compareAndSet(null, decorator) == false) {
             LogManager.getLogger(TemplateDecoratorProvider.class).warn("TemplateDecoratorProvider already initialized");
+        }
+    }
+
+    class InstanceHolder {
+        private AtomicReference<Template.TemplateDecorator> instance = new AtomicReference<>();
+
+        Template.TemplateDecorator getAndSet(Template.TemplateDecorator decorator) {
+            return instance.getAndSet(decorator);
         }
     }
 }

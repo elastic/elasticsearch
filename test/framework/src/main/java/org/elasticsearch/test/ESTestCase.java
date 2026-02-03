@@ -65,6 +65,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.TemplateDecoratorProvider;
+import org.elasticsearch.cluster.metadata.TemplateDecoratorRule;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -529,6 +530,9 @@ public abstract class ESTestCase extends LuceneTestCase {
     @ClassRule
     public static final TestEntitlementsRule TEST_ENTITLEMENTS = new TestEntitlementsRule();
 
+    @ClassRule
+    public static final TemplateDecoratorRule TEMPLATE_DECORATOR_RULE = TemplateDecoratorRule.initDefault();
+
     // setup mock filesystems for this test run. we change PathUtils
     // so that all accesses are plumbed thru any mock wrappers
 
@@ -600,12 +604,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @BeforeClass
     public static void initTemplateDecoratorProvider() {
-        // the static nastiness makes this a major pain for testing
-        // there's no isolation between tests in the same JVM
-        // skip initialization if we're running internal cluster tests to allow initialization per local cluster
-        if (System.getProperty("tests.task", "").endsWith(":test")) {
-            TemplateDecoratorProvider.initOnce(List.of());
-        }
+        TemplateDecoratorProvider.initOnce(List.of()); // init with default noop decorator
     }
 
     @Before

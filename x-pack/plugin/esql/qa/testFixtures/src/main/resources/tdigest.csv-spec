@@ -68,7 +68,7 @@ instance-2       | 3380
 
 Count ungrouped (timeseries mode)
 required_capability: ts_command_v0
-required_capability: count_of_histogram_types
+required_capability: tdigest_time_series_metric
 
 TS tdigest_timeseries_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
@@ -84,7 +84,7 @@ cnt:long
 
 Count grouped (timeseries mode)
 required_capability: ts_command_v0
-required_capability: count_of_histogram_types
+required_capability: tdigest_time_series_metric
 
 TS tdigest_timeseries_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
@@ -142,7 +142,7 @@ cnt:long
 // -------------------------------------------------------------------------------
 
 Count of tdigest with no matching rows (time series mode)
-required_capability: tdigest_tech_preview
+required_capability: tdigest_time_series_metric
 required_capability: count_of_histogram_types
 
 TS tdigest_timeseries_index 

@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxRateLimitServiceSettings;
@@ -114,11 +113,6 @@ public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject impl
     @Override
     public String modelId() {
         return modelId;
-    }
-
-    @Override
-    public IbmWatsonxRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
-        return fromMap(serviceSettings, ConfigurationParseContext.PERSISTENT);
     }
 
     public String projectId() {

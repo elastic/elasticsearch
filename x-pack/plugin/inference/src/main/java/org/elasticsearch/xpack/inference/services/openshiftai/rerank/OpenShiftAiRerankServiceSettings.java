@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.openshiftai.rerank;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.openshiftai.OpenShiftAiServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -99,10 +98,5 @@ public class OpenShiftAiRerankServiceSettings extends OpenShiftAiServiceSettings
     @Override
     public int hashCode() {
         return Objects.hash(modelId, uri, rateLimitSettings);
-    }
-
-    @Override
-    public OpenShiftAiRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
-        return fromMap(serviceSettings, ConfigurationParseContext.PERSISTENT);
     }
 }

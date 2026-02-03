@@ -482,11 +482,6 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         public String modelId() {
             return model;
         }
-
-        @Override
-        public TestServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
-            return fromMap(serviceSettings);
-        }
     }
 
 }

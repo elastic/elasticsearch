@@ -307,13 +307,5 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
             );
             return new ApiServiceSettings(dimensions, dimensionsSetByUser != null && dimensionsSetByUser, similarity, elementType);
         }
-
-        @Override
-        public ApiServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
-            var validationException = new ValidationException();
-            var apiServiceSettings = fromMap(serviceSettings, validationException);
-            validationException.throwIfValidationErrorsExist();
-            return apiServiceSettings;
-        }
     }
 }

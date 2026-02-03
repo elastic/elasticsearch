@@ -129,14 +129,6 @@ public class ElasticInferenceServiceDenseEmbeddingsServiceSettings extends Filte
     }
 
     @Override
-    public ElasticInferenceServiceDenseTextEmbeddingsServiceSettings updateServiceSettings(
-        Map<String, Object> serviceSettings,
-        TaskType taskType
-    ) {
-        return fromMap(serviceSettings, ConfigurationParseContext.PERSISTENT);
-    }
-
-    @Override
     public RateLimitSettings rateLimitSettings() {
         return rateLimitSettings;
     }

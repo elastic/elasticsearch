@@ -16,7 +16,6 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.mistral.MistralService;
@@ -110,11 +109,6 @@ public class MistralEmbeddingsServiceSettings extends FilteredXContentObject imp
     @Override
     public String modelId() {
         return this.model;
-    }
-
-    @Override
-    public MistralEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
-        return fromMap(serviceSettings, ConfigurationParseContext.PERSISTENT);
     }
 
     @Override

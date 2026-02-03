@@ -183,14 +183,6 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
         }
 
         @Override
-        public ApiServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
-            var validationException = new ValidationException();
-            var apiServiceSettings = fromMap(serviceSettings, validationException);
-            validationException.throwIfValidationErrorsExist();
-            return apiServiceSettings;
-        }
-
-        @Override
         public SageMakerStoredServiceSchema updateModelWithEmbeddingDetails(Integer dimensions) {
             return new ApiServiceSettings(dimensions, false);
         }

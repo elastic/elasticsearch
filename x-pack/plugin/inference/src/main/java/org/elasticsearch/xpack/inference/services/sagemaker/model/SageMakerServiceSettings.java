@@ -85,13 +85,6 @@ public record SageMakerServiceSettings(
     }
 
     @Override
-    public SageMakerServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
-        // Creating a new SageMakerSchemas instance is acceptable here since this method is not called frequently.
-        // Receiving existing instance via parameter is not justified.
-        return fromMap(new SageMakerSchemas(), taskType, serviceSettings);
-    }
-
-    @Override
     public SimilarityMeasure similarity() {
         return apiServiceSettings.similarity();
     }

@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.mistral.MistralService;
@@ -93,11 +92,6 @@ public class MistralChatCompletionServiceSettings extends FilteredXContentObject
     @Override
     public String modelId() {
         return this.modelId;
-    }
-
-    @Override
-    public MistralChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
-        return fromMap(serviceSettings, ConfigurationParseContext.PERSISTENT);
     }
 
     public RateLimitSettings rateLimitSettings() {

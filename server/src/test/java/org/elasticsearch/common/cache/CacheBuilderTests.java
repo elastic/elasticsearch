@@ -13,6 +13,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class CacheBuilderTests extends ESTestCase {
 
@@ -26,7 +27,8 @@ public class CacheBuilderTests extends ESTestCase {
         assertThat(iae.getMessage(), containsString("expireAfterAccess <="));
         final TimeValue timeValue = randomPositiveTimeValue();
         Cache<Object, Object> cache = CacheBuilder.builder().setExpireAfterAccess(timeValue).build();
-        assertEquals(timeValue.getNanos(), cache.getExpireAfterAccessNanos());
+        assertThat("Type is LRUCache as test depends on it", cache, instanceOf(LRUCache.class));
+        assertEquals(timeValue.getNanos(), ((LRUCache<?, ?>) cache).getExpireAfterAccessNanos());
     }
 
     public void testSettingExpireAfterWrite() {
@@ -39,6 +41,7 @@ public class CacheBuilderTests extends ESTestCase {
         assertThat(iae.getMessage(), containsString("expireAfterWrite <="));
         final TimeValue timeValue = randomPositiveTimeValue();
         Cache<Object, Object> cache = CacheBuilder.builder().setExpireAfterWrite(timeValue).build();
-        assertEquals(timeValue.getNanos(), cache.getExpireAfterWriteNanos());
+        assertThat("Type is LRUCache as test depends on it", cache, instanceOf(LRUCache.class));
+        assertEquals(timeValue.getNanos(), ((LRUCache<?, ?>) cache).getExpireAfterWriteNanos());
     }
 }

@@ -73,12 +73,14 @@ public class RateDoubleGroupingAggregatorFunctionTests extends ComputeTestCase {
             }
         }
         // values, timestamps, slice, future_timestamps
+        AggregatorMode aggregatorMode = AggregatorMode.INITIAL;
         var aggregatorFactory = new RateDoubleGroupingAggregatorFunction.FunctionSupplier(false, false).groupingAggregatorFactory(
-            AggregatorMode.INITIAL,
+            aggregatorMode,
             List.of(1, 2, 3, 4)
         );
         final List<BlockHash.GroupSpec> groupSpecs = List.of(new BlockHash.GroupSpec(0, ElementType.INT));
         HashAggregationOperator hashAggregationOperator = new HashAggregationOperator(
+            aggregatorMode,
             List.of(aggregatorFactory),
             () -> BlockHash.build(groupSpecs, driverContext.blockFactory(), randomIntBetween(1, 1024), randomBoolean()),
             Integer.MAX_VALUE,

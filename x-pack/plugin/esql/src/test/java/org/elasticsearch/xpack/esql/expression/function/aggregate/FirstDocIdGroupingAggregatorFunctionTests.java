@@ -69,11 +69,13 @@ public class FirstDocIdGroupingAggregatorFunctionTests extends ComputeTestCase {
                 pages.add(new Page(docVector.asBlock(), groups.build().asBlock()));
             }
         }
+        AggregatorMode aggregatorMode = AggregatorMode.INITIAL;
         var aggregatorFactory = new FirstDocIdGroupingAggregatorFunction.FunctionSupplier().groupingAggregatorFactory(
-            AggregatorMode.INITIAL,
+            aggregatorMode,
             List.of(0)
         );
         HashAggregationOperator hashAggregationOperator = new HashAggregationOperator(
+            aggregatorMode,
             List.of(aggregatorFactory),
             () -> BlockHash.build(
                 List.of(new BlockHash.GroupSpec(1, ElementType.INT)),

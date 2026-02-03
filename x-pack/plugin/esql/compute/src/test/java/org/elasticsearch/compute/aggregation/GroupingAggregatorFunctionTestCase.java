@@ -960,6 +960,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
             };
 
             return new HashAggregationOperator(
+                aggregatorMode,
                 aggregators,
                 blockHashSupplier,
                 partialEmitKeysThreshold,

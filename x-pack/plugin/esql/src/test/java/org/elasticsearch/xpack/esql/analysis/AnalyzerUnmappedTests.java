@@ -63,7 +63,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
+// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class AnalyzerUnmappedTests extends ESTestCase {
 
     /*
@@ -168,7 +171,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
     /*
      * Limit[1000[INTEGER],false,false]
-     * \_EsqlProject[[does_not_exist_field1{r}#20, does_not_exist_field2{r}#22]]
+     * \_Project[[does_not_exist_field1{r}#20, does_not_exist_field2{r}#22]]
      *   \_Eval[[TOINTEGER(does_not_exist_field1{r}#20) + 42[INTEGER] AS x#5]]
      *     \_Eval[[null[NULL] AS does_not_exist_field1#20, null[NULL] AS does_not_exist_field2#22]]
      *       \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
@@ -225,7 +228,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      * Limit[1000[INTEGER],false,false]
      * \_Eval[[does_not_exist_field{r}#22 + 2[INTEGER] AS y#9]]
      *   \_Eval[[emp_no{f}#11 + 1[INTEGER] AS x#6]]
-     *     \_EsqlProject[[_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, gender{f}#13, hire_date{f}#18, job{f}#19, job.raw{f}#20,
+     *     \_Project[[_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, gender{f}#13, hire_date{f}#18, job{f}#19, job.raw{f}#20,
      *          languages{f}#14, last_name{f}#15, long_noidx{f}#21, salary{f}#16, does_not_exist_field{r}#22]]
      *       \_Eval[[null[NULL] AS does_not_exist_field#22]]
      *         \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
@@ -238,8 +241,24 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | EVAL y = does_not_exist_field + 2
             """));
 
+        // Top implicit limit 1000
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
+
+        // Eval for y = does_not_exist_field + 2
+        var evalY = as(limit.child(), Eval.class);
+        assertThat(evalY.fields(), hasSize(1));
+        assertThat(evalY.fields().get(0).name(), is("y"));
+
+        // The child is Eval for x = emp_no + 1
+        var evalX = as(evalY.child(), Eval.class);
+        assertThat(evalX.fields(), hasSize(1));
+        assertThat(evalX.fields().get(0).name(), is("x"));
+
+        // The child is Project with all fields plus does_not_exist_field
+        var esqlProject = as(evalX.child(), Project.class);
         assertThat(
-            Expressions.names(plan.output()),
+            Expressions.names(esqlProject.output()),
             is(
                 List.of(
                     "_meta_field",
@@ -253,53 +272,96 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                     "last_name",
                     "long_noidx",
                     "salary",
-                    "does_not_exist_field",
-                    "x",
-                    "y"
+                    "does_not_exist_field"
                 )
             )
         );
-        var limit = as(plan, Limit.class);
-        var evalY = as(limit.child(), Eval.class);
-        var evalX = as(evalY.child(), Eval.class);
-        var esqlProject = as(evalX.child(), Project.class);
+
+        // The child is Eval introducing does_not_exist_field as null
         var evalNull = as(esqlProject.child(), Eval.class);
-        var source = as(evalNull.child(), EsRelation.class);
-        // TODO: golden testing
+        assertThat(evalNull.fields(), hasSize(1));
+        var alias = as(evalNull.fields().get(0), Alias.class);
+        assertThat(alias.name(), is("does_not_exist_field"));
+        var lit = as(alias.child(), Literal.class);
+        assertThat(lit.dataType(), is(DataType.NULL));
+
+        // The child is EsRelation
+        var relation = as(evalNull.child(), EsRelation.class);
+        assertThat(relation.indexPattern(), is("test"));
     }
 
     /*
      * Limit[1000[INTEGER],false,false]
-     * \_Eval[[emp_does_not_exist_field{r}#23 + 2[INTEGER] AS y#9]]
-     *   \_Eval[[emp_no{f}#11 + 1[INTEGER] AS x#6]]
-     *     \_EsqlProject[[emp_no{f}#11, emp_does_not_exist_field{r}#23]]
+     * \_Eval[[emp_does_not_exist_field{r}#23 + 2[INTEGER] AS y#10]]
+     *   \_Eval[[emp_no{f}#12 + 1[INTEGER] AS x#7]]
+     *     \_Project[[emp_no{f}#12, _meta_field{f}#18, first_name{f}#13, gender{f}#14, hire_date{f}#19, job{f}#20, job.raw{f}#21,
+     *          languages{f}#15, last_name{f}#16, long_noidx{f}#22, salary{f}#17, emp_does_not_exist_field{r}#23]]
      *       \_Eval[[null[NULL] AS emp_does_not_exist_field#23]]
-     *         \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12,
+     *         \_EsRelation[test][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
      */
     public void testEvalAfterMatchingKeepWithWildcard() {
         var plan = analyzeStatement(setUnmappedNullify("""
             FROM test
-            | KEEP emp_*
+            | KEEP emp_no, *
             | EVAL x = emp_no + 1
             | EVAL y = emp_does_not_exist_field + 2
             """));
 
-        assertThat(Expressions.names(plan.output()), is(List.of("emp_no", "emp_does_not_exist_field", "x", "y")));
+        // Top implicit limit 1000
         var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
+
+        // Eval for y = emp_does_not_exist_field + 2
         var evalY = as(limit.child(), Eval.class);
+        assertThat(evalY.fields(), hasSize(1));
+        assertThat(evalY.fields().get(0).name(), is("y"));
+
+        // The child is Eval for x = emp_no + 1
         var evalX = as(evalY.child(), Eval.class);
+        assertThat(evalX.fields(), hasSize(1));
+        assertThat(evalX.fields().get(0).name(), is("x"));
+
+        // The child is Project with all fields plus emp_does_not_exist_field
         var esqlProject = as(evalX.child(), Project.class);
+        assertThat(
+            Expressions.names(esqlProject.output()),
+            is(
+                List.of(
+                    "emp_no",
+                    "_meta_field",
+                    "first_name",
+                    "gender",
+                    "hire_date",
+                    "job",
+                    "job.raw",
+                    "languages",
+                    "last_name",
+                    "long_noidx",
+                    "salary",
+                    "emp_does_not_exist_field"
+                )
+            )
+        );
+
+        // The child is Eval introducing emp_does_not_exist_field as null
         var evalNull = as(esqlProject.child(), Eval.class);
-        var source = as(evalNull.child(), EsRelation.class);
-        // TODO: golden testing
+        assertThat(evalNull.fields(), hasSize(1));
+        var alias = as(evalNull.fields().get(0), Alias.class);
+        assertThat(alias.name(), is("emp_does_not_exist_field"));
+        var lit = as(alias.child(), Literal.class);
+        assertThat(lit.dataType(), is(DataType.NULL));
+
+        // The child is EsRelation
+        var relation = as(evalNull.child(), EsRelation.class);
+        assertThat(relation.indexPattern(), is("test"));
     }
 
     /*
      * Limit[1000[INTEGER],false,false]
-     * \_EsqlProject[[_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, gender{f}#7, hire_date{f}#12, job{f}#13, job.raw{f}#14,
-     *      languages{f}#8, last_name{f}#9, long_noidx{f}#15, salary{f}#10]]
-     *   \_Eval[[null[NULL] AS does_not_exist_field#16]]
-     *     \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     * \_Project[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15, languages{f}#9,
+     *      last_name{f}#10, long_noidx{f}#16, salary{f}#11]]
+     *   \_Eval[[null[NULL] AS does_not_exist_field#17, null[NULL] AS neither_this#18]]
+     *     \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
      */
     public void testDrop() {
         var extraField = randomFrom("", "does_not_exist_field", "neither_this");
@@ -355,9 +417,9 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
     /*
      * Limit[1000[INTEGER],false,false]
-     * \_EsqlProject[[_meta_field{f}#12, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15, languages{f}#9,
-     *          last_name{f}#10, long_noidx{f}#16, salary{f}#11]]
-     *   \_Eval[[null[NULL] AS does_not_exist_field#22]]
+     * \_Project[[_meta_field{f}#12, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15, languages{f}#9,
+     *      last_name{f}#10, long_noidx{f}#16, salary{f}#11]]
+     *   \_Eval[[null[NULL] AS does_not_exist_field#18]]
      *     \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
      */
     public void testDropWithMatchingStar() {
@@ -521,11 +583,11 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(relation.indexPattern(), is("test"));
     }
 
-    /**
+    /*
      * Limit[1000[INTEGER],false,false]
      * \_Eval[[does_not_exist{r}#21 + 1[INTEGER] AS x#8]]
-     *   \_EsqlProject[[_meta_field{f}#16, emp_no{f}#10 AS employee_number#5, first_name{f}#11, gender{f}#12, hire_date{f}#17,
-     *          job{f}#18, job.raw{f}#19, languages{f}#13, last_name{f}#14, long_noidx{f}#20, salary{f}#15, does_not_exist{r}#21]]
+     *   \_Project[[_meta_field{f}#16, emp_no{f}#10 AS employee_number#5, first_name{f}#11, gender{f}#12, hire_date{f}#17, job{f}#18,
+     *          job.raw{f}#19, languages{f}#13, last_name{f}#14, long_noidx{f}#20, salary{f}#15, does_not_exist{r}#21]]
      *     \_Eval[[null[NULL] AS does_not_exist#21]]
      *       \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
      */
@@ -536,8 +598,14 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | EVAL x = does_not_exist + 1
             """));
 
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
+
+        var eval = as(limit.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        assertThat(eval.fields().get(0).name(), is("x"));
         assertThat(
-            Expressions.names(plan.output()),
+            Expressions.names(eval.output()),
             is(
                 List.of(
                     "_meta_field",
@@ -553,16 +621,40 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                     "salary",
                     "does_not_exist",
                     "x"
-
                 )
             )
         );
-        var limit = as(plan, Limit.class);
-        var eval1 = as(limit.child(), Eval.class);
-        var project = as(eval1.child(), Project.class);
-        var eval2 = as(project.child(), Eval.class);
-        var source = as(eval2.child(), EsRelation.class);
-        // TODO: golden testing
+
+        var esqlProject = as(eval.child(), Project.class);
+        assertThat(
+            Expressions.names(esqlProject.output()),
+            is(
+                List.of(
+                    "_meta_field",
+                    "employee_number",
+                    "first_name",
+                    "gender",
+                    "hire_date",
+                    "job",
+                    "job.raw",
+                    "languages",
+                    "last_name",
+                    "long_noidx",
+                    "salary",
+                    "does_not_exist"
+                )
+            )
+        );
+
+        var evalNull = as(esqlProject.child(), Eval.class);
+        assertThat(evalNull.fields(), hasSize(1));
+        var alias = as(evalNull.fields().get(0), Alias.class);
+        assertThat(alias.name(), is("does_not_exist"));
+        var lit = as(alias.child(), Literal.class);
+        assertThat(lit.dataType(), is(DataType.NULL));
+
+        var relation = as(evalNull.child(), EsRelation.class);
+        assertThat(relation.indexPattern(), is("test"));
     }
 
     /*
@@ -599,20 +691,42 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
     /*
      * Limit[1000[INTEGER],false,false]
-     * \_Eval[[b{r}#15 + c{r}#18 AS y#12]]
-     *   \_Eval[[a{r}#14 + b{r}#15 AS x#8]]
-     *     \_Eval[[null[NULL] AS a#14, null[NULL] AS b#15, null[NULL] AS c#18]]
-     *       \_Row[[1[INTEGER] AS x#4]]
+     * \_Eval[[b{r}#25 + c{r}#27 AS y#12]]
+     *   \_Eval[[a{r}#4 + b{r}#25 AS x#8]]
+     *     \_Eval[[1[INTEGER] AS a#4, null[NULL] AS b#25, null[NULL] AS c#27]]
+     *       \_EsRelation[test][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
      */
     public void testMultipleEvaled() {
         var plan = analyzeStatement(setUnmappedNullify("""
-            ROW x = 1
+            FROM test
+            | EVAL a = 1
             | EVAL x = a + b
             | EVAL y = b + c
             """));
 
-        // TODO: golden testing
-        assertThat(Expressions.names(plan.output()), is(List.of("a", "b", "c", "x", "y")));
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
+
+        var evalY = as(limit.child(), Eval.class);
+        assertThat(evalY.fields(), hasSize(1));
+        assertThat(evalY.fields().get(0).name(), is("y"));
+
+        var evalX = as(evalY.child(), Eval.class);
+        assertThat(evalX.fields(), hasSize(1));
+        assertThat(evalX.fields().get(0).name(), is("x"));
+
+        var evalABC = as(evalX.child(), Eval.class);
+        assertThat(Expressions.names(evalABC.fields()), is(List.of("a", "b", "c")));
+        for (var field : evalABC.fields()) {
+            var alias = as(field, Alias.class);
+            var literal = as(alias.child(), Literal.class);
+            if (alias.name().equals("a") == false) {
+                assertThat(literal.dataType(), is(DataType.NULL));
+                assertThat(literal.value(), is(nullValue()));
+            }
+        }
+
+        var relation = as(evalABC.child(), EsRelation.class);
     }
 
     /*
@@ -1413,23 +1527,22 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
     /*
      * Limit[1000[INTEGER],false,false]
-     * \_UnionAll[[language_code{r}#22, language_name{r}#23, does_not_exist1{r}#24, @timestamp{r}#25, client_ip{r}#26, event_dur
-     * ation{r}#27, message{r}#28]]
-     *   | \_EsqlProject[[language_code{f}#6, language_name{f}#7, does_not_exist1{r}#12, @timestamp{r}#16, client_ip{r}#17, event_durat
-     * ion{r}#18, message{r}#19]]
-     *   |   \_Eval[[null[DATETIME] AS @timestamp#16, null[IP] AS client_ip#17, null[LONG] AS event_duration#18, null[KEYWORD] AS
-     * message#19]]
-     *   |     \_Subquery[]
-     *   |       \_Filter[TOLONG(does_not_exist1{r}#12) > 1[INTEGER]]
-     *   |         \_Eval[[null[NULL] AS does_not_exist1#12]]
-     *   |           \_EsRelation[languages][language_code{f}#6, language_name{f}#7]
-     *     \_EsqlProject[[language_code{r}#20, language_name{r}#21, does_not_exist1{r}#14, @timestamp{f}#8, client_ip{f}#9, event_durat
-     * ion{f}#10, message{f}#11]]
-     *       \_Eval[[null[INTEGER] AS language_code#20, null[KEYWORD] AS language_name#21]]
-     *         \_Subquery[]
-     *           \_Filter[TODOUBLE(does_not_exist1{r}#14) > 10.0[DOUBLE]]
-     *             \_Eval[[null[NULL] AS does_not_exist1#14]]
-     *               \_EsRelation[sample_data][@timestamp{f}#8, client_ip{f}#9, event_duration{f}#..]
+     * \_UnionAll[[language_code{r}#22, language_name{r}#23, does_not_exist1{r}#24, @timestamp{r}#25, client_ip{r}#26,
+     *      event_duration{r}#27, message{r}#28]]
+     *   |_Project[[language_code{f}#6, language_name{f}#7, does_not_exist1{r}#12, @timestamp{r}#16, client_ip{r}#17, event_duration{r}#18,
+     *          message{r}#19]]
+     *   | \_Eval[[null[DATETIME] AS @timestamp#16, null[IP] AS client_ip#17, null[LONG] AS event_duration#18, null[KEYWORD] AS message#19]]
+     *   |   \_Subquery[]
+     *   |     \_Filter[TOLONG(does_not_exist1{r}#12) > 1[INTEGER]]
+     *   |       \_Eval[[null[NULL] AS does_not_exist1#12]]
+     *   |         \_EsRelation[languages][language_code{f}#6, language_name{f}#7]
+     *   \_Project[[language_code{r}#20, language_name{r}#21, does_not_exist1{r}#14, @timestamp{f}#8, client_ip{f}#9, event_duration{f}#10,
+     *          message{f}#11]]
+     *     \_Eval[[null[INTEGER] AS language_code#20, null[KEYWORD] AS language_name#21]]
+     *       \_Subquery[]
+     *         \_Filter[TODOUBLE(does_not_exist1{r}#14) > 10.0[DOUBLE]]
+     *           \_Eval[[null[NULL] AS does_not_exist1#14]]
+     *             \_EsRelation[sample_data][@timestamp{f}#8, client_ip{f}#9, event_duration{f}#..]
      */
     public void testDoubleSubqueryOnly() {
         assumeTrue(
@@ -1513,29 +1626,29 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     /*
-     * Project[[language_code{r}#23, language_name{r}#24, does_not_exist1{r}#25, @timestamp{r}#26, client_ip{r}#27, event_duration{r}#28,
-     *      message{r}#29, does_not_exist2{r}#30]]
+     * Project[[language_code{r}#34, language_name{r}#35, does_not_exist1{r}#36, @timestamp{r}#37, client_ip{r}#38, event_duration{r}#39,
+     *      message{r}#40, does_not_exist2{r}#41]]
      * \_Limit[1000[INTEGER],false,false]
-     *   \_Filter[$$does_not_exist2$converted_to$long{r$}#36 < 100[INTEGER]]
-     *     \_UnionAll[[language_code{r}#23, language_name{r}#24, does_not_exist1{r}#25, @timestamp{r}#26, client_ip{r}#27,
-     *              event_duration{r}#28, message{r}#29, does_not_exist2{r}#30, $$does_not_exist2$converted_to$long{r$}#36]]
-     *       | \_EsqlProject[[language_code{f}#7, language_name{f}#8, does_not_exist1{r}#13, @timestamp{r}#17, client_ip{r}#18,
-     *              event_duration{r}#19, message{r}#20, does_not_exist2{r}#31, $$does_not_exist2$converted_to$long{r}#34]]
-     *       |   \_Eval[[TOLONG(does_not_exist2{r}#31) AS $$does_not_exist2$converted_to$long#34]]
-     *       |     \_Eval[[null[DATETIME] AS @timestamp#17, null[IP] AS client_ip#18, null[LONG] AS event_duration#19,
-     *                      null[KEYWORD] AS message#20]]
-     *       |       \_Subquery[]
-     *       |         \_Filter[TOLONG(does_not_exist1{r}#13) > 1[INTEGER]]
-     *       |           \_Eval[[null[NULL] AS does_not_exist1#13, null[NULL] AS does_not_exist2#30]]
-     *       |             \_EsRelation[languages][language_code{f}#7, language_name{f}#8]
-     *         \_EsqlProject[[language_code{r}#21, language_name{r}#22, does_not_exist1{r}#15, @timestamp{f}#9, client_ip{f}#10,
-     *                  event_duration{f}#11, message{f}#12, does_not_exist2{r}#32, $$does_not_exist2$converted_to$long{r}#35]]
-     *           \_Eval[[TOLONG(does_not_exist2{r}#32) AS $$does_not_exist2$converted_to$long#35]]
-     *             \_Eval[[null[INTEGER] AS language_code#21, null[KEYWORD] AS language_name#22]]
-     *               \_Subquery[]
-     *                 \_Filter[TODOUBLE(does_not_exist1{r}#15) > 10.0[DOUBLE]]
-     *                   \_Eval[[null[NULL] AS does_not_exist1#15, null[NULL] AS does_not_exist2#30]]
-     *                     \_EsRelation[sample_data][@timestamp{f}#9, client_ip{f}#10, event_duration{f}..]
+     *   \_Filter[$$does_not_exist2$converted_to$long{r$}#44 < 100[INTEGER]]
+     *     \_UnionAll[[language_code{r}#34, language_name{r}#35, does_not_exist1{r}#36, @timestamp{r}#37, client_ip{r}#38,
+     *              event_duration{r}#39, message{r}#40, does_not_exist2{r}#41, $$does_not_exist2$converted_to$long{r$}#44]]
+     *       |_Project[[language_code{f}#7, language_name{f}#8, does_not_exist1{r}#13, @timestamp{r}#17, client_ip{r}#18,
+     *              event_duration{r}#19, message{r}#20, does_not_exist2{r}#30, $$does_not_exist2$converted_to$long{r$}#42]]
+     *       | \_Eval[[TOLONG(does_not_exist2{r}#30) AS $$does_not_exist2$converted_to$long#42]]
+     *       |   \_Eval[[null[DATETIME] AS @timestamp#17, null[IP] AS client_ip#18, null[LONG] AS event_duration#19,
+     *                  null[KEYWORD] AS message#20]]
+     *       |     \_Subquery[]
+     *       |       \_Filter[TOLONG(does_not_exist1{r}#13) > 1[INTEGER]]
+     *       |         \_Eval[[null[NULL] AS does_not_exist1#13, null[NULL] AS does_not_exist2#30]]
+     *       |           \_EsRelation[languages][language_code{f}#7, language_name{f}#8]
+     *       \_Project[[language_code{r}#21, language_name{r}#22, does_not_exist1{r}#15, @timestamp{f}#9, client_ip{f}#10,
+     *              event_duration{f}#11, message{f}#12, does_not_exist2{r}#31, $$does_not_exist2$converted_to$long{r$}#43]]
+     *         \_Eval[[TOLONG(does_not_exist2{r}#31) AS $$does_not_exist2$converted_to$long#43]]
+     *           \_Eval[[null[INTEGER] AS language_code#21, null[KEYWORD] AS language_name#22]]
+     *             \_Subquery[]
+     *               \_Filter[TODOUBLE(does_not_exist1{r}#15) > 10.0[DOUBLE]]
+     *                 \_Eval[[null[NULL] AS does_not_exist1#15, null[NULL] AS does_not_exist2#31]]
+     *                   \_EsRelation[sample_data][@timestamp{f}#9, client_ip{f}#10, event_duration{f}..]
      */
     public void testDoubleSubqueryOnlyWithTopFilterAndNoMain() {
         assumeTrue(
@@ -1554,6 +1667,23 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
         // Top-level Project wrapping the plan
         var topProject = as(plan, Project.class);
+        assertThat(
+            Expressions.names(topProject.output()),
+            is(
+                List.of(
+                    "language_code",
+                    "language_name",
+                    "does_not_exist1",
+                    "@timestamp",
+                    "client_ip",
+                    "event_duration",
+                    "message",
+                    "does_not_exist2"
+                )
+            )
+        );
+        var topProjectAttribute_does_not_exist1 = topProject.output().get(2);
+        var topProjectAttribute_does_not_exist2 = topProject.output().get(7);
 
         // Below Project is Limit
         var limit = as(topProject.child(), Limit.class);
@@ -1566,6 +1696,26 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
         // Below Filter is UnionAll
         var union = as(filter.child(), UnionAll.class);
+        assertThat(
+            Expressions.names(union.output()),
+            is(
+                List.of(
+                    "language_code",
+                    "language_name",
+                    "does_not_exist1",
+                    "@timestamp",
+                    "client_ip",
+                    "event_duration",
+                    "message",
+                    "does_not_exist2",
+                    "$$does_not_exist2$converted_to$long"
+                )
+            )
+        );
+        var unionAllAttribute_does_not_exist1 = union.output().get(2);
+        assertThat(topProjectAttribute_does_not_exist1, is(unionAllAttribute_does_not_exist1)); // reference is kept
+        var unionAllAttribute_does_not_exist2 = union.output().get(7);
+        assertThat(topProjectAttribute_does_not_exist2, is(unionAllAttribute_does_not_exist2)); // reference is kept
         assertThat(union.children(), hasSize(2));
 
         // Left branch: languages
@@ -1586,6 +1736,10 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 )
             )
         );
+        var unionAllLeftProjectAttribute_does_not_exist1 = leftProject.output().get(2);
+        assertThat(unionAllLeftProjectAttribute_does_not_exist1, not(unionAllAttribute_does_not_exist1)); // name remains, ID changes
+        var unionAllLeftProjectAttribute_does_not_exist2 = leftProject.output().get(7);
+        assertThat(unionAllLeftProjectAttribute_does_not_exist2, not(unionAllAttribute_does_not_exist2)); // name remains, ID changes
         var leftEval = as(leftProject.child(), Eval.class);
         assertThat(leftEval.fields(), hasSize(1));
         assertThat(Expressions.name(leftEval.fields().getFirst()), is("$$does_not_exist2$converted_to$long"));
@@ -1604,9 +1758,11 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         var leftDoesNotExist1 = as(leftSubEval.fields().get(0), Alias.class);
         assertThat(leftDoesNotExist1.name(), is("does_not_exist1"));
         assertThat(as(leftDoesNotExist1.child(), Literal.class).dataType(), is(DataType.NULL));
+        assertThat(leftDoesNotExist1.id(), is(unionAllLeftProjectAttribute_does_not_exist1.id())); // same IDs withing the branch
         var leftDoesNotExist2 = as(leftSubEval.fields().get(1), Alias.class);
         assertThat(leftDoesNotExist2.name(), is("does_not_exist2"));
         assertThat(as(leftDoesNotExist2.child(), Literal.class).dataType(), is(DataType.NULL));
+        assertThat(leftDoesNotExist2.id(), is(unionAllLeftProjectAttribute_does_not_exist2.id())); // same IDs withing the branch
 
         var leftRel = as(leftSubEval.child(), EsRelation.class);
         assertThat(leftRel.indexPattern(), is("languages"));
@@ -1629,6 +1785,10 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 )
             )
         );
+        var unionAllRightProjectAttribute_does_not_exist1 = rightProject.output().get(2);
+        assertThat(unionAllRightProjectAttribute_does_not_exist1, not(unionAllAttribute_does_not_exist1)); // name remains, ID changes
+        var unionAllRightProjectAttribute_does_not_exist2 = rightProject.output().get(7);
+        assertThat(unionAllRightProjectAttribute_does_not_exist2, not(unionAllLeftProjectAttribute_does_not_exist2)); // not same ID
         var rightEval = as(rightProject.child(), Eval.class);
         assertThat(Expressions.name(rightEval.fields().getFirst()), is("$$does_not_exist2$converted_to$long"));
         var rightEvalEval = as(rightEval.child(), Eval.class);
@@ -1645,42 +1805,44 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         var rightDoesNotExist1 = as(rightSubEval.fields().get(0), Alias.class);
         assertThat(rightDoesNotExist1.name(), is("does_not_exist1"));
         assertThat(as(rightDoesNotExist1.child(), Literal.class).dataType(), is(DataType.NULL));
+        assertThat(rightDoesNotExist1.id(), is(unionAllRightProjectAttribute_does_not_exist1.id())); // same IDs withing the branch
         var rightDoesNotExist2 = as(rightSubEval.fields().get(1), Alias.class);
         assertThat(rightDoesNotExist2.name(), is("does_not_exist2"));
         assertThat(as(rightDoesNotExist2.child(), Literal.class).dataType(), is(DataType.NULL));
+        assertThat(rightDoesNotExist2.id(), is(unionAllRightProjectAttribute_does_not_exist2.id())); // same IDs withing the branch
 
         var rightRel = as(rightSubEval.child(), EsRelation.class);
         assertThat(rightRel.indexPattern(), is("sample_data"));
     }
 
     /*
-     * Project[[_meta_field{r}#36, emp_no{r}#37, first_name{r}#38, gender{r}#39, hire_date{r}#40, job{r}#41, job.raw{r}#42,
-     *      languages{r}#43, last_name{r}#44, long_noidx{r}#45, salary{r}#46, language_code{r}#47, language_name{r}#48,
-     *      does_not_exist1{r}#49, does_not_exist2{r}#50]]
+     * Project[[_meta_field{r}#54, emp_no{r}#55, first_name{r}#56, gender{r}#57, hire_date{r}#58, job{r}#59, job.raw{r}#60,
+     *      languages{r}#61, last_name{r}#62, long_noidx{r}#63, salary{r}#64, language_code{r}#65, language_name{r}#66,
+     *      does_not_exist1{r}#67, does_not_exist2{r}#68]]
      * \_Limit[1000[INTEGER],false,false]
-     *   \_Filter[$$does_not_exist2$converted_to$long{r$}#56 < 10[INTEGER] AND emp_no{r}#37 > 0[INTEGER]]
-     *     \_UnionAll[[_meta_field{r}#36, emp_no{r}#37, first_name{r}#38, gender{r}#39, hire_date{r}#40, job{r}#41, job.raw{r}#42,
-     *              languages{r}#43, last_name{r}#44, long_noidx{r}#45, salary{r}#46, language_code{r}#47, language_name{r}#48,
-     *              does_not_exist1{r}#49, does_not_exist2{r}#50, $$does_not_exist2$converted_to$long{r$}#56]]
-     *       | \_EsqlProject[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16,
+     *   \_Filter[$$does_not_exist2$converted_to$long{r$}#71 < 10[INTEGER] AND emp_no{r}#37 > 0[INTEGER]]
+     *     \_UnionAll[[_meta_field{r}#54, emp_no{r}#55, first_name{r}#56, gender{r}#57, hire_date{r}#58, job{r}#59, job.raw{r}#60,
+     *          languages{r}#61, last_name{r}#62, long_noidx{r}#63, salary{r}#64, language_code{r}#65, language_name{r}#66,
+     *          does_not_exist1{r}#67, does_not_exist2{r}#68, $$does_not_exist2$converted_to$long{r$}#71]]
+     *       |_Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16,
      *              languages{f}#10, last_name{f}#11, long_noidx{f}#17, salary{f}#12, language_code{r}#22, language_name{r}#23,
-     *              does_not_exist1{r}#24, does_not_exist2{r}#51, $$does_not_exist2$converted_to$long{r}#54]]
-     *       |   \_Eval[[TOLONG(does_not_exist2{r}#51) AS $$does_not_exist2$converted_to$long#54]]
-     *       |     \_Eval[[null[INTEGER] AS language_code#22, null[KEYWORD] AS language_name#23, null[NULL] AS does_not_exist1#24,
-     *                      null[NULL] AS does_not_exist2#50]]
-     *       |       \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
-     *         \_EsqlProject[[_meta_field{r}#25, emp_no{r}#26, first_name{r}#27, gender{r}#28, hire_date{r}#29, job{r}#30, job.raw{r}#31,
-     *                  languages{r}#32, last_name{r}#33, long_noidx{r}#34, salary{r}#35, language_code{f}#18, language_name{f}#19,
-     *                  does_not_exist1{r}#20, does_not_exist2{r}#52, $$does_not_exist2$converted_to$long{r}#55]]
-     *           \_Eval[[TOLONG(does_not_exist2{r}#52) AS $$does_not_exist2$converted_to$long#55]]
-     *             \_Eval[[null[KEYWORD] AS _meta_field#25, null[INTEGER] AS emp_no#26, null[KEYWORD] AS first_name#27,
-     *                      null[TEXT] AS gender#28, null[DATETIME] AS hire_date#29, null[TEXT] AS job#30, null[KEYWORD] AS job.raw#31,
-     *                      null[INTEGER] AS languages#32, null[KEYWORD] AS last_name#33, null[LONG] AS long_noidx#34,
-     *                      null[INTEGER] AS salary#35]]
-     *               \_Subquery[]
-     *                 \_Filter[TOLONG(does_not_exist1{r}#20) > 1[INTEGER]]
-     *                   \_Eval[[null[NULL] AS does_not_exist1#20, null[NULL] AS does_not_exist2#50]]
-     *                     \_EsRelation[languages][language_code{f}#18, language_name{f}#19]
+     *              does_not_exist1{r}#24, does_not_exist2{r}#50, $$does_not_exist2$converted_to$long{r$}#69]]
+     *       | \_Eval[[TOLONG(does_not_exist2{r}#50) AS $$does_not_exist2$converted_to$long#69]]
+     *       |   \_Eval[[null[INTEGER] AS language_code#22, null[KEYWORD] AS language_name#23, null[NULL] AS does_not_exist1#24,
+     *                  null[NULL] AS does_not_exist2#50]]
+     *       |     \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *       \_Project[[_meta_field{r}#25, emp_no{r}#26, first_name{r}#27, gender{r}#28, hire_date{r}#29, job{r}#30, job.raw{r}#31,
+     *              languages{r}#32, last_name{r}#33, long_noidx{r}#34, salary{r}#35, language_code{f}#18, language_name{f}#19,
+     *              does_not_exist1{r}#20, does_not_exist2{r}#51, $$does_not_exist2$converted_to$long{r$}#70]]
+     *         \_Eval[[TOLONG(does_not_exist2{r}#51) AS $$does_not_exist2$converted_to$long#70]]
+     *           \_Eval[[null[KEYWORD] AS _meta_field#25, null[INTEGER] AS emp_no#26, null[KEYWORD] AS first_name#27,
+     *                  null[TEXT] AS gender#28, null[DATETIME] AS hire_date#29, null[TEXT] AS job#30, null[KEYWORD] AS job.raw#31,
+     *                  null[INTEGER] AS languages#32, null[KEYWORD] AS last_name#33, null[LONG] AS long_noidx#34,
+     *                  null[INTEGER] AS salary#35]]
+     *             \_Subquery[]
+     *               \_Filter[TOLONG(does_not_exist1{r}#20) > 1[INTEGER]]
+     *                 \_Eval[[null[NULL] AS does_not_exist1#20, null[NULL] AS does_not_exist2#51]]
+     *                   \_EsRelation[languages][language_code{f}#18, language_name{f}#19]
      */
     public void testSubqueryAndMainQuery() {
         assumeTrue(
@@ -1741,7 +1903,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         var union = as(topFilter.child(), UnionAll.class);
         assertThat(union.children(), hasSize(2));
 
-        // Left branch: EsRelation[test] with EsqlProject + Eval nulls
+        // Left branch: EsRelation[test] with Project + Eval nulls
         var leftProject = as(union.children().get(0), Project.class);
         var leftEval = as(leftProject.child(), Eval.class);
         assertThat(Expressions.names(leftEval.fields()), is(List.of("$$does_not_exist2$converted_to$long")));
@@ -1759,7 +1921,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         var leftRel = as(leftEvalEval.child(), EsRelation.class);
         assertThat(leftRel.indexPattern(), is("test"));
 
-        // Right branch: EsqlProject + Eval many nulls, Subquery -> Filter -> Eval -> EsRelation[languages]
+        // Right branch: Project + Eval many nulls, Subquery -> Filter -> Eval -> EsRelation[languages]
         var rightProject = as(union.children().get(1), Project.class);
         var rightEval = as(rightProject.child(), Eval.class);
         assertThat(Expressions.names(rightEval.fields()), is(List.of("$$does_not_exist2$converted_to$long")));
@@ -1799,7 +1961,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     /*
      * Limit[1000[INTEGER],false,false]
      * \_OrderBy[[Order[emp_no{f}#11,ASC,LAST], Order[emp_no_plus{r}#6,ASC,LAST]]]
-     *   \_EsqlProject[[emp_no{f}#11, emp_no_foo{r}#22, emp_no_plus{r}#6]]
+     *   \_Project[[emp_no{f}#11, emp_no_foo{r}#22, emp_no_plus{r}#6]]
      *     \_Filter[emp_no{f}#11 < 10003[INTEGER]]
      *       \_Eval[[TOLONG(emp_no_foo{r}#22) + 1[INTEGER] AS emp_no_plus#6]]
      *         \_Eval[[null[NULL] AS emp_no_foo#22]]
@@ -1851,7 +2013,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     /*
      * Limit[1000[INTEGER],false,false]
      * \_OrderBy[[Order[emp_no{f}#11,ASC,LAST], Order[emp_no_plus{r}#6,ASC,LAST]]]
-     *   \_EsqlProject[[_meta_field{f}#17, emp_no{f}#11, gender{f}#13, hire_date{f}#18, job{f}#19, job.raw{f}#20, languages{f}#14,
+     *   \_Project[[_meta_field{f}#17, emp_no{f}#11, gender{f}#13, hire_date{f}#18, job{f}#19, job.raw{f}#20, languages{f}#14,
      *          long_noidx{f}#21, salary{f}#16, emp_no_foo{r}#22, emp_no_plus{r}#6]]
      *     \_Filter[emp_no{f}#11 < 10003[INTEGER]]
      *       \_Eval[[TOLONG(emp_no_foo{r}#22) + 1[INTEGER] AS emp_no_plus#6]]
@@ -1962,42 +2124,52 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(relation.indexPattern(), is("employees"));
     }
 
-    /**
+    /*
      * Limit[1000[INTEGER],false,false]
-     * \_OrderBy[[Order[does_not_exist{r}#53,ASC,LAST]]]
-     *   \_UnionAll[[_meta_field{r}#41, emp_no{r}#42, first_name{r}#43, gender{r}#44, hire_date{r}#45, job{r}#46, job.raw{r}#47,
-     *          languages{r}#48, last_name{r}#49, long_noidx{r}#50, salary{r}#51, c{r}#52, does_not_exist{r}#53]]
-     *     |_Limit[1000[INTEGER],false,false]
-     *     | \_EsqlProject[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16,
-     *              languages{f}#10, last_name{f}#11, long_noidx{f}#17, salary{f}#12, c{r}#29, does_not_exist{r}#54]]
-     *     |   \_Eval[[null[LONG] AS c#29, null[NULL] AS does_not_exist#53]]
-     *     |     \_EsRelation[employees][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
-     *     \_Limit[1000[INTEGER],false,false]
-     *       \_EsqlProject[[_meta_field{r}#30, emp_no{r}#31, first_name{r}#32, gender{r}#33, hire_date{r}#34, job{r}#35, job.raw{r}#36,
-     *              languages{r}#37, last_name{r}#38, long_noidx{r}#39, salary{r}#40, c{r}#4, does_not_exist{r}#55]]
-     *         \_Eval[[null[NULL] AS does_not_exist#56]]
+     * \_OrderBy[[Order[does_not_exist{r}#83,ASC,LAST]]]
+     *   \_UnionAll[[_meta_field{r}#71, emp_no{r}#72, first_name{r}#73, gender{r}#74, hire_date{r}#75, job{r}#76, job.raw{r}#77,
+     *          languages{r}#78, last_name{r}#79, long_noidx{r}#80, salary{r}#81, c{r}#82, does_not_exist{r}#83]]
+     *     |_Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16,
+     *          languages{f}#10, last_name{f}#11, long_noidx{f}#17, salary{f}#12, c{r}#29, does_not_exist{r}#53]]
+     *     | \_Eval[[null[LONG] AS c#29, null[NULL] AS does_not_exist#53]]
+     *     |   \_EsRelation[employees][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *     \_Project[[_meta_field{r}#30, emp_no{r}#31, first_name{r}#32, gender{r}#33, hire_date{r}#34, job{r}#35, job.raw{r}#36,
+     *          languages{r}#37, last_name{r}#38, long_noidx{r}#39, salary{r}#40, c{r}#4, does_not_exist{r}#70]]
+     *       \_Eval[[null[NULL] AS does_not_exist#70]]
+     *         \_Project[[_meta_field{r}#30, emp_no{r}#31, first_name{r}#32, gender{r}#33, hire_date{r}#34, job{r}#35, job.raw{r}#36,
+     *              languages{r}#37, last_name{r}#38, long_noidx{r}#39, salary{r}#40, c{r}#4]]
      *           \_Eval[[null[KEYWORD] AS _meta_field#30, null[INTEGER] AS emp_no#31, null[KEYWORD] AS first_name#32,
      *                  null[TEXT] AS gender#33, null[DATETIME] AS hire_date#34, null[TEXT] AS job#35, null[KEYWORD] AS job.raw#36,
      *                  null[INTEGER] AS languages#37, null[KEYWORD] AS last_name#38, null[LONG] AS long_noidx#39,
      *                  null[INTEGER] AS salary#40]]
      *             \_Subquery[]
      *               \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#4]]
-     *                 \_Eval[[null[NULL] AS does_not_exist#53]]
-     *                   \_EsRelation[employees][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, .
+     *                 \_Eval[[null[NULL] AS does_not_exist#54]]
+     *                   \_EsRelation[employees][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
      */
     public void testSubqueryAfterUnionAllOfStatsAndMain() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
 
         var plan = analyzeStatement(setUnmappedNullify("""
             FROM employees,
-                (FROM employees
-                 | STATS c = COUNT(*))
+                (FROM employees | STATS c = count(*))
             | SORT does_not_exist
             """));
 
-        // TODO: golden testing
+        // Top implicit limit 1000
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
+
+        // OrderBy over the does_not_exist field
+        var orderBy = as(limit.child(), OrderBy.class);
+        assertThat(orderBy.order(), hasSize(1));
+        assertThat(Expressions.name(orderBy.order().get(0).child()), is("does_not_exist"));
+
+        // UnionAll node
+        var union = as(orderBy.child(), UnionAll.class);
+        assertThat(union.children(), hasSize(2));
         assertThat(
-            Expressions.names(plan.output()),
+            Expressions.names(union.output()),
             is(
                 List.of(
                     "_meta_field",
@@ -2016,6 +2188,145 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 )
             )
         );
+        var unionAllAttribute_does_not_exist = union.output().get(12);
+
+        // --- Left branch: main FROM employees ---
+        var leftProject = as(union.children().get(0), Project.class);
+        assertThat(
+            Expressions.names(leftProject.output()),
+            is(
+                List.of(
+                    "_meta_field",
+                    "emp_no",
+                    "first_name",
+                    "gender",
+                    "hire_date",
+                    "job",
+                    "job.raw",
+                    "languages",
+                    "last_name",
+                    "long_noidx",
+                    "salary",
+                    "c",
+                    "does_not_exist"
+                )
+            )
+        );
+        var leftProjectAttribute_does_not_exist = leftProject.output().get(12);
+        assertThat(leftProjectAttribute_does_not_exist, not(unionAllAttribute_does_not_exist)); // ID is refreshed
+        var leftEval = as(leftProject.child(), Eval.class);
+        // c and does_not_exist are introduced as nulls
+        assertThat(leftEval.fields(), hasSize(2));
+        for (var alias : leftEval.fields()) {
+            var a = as(alias, Alias.class);
+            var lit = as(a.child(), Literal.class);
+        }
+        assertThat(leftEval.fields().get(0).name(), is("c"));
+        assertThat(leftEval.fields().get(0).dataType(), is(DataType.LONG));
+        assertThat(leftEval.fields().get(1).name(), is("does_not_exist"));
+        assertThat(leftEval.fields().get(1).dataType(), is(DataType.NULL));
+        assertThat(leftEval.fields().get(1).id(), is(leftProjectAttribute_does_not_exist.id())); // same ID within the branch
+        var leftRelation = as(leftEval.child(), EsRelation.class);
+        assertThat(leftRelation.indexPattern(), is("employees"));
+
+        // --- Right branch: subquery (stats) ---
+        var rightProject = as(union.children().get(1), Project.class);
+        assertThat(
+            Expressions.names(rightProject.output()),
+            is(
+                List.of(
+                    "_meta_field",
+                    "emp_no",
+                    "first_name",
+                    "gender",
+                    "hire_date",
+                    "job",
+                    "job.raw",
+                    "languages",
+                    "last_name",
+                    "long_noidx",
+                    "salary",
+                    "c",
+                    "does_not_exist"
+                )
+            )
+        );
+        var rightProjectAttribute_does_not_exist = rightProject.output().get(12);
+        assertThat(rightProjectAttribute_does_not_exist, not(unionAllAttribute_does_not_exist)); // ID is refreshed
+        var rightEval = as(rightProject.child(), Eval.class);
+        // does_not_exist is introduced as null
+        assertThat(rightEval.fields(), hasSize(1));
+        {
+            var a = as(rightEval.fields().get(0), Alias.class);
+            var lit = as(a.child(), Literal.class);
+            assertThat(lit.dataType(), is(DataType.NULL));
+            assertThat(a.name(), is("does_not_exist"));
+        }
+        // same ID within the upper part of the branch
+        assertThat(rightEval.fields().get(0).id(), is(rightProjectAttribute_does_not_exist.id()));
+
+        var rightProject2 = as(rightEval.child(), Project.class);
+        assertThat(
+            Expressions.names(rightProject2.output()),
+            is(
+                List.of(
+                    "_meta_field",
+                    "emp_no",
+                    "first_name",
+                    "gender",
+                    "hire_date",
+                    "job",
+                    "job.raw",
+                    "languages",
+                    "last_name",
+                    "long_noidx",
+                    "salary",
+                    "c"
+                )
+            )
+        );
+        var rightEval2 = as(rightProject2.child(), Eval.class);
+        // All fields are introduced as nulls for the subquery
+        assertThat(rightEval2.fields(), hasSize(11));
+        for (var alias : rightEval2.fields()) {
+            var a = as(alias, Alias.class);
+            var lit = as(a.child(), Literal.class);
+        }
+        assertThat(
+            rightEval2.fields().stream().map(Alias::name).toList(),
+            is(
+                List.of(
+                    "_meta_field",
+                    "emp_no",
+                    "first_name",
+                    "gender",
+                    "hire_date",
+                    "job",
+                    "job.raw",
+                    "languages",
+                    "last_name",
+                    "long_noidx",
+                    "salary"
+                )
+            )
+        );
+        var rightSubquery = as(rightEval2.child(), Subquery.class);
+        var rightAgg = as(rightSubquery.child(), Aggregate.class);
+        assertThat(rightAgg.aggregates(), hasSize(1));
+        assertThat(Expressions.name(rightAgg.aggregates().get(0)), is("c"));
+        var rightEval3 = as(rightAgg.child(), Eval.class);
+        // does_not_exist is introduced as null for the stats subquery
+        assertThat(rightEval3.fields(), hasSize(1));
+        {
+            var a = as(rightEval3.fields().get(0), Alias.class);
+            var lit = as(a.child(), Literal.class);
+            assertThat(lit.dataType(), is(DataType.NULL));
+            assertThat(a.name(), is("does_not_exist"));
+        }
+        // the upper Eval is generated by ResolveUnmapped#patchFork(), this one by ResolvedUnmapped#evalUnresolvedAtopUnary
+        assertThat(rightEval3.fields().get(0).id(), not(rightProjectAttribute_does_not_exist.id()));
+        var rightRelation2 = as(rightEval3.child(), EsRelation.class);
+        assertThat(rightRelation2.indexPattern(), is("employees"));
     }
 
     public void testFailAfterUnionAllOfStats() {
@@ -2033,53 +2344,53 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     /*
-     * Project[[_meta_field{r}#53, emp_no{r}#54, first_name{r}#55, gender{r}#56, hire_date{r}#57, job{r}#58, job.raw{r}#59,
-     *      languages{r}#60, last_name{r}#61, long_noidx{r}#62, salary{r}#63, language_code{r}#64, language_name{r}#65,
-     *      does_not_exist1{r}#66, does_not_exist2{r}#71]]
+     * Project[[_meta_field{r}#76, emp_no{r}#77, first_name{r}#78, gender{r}#79, hire_date{r}#80, job{r}#81, job.raw{r}#82,
+     *      languages{r}#83, last_name{r}#84, long_noidx{r}#85, salary{r}#86, language_code{r}#87, language_name{r}#88,
+     *      does_not_exist1{r}#89, does_not_exist2{r}#91]]
      * \_Limit[1000[INTEGER],false,false]
-     *   \_Filter[$$does_not_exist2$converted_to$long{r$}#79 < 10[INTEGER] AND emp_no{r}#54 > 0[INTEGER]
-     *          OR $$does_not_exist1$converted_to$long{r$}#70 < 11[INTEGER]]
-     *     \_UnionAll[[_meta_field{r}#53, emp_no{r}#54, first_name{r}#55, gender{r}#56, hire_date{r}#57, job{r}#58, job.raw{r}#59,
-     *              languages{r}#60, last_name{r}#61, long_noidx{r}#62, salary{r}#63, language_code{r}#64, language_name{r}#65,
-     *              does_not_exist1{r}#66, $$does_not_exist1$converted_to$long{r$}#70, does_not_exist2{r}#71,
-     *              $$does_not_exist2$converted_to$long{r$}#79]]
-     *       | \_EsqlProject[[_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, gender{f}#11, hire_date{f}#16, job{f}#17, job.raw{f}#18,
-     *                  languages{f}#12, last_name{f}#13, long_noidx{f}#19, salary{f}#14, language_code{r}#28, language_name{r}#29,
-     *                  does_not_exist1{r}#30, $$does_not_exist1$converted_to$long{r}#67, does_not_exist2{r}#72,
-     *                  $$does_not_exist2$converted_to$long{r}#76]]
-     *       |   \_Eval[[TOLONG(does_not_exist2{r}#72) AS $$does_not_exist2$converted_to$long#76]]
-     *       |     \_Eval[[TOLONG(does_not_exist1{r}#30) AS $$does_not_exist1$converted_to$long#67]]
-     *       |       \_Eval[[null[INTEGER] AS language_code#28, null[KEYWORD] AS language_name#29, null[NULL] AS does_not_exist1#30,
-     *                      null[NULL] AS does_not_exist2#71]]
-     *       |         \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
-     *       | \_EsqlProject[[_meta_field{r}#31, emp_no{r}#32, first_name{r}#33, gender{r}#34, hire_date{r}#35, job{r}#36, job.raw{r}#37,
-     *                  languages{r}#38, last_name{r}#39, long_noidx{r}#40, salary{r}#41, language_code{f}#20, language_name{f}#21,
-     *                  does_not_exist1{r}#24, $$does_not_exist1$converted_to$long{r}#68, does_not_exist2{r}#73,
-     *                  $$does_not_exist2$converted_to$long{r}#77]]
-     *       |   \_Eval[[TOLONG(does_not_exist2{r}#73) AS $$does_not_exist2$converted_to$long#77]]
-     *       |     \_Eval[[TOLONG(does_not_exist1{r}#24) AS $$does_not_exist1$converted_to$long#68]]
-     *       |       \_Eval[[null[KEYWORD] AS _meta_field#31, null[INTEGER] AS emp_no#32, null[KEYWORD] AS first_name#33,
-     *                          null[TEXT] AS gender#34, null[DATETIME] AS hire_date#35, null[TEXT] AS job#36, null[KEYWORD] AS job.raw#37,
-     *                          null[INTEGER] AS languages#38, null[KEYWORD] AS last_name#39, null[LONG] AS long_noidx#40,
-     *                          null[INTEGER] AS salary#41]]
-     *       |         \_Subquery[]
-     *       |           \_Filter[TOLONG(does_not_exist1{r}#24) > 1[INTEGER]]
-     *       |             \_Eval[[null[NULL] AS does_not_exist1#24, null[NULL] AS does_not_exist2#71]]
-     *       |               \_EsRelation[languages][language_code{f}#20, language_name{f}#21]
-     *         \_EsqlProject[[_meta_field{r}#42, emp_no{r}#43, first_name{r}#44, gender{r}#45, hire_date{r}#46, job{r}#47, job.raw{r}#48,
-     *                  languages{r}#49, last_name{r}#50, long_noidx{r}#51, salary{r}#52, language_code{f}#22, language_name{f}#23,
-     *                  does_not_exist1{r}#26, $$does_not_exist1$converted_to$long{r}#69, does_not_exist2{r}#74,
-     *                  $$does_not_exist2$converted_to$long{r}#78]]
-     *           \_Eval[[TOLONG(does_not_exist2{r}#74) AS $$does_not_exist2$converted_to$long#78]]
-     *             \_Eval[[TOLONG(does_not_exist1{r}#26) AS $$does_not_exist1$converted_to$long#69]]
-     *               \_Eval[[null[KEYWORD] AS _meta_field#42, null[INTEGER] AS emp_no#43, null[KEYWORD] AS first_name#44,
-     *                      null[TEXT] AS gender#45, null[DATETIME] AS hire_date#46, null[TEXT] AS job#47, null[KEYWORD] AS job.raw#48,
-     *                      null[INTEGER] AS languages#49, null[KEYWORD] AS last_name#50, null[LONG] AS long_noidx#51,
-     *                      null[INTEGER] AS salary#52]]
-     *                 \_Subquery[]
-     *                   \_Filter[TOLONG(does_not_exist1{r}#26) > 2[INTEGER]]
-     *                     \_Eval[[null[NULL] AS does_not_exist1#26, null[NULL] AS does_not_exist2#71]]
-     *                       \_EsRelation[languages][language_code{f}#22, language_name{f}#23]
+     *   \_Filter[$$does_not_exist2$converted_to$long{r$}#95 < 10[INTEGER] AND emp_no{r}#54 > 0[INTEGER] OR
+     *          $$does_not_exist1$converted_to$long{r$}#70 < 11[INTEGER]]
+     *     \_UnionAll[[_meta_field{r}#76, emp_no{r}#77, first_name{r}#78, gender{r}#79, hire_date{r}#80, job{r}#81, job.raw{r}#82,
+     *          languages{r}#83, last_name{r}#84, long_noidx{r}#85, salary{r}#86, language_code{r}#87, language_name{r}#88,
+     *          does_not_exist1{r}#89, $$does_not_exist1$converted_to$long{r$}#90, does_not_exist2{r}#91,
+     *          $$does_not_exist2$converted_to$long{r$}#95]]
+     *       |_Project[[_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, gender{f}#11, hire_date{f}#16, job{f}#17, job.raw{f}#18,
+     *              languages{f}#12, last_name{f}#13, long_noidx{f}#19, salary{f}#14, language_code{r}#28, language_name{r}#29,
+     *              does_not_exist1{r}#30, $$does_not_exist1$converted_to$long{r$}#67, does_not_exist2{r}#71,
+     *              $$does_not_exist2$converted_to$long{r$}#92]]
+     *       | \_Eval[[TOLONG(does_not_exist2{r}#71) AS $$does_not_exist2$converted_to$long#92]]
+     *       |   \_Eval[[TOLONG(does_not_exist1{r}#30) AS $$does_not_exist1$converted_to$long#67]]
+     *       |     \_Eval[[null[INTEGER] AS language_code#28, null[KEYWORD] AS language_name#29, null[NULL] AS does_not_exist1#30,
+     *                  null[NULL] AS does_not_exist2#71]]
+     *       |       \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     *       |_Project[[_meta_field{r}#31, emp_no{r}#32, first_name{r}#33, gender{r}#34, hire_date{r}#35, job{r}#36, job.raw{r}#37,
+     *              languages{r}#38, last_name{r}#39, long_noidx{r}#40, salary{r}#41, language_code{f}#20, language_name{f}#21,
+     *              does_not_exist1{r}#24, $$does_not_exist1$converted_to$long{r$}#68, does_not_exist2{r}#72,
+     *              $$does_not_exist2$converted_to$long{r$}#93]]
+     *       | \_Eval[[TOLONG(does_not_exist2{r}#72) AS $$does_not_exist2$converted_to$long#93]]
+     *       |   \_Eval[[TOLONG(does_not_exist1{r}#24) AS $$does_not_exist1$converted_to$long#68]]
+     *       |     \_Eval[[null[KEYWORD] AS _meta_field#31, null[INTEGER] AS emp_no#32, null[KEYWORD] AS first_name#33,
+     *                  null[TEXT] AS gender#34, null[DATETIME] AS hire_date#35, null[TEXT] AS job#36, null[KEYWORD] AS job.raw#37,
+     *                  null[INTEGER] AS languages#38, null[KEYWORD] AS last_name#39, null[LONG] AS long_noidx#40,
+     *                  null[INTEGER] AS salary#41]]
+     *       |       \_Subquery[]
+     *       |         \_Filter[TOLONG(does_not_exist1{r}#24) > 1[INTEGER]]
+     *       |           \_Eval[[null[NULL] AS does_not_exist1#24, null[NULL] AS does_not_exist2#72]]
+     *       |             \_EsRelation[languages][language_code{f}#20, language_name{f}#21]
+     *       \_Project[[_meta_field{r}#42, emp_no{r}#43, first_name{r}#44, gender{r}#45, hire_date{r}#46, job{r}#47, job.raw{r}#48,
+     *              languages{r}#49, last_name{r}#50, long_noidx{r}#51, salary{r}#52, language_code{f}#22, language_name{f}#23,
+     *              does_not_exist1{r}#26, $$does_not_exist1$converted_to$long{r$}#69, does_not_exist2{r}#73,
+     *              $$does_not_exist2$converted_to$long{r$}#94]]
+     *         \_Eval[[TOLONG(does_not_exist2{r}#73) AS $$does_not_exist2$converted_to$long#94]]
+     *           \_Eval[[TOLONG(does_not_exist1{r}#26) AS $$does_not_exist1$converted_to$long#69]]
+     *             \_Eval[[null[KEYWORD] AS _meta_field#42, null[INTEGER] AS emp_no#43, null[KEYWORD] AS first_name#44,
+     *                  null[TEXT] AS gender#45, null[DATETIME] AS hire_date#46, null[TEXT] AS job#47, null[KEYWORD] AS job.raw#48,
+     *                  null[INTEGER] AS languages#49, null[KEYWORD] AS last_name#50, null[LONG] AS long_noidx#51,
+     *                  null[INTEGER] AS salary#52]]
+     *               \_Subquery[]
+     *                 \_Filter[TOLONG(does_not_exist1{r}#26) > 2[INTEGER]]
+     *                   \_Eval[[null[NULL] AS does_not_exist1#26, null[NULL] AS does_not_exist2#73]]
+     *                     \_EsRelation[languages][language_code{f}#22, language_name{f}#23]
      */
     public void testSubquerysWithMainAndSameOptional() {
         assumeTrue(
@@ -2127,7 +2438,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         var union = as(topFilter.child(), UnionAll.class);
         assertThat(union.children(), hasSize(3));
 
-        // Branch 1: EsRelation[test] with EsqlProject + Eval(null language_code/name/dne1) + Eval(TOLONG does_not_exist1)
+        // Branch 1: EsRelation[test] with Project + Eval(null language_code/name/dne1) + Eval(TOLONG does_not_exist1)
         var b1Project = as(union.children().get(0), Project.class);
         var b1EvalToLong = as(b1Project.child(), Eval.class);
         assertThat(b1EvalToLong.fields(), hasSize(1));
@@ -2147,7 +2458,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         var b1Rel = as(b1EvalNulls.child(), EsRelation.class);
         assertThat(b1Rel.indexPattern(), is("test"));
 
-        // Branch 2: Subquery[languages] with Filter TOLONG(does_not_exist1) > 1, wrapped by EsqlProject nulls + Eval(TOLONG dne1)
+        // Branch 2: Subquery[languages] with Filter TOLONG(does_not_exist1) > 1, wrapped by Project nulls + Eval(TOLONG dne1)
         var b2Project = as(union.children().get(1), Project.class);
         var b2EvalToLong = as(b2Project.child(), Eval.class);
         assertThat(b2EvalToLong.fields(), hasSize(1));
@@ -2171,7 +2482,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         var b2Rel = as(b2SubEval.child(), EsRelation.class);
         assertThat(b2Rel.indexPattern(), is("languages"));
 
-        // Branch 3: Subquery[languages] with Filter TOLONG(does_not_exist1) > 2, wrapped by EsqlProject nulls + Eval(TOLONG dne1)
+        // Branch 3: Subquery[languages] with Filter TOLONG(does_not_exist1) > 2, wrapped by Project nulls + Eval(TOLONG dne1)
         var b3Project = as(union.children().get(2), Project.class);
         var b3EvalToLong = as(b3Project.child(), Eval.class);
         assertThat(b3EvalToLong.fields(), hasSize(1));
@@ -2197,73 +2508,74 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
     /*
      * Limit[1000[INTEGER],false,false]
-     * \_MvExpand[languageCode{r}#24,languageCode{r}#128]
-     *   \_EsqlProject[[count(*){r}#18, emp_no{r}#92 AS empNo#21, language_code{r}#102 AS languageCode#24, does_not_exist2{r}#119]]
-     *     \_Aggregate[[emp_no{r}#92, language_code{r}#102, does_not_exist2{r}#119],[COUNT(*[KEYWORD],true[BOOLEAN],
-     *          PT0S[TIME_DURATION]) AS count(*)#18, emp_no{r}#92, language_code{r}#102, does_not_exist2{r}#119]]
-     *       \_Filter[emp_no{r}#92 > 10000[INTEGER] OR $$does_not_exist1$converted_to$long{r$}#118 < 10[INTEGER]]
-     *         \_UnionAll[[_meta_field{r}#91, emp_no{r}#92, first_name{r}#93, gender{r}#94, hire_date{r}#95, job{r}#96, job.raw{r}#97,
-     *                  languages{r}#98, last_name{r}#99, long_noidx{r}#100, salary{r}#101, language_code{r}#102, languageName{r}#103,
-     *                  max(@timestamp){r}#104, language_name{r}#105, does_not_exist1{r}#106,
-     *                  $$does_not_exist1$converted_to$long{r$}#118, does_not_exist2{r}#119]]
-     *           |_Limit[1000[INTEGER],false,false]
-     *           | \_EsqlProject[[_meta_field{f}#34, emp_no{f}#28, first_name{f}#29, gender{f}#30, hire_date{f}#35, job{f}#36,
-     *                  job.raw{f}#37, languages{f}#31, last_name{f}#32, long_noidx{f}#38, salary{f}#33, language_code{r}#58,
-     *                  languageName{r}#59, max(@timestamp){r}#60, language_name{r}#61, does_not_exist1{r}#107,
-     *                  $$does_not_exist1$converted_to$long{r}#114, does_not_exist2{r}#120]]
-     *           |   \_Eval[[TOLONG(does_not_exist1{r}#107) AS $$does_not_exist1$converted_to$long#114]]
-     *           |     \_Eval[[null[INTEGER] AS language_code#58, null[KEYWORD] AS languageName#59, null[DATETIME] AS max(@timestamp)#60,
-     *                      null[KEYWORD] AS language_name#61, null[NULL] AS does_not_exist1#106, null[NULL] AS does_not_exist2#119]]
-     *           |       \_EsRelation[test][_meta_field{f}#34, emp_no{f}#28, first_name{f}#29, ..]
-     *           |_Limit[1000[INTEGER],false,false]
-     *           | \_EsqlProject[[_meta_field{r}#62, emp_no{r}#63, first_name{r}#64, gender{r}#65, hire_date{r}#66, job{r}#67,
-     *                  job.raw{r}#68, languages{r}#69, last_name{r}#70, long_noidx{r}#71, salary{r}#72, language_code{f}#39,
-     *                  languageName{r}#6, max(@timestamp){r}#73, language_name{r}#74, does_not_exist1{r}#108,
-     *                  $$does_not_exist1$converted_to$long{r}#115, does_not_exist2{r}#121]]
-     *           |   \_Eval[[null[NULL] AS does_not_exist2#122]]
-     *           |     \_Eval[[TOLONG(does_not_exist1{r}#108) AS $$does_not_exist1$converted_to$long#115]]
-     *           |       \_Eval[[null[NULL] AS does_not_exist1#109]]
-     *           |         \_Eval[[null[KEYWORD] AS _meta_field#62, null[INTEGER] AS emp_no#63, null[KEYWORD] AS first_name#64,
-     *                              null[TEXT] AS gender#65, null[DATETIME] AS hire_date#66, null[TEXT] AS job#67,
-     *                              null[KEYWORD] AS job.raw#68, null[INTEGER] AS languages#69, null[KEYWORD] AS last_name#70,
-     *                              null[LONG] AS long_noidx#71, null[INTEGER] AS salary#72, null[DATETIME] AS max(@timestamp)#73,
-     *                              null[KEYWORD] AS language_name#74]]
-     *           |           \_Subquery[]
-     *           |             \_EsqlProject[[language_code{f}#39, language_name{f}#40 AS languageName#6]]
-     *           |               \_Filter[language_code{f}#39 > 10[INTEGER]]
-     *           |                 \_Eval[[null[NULL] AS does_not_exist1#106, null[NULL] AS does_not_exist2#119]]
-     *           |                   \_EsRelation[languages][language_code{f}#39, language_name{f}#40]
-     *           |_Limit[1000[INTEGER],false,false]
-     *           | \_EsqlProject[[_meta_field{r}#75, emp_no{r}#76, first_name{r}#77, gender{r}#78, hire_date{r}#79, job{r}#80,
-     *                  job.raw{r}#81, languages{r}#82, last_name{r}#83, long_noidx{r}#84, salary{r}#85, language_code{r}#86,
-     *                  languageName{r}#87, max(@timestamp){r}#8, language_name{r}#88, does_not_exist1{r}#110,
-     *                  $$does_not_exist1$converted_to$long{r}#116, does_not_exist2{r}#123]]
-     *           |   \_Eval[[null[NULL] AS does_not_exist2#124]]
-     *           |     \_Eval[[TOLONG(does_not_exist1{r}#110) AS $$does_not_exist1$converted_to$long#116]]
-     *           |       \_Eval[[null[NULL] AS does_not_exist1#111]]
-     *           |         \_Eval[[null[KEYWORD] AS _meta_field#75, null[INTEGER] AS emp_no#76, null[KEYWORD] AS first_name#77,
+     * \_MvExpand[languageCode{r}#24,languageCode{r}#197]
+     *   \_Project[[count(*){r}#18, emp_no{r}#131 AS empNo#21, language_code{r}#141 AS languageCode#24, does_not_exist2{r}#196]]
+     *     \_Aggregate[[emp_no{r}#131, language_code{r}#141, does_not_exist2{r}#196],
+     *          [COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*)#18, emp_no{r}#131, language_code{r}#141,
+     *          does_not_exist2{r}#196]]
+     *       \_Filter[emp_no{r}#92 > 10000[INTEGER] OR $$does_not_exist1$converted_to$long{r$}#150 < 10[INTEGER]]
+     *         \_UnionAll[[_meta_field{r}#179, emp_no{r}#180, first_name{r}#181, gender{r}#182, hire_date{r}#183, job{r}#184,
+     *              job.raw{r}#185, languages{r}#186, last_name{r}#187, long_noidx{r}#188, salary{r}#189, language_code{r}#190,
+     *              languageName{r}#191, max(@timestamp){r}#192, language_name{r}#193, does_not_exist1{r}#194,
+     *              $$does_not_exist1$converted_to$long{r$}#195, does_not_exist2{r}#196]]
+     *           |_Project[[_meta_field{f}#34, emp_no{f}#28, first_name{f}#29, gender{f}#30, hire_date{f}#35, job{f}#36, job.raw{f}#37,
+     *                  languages{f}#31, last_name{f}#32, long_noidx{f}#38, salary{f}#33, language_code{r}#58, languageName{r}#59,
+     *                  max(@timestamp){r}#60, language_name{r}#61, does_not_exist1{r}#106, $$does_not_exist1$converted_to$long{r$}#146,
+     *                  does_not_exist2{r}#151]]
+     *           | \_Eval[[TOLONG(does_not_exist1{r}#106) AS $$does_not_exist1$converted_to$long#146]]
+     *           |   \_Eval[[null[INTEGER] AS language_code#58, null[KEYWORD] AS languageName#59, null[DATETIME] AS max(@timestamp)#60,
+     *                      null[KEYWORD] AS language_name#61, null[NULL] AS does_not_exist1#106, null[NULL] AS does_not_exist2#151]]
+     *           |     \_EsRelation[test][_meta_field{f}#34, emp_no{f}#28, first_name{f}#29, ..]
+     *           |_Project[[_meta_field{r}#62, emp_no{r}#63, first_name{r}#64, gender{r}#65, hire_date{r}#66, job{r}#67, job.raw{r}#68,
+     *                  languages{r}#69, last_name{r}#70, long_noidx{r}#71, salary{r}#72, language_code{f}#39, languageName{r}#6,
+     *                  max(@timestamp){r}#73, language_name{r}#74, does_not_exist1{r}#107, $$does_not_exist1$converted_to$long{r$}#147,
+     *                  does_not_exist2{r}#152]]
+     *           | \_Eval[[TOLONG(does_not_exist1{r}#107) AS $$does_not_exist1$converted_to$long#147]]
+     *           |   \_Eval[[null[KEYWORD] AS _meta_field#62, null[INTEGER] AS emp_no#63, null[KEYWORD] AS first_name#64,
+     *                      null[TEXT] AS gender#65, null[DATETIME] AS hire_date#66, null[TEXT] AS job#67, null[KEYWORD] AS job.raw#68,
+     *                      null[INTEGER] AS languages#69, null[KEYWORD] AS last_name#70, null[LONG] AS long_noidx#71,
+     *                      null[INTEGER] AS salary#72, null[DATETIME] AS max(@timestamp)#73, null[KEYWORD] AS language_name#74]]
+     *           |     \_Subquery[]
+     *           |       \_Project[[language_code{f}#39, language_name{f}#40 AS languageName#6, does_not_exist1{r}#107,
+     *                          does_not_exist2{r}#152]]
+     *           |         \_Filter[language_code{f}#39 > 10[INTEGER]]
+     *           |           \_Eval[[null[NULL] AS does_not_exist1#107, null[NULL] AS does_not_exist2#152]]
+     *           |             \_EsRelation[languages][language_code{f}#39, language_name{f}#40]
+     *           |_Project[[_meta_field{r}#75, emp_no{r}#76, first_name{r}#77, gender{r}#78, hire_date{r}#79, job{r}#80, job.raw{r}#81,
+     *                  languages{r}#82, last_name{r}#83, long_noidx{r}#84, salary{r}#85, language_code{r}#86, languageName{r}#87,
+     *                  max(@timestamp){r}#8, language_name{r}#88, does_not_exist1{r}#129, $$does_not_exist1$converted_to$long{r$}#148,
+     *                  does_not_exist2{r}#178]]
+     *           | \_Eval[[null[NULL] AS does_not_exist2#178]]
+     *           |   \_Project[[_meta_field{r}#75, emp_no{r}#76, first_name{r}#77, gender{r}#78, hire_date{r}#79, job{r}#80, job.raw{r}#81,
+     *                      languages{r}#82, last_name{r}#83, long_noidx{r}#84, salary{r}#85, language_code{r}#86, languageName{r}#87,
+     *                      max(@timestamp){r}#8, language_name{r}#88, does_not_exist1{r}#129, $$does_not_exist1$converted_to$long{r$}#148]]
+     *           |     \_Eval[[TOLONG(does_not_exist1{r}#129) AS $$does_not_exist1$converted_to$long#148]]
+     *           |       \_Eval[[null[NULL] AS does_not_exist1#129]]
+     *           |         \_Project[[_meta_field{r}#75, emp_no{r}#76, first_name{r}#77, gender{r}#78, hire_date{r}#79, job{r}#80,
+     *                          job.raw{r}#81, languages{r}#82, last_name{r}#83, long_noidx{r}#84, salary{r}#85, language_code{r}#86,
+     *                          languageName{r}#87, max(@timestamp){r}#8, language_name{r}#88]]
+     *           |           \_Eval[[null[KEYWORD] AS _meta_field#75, null[INTEGER] AS emp_no#76, null[KEYWORD] AS first_name#77,
      *                              null[TEXT] AS gender#78, null[DATETIME] AS hire_date#79, null[TEXT] AS job#80,
      *                              null[KEYWORD] AS job.raw#81, null[INTEGER] AS languages#82, null[KEYWORD] AS last_name#83,
      *                              null[LONG] AS long_noidx#84, null[INTEGER] AS salary#85, null[INTEGER] AS language_code#86,
      *                              null[KEYWORD] AS languageName#87, null[KEYWORD] AS language_name#88]]
-     *           |           \_Subquery[]
-     *           |             \_Aggregate[[],[MAX(@timestamp{f}#41,true[BOOLEAN],PT0S[TIME_DURATION]) AS max(@timestamp)#8]]
-     *           |               \_Eval[[null[NULL] AS does_not_exist1#106, null[NULL] AS does_not_exist2#119]]
-     *           |                 \_EsRelation[sample_data][@timestamp{f}#41, client_ip{f}#42, event_duration{f..]
-     *           \_Limit[1000[INTEGER],false,false]
-     *             \_EsqlProject[[_meta_field{f}#51, emp_no{f}#45, first_name{f}#46, gender{f}#47, hire_date{f}#52, job{f}#53,
-     *                      job.raw{f}#54, languages{f}#48, last_name{f}#49, long_noidx{f}#55, salary{f}#50, language_code{r}#12,
-     *                      languageName{r}#89, max(@timestamp){r}#90, language_name{f}#57, does_not_exist1{r}#112,
-     *                      $$does_not_exist1$converted_to$long{r}#117, does_not_exist2{r}#125]]
-     *               \_Eval[[TOLONG(does_not_exist1{r}#112) AS $$does_not_exist1$converted_to$long#117]]
-     *                 \_Eval[[null[KEYWORD] AS languageName#89, null[DATETIME] AS max(@timestamp)#90]]
-     *                   \_Subquery[]
-     *                     \_LookupJoin[LEFT,[language_code{r}#12],[language_code{f}#56],false,null]
-     *                       |_Eval[[languages{f}#48 AS language_code#12, null[NULL] AS does_not_exist1#106,
-     *                              null[NULL] AS does_not_exist2#119]]
-     *                       | \_EsRelation[test][_meta_field{f}#51, emp_no{f}#45, first_name{f}#46, ..]
-     *                       \_Eval[[null[NULL] AS does_not_exist1#106, null[NULL] AS does_not_exist2#119]]
-     *                         \_EsRelation[languages_lookup][LOOKUP][language_code{f}#56, language_name{f}#57]
+     *           |             \_Subquery[]
+     *           |               \_Aggregate[[],[MAX(@timestamp{f}#41,true[BOOLEAN],PT0S[TIME_DURATION]) AS max(@timestamp)#8]]
+     *           |                 \_Eval[[null[NULL] AS does_not_exist1#108, null[NULL] AS does_not_exist2#153]]
+     *           |                   \_EsRelation[sample_data][@timestamp{f}#41, client_ip{f}#42, event_duration{f..]
+     *           \_Project[[_meta_field{f}#51, emp_no{f}#45, first_name{f}#46, gender{f}#47, hire_date{f}#52, job{f}#53, job.raw{f}#54,
+     *                  languages{f}#48, last_name{f}#49, long_noidx{f}#55, salary{f}#50, language_code{r}#12, languageName{r}#89,
+     *                  max(@timestamp){r}#90, language_name{f}#57, does_not_exist1{r}#110, $$does_not_exist1$converted_to$long{r$}#149,
+     *                  does_not_exist2{r}#155]]
+     *             \_Eval[[TOLONG(does_not_exist1{r}#110) AS $$does_not_exist1$converted_to$long#149]]
+     *               \_Eval[[null[KEYWORD] AS languageName#89, null[DATETIME] AS max(@timestamp)#90]]
+     *                 \_Subquery[]
+     *                   \_LookupJoin[LEFT,[language_code{r}#12],[language_code{f}#56],false,null]
+     *                     |_Eval[[languages{f}#48 AS language_code#12, null[NULL] AS does_not_exist1#109,
+     *                          null[NULL] AS does_not_exist2#154]]
+     *                     | \_EsRelation[test][_meta_field{f}#51, emp_no{f}#45, first_name{f}#46, ..]
+     *                     \_Eval[[null[NULL] AS does_not_exist1#110, null[NULL] AS does_not_exist2#155]]
+     *                       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#56, language_name{f}#57]
      */
     public void testSubquerysMixAndLookupJoinNullify() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -2285,8 +2597,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             """));
 
         // TODO: golden testing
-        assertThat(plan instanceof Limit, is(true));
-        // assertThat(Expressions.names(plan.output()), is(List.of("count(*)", "empNo", "languageCode", "does_not_exist2")));
+        assertThat(Expressions.names(plan.output()), is(List.of("count(*)", "empNo", "languageCode", "does_not_exist2")));
     }
 
     // same tree as above, except for the source nodes
@@ -2372,65 +2683,61 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     /*
-     * Project[[_meta_field{r}#65, emp_no{r}#66, first_name{r}#67, gender{r}#68, hire_date{r}#69, job{r}#70, job.raw{r}#71,
-     *      languages{r}#72, last_name{r}#73, long_noidx{r}#74, salary{r}#75, c{r}#76, does_not_exist1{r}#77, a{r}#78,
-     *      does_not_exist2{r}#82, does_not_exist3{r}#93, x{r}#13]]
+     * Project[[_meta_field{r}#115, first_name{r}#116, gender{r}#117, hire_date{r}#118, job{r}#119, job.raw{r}#120, languages{r}#121,
+     *      last_name{r}#122, long_noidx{r}#123, salary{r}#124, c{r}#125, does_not_exist1{r}#126, a{r}#127, does_not_exist2{r}#128,
+     *      does_not_exist3{r}#129, emp_no{r}#130, x{r}#13]]
      * \_Limit[1000[INTEGER],false,false]
-     *   \_Eval[[does_not_exist3{r}#93 AS x#13]]
-     *     \_Filter[$$does_not_exist2$converted_to$long{r$}#92 < 10[INTEGER]]
-     *       \_UnionAll[[_meta_field{r}#65, emp_no{r}#66, first_name{r}#67, gender{r}#68, hire_date{r}#69, job{r}#70, job.raw{r}#71,
-     *              languages{r}#72, last_name{r}#73, long_noidx{r}#74, salary{r}#75, c{r}#76, does_not_exist1{r}#77, a{r}#78,
-     *              does_not_exist2{r}#82, $$does_not_exist2$converted_to$long{r$}#92, does_not_exist3{r}#93]]
-     *         |_Limit[1000[INTEGER],false,false]
-     *         | \_EsqlProject[[_meta_field{f}#21, emp_no{r}#79, first_name{f}#16, gender{f}#17, hire_date{f}#22, job{f}#23, job.raw{f}#24,
-     *                  languages{f}#18, last_name{f}#19, long_noidx{f}#25, salary{f}#20, c{r}#38, does_not_exist1{r}#39, a{r}#40,
-     *                  does_not_exist2{r}#83, $$does_not_exist2$converted_to$long{r}#89, does_not_exist3{r}#94]]
-     *         |   \_Eval[[TOLONG(does_not_exist2{r}#83) AS $$does_not_exist2$converted_to$long#89]]
-     *         |     \_Eval[[null[KEYWORD] AS emp_no#79]]
-     *         |       \_Eval[[null[LONG] AS c#38, null[NULL] AS does_not_exist1#39, null[DOUBLE] AS a#40,
-     *                          null[NULL] AS does_not_exist2#82, null[NULL] AS does_not_exist3#93]]
-     *         |         \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
-     *         |_Limit[1000[INTEGER],false,false]
-     *         | \_EsqlProject[[_meta_field{r}#41, emp_no{r}#80, first_name{r}#42, gender{r}#43, hire_date{r}#44, job{r}#45, job.raw{r}#46,
-     *                  languages{r}#47, last_name{r}#48, long_noidx{r}#49, salary{r}#50, c{r}#6, does_not_exist1{r}#31, a{r}#51,
-     *                  does_not_exist2{r}#84, $$does_not_exist2$converted_to$long{r}#90, does_not_exist3{r}#95]]
-     *         |   \_Eval[[null[NULL] AS does_not_exist3#96]]
-     *         |     \_Eval[[TOLONG(does_not_exist2{r}#84) AS $$does_not_exist2$converted_to$long#90]]
-     *         |       \_Eval[[null[NULL] AS does_not_exist2#85]]
-     *         |         \_Eval[[null[KEYWORD] AS emp_no#80]]
-     *         |           \_Eval[[null[KEYWORD] AS _meta_field#41, null[KEYWORD] AS first_name#42, null[TEXT] AS gender#43,
-     *                              null[DATETIME] AS hire_date#44, null[TEXT] AS job#45, null[KEYWORD] AS job.raw#46,
-     *                              null[INTEGER] AS languages#47, null[KEYWORD] AS last_name#48, null[LONG] AS long_noidx#49,
-     *                              null[INTEGER] AS salary#50, null[DOUBLE] AS a#51]]
-     *         |             \_Subquery[]
-     *         |               \_Aggregate[[emp_no{r}#30, does_not_exist1{r}#31],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION])
-     *                              AS c#6, emp_no{r}#30, does_not_exist1{r}#31]]
-     *         |                 \_Eval[[null[NULL] AS emp_no#30, null[NULL] AS does_not_exist1#31, null[NULL] AS does_not_exist2#82,
-     *                                      null[NULL] AS does_not_exist3#93]]
-     *         |                   \_EsRelation[languages][language_code{f}#26, language_name{f}#27]
-     *         \_Limit[1000[INTEGER],false,false]
-     *           \_EsqlProject[[_meta_field{r}#52, emp_no{r}#81, first_name{r}#54, gender{r}#55, hire_date{r}#56, job{r}#57, job.raw{r}#58,
-     *                      languages{r}#59, last_name{r}#60, long_noidx{r}#61, salary{r}#62, c{r}#63, does_not_exist1{r}#64, a{r}#9,
-     *                      does_not_exist2{r}#86, $$does_not_exist2$converted_to$long{r}#91, does_not_exist3{r}#97]]
-     *             \_Eval[[null[NULL] AS does_not_exist3#98]]
-     *               \_Eval[[TOLONG(does_not_exist2{r}#86) AS $$does_not_exist2$converted_to$long#91]]
-     *                 \_Eval[[null[NULL] AS does_not_exist2#87]]
-     *                   \_Eval[[null[KEYWORD] AS emp_no#81]]
-     *                     \_Eval[[null[KEYWORD] AS _meta_field#52, null[INTEGER] AS emp_no#53, null[KEYWORD] AS first_name#54,
-     *                              null[TEXT] AS gender#55, null[DATETIME] AS hire_date#56, null[TEXT] AS job#57,
-     *                              null[KEYWORD] AS job.raw#58, null[INTEGER] AS languages#59, null[KEYWORD] AS last_name#60,
-     *                              null[LONG] AS long_noidx#61, null[INTEGER] AS salary#62, null[LONG] AS c#63,
-     *                              null[NULL] AS does_not_exist1#64]]
-     *                       \_Subquery[]
-     *                         \_Aggregate[[],[AVG(salary{r}#36,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS a#9]]
-     *                           \_Eval[[null[NULL] AS salary#36, null[NULL] AS does_not_exist2#82, null[NULL] AS does_not_exist3#93]]
-     *                             \_EsRelation[languages][language_code{f}#28, language_name{f}#29]
+     *   \_Eval[[does_not_exist3{r}#129 AS x#13]]
+     *     \_Filter[$$does_not_exist2$converted_to$long{r$}#107 < 10[INTEGER]]
+     *       \_UnionAll[[_meta_field{r}#115, first_name{r}#116, gender{r}#117, hire_date{r}#118, job{r}#119, job.raw{r}#120,
+     *              languages{r}#121, last_name{r}#122, long_noidx{r}#123, salary{r}#124, c{r}#125, does_not_exist1{r}#126, a{r}#127,
+     *              does_not_exist2{r}#128, does_not_exist3{r}#129, emp_no{r}#130, $$does_not_exist2$converted_to$long{r$}#131]]
+     *         |_Project[[_meta_field{f}#21, first_name{f}#16, gender{f}#17, hire_date{f}#22, job{f}#23, job.raw{f}#24, languages{f}#18,
+     *              last_name{f}#19, long_noidx{f}#25, salary{f}#20, c{r}#38, does_not_exist1{r}#39, a{r}#40, does_not_exist2{r}#82,
+     *              does_not_exist3{r}#108, emp_no{r}#79, $$does_not_exist2$converted_to$long{r$}#104]]
+     *         | \_Eval[[TOLONG(does_not_exist2{r}#82) AS $$does_not_exist2$converted_to$long#104]]
+     *         |   \_Eval[[null[KEYWORD] AS emp_no#79]]
+     *         |     \_Eval[[null[LONG] AS c#38, null[NULL] AS does_not_exist1#39, null[DOUBLE] AS a#40, null[NULL] AS does_not_exist2#82,
+     *                      null[NULL] AS does_not_exist3#108]]
+     *         |       \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
+     *         |_Project[[_meta_field{r}#41, first_name{r}#42, gender{r}#43, hire_date{r}#44, job{r}#45, job.raw{r}#46, languages{r}#47,
+     *                  last_name{r}#48, long_noidx{r}#49, salary{r}#50, c{r}#6, does_not_exist1{r}#31, a{r}#51, does_not_exist2{r}#87,
+     *                  does_not_exist3{r}#113, emp_no{r}#80, $$does_not_exist2$converted_to$long{r$}#105]]
+     *         | \_Eval[[null[NULL] AS does_not_exist3#113]]
+     *         |   \_Eval[[TOLONG(does_not_exist2{r}#87) AS $$does_not_exist2$converted_to$long#105]]
+     *         |     \_Eval[[null[NULL] AS does_not_exist2#87]]
+     *         |       \_Eval[[null[KEYWORD] AS emp_no#80]]
+     *         |         \_Eval[[null[KEYWORD] AS _meta_field#41, null[KEYWORD] AS first_name#42, null[TEXT] AS gender#43,
+     *                          null[DATETIME] AS hire_date#44, null[TEXT] AS job#45, null[KEYWORD] AS job.raw#46,
+     *                          null[INTEGER] AS languages#47, null[KEYWORD] AS last_name#48, null[LONG] AS long_noidx#49,
+     *                          null[INTEGER] AS salary#50, null[DOUBLE] AS a#51]]
+     *         |           \_Subquery[]
+     *         |             \_Aggregate[[emp_no{r}#30, does_not_exist1{r}#31],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#6,
+     *                              emp_no{r}#30, does_not_exist1{r}#31]]
+     *         |               \_Eval[[null[NULL] AS emp_no#30, null[NULL] AS does_not_exist1#31, null[NULL] AS does_not_exist2#83,
+     *                                  null[NULL] AS does_not_exist3#109]]
+     *         |                 \_EsRelation[languages][language_code{f}#26, language_name{f}#27]
+     *         \_Project[[_meta_field{r}#52, first_name{r}#54, gender{r}#55, hire_date{r}#56, job{r}#57, job.raw{r}#58, languages{r}#59,
+     *                  last_name{r}#60, long_noidx{r}#61, salary{r}#62, c{r}#63, does_not_exist1{r}#64, a{r}#9, does_not_exist2{r}#88,
+     *                  does_not_exist3{r}#114, emp_no{r}#81, $$does_not_exist2$converted_to$long{r$}#106]]
+     *           \_Eval[[null[NULL] AS does_not_exist3#114]]
+     *             \_Eval[[TOLONG(does_not_exist2{r}#88) AS $$does_not_exist2$converted_to$long#106]]
+     *               \_Eval[[null[NULL] AS does_not_exist2#88]]
+     *                 \_Eval[[null[KEYWORD] AS emp_no#81]]
+     *                   \_Eval[[null[KEYWORD] AS _meta_field#52, null[INTEGER] AS emp_no#53, null[KEYWORD] AS first_name#54,
+     *                          null[TEXT] AS gender#55, null[DATETIME] AS hire_date#56, null[TEXT] AS job#57, null[KEYWORD] AS job.raw#58,
+     *                          null[INTEGER] AS languages#59, null[KEYWORD] AS last_name#60, null[LONG] AS long_noidx#61,
+     *                          null[INTEGER] AS salary#62, null[LONG] AS c#63, null[NULL] AS does_not_exist1#64]]
+     *                     \_Subquery[]
+     *                       \_Aggregate[[],[AVG(salary{r}#36,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS a#9]]
+     *                         \_Eval[[null[NULL] AS salary#36, null[NULL] AS does_not_exist2#84, null[NULL] AS does_not_exist3#110]]
+     *                           \_EsRelation[languages][language_code{f}#28, language_name{f}#29]
      */
     public void testSubquerysWithMainAndStatsOnly() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
 
         var plan = analyzeStatement(setUnmappedNullify("""
-            FROM test, // adding a "main" index/pattern makes does_not_exist2 & 3 resolved
+            FROM test, // adding a "main" index/pattern makes does_not_exist2 & 3 resolved (compared to the same query above, w/o it)
                 (FROM languages
                  | STATS c = COUNT(*) BY emp_no, does_not_exist1),
                 (FROM languages
@@ -2469,11 +2776,10 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     /*
      * Limit[10000[INTEGER],false,false]
      * \_Fork[[_meta_field{r}#103, emp_no{r}#104, first_name{r}#105, gender{r}#106, hire_date{r}#107, job{r}#108, job.raw{r}#109,
-     *          languages{r}#110, last_name{r}#111, long_noidx{r}#112, salary{r}#113, does_not_exist1{r}#114, does_not_exist2{r}#115,
-     *          does_not_exist3{r}#116, does_not_exist2 IS NULL{r}#117, _fork{r}#118, does_not_exist4{r}#119, xyz{r}#120, x{r}#121,
-     *          y{r}#122]]
+     *      languages{r}#110, last_name{r}#111, long_noidx{r}#112, salary{r}#113, does_not_exist1{r}#114, does_not_exist2{r}#115,
+     *      does_not_exist3{r}#116, does_not_exist2 IS NULL{r}#117, _fork{r}#118, does_not_exist4{r}#119, xyz{r}#120, x{r}#121, y{r}#122]]
      *   |_Limit[10000[INTEGER],false,false]
-     *   | \_EsqlProject[[_meta_field{f}#35, emp_no{f}#29, first_name{f}#30, gender{f}#31, hire_date{f}#36, job{f}#37, job.raw{f}#38,
+     *   | \_Project[[_meta_field{f}#35, emp_no{f}#29, first_name{f}#30, gender{f}#31, hire_date{f}#36, job{f}#37, job.raw{f}#38,
      *          languages{f}#32, last_name{f}#33, long_noidx{f}#39, salary{f}#34, does_not_exist1{r}#62, does_not_exist2{r}#68,
      *          does_not_exist3{r}#74, does_not_exist2 IS NULL{r}#6, _fork{r}#9, does_not_exist4{r}#80, xyz{r}#81, x{r}#82, y{r}#83]]
      *   |   \_Eval[[null[NULL] AS does_not_exist4#80, null[KEYWORD] AS xyz#81, null[DOUBLE] AS x#82, null[DOUBLE] AS y#83]]
@@ -2486,7 +2792,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      *   |                 \_Eval[[null[NULL] AS does_not_exist1#62, null[NULL] AS does_not_exist2#68, null[NULL] AS does_not_exist3#74]]
      *   |                   \_EsRelation[test][_meta_field{f}#35, emp_no{f}#29, first_name{f}#30, ..]
      *   |_Limit[1000[INTEGER],false,false]
-     *   | \_EsqlProject[[_meta_field{f}#46, emp_no{f}#40, first_name{f}#41, gender{f}#42, hire_date{f}#47, job{f}#48, job.raw{f}#49,
+     *   | \_Project[[_meta_field{f}#46, emp_no{f}#40, first_name{f}#41, gender{f}#42, hire_date{f}#47, job{f}#48, job.raw{f}#49,
      *          languages{f}#43, last_name{f}#44, long_noidx{f}#50, salary{f}#45, does_not_exist1{r}#64, does_not_exist2{r}#70,
      *          does_not_exist3{r}#84, does_not_exist2 IS NULL{r}#6, _fork{r}#9, does_not_exist4{r}#76, xyz{r}#21, x{r}#85, y{r}#86]]
      *   |   \_Eval[[null[NULL] AS does_not_exist3#84, null[DOUBLE] AS x#85, null[DOUBLE] AS y#86]]
@@ -2498,10 +2804,9 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      *   |               \_Eval[[null[NULL] AS does_not_exist1#64, null[NULL] AS does_not_exist2#70, null[NULL] AS does_not_exist4#76]]
      *   |                 \_EsRelation[test][_meta_field{f}#46, emp_no{f}#40, first_name{f}#41, ..]
      *   \_Limit[1000[INTEGER],false,false]
-     *     \_EsqlProject[[_meta_field{r}#87, emp_no{r}#88, first_name{r}#89, gender{r}#90, hire_date{r}#91, job{r}#92, job.raw{r}#93,
-     *              languages{r}#94, last_name{r}#95, long_noidx{r}#96, salary{r}#97, does_not_exist1{r}#98, does_not_exist2{r}#99,
-     *              does_not_exist3{r}#100, does_not_exist2 IS NULL{r}#101, _fork{r}#9, does_not_exist4{r}#102, xyz{r}#27, x{r}#13,
-     *              y{r}#16]]
+     *     \_Project[[_meta_field{r}#87, emp_no{r}#88, first_name{r}#89, gender{r}#90, hire_date{r}#91, job{r}#92, job.raw{r}#93,
+     *          languages{r}#94, last_name{r}#95, long_noidx{r}#96, salary{r}#97, does_not_exist1{r}#98, does_not_exist2{r}#99,
+     *          does_not_exist3{r}#100, does_not_exist2 IS NULL{r}#101, _fork{r}#9, does_not_exist4{r}#102, xyz{r}#27, x{r}#13, y{r}#16]]
      *       \_Eval[[null[KEYWORD] AS _meta_field#87, null[INTEGER] AS emp_no#88, null[KEYWORD] AS first_name#89, null[TEXT] AS gender#90,
      *              null[DATETIME] AS hire_date#91, null[TEXT] AS job#92, null[KEYWORD] AS job.raw#93, null[INTEGER] AS languages#94,
      *              null[KEYWORD] AS last_name#95, null[LONG] AS long_noidx#96, null[INTEGER] AS salary#97,
@@ -2510,10 +2815,10 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      *         \_Eval[[fork3[KEYWORD] AS _fork#9]]
      *           \_Eval[[abc[KEYWORD] AS xyz#27]]
      *             \_Aggregate[[],[MIN(TODOUBLE(d{r}#22),true[BOOLEAN],PT0S[TIME_DURATION]) AS x#13,
-     *                  FilteredExpression[MAX(TODOUBLE(e{r}#23), true[BOOLEAN],PT0S[TIME_DURATION]),
+     *                  FilteredExpression[MAX(TODOUBLE(e{r}#23),true[BOOLEAN],PT0S[TIME_DURATION]),
      *                  TODOUBLE(d{r}#22) > 1000[INTEGER] + TODOUBLE(does_not_exist5{r}#78)] AS y#16]]
      *               \_Dissect[first_name{f}#52,Parser[pattern=%{d} %{e} %{f}, appendSeparator=,
-     *                      parser=org.elasticsearch.dissect.DissectParser@4b06062b],[d{r}#22, e{r}#23, f{r}#24]]
+     *                      parser=org.elasticsearch.dissect.DissectParser@4ba4d16b],[d{r}#22, e{r}#23, f{r}#24]]
      *                 \_Eval[[ISNULL(does_not_exist2{r}#72) AS does_not_exist2 IS NULL#6]]
      *                   \_Filter[first_name{f}#52 == Chris[KEYWORD] AND TOLONG(does_not_exist1{r}#66) > 5[INTEGER]]
      *                     \_Eval[[null[NULL] AS does_not_exist1#66, null[NULL] AS does_not_exist2#72, null[NULL] AS does_not_exist5#78]]
@@ -2715,7 +3020,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      * \_OrderBy[[Order[does_not_exist2{r}#46,ASC,LAST]]]
      *   \_Fork[[c{r}#45, does_not_exist2{r}#46, _fork{r}#47, d{r}#48]]
      *     |_Limit[1000[INTEGER],false,false]
-     *     | \_EsqlProject[[c{r}#6, does_not_exist2{r}#39, _fork{r}#7, d{r}#42]]
+     *     | \_Project[[c{r}#6, does_not_exist2{r}#39, _fork{r}#7, d{r}#42]]
      *     |   \_Eval[[null[DOUBLE] AS d#42]]
      *     |     \_Eval[[fork1[KEYWORD] AS _fork#7]]
      *     |       \_Aggregate[[does_not_exist2{r}#39],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#6, does_not_exist2{r}#39]]
@@ -2723,7 +3028,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      *     |           \_Eval[[null[NULL] AS does_not_exist1#35, null[NULL] AS does_not_exist2#39]]
      *     |             \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
      *     \_Limit[1000[INTEGER],false,false]
-     *       \_EsqlProject[[c{r}#43, does_not_exist2{r}#44, _fork{r}#7, d{r}#10]]
+     *       \_Project[[c{r}#43, does_not_exist2{r}#44, _fork{r}#7, d{r}#10]]
      *         \_Eval[[null[LONG] AS c#43, null[NULL] AS does_not_exist2#44]]
      *           \_Eval[[fork2[KEYWORD] AS _fork#7]]
      *             \_Aggregate[[],[AVG(salary{f}#29,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS d#10]]
@@ -2749,7 +3054,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      * \_OrderBy[[Order[does_not_exist2{r}#48,ASC,LAST]]]
      *   \_Fork[[c{r}#45, _fork{r}#46, d{r}#47, does_not_exist2{r}#48]]
      *     |_Limit[1000[INTEGER],false,false]
-     *     | \_EsqlProject[[c{r}#5, _fork{r}#6, d{r}#42, does_not_exist2{r}#43]]
+     *     | \_Project[[c{r}#5, _fork{r}#6, d{r}#42, does_not_exist2{r}#43]]
      *     |   \_Eval[[null[DOUBLE] AS d#42, null[NULL] AS does_not_exist2#43]]
      *     |     \_Eval[[fork1[KEYWORD] AS _fork#6]]
      *     |       \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#5]]
@@ -2757,11 +3062,11 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      *     |           \_Eval[[null[NULL] AS does_not_exist1#35]]
      *     |             \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
      *     \_Limit[1000[INTEGER],false,false]
-     *       \_EsqlProject[[c{r}#44, _fork{r}#6, d{r}#10, does_not_exist2{r}#39]]
+     *       \_Project[[c{r}#44, _fork{r}#6, d{r}#10, does_not_exist2{r}#39]]
      *         \_Eval[[null[LONG] AS c#44]]
      *           \_Eval[[fork2[KEYWORD] AS _fork#6]]
      *             \_Aggregate[[does_not_exist2{r}#39],[AVG(salary{f}#29,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS d#10,
-     *                      does_not_exist2{r}#39]]
+     *                  does_not_exist2{r}#39]]
      *               \_Filter[ISNULL(does_not_exist1{r}#37)]
      *                 \_Eval[[null[NULL] AS does_not_exist1#37, null[NULL] AS does_not_exist2#39]]
      *                   \_EsRelation[test][_meta_field{f}#30, emp_no{f}#24, first_name{f}#25, ..]
@@ -2965,7 +3270,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
     /*
      * Limit[1000[INTEGER],false,false]
-     * \_EsqlProject[[x{r}#4, does_not_exist_field1{r}#12, y{r}#8, does_not_exist_field2{r}#14]]
+     * \_Project[[x{r}#4, does_not_exist_field1{r}#12, y{r}#8, does_not_exist_field2{r}#14]]
      *   \_Eval[[TOINTEGER(does_not_exist_field1{r}#12) + x{r}#4 AS y#8]]
      *     \_Eval[[null[NULL] AS does_not_exist_field1#12, null[NULL] AS does_not_exist_field2#14]]
      *       \_Row[[1[INTEGER] AS x#4]]

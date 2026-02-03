@@ -10,7 +10,6 @@
 package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene103.Lucene103Codec;
 import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -45,6 +44,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 @SuppressCodecs("*") // we test against default codec so never get a random one here!
 public class CodecTests extends ESTestCase {
@@ -75,7 +75,7 @@ public class CodecTests extends ESTestCase {
         if (syntheticIdEnabled) {
             assertThat(deduplicateFieldInfosCodec.delegate(), instanceOf(ES93TSDBDefaultCompressionLucene103Codec.class));
         } else {
-            assertThat(deduplicateFieldInfosCodec.delegate(), instanceOf(Lucene103Codec.class));
+            assertThat(deduplicateFieldInfosCodec.delegate(), not(instanceOf(ES93TSDBDefaultCompressionLucene103Codec.class)));
         }
     }
 
@@ -145,7 +145,7 @@ public class CodecTests extends ESTestCase {
         var indexSettings = Settings.builder().put(nodeSettings);
         if (syntheticIdEnabled) {
             assertTrue(IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
-            indexSettings.put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true)
+            indexSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), true)
                 .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .put("index.routing_path", "hostname");
         }

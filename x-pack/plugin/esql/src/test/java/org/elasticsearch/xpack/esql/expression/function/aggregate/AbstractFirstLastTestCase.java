@@ -36,7 +36,7 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
 
         for (DataType valueType : types) {
             for (TestCaseSupplier.TypedDataSupplier valueSupplier : unlimitedSuppliers(valueType, rows, rows)) {
-                for (DataType sortType : List.of(DataType.DATETIME, DataType.DATE_NANOS)) {
+                for (DataType sortType : List.of(DataType.LONG, DataType.DATETIME, DataType.DATE_NANOS)) {
                     for (TestCaseSupplier.TypedDataSupplier sortSupplier : unlimitedSuppliers(sortType, rows, rows)) {
                         suppliers.add(makeSupplier(valueSupplier, sortSupplier, isFirst, isNullable));
                     }

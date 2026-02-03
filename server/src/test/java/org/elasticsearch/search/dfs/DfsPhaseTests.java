@@ -255,7 +255,7 @@ public class DfsPhaseTests extends IndexShardTestCase {
 
             // k=6 with no oversample should also collect 6 docs
             int k2 = 6;
-            DfsKnnResults withoutOversample = DfsPhase.singleKnnSearch(query, k2, 0, null, searcher, null);
+            DfsKnnResults withoutOversample = DfsPhase.singleKnnSearch(query, k2, 0f, null, searcher, null);
 
             assertEquals(
                 "k=2 oversample=3 should collect same count as k=6 and no oversampling",

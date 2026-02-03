@@ -182,7 +182,6 @@ public class DfsPhase {
         if (source == null || source.knnSearch().isEmpty()) {
             return;
         }
-
         SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
         List<KnnSearchBuilder> knnSearch = source.knnSearch();
         // KnnSearchBuilder::toQueryBuilder will disable rescoring for the underlying KnnVectorQueryBuilder
@@ -207,7 +206,7 @@ public class DfsPhase {
                 String knnNestedPath = searchExecutionContext.nestedLookup().getNestedParent(knnField);
                 Query query = searchExecutionContext.toQuery(knnQuery).query();
                 int k = knnSearch.get(i).k();
-                float oversampling = knnSearch.get(i).getOversampleFactor(searchExecutionContext);
+                Float oversampling = knnSearch.get(i).getOversampleFactor(searchExecutionContext);
                 knnResults.add(singleKnnSearch(query, k, oversampling, context.getProfilers(), context.searcher(), knnNestedPath));
             }
             afterQueryTime = System.nanoTime();
@@ -224,12 +223,12 @@ public class DfsPhase {
     static DfsKnnResults singleKnnSearch(
         Query knnQuery,
         int k,
-        float oversample,
+        Float oversample,
         Profilers profilers,
         ContextIndexSearcher searcher,
         String nestedPath
     ) throws IOException {
-        int docsToCollect = oversample > 1 ? (int) Math.ceil(k * oversample) : k;
+        int docsToCollect = oversample != null && oversample > 1 ? (int) Math.ceil(k * oversample) : k;
         CollectorManager<? extends Collector, TopDocs> topDocsCollectorManager = new TopScoreDocCollectorManager(
             docsToCollect,
             null,

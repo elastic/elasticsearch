@@ -42,6 +42,7 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     private static final String FLAT_BBQ_INDEX_NAME = "flat_bbq_vector_index";
     private static final String HNSW_BIT_INDEX_NAME = "hnsw_bit_vector_index";
     private static final String FLAT_BIT_INDEX_NAME = "flat_bit_vector_index";
+    private static final String DFS_KNN_RESCORE_INDEX_NAME = "dfs_knn_rescore_vector_index";
 
     // TODO: replace these with proper test features
     private static final String FLOAT_VECTOR_SEARCH_TEST_FEATURE = "gte_v8.4.0";
@@ -761,23 +762,23 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
                 }
                 """;
             createIndex(
-                QUANTIZED_INDEX_NAME,
+                DFS_KNN_RESCORE_INDEX_NAME,
                 Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 0).build(),
                 mapping
             );
             for (int i = 0; i < 30; i++) {
-                Request indexRequest = new Request("POST", "/" + QUANTIZED_INDEX_NAME + "/_doc/" + i);
+                Request indexRequest = new Request("POST", "/" + DFS_KNN_RESCORE_INDEX_NAME + "/_doc/" + i);
                 indexRequest.setJsonEntity(String.format("""
                     {
-                      "vector": [%d, 0, 0],
-                      "value": %d
+                      "vector": [%s, 0, 0],
+                      "value": %s
                     }
                     """, i, i));
                 client().performRequest(indexRequest);
             }
-            client().performRequest(new Request("POST", "/" + QUANTIZED_INDEX_NAME + "/_refresh"));
+            client().performRequest(new Request("POST", "/" + DFS_KNN_RESCORE_INDEX_NAME + "/_refresh"));
         }
-        Request searchRequest = new Request("POST", "/" + QUANTIZED_INDEX_NAME + "/_search");
+        Request searchRequest = new Request("POST", "/" + DFS_KNN_RESCORE_INDEX_NAME + "/_search");
         searchRequest.setJsonEntity("""
             {
               "knn": {

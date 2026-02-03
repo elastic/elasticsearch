@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
-import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelTests;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import org.junit.After;
@@ -441,7 +441,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(getUrl(webServer), "my-dense-model-id");
+            var model = ElasticInferenceServiceDenseEmbeddingsModelTests.createTextEmbeddingModel(getUrl(webServer), "my-dense-model-id");
             var action = createAction(sender, model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -500,7 +500,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(getUrl(webServer), "my-dense-model-id");
+            var model = ElasticInferenceServiceDenseEmbeddingsModelTests.createTextEmbeddingModel(getUrl(webServer), "my-dense-model-id");
             var secret = "secret-token";
             var action = createAction(sender, model, createApplierFactory(secret));
 
@@ -554,7 +554,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(getUrl(webServer), "my-dense-model-id");
+            var model = ElasticInferenceServiceDenseEmbeddingsModelTests.createTextEmbeddingModel(getUrl(webServer), "my-dense-model-id");
             var action = createAction(sender, model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -608,7 +608,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(getUrl(webServer), "my-dense-model-id");
+            var model = ElasticInferenceServiceDenseEmbeddingsModelTests.createTextEmbeddingModel(getUrl(webServer), "my-dense-model-id");
             var action = createAction(sender, model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -649,7 +649,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(getUrl(webServer), "my-dense-model-id");
+            var model = ElasticInferenceServiceDenseEmbeddingsModelTests.createTextEmbeddingModel(getUrl(webServer), "my-dense-model-id");
             var action = createAction(sender, model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();

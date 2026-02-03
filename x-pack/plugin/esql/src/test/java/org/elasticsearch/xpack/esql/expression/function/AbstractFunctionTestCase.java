@@ -922,8 +922,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * </p>
      */
     @SuppressWarnings("unchecked")
-    protected final void assertTestCaseResultAndWarnings(Object result) {
-        result = normalizeResultUnsignedLongAware(result);
+    protected final void assertTestCaseResultAndWarnings(Object originalResult) {
+        Object result = normalizeResultUnsignedLongAware(originalResult);
         if (result instanceof Iterable<?>) {
             var collectionResult = (Iterable<Object>) result;
             assertThat(collectionResult, not(hasItem(Double.NaN)));

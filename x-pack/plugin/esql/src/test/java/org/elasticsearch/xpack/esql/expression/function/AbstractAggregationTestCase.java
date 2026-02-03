@@ -512,7 +512,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         assertThat(expression.dataType(), equalTo(testCase.expectedType()));
 
         // Replace null aggs
-        expression = expression.transformUp(AggregateFunction.class,agg -> {
+        expression = expression.transformUp(AggregateFunction.class, agg -> {
             if (ReplaceStatsFilteredOrNullAggWithEval.shouldReplace(agg)) {
                 return Literal.of(agg, ReplaceStatsFilteredOrNullAggWithEval.mapNullToValue(agg));
             }

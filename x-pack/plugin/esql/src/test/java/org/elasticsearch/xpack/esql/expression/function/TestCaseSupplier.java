@@ -2158,6 +2158,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         public static final TypedData NULL = new TypedData(null, DataType.NULL, "<null>");
         public static final TypedData MULTI_ROW_NULL = TypedData.multiRow(Collections.singletonList(null), DataType.NULL, "<null>");
 
+        /**
+         * The original test data, without unsigned long conversion.
+         */
+        private final Object originalData;
         private final Object data;
         private final DataType type;
         private final String name;
@@ -2184,6 +2188,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             assert multiRow == false || data instanceof List : "multiRow data must be a List";
             assert multiRow == false || forceLiteral == false : "multiRow data can't be converted to a literal";
 
+            this.originalData = data;
             if (type == DataType.UNSIGNED_LONG) {
                 this.data = bigIntegersToLong(data);
             } else {
@@ -2332,11 +2337,26 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         /**
+         * The original data, without unsigned long conversion.
+         */
+        public Object originalData() {
+            return originalData;
+        }
+
+        /**
          * Values to test against.
          */
         @SuppressWarnings("unchecked")
         public List<Object> multiRowData() {
             return (List<Object>) data;
+        }
+
+        /**
+         * The original data, without unsigned long conversion.
+         */
+        @SuppressWarnings("unchecked")
+        public List<Object> originalMultiRowData() {
+            return (List<Object>) originalData;
         }
 
         /**
@@ -2381,7 +2401,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         /**
          * Converts a BigInteger ulong to a long value.
          * <p>
-         *     If multivalue, converts them all,
+         *     If multivalue or multirow, converts them all.
          * </p>
          */
         private static Object bigIntegersToLong(Object ulongs) {

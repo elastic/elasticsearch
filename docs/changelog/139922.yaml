@@ -1,6 +1,0 @@
-pr: 139922
-summary: Binary doc values have stale value offset array if block contains all empty
-  values
-area: Codec
-type: bug
-issues: []

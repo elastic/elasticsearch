@@ -34,6 +34,7 @@ import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Consumer;
 
 /**
  * The indices request cache allows to cache a shard level request stage responses, helping with improving
@@ -97,6 +98,9 @@ public final class IndicesRequestCache implements Closeable {
         cleanCache();
     }
 
+    /**
+     * Get or compute a cache entry without cancellation support (backward compatible).
+     */
     BytesReference getOrCompute(
         CacheEntity cacheEntity,
         CheckedSupplier<BytesReference, IOException> loader,
@@ -104,11 +108,36 @@ public final class IndicesRequestCache implements Closeable {
         DirectoryReader reader,
         BytesReference cacheKey
     ) throws Exception {
+        return getOrCompute(cacheEntity, loader, mappingCacheKey, reader, cacheKey, null);
+    }
+
+    /**
+     * Get or compute a cache entry with cancellation support.
+     *
+     * @param cacheEntity           the cache entity
+     * @param loader                the loader to compute the value if not cached
+     * @param mappingCacheKey       the mapping cache key
+     * @param reader                the directory reader
+     * @param cacheKey              the cache key
+     * @param cancellationRegistrar if non-null, accepts a Runnable to be called when the operation should be cancelled.
+     *                              This allows waiting threads to be notified instantly when their task is cancelled,
+     *                              rather than polling.
+     * @return the cached or computed value
+     * @throws Exception if the computation fails or the operation is cancelled
+     */
+    BytesReference getOrCompute(
+        CacheEntity cacheEntity,
+        CheckedSupplier<BytesReference, IOException> loader,
+        MappingLookup.CacheKey mappingCacheKey,
+        DirectoryReader reader,
+        BytesReference cacheKey,
+        Consumer<Runnable> cancellationRegistrar
+    ) throws Exception {
         final ESCacheHelper cacheHelper = ElasticsearchDirectoryReader.getESReaderCacheHelper(reader);
         assert cacheHelper != null;
         final Key key = new Key(cacheEntity, mappingCacheKey, cacheHelper.getKey(), cacheKey);
         Loader cacheLoader = new Loader(cacheEntity, loader);
-        BytesReference value = cache.computeIfAbsent(key, cacheLoader);
+        BytesReference value = cache.computeIfAbsent(key, cacheLoader, cancellationRegistrar);
         if (cacheLoader.isLoaded()) {
             key.entity.onMiss();
             // see if its the first time we see this reader, and make sure to register a cleanup key

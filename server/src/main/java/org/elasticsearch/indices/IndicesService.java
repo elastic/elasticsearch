@@ -1689,8 +1689,12 @@ public class IndicesService extends AbstractLifecycleComponent
      * to have a single load operation that will cause other requests with the same key to wait till its loaded an reuse
      * the same cache.
      */
-    public void loadIntoContext(ShardSearchRequest request, SearchContext context) throws Exception {
-        assert canCache(request, context);
+    public void loadIntoContext(
+        ShardSearchRequest request,
+        SearchContext context,
+        Consumer<Runnable> cancellationRegistrar
+    ) throws Exception {
+        assert IndicesService.canCache(request, context);
         final DirectoryReader directoryReader = context.searcher().getDirectoryReader();
 
         boolean[] loadedFromCache = new boolean[] { true };
@@ -1704,7 +1708,8 @@ public class IndicesService extends AbstractLifecycleComponent
                 QueryPhase.execute(context);
                 context.queryResult().writeToNoId(out);
                 loadedFromCache[0] = false;
-            }
+            },
+            cancellationRegistrar
         );
 
         if (loadedFromCache[0]) {
@@ -1715,12 +1720,6 @@ public class IndicesService extends AbstractLifecycleComponent
             result.setSearchShardTarget(context.shardTarget());
         } else if (context.queryResult().searchTimedOut()) {
             // we have to invalidate the cache entry if we cached a query result form a request that timed out.
-            // we can't really throw exceptions in the loading part to signal a timed out search to the outside world since if there are
-            // multiple requests that wait for the cache entry to be calculated they'd fail all with the same exception.
-            // instead we all caching such a result for the time being, return the timed out result for all other searches with that cache
-            // key invalidate the result in the thread that caused the timeout. This will end up to be simpler and eventually correct since
-            // running a search that times out concurrently will likely timeout again if it's run while we have this `stale` result in the
-            // cache. One other option is to not cache requests with a timeout at all...
             indicesRequestCache.invalidate(
                 new IndexShardCacheEntity(context.indexShard()),
                 context.getSearchExecutionContext().mappingCacheKey(),
@@ -1737,16 +1736,13 @@ public class IndicesService extends AbstractLifecycleComponent
         }
     }
 
-    public long getTotalIndexingBufferBytes() {
-        return indexingMemoryController.indexingBufferSize();
-    }
-
     /**
      * Cache something calculated at the shard level.
      * @param shard the shard this item is part of
      * @param reader a reader for this shard. Used to invalidate the cache when there are changes.
      * @param cacheKey key for the thing being cached within this shard
      * @param loader loads the data into the cache if needed
+     * @param cancellationRegistrar if non-null, accepts a Runnable to be called when the operation should be cancelled
      * @return the contents of the cache or the result of calling the loader
      */
     private BytesReference cacheShardLevelResult(
@@ -1754,7 +1750,8 @@ public class IndicesService extends AbstractLifecycleComponent
         MappingLookup.CacheKey mappingCacheKey,
         DirectoryReader reader,
         BytesReference cacheKey,
-        CheckedConsumer<StreamOutput, IOException> loader
+        CheckedConsumer<StreamOutput, IOException> loader,
+        Consumer<Runnable> cancellationRegistrar
     ) throws Exception {
         IndexShardCacheEntity cacheEntity = new IndexShardCacheEntity(shard);
         CheckedSupplier<BytesReference, IOException> supplier = () -> {
@@ -1773,7 +1770,11 @@ public class IndicesService extends AbstractLifecycleComponent
                 return out.bytes();
             }
         };
-        return indicesRequestCache.getOrCompute(cacheEntity, supplier, mappingCacheKey, reader, cacheKey);
+        return indicesRequestCache.getOrCompute(cacheEntity, supplier, mappingCacheKey, reader, cacheKey, cancellationRegistrar);
+    }
+
+    public long getTotalIndexingBufferBytes() {
+        return indexingMemoryController.indexingBufferSize();
     }
 
     static final class IndexShardCacheEntity extends AbstractIndexShardCacheEntity {

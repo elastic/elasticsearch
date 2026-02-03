@@ -746,9 +746,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     }
                 } finally {
                     Releasables.close(context);
-//                    aggregators.forEach(aggregator -> {
-//                        aggregator.releaseAggregations();
-//                    });
+                    // aggregators.forEach(aggregator -> {
+                    // aggregator.releaseAggregations();
+                    // });
                 }
             }
             if (aggTestConfig.incrementalReduce() && internalAggs.size() > 1) {

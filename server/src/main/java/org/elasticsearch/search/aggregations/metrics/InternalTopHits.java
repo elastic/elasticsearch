@@ -114,14 +114,14 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
             public void accept(InternalAggregation aggregation) {
                 // TODO: Can we do this better?
                 aggregations.add((InternalTopHits) aggregation);
-                aggregations.getLast().incRef();
+//                aggregations.getLast().incRef();
             }
 
             @Override
             public void close() {
-                for (InternalTopHits internalTopHits : aggregations) {
-                    internalTopHits.decRef();
-                }
+//                for (InternalTopHits internalTopHits : aggregations) {
+//                    internalTopHits.decRef();
+//                }
                 aggregations.clear();
             }
 

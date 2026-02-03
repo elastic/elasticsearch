@@ -79,6 +79,7 @@ dependencies {
   internalClusterTestImplementation project(":plugins:mapper-size")
   internalClusterTestImplementation project(xpackModule('inference:qa:test-service-plugin'))
   internalClusterTestImplementation(testArtifact(project(xpackModule('inference'))))
+  internalClusterTestImplementation project(path: xpackModule('mapper-constant-keyword'))
 }
 
 tasks.named('splitPackagesAudit').configure {

@@ -23,6 +23,9 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     public VectorSearchIT(@Name("upgradedNodes") int upgradedNodes) {
@@ -731,6 +734,71 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
             (double) hits.get(0).get("_score"),
             closeTo(0.9934857, 0.005)
         );
+    }
+
+    public void testQuantizedKnnSearchWithRescoringDuringUpgrade() throws Exception {
+        assumeTrue(
+            "lazy rescoring for knn DFS searches requires quantized vector search",
+            oldClusterHasFeature(QUANTIZED_VECTOR_SEARCH_TEST_FEATURE)
+        );
+        if (isOldCluster()) {
+            String mapping = """
+                {
+                  "properties": {
+                    "vector": {
+                      "type": "dense_vector",
+                      "dims": 3,
+                      "index": true,
+                      "similarity": "l2_norm",
+                      "index_options": {
+                        "type": "int8_hnsw"
+                      }
+                    },
+                    "value": {
+                      "type": "integer"
+                    }
+                  }
+                }
+                """;
+            createIndex(
+                QUANTIZED_INDEX_NAME,
+                Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 0).build(),
+                mapping
+            );
+            for (int i = 0; i < 30; i++) {
+                Request indexRequest = new Request("POST", "/" + QUANTIZED_INDEX_NAME + "/_doc/" + i);
+                indexRequest.setJsonEntity(String.format("""
+                    {
+                      "vector": [%d, 0, 0],
+                      "value": %d
+                    }
+                    """, i, i));
+                client().performRequest(indexRequest);
+            }
+            client().performRequest(new Request("POST", "/" + QUANTIZED_INDEX_NAME + "/_refresh"));
+        }
+        Request searchRequest = new Request("POST", "/" + QUANTIZED_INDEX_NAME + "/_search");
+        searchRequest.setJsonEntity("""
+            {
+              "knn": {
+                "field": "vector",
+                "query_vector": [0, 0, 0],
+                "k": 10,
+                "num_candidates": 30,
+                "rescore_vector": {
+                  "oversample": 2.0
+                }
+              }
+            }
+            """);
+
+        Map<String, Object> response = search(searchRequest);
+
+        List<Map<String, Object>> hits = extractValue(response, "hits.hits");
+        assertThat(hits, notNullValue());
+        assertThat(hits.size(), greaterThanOrEqualTo(1));
+        assertThat(hits.size(), lessThanOrEqualTo(10));
+        assertThat(hits.getFirst().get("_id"), equalTo("0"));
     }
 
     private void index64DimVectors(String indexName) throws Exception {

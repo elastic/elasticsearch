@@ -137,7 +137,7 @@ public class MasterService extends AbstractLifecycleComponent {
     private final Deque<ExecutionHistoryEntry> executionHistory;
 
     private final MeterRegistry meterRegistry;
-    private final List<Releasable> metricsToUnregister = new ArrayList<>(Priority.values().length + 1);
+    private final List<Releasable> metricsToUnregister = new ArrayList<>(4 + Priority.values().length * 4);
 
     public MasterService(
         Settings settings,
@@ -197,31 +197,77 @@ public class MasterService extends AbstractLifecycleComponent {
         Objects.requireNonNull(clusterStateSupplier, "please set a cluster state supplier before starting");
         threadPoolExecutor = createThreadPoolExecutor();
 
-        registerLongGaugeMillisecondsMetric(
-            "es.cluster.pending_tasks.nonempty.time",
+        registerMasterServiceMetrics();
+    }
+
+    private void registerMasterServiceMetrics() {
+        registerLongGaugeMetric(
+            pendingTasksMetricName("nonempty.time"),
+            "milliseconds",
             "Time in milliseconds since the master's pending task queue was empty",
             starvationWatcher::getNonemptyAge
         );
+        registerLongGaugeMetric(
+            pendingTasksMetricName("max_wait.time"),
+            "milliseconds",
+            "Current max waiting time in milliseconds of a task in the master's pending task queue",
+            this::getMaxTaskWaitMillis
+        );
+        registerLongGaugeMetric(
+            pendingTasksMetricName("tasks.current"),
+            "count",
+            "Number of currently pending tasks in the master's queue",
+            this::numberOfPendingTasks
+        );
+        registerLongGaugeMetric(
+            pendingTasksMetricName("batches.current"),
+            "count",
+            "Number of currently pending batches in the master's queue",
+            () -> allBatchesStream().count()
+        );
 
         for (var priority : Priority.values()) {
-            registerLongGaugeMillisecondsMetric(
-                priorityNonemptyTimeMetricName(priority),
+            registerLongGaugeMetric(
+                priorityPendingTasksMetricName(priority, "nonempty.time"),
+                "milliseconds",
                 "Time in milliseconds since the master's pending task queue was empty for priorities no lower than " + priority,
                 () -> starvationWatcher.getPriorityNonemptyAge(priority)
+            );
+            registerLongGaugeMetric(
+                priorityPendingTasksMetricName(priority, "max_wait.time"),
+                "milliseconds",
+                "Current max waiting time in milliseconds of a task in the master's pending task queue for priority " + priority,
+                () -> getMaxTaskWaitMillisForPriority(priority)
+            );
+            registerLongGaugeMetric(
+                priorityPendingTasksMetricName(priority, "tasks.current"),
+                "count",
+                "Number of currently pending tasks in the master's queue for priority " + priority,
+                () -> numberOfPendingTasks(priority)
+            );
+            registerLongGaugeMetric(
+                priorityPendingTasksMetricName(priority, "batches.current"),
+                "count",
+                "Number of currently pending batches in the master's queue for priority " + priority,
+                () -> allBatchesStreamWithPriority(priority).count()
             );
         }
     }
 
-    static String priorityNonemptyTimeMetricName(Priority priority) {
-        return "es.cluster.pending_tasks.priority_" + priority.toString().toLowerCase(Locale.ROOT) + ".nonempty.time";
+    static String pendingTasksMetricName(String metric) {
+        return "es.cluster.pending_tasks." + metric;
     }
 
-    private void registerLongGaugeMillisecondsMetric(String name, String description, LongSupplier valueSupplier) {
+    static String priorityPendingTasksMetricName(Priority priority, String metric) {
+        return "es.cluster.pending_tasks.priority_" + priority.toString().toLowerCase(Locale.ROOT) + "." + metric;
+    }
+
+    private void registerLongGaugeMetric(String name, String unit, String description, LongSupplier valueSupplier) {
         @SuppressWarnings("resource")
         final var longGauge = meterRegistry.registerLongGauge(
             name,
             description,
-            "milliseconds",
+            unit,
             () -> new LongWithAttributes(valueSupplier.getAsLong())
         );
         metricsToUnregister.add(() -> {
@@ -702,19 +748,34 @@ public class MasterService extends AbstractLifecycleComponent {
         return allBatchesStream().mapToInt(Batch::getPendingCount).sum();
     }
 
+    private int numberOfPendingTasks(Priority priority) {
+        return allBatchesStreamWithPriority(priority).mapToInt(Batch::getPendingCount).sum();
+    }
+
     /**
      * Returns the maximum wait time for tasks in the queue
      *
      * @return A zero time value if the queue is empty, otherwise the time value oldest task waiting in the queue
      */
     public TimeValue getMaxTaskWaitTime() {
-        final var oldestTaskTimeMillis = allBatchesStream().mapToLong(Batch::getCreationTimeMillis).min().orElse(Long.MAX_VALUE);
+        return TimeValue.timeValueMillis(getMaxTaskWaitMillis());
+    }
+
+    private long getMaxTaskWaitMillis() {
+        return getMaxTaskWaitMillisForBatches(allBatchesStream());
+    }
+
+    private long getMaxTaskWaitMillisForPriority(Priority priority) {
+        return getMaxTaskWaitMillisForBatches(allBatchesStreamWithPriority(priority));
+    }
+
+    private long getMaxTaskWaitMillisForBatches(Stream<MasterService.Batch> batches) {
+        long oldestTaskTimeMillis = batches.mapToLong(Batch::getCreationTimeMillis).min().orElse(Long.MAX_VALUE);
 
         if (oldestTaskTimeMillis == Long.MAX_VALUE) {
-            return TimeValue.ZERO;
+            return 0L;
         }
-
-        return TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - oldestTaskTimeMillis);
+        return threadPool.relativeTimeInMillis() - oldestTaskTimeMillis;
     }
 
     private Stream<Batch> allBatchesStream() {
@@ -722,6 +783,10 @@ public class MasterService extends AbstractLifecycleComponent {
             Stream.ofNullable(currentlyExecutingBatch),
             queuesByPriority.values().stream().filter(Objects::nonNull).flatMap(q -> q.queue.stream())
         );
+    }
+
+    private Stream<Batch> allBatchesStreamWithPriority(Priority priority) {
+        return allBatchesStream().filter(batch -> batch.getPriority() == priority);
     }
 
     private void logExecutionTime(TimeValue executionTime, String activity, BatchSummary summary) {

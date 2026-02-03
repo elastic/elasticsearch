@@ -583,3 +583,10 @@ tasks.register("spotlessApply").configure {
   dependsOn gradle.includedBuild('build-tools').task(':reaper:spotlessApply')
   dependsOn gradle.includedBuild('build-tools-internal').task(':spotlessApply')
 }
+
+// Adding timestamp to gralde invocaiton for timeline parsing
+tasks.configureEach {
+  doLast {
+    println "[${new Date().format('yyyy-MM-dd HH:mm:ss')}] Task ${path} finished"
+  }
+}

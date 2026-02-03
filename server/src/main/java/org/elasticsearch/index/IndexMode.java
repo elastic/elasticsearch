@@ -597,11 +597,11 @@ public enum IndexMode {
      * Parse a string into an {@link IndexMode}.
      */
     public static IndexMode fromString(String value) {
-        return switch (value) {
-            case "standard", "STANDARD" -> IndexMode.STANDARD;
-            case "time_series", "TIME_SERIES" -> IndexMode.TIME_SERIES;
-            case "logsdb", "LOGSDB" -> IndexMode.LOGSDB;
-            case "lookup", "LOOKUP" -> IndexMode.LOOKUP;
+        return switch (value.toLowerCase(Locale.ROOT)) {
+            case "standard" -> IndexMode.STANDARD;
+            case "time_series" -> IndexMode.TIME_SERIES;
+            case "logsdb" -> IndexMode.LOGSDB;
+            case "lookup" -> IndexMode.LOOKUP;
             default -> throw new IllegalArgumentException(
                 "["
                     + value

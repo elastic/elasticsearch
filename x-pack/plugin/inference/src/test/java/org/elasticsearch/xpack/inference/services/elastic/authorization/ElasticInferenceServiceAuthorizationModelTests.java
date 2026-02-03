@@ -20,8 +20,8 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
-import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
@@ -36,8 +36,8 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.elastic.authorization.EndpointSchemaMigration.ENDPOINT_VERSION;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.EIS_CHAT_PATH;
-import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.EIS_EMBED_PATH;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.EIS_SPARSE_PATH;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.EIS_TEXT_EMBED_PATH;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.createTaskTypeObject;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -235,7 +235,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     id2,
                     name2,
-                    createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
+                    createTaskTypeObject(EIS_TEXT_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
                     STATUS_GA,
                     null,
                     TEST_RELEASE_DATE,
@@ -267,11 +267,11 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new ElasticInferenceServiceComponents(url),
             DEFAULT_ENDPOINT_METADATA
         );
-        var textEmbeddingEndpoint = new ElasticInferenceServiceDenseTextEmbeddingsModel(
+        var textEmbeddingEndpoint = new ElasticInferenceServiceDenseEmbeddingsModel(
             id2,
             TaskType.TEXT_EMBEDDING,
             ElasticInferenceService.NAME,
-            new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(name2, similarity, dimensions, null),
+            new ElasticInferenceServiceDenseEmbeddingsServiceSettings(name2, similarity, dimensions, null),
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS,
             DEFAULT_ENDPOINT_METADATA
@@ -309,7 +309,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     id2,
                     name2,
-                    createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
+                    createTaskTypeObject(EIS_TEXT_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
                     STATUS_GA,
                     null,
                     TEST_RELEASE_DATE,
@@ -385,7 +385,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     invalidTextEmbedding1,
                     name,
-                    createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
+                    createTaskTypeObject(EIS_TEXT_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
                     STATUS_GA,
                     null,
                     TEST_RELEASE_DATE,
@@ -403,7 +403,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     invalidTextEmbedding2,
                     name,
-                    createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
+                    createTaskTypeObject(EIS_TEXT_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
                     STATUS_GA,
                     null,
                     TEST_RELEASE_DATE,
@@ -421,7 +421,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     invalidTextEmbedding3,
                     name,
-                    createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
+                    createTaskTypeObject(EIS_TEXT_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
                     STATUS_GA,
                     null,
                     TEST_RELEASE_DATE,
@@ -439,7 +439,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     invalidTextEmbedding4,
                     name,
-                    createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
+                    createTaskTypeObject(EIS_TEXT_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
                     STATUS_GA,
                     null,
                     TEST_RELEASE_DATE,
@@ -457,7 +457,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     invalidTextEmbedding4,
                     name,
-                    createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
+                    createTaskTypeObject(EIS_TEXT_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
                     STATUS_GA,
                     null,
                     TEST_RELEASE_DATE,
@@ -516,7 +516,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     id1,
                     name,
-                    createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
+                    createTaskTypeObject(EIS_TEXT_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
                     STATUS_GA,
                     null,
                     TEST_RELEASE_DATE,
@@ -535,7 +535,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     id2,
                     name,
-                    createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
+                    createTaskTypeObject(EIS_TEXT_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
                     STATUS_GA,
                     null,
                     TEST_RELEASE_DATE,
@@ -554,7 +554,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     id3,
                     name,
-                    createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
+                    createTaskTypeObject(EIS_TEXT_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
                     STATUS_GA,
                     null,
                     TEST_RELEASE_DATE,
@@ -572,7 +572,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     invalidTextEmbedding1,
                     name,
-                    createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
+                    createTaskTypeObject(EIS_TEXT_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
                     STATUS_GA,
                     null,
                     TEST_RELEASE_DATE,
@@ -590,7 +590,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     invalidTextEmbedding2,
                     name,
-                    createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
+                    createTaskTypeObject(EIS_TEXT_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
                     STATUS_GA,
                     null,
                     TEST_RELEASE_DATE,
@@ -614,31 +614,31 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         assertThat(auth.getTaskTypes(), is(Set.of(TaskType.TEXT_EMBEDDING)));
         assertTrue(auth.isAuthorized());
 
-        var textEmbeddingsModel1 = new ElasticInferenceServiceDenseTextEmbeddingsModel(
+        var textEmbeddingsModel1 = new ElasticInferenceServiceDenseEmbeddingsModel(
             id1,
             TaskType.TEXT_EMBEDDING,
             ElasticInferenceService.NAME,
-            new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(name, similarityMeasure, dimensions, null),
+            new ElasticInferenceServiceDenseEmbeddingsServiceSettings(name, similarityMeasure, dimensions, null),
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS,
             DEFAULT_ENDPOINT_METADATA
         );
 
-        var textEmbeddingsModel2 = new ElasticInferenceServiceDenseTextEmbeddingsModel(
+        var textEmbeddingsModel2 = new ElasticInferenceServiceDenseEmbeddingsModel(
             id2,
             TaskType.TEXT_EMBEDDING,
             ElasticInferenceService.NAME,
-            new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(name, similarityMeasure, dimensions, null),
+            new ElasticInferenceServiceDenseEmbeddingsServiceSettings(name, similarityMeasure, dimensions, null),
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS,
             DEFAULT_ENDPOINT_METADATA
         );
 
-        var textEmbeddingsModel3 = new ElasticInferenceServiceDenseTextEmbeddingsModel(
+        var textEmbeddingsModel3 = new ElasticInferenceServiceDenseEmbeddingsModel(
             id3,
             TaskType.TEXT_EMBEDDING,
             ElasticInferenceService.NAME,
-            new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(name, similarityMeasure, dimensions, null),
+            new ElasticInferenceServiceDenseEmbeddingsServiceSettings(name, similarityMeasure, dimensions, null),
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS,
             DEFAULT_ENDPOINT_METADATA
@@ -712,7 +712,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     idDense,
                     nameDense,
-                    createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
+                    createTaskTypeObject(EIS_TEXT_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
                     STATUS_GA,
                     null,
                     TEST_RELEASE_DATE,
@@ -774,11 +774,11 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     ChunkingSettingsBuilder.DEFAULT_SETTINGS,
                     DEFAULT_ENDPOINT_METADATA
                 ),
-                new ElasticInferenceServiceDenseTextEmbeddingsModel(
+                new ElasticInferenceServiceDenseEmbeddingsModel(
                     idDense,
                     TaskType.TEXT_EMBEDDING,
                     ElasticInferenceService.NAME,
-                    new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(nameDense, similarity, dimensions, null),
+                    new ElasticInferenceServiceDenseEmbeddingsServiceSettings(nameDense, similarity, dimensions, null),
                     new ElasticInferenceServiceComponents(url),
                     ChunkingSettingsBuilder.DEFAULT_SETTINGS,
                     DEFAULT_ENDPOINT_METADATA
@@ -1181,7 +1181,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     id,
                     name,
-                    createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
+                    createTaskTypeObject(EIS_TEXT_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
                     status,
                     null,
                     TEST_RELEASE_DATE,
@@ -1201,11 +1201,11 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         var auth = ElasticInferenceServiceAuthorizationModel.of(response, url);
         assertTrue(auth.isAuthorized());
 
-        var expectedEndpoint = new ElasticInferenceServiceDenseTextEmbeddingsModel(
+        var expectedEndpoint = new ElasticInferenceServiceDenseEmbeddingsModel(
             id,
             TaskType.TEXT_EMBEDDING,
             ElasticInferenceService.NAME,
-            new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(name, similarity, dimensions, null),
+            new ElasticInferenceServiceDenseEmbeddingsServiceSettings(name, similarity, dimensions, null),
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.fromMap(chunkingSettings),
             new EndpointMetadata(
@@ -1369,7 +1369,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     id2,
                     name2,
-                    createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
+                    createTaskTypeObject(EIS_TEXT_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
                     status,
                     null,
                     TEST_RELEASE_DATE,

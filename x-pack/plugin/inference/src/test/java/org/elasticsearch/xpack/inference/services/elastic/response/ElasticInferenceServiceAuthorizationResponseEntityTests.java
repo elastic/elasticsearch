@@ -24,8 +24,8 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
-import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
@@ -66,7 +66,10 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
     // multilingual-text-embed
     public static final String JINA_EMBED_V3_ENDPOINT_ID = ".jina-embeddings-v3";
     public static final String JINA_EMBED_V3_MODEL_NAME = "jina-embeddings-v3";
-    public static final String EIS_EMBED_PATH = "embed/text/dense";
+    public static final String EIS_TEXT_EMBED_PATH = "embed/text/dense";
+
+    // multimodal embedding
+    public static final String EIS_MULTIMODAL_EMBED_PATH = "embed/dense";
 
     // rerank-v1
     public static final String RERANK_V1_ENDPOINT_ID = ".jina-reranker-v2";
@@ -109,7 +112,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
         }
         """;
 
-    public static final String EIS_JINA_EMBED_RESPONSE = """
+    public static final String EIS_JINA_TEXT_EMBED_RESPONSE = """
         {
           "inference_endpoints": [
             {
@@ -366,7 +369,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             createGpLlmV2ChatCompletionAuthorizedEndpoint(),
             createGpLlmV2CompletionAuthorizedEndpoint(),
             createElserAuthorizedEndpoint(),
-            createJinaEmbedAuthorizedEndpoint(),
+            createJinaTextEmbedAuthorizedEndpoint(),
             createRerankV1AuthorizedEndpoint()
         );
 
@@ -382,7 +385,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 createGpLlmV2ChatCompletionExpectedEndpoint(url),
                 createGpLlmV2CompletionExpectedEndpoint(url),
                 createElserExpectedEndpoint(url),
-                createJinaExpectedEndpoint(url),
+                createJinaExpectedTextEmbeddingEndpoint(url),
                 createRerankV1ExpectedEndpoint(url)
             ),
             inferenceIds
@@ -499,26 +502,26 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
         );
     }
 
-    public static EisAuthorizationResponse getEisJinaEmbedAuthorizationResponse(String url) {
-        var authorizedEndpoints = List.of(createJinaEmbedAuthorizedEndpoint());
+    public static EisAuthorizationResponse getEisJinaTextEmbedAuthorizationResponse(String url) {
+        var authorizedEndpoints = List.of(createJinaTextEmbedAuthorizedEndpoint());
 
         var inferenceIds = authorizedEndpoints.stream()
             .map(ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint::id)
             .collect(Collectors.toSet());
 
         return new EisAuthorizationResponse(
-            EIS_JINA_EMBED_RESPONSE,
+            EIS_JINA_TEXT_EMBED_RESPONSE,
             new ElasticInferenceServiceAuthorizationResponseEntity(authorizedEndpoints),
-            List.of(createJinaExpectedEndpoint(url)),
+            List.of(createJinaExpectedTextEmbeddingEndpoint(url)),
             inferenceIds
         );
     }
 
-    private static ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint createJinaEmbedAuthorizedEndpoint() {
+    private static ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint createJinaTextEmbedAuthorizedEndpoint() {
         return new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
             JINA_EMBED_V3_ENDPOINT_ID,
             JINA_EMBED_V3_MODEL_NAME,
-            createTaskTypeObject(EIS_EMBED_PATH, "text_embedding"),
+            createTaskTypeObject(EIS_TEXT_EMBED_PATH, "text_embedding"),
             "beta",
             List.of("multilingual", "open-weights"),
             RELEASE_DATE_STRING,
@@ -534,12 +537,12 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
         );
     }
 
-    private static ElasticInferenceServiceModel createJinaExpectedEndpoint(String url) {
-        return new ElasticInferenceServiceDenseTextEmbeddingsModel(
+    private static ElasticInferenceServiceModel createJinaExpectedTextEmbeddingEndpoint(String url) {
+        return new ElasticInferenceServiceDenseEmbeddingsModel(
             JINA_EMBED_V3_ENDPOINT_ID,
             TaskType.TEXT_EMBEDDING,
             ElasticInferenceService.NAME,
-            new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(JINA_EMBED_V3_MODEL_NAME, SimilarityMeasure.COSINE, 1024, null),
+            new ElasticInferenceServiceDenseEmbeddingsServiceSettings(JINA_EMBED_V3_MODEL_NAME, SimilarityMeasure.COSINE, 1024, null),
             new ElasticInferenceServiceComponents(url),
             new WordBoundaryChunkingSettings(500, 2),
             new EndpointMetadata(
@@ -646,7 +649,22 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             case TEXT_EMBEDDING -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                 id,
                 name,
-                createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
+                createTaskTypeObject(EIS_TEXT_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
+                status,
+                null,
+                "",
+                "",
+                new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(
+                    randomFrom(SimilarityMeasure.values()).toString(),
+                    randomInt(),
+                    DenseVectorFieldMapper.ElementType.FLOAT.toString(),
+                    null
+                )
+            );
+            case EMBEDDING -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+                id,
+                name,
+                createTaskTypeObject(EIS_MULTIMODAL_EMBED_PATH, TaskType.EMBEDDING.toString()),
                 status,
                 null,
                 RELEASE_DATE_STRING,

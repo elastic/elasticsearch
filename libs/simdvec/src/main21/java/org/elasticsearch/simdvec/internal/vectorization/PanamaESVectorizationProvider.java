@@ -42,13 +42,11 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
         int dataLength,
         int bulkSize
     ) throws IOException {
-        if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS
-            && input instanceof MemorySegmentAccessInput msai
-            && queryBits == 4
-            && (indexBits == 1 || indexBits == 2 || indexBits == 4)) {
-            MemorySegment ms = msai.segmentSliceOrNull(0, input.length());
-            if (ms != null) {
-                return new MemorySegmentESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, ms);
+        if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS && queryBits == 4 && (indexBits == 1 || indexBits == 2 || indexBits == 4)) {
+            MemorySegment ms = input instanceof MemorySegmentAccessInput msai ? msai.segmentSliceOrNull(0, input.length()) : null;
+            var scorer = MemorySegmentESNextOSQVectorsScorer.create(input, queryBits, indexBits, dimension, dataLength, bulkSize, ms);
+            if (scorer != null) {
+                return scorer;
             }
         }
         return new ESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize);

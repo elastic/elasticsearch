@@ -17,6 +17,7 @@ import jdk.incubator.vector.VectorSpecies;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 
 import java.io.IOException;
@@ -28,7 +29,24 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
     private final MemorySegment memorySegment;
     private final MemorySegmentScorer scorer;
 
-    public MemorySegmentESNextOSQVectorsScorer(
+    /** Creates a new scorer, or null if one cannot be created. */
+    public static MemorySegmentESNextOSQVectorsScorer create(
+        IndexInput in,
+        byte queryBits,
+        byte indexBits,
+        int dimensions,
+        int dataLength,
+        int bulkSize,
+        MemorySegment memorySegment
+    ) {
+        // TODO: add more queryButs and indexBit combinations later
+        if (memorySegment != null || (queryBits == 4 && indexBits == 1)) {
+            return new MemorySegmentESNextOSQVectorsScorer(in, queryBits, indexBits, dimensions, dataLength, bulkSize, memorySegment);
+        }
+        return null;
+    }
+
+    private MemorySegmentESNextOSQVectorsScorer(
         IndexInput in,
         byte queryBits,
         byte indexBits,
@@ -103,8 +121,13 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
         );
     }
 
-    abstract static sealed class MemorySegmentScorer permits MSBitToInt4ESNextOSQVectorsScorer, MSDibitToInt4ESNextOSQVectorsScorer,
-        MSInt4SymmetricESNextOSQVectorsScorer {
+    @Override
+    public void close() {
+        scorer.close();
+    }
+
+    abstract static sealed class MemorySegmentScorer implements Releasable permits MSBitToInt4ESNextOSQVectorsScorer,
+        MSDibitToInt4ESNextOSQVectorsScorer, MSInt4SymmetricESNextOSQVectorsScorer {
 
         static final float FOUR_BIT_SCALE = 1f / ((1 << 4) - 1);
         static final VectorSpecies<Integer> INT_SPECIES_128 = IntVector.SPECIES_128;
@@ -127,6 +150,19 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
         protected final int dimensions;
         protected final int bulkSize;
 
+        /**
+         * Creates a new MemorySegmentScorer.
+         *
+         * <p> The scorer prefers to score directly from the memory segment. If the
+         * memory segment is not available - null, then the scorer may copy the
+         * data into a temporary location prior to scoring.
+         *
+         * @param in the index input
+         * @param dimensions the vector dimensions
+         * @param dataLength the length in bytes, per data vector
+         * @param bulkSize the number of vectors per bulk
+         * @param segment the backing memory segment, or null if not available
+         */
         MemorySegmentScorer(IndexInput in, int dimensions, int dataLength, int bulkSize, MemorySegment segment) {
             this.in = in;
             this.length = dataLength;

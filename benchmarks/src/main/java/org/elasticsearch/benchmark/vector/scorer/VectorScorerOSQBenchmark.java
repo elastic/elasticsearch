@@ -63,6 +63,7 @@ import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.simdvec.BufferedIndexInputWrapper;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 import org.elasticsearch.snapshots.Snapshot;
@@ -171,6 +172,8 @@ public class VectorScorerOSQBenchmark {
     float[] scratchScores;
     float[] corrections;
 
+    static final int INPUT_BUFFER_SIZE = 1 << 16; // 64k
+
     @Setup
     public void setup() throws IOException {
         setup(new Random(123));
@@ -218,6 +221,7 @@ public class VectorScorerOSQBenchmark {
         }
 
         input = directory.openInput("vectors", IOContext.DEFAULT);
+        input = BufferedIndexInputWrapper.wrap("vectors wrapper", input, INPUT_BUFFER_SIZE);
         int binaryQueryLength = switch (bits) {
             case 1 -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY.getQueryPackedLength(dims);
             case 2 -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getQueryPackedLength(dims);

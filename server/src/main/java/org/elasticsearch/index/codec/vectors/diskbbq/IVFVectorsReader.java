@@ -30,9 +30,11 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
+import org.elasticsearch.simdvec.BufferedIndexInputWrapper;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -313,35 +315,36 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             visitRatio
         );
         Bits acceptDocsBits = acceptDocs.bits();
-        PostingVisitor scorer = getPostingVisitor(fieldInfo, postListSlice, target, acceptDocsBits);
-        long expectedDocs = 0;
-        long actualDocs = 0;
-        // initially we visit only the "centroids to search"
-        // Note, numCollected is doing the bare minimum here.
-        // TODO do we need to handle nested doc counts similarly to how we handle
-        // filtering? E.g. keep exploring until we hit an expected number of parent documents vs. child vectors?
-        while (centroidPrefetchingIterator.hasNext()
-            && (maxVectorVisited > expectedDocs || knnCollector.minCompetitiveSimilarity() == Float.NEGATIVE_INFINITY)) {
-            PostingMetadata postingMetadata = centroidPrefetchingIterator.nextPosting();
-            // todo do we need direct access to the raw centroid???, this is used for quantizing, maybe hydrating and quantizing
-            // is enough?
-            expectedDocs += scorer.resetPostingsScorer(postingMetadata);
-            actualDocs += scorer.visit(knnCollector);
-            if (knnCollector.getSearchStrategy() != null) {
-                knnCollector.getSearchStrategy().nextVectorsBlock();
-            }
-        }
-        if (acceptDocsBits != null) {
-            // TODO Adjust the value here when using centroid filtering
-            float unfilteredRatioVisited = (float) expectedDocs / numVectors;
-            int filteredVectors = (int) Math.ceil(numVectors * percentFiltered);
-            float expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, expectedDocs / 2f);
-            while (centroidPrefetchingIterator.hasNext() && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
+        try (PostingVisitor scorer = getPostingVisitor(fieldInfo, postListSlice, target, acceptDocsBits)) {
+            long expectedDocs = 0;
+            long actualDocs = 0;
+            // initially we visit only the "centroids to search"
+            // Note, numCollected is doing the bare minimum here.
+            // TODO do we need to handle nested doc counts similarly to how we handle
+            // filtering? E.g. keep exploring until we hit an expected number of parent documents vs. child vectors?
+            while (centroidPrefetchingIterator.hasNext()
+                && (maxVectorVisited > expectedDocs || knnCollector.minCompetitiveSimilarity() == Float.NEGATIVE_INFINITY)) {
                 PostingMetadata postingMetadata = centroidPrefetchingIterator.nextPosting();
-                scorer.resetPostingsScorer(postingMetadata);
+                // todo do we need direct access to the raw centroid???, this is used for quantizing, maybe hydrating and quantizing
+                // is enough?
+                expectedDocs += scorer.resetPostingsScorer(postingMetadata);
                 actualDocs += scorer.visit(knnCollector);
                 if (knnCollector.getSearchStrategy() != null) {
                     knnCollector.getSearchStrategy().nextVectorsBlock();
+                }
+            }
+            if (acceptDocsBits != null) {
+                // TODO Adjust the value here when using centroid filtering
+                float unfilteredRatioVisited = (float) expectedDocs / numVectors;
+                int filteredVectors = (int) Math.ceil(numVectors * percentFiltered);
+                float expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, expectedDocs / 2f);
+                while (centroidPrefetchingIterator.hasNext() && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
+                    PostingMetadata postingMetadata = centroidPrefetchingIterator.nextPosting();
+                    scorer.resetPostingsScorer(postingMetadata);
+                    actualDocs += scorer.visit(knnCollector);
+                    if (knnCollector.getSearchStrategy() != null) {
+                        knnCollector.getSearchStrategy().nextVectorsBlock();
+                    }
                 }
             }
         }
@@ -452,8 +455,13 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             return centroidFile.slice("centroids", centroidOffset, centroidLength);
         }
 
+        // we increase the buffer size here ...
+        // where so we need to use this?
+        static final int INPUT_BUFFER_SIZE = 1 << 16; // 64k
+
         public IndexInput postingListSlice(IndexInput postingListFile) throws IOException {
-            return postingListFile.slice("postingLists", postingListOffset, postingListLength);
+            var slice = postingListFile.slice("postingLists", postingListOffset, postingListLength);
+            return BufferedIndexInputWrapper.wrap("postingsLists", slice, INPUT_BUFFER_SIZE);
         }
 
         public int getBulkSize() {
@@ -464,7 +472,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     public abstract PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput postingsLists, float[] target, Bits needsScoring)
         throws IOException;
 
-    public interface PostingVisitor {
+    public interface PostingVisitor extends Releasable {
         /** returns the number of documents in the posting list */
         int resetPostingsScorer(PostingMetadata metadata) throws IOException;
 

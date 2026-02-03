@@ -618,6 +618,9 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
             }
             return scoredDocs;
         }
+
+        @Override
+        public void close() {}
     }
 
 }

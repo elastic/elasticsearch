@@ -12,6 +12,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
 
@@ -19,7 +20,7 @@ import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
 
 /** Scorer for quantized vectors stored as an {@link IndexInput}. */
-public class ESNextOSQVectorsScorer {
+public class ESNextOSQVectorsScorer implements Releasable {
 
     public static final int BULK_SIZE = 32;
 
@@ -263,5 +264,10 @@ public class ESNextOSQVectorsScorer {
             }
         }
         return maxScore;
+    }
+
+    @Override
+    public void close() {
+        // no-op - nothing to release
     }
 }

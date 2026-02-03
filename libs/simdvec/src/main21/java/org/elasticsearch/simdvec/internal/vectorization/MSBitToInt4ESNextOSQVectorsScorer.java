@@ -38,9 +38,18 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
     // TODO: split Panama and Native implementations
     private static final boolean NATIVE_SUPPORTED = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
     private static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
+    private static final ValueLayout.OfLong LAYOUT_LE_LONG = ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
+    private static final ValueLayout.OfInt LAYOUT_LE_INT = ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
+
+    final byte[] scratch;
+    final Arena arena;
+    final MemorySegment scratchSeg;
 
     MSBitToInt4ESNextOSQVectorsScorer(IndexInput in, int dimensions, int dataLength, int bulkSize, MemorySegment memorySegment) {
         super(in, dimensions, dataLength, bulkSize, memorySegment);
+        scratch = new byte[(dataLength + 14) * bulkSize];
+        arena = Arena.ofConfined();
+        scratchSeg = arena.allocate((dataLength + 14L) * bulkSize);
     }
 
     @Override
@@ -61,10 +70,34 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
         return Long.MIN_VALUE;
     }
 
-    private long nativeQuantizeScore(byte[] q) throws IOException {
-        long offset = in.getFilePointer();
-        var datasetMemorySegment = memorySegment.asSlice(offset, length);
+    /**
+     * Reads the given number of bytes from the relative position of the
+     * given IndexInput. Returning a memory segment of the data.
+     */
+    private MemorySegment copyOnHeap(IndexInput in, int bytesToRead) throws IOException {
+        in.readBytes(scratch, 0, bytesToRead);
+        MemorySegment.copy(MemorySegment.ofArray(scratch), 0L, scratchSeg, 0L, bytesToRead);
+        return scratchSeg;
+    }
 
+    /**
+     * Returns a memory segment containing the next length bytes of the
+     * index input. The position of the index input is advanced by length.
+     */
+    private MemorySegment getMemorySegment(long length) throws IOException {
+        MemorySegment datasetMemorySegment;
+        if (memorySegment == null) {
+            datasetMemorySegment = copyOnHeap(in, Math.toIntExact(length));
+        } else {
+            long offset = in.getFilePointer();
+            datasetMemorySegment = memorySegment.asSlice(offset, length);
+            in.skipBytes(length);
+        }
+        return datasetMemorySegment;
+    }
+
+    private long nativeQuantizeScore(byte[] q) throws IOException {
+        var datasetMemorySegment = getMemorySegment(length);
         final long qScore;
         if (SUPPORTS_HEAP_SEGMENTS) {
             var queryMemorySegment = MemorySegment.ofArray(q);
@@ -76,29 +109,28 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
                 qScore = dotProductI1I4(datasetMemorySegment, queryMemorySegment, length);
             }
         }
-        in.skipBytes(length);
         return qScore;
     }
 
     private long quantizeScore256(byte[] q) throws IOException {
+        var segment = getMemorySegment(length);
         long subRet0 = 0;
         long subRet1 = 0;
         long subRet2 = 0;
         long subRet3 = 0;
         int i = 0;
-        long offset = in.getFilePointer();
         if (length >= ByteVector.SPECIES_256.vectorByteSize() * 2) {
             int limit = ByteVector.SPECIES_256.loopBound(length);
             var sum0 = LongVector.zero(LONG_SPECIES_256);
             var sum1 = LongVector.zero(LONG_SPECIES_256);
             var sum2 = LongVector.zero(LONG_SPECIES_256);
             var sum3 = LongVector.zero(LONG_SPECIES_256);
-            for (; i < limit; i += ByteVector.SPECIES_256.length(), offset += LONG_SPECIES_256.vectorByteSize()) {
+            for (; i < limit; i += ByteVector.SPECIES_256.length()) {
                 var vq0 = ByteVector.fromArray(BYTE_SPECIES_256, q, i).reinterpretAsLongs();
                 var vq1 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + length).reinterpretAsLongs();
                 var vq2 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + length * 2).reinterpretAsLongs();
                 var vq3 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + length * 3).reinterpretAsLongs();
-                var vd = LongVector.fromMemorySegment(LONG_SPECIES_256, memorySegment, offset, ByteOrder.LITTLE_ENDIAN);
+                var vd = LongVector.fromMemorySegment(LONG_SPECIES_256, segment, i, ByteOrder.LITTLE_ENDIAN);
                 sum0 = sum0.add(vq0.and(vd).lanewise(VectorOperators.BIT_COUNT));
                 sum1 = sum1.add(vq1.and(vd).lanewise(VectorOperators.BIT_COUNT));
                 sum2 = sum2.add(vq2.and(vd).lanewise(VectorOperators.BIT_COUNT));
@@ -116,12 +148,12 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
             var sum2 = LongVector.zero(LONG_SPECIES_128);
             var sum3 = LongVector.zero(LONG_SPECIES_128);
             int limit = ByteVector.SPECIES_128.loopBound(length);
-            for (; i < limit; i += ByteVector.SPECIES_128.length(), offset += LONG_SPECIES_128.vectorByteSize()) {
+            for (; i < limit; i += ByteVector.SPECIES_128.length()) {
                 var vq0 = ByteVector.fromArray(BYTE_SPECIES_128, q, i).reinterpretAsLongs();
                 var vq1 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length).reinterpretAsLongs();
                 var vq2 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length * 2).reinterpretAsLongs();
                 var vq3 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length * 3).reinterpretAsLongs();
-                var vd = LongVector.fromMemorySegment(LONG_SPECIES_128, memorySegment, offset, ByteOrder.LITTLE_ENDIAN);
+                var vd = LongVector.fromMemorySegment(LONG_SPECIES_128, segment, i, ByteOrder.LITTLE_ENDIAN);
                 sum0 = sum0.add(vq0.and(vd).lanewise(VectorOperators.BIT_COUNT));
                 sum1 = sum1.add(vq1.and(vd).lanewise(VectorOperators.BIT_COUNT));
                 sum2 = sum2.add(vq2.and(vd).lanewise(VectorOperators.BIT_COUNT));
@@ -133,23 +165,22 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
             subRet3 += sum3.reduceLanes(VectorOperators.ADD);
         }
         // process scalar tail
-        in.seek(offset);
         for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES) {
-            final long value = in.readLong();
+            final long value = segment.get(LAYOUT_LE_LONG, i);
             subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i) & value);
             subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + length) & value);
             subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 2 * length) & value);
             subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 3 * length) & value);
         }
         for (final int upperBound = length & -Integer.BYTES; i < upperBound; i += Integer.BYTES) {
-            final int value = in.readInt();
+            final int value = segment.get(LAYOUT_LE_INT, i);
             subRet0 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i) & value);
             subRet1 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + length) & value);
             subRet2 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 2 * length) & value);
             subRet3 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 3 * length) & value);
         }
         for (; i < length; i++) {
-            int dValue = in.readByte() & 0xFF;
+            final int dValue = segment.get(ValueLayout.JAVA_BYTE, i) & 0xFF;
             subRet0 += Integer.bitCount((q[i] & dValue) & 0xFF);
             subRet1 += Integer.bitCount((q[i + length] & dValue) & 0xFF);
             subRet2 += Integer.bitCount((q[i + 2 * length] & dValue) & 0xFF);
@@ -159,20 +190,19 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
     }
 
     private long quantizeScore128(byte[] q) throws IOException {
+        var segment = getMemorySegment(length);
         long subRet0 = 0;
         long subRet1 = 0;
         long subRet2 = 0;
         long subRet3 = 0;
         int i = 0;
-        long offset = in.getFilePointer();
-
         var sum0 = IntVector.zero(INT_SPECIES_128);
         var sum1 = IntVector.zero(INT_SPECIES_128);
         var sum2 = IntVector.zero(INT_SPECIES_128);
         var sum3 = IntVector.zero(INT_SPECIES_128);
         int limit = ByteVector.SPECIES_128.loopBound(length);
-        for (; i < limit; i += ByteVector.SPECIES_128.length(), offset += INT_SPECIES_128.vectorByteSize()) {
-            var vd = IntVector.fromMemorySegment(INT_SPECIES_128, memorySegment, offset, ByteOrder.LITTLE_ENDIAN);
+        for (; i < limit; i += ByteVector.SPECIES_128.length()) {
+            var vd = IntVector.fromMemorySegment(INT_SPECIES_128, segment, i, ByteOrder.LITTLE_ENDIAN);
             var vq0 = ByteVector.fromArray(BYTE_SPECIES_128, q, i).reinterpretAsInts();
             var vq1 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length).reinterpretAsInts();
             var vq2 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length * 2).reinterpretAsInts();
@@ -187,23 +217,22 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
         subRet2 += sum2.reduceLanes(VectorOperators.ADD);
         subRet3 += sum3.reduceLanes(VectorOperators.ADD);
         // process scalar tail
-        in.seek(offset);
         for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES) {
-            final long value = in.readLong();
+            final long value = segment.get(LAYOUT_LE_LONG, i);
             subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i) & value);
             subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + length) & value);
             subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 2 * length) & value);
             subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 3 * length) & value);
         }
         for (final int upperBound = length & -Integer.BYTES; i < upperBound; i += Integer.BYTES) {
-            final int value = in.readInt();
+            final int value = segment.get(LAYOUT_LE_INT, i);
             subRet0 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i) & value);
             subRet1 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + length) & value);
             subRet2 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 2 * length) & value);
             subRet3 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 3 * length) & value);
         }
         for (; i < length; i++) {
-            int dValue = in.readByte() & 0xFF;
+            final int dValue = segment.get(ValueLayout.JAVA_BYTE, i) & 0xFF;
             subRet0 += Integer.bitCount((q[i] & dValue) & 0xFF);
             subRet1 += Integer.bitCount((q[i + length] & dValue) & 0xFF);
             subRet2 += Integer.bitCount((q[i + 2 * length] & dValue) & 0xFF);
@@ -233,10 +262,8 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
     }
 
     private void nativeQuantizeScoreBulk(byte[] q, int count, float[] scores) throws IOException {
-        long initialOffset = in.getFilePointer();
         var datasetLengthInBytes = (long) length * count;
-        MemorySegment datasetSegment = memorySegment.asSlice(initialOffset, datasetLengthInBytes);
-
+        var datasetSegment = getMemorySegment(datasetLengthInBytes);
         if (SUPPORTS_HEAP_SEGMENTS) {
             var queryMemorySegment = MemorySegment.ofArray(q);
             var scoresSegment = MemorySegment.ofArray(scores);
@@ -250,25 +277,25 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
                 MemorySegment.copy(scoresSegment, ValueLayout.JAVA_FLOAT, 0, scores, 0, scores.length);
             }
         }
-        in.skipBytes(datasetLengthInBytes);
     }
 
     private void quantizeScore128Bulk(byte[] q, int count, float[] scores) throws IOException {
+        var datasetLengthInBytes = (long) length * count;
+        var segment = getMemorySegment(datasetLengthInBytes);
+        int offset = 0;
         for (int iter = 0; iter < count; iter++) {
             long subRet0 = 0;
             long subRet1 = 0;
             long subRet2 = 0;
             long subRet3 = 0;
             int i = 0;
-            long offset = in.getFilePointer();
-
             var sum0 = IntVector.zero(INT_SPECIES_128);
             var sum1 = IntVector.zero(INT_SPECIES_128);
             var sum2 = IntVector.zero(INT_SPECIES_128);
             var sum3 = IntVector.zero(INT_SPECIES_128);
             int limit = ByteVector.SPECIES_128.loopBound(length);
             for (; i < limit; i += ByteVector.SPECIES_128.length(), offset += INT_SPECIES_128.vectorByteSize()) {
-                var vd = IntVector.fromMemorySegment(INT_SPECIES_128, memorySegment, offset, ByteOrder.LITTLE_ENDIAN);
+                var vd = IntVector.fromMemorySegment(INT_SPECIES_128, segment, offset, ByteOrder.LITTLE_ENDIAN);
                 var vq0 = ByteVector.fromArray(BYTE_SPECIES_128, q, i).reinterpretAsInts();
                 var vq1 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length).reinterpretAsInts();
                 var vq2 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length * 2).reinterpretAsInts();
@@ -283,23 +310,22 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
             subRet2 += sum2.reduceLanes(VectorOperators.ADD);
             subRet3 += sum3.reduceLanes(VectorOperators.ADD);
             // process scalar tail
-            in.seek(offset);
-            for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES) {
-                final long value = in.readLong();
+            for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES, offset += Long.BYTES) {
+                final long value = segment.get(LAYOUT_LE_LONG, offset);
                 subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i) & value);
                 subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + length) & value);
                 subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 2 * length) & value);
                 subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 3 * length) & value);
             }
-            for (final int upperBound = length & -Integer.BYTES; i < upperBound; i += Integer.BYTES) {
-                final int value = in.readInt();
+            for (final int upperBound = length & -Integer.BYTES; i < upperBound; i += Integer.BYTES, offset += Integer.BYTES) {
+                final int value = segment.get(LAYOUT_LE_INT, offset);
                 subRet0 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i) & value);
                 subRet1 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + length) & value);
                 subRet2 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 2 * length) & value);
                 subRet3 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 3 * length) & value);
             }
-            for (; i < length; i++) {
-                int dValue = in.readByte() & 0xFF;
+            for (; i < length; i++, offset++) {
+                final int dValue = segment.get(ValueLayout.JAVA_BYTE, offset) & 0xFF;
                 subRet0 += Integer.bitCount((q[i] & dValue) & 0xFF);
                 subRet1 += Integer.bitCount((q[i + length] & dValue) & 0xFF);
                 subRet2 += Integer.bitCount((q[i + 2 * length] & dValue) & 0xFF);
@@ -310,13 +336,15 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
     }
 
     private void quantizeScore256Bulk(byte[] q, int count, float[] scores) throws IOException {
+        var datasetLengthInBytes = (long) length * count;
+        var segment = getMemorySegment(datasetLengthInBytes);
+        int offset = 0;
         for (int iter = 0; iter < count; iter++) {
             long subRet0 = 0;
             long subRet1 = 0;
             long subRet2 = 0;
             long subRet3 = 0;
             int i = 0;
-            long offset = in.getFilePointer();
             if (length >= ByteVector.SPECIES_256.vectorByteSize() * 2) {
                 int limit = ByteVector.SPECIES_256.loopBound(length);
                 var sum0 = LongVector.zero(LONG_SPECIES_256);
@@ -328,7 +356,7 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
                     var vq1 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + length).reinterpretAsLongs();
                     var vq2 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + length * 2).reinterpretAsLongs();
                     var vq3 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + length * 3).reinterpretAsLongs();
-                    var vd = LongVector.fromMemorySegment(LONG_SPECIES_256, memorySegment, offset, ByteOrder.LITTLE_ENDIAN);
+                    var vd = LongVector.fromMemorySegment(LONG_SPECIES_256, segment, offset, ByteOrder.LITTLE_ENDIAN);
                     sum0 = sum0.add(vq0.and(vd).lanewise(VectorOperators.BIT_COUNT));
                     sum1 = sum1.add(vq1.and(vd).lanewise(VectorOperators.BIT_COUNT));
                     sum2 = sum2.add(vq2.and(vd).lanewise(VectorOperators.BIT_COUNT));
@@ -351,7 +379,7 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
                     var vq1 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length).reinterpretAsLongs();
                     var vq2 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length * 2).reinterpretAsLongs();
                     var vq3 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length * 3).reinterpretAsLongs();
-                    var vd = LongVector.fromMemorySegment(LONG_SPECIES_128, memorySegment, offset, ByteOrder.LITTLE_ENDIAN);
+                    var vd = LongVector.fromMemorySegment(LONG_SPECIES_128, segment, offset, ByteOrder.LITTLE_ENDIAN);
                     sum0 = sum0.add(vq0.and(vd).lanewise(VectorOperators.BIT_COUNT));
                     sum1 = sum1.add(vq1.and(vd).lanewise(VectorOperators.BIT_COUNT));
                     sum2 = sum2.add(vq2.and(vd).lanewise(VectorOperators.BIT_COUNT));
@@ -363,23 +391,22 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
                 subRet3 += sum3.reduceLanes(VectorOperators.ADD);
             }
             // process scalar tail
-            in.seek(offset);
-            for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES) {
-                final long value = in.readLong();
+            for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES, offset += Long.BYTES) {
+                final long value = segment.get(LAYOUT_LE_LONG, offset);
                 subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i) & value);
                 subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + length) & value);
                 subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 2 * length) & value);
                 subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 3 * length) & value);
             }
-            for (final int upperBound = length & -Integer.BYTES; i < upperBound; i += Integer.BYTES) {
-                final int value = in.readInt();
+            for (final int upperBound = length & -Integer.BYTES; i < upperBound; i += Integer.BYTES, offset += Integer.BYTES) {
+                final int value = segment.get(LAYOUT_LE_INT, offset);
                 subRet0 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i) & value);
                 subRet1 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + length) & value);
                 subRet2 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 2 * length) & value);
                 subRet3 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 3 * length) & value);
             }
-            for (; i < length; i++) {
-                int dValue = in.readByte() & 0xFF;
+            for (; i < length; i++, offset++) {
+                final int dValue = segment.get(ValueLayout.JAVA_BYTE, offset) & 0xFF;
                 subRet0 += Integer.bitCount((q[i] & dValue) & 0xFF);
                 subRet1 += Integer.bitCount((q[i + length] & dValue) & 0xFF);
                 subRet2 += Integer.bitCount((q[i + 2 * length] & dValue) & 0xFF);
@@ -447,31 +474,26 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
         float centroidDp,
         float[] scores
     ) throws IOException {
+        MemorySegment seg = getMemorySegment(14L * bulkSize);
         int limit = FLOAT_SPECIES_128.loopBound(bulkSize);
         int i = 0;
-        long offset = in.getFilePointer();
         float ay = queryLowerInterval;
         float ly = (queryUpperInterval - ay) * FOUR_BIT_SCALE;
         float y1 = queryComponentSum;
         float maxScore = Float.NEGATIVE_INFINITY;
         for (; i < limit; i += FLOAT_SPECIES_128.length()) {
-            var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES_128, memorySegment, offset + i * Float.BYTES, ByteOrder.LITTLE_ENDIAN);
-            var lx = FloatVector.fromMemorySegment(
-                FLOAT_SPECIES_128,
-                memorySegment,
-                offset + 4 * bulkSize + i * Float.BYTES,
-                ByteOrder.LITTLE_ENDIAN
-            ).sub(ax);
+            var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES_128, seg, i * Float.BYTES, ByteOrder.LITTLE_ENDIAN);
+            var lx = FloatVector.fromMemorySegment(FLOAT_SPECIES_128, seg, 4 * bulkSize + i * Float.BYTES, ByteOrder.LITTLE_ENDIAN).sub(ax);
             var targetComponentSums = ShortVector.fromMemorySegment(
                 SHORT_SPECIES_128,
-                memorySegment,
-                offset + 8 * bulkSize + i * Short.BYTES,
+                seg,
+                8 * bulkSize + i * Short.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             ).convert(VectorOperators.S2I, 0).reinterpretAsInts().and(0xffff).convert(VectorOperators.I2F, 0);
             var additionalCorrections = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES_128,
-                memorySegment,
-                offset + 10 * bulkSize + i * Float.BYTES,
+                seg,
+                10 * bulkSize + i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             );
             var qcDist = FloatVector.fromArray(FLOAT_SPECIES_128, scores, i);
@@ -507,7 +529,6 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
                 }
             }
         }
-        in.seek(offset + 14L * bulkSize);
         return maxScore;
     }
 
@@ -520,31 +541,26 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
         float centroidDp,
         float[] scores
     ) throws IOException {
+        MemorySegment seg = getMemorySegment(14L * bulkSize);
         int limit = FLOAT_SPECIES_256.loopBound(bulkSize);
         int i = 0;
-        long offset = in.getFilePointer();
         float ay = queryLowerInterval;
         float ly = (queryUpperInterval - ay) * FOUR_BIT_SCALE;
         float y1 = queryComponentSum;
         float maxScore = Float.NEGATIVE_INFINITY;
         for (; i < limit; i += FLOAT_SPECIES_256.length()) {
-            var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES_256, memorySegment, offset + i * Float.BYTES, ByteOrder.LITTLE_ENDIAN);
-            var lx = FloatVector.fromMemorySegment(
-                FLOAT_SPECIES_256,
-                memorySegment,
-                offset + 4 * bulkSize + i * Float.BYTES,
-                ByteOrder.LITTLE_ENDIAN
-            ).sub(ax);
+            var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES_256, seg, i * Float.BYTES, ByteOrder.LITTLE_ENDIAN);
+            var lx = FloatVector.fromMemorySegment(FLOAT_SPECIES_256, seg, 4 * bulkSize + i * Float.BYTES, ByteOrder.LITTLE_ENDIAN).sub(ax);
             var targetComponentSums = ShortVector.fromMemorySegment(
                 SHORT_SPECIES_256,
-                memorySegment,
-                offset + 8 * bulkSize + i * Short.BYTES,
+                seg,
+                8 * bulkSize + i * Short.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             ).convert(VectorOperators.S2I, 0).reinterpretAsInts().and(0xffff).convert(VectorOperators.I2F, 0);
             var additionalCorrections = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES_256,
-                memorySegment,
-                offset + 10 * bulkSize + i * Float.BYTES,
+                seg,
+                10 * bulkSize + i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             );
             var qcDist = FloatVector.fromArray(FLOAT_SPECIES_256, scores, i);
@@ -580,7 +596,11 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
                 }
             }
         }
-        in.seek(offset + 14L * bulkSize);
         return maxScore;
+    }
+
+    @Override
+    public void close() {
+        arena.close();
     }
 }

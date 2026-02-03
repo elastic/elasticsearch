@@ -20,6 +20,7 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
@@ -35,6 +36,9 @@ import java.util.function.Supplier;
  * or a {@link MatchNoDocsQuery}.
  */
 public abstract class ConstantFieldType extends MappedFieldType {
+    public static final NodeFeature NORMALIZED_WILDCARD_QUERY_SUPPORT = new NodeFeature(
+        "constant_field_type.normalized_wildcard_query_support"
+    );
 
     @SuppressWarnings("this-escape")
     public ConstantFieldType(String name, Map<String, String> meta) {

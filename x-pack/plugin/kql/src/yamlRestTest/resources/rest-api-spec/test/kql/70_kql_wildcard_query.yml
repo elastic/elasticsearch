@@ -96,6 +96,10 @@ setup:
 
 ---
 "KQL wildcard query (constant_keyword field)":
+  - requires:
+      cluster_features: "constant_field_type.normalized_wildcard_query_support"
+      reason: Constant field type normalized wildcard query support
+
   # KQL rewrites query strings with a leading '*' into a wildcard query
   - do:
       search:

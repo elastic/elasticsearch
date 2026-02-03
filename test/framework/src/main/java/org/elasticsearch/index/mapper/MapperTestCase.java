@@ -1275,8 +1275,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     start,
                     maxDocs,
                     true,
-                    randomBoolean(),
-                    IndexVersion.current()
+                    randomBoolean()
                 );
                 for (int i = start; i < maxDocs; i++) {
                     var example = examples.get(i);

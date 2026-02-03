@@ -680,7 +680,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
             this.acceptDocs = acceptDocs;
             centroid = new float[fieldInfo.getVectorDimension()];
             quantizedVectorByteSize = quantEncoding.getDocPackedLength(fieldInfo.getVectorDimension());
-            quantizedByteLength = quantizedVectorByteSize + (Float.BYTES * 3) + Short.BYTES;
+            quantizedByteLength = quantizedVectorByteSize + (Float.BYTES * 3) + Integer.BYTES;
             osqVectorsScorer = ESVectorUtil.getESNextOSQVectorsScorer(
                 indexInput,
                 quantEncoding.queryBits(),
@@ -720,7 +720,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
             indexInput.readFloats(correctionsLower, 0, bulkSize);
             indexInput.readFloats(correctionsUpper, 0, bulkSize);
             for (int j = 0; j < bulkSize; j++) {
-                correctionsSum[j] = Short.toUnsignedInt(indexInput.readShort());
+                correctionsSum[j] = indexInput.readInt();
             }
             indexInput.readFloats(correctionsAdd, 0, bulkSize);
             // Now apply corrections

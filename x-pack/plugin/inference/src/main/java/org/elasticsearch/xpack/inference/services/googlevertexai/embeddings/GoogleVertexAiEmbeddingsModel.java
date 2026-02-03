@@ -67,7 +67,6 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
         super(model, taskSettings);
     }
 
-    // Should only be used directly for testing
     public GoogleVertexAiEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
@@ -77,12 +76,16 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
         ChunkingSettings chunkingSettings,
         @Nullable GoogleVertexAiSecretSettings secrets
     ) {
-        super(
+        this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
-            new ModelSecrets(secrets),
-            serviceSettings
+            new ModelSecrets(secrets)
         );
+    }
+
+    public GoogleVertexAiEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets, (GoogleVertexAiRateLimitServiceSettings) modelConfigurations.getServiceSettings());
         try {
+            var serviceSettings = (GoogleVertexAiEmbeddingsServiceSettings) modelConfigurations.getServiceSettings();
             this.nonStreamingUri = buildUri(serviceSettings.location(), serviceSettings.projectId(), serviceSettings.modelId());
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);

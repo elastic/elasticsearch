@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalUri;
 
 public class ContextualAiRerankServiceSettings extends FilteredXContentObject
     implements
@@ -49,12 +50,12 @@ public class ContextualAiRerankServiceSettings extends FilteredXContentObject
     private final RateLimitSettings rateLimitSettings;
 
     public static ContextualAiRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
         String url = extractOptionalString(map, ServiceFields.URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String modelId = extractOptionalString(map, ServiceFields.MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+        var rateLimitSettings = RateLimitSettings.of(
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,
             validationException,
@@ -62,9 +63,7 @@ public class ContextualAiRerankServiceSettings extends FilteredXContentObject
             context
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         URI uri = url != null ? ServiceUtils.createUri(url) : ServiceUtils.createUri(DEFAULT_URL);
         return new ContextualAiRerankServiceSettings(uri, modelId, rateLimitSettings);
@@ -92,7 +91,31 @@ public class ContextualAiRerankServiceSettings extends FilteredXContentObject
 
     @Override
     public ContextualAiRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
-        return fromMap(serviceSettings, ConfigurationParseContext.PERSISTENT);
+        var validationException = new ValidationException();
+
+        var extractedUri = extractOptionalUri(serviceSettings, ServiceFields.URL, validationException);
+        var extractedModelId = extractOptionalString(
+            serviceSettings,
+            ServiceFields.MODEL_ID,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            ContextualAiService.NAME,
+            ConfigurationParseContext.REQUEST
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new ContextualAiRerankServiceSettings(
+            extractedUri != null ? extractedUri : this.uri,
+            extractedModelId != null ? extractedModelId : this.modelId,
+            extractedRateLimitSettings
+        );
     }
 
     public RateLimitSettings rateLimitSettings() {

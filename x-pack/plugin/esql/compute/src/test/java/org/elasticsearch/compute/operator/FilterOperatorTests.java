@@ -115,13 +115,9 @@ public class FilterOperatorTests extends OperatorTestCase {
     }
 
     public void testReadFromBlock() {
-        DriverContext context = driverContext();
-        List<Page> input = CannedSourceOperator.collectPages(
-            new SequenceBooleanBlockSourceOperator(context.blockFactory(), List.of(true, false, true, false))
-        );
-        List<Page> results = new TestDriverRunner().builder(context)
-            .input(input)
-            .run(new FilterOperator.FilterOperatorFactory(dvrCtx -> new EvalOperatorTests.LoadFromPage(0)));
+        var runner = new TestDriverRunner().builder(driverContext());
+        runner.input(new SequenceBooleanBlockSourceOperator(runner.blockFactory(), List.of(true, false, true, false)));
+        List<Page> results = runner.run(new FilterOperator.FilterOperatorFactory(dvrCtx -> new EvalOperatorTests.LoadFromPage(0)));
         List<Boolean> found = new ArrayList<>();
         for (var page : results) {
             BooleanVector lb = page.<BooleanBlock>getBlock(0).asVector();
@@ -129,6 +125,6 @@ public class FilterOperatorTests extends OperatorTestCase {
         }
         assertThat(found, equalTo(List.of(true, true)));
         results.forEach(Page::releaseBlocks);
-        assertThat(context.breaker().getUsed(), equalTo(0L));
+        assertThat(runner.context().breaker().getUsed(), equalTo(0L));
     }
 }

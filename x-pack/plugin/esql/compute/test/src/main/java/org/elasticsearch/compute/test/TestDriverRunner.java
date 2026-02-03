@@ -146,6 +146,14 @@ public class TestDriverRunner {
          * Builds a {@link CannedSourceOperator} and delegates
          * to {@link #input(CannedSourceOperator)}.
          */
+        public DriverBuilder input(Page... input) {
+            return input(List.of(input));
+        }
+
+        /**
+         * Builds a {@link CannedSourceOperator} and delegates
+         * to {@link #input(CannedSourceOperator)}.
+         */
         public DriverBuilder input(Iterable<Page> input) {
             return input(input.iterator());
         }
@@ -156,6 +164,14 @@ public class TestDriverRunner {
          */
         public DriverBuilder input(Iterator<Page> input) {
             return input(new CannedSourceOperator(input));
+        }
+
+        /**
+         * Collects input from a {@link SourceOperator.SourceOperatorFactory}, builds a
+         * {@link CannedSourceOperator}, and delegates to {@link #input(CannedSourceOperator)}.
+         */
+        public DriverBuilder input(SourceOperator.SourceOperatorFactory input) {
+            return input(input.get(context));
         }
 
         /**

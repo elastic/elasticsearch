@@ -46,7 +46,8 @@ public abstract class CompoundOutputEval<T extends CompoundOutputEval<T>> extend
     implements
         TelemetryAware,
         GeneratingPlan<CompoundOutputEval<T>>,
-        PostAnalysisVerificationAware {
+        PostAnalysisVerificationAware,
+        Streaming {
 
     /**
      * The input by which the evaluation is performed.

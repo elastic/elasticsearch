@@ -306,7 +306,8 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
             null,
             Collections.emptyMap(),
             null,
-            MapperMetrics.NOOP
+            MapperMetrics.NOOP,
+            ShardSearchStats.TEST_INSTANCE
         );
         return new TestSearchContext(searchExecutionContext) {
             private final SearchRequest searchquest = new SearchRequest().allowPartialSearchResults(true);

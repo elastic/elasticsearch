@@ -32,6 +32,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -167,7 +168,9 @@ public class EsPhysicalOperationProvidersTests extends ESTestCase {
             () -> true,
             null,
             emptyMap(),
-            MapperMetrics.NOOP
+            0,
+            MapperMetrics.NOOP,
+            ShardSearchStats.TEST_INSTANCE
         ) {
             @Override
             public MappedFieldType getFieldType(String name) {

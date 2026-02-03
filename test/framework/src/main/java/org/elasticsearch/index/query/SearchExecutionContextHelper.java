@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.util.Collections;
@@ -46,7 +47,9 @@ public class SearchExecutionContextHelper {
             () -> true,
             null,
             Collections.emptyMap(),
-            MapperMetrics.NOOP
+            0,
+            MapperMetrics.NOOP,
+            ShardSearchStats.TEST_INSTANCE
         );
     }
 

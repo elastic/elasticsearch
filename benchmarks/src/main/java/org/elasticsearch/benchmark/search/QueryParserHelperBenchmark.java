@@ -38,6 +38,7 @@ import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.QueryParserHelper;
+import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
@@ -157,7 +158,9 @@ public class QueryParserHelperBenchmark {
             () -> true,
             null,
             Collections.emptyMap(),
-            MapperMetrics.NOOP
+            0,
+            MapperMetrics.NOOP,
+            ShardSearchStats.TEST_INSTANCE
         );
     }
 

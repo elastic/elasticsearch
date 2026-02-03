@@ -13,6 +13,8 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.ExponentiallyWeightedMovingRate;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.shard.SearchOperationListener;
@@ -26,6 +28,9 @@ import java.util.function.Consumer;
 import static java.util.Collections.emptyMap;
 
 public final class ShardSearchStats implements SearchOperationListener {
+    public static final ShardSearchStats TEST_INSTANCE = new ShardSearchStats(
+        new SearchStatsSettings(new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
+    );
 
     private final StatsHolder totalStats;
     private final CounterMetric openContexts = new CounterMetric();

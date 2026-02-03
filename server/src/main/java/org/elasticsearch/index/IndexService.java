@@ -775,6 +775,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             expressionResolver
         );
         var mapperService = mapperService();
+        var indexShard = getShard(shardId);
         return new SearchExecutionContext(
             shardId,
             shardRequestIndex,
@@ -796,7 +797,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             valuesSourceRegistry,
             runtimeMappings,
             requestSize,
-            mapperMetrics
+            mapperMetrics,
+            indexShard.shardSearchStats()
         );
     }
 

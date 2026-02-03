@@ -17,6 +17,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -50,7 +51,9 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             () -> true,
             null,
             emptyMap(),
-            MapperMetrics.NOOP
+            0,
+            MapperMetrics.NOOP,
+            ShardSearchStats.TEST_INSTANCE
         );
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         assertEquals(Relation.DISJOINT, range.getRelation(context));
@@ -91,7 +94,9 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             () -> true,
             null,
             emptyMap(),
-            MapperMetrics.NOOP
+            0,
+            MapperMetrics.NOOP,
+            ShardSearchStats.TEST_INSTANCE
         );
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         // can't make assumptions on a missing reader, so it must return INTERSECT
@@ -134,7 +139,9 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             () -> true,
             null,
             emptyMap(),
-            MapperMetrics.NOOP
+            0,
+            MapperMetrics.NOOP,
+            ShardSearchStats.TEST_INSTANCE
         );
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         // no values -> DISJOINT

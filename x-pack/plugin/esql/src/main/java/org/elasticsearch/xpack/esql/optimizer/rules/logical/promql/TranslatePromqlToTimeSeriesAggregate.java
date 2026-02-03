@@ -195,15 +195,16 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
     }
 
     /**
-     * Filter out rows with null values in any output column.
+     * Filter out rows with null values in the aggregation result.
      * This is necessary to match PromQL semantics where series with missing data are dropped.
-     * It avoids returning data where a metric or a label we group by is missing.
+     * Note that this doesn't filter out label columns that are null, as those are valid in PromQL.
+     * Example: {@code sum by (unknown_label) (metric)} is equivalent to {@code sum(metric)} in PromQL.
      */
     private static LogicalPlan filterNulls(PromqlCommand promqlCommand, LogicalPlan plan) {
         return new Filter(
             promqlCommand.source(),
             plan,
-            Predicates.combineAnd(plan.output().stream().map(attr -> new IsNotNull(attr.source(), attr)).toList())
+            new IsNotNull(plan.output().getFirst().source(), plan.output().getFirst())
         );
     }
 

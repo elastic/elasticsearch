@@ -79,6 +79,7 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
@@ -527,17 +528,27 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
     }
 
     public void testNonExistentFieldsOptimizesToEmptyPlan() {
-        List.of(
-            "non_existent_metric",
-            "network.eth0.rx{non_existent_label=\"value\"}",
-            "avg(non_existent_metric)",
-            // TODO because we wrap group-by-all aggregates into Values, this does not optimize away yet
-            // "rate(non_existent_metric[5m])",
-            "avg by (non_existent_label) (network.eth0.rx)"
+        List.of("non_existent_metric", "network.eth0.rx{non_existent_label=\"value\"}", "avg(non_existent_metric)"
+        // TODO because we wrap group-by-all aggregates into Values, this does not optimize away yet
+        // "rate(non_existent_metric[5m])"
         ).forEach(query -> {
             var plan = planPromql("PROMQL index=k8s step=1m " + query);
             assertThat(as(plan, LocalRelation.class).supplier(), equalTo(EmptyLocalSupplier.EMPTY));
         });
+    }
+
+    public void testGroupByNonExistentLabel() {
+        var plan = planPromql("PROMQL index=k8s step=1m result=(sum by (non_existent_label) (network.eth0.rx))");
+        // equivalent to avg(network.eth0.rx) since the label does not exist
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
+        // the non-existent label should not appear in the groupings
+        plan.collect(Aggregate.class)
+            .forEach(
+                agg -> assertThat(
+                    agg.groupings().stream().map(Attribute.class::cast).map(Attribute::name).toList(),
+                    not(hasItem("non_existent_label"))
+                )
+            );
     }
 
     private void assertConstantResult(String query, Matcher<Double> matcher) {

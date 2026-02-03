@@ -113,7 +113,7 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
     RandomVectorScorerSupplier getRandomVectorScorerSupplier(
         VectorSimilarityFunction similarityFunction,
         ES818BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues scoringVectors,
-        BinarizedByteVectorValues targetVectors
+        OffHeapBinarizedVectorValues targetVectors
     ) {
         return new BinarizedRandomVectorScorerSupplier(scoringVectors, targetVectors, similarityFunction);
     }
@@ -126,12 +126,12 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
     /** Vector scorer supplier over binarized vector values */
     static class BinarizedRandomVectorScorerSupplier implements RandomVectorScorerSupplier {
         private final ES818BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues queryVectors;
-        private final BinarizedByteVectorValues targetVectors;
+        private final OffHeapBinarizedVectorValues targetVectors;
         private final VectorSimilarityFunction similarityFunction;
 
         BinarizedRandomVectorScorerSupplier(
             ES818BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues queryVectors,
-            BinarizedByteVectorValues targetVectors,
+            OffHeapBinarizedVectorValues targetVectors,
             VectorSimilarityFunction similarityFunction
         ) {
             this.queryVectors = queryVectors;
@@ -153,7 +153,7 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
     /** Vector scorer over binarized vector values */
     public static class BinarizedRandomVectorScorer extends UpdateableRandomVectorScorer.AbstractUpdateableRandomVectorScorer {
         private final ES818BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues queryVectors;
-        private final BinarizedByteVectorValues targetVectors;
+        private final OffHeapBinarizedVectorValues targetVectors;
         private final VectorSimilarityFunction similarityFunction;
         private final byte[] quantizedQuery;
         private OptimizedScalarQuantizer.QuantizationResult queryCorrections = null;
@@ -161,7 +161,7 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
 
         BinarizedRandomVectorScorer(
             ES818BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues queryVectors,
-            BinarizedByteVectorValues targetVectors,
+            OffHeapBinarizedVectorValues targetVectors,
             VectorSimilarityFunction similarityFunction
         ) {
             super(targetVectors);

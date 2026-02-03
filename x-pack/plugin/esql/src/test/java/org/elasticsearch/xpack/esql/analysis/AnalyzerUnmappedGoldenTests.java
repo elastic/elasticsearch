@@ -263,6 +263,106 @@ public class AnalyzerUnmappedGoldenTests extends GoldenTestCase {
             """);
     }
 
+    public void testLookupJoin() throws Exception {
+        runTests("""
+            FROM employees
+            | EVAL language_code = does_not_exist::INTEGER
+            | LOOKUP JOIN languages_lookup ON language_code
+            """);
+    }
+
+    public void testLookupJoinWithFilter() throws Exception {
+        runTests("""
+            FROM employees
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            | WHERE does_not_exist::LONG > 0
+            """);
+    }
+
+    public void testSubqueryKeepUnmapped() throws Exception {
+        runTests("""
+            FROM employees, (FROM languages | KEEP language_code, does_not_exist)
+            | KEEP emp_no, language_code, does_not_exist
+            """);
+    }
+
+    public void testSubqueryWithStats() throws Exception {
+        runTests("""
+            FROM employees, (FROM sample_data | STATS max_ts = MAX(@timestamp) BY does_not_exist)
+            | KEEP emp_no, max_ts, does_not_exist
+            """);
+    }
+
+    public void testSubqueryKeepMultipleUnmapped() throws Exception {
+        runTests("""
+            FROM employees,
+                (FROM languages | KEEP language_code, unmapped1, unmapped2)
+            | KEEP emp_no, language_code, unmapped1, unmapped2
+            """);
+    }
+
+    public void testFork() throws Exception {
+        runTests("""
+            FROM employees
+            | FORK (WHERE does_not_exist::LONG > 0)
+                   (WHERE emp_no > 0)
+            """);
+    }
+
+    public void testForkWithEval() throws Exception {
+        runTests("""
+            FROM employees
+            | FORK (EVAL x = does_not_exist::DOUBLE + 1)
+                   (EVAL y = emp_no + 1)
+            """);
+    }
+
+    public void testForkWithStats() throws Exception {
+        runTests("""
+            FROM employees
+            | FORK (STATS c = COUNT(*) BY does_not_exist)
+                   (STATS d = AVG(salary::DOUBLE))
+            | SORT does_not_exist
+            """);
+    }
+
+    public void testCoalesce() throws Exception {
+        runTests("""
+            FROM employees
+            | EVAL x = COALESCE(does_not_exist::LONG, emp_no, 0)
+            | KEEP emp_no, x
+            """);
+    }
+
+    public void testTBucketGroupByUnmapped() throws Exception {
+        runTests("""
+            FROM sample_data
+            | STATS c = COUNT(*) BY tbucket(1 hour), does_not_exist
+            """);
+    }
+
+    public void testTBucketAggregateUnmapped() throws Exception {
+        runTests("""
+            FROM sample_data
+            | STATS s = SUM(does_not_exist::DOUBLE), c = COUNT(*) BY tbucket(1 day)
+            """);
+    }
+
+    public void testTimeSeriesRateUnmapped() throws Exception {
+        runTestsNullifyOnly("""
+            TS k8s
+            | STATS r = RATE(does_not_exist) BY tbucket(1 hour)
+            """);
+    }
+
+    public void testTimeSeriesFirstOverTimeUnmapped() throws Exception {
+        runTests("""
+            TS k8s
+            | STATS f = FIRST_OVER_TIME(does_not_exist::DOUBLE) BY tbucket(1 hour)
+            """);
+    }
+
     @Override
     protected java.util.List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());
@@ -277,11 +377,15 @@ public class AnalyzerUnmappedGoldenTests extends GoldenTestCase {
     }
 
     private void runTests(String query) {
-        if (EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled()) {
-            builder(setUnmappedNullify(query)).nestedPath("nullify").stages(STAGES).run();
-        }
+        runTestsNullifyOnly(query);
         if (EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled()) {
             builder(setUnmappedLoad(query)).nestedPath("load").stages(STAGES).run();
+        }
+    }
+
+    private void runTestsNullifyOnly(String query) {
+        if (EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled()) {
+            builder(setUnmappedNullify(query)).nestedPath("nullify").stages(STAGES).run();
         }
     }
 }

@@ -1,0 +1,2 @@
+SET unmapped_fields="load"; TS k8s
+| KEEP @timestamp, cluster, does_not_exist

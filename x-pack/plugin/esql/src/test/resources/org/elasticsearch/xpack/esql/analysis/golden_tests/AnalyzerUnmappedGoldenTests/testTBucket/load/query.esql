@@ -1,0 +1,3 @@
+SET unmapped_fields="load"; FROM sample_data
+| WHERE does_not_exist::LONG > 0
+| STATS c = COUNT(*) BY tbucket(1 hour)

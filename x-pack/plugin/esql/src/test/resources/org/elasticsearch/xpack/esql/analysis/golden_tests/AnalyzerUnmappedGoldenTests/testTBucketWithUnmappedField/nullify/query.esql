@@ -1,0 +1,2 @@
+SET unmapped_fields="nullify"; FROM sample_data
+| STATS s = SUM(does_not_exist::DOUBLE) BY tbucket(1 day)

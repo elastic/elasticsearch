@@ -1,0 +1,5 @@
+Limit[1000[INTEGER],false,false]
+\_Project[[@timestamp{f}#0, cluster{f}#1, x{r}#2]]
+  \_Eval[[TODOUBLE(does_not_exist{r}#3) + network.cost{f}#4 AS x#2]]
+    \_Eval[[null[NULL] AS does_not_exist#3]]
+      \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#0, client.ip{f}#5, cluster{f}#1, event{f}#6, event_city{f}#7, event_city_boundary{f}#8, event_location{f}#9, event_log{f}#10, event_shape{f}#11, events_received{f}#12, network.bytes_in{f}#13, network.cost{f}#4, network.eth0.currently_connected_clients{f}#14, network.eth0.firmware_version{f}#15, network.eth0.last_up{f}#16, network.eth0.rx{f}#17, network.eth0.tx{f}#18, network.eth0.up{f}#19, network.total_bytes_in{f}#20, network.total_bytes_out{f}#21, network.total_cost{f}#22, pod{f}#23, region{f}#24]

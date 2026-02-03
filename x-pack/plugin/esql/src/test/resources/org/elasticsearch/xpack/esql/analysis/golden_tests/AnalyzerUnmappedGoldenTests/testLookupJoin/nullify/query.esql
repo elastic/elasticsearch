@@ -1,0 +1,3 @@
+SET unmapped_fields="nullify"; FROM employees
+| EVAL language_code = does_not_exist::INTEGER
+| LOOKUP JOIN languages_lookup ON language_code

@@ -39,6 +39,7 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
             @Override
             ClientYamlTestResponse callApiInternal(
                 String apiName,
+                String method,
                 Map<String, String> params,
                 HttpEntity entity,
                 Map<String, String> headers,
@@ -56,7 +57,7 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
         context.stash().stashValue("c", "bar1");
 
         assertNull(headersRef.get());
-        context.callApi("test", Collections.emptyMap(), Collections.emptyList(), headers);
+        context.callApi("test", null, Collections.emptyMap(), Collections.emptyList(), headers, NodeSelector.ANY);
         assertNotNull(headersRef.get());
         assertNotEquals(headers, headersRef.get());
 
@@ -77,6 +78,7 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
             @Override
             ClientYamlTestResponse callApiInternal(
                 String apiName,
+                String method,
                 Map<String, String> params,
                 HttpEntity entity,
                 Map<String, String> headers,
@@ -89,7 +91,7 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
         headers.put("Accept", "application/json");
         headers.put("Authorization", "Basic password==");
         try {
-            context.callApi("test", Collections.emptyMap(), Collections.emptyList(), headers);
+            context.callApi("test", null, Collections.emptyMap(), Collections.emptyList(), headers, NodeSelector.ANY);
         } catch (Exception e) {
             // do nothing...behavior we are testing is the finally block of the production code
         }

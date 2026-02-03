@@ -82,6 +82,7 @@ public class ClientYamlTestClient implements Closeable {
      */
     public ClientYamlTestResponse callApi(
         String apiName,
+        String method,
         Map<String, String> params,
         HttpEntity entity,
         Map<String, String> headers,
@@ -161,7 +162,15 @@ public class ClientYamlTestClient implements Closeable {
 
         List<String> supportedMethods = Arrays.asList(path.methods());
         String requestMethod;
-        if (entity != null) {
+        if (method != null) {
+            // Method override specified - validate it's supported
+            if (supportedMethods.contains(method) == false) {
+                throw new IllegalArgumentException(
+                    "method [" + method + "] is not supported by path [" + path.path() + "]. Supported methods: " + supportedMethods
+                );
+            }
+            requestMethod = method;
+        } else if (entity != null) {
             if (false == restApi.isBodySupported()) {
                 throw new IllegalArgumentException("body is not supported by [" + restApi.getName() + "] api");
             }

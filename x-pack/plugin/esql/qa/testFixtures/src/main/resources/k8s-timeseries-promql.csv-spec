@@ -524,7 +524,7 @@ bytes:double | step:datetime            | cluster:keyword
 unmapped_metric_instant_vector
 required_capability: promql_command_v0
 required_capability: promql_unmapped_fields_filter_nulls
-PROMQL index=k8s step=1h result=(unmapped.metric);
+PROMQL index=k8s step=1h result=(unmapped.metric) | SORT result;
 
 result:double | step:datetime | _timeseries:keyword
 ;
@@ -532,7 +532,7 @@ result:double | step:datetime | _timeseries:keyword
 unmapped_label
 required_capability: promql_command_v0
 required_capability: promql_unmapped_fields_filter_nulls
-PROMQL index=k8s step=1h result=(network.cost{unmapped.label="value"});
+PROMQL index=k8s step=1h result=(network.cost{unmapped.label="value"}) | SORT result;
 
 result:double | step:datetime | _timeseries:keyword
 ;
@@ -540,7 +540,7 @@ result:double | step:datetime | _timeseries:keyword
 unmapped_metric_cross_series
 required_capability: promql_command_v0
 required_capability: promql_unmapped_fields_filter_nulls
-PROMQL index=k8s step=1h result=(sum by (cluster) (unmapped.metric));
+PROMQL index=k8s step=1h result=(sum by (cluster) (unmapped.metric)) | SORT result;
 
 result:double | step:datetime | cluster:keyword
 ;
@@ -548,7 +548,7 @@ result:double | step:datetime | cluster:keyword
 cross_series_grouping_on_unmapped_label
 required_capability: promql_command_v0
 required_capability: promql_unmapped_fields_filter_nulls
-PROMQL index=k8s step=1h result=(sum by (unmapped.label) (network.cost));
+PROMQL index=k8s step=1h result=(sum by (unmapped.label) (network.cost)) | SORT result;
 
 result:double | step:datetime | unmapped.label:null
 ;
@@ -556,7 +556,7 @@ result:double | step:datetime | unmapped.label:null
 unmapped_metric_within_series
 required_capability: promql_command_v0
 required_capability: promql_unmapped_fields_filter_nulls
-PROMQL index=k8s step=1h result=(rate(unmapped.metric[1h]));
+PROMQL index=k8s step=1h result=(rate(unmapped.metric[1h])) | SORT result;
 
 result:double | step:datetime | _timeseries:keyword
 ;

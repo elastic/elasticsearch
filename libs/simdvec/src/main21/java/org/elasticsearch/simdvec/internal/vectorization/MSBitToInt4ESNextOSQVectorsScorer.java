@@ -46,9 +46,9 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
 
     MSBitToInt4ESNextOSQVectorsScorer(IndexInput in, int dimensions, int dataLength, int bulkSize, MemorySegment memorySegment) {
         super(in, dimensions, dataLength, bulkSize, memorySegment);
-        scratch = new byte[(dataLength + 14) * bulkSize];
+        scratch = new byte[(dataLength + 16) * bulkSize];
         arena = Arena.ofConfined();
-        scratchSeg = arena.allocate((dataLength + 14L) * bulkSize);
+        scratchSeg = arena.allocate((dataLength + 16L) * bulkSize);
     }
 
     @Override

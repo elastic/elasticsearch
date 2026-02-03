@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -132,6 +133,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -247,6 +249,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Limiter.ONCE,
             new ResolvedProjects(),
             new AddImplicitLimit(),
+            new AddImplicitTimestampSort(),
             new AddImplicitForkLimit(),
             new UnionTypesCleanup()
         )
@@ -1817,6 +1820,49 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 newSubPlans.add(addImplicitLimit.apply(subPlan, ctx));
             }
             return fork.replaceSubPlans(newSubPlans);
+        }
+    }
+
+    /**
+     * For TS queries without explicit SORT or STATS, inject an implicit SORT by @timestamp DESC
+     * so that the most recent points are returned first, instead of physical index order.
+     */
+    private static class AddImplicitTimestampSort extends Rule<LogicalPlan, LogicalPlan> {
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            if (plan instanceof Limit limit) {
+                return injectTimestampSort(limit);
+            }
+            throw new IllegalStateException(
+                "Rule " + AddImplicitTimestampSort.class.getName() + " should run after " + AddImplicitLimit.class.getName()
+            );
+        }
+
+        private LogicalPlan injectTimestampSort(Limit limit) {
+            LogicalPlan child = limit.child();
+
+            boolean hasExplicitSortOrAggregate = child.collectFirstChildren(lp -> lp instanceof OrderBy || lp instanceof Aggregate)
+                .isEmpty() == false;
+
+            if (hasExplicitSortOrAggregate) {
+                return limit;
+            }
+
+            var timestampAttr = child.collect(EsRelation.class, r -> r.indexMode() == IndexMode.TIME_SERIES)
+                .stream()
+                .findFirst()
+                .flatMap(r -> r.output().stream().filter(a -> MetadataAttribute.TIMESTAMP_FIELD.equals(a.name())).findFirst())
+                .flatMap(ts -> child.output().stream().filter(a -> a.id().equals(ts.id())).findFirst());
+
+            if (timestampAttr.isEmpty()) {
+                return limit;
+            }
+
+            var source = limit.source();
+            Order order = new Order(source, timestampAttr.get(), Order.OrderDirection.DESC, Order.NullsPosition.LAST);
+            OrderBy orderBy = new OrderBy(source, child, List.of(order));
+
+            return limit.replaceChild(orderBy);
         }
     }
 

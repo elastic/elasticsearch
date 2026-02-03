@@ -297,8 +297,7 @@ s:keyword | ip:ip
 // end::to_ip_leading_zeros_octal-result[]
 ;
 
-// https://github.com/elastic/elasticsearch/issues/141627
-convertFromStringInvalidValue141627
+convertFromStringLeadingZerosInvalidIpAddress
 required_capability: to_ip_leading_zeros
 ROW 
   input = "192.400.168.1"
@@ -306,12 +305,10 @@ ROW
 | EVAL decimal = TO_IP(input, {"leading_zeros":"decimal"})
 | EVAL reject = TO_IP(input, {"leading_zeros":"reject"})
 ;
-warning:Line 3:16: evaluation of [TO_IP(input, {\"leading_zeros\":\"octal\"})] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 3:16: java.lang.IllegalArgumentException: '192.400.168.1' is not an IP string literal.
-warning:Line 4:18: evaluation of [TO_IP(input, {\"leading_zeros\":\"decimal\"})] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 4:18: java.lang.IllegalArgumentException: '192.400.168.1' is not an IP string literal.
-warning:Line 5:17: evaluation of [TO_IP(input, {\"leading_zeros\":\"reject\"})] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 5:17: java.lang.IllegalArgumentException: '192.400.168.1' is not an IP string literal.
+warningRegex:evaluation of \[TO_IP\(input, \{\\\"leading_zeros\\\":\\\"octal\\\"\}\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:evaluation of \[TO_IP\(input, \{\\\"leading_zeros\\\":\\\"decimal\\\"\}\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:evaluation of \[TO_IP\(input, \{\\\"leading_zeros\\\":\\\"reject\\\"\}\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: '192.400.168.1' is not an IP string literal.
 
 input:keyword | octal:ip | decimal:ip | reject:ip
 192.400.168.1 | null     | null       | null

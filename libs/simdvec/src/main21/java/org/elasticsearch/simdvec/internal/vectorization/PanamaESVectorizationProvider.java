@@ -11,9 +11,11 @@ package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MemorySegmentAccessInput;
+import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.simdvec.ES91Int4VectorsScorer;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
+import org.elasticsearch.simdvec.ES93BinaryQuantizedVectorsScorer;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.MemorySegmentES92Int7VectorsScorer;
 
@@ -23,6 +25,9 @@ import java.lang.foreign.MemorySegment;
 final class PanamaESVectorizationProvider extends ESVectorizationProvider {
 
     private final ESVectorUtilSupport vectorUtilSupport;
+
+    private static final boolean NATIVE_SUPPORTED = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
+    private static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
 
     PanamaESVectorizationProvider() {
         vectorUtilSupport = new PanamaESVectorUtilSupport();
@@ -85,5 +90,14 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
             }
         }
         return new ES92Int7VectorsScorer(input, dimension, bulkSize);
+    }
+
+    @Override
+    public ES93BinaryQuantizedVectorsScorer newES93BinaryQuantizedVectorsScorer(IndexInput input, int vectorLengthInBytes)
+        throws IOException {
+        // if (input instanceof MemorySegmentAccessInput msai && NATIVE_SUPPORTED && SUPPORTS_HEAP_SEGMENTS) {
+        // // TODO
+        // }
+        return new ES93BinaryQuantizedVectorsScorer(input, vectorLengthInBytes);
     }
 }

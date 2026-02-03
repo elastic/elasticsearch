@@ -29,6 +29,7 @@ import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.es816.BinaryQuantizer;
+import org.elasticsearch.simdvec.ES93BinaryQuantizedVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -159,16 +160,19 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
         private OptimizedScalarQuantizer.QuantizationResult queryCorrections = null;
         private int currentOrdinal = -1;
 
+        private final ES93BinaryQuantizedVectorsScorer scorer;
+
         BinarizedRandomVectorScorer(
             ES818BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues queryVectors,
             OffHeapBinarizedVectorValues targetVectors,
             VectorSimilarityFunction similarityFunction
-        ) {
+        ) throws IOException {
             super(targetVectors);
             this.queryVectors = queryVectors;
             this.quantizedQuery = new byte[queryVectors.quantizedDimension()];
             this.targetVectors = targetVectors;
             this.similarityFunction = similarityFunction;
+            this.scorer = ESVectorUtil.getES93BinaryQuantizedVectorsScorer(targetVectors.slice, targetVectors.getVectorByteLength());
         }
 
         @Override
@@ -176,14 +180,16 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
             if (queryCorrections == null) {
                 throw new IllegalStateException("score() called before setScoringOrdinal()");
             }
-            return quantizedScore(
+            return scorer.score(
                 targetVectors.dimension(),
                 similarityFunction,
                 targetVectors.getCentroidDP(),
                 quantizedQuery,
-                queryCorrections,
-                targetVectors.vectorValue(targetOrd),
-                targetVectors.getCorrectiveTerms(targetOrd)
+                queryCorrections.lowerInterval(),
+                queryCorrections.upperInterval(),
+                queryCorrections.additionalCorrection(),
+                queryCorrections.quantizedComponentSum(),
+                targetOrd
             );
         }
 
@@ -220,7 +226,7 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
         // assumed to be the squared l2norm of the centroid centered vectors.
         if (similarityFunction == EUCLIDEAN) {
             score = queryCorrections.additionalCorrection() + indexCorrections.additionalCorrection() - 2 * score;
-            return Math.max(1 / (1f + score), 0);
+            return Math.max(VectorUtil.normalizeDistanceToUnitInterval(score), 0);
         } else {
             // For cosine and max inner product, we need to apply the additional correction, which is
             // assumed to be the non-centered dot-product between the vector and the centroid
@@ -228,7 +234,7 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
             if (similarityFunction == MAXIMUM_INNER_PRODUCT) {
                 return VectorUtil.scaleMaxInnerProductScore(score);
             }
-            return Math.max((1f + score) / 2f, 0);
+            return VectorUtil.normalizeToUnitInterval(score);
         }
     }
 }

@@ -70,6 +70,11 @@ public class ESVectorUtil {
         return ESVectorizationProvider.getInstance().newES92Int7VectorsScorer(input, dimension, bulkSize);
     }
 
+    public static ES93BinaryQuantizedVectorsScorer getES93BinaryQuantizedVectorsScorer(IndexInput input, int vectorLengthInBytes)
+        throws IOException {
+        return ESVectorizationProvider.getInstance().newES93BinaryQuantizedVectorsScorer(input, vectorLengthInBytes);
+    }
+
     public static long ipByteBinByte(byte[] q, byte[] d) {
         if (q.length != d.length * B_QUERY) {
             throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!= " + B_QUERY + " x " + d.length);

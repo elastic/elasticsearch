@@ -46,8 +46,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
      * A template decorator allows modification of template during parsing.
      */
     public interface TemplateDecorator {
-        TemplateDecorator DEFAULT = new TemplateDecorator() {
-        };
+        TemplateDecorator DEFAULT = new TemplateDecorator() {};
 
         default Settings decorate(String template, @Nullable Settings settings) {
             return settings;

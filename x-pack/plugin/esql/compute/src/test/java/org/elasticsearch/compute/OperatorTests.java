@@ -411,6 +411,8 @@ public class OperatorTests extends MapperServiceTestCase {
                         AggregatorMode.INTERMEDIATE,
                         List.of(CountAggregatorFunction.supplier().groupingAggregatorFactory(AggregatorMode.INTERMEDIATE, List.of(1, 2))),
                         Integer.MAX_VALUE,
+                        Integer.MAX_VALUE,
+                        1.0,
                         null
                     );
                 DriverContext driverContext = driverContext();

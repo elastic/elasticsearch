@@ -240,6 +240,9 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         };
     }
 
+    // Checks that the current segment is either directly sorted by descending timestamp,
+    // or that it is sorted by host.name and then timestamp, where host.name has either no
+    // values or only a single value, so timestamp is effectively the primary sort.
     private static boolean segmentSortedByDescTimestamp(LeafReaderContext context) throws IOException {
         Sort sort = context.reader().getMetaData().sort();
         if (sort == null) {
@@ -255,7 +258,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                 }
                 return sortField.getReverse();
             }
-            if (isSingletonInSegment(context, sortField)) {
+            if (isHostNameSingletonInSegment(context, sortField)) {
                 continue;
             }
             return false;
@@ -263,7 +266,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         return false;
     }
 
-    private static boolean isSingletonInSegment(LeafReaderContext context, SortField sortField) throws IOException {
+    private static boolean isHostNameSingletonInSegment(LeafReaderContext context, SortField sortField) throws IOException {
         if (Objects.equals(sortField.getField(), "host.name") == false) {
             return false;
         }

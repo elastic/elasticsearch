@@ -780,11 +780,11 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public Query rewrittenQuery() {
         Query query = super.rewrittenQuery();
-        maybeRewriteToMatchTail();
+        maybeMarkAsMatchTail();
         return query;
     }
 
-    private void maybeRewriteToMatchTail() {
+    private void maybeMarkAsMatchTail() {
         if (rewriteQuery instanceof MatchAllDocsQuery == false || this.searchAfter() != null || this.size == 0) {
             return;
         }

@@ -315,12 +315,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
   method: testReductionPlanForTopNWithPushedDownFunctions
   issue: https://github.com/elastic/elasticsearch/issues/139493
-- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
-  method: testMultipleSnapshotAndRollback
-  issue: https://github.com/elastic/elasticsearch/issues/139556
-- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
-  method: testDeleteBlobs
-  issue: https://github.com/elastic/elasticsearch/issues/139646
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
   issue: https://github.com/elastic/elasticsearch/issues/139654
@@ -330,9 +324,6 @@ tests:
 - class: org.elasticsearch.smoketest.WatcherYamlRestIT
   method: test {p0=mustache/10_webhook/Test webhook action with mustache integration}
   issue: https://github.com/elastic/elasticsearch/issues/139663
-- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
-  method: testReadNonExistingPath
-  issue: https://github.com/elastic/elasticsearch/issues/139665
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=esql/40_unsupported_types/unsupported}
   issue: https://github.com/elastic/elasticsearch/issues/139701
@@ -351,9 +342,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testCreatesEisChatCompletionEndpoint
   issue: https://github.com/elastic/elasticsearch/issues/140849
-- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerRetriesTests
-  method: testReadBlobWithReadTimeouts
-  issue: https://github.com/elastic/elasticsearch/issues/141230
 - class: org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceTests
   method: testExecute_Throws_WhenRateLimitedQueueIsFull
   issue: https://github.com/elastic/elasticsearch/issues/141231
@@ -366,9 +354,6 @@ tests:
 - class: org.elasticsearch.compute.operator.topn.TopNOomRaceTests
   method: testRace {repeats = 15}
   issue: https://github.com/elastic/elasticsearch/issues/141471
-- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
-  method: testIndicesDeletedFromRepository
-  issue: https://github.com/elastic/elasticsearch/issues/141660
 
 # Examples:
 #

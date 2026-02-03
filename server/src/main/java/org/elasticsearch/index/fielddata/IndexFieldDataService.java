@@ -44,8 +44,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
     private final IndicesFieldDataCache indicesFieldDataCache;
     // the below map needs to be modified under a lock
     private final Map<String, IndexFieldDataCache> fieldDataCaches = new HashMap<>();
-    private static final IndexFieldDataCache.Listener DEFAULT_NOOP_LISTENER = new IndexFieldDataCache.Listener() {
-    };
+    private static final IndexFieldDataCache.Listener DEFAULT_NOOP_LISTENER = new IndexFieldDataCache.Listener() {};
     private volatile IndexFieldDataCache.Listener listener = DEFAULT_NOOP_LISTENER;
 
     public IndexFieldDataService(

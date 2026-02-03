@@ -506,8 +506,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 bitsetFilterCache::getBitSetProducer,
                 MapperMetrics.NOOP
             );
-            IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, new IndexFieldDataCache.Listener() {
-            });
+            IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, new IndexFieldDataCache.Listener() {});
             indexFieldDataService = new IndexFieldDataService(idxSettings, indicesFieldDataCache, new NoneCircuitBreakerService());
             if (registerType) {
                 mapperService.merge(

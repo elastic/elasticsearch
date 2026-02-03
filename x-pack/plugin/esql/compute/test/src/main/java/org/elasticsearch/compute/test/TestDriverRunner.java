@@ -79,6 +79,54 @@ public class TestDriverRunner {
     }
 
     /**
+     * Run a driver.
+     */
+    public void run(Driver driver) {
+        run(List.of(driver));
+    }
+
+    /**
+     * Run many drivers.
+     */
+    public void run(List<Driver> drivers) {
+        drivers = new ArrayList<>(drivers);
+        int dummyDrivers = between(0, 10);
+        for (int i = 0; i < dummyDrivers; i++) {
+            drivers.add(
+                TestDriverFactory.create(
+                    new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null),
+                    new SequenceLongBlockSourceOperator(
+                        TestBlockFactory.getNonBreakingInstance(),
+                        LongStream.range(0, between(1, 100)),
+                        between(1, 100)
+                    ),
+                    List.of(),
+                    new PageConsumerOperator(Page::releaseBlocks)
+                )
+            );
+        }
+        Randomness.shuffle(drivers);
+        int numThreads = this.numThreads == null ? between(1, 16) : this.numThreads;
+        ThreadPool threadPool = new TestThreadPool(
+            "test",
+            new FixedExecutorBuilder(Settings.EMPTY, "esql", numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
+        );
+        var driverRunner = new DriverRunner(threadPool.getThreadContext()) {
+            @Override
+            protected void start(Driver driver, ActionListener<Void> driverListener) {
+                Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 10000), driverListener);
+            }
+        };
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        try {
+            driverRunner.runToCompletion(drivers, future);
+            future.actionGet(TimeValue.timeValueSeconds(30));
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    /**
      * Helpers for building the {@link Driver}.
      */
     public class DriverBuilder {
@@ -286,54 +334,6 @@ public class TestDriverRunner {
          */
         public BlockFactory blockFactory() {
             return context.blockFactory();
-        }
-    }
-
-    /**
-     * Run a driver.
-     */
-    public void run(Driver driver) {
-        run(List.of(driver));
-    }
-
-    /**
-     * Run many drivers.
-     */
-    public void run(List<Driver> drivers) {
-        drivers = new ArrayList<>(drivers);
-        int dummyDrivers = between(0, 10);
-        for (int i = 0; i < dummyDrivers; i++) {
-            drivers.add(
-                TestDriverFactory.create(
-                    new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null),
-                    new SequenceLongBlockSourceOperator(
-                        TestBlockFactory.getNonBreakingInstance(),
-                        LongStream.range(0, between(1, 100)),
-                        between(1, 100)
-                    ),
-                    List.of(),
-                    new PageConsumerOperator(Page::releaseBlocks)
-                )
-            );
-        }
-        Randomness.shuffle(drivers);
-        int numThreads = this.numThreads == null ? between(1, 16) : this.numThreads;
-        ThreadPool threadPool = new TestThreadPool(
-            "test",
-            new FixedExecutorBuilder(Settings.EMPTY, "esql", numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
-        );
-        var driverRunner = new DriverRunner(threadPool.getThreadContext()) {
-            @Override
-            protected void start(Driver driver, ActionListener<Void> driverListener) {
-                Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 10000), driverListener);
-            }
-        };
-        PlainActionFuture<Void> future = new PlainActionFuture<>();
-        try {
-            driverRunner.runToCompletion(drivers, future);
-            future.actionGet(TimeValue.timeValueSeconds(30));
-        } finally {
-            terminate(threadPool);
         }
     }
 }

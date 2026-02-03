@@ -165,7 +165,7 @@ public class SecondaryAuthenticator {
         final String secondaryXClientAuthHeader = threadContext.getHeader(SECONDARY_X_CLIENT_AUTH_HEADER_NAME);
         if (Strings.hasText(secondaryXClientAuthHeader)) {
             logger.trace(
-                "found secondary [{}] credentials, will place them in the [{}] header",
+                "found additional secondary [{}] header, placing it in the [{}] header",
                 SECONDARY_X_CLIENT_AUTH_HEADER_NAME,
                 X_CLIENT_AUTHENTICATION
             );

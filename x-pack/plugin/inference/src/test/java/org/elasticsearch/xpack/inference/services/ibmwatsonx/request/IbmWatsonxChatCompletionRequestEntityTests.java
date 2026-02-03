@@ -22,7 +22,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 
-import static org.elasticsearch.xpack.inference.services.ibmwatsonx.completion.IbmWatsonxChatCompletionModelTests.createModel;
+import static org.elasticsearch.xpack.inference.services.ibmwatsonx.completion.IbmWatsonxChatCompletionModelTests.createCompletionModel;
 
 public class IbmWatsonxChatCompletionRequestEntityTests extends ESTestCase {
 
@@ -41,7 +41,7 @@ public class IbmWatsonxChatCompletionRequestEntityTests extends ESTestCase {
         var unifiedRequest = UnifiedCompletionRequest.of(messageList);
 
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
-        IbmWatsonxChatCompletionModel model = createModel(new URI("abc.com"), "apiVersion", "modelId", "projectId", "apiKey");
+        IbmWatsonxChatCompletionModel model = createCompletionModel(new URI("abc.com"), "apiVersion", "modelId", "projectId", "apiKey");
 
         IbmWatsonxChatCompletionRequestEntity entity = new IbmWatsonxChatCompletionRequestEntity(unifiedChatInput, model);
 

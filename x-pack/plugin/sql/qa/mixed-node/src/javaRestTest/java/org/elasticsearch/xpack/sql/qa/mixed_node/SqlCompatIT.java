@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.sql.qa.mixed_node;
 
-import org.apache.http.HttpHost;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -16,15 +17,17 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.test.TestClustersThreadFilter;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.ql.TestNode;
 import org.elasticsearch.xpack.ql.TestNodes;
 import org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -35,29 +38,30 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ql.TestUtils.buildNodeAndVersions;
 
+@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class SqlCompatIT extends BaseRestSqlTestCase {
 
-    private static final String BWC_NODES_VERSION = System.getProperty("tests.bwc_nodes_version");
+    @ClassRule
+    public static ElasticsearchCluster cluster = Clusters.mixedVersionCluster();
 
     private static RestClient newNodesClient;
     private static RestClient oldNodesClient;
     private static TransportVersion bwcVersion;
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     @Before
     public void initBwcClients() throws IOException {
         if (newNodesClient == null) {
             assertNull(oldNodesClient);
 
-            TestNodes nodes = buildNodeAndVersions(client(), BWC_NODES_VERSION);
+            TestNodes nodes = buildNodeAndVersions(client(), Clusters.OLD_CLUSTER_VERSION);
             bwcVersion = nodes.getBWCTransportVersion();
-            newNodesClient = buildClient(
-                restClientSettings(),
-                nodes.getNewNodes().stream().map(TestNode::publishAddress).toArray(HttpHost[]::new)
-            );
-            oldNodesClient = buildClient(
-                restClientSettings(),
-                nodes.getBWCNodes().stream().map(TestNode::publishAddress).toArray(HttpHost[]::new)
-            );
+            newNodesClient = buildClient(restClientSettings(), Clusters.newNodeAddresses(cluster));
+            oldNodesClient = buildClient(restClientSettings(), Clusters.oldNodeAddresses(cluster));
         }
     }
 

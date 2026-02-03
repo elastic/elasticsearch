@@ -92,7 +92,7 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractRollingUpgradeTestCase {
     private static void assertIndexRead(String indexName) throws IOException {
         assertTrue("Expected index [" + indexName + "] to exist, but did not", indexExists(indexName));
         Map<String, Object> indexSettingsAsMap = getIndexSettingsAsMap(indexName);
-        assertThat(indexSettingsAsMap.get(IndexSettings.USE_SYNTHETIC_ID.getKey()), Matchers.equalTo("true"));
+        assertThat(indexSettingsAsMap.get(IndexSettings.SYNTHETIC_ID.getKey()), Matchers.equalTo("true"));
         assertDocCount(client(), indexName, DOC_COUNT);
         assertThat(invertedIndexSize(indexName), Matchers.equalTo(0));
     }
@@ -141,7 +141,7 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractRollingUpgradeTestCase {
     }
 
     private static void assertNoWriteIndex(String indexName) {
-        String setting = IndexSettings.USE_SYNTHETIC_ID.getKey();
+        String setting = IndexSettings.SYNTHETIC_ID.getKey();
         String unknownSetting = "unknown setting [" + setting + "]";
         String versionTooLow = "The setting [" + setting + "] is set to [true] but index metadata has a different value [false]";
 
@@ -152,7 +152,7 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractRollingUpgradeTestCase {
 
     private static CreateIndexResponse createSyntheticIdIndex(String indexName) throws IOException {
         Settings settings = Settings.builder()
-            .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true)
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname")
             .build();

@@ -382,8 +382,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
     private static final class TestSuggestionEntry extends Suggest.Suggestion.Entry<Suggest.Suggestion.Entry.Option> {
         @Override
         protected Option newOption(StreamInput in) {
-            return new Option(new Text("text"), 1f) {
-            };
+            return new Option(new Text("text"), 1f) {};
         }
     }
 

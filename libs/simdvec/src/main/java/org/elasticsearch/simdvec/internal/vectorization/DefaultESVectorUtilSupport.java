@@ -458,6 +458,14 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public void matrixVectorMultiply(float[][] matrix, float[] vector, float[] out) {
+        int dim = out.length;
+        for (int i = 0; i < dim; i++) {
+            out[i] = VectorUtil.dotProduct(matrix[i], vector);
+        }
+    }
+
+    @Override
     public int codePointCount(BytesRef bytesRef) {
         return ByteArrayUtils.codePointCount(bytesRef.bytes, bytesRef.offset, bytesRef.length);
     }

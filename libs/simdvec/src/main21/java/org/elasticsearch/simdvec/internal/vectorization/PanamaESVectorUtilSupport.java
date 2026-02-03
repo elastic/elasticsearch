@@ -1143,6 +1143,77 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public void matrixVectorMultiply(float[][] matrix, float[] vector, float[] out) {
+        final int dim = out.length;
+        final int len = vector.length;
+        final int vecLen = FLOAT_SPECIES.length();
+        final int loopBound = FLOAT_SPECIES.loopBound(len);
+
+        final int vectorChunksLen = loopBound / vecLen;
+        final FloatVector[] vectorChunks = vectorChunksLen > 0 ? new FloatVector[vectorChunksLen] : null;
+        for (int k = 0; k < vectorChunksLen; k++) {
+            vectorChunks[k] = FloatVector.fromArray(FLOAT_SPECIES, vector, k * vecLen);
+        }
+
+        int row = 0;
+        // process 4 rows at a time to reuse vectorChunks across rows
+        for (; row + 3 < dim; row += 4) {
+            FloatVector acc0 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc1 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc2 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc3 = FloatVector.zero(FLOAT_SPECIES);
+
+            for (int k = 0; k < vectorChunksLen; k++) {
+                int base = k * vecLen;
+                FloatVector m0 = FloatVector.fromArray(FLOAT_SPECIES, matrix[row], base);
+                FloatVector m1 = FloatVector.fromArray(FLOAT_SPECIES, matrix[row + 1], base);
+                FloatVector m2 = FloatVector.fromArray(FLOAT_SPECIES, matrix[row + 2], base);
+                FloatVector m3 = FloatVector.fromArray(FLOAT_SPECIES, matrix[row + 3], base);
+                FloatVector xv = vectorChunks[k];
+
+                acc0 = fma(m0, xv, acc0);
+                acc1 = fma(m1, xv, acc1);
+                acc2 = fma(m2, xv, acc2);
+                acc3 = fma(m3, xv, acc3);
+            }
+
+            float sum0 = acc0.reduceLanes(ADD);
+            float sum1 = acc1.reduceLanes(ADD);
+            float sum2 = acc2.reduceLanes(ADD);
+            float sum3 = acc3.reduceLanes(ADD);
+
+            // scalar tail
+            for (int i = loopBound; i < len; i++) {
+                float xv = vector[i];
+                sum0 = fma(matrix[row][i], xv, sum0);
+                sum1 = fma(matrix[row + 1][i], xv, sum1);
+                sum2 = fma(matrix[row + 2][i], xv, sum2);
+                sum3 = fma(matrix[row + 3][i], xv, sum3);
+            }
+
+            out[row] = sum0;
+            out[row + 1] = sum1;
+            out[row + 2] = sum2;
+            out[row + 3] = sum3;
+        }
+
+        // remaining rows
+        for (; row < dim; row++) {
+            FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
+            for (int k = 0; k < vectorChunksLen; k++) {
+                int base = k * vecLen;
+                FloatVector mv = FloatVector.fromArray(FLOAT_SPECIES, matrix[row], base);
+                acc = fma(mv, vectorChunks[k], acc);
+            }
+            float sum = acc.reduceLanes(ADD);
+            for (int i = loopBound; i < len; i++) {
+                sum = fma(matrix[row][i], vector[i], sum);
+            }
+            out[row] = sum;
+        }
+    }
+
+    @Override
     public int codePointCount(final BytesRef bytesRef) {
         // SWAR logic is faster for lengths below approximately 54
         if (bytesRef.length < 54) {

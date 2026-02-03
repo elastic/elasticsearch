@@ -149,7 +149,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
     }
 
     @Override
-    public Query normalizedWildcardQuery(String value, MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
+    public Query normalizedWildcardQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
         // Constant-value fields never apply any normalization, so we can reuse case-sensitive wildcard query logic
         return wildcardQuery(value, method, context);
     }

@@ -41,7 +41,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         blockFactory = BlockFactory.getInstance(new NoopCircuitBreaker("test-noop"), BigArrays.NON_RECYCLING_INSTANCE);
     }
 
-    public void testGetSchema() throws IOException {
+    public void testSchema() throws IOException {
         String csv = """
             id:long,name:keyword,age:integer,active:boolean
             1,Alice,30,true
@@ -51,7 +51,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         StorageObject object = createStorageObject(csv);
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
 
-        List<Attribute> schema = reader.getSchema(object);
+        List<Attribute> schema = reader.schema(object);
 
         assertEquals(4, schema.size());
         assertEquals("id", schema.get(0).name());
@@ -64,7 +64,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals(DataType.BOOLEAN, schema.get(3).dataType());
     }
 
-    public void testGetSchemaWithComments() throws IOException {
+    public void testSchemaWithComments() throws IOException {
         String csv = """
             // This is a comment
             // Another comment
@@ -75,7 +75,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         StorageObject object = createStorageObject(csv);
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
 
-        List<Attribute> schema = reader.getSchema(object);
+        List<Attribute> schema = reader.schema(object);
 
         assertEquals(2, schema.size());
         assertEquals("id", schema.get(0).name());
@@ -249,7 +249,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         StorageObject object = createStorageObject(csv);
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
 
-        ParsingException e = expectThrows(ParsingException.class, () -> reader.getSchema(object));
+        ParsingException e = expectThrows(ParsingException.class, () -> reader.schema(object));
         assertTrue(e.getMessage().contains("Invalid CSV schema format"));
     }
 
@@ -258,7 +258,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         StorageObject object = createStorageObject(csv);
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
 
-        EsqlIllegalArgumentException e = expectThrows(EsqlIllegalArgumentException.class, () -> reader.getSchema(object));
+        EsqlIllegalArgumentException e = expectThrows(EsqlIllegalArgumentException.class, () -> reader.schema(object));
         assertTrue(e.getMessage().contains("illegal data type"));
     }
 

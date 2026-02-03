@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
@@ -14,23 +15,55 @@ import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.Executor;
 
 /**
- * Reads data objects in a specific format, producing ESQL Page batches.
+ * Unified interface for reading data formats.
+ * <p>
+ * Simple formats: implement only {@link #read} (sync) - async wrapping is automatic.
+ * Async-capable formats: override {@link #readAsync} for native async behavior.
+ * <p>
  * The output is ESQL's native Page format rather than Arrow to avoid
  * mandating Arrow as a dependency for all format implementations.
+ * <p>
+ * Implementations should provide metadata discovery via {@link #metadata(StorageObject)}
+ * which returns a unified {@link SourceMetadata} containing schema and source information.
  */
 public interface FormatReader extends Closeable {
 
-    /** Returns the schema of the data object. */
-    List<Attribute> getSchema(StorageObject object) throws IOException;
+    // === SYNC API (required - implement this for simple formats) ===
 
-    /** Opens a reader for the object with optional column projection. Null projectedColumns means all columns. */
+    SourceMetadata metadata(StorageObject object) throws IOException;
+
+    default List<Attribute> schema(StorageObject object) throws IOException {
+        return metadata(object).schema();
+    }
+
     CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException;
 
-    /** Returns the format name (e.g., "parquet", "csv", "orc"). */
     String formatName();
 
-    /** Returns file extensions this reader handles (e.g., [".parquet", ".parq"]). */
     List<String> fileExtensions();
+
+    // === ASYNC API (optional - default wraps sync in executor) ===
+
+    default void readAsync(
+        StorageObject object,
+        List<String> projectedColumns,
+        int batchSize,
+        Executor executor,
+        ActionListener<CloseableIterator<Page>> listener
+    ) {
+        executor.execute(() -> {
+            try {
+                listener.onResponse(read(object, projectedColumns, batchSize));
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    default boolean supportsNativeAsync() {
+        return false;
+    }
 }

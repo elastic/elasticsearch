@@ -141,6 +141,30 @@ public final class AsyncExternalSourceBuffer {
     }
 
     /**
+     * Returns a {@link SubscribableListener} that completes when the buffer has space for writing.
+     * This is the preferred method for producers to use for backpressure coordination.
+     * <p>
+     * Unlike {@link #waitForWriting()} which returns an {@link IsBlockedResult}, this method
+     * returns a {@link SubscribableListener} that can be used directly with ES async patterns.
+     *
+     * @return a listener that completes when space is available, or an already-completed listener if space exists
+     */
+    public SubscribableListener<Void> waitForSpace() {
+        if (queueSize.get() < maxSize || noMoreInputs) {
+            return SubscribableListener.newSucceeded(null);
+        }
+        synchronized (notFullLock) {
+            if (queueSize.get() < maxSize || noMoreInputs) {
+                return SubscribableListener.newSucceeded(null);
+            }
+            if (notFullFuture == null) {
+                notFullFuture = new SubscribableListener<>();
+            }
+            return notFullFuture;
+        }
+    }
+
+    /**
      * Returns an {@link IsBlockedResult} that completes when the buffer has data for reading.
      * Used by operator to signal driver when waiting for data.
      */
@@ -211,7 +235,7 @@ public final class AsyncExternalSourceBuffer {
         completionFuture.addListener(listener);
     }
 
-    public Throwable getFailure() {
+    public Throwable failure() {
         return failure;
     }
 }

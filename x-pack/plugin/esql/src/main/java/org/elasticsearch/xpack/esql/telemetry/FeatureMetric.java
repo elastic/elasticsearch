@@ -65,7 +65,7 @@ public enum FeatureMetric {
     ROW(Row.class::isInstance),
     FROM(x -> x instanceof EsRelation relation && relation.indexMode() != IndexMode.TIME_SERIES),
     TS(x -> x instanceof EsRelation relation && relation.indexMode() == IndexMode.TIME_SERIES),
-    ICEBERG(plan -> plan instanceof org.elasticsearch.xpack.esql.plan.logical.IcebergRelation),
+    EXTERNAL(plan -> plan instanceof org.elasticsearch.xpack.esql.plan.logical.ExternalRelation),
     DROP(Drop.class::isInstance),
     KEEP(Keep.class::isInstance),
     RENAME(Rename.class::isInstance),

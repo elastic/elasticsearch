@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Holds the result of external source resolution (Iceberg/Parquet metadata).
@@ -18,7 +17,9 @@ public record ExternalSourceResolution(Map<String, ExternalSourceMetadata> resol
     public static final ExternalSourceResolution EMPTY = new ExternalSourceResolution(Map.of());
 
     public ExternalSourceResolution {
-        Objects.requireNonNull(resolved, "resolved metadata map must not be null");
+        if (resolved == null) {
+            throw new IllegalArgumentException("resolved metadata map must not be null");
+        }
     }
 
     /**

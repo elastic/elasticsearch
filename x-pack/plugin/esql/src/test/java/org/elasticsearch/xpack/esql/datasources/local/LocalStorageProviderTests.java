@@ -108,9 +108,12 @@ public class LocalStorageProviderTests extends ESTestCase {
             }
         }
 
-        // Verify we got both files
-        assertEquals(2, entries.size());
-        List<String> fileNames = entries.stream().map(e -> e.path().objectName()).sorted().toList();
+        // Filter out hidden files (like .DS_Store on macOS) for the assertion
+        List<String> fileNames = entries.stream()
+            .map(e -> e.path().objectName())
+            .filter(name -> name.startsWith(".") == false)
+            .sorted()
+            .toList();
         assertEquals(List.of("file1.txt", "file2.csv"), fileNames);
     }
 

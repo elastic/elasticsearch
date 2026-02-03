@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
-import java.util.Objects;
-
 /**
  * Represents a location in a storage system. Similar to Trino's Location class.
  * Uses URI-like format: scheme://[userInfo@]host[:port][/path]
@@ -33,16 +31,10 @@ public final class StoragePath {
         this.path = path;
     }
 
-    /**
-     * Parses a location string into a StoragePath.
-     * Expected format: scheme://host[:port][/path]
-     *
-     * @param location the location string to parse
-     * @return a StoragePath instance
-     * @throws IllegalArgumentException if the location format is invalid
-     */
     public static StoragePath of(String location) {
-        Objects.requireNonNull(location, "location cannot be null");
+        if (location == null) {
+            throw new IllegalArgumentException("location cannot be null");
+        }
 
         // Find scheme
         int schemeEnd = location.indexOf("://");
@@ -89,39 +81,22 @@ public final class StoragePath {
         return new StoragePath(location, scheme, host, port, path);
     }
 
-    /**
-     * Returns the URI scheme (e.g., "s3", "https", "file").
-     */
     public String scheme() {
         return scheme;
     }
 
-    /**
-     * Returns the host component (bucket name for S3, hostname for HTTP).
-     */
     public String host() {
         return host;
     }
 
-    /**
-     * Returns the port, or -1 if not specified.
-     */
     public int port() {
         return port;
     }
 
-    /**
-     * Returns the path within the storage (starts with / if present).
-     */
     public String path() {
         return path;
     }
 
-    /**
-     * Returns the object name (last path component).
-     * For "s3://bucket/dir/file.csv", returns "file.csv".
-     * Returns empty string if path is empty or ends with /.
-     */
     public String objectName() {
         if (path.isEmpty() || path.equals("/")) {
             return "";
@@ -130,11 +105,6 @@ public final class StoragePath {
         return lastSlash >= 0 ? path.substring(lastSlash + 1) : path;
     }
 
-    /**
-     * Returns parent directory location.
-     * For "s3://bucket/dir/file.csv", returns "s3://bucket/dir".
-     * Returns null if this is the root.
-     */
     public StoragePath parentDirectory() {
         if (path.isEmpty() || path.equals("/")) {
             return null;
@@ -159,18 +129,18 @@ public final class StoragePath {
         return StoragePath.of(parentLocation);
     }
 
-    /**
-     * Appends a path element, adding slash if needed.
-     * For "s3://bucket/dir" + "file.csv", returns "s3://bucket/dir/file.csv".
-     */
     public StoragePath appendPath(String element) {
-        Objects.requireNonNull(element, "element cannot be null");
+        if (element == null) {
+            throw new IllegalArgumentException("element cannot be null");
+        }
         if (element.isEmpty()) {
             return this;
         }
 
         String newPath = path;
-        if (!path.endsWith("/") && !element.startsWith("/")) {
+        boolean pathEndsWithSlash = path.endsWith("/");
+        boolean elementStartsWithSlash = element.startsWith("/");
+        if (pathEndsWithSlash == false && elementStartsWithSlash == false) {
             newPath += "/";
         }
         newPath += element;
@@ -184,9 +154,6 @@ public final class StoragePath {
         return StoragePath.of(newLocation);
     }
 
-    /**
-     * Returns the original location string.
-     */
     @Override
     public String toString() {
         return location;

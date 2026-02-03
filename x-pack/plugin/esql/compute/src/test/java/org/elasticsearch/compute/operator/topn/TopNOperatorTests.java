@@ -577,7 +577,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 new PageConsumerOperator(page -> readInto(actualTop, page))
             )
         ) {
-            runDriver(driver);
+            new TestDriverRunner().run(driver);
         }
 
         assertMap(actualTop, matchesList(expectedTop));
@@ -671,7 +671,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 new PageConsumerOperator(page -> readInto(actualTop, page))
             )
         ) {
-            runDriver(driver);
+            new TestDriverRunner().run(driver);
         }
 
         assertMap(actualTop, matchesList(expectedTop));
@@ -739,7 +739,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                     new PageConsumerOperator(pages::add)
                 )
             ) {
-                runDriver(driver);
+                new TestDriverRunner().run(driver);
             }
             assertDriverContext(driverContext);
             success = true;
@@ -1029,7 +1029,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 new PageConsumerOperator(p -> readInto(actualValues, p))
             )
         ) {
-            runDriver(driver);
+            new TestDriverRunner().run(driver);
         }
         assertMap(actualValues, matchesList(List.of(expectedValues.subList(0, topCount))));
     }
@@ -1208,7 +1208,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                     new PageConsumerOperator(p -> readInto(actual, p))
                 )
             ) {
-                runDriver(driver);
+                new TestDriverRunner().run(driver);
             }
 
             assertThat(actual.size(), equalTo(1));
@@ -1334,7 +1334,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                     new PageConsumerOperator(p -> readInto(actual, p))
                 )
             ) {
-                runDriver(driver);
+                new TestDriverRunner().run(driver);
             }
 
             assertThat(actual.size(), equalTo(1));
@@ -1424,7 +1424,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 new PageConsumerOperator(p -> readInto(actual, p))
             )
         ) {
-            runDriver(driver);
+            new TestDriverRunner().run(driver);
         }
 
         assertThat(actual.size(), equalTo(2));
@@ -1468,7 +1468,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 })
             )
         ) {
-            Exception e = expectThrows(RuntimeException.class, () -> runDriver(driver));
+            Exception e = expectThrows(RuntimeException.class, () -> new TestDriverRunner().run(driver));
             assertThat(e.getMessage(), equalTo("boo"));
         }
 

@@ -1585,7 +1585,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 })
             )
         ) {
-            runDriver(driver);
+            new TestDriverRunner().run(driver);
         }
         assertDriverContext(driverContext);
     }
@@ -1692,7 +1692,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 })
             )
         ) {
-            runDriver(d);
+            new TestDriverRunner().run(d);
         }
         assertThat(pages[0], greaterThan(0));
         assertDriverContext(driverContext);

@@ -204,7 +204,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
                     new PageConsumerOperator(result::add)
                 )
             ) {
-                runDriver(d);
+                new TestDriverRunner().run(d);
             }
         }
         return result;
@@ -272,22 +272,6 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
                 waitForAsync.actionGet(TimeValue.timeValueSeconds(30));
             }
         }
-    }
-
-    /**
-     * @deprecated use {@link TestDriverRunner}
-     */
-    @Deprecated
-    public static void runDriver(Driver driver) {
-        new TestDriverRunner().run(driver);
-    }
-
-    /**
-     * @deprecated use {@link TestDriverRunner}
-     */
-    @Deprecated
-    public static void runDriver(List<Driver> drivers) {
-        new TestDriverRunner().run(drivers);
     }
 
     public static void assertDriverContext(DriverContext driverContext) {

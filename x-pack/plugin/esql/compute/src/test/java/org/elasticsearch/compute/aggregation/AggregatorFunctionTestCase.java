@@ -140,7 +140,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
                 new TestResultPageSinkOperator(results::add)
             )
         ) {
-            runDriver(d);
+            new TestDriverRunner().run(d);
         }
         assertSimpleOutput(origInput, results);
     }

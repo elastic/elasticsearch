@@ -232,8 +232,8 @@ public class MvExpandOperatorTests extends OperatorTestCase {
     }
 
     public void testExpandWithBytesRefs() {
-        DriverContext context = driverContext();
-        List<Page> input = CannedSourceOperator.collectPages(new AbstractBlockSourceOperator(context.blockFactory(), 8 * 1024) {
+        var runner = new TestDriverRunner().builder(driverContext()).collectDeepCopy();
+        runner.input(new AbstractBlockSourceOperator(runner.blockFactory(), 8 * 1024) {
             private int idx;
 
             @Override
@@ -245,15 +245,12 @@ public class MvExpandOperatorTests extends OperatorTestCase {
             protected Page createPage(int positionOffset, int length) {
                 idx += length;
                 return new Page(
-                    randomBlock(context.blockFactory(), ElementType.BYTES_REF, length, true, 1, 10, 0, 0).block(),
-                    randomBlock(context.blockFactory(), ElementType.INT, length, false, 1, 10, 0, 0).block()
+                    randomBlock(blockFactory, ElementType.BYTES_REF, length, true, 1, 10, 0, 0).block(),
+                    randomBlock(blockFactory, ElementType.INT, length, false, 1, 10, 0, 0).block()
                 );
             }
         });
-        List<Page> origInput = deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
-        List<Page> results = new TestDriverRunner().builder(context)
-            .input(input)
-            .run(new MvExpandOperator(0, randomIntBetween(1, 1000)));
-        assertSimpleOutput(origInput, results);
+        List<Page> results = runner.run(new MvExpandOperator(0, randomIntBetween(1, 1000)));
+        assertSimpleOutput(runner.deepCopy(), results);
     }
 }

@@ -473,6 +473,12 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         return actionGet;
     }
 
+    protected final BroadcastResponse flush(Client client, String... indices) {
+        BroadcastResponse actionGet = client.admin().indices().prepareFlush(indices).get();
+        assertNoFailures(actionGet);
+        return actionGet;
+    }
+
     protected void ensureEmptyWriteBuffers() throws Exception {
         assertBusy(() -> {
             FollowStatsAction.StatsResponses statsResponses = leaderClient().execute(
@@ -485,6 +491,21 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                 assertThat(status.writeBufferSizeInBytes(), equalTo(0L));
             }
         });
+    }
+
+    protected void putAutoFollowPatterns(String name, String[] patterns, List<String> exclusionPatterns, String followIndexNamePattern) {
+        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
+        request.setName(name);
+        request.setRemoteCluster("leader_cluster");
+        request.setLeaderIndexPatterns(Arrays.asList(patterns));
+        request.setLeaderIndexExclusionPatterns(exclusionPatterns);
+        // Need to set this, because following an index in the same cluster
+        request.setFollowIndexNamePattern(followIndexNamePattern);
+        if (randomBoolean()) {
+            request.masterNodeTimeout(TimeValue.timeValueSeconds(randomFrom(10, 20, 30)));
+        }
+
+        assertTrue(followerClient().execute(PutAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
     }
 
     protected void pauseFollow(String... indices) throws Exception {

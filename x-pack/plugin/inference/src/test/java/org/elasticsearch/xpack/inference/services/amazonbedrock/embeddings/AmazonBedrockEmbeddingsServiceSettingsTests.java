@@ -458,7 +458,7 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
             is(
                 Strings.format(
                     """
-                        {"region":"%s","model":"%s","provider":"%s","rate_limit":{"requests_per_minute":%d},
+                        {"region":"%s","model":"%s","provider":"%s","rate_limit":{"requests_per_minute":%d},\
                         "dimensions":%d,"max_input_tokens":%d,"dimensions_set_by_user":%b}""",
                     TEST_REGION,
                     TEST_MODEL_ID,
@@ -494,7 +494,7 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
             is(
                 Strings.format(
                     """
-                        {"region":"%s","model":"%s","provider":"%s","rate_limit":{"requests_per_minute":%d},
+                        {"region":"%s","model":"%s","provider":"%s","rate_limit":{"requests_per_minute":%d},\
                         "dimensions":%d,"max_input_tokens":%d}""",
                     TEST_REGION,
                     TEST_MODEL_ID,

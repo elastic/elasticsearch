@@ -94,15 +94,7 @@ public class ContextualAiServiceTests extends InferenceServiceTestCase {
             assertThat(
                 thrownException.getMessage(),
                 CoreMatchers.is(
-                    Strings.format(
-                        """
-                            Failed to parse stored model [%s] for [%s] service, error: [The [%s] service does not support task type [%s]]. \
-                            Please delete and add the service again""",
-                        INFERENCE_ENTITY_ID_VALUE,
-                        ContextualAiService.NAME,
-                        ContextualAiService.NAME,
-                        TaskType.CHAT_COMPLETION
-                    )
+                    Strings.format("The [%s] service does not support task type [%s]", ContextualAiService.NAME, TaskType.CHAT_COMPLETION)
                 )
             );
         }

@@ -1841,16 +1841,11 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 thrownException.getMessage(),
                 is(
                     org.elasticsearch.core.Strings.format(
-                        """
-                            Failed to parse stored model [%s] for [%s] service, error: [The [%s] service does not support task type [%s]]. \
-                            Please delete and add the service again""",
-                        INFERENCE_ENTITY_ID,
-                        CohereService.NAME,
+                        "The [%s] service does not support task type [%s]",
                         CohereService.NAME,
                         TaskType.CHAT_COMPLETION
                     )
                 )
-
             );
         }
     }

@@ -455,8 +455,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             return centroidFile.slice("centroids", centroidOffset, centroidLength);
         }
 
-        // we increase the buffer size here ...
-        // where so we need to use this?
+        /** Buffering the postings list input amortized the cost of blocb-cache reads. */
         static final int INPUT_BUFFER_SIZE = 1 << 16; // 64k
 
         public IndexInput postingListSlice(IndexInput postingListFile) throws IOException {

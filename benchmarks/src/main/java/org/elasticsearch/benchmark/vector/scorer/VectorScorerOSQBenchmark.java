@@ -126,9 +126,8 @@ public class VectorScorerOSQBenchmark {
     }
 
     public enum DirectoryType {
-        NIO, // this might be good enough to approximate Serverless vector ops perf
+        NIO,
         MMAP,
-        // could I add blob-cache here somehow?
         SNAP
     }
 
@@ -140,8 +139,7 @@ public class VectorScorerOSQBenchmark {
     @Param({ "384", "768", "1024" })
     public int dims;
 
-    // @Param({ "1", "2", "4" })
-    @Param({ "1" })
+    @Param({ "1", "2", "4" })
     public int bits;
 
     int bulkSize = ESNextOSQVectorsScorer.BULK_SIZE;
@@ -175,6 +173,7 @@ public class VectorScorerOSQBenchmark {
     float[] scratchScores;
     float[] corrections;
 
+    /** Buffering the postings list input amortized the cost of blocb-cache reads. */
     static final int INPUT_BUFFER_SIZE = 1 << 16; // 64k
 
     @Setup
@@ -372,7 +371,7 @@ public class VectorScorerOSQBenchmark {
             .put(Environment.PATH_HOME_SETTING.getKey(), path)
             .putList(Environment.PATH_DATA_SETTING.getKey(), path.toAbsolutePath().toString())
             .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true)
-            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofGb(1).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(100).getStringRep())
             .build();
     }
 

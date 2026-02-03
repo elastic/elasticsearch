@@ -1719,6 +1719,10 @@ public class EsqlCapabilities {
         HISTOGRAM_RELEASE_VERSION,
 
         /**
+         * Support for running the Count aggregation on t-digest and exponential histogram types
+         */
+        COUNT_OF_HISTOGRAM_TYPES,
+        /**
          * Fix for <a href="https://github.com/elastic/elasticsearch/issues/140670">140670</a>,
          * this allows for type conversion functions with no further computation to be
          * evaluated inside default wrapping _over_time functions.
@@ -2036,6 +2040,11 @@ public class EsqlCapabilities {
          * Support for requesting the "_size" metadata field when the mapper-size plugin is enabled.
          */
         METADATA_SIZE_FIELD,
+
+        /**
+         * Support for configuring T-Digest elasticsearch field as a time series metric.
+         */
+        TDIGEST_TIME_SERIES_METRIC,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

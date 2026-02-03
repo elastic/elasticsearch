@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -74,7 +75,10 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
         ).build(MapperBuilderContext.root(false, false));
         Mapping mapping = new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());
 
-        DocumentParserContext ctx = new TestDocumentParserContext(MappingLookup.fromMapping(mapping), sourceToParse) {
+        DocumentParserContext ctx = new TestDocumentParserContext(
+            MappingLookup.fromMapping(mapping, randomFrom(IndexMode.values())),
+            sourceToParse
+        ) {
             @Override
             public XContentParser parser() {
                 return parser;

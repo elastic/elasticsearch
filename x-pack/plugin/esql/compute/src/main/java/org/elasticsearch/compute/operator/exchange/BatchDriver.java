@@ -299,17 +299,6 @@ public final class BatchDriver extends Driver {
 
         @Override
         public IsBlockedResult isBlocked() {
-            // During IDLE state, if delegate is not finished, we should check for new batches
-            // by returning NOT_BLOCKED to allow getOutput() to be called
-            if (driver.batchContext.getState() == BatchContext.BatchState.IDLE) {
-                // Check if delegate has pages available or is finished
-                IsBlockedResult delegateBlocked = delegate.isBlocked();
-                if (delegateBlocked.listener().isDone()) {
-                    return NOT_BLOCKED;
-                }
-                // Otherwise, return the delegate's blocked state
-                return delegateBlocked;
-            }
             return delegate.isBlocked();
         }
 

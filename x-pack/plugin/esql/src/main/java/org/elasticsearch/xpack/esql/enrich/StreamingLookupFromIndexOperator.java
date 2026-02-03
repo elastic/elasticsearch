@@ -555,6 +555,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
     public IsBlockedResult isBlocked() {
         Exception ex = failure.get();
         if (ex != null) {
+            // it will throw in getOutput() with the exception
             return NOT_BLOCKED;
         }
 
@@ -587,6 +588,18 @@ public class StreamingLookupFromIndexOperator implements Operator {
                     client.pageCacheSize(),
                     client.isPageCacheDone()
                 );
+                return waitResult;
+            }
+            // waitForPage() returned done - check if data is actually ready.
+            // If not, we need to keep waiting to avoid spinning.
+            if (client.hasReadyPages() == false) {
+                // No data ready - if page cache is done, wait for server response
+                if (client.isPageCacheDone()) {
+                    logger.debug("isBlocked: no ready pages and pageCacheDone, waiting for server response");
+                    return client.waitForServerResponse();
+                }
+                // Otherwise keep waiting on the client (return the waitResult to block on it)
+                logger.trace("isBlocked: waitForPage done but no ready pages, continuing to wait");
                 return waitResult;
             }
         }

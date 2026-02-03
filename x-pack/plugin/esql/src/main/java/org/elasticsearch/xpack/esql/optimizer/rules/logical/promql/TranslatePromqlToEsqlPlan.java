@@ -40,13 +40,14 @@ import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionReg
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.IgnoreNullMetrics;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarFunction;
@@ -66,66 +67,100 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Translates PromQL logical plans into ESQL TimeSeriesAggregate nodes.
+ * Translates PromQL logical plan into ESQL plan.
  *
- * This rule runs before {@link TranslateTimeSeriesAggregate} to convert PromQL-specific
- * plans (WithinSeriesAggregate, AcrossSeriesAggregate) into standard ESQL TimeSeriesAggregate
- * nodes that can then be further optimized by the existing time-series translation pipeline.
+ * This rule runs before {@link TranslateTimeSeriesAggregate} to convert PromQL-specific plan
+ * into standard ESQL nodes (TimeSeriesAggregate, Aggregate, Eval, etc.) that can then be further optimized.
  *
  * Translation examples:
  * <pre>
  * PromQL: rate(http_requests[5m])
+ * Result: TimeSeriesAggregate[rate(value), groupBy=[step]]
  *
- * PromQL Plan:
- *   WithinSeriesAggregate(name="rate")
- *     └── RangeSelector(http_requests, range=5m)
+ * PromQL: avg(sum by (cluster) (rate(http_requests[5m])))
+ * Result: Aggregate[avg(sum_result), groupBy=[step]]
+ *           \_ TimeSeriesAggregate[sum(rate(value)), groupBy=[step, cluster]]
  *
- * Translated to:
- *   TimeSeriesAggregate(groupBy=[_tsid], aggs=[rate(value, @timestamp)])
- *     └── Filter(__name__ == "http_requests")
- *           └── EsRelation(*, mode=TIME_SERIES)
+ * PromQL: avg(ceil(sum by (cluster) (rate(http_requests[5m]))))
+ * Result: Aggregate[avg(ceil(sum_result)), groupBy=[step]]
+ *           \_ TimeSeriesAggregate[sum(rate(value)), groupBy=[step, cluster]]
+ *
+ * PromQL: time() - avg(sum by (cluster) (rate(http_requests[5m])))
+ * Result: Eval[time() - avg_result]
+ *           \_ Aggregate[avg(sum_result), groupBy=[step]]
+ *                 \_ TimeSeriesAggregate[sum(rate(value)), groupBy=[step, cluster]]
  * </pre>
  */
-public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.ParameterizedOptimizerRule<
-    PromqlCommand,
-    LogicalOptimizerContext> {
+public final class TranslatePromqlToEsqlPlan extends OptimizerRules.ParameterizedOptimizerRule<PromqlCommand, LogicalOptimizerContext> {
 
     // TODO make configurable via lookback_delta parameter and (cluster?) setting
     public static final Duration DEFAULT_LOOKBACK = Duration.ofMinutes(5);
     public static final String STEP_COLUMN_NAME = "step";
 
-    public TranslatePromqlToTimeSeriesAggregate() {
+    public TranslatePromqlToEsqlPlan() {
         super(OptimizerRules.TransformDirection.UP);
+    }
+
+    /**
+     * Holds ESQL plan built so far and an expression representing the node value.
+     */
+    private record TranslationResult(LogicalPlan plan, Expression expression) {}
+
+    /**
+     * Holds context passed through the recursive translation.
+     */
+    private record TranslationContext(
+        PromqlCommand promqlCommand,
+        LogicalOptimizerContext optimizerContext,
+        Alias stepBucketAlias,
+        List<Expression> labelFilterConditions
+    ) {
+        Attribute stepAttr() {
+            return stepBucketAlias.toAttribute();
+        }
     }
 
     @Override
     protected LogicalPlan rule(PromqlCommand promqlCommand, LogicalOptimizerContext context) {
         Alias stepBucketAlias = createStepBucketAlias(promqlCommand);
         List<Expression> labelFilterConditions = new ArrayList<>();
-        Expression value = mapNode(
-            promqlCommand,
-            promqlCommand.promqlPlan(),
-            labelFilterConditions,
-            context,
-            stepBucketAlias.toAttribute()
-        );
-        LogicalPlan plan = withTimestampFilter(promqlCommand, promqlCommand.child());
-        plan = addLabelFilters(promqlCommand, labelFilterConditions, plan);
-        plan = createTimeSeriesAggregate(promqlCommand, value, plan, stepBucketAlias);
-        if (promqlCommand.promqlPlan() instanceof VectorBinaryComparison binaryComparison) {
-            plan = addFilter(plan, binaryComparison, context);
+
+        // Base plan EsRelation with timestamp filter
+        LogicalPlan basePlan = withTimestampFilter(promqlCommand, promqlCommand.child());
+
+        // Create translation context
+        TranslationContext ctx = new TranslationContext(promqlCommand, context, stepBucketAlias, labelFilterConditions);
+
+        TranslationResult result = translateNode(promqlCommand.promqlPlan(), basePlan, ctx);
+
+        LogicalPlan plan = result.plan();
+        Expression valueExpr = result.expression();
+        if (labelFilterConditions.isEmpty() == false) {
+            plan = applyLabelFilters(plan, labelFilterConditions, promqlCommand);
         }
-        plan = convertValueToDouble(promqlCommand, plan);
-        // ensure we're returning exactly the same columns (including ids) and in the same order before and after optimization
+
+        // No nested aggregates, just use TimeSeriesAggregate directly
+        if (containsAggregate(plan) == false) {
+            plan = createInnerAggregate(ctx, plan, promqlCommand.promqlPlan().output(), valueExpr);
+            valueExpr = plan.output().getFirst().toAttribute();
+        }
+
+        if (promqlCommand.promqlPlan() instanceof VectorBinaryComparison binaryComparison && binaryComparison.filterMode()) {
+            // for comparison with filtering mode, return left operand and apply filter later
+            plan = addComparisonFilter(plan, binaryComparison, context);
+        }
+
+        // Ensure result is double
+        plan = convertValueToDouble(promqlCommand, plan, valueExpr);
+
+        // Ensure we're returning exactly the same columns (including ids) and in the same order before and after optimization
         return new Project(promqlCommand.source(), plan, promqlCommand.output());
     }
 
     /**
-     * Adds a Filter node on top of the given plan to restrict data to the specified time range.
-     * The time range is defined by the start and end expressions in the PromqlCommand.
+     * Adds a Filter node for specified time range.
      */
     private static LogicalPlan withTimestampFilter(PromqlCommand promqlCommand, LogicalPlan plan) {
-        // start and end are either both set or both null
         if (promqlCommand.start().value() != null && promqlCommand.end().value() != null) {
             Source promqlSource = promqlCommand.source();
             Expression timestamp = promqlCommand.timestamp();
@@ -143,52 +178,104 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
     }
 
     /**
-     * Adds label filter conditions (such as {job="prometheus"}) as a Filter node on top of the given plan.
-     * Combines multiple conditions with AND.
-     * This is consistent with PromQL semantics where non-matching series are dropped.
-     * Therefore, it's both easier to implement and more efficient to filter out non-matching series early.
+     * Applies label filters to the plan at the appropriate level.
+     * Finds the base EsRelation and adds a Filter on top of it.
      */
-    private static LogicalPlan addLabelFilters(PromqlCommand promqlCommand, List<Expression> labelFilterConditions, LogicalPlan plan) {
-        if (labelFilterConditions.isEmpty() == false) {
-            plan = new Filter(promqlCommand.source(), plan, Predicates.combineAnd(labelFilterConditions));
-        }
-        return plan;
+    private static LogicalPlan applyLabelFilters(LogicalPlan plan, List<Expression> labelFilterConditions, PromqlCommand promqlCommand) {
+        Expression filterCondition = Predicates.combineAnd(labelFilterConditions);
+        return plan.transformUp(LogicalPlan.class, p -> {
+            if (p instanceof Filter f && f.child() instanceof EsRelation) {
+                // Already has a filter on EsRelation, combine conditions
+                return new Filter(f.source(), f.child(), new And(f.source(), f.condition(), filterCondition));
+            } else if (p instanceof EsRelation) {
+                return new Filter(promqlCommand.source(), p, filterCondition);
+            }
+            return p;
+        });
     }
 
     /**
-     * Creates a TimeSeriesAggregate node wrapping the given child plan.
-     * The aggregation groups by step (time bucket) and additional groupings depending on the PromQL plan root.
+     * Creates a TimeSeriesAggregate node for the innermost aggregation.
      */
-    private static TimeSeriesAggregate createTimeSeriesAggregate(
-        PromqlCommand promqlCommand,
-        Expression value,
-        LogicalPlan plan,
-        Alias stepBucket
+    private static LogicalPlan createInnerAggregate(
+        TranslationContext ctx,
+        LogicalPlan basePlan,
+        List<Attribute> labelGroupings,
+        Expression aggExpr
     ) {
+        PromqlCommand promqlCommand = ctx.promqlCommand();
         List<NamedExpression> aggs = new ArrayList<>();
         List<Expression> groupings = new ArrayList<>();
 
-        List<Attribute> additionalGroupings = promqlCommand.promqlPlan().output();
-        FieldAttribute timeSeriesGrouping = getTimeSeriesGrouping(additionalGroupings);
+        // Check for time series grouping (special handling for _tsid)
+        FieldAttribute timeSeriesGrouping = getTimeSeriesGrouping(labelGroupings);
         if (timeSeriesGrouping != null) {
-            value = new Values(value.source(), value);
-            plan = plan.transformDown(EsRelation.class, r -> r.withAdditionalAttribute(timeSeriesGrouping));
+            aggExpr = new Values(aggExpr.source(), aggExpr);
+            basePlan = basePlan.transformDown(EsRelation.class, r -> r.withAdditionalAttribute(timeSeriesGrouping));
         }
-        // value aggregation
-        aggs.add(new Alias(value.source(), promqlCommand.valueColumnName(), value));
 
-        // timestamp/step
-        aggs.add(stepBucket.toAttribute());
-        groupings.add(stepBucket);
-
-        // additional groupings (by)
-        for (Attribute grouping : additionalGroupings) {
+        // Value aggregation
+        aggs.add(new Alias(aggExpr.source(), promqlCommand.valueColumnName(), aggExpr));
+        Attribute stepAttr = ctx.stepAttr();
+        aggs.add(stepAttr);
+        for (Attribute grouping : labelGroupings) {
             if (grouping != timeSeriesGrouping) {
                 aggs.add(grouping);
             }
-            groupings.add(grouping);
         }
-        return new TimeSeriesAggregate(promqlCommand.promqlPlan().source(), plan, groupings, aggs, null, promqlCommand.timestamp());
+
+        // Groupings: step + label groupings
+        groupings.add(ctx.stepBucketAlias());
+        groupings.addAll(labelGroupings);
+
+        return new TimeSeriesAggregate(promqlCommand.promqlPlan().source(), basePlan, groupings, aggs, null, promqlCommand.timestamp());
+    }
+
+    /**
+     * Creates an Aggregate node for outer aggregation stages.
+     * The aggExpr contains reference to the child's output.
+     */
+    private static LogicalPlan createOuterAggregate(
+        TranslationContext ctx,
+        LogicalPlan childPlan,
+        AcrossSeriesAggregate agg,
+        Expression aggExpr
+    ) {
+        PromqlCommand promqlCommand = ctx.promqlCommand();
+        Attribute stepAttr = ctx.stepAttr();
+
+        List<Alias> missingGroupingAliases = new ArrayList<>();
+        List<Attribute> resolvedGroupings = new ArrayList<>();
+        List<Attribute> childOutput = childPlan.output();
+
+        for (Attribute grouping : agg.groupings()) {
+            if (childOutput.contains(grouping)) {
+                resolvedGroupings.add(grouping);
+            } else {
+                // If outer aggregate requests a grouping the inner doesn't produce we fill with null
+                // E.g., "max by (cluster) (min by (pod) (...))" inner outputs "pod" but outer wants "cluster"
+                Alias nullAlias = new Alias(grouping.source(), grouping.name(), new Literal(grouping.source(), null, grouping.dataType()));
+                missingGroupingAliases.add(nullAlias);
+                resolvedGroupings.add(nullAlias.toAttribute());
+            }
+        }
+
+        LogicalPlan plan = missingGroupingAliases.isEmpty()
+            ? childPlan
+            : new Eval(promqlCommand.source(), childPlan, missingGroupingAliases);
+
+        Alias aggAlias = new Alias(aggExpr.source(), promqlCommand.valueColumnName(), aggExpr);
+
+        List<Expression> groupings = new ArrayList<>();
+        groupings.add(stepAttr);
+        groupings.addAll(resolvedGroupings);
+
+        List<NamedExpression> aggs = new ArrayList<>();
+        aggs.add(aggAlias);
+        aggs.add(stepAttr);
+        aggs.addAll(resolvedGroupings);
+
+        return new Aggregate(promqlCommand.source(), plan, groupings, aggs);
     }
 
     private static FieldAttribute getTimeSeriesGrouping(List<Attribute> groupings) {
@@ -203,81 +290,67 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
     }
 
     /**
-     * Ensures the value column is of type double by adding an Eval node with ToDouble conversion.
+     * Ensures the value column is of type double.
      */
-    private static LogicalPlan convertValueToDouble(PromqlCommand promqlCommand, LogicalPlan plan) {
+    private static LogicalPlan convertValueToDouble(PromqlCommand promqlCommand, LogicalPlan plan, Expression valueExpr) {
         Alias convertedValue = new Alias(
             promqlCommand.source(),
             promqlCommand.valueColumnName(),
-            new ToDouble(promqlCommand.source(), plan.output().getFirst().toAttribute()),
+            new ToDouble(promqlCommand.source(), valueExpr),
             promqlCommand.valueId()
         );
         return new Eval(promqlCommand.source(), plan, List.of(convertedValue));
     }
 
     /**
-     * Recursively maps PromQL plan nodes to ESQL expressions to compute the value for the time series aggregation.
-     * Collects label filter conditions into the provided list.
+     * Recursively translates a PromQL plan node into an ESQL plan node.
      */
-    private static Expression mapNode(
-        PromqlCommand promqlCommand,
-        LogicalPlan p,
-        List<Expression> labelFilterConditions,
-        LogicalOptimizerContext context,
-        Attribute stepAttribute
-    ) {
-        return switch (p) {
-            case Selector selector -> mapSelector(promqlCommand, selector, labelFilterConditions);
-            case PromqlFunctionCall functionCall -> mapFunction(promqlCommand, functionCall, labelFilterConditions, context, stepAttribute);
-            case ScalarFunction functionCall -> mapScalarFunction(promqlCommand, functionCall, stepAttribute);
-            case VectorBinaryOperator binaryOperator -> mapBinaryOperator(
-                promqlCommand,
-                binaryOperator,
-                labelFilterConditions,
-                context,
-                stepAttribute
-            );
-            default -> throw new QlIllegalArgumentException("Unsupported PromQL plan node: {}", p);
+    private TranslationResult translateNode(LogicalPlan node, LogicalPlan currentPlan, TranslationContext ctx) {
+        return switch (node) {
+            case AcrossSeriesAggregate agg -> translateAcrossSeriesAggregate(agg, currentPlan, ctx);
+            case WithinSeriesAggregate withinAgg -> translateFunctionCall(withinAgg, currentPlan, ctx);
+            case PromqlFunctionCall functionCall -> translateFunctionCall(functionCall, currentPlan, ctx);
+            case ScalarFunction scalarFunction -> translateScalarFunction(scalarFunction, currentPlan, ctx);
+            case VectorBinaryOperator binaryOp -> translateBinaryOperator(binaryOp, currentPlan, ctx);
+            case Selector selector -> translateSelector(selector, currentPlan, ctx);
+            default -> throw new QlIllegalArgumentException("Unsupported PromQL plan node: {}", node);
         };
     }
 
     /**
-     * Maps a PromQL VectorBinaryArithmetic node to an ESQL expression.
-     * Recursively maps the left and right operands and applies the binary operation.
-     * Both operands are converted to double to ensure semantic consistency with PromQL.
+     * Translates a binary operator (+, -, *, /, comparisons).
+     * If either side contains aggregation, adds Eval on top to compute the binary operation.
      */
-    private static Expression mapBinaryOperator(
-        PromqlCommand promqlCommand,
-        VectorBinaryOperator binaryOperator,
-        List<Expression> labelFilterConditions,
-        LogicalOptimizerContext context,
-        Attribute stepAttribute
-    ) {
-        Expression left = mapNode(promqlCommand, binaryOperator.left(), labelFilterConditions, context, stepAttribute);
-        left = new ToDouble(left.source(), left);
+    private TranslationResult translateBinaryOperator(VectorBinaryOperator binaryOp, LogicalPlan currentPlan, TranslationContext ctx) {
+        TranslationResult leftResult = translateNode(binaryOp.left(), currentPlan, ctx);
+        Expression leftExpr = new ToDouble(leftResult.expression().source(), leftResult.expression());
 
-        if (binaryOperator instanceof VectorBinaryComparison comp && comp.filterMode()) {
-            // for comparison with filtering mode, return left operand and apply filter later
-            return left;
-        } else {
-            Expression right = mapNode(promqlCommand, binaryOperator.right(), labelFilterConditions, context, stepAttribute);
-            right = new ToDouble(right.source(), right);
-            return binaryOperator.binaryOp().asFunction().create(binaryOperator.source(), left, right, context.configuration());
+        if (binaryOp instanceof VectorBinaryComparison comp && comp.filterMode()) {
+            return new TranslationResult(leftResult.plan(), leftExpr);
         }
+
+        TranslationResult rightResult = translateNode(binaryOp.right(), leftResult.plan(), ctx);
+        Expression rightExpr = new ToDouble(rightResult.expression().source(), rightResult.expression());
+
+        Expression binaryExpr = binaryOp.binaryOp()
+            .asFunction()
+            .create(binaryOp.source(), leftExpr, rightExpr, ctx.optimizerContext().configuration());
+
+        // If either side has aggregation, we need to add Eval on top
+        LogicalPlan resultPlan = rightResult.plan();
+        if (containsAggregate(resultPlan)) {
+            Alias evalAlias = new Alias(binaryExpr.source(), ctx.promqlCommand().valueColumnName(), binaryExpr);
+            LogicalPlan evalPlan = new Eval(ctx.promqlCommand().source(), resultPlan, List.of(evalAlias));
+            return new TranslationResult(evalPlan, evalAlias.toAttribute());
+        }
+
+        return new TranslationResult(resultPlan, binaryExpr);
     }
 
     /**
-     * Adds a Filter node on top of the given plan for the binary comparison condition.
-     * At this time, we only support a single top-level binary comparison in filtering mode where the right operand is a literal.
-     * Therefore, we can simply filter the result of the plan.
-     * The left operand is assumed to be the value column of the plan's output.
-     * The right operand is expected to be a LiteralSelector, which we're validating during analysis.
-     * <p>
-     * To support more complex expressions in the future, we would need to individually evaluate both sides as aggregations (STATS)
-     * and account for nested comparisons where groupings may differ.
-     * Example: sum(max by (job) (foo > bar)) > avg(baz)
+     * Adds a Filter node for comparison filtering.
      */
-    private LogicalPlan addFilter(LogicalPlan plan, VectorBinaryComparison binaryComparison, LogicalOptimizerContext context) {
+    private LogicalPlan addComparisonFilter(LogicalPlan plan, VectorBinaryComparison binaryComparison, LogicalOptimizerContext context) {
         Attribute left = plan.output().getFirst().toAttribute();
         ToDouble right = new ToDouble(binaryComparison.right().source(), ((LiteralSelector) binaryComparison.right()).literal());
         Function condition = binaryComparison.op().asFunction().create(binaryComparison.source(), left, right, context.configuration());
@@ -285,62 +358,52 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
     }
 
     /**
-     * Maps a PromQL Selector node to an ESQL expression.
-     * <ul>
-     *     <li>InstantSelector: maps to LastOverTime aggregation to get the latest sample per time series and step.</li>
-     *     <li>
-     *         RangeSelector: maps to the field expression,
-     *         yielding all samples per time series and step,
-     *         to be aggregated by the enclosing {@link WithinSeriesAggregate}.
-     *     </li>
-     *     <li>LiteralSelector: maps to its literal value.</li>
-     * </ul>
-     * The label matchers of the selector are translated into filter conditions and added to the provided list.
-     * We're not creating a filter for the {@code __name__} label here, as that's handled by {@link IgnoreNullMetrics}.
+     * Translates a selector (instant, range, or literal).
+     * Adds label filter conditions to the context.
      */
-    private static Expression mapSelector(PromqlCommand promqlCommand, Selector selector, List<Expression> labelFilterConditions) {
+    private TranslationResult translateSelector(Selector selector, LogicalPlan currentPlan, TranslationContext ctx) {
         Expression matcherCondition = translateLabelMatchers(selector.source(), selector.labels(), selector.labelMatchers());
         if (matcherCondition != null) {
-            labelFilterConditions.add(matcherCondition);
+            ctx.labelFilterConditions().add(matcherCondition);
         }
 
-        if (selector instanceof InstantSelector) {
-            // TODO wire lookback delta from PromqlCommand once we support window sizes independent from the step/tbucket duration
-            return new LastOverTime(selector.source(), selector.series(), AggregateFunction.NO_WINDOW, promqlCommand.timestamp());
+        Expression expr;
+        if (selector instanceof LiteralSelector literalSelector) {
+            expr = literalSelector.literal();
+        } else if (selector instanceof InstantSelector) {
+            // InstantSelector maps to LastOverTime to get latest sample per time series
+            expr = new LastOverTime(selector.source(), selector.series(), AggregateFunction.NO_WINDOW, ctx.promqlCommand().timestamp());
+        } else {
+            expr = selector.series();
         }
-        return selector.series();
+
+        return new TranslationResult(currentPlan, expr);
     }
 
-    private static Expression mapFunction(
-        PromqlCommand promqlCommand,
-        PromqlFunctionCall functionCall,
-        List<Expression> labelFilterConditions,
-        LogicalOptimizerContext context,
-        Attribute stepAttribute
-    ) {
-        Expression target = mapNode(promqlCommand, functionCall.child(), labelFilterConditions, context, stepAttribute);
+    /**
+     * Translates a generic PromQL function call (ceil, abs, floor, etc.).
+     */
+    private TranslationResult translateFunctionCall(PromqlFunctionCall functionCall, LogicalPlan currentPlan, TranslationContext ctx) {
+        TranslationResult childResult = translateNode(functionCall.child(), currentPlan, ctx);
 
-        final Expression window;
-        if (functionCall.child() instanceof RangeSelector rangeSelector) {
-            window = rangeSelector.range();
-        } else {
-            window = AggregateFunction.NO_WINDOW;
-        }
+        Expression window = (functionCall.child() instanceof RangeSelector rangeSelector)
+            ? rangeSelector.range()
+            : AggregateFunction.NO_WINDOW;
 
-        PromqlFunctionRegistry.PromqlContext ctx = new PromqlFunctionRegistry.PromqlContext(
-            promqlCommand.timestamp(),
+        PromqlFunctionRegistry.PromqlContext promqlCtx = new PromqlFunctionRegistry.PromqlContext(
+            ctx.promqlCommand().timestamp(),
             window,
-            stepAttribute
+            ctx.stepAttr()
         );
 
-        List<Expression> extraParams = functionCall.parameters();
         Expression function = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
             functionCall.functionName(),
             functionCall.source(),
-            target,
-            ctx,
-            extraParams
+            childResult.expression(),
+            promqlCtx,
+            functionCall.parameters()
         );
+
         // This can happen when trying to provide a counter to a function that doesn't support it e.g. avg_over_time on a counter
         // This is essentially a bug since this limitation doesn't exist in PromQL itself.
         // Throwing an error here to avoid generating invalid plans with obscure errors downstream.
@@ -348,16 +411,91 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
         if (typeResolution.unresolved()) {
             throw new QlIllegalArgumentException("Could not resolve type for function [{}]: {}", function, typeResolution.message());
         }
-        return function;
+
+        // If child is aggregate, add Eval to compute function.
+        //
+        // Example: ceil(sum by (cluster) (foo)) becomes:
+        // Eval[ceil(sum_result)]
+        // \_ TimeSeriesAggregate[sum_result = sum(x), groupBy=[step, cluster]]
+        //
+        // This handles both cases when aggregate is TimeSeriesAggregate or more generic Aggregate.
+        if (containsAggregate(childResult.plan())) {
+            Alias evalAlias = new Alias(function.source(), ctx.promqlCommand().valueColumnName(), function);
+            LogicalPlan evalPlan = new Eval(ctx.promqlCommand().source(), childResult.plan(), List.of(evalAlias));
+            return new TranslationResult(evalPlan, evalAlias.toAttribute());
+        }
+
+        return new TranslationResult(childResult.plan(), function);
     }
 
-    private static Expression mapScalarFunction(PromqlCommand promqlCommand, ScalarFunction function, Attribute stepAttribute) {
-        PromqlFunctionRegistry.PromqlContext ctx = new PromqlFunctionRegistry.PromqlContext(
-            promqlCommand.timestamp(),
-            /* window= */null,
-            stepAttribute
+    /**
+     * Translates a scalar function (time(), etc.).
+     * These produce expressions without modifying the plan.
+     */
+    private TranslationResult translateScalarFunction(ScalarFunction scalarFunction, LogicalPlan currentPlan, TranslationContext ctx) {
+        PromqlFunctionRegistry.PromqlContext promqlCtx = new PromqlFunctionRegistry.PromqlContext(
+            ctx.promqlCommand().timestamp(),
+            null,
+            ctx.stepAttr()
         );
-        return PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(function.functionName(), function.source(), null, ctx, List.of());
+        Expression function = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
+            scalarFunction.functionName(),
+            scalarFunction.source(),
+            null,
+            promqlCtx,
+            List.of()
+        );
+        return new TranslationResult(currentPlan, function);
+    }
+
+    /**
+     * Translates an AcrossSeriesAggregate (sum, avg, max, min, count, etc.).
+     * Creates TimeSeriesAggregate if child has no aggregation or Aggregate if child already aggregated.
+     */
+    private TranslationResult translateAcrossSeriesAggregate(AcrossSeriesAggregate agg, LogicalPlan currentPlan, TranslationContext ctx) {
+        TranslationResult childResult = translateNode(agg.child(), currentPlan, ctx);
+        Expression aggExpr = buildAggregateExpression(agg, childResult.expression(), ctx);
+        LogicalPlan aggPlan;
+        if (containsAggregate(childResult.plan())) {
+            // Child has aggregate, so we need to build outer Aggregate node
+            aggPlan = createOuterAggregate(ctx, childResult.plan(), agg, aggExpr);
+        } else {
+            aggPlan = createInnerAggregate(ctx, childResult.plan(), agg.groupings(), aggExpr);
+        }
+        Expression outputRef = getValueOutput(aggPlan, ctx);
+        return new TranslationResult(aggPlan, outputRef);
+    }
+
+    /**
+     * Gets the value output from an aggregate plan by name.
+     */
+    private static Expression getValueOutput(LogicalPlan plan, TranslationContext ctx) {
+        String valueName = ctx.promqlCommand().valueColumnName();
+        for (Attribute attr : plan.output()) {
+            if (attr.name().equals(valueName)) {
+                return attr;
+            }
+        }
+        return plan.output().getFirst().toAttribute();
+    }
+
+    /**
+     * Checks if the plan already contains an aggregation stage.
+     */
+    private static boolean containsAggregate(LogicalPlan plan) {
+        return plan.anyMatch(p -> p instanceof Aggregate);
+    }
+
+    /**
+     * Builds the aggregate function expression for an AcrossSeriesAggregate.
+     */
+    private static Expression buildAggregateExpression(AcrossSeriesAggregate agg, Expression inputValue, TranslationContext ctx) {
+        PromqlFunctionRegistry.PromqlContext promqlCtx = new PromqlFunctionRegistry.PromqlContext(
+            ctx.promqlCommand().timestamp(),
+            AggregateFunction.NO_WINDOW,
+            ctx.stepAttr()
+        );
+        return PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(agg.functionName(), agg.source(), inputValue, promqlCtx, agg.parameters());
     }
 
     private static Alias createStepBucketAlias(PromqlCommand promqlCommand) {
@@ -493,7 +631,7 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
         sortedFragments.sort(Comparator.comparingInt(a -> a.type().ordinal()));
 
         // Check if all fragments are of the same type
-        AutomatonUtils.PatternFragment.Type firstType = sortedFragments.get(0).type();
+        AutomatonUtils.PatternFragment.Type firstType = sortedFragments.getFirst().type();
         boolean homogeneous = true;
         for (AutomatonUtils.PatternFragment fragment : sortedFragments) {
             if (fragment.type() != firstType) {

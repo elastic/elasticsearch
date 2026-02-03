@@ -30,8 +30,8 @@ import static org.hamcrest.Matchers.is;
 
 public class MistralChatCompletionServiceSettingsTests extends AbstractBWCWireSerializationTestCase<MistralChatCompletionServiceSettings> {
 
-    public static final String MODEL_ID = "some model";
-    public static final int RATE_LIMIT = 2;
+    private static final String MODEL_ID = "some model";
+    private static final int RATE_LIMIT = 2;
 
     public void testFromMap_AllFields_Success() {
         var serviceSettings = MistralChatCompletionServiceSettings.fromMap(

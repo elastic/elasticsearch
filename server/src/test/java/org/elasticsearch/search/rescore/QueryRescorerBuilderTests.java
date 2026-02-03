@@ -27,7 +27,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.search.stats.ShardSearchStats;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.rescore.QueryRescorer.QueryRescoreContext;
 import org.elasticsearch.test.ESTestCase;
@@ -162,7 +162,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             emptyMap(),
             0,
             MapperMetrics.NOOP,
-            ShardSearchStats.TEST_INSTANCE
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         ) {
             @Override
             public MappedFieldType getFieldType(String name) {
@@ -227,7 +227,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             emptyMap(),
             0,
             MapperMetrics.NOOP,
-            ShardSearchStats.TEST_INSTANCE
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         ) {
             @Override
             public MappedFieldType getFieldType(String name) {

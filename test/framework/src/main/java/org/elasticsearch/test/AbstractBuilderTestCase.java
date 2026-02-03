@@ -57,7 +57,7 @@ import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.DataRewriteContext;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.search.stats.ShardSearchStats;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -618,7 +618,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 emptyMap(),
                 0,
                 MapperMetrics.NOOP,
-                ShardSearchStats.TEST_INSTANCE
+                SearchExecutionContextHelper.SHARD_SEARCH_STATS
             );
         }
 

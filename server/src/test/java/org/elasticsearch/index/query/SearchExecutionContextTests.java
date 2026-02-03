@@ -65,7 +65,6 @@ import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TestRuntimeField;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.field.DelegateDocValuesField;
@@ -631,7 +630,7 @@ public class SearchExecutionContextTests extends ESTestCase {
             runtimeMappings,
             0,
             MapperMetrics.NOOP,
-            ShardSearchStats.TEST_INSTANCE
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
     }
 

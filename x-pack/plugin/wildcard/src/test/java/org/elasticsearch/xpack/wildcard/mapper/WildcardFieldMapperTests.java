@@ -68,7 +68,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.search.stats.ShardSearchStats;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -1111,7 +1111,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             emptyMap(),
             0,
             MapperMetrics.NOOP,
-            ShardSearchStats.TEST_INSTANCE
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         ) {
             @Override
             public MappedFieldType getFieldType(String name) {

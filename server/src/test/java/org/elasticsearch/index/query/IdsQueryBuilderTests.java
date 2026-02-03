@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -99,7 +98,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
             Collections.emptyMap(),
             null,
             MapperMetrics.NOOP,
-            ShardSearchStats.TEST_INSTANCE
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
 
         IllegalStateException e = assertThrows(IllegalStateException.class, () -> builder.doToQuery(searchExecutionContext));

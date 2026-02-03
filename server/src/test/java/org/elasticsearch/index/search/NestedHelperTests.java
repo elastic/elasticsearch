@@ -22,8 +22,8 @@ import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.index.search.stats.ShardSearchStats;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -94,7 +94,7 @@ public class NestedHelperTests extends MapperServiceTestCase {
             emptyMap(),
             0,
             MapperMetrics.NOOP,
-            ShardSearchStats.TEST_INSTANCE
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
     }
 

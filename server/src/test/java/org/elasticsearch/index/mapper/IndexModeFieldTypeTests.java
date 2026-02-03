@@ -17,7 +17,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.search.stats.ShardSearchStats;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 
 import java.util.Collections;
 import java.util.List;
@@ -95,7 +95,7 @@ public class IndexModeFieldTypeTests extends ConstantFieldTypeTestCase {
             Collections.emptyMap(),
             0,
             MapperMetrics.NOOP,
-            ShardSearchStats.TEST_INSTANCE
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
     }
 }

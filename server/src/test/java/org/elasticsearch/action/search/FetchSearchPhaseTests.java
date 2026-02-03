@@ -43,7 +43,7 @@ import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.search.stats.ShardSearchStats;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -1035,7 +1035,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             Collections.emptyMap(),
             null,
             MapperMetrics.NOOP,
-            ShardSearchStats.TEST_INSTANCE
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
         TestSearchContext searchContext = new TestSearchContext(searchExecutionContext, null, contextIndexSearcher) {
             private final FetchSearchResult fetchSearchResult = new FetchSearchResult();

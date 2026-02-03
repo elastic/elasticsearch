@@ -30,7 +30,7 @@ import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.search.stats.ShardSearchStats;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -193,7 +193,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                 emptyMap(),
                 0,
                 MapperMetrics.NOOP,
-                ShardSearchStats.TEST_INSTANCE
+                SearchExecutionContextHelper.SHARD_SEARCH_STATS
             );
 
             SuggestionContext suggestionContext = suggestionBuilder.build(mockContext);
@@ -252,7 +252,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             emptyMap(),
             0,
             MapperMetrics.NOOP,
-            ShardSearchStats.TEST_INSTANCE
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
         if (randomBoolean()) {
             mockContext.setAllowUnmappedFields(randomBoolean());

@@ -41,7 +41,6 @@ import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContextHelper;
-import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.script.field.DateNanosDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
@@ -659,7 +658,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             0,
             MapperMetrics.NOOP,
-            ShardSearchStats.TEST_INSTANCE
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
     }
 

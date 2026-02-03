@@ -403,13 +403,13 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
             throws IOException {
             final IndexService indexService = indicesService.indexServiceSafe(request.getShard().getIndex());
             final IndexShard indexShard = indexService.getShard(request.getShard().id());
-            final SeqNoStats seqNoStats = indexShard.seqNoStats();
+            final long lastKnownGlobalCheckpoint = indexShard.getLastKnownGlobalCheckpoint();
 
-            if (request.getFromSeqNo() > seqNoStats.getGlobalCheckpoint()) {
+            if (request.getFromSeqNo() > lastKnownGlobalCheckpoint) {
                 logger.trace(
                     "{} waiting for global checkpoint advancement from [{}] to [{}]",
                     shardId,
-                    seqNoStats.getGlobalCheckpoint(),
+                    lastKnownGlobalCheckpoint,
                     request.getFromSeqNo()
                 );
                 indexShard.addGlobalCheckpointListener(request.getFromSeqNo(), new GlobalCheckpointListeners.GlobalCheckpointListener() {

@@ -156,6 +156,22 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         Builder.checkHistogramIntervalIsPositive(histogramAggregation);
     }
 
+    public ElasticsearchException validateNoCrossProjectWhenCrossProjectIsDisabled(
+        CrossProjectModeDecider crossProjectModeDecider,
+        ElasticsearchException validationException
+    ) {
+        if (crossProjectModeDecider.crossProjectEnabled() == false) {
+            // When cross-project is disabled, check if indices have cross-project mode enabled
+            if (indicesOptions != null && indicesOptions.crossProjectModeOptions().resolveIndexExpression()) {
+                validationException = new ElasticsearchStatusException(
+                    "Cross-project search is not enabled for Datafeeds",
+                    RestStatus.FORBIDDEN
+                );
+            }
+        }
+        return validationException;
+    }
+
     private static ObjectParser<Builder, Void> createParser(boolean ignoreUnknownFields) {
         ObjectParser<Builder, Void> parser = new ObjectParser<>("datafeed_config", ignoreUnknownFields, Builder::new);
 
@@ -1074,10 +1090,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             setDefaultQueryDelay();
             if (indicesOptions == null) {
                 indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED;
-            }
-
-            if (indicesOptions.crossProjectModeOptions().resolveIndexExpression()) {
-                throw new ElasticsearchStatusException("Cross-project search is not enabled for Datafeeds", RestStatus.FORBIDDEN);
             }
 
             return new DatafeedConfig(

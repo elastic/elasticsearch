@@ -14,12 +14,19 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
 /**
- * Tests {@link Source#withMutations(Consumer)}. Other source mutability tests are welcomed.
+ * Tests {@link Source#withMutations(Consumer)}.
+ *
+ * <p><b>Important behavior note</b>: When the source map is already a {@link java.util.HashMap}
+ * (including {@link LinkedHashMap}), {@code withMutations} will mutate the original map directly
+ * rather than creating a copy. This is intentional for performance. Immutable maps (like those
+ * from {@link Map#of}) are copied before mutation.
  */
 public class SourceMutabilityTests extends ESTestCase {
 
@@ -43,6 +50,7 @@ public class SourceMutabilityTests extends ESTestCase {
 
         Source modified = original.withMutations(map -> map.put("field2", "value2"));
 
+        // Immutable maps are copied, so original is unchanged
         assertEquals(1, original.source().size());
         assertEquals("value1", original.source().get("field1"));
         assertNull(original.source().get("field2"));
@@ -50,6 +58,27 @@ public class SourceMutabilityTests extends ESTestCase {
         assertEquals(2, modified.source().size());
         assertEquals("value1", modified.source().get("field1"));
         assertEquals("value2", modified.source().get("field2"));
+
+        // Original and modified have different underlying maps
+        assertNotSame(original.source(), modified.source());
+    }
+
+    public void testMutableVsImmutableSourceBehavior() {
+        // Immutable map: original is NOT mutated, maps are different
+        Source immutableSource = Source.fromMap(Map.of("field", "value"), XContentType.JSON);
+        Source modifiedImmutable = immutableSource.withMutations(map -> map.put("new", "field"));
+        assertNotSame("Immutable source should be copied", immutableSource.source(), modifiedImmutable.source());
+        assertEquals(1, immutableSource.source().size());
+        assertEquals(2, modifiedImmutable.source().size());
+
+        // Mutable map (LinkedHashMap): original IS mutated, maps are same
+        Map<String, Object> mutableMap = new LinkedHashMap<>();
+        mutableMap.put("field", "value");
+        Source mutableSource = Source.fromMap(mutableMap, XContentType.JSON);
+        Source modifiedMutable = mutableSource.withMutations(map -> map.put("new", "field"));
+        assertSame("Mutable source should NOT be copied", mutableSource.source(), modifiedMutable.source());
+        assertEquals(2, mutableSource.source().size());
+        assertEquals(2, modifiedMutable.source().size());
     }
 
     public void testWithMutationsFromMutableMap() {
@@ -60,12 +89,16 @@ public class SourceMutabilityTests extends ESTestCase {
 
         Source modified = original.withMutations(map -> map.put("field2", "value2"));
 
-        assertEquals(1, original.source().size());
+        // When source map is a HashMap/LinkedHashMap, the original is mutated directly (no copy)
+        assertEquals(2, original.source().size());
         assertEquals("value1", original.source().get("field1"));
+        assertEquals("value2", original.source().get("field2"));
 
+        // Modified and original share the same underlying map
         assertEquals(2, modified.source().size());
         assertEquals("value1", modified.source().get("field1"));
         assertEquals("value2", modified.source().get("field2"));
+        assertSame(original.source(), modified.source());
     }
 
     public void testWithMutationsFromBytes() {
@@ -74,12 +107,16 @@ public class SourceMutabilityTests extends ESTestCase {
 
         Source modified = original.withMutations(map -> map.put("field2", "value2"));
 
-        assertEquals(1, original.source().size());
+        // fromBytes parses to a LinkedHashMap, so the original is mutated directly (no copy)
+        assertEquals(2, original.source().size());
         assertEquals("value1", original.source().get("field1"));
+        assertEquals("value2", original.source().get("field2"));
 
+        // Modified and original share the same underlying map
         assertEquals(2, modified.source().size());
         assertEquals("value1", modified.source().get("field1"));
         assertEquals("value2", modified.source().get("field2"));
+        assertSame(original.source(), modified.source());
     }
 
     public void testWithMutationsRemoveField() {
@@ -168,6 +205,59 @@ public class SourceMutabilityTests extends ESTestCase {
 
         assertEquals(1, modified.source().size());
         assertEquals("value", modified.source().get("field"));
+    }
+
+    public void testInsertionOrder() {
+        int numFields = randomIntBetween(5, 20);
+        List<String> fieldNames = new ArrayList<>(numFields);
+        Map<String, Object> fieldValues = new LinkedHashMap<>();
+        for (int i = 0; i < numFields; i++) {
+            String fieldName = "field_" + i + "_" + randomAlphaOfLength(5);
+            fieldNames.add(fieldName);
+            fieldValues.put(fieldName, randomAlphaOfLength(10));
+        }
+
+        // Helper to create a fresh source with the same field order
+        // (since LinkedHashMap sources are mutated directly, we need fresh copies for each scenario)
+        java.util.function.Supplier<Source> freshSource = () -> Source.fromMap(new LinkedHashMap<>(fieldValues), XContentType.JSON);
+
+        // Test 1: Verify original preserves insertion order
+        Source original = freshSource.get();
+        List<String> originalKeys = new ArrayList<>(original.source().keySet());
+        assertEquals("Original should preserve insertion order", fieldNames, originalKeys);
+
+        // Test 2: Updating an existing field preserves order
+        int updateIndex = randomIntBetween(0, numFields - 1);
+        String fieldToUpdate = fieldNames.get(updateIndex);
+        String newValue = "updated_" + randomAlphaOfLength(8);
+
+        Source forUpdate = freshSource.get();
+        Source modified = forUpdate.withMutations(map -> map.put(fieldToUpdate, newValue));
+
+        assertEquals(newValue, modified.source().get(fieldToUpdate));
+        List<String> modifiedKeys = new ArrayList<>(modified.source().keySet());
+        assertEquals("Mutation should preserve insertion order", fieldNames, modifiedKeys);
+
+        // Test 3: Adding a new field appends at end
+        String newFieldName = "new_field_" + randomAlphaOfLength(5);
+        Source forAdd = freshSource.get();
+        Source withNewField = forAdd.withMutations(map -> map.put(newFieldName, "new_value"));
+
+        List<String> expectedKeysWithNew = new ArrayList<>(fieldNames);
+        expectedKeysWithNew.add(newFieldName);
+        List<String> actualKeysWithNew = new ArrayList<>(withNewField.source().keySet());
+        assertEquals("New field should be appended at end", expectedKeysWithNew, actualKeysWithNew);
+
+        // Test 4: Removing a field preserves relative order of remaining fields
+        int removeIndex = randomIntBetween(0, numFields - 1);
+        String fieldToRemove = fieldNames.get(removeIndex);
+        Source forRemoval = freshSource.get();
+        Source withRemoval = forRemoval.withMutations(map -> map.remove(fieldToRemove));
+
+        List<String> expectedAfterRemoval = new ArrayList<>(fieldNames);
+        expectedAfterRemoval.remove(removeIndex);
+        List<String> actualAfterRemoval = new ArrayList<>(withRemoval.source().keySet());
+        assertEquals("Removal should preserve relative order of remaining fields", expectedAfterRemoval, actualAfterRemoval);
     }
 
     /**

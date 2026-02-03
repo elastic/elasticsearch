@@ -64,7 +64,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.metadata.TemplateDecoratorProvider;
 import org.elasticsearch.cluster.metadata.TemplateDecoratorRule;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
@@ -165,6 +164,7 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -531,7 +531,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static final TestEntitlementsRule TEST_ENTITLEMENTS = new TestEntitlementsRule();
 
     @ClassRule
-    public static final TemplateDecoratorRule TEMPLATE_DECORATOR_RULE = TemplateDecoratorRule.initDefault();
+    public static final TestRule TEMPLATE_DECORATOR_RULE = TemplateDecoratorRule.initDefault();
 
     // setup mock filesystems for this test run. we change PathUtils
     // so that all accesses are plumbed thru any mock wrappers
@@ -600,11 +600,6 @@ public abstract class ESTestCase extends LuceneTestCase {
             LoggerFactory.provider().setRootLevel(capturedLogLevel);
             capturedLogLevel = null;
         }
-    }
-
-    @BeforeClass
-    public static void initTemplateDecoratorProvider() {
-        TemplateDecoratorProvider.initOnce(List.of()); // init with default noop decorator
     }
 
     @Before

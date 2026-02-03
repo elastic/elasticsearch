@@ -136,7 +136,7 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
             this.rateLimitSettings,
             validationException,
             CohereService.NAME,
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.REQUEST
         );
 
         var extractedApiVersion = ServiceUtils.extractOptionalEnum(

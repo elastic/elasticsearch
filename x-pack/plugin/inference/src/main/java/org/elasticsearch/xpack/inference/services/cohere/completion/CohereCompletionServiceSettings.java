@@ -146,7 +146,7 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
             this.rateLimitSettings,
             validationException,
             CohereService.NAME,
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.REQUEST
         );
         var extractedModelId = extractOptionalString(serviceSettings, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var extractedApiVersion = ServiceUtils.extractOptionalEnum(

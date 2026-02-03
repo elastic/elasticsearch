@@ -281,7 +281,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
             this.rateLimitSettings,
             validationException,
             AzureOpenAiService.NAME,
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.REQUEST
         );
 
         return new CommonFields(

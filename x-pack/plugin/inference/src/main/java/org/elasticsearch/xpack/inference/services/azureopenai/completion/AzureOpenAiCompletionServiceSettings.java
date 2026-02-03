@@ -154,7 +154,7 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
             this.rateLimitSettings,
             validationException,
             AzureOpenAiService.NAME,
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.REQUEST
         );
 
         return new AzureOpenAiCompletionServiceSettings.CommonFields(

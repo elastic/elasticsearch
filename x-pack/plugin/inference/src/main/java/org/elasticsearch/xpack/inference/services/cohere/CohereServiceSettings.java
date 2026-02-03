@@ -285,7 +285,7 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
             this.rateLimitSettings,
             validationException,
             CohereService.NAME,
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.REQUEST
         );
 
         validationException.throwIfValidationErrorsExist();

@@ -97,7 +97,7 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
             this.rateLimitSettings,
             validationException,
             AMAZON_BEDROCK_BASE_NAME,
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.REQUEST
         );
 
         validationException.throwIfValidationErrorsExist();

@@ -138,7 +138,7 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
             this.rateLimitSettings,
             validationException,
             AlibabaCloudSearchService.NAME,
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.REQUEST
         );
 
         validationException.throwIfValidationErrorsExist();

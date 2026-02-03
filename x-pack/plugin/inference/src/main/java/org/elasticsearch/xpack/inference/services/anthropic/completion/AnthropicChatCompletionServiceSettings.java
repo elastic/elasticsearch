@@ -96,7 +96,7 @@ public class AnthropicChatCompletionServiceSettings extends FilteredXContentObje
             this.rateLimitSettings,
             validationException,
             AnthropicService.NAME,
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.REQUEST
         );
 
         validationException.throwIfValidationErrorsExist();

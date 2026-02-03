@@ -83,7 +83,6 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
                 );
                 yield fromCohereOrDenseVectorEnumValues(embeddingType, validationException);
             }
-
         };
     }
 

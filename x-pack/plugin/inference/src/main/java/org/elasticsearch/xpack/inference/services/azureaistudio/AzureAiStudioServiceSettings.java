@@ -89,7 +89,7 @@ public abstract class AzureAiStudioServiceSettings extends FilteredXContentObjec
             this.rateLimitSettings,
             validationException,
             AzureAiStudioService.NAME,
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.REQUEST
         );
         var extractedEndpointType = extractOptionalEnum(
             serviceSettings,

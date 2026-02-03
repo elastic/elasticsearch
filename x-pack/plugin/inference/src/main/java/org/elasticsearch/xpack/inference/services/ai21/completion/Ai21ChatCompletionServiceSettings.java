@@ -96,7 +96,7 @@ public class Ai21ChatCompletionServiceSettings extends FilteredXContentObject im
             this.rateLimitSettings,
             validationException,
             Ai21Service.NAME,
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.REQUEST
         );
         validationException.throwIfValidationErrorsExist();
 

@@ -819,7 +819,7 @@ public class MixedbreadServiceTests extends InferenceServiceTestCase {
     ) {
         assertThat(model.uri().toString(), is(url));
         assertThat(model.getServiceSettings().modelId(), is(modelName));
-        assertThat(model.rateLimitServiceSettings(), is(rateLimitSettings));
+        assertThat(model.rateLimitSettings(), is(rateLimitSettings));
 
         assertThat(model.apiKey().toString(), is(apiKey));
     }

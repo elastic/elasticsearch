@@ -16,12 +16,12 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.mixedbread.action.MixedbreadActionVisitor;
+import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.net.URI;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Abstract class representing a Mixedbread model for inference.
@@ -29,19 +29,11 @@ import java.util.Objects;
  */
 public abstract class MixedbreadModel extends RateLimitGroupingModel {
     private final SecureString apiKey;
-    private final RateLimitSettings rateLimitServiceSettings;
     private final URI uri;
 
-    public MixedbreadModel(
-        ModelConfigurations configurations,
-        ModelSecrets secrets,
-        @Nullable ApiKeySecrets apiKeySecrets,
-        RateLimitSettings rateLimitServiceSettings,
-        URI uri
-    ) {
+    public MixedbreadModel(ModelConfigurations configurations, ModelSecrets secrets, @Nullable ApiKeySecrets apiKeySecrets, URI uri) {
         super(configurations, secrets);
 
-        this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
         apiKey = ServiceUtils.apiKey(apiKeySecrets);
         this.uri = uri;
     }
@@ -49,7 +41,6 @@ public abstract class MixedbreadModel extends RateLimitGroupingModel {
     protected MixedbreadModel(MixedbreadModel model, TaskSettings taskSettings) {
         super(model, taskSettings);
 
-        rateLimitServiceSettings = model.rateLimitServiceSettings();
         apiKey = model.apiKey();
         uri = model.uri();
     }
@@ -58,18 +49,20 @@ public abstract class MixedbreadModel extends RateLimitGroupingModel {
         return apiKey;
     }
 
-    public RateLimitSettings rateLimitServiceSettings() {
-        return rateLimitServiceSettings;
-    }
-
     public abstract ExecutableAction accept(MixedbreadActionVisitor creator, Map<String, Object> taskSettings);
 
     public URI uri() {
         return uri;
     }
 
+    @Override
     public RateLimitSettings rateLimitSettings() {
-        return rateLimitServiceSettings;
+        return getServiceSettings().rateLimitSettings();
+    }
+
+    @Override
+    public MixedbreadRerankServiceSettings getServiceSettings() {
+        return (MixedbreadRerankServiceSettings) super.getServiceSettings();
     }
 
     public int rateLimitGroupingHash() {

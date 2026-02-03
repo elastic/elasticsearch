@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadService;
 import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadUtils;
 import org.elasticsearch.xpack.inference.services.mixedbread.action.MixedbreadActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
-import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.Map;
 import java.util.Objects;
@@ -53,17 +52,16 @@ public class MixedbreadRerankModel extends MixedbreadModel {
 
     // should only be used for testing
     MixedbreadRerankModel(
-        String modelId,
+        String inferenceId,
         MixedbreadRerankServiceSettings serviceSettings,
         MixedbreadRerankTaskSettings taskSettings,
         @Nullable DefaultSecretSettings secretSettings,
         @Nullable String uri
     ) {
         super(
-            new ModelConfigurations(modelId, TaskType.RERANK, MixedbreadService.NAME, serviceSettings, taskSettings),
+            new ModelConfigurations(inferenceId, TaskType.RERANK, MixedbreadService.NAME, serviceSettings, taskSettings),
             new ModelSecrets(secretSettings),
             secretSettings,
-            serviceSettings.rateLimitSettings(),
             Objects.requireNonNullElse(
                 ServiceUtils.createOptionalUri(uri),
                 buildUri(
@@ -81,13 +79,7 @@ public class MixedbreadRerankModel extends MixedbreadModel {
      * @param modelSecrets the secret settings for the model
      */
     public MixedbreadRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
-        super(
-            modelConfigurations,
-            modelSecrets,
-            (DefaultSecretSettings) modelSecrets.getSecretSettings(),
-            (RateLimitSettings) modelConfigurations.getServiceSettings(),
-            null
-        );
+        super(modelConfigurations, modelSecrets, (DefaultSecretSettings) modelSecrets.getSecretSettings(), null);
     }
 
     public MixedbreadRerankModel(MixedbreadRerankModel model, MixedbreadRerankTaskSettings taskSettings) {
@@ -96,7 +88,7 @@ public class MixedbreadRerankModel extends MixedbreadModel {
 
     @Override
     public MixedbreadRerankServiceSettings getServiceSettings() {
-        return (MixedbreadRerankServiceSettings) super.getServiceSettings();
+        return super.getServiceSettings();
     }
 
     @Override

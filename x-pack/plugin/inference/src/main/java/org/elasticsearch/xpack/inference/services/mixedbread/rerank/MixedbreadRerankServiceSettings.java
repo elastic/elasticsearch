@@ -41,7 +41,7 @@ public class MixedbreadRerankServiceSettings extends FilteredXContentObject impl
     public static MixedbreadRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
-        String model = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,
@@ -50,30 +50,28 @@ public class MixedbreadRerankServiceSettings extends FilteredXContentObject impl
             context
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
-        return new MixedbreadRerankServiceSettings(model, rateLimitSettings);
+        return new MixedbreadRerankServiceSettings(modelId, rateLimitSettings);
     }
 
-    private final String model;
+    private final String modelId;
 
     private final RateLimitSettings rateLimitSettings;
 
-    public MixedbreadRerankServiceSettings(String model, @Nullable RateLimitSettings rateLimitSettings) {
-        this.model = model;
+    public MixedbreadRerankServiceSettings(String modelId, @Nullable RateLimitSettings rateLimitSettings) {
+        this.modelId = modelId;
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
     public MixedbreadRerankServiceSettings(StreamInput in) throws IOException {
-        this.model = in.readOptionalString();
+        this.modelId = in.readOptionalString();
         this.rateLimitSettings = new RateLimitSettings(in);
     }
 
     @Override
     public String modelId() {
-        return model;
+        return modelId;
     }
 
     public RateLimitSettings rateLimitSettings() {
@@ -98,8 +96,8 @@ public class MixedbreadRerankServiceSettings extends FilteredXContentObject impl
 
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
-        if (model != null) {
-            builder.field(MODEL_ID, model);
+        if (modelId != null) {
+            builder.field(MODEL_ID, modelId);
         }
 
         rateLimitSettings.toXContent(builder, params);
@@ -120,7 +118,7 @@ public class MixedbreadRerankServiceSettings extends FilteredXContentObject impl
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(model);
+        out.writeOptionalString(modelId);
         rateLimitSettings.writeTo(out);
     }
 
@@ -129,11 +127,11 @@ public class MixedbreadRerankServiceSettings extends FilteredXContentObject impl
         if (this == object) return true;
         if (object == null || getClass() != object.getClass()) return false;
         MixedbreadRerankServiceSettings that = (MixedbreadRerankServiceSettings) object;
-        return Objects.equals(model, that.modelId()) && Objects.equals(rateLimitSettings, that.rateLimitSettings());
+        return Objects.equals(modelId, that.modelId()) && Objects.equals(rateLimitSettings, that.rateLimitSettings());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(model, rateLimitSettings);
+        return Objects.hash(modelId, rateLimitSettings);
     }
 }

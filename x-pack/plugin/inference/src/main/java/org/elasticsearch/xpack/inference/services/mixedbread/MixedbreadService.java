@@ -49,7 +49,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 
 /**
@@ -183,12 +182,9 @@ public class MixedbreadService extends SenderService implements RerankingInferen
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
-        Map<String, Object> secretSettings,
+        @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        if (taskType != TaskType.RERANK) {
-            throw createInvalidTaskTypeException(inferenceId, NAME, taskType, context);
-        }
         return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceId, taskType, NAME, context).createFromMaps(
             inferenceId,
             taskType,

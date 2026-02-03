@@ -1120,7 +1120,7 @@ required_capability: inline_stats
 FROM employees
 | KEEP emp_no, languages, gender, last_name
 | WHERE gender IS NOT NULL
-| INLINE STATS max_lang = MAX(languages), min_lang = MIN(languages) BY f = left(last_name, 1), gender
+| INLINE STATS max_lang = MAX(languages), min_lang = MIN(languages) BY f = LEFT(last_name, 1), gender
 | SORT last_name DESC
 | LIMIT 8
 ;
@@ -2677,14 +2677,14 @@ FROM employees
 stdDevFilter
 required_capability: inline_stats
 FROM employees
-| inline stats greater_than = STD_DEV(salary_change) WHERE languages > 3
-, less_than = STD_DEV(salary_change) WHERE languages <= 3
-, salary = STD_DEV(salary * 2)
-, count = COUNT(*) BY gender
+| INLINE STATS greater_than = STD_DEV(salary_change) WHERE languages > 3
+               , less_than = STD_DEV(salary_change) WHERE languages <= 3
+               , salary = STD_DEV(salary * 2)
+               , count = COUNT(*) BY gender
 | EVAL greater_than = ROUND(greater_than, 5)
-, less_than = ROUND(less_than, 5)
-, salary = ROUND(salary, 5)
-| keep emp_no, gender, languages, *than, salary, count
+               , less_than = ROUND(less_than, 5)
+               , salary = ROUND(salary, 5)
+| KEEP emp_no, gender, languages, *than, salary, count
 | SORT emp_no asc
 | limit 10
 ;

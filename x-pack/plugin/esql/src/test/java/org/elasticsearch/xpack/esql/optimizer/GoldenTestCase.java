@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Node;
-import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -387,21 +386,15 @@ public abstract class GoldenTestCase extends ESTestCase {
 
     private static String normalizeNameIds(Node<?> plan) {
         String full = plan.toString(Node.NodeStringFormat.FULL);
-        // full = normalizeSyntheticNames(full);
+        full = normalizeSyntheticNames(full);
         Matcher matcher = IDENTIFIER_PATTERN.matcher(full);
         StringBuilder sb = new StringBuilder();
         int lastEnd = 0;
-        Holder<Integer> counterHolder = new Holder<>(0);
-        Map<Integer, Integer> idMap = new HashMap<>();
+        var idMap = new IdMap<Integer>();
         while (matcher.find()) {
             sb.append(full, lastEnd, matcher.start());
             int originalId = Integer.parseInt(matcher.group().substring(1)); // Drop the initial '#' prefix
-            int newId = idMap.computeIfAbsent(originalId, k -> {
-                int current = counterHolder.get();
-                counterHolder.set(current + 1);
-                return current;
-            });
-            sb.append("#").append(newId);
+            sb.append("#").append(idMap.getId(originalId));
             lastEnd = matcher.end();
         }
         sb.append(full, lastEnd, full.length());
@@ -416,17 +409,11 @@ public abstract class GoldenTestCase extends ESTestCase {
         Matcher matcher = SYNTHETIC_PATTERN.matcher(full);
         StringBuilder sb = new StringBuilder();
         int lastEnd = 0;
-        Holder<Integer> runningInt = new Holder<>(0);
-        Map<String, Integer> idMap = new HashMap<>();
+        var idMap = new IdMap<String>();
         while (matcher.find()) {
             sb.append(full, lastEnd, matcher.start());
             String firstSegment = matcher.group(1);
-            int newId = idMap.computeIfAbsent(firstSegment, k -> {
-                int current = runningInt.get();
-                runningInt.set(current + 1);
-                return current;
-            });
-            sb.append("$$").append(firstSegment).append("$").append(newId);
+            sb.append("$$").append(firstSegment).append("$").append(idMap.getId(firstSegment));
             lastEnd = matcher.end();
         }
         sb.append(full, lastEnd, full.length());
@@ -435,6 +422,15 @@ public abstract class GoldenTestCase extends ESTestCase {
 
     private static final Pattern SYNTHETIC_PATTERN = Pattern.compile("\\$\\$([^$\\s]+)(\\$\\d+)+(?=[{#])");
     private static final Pattern IDENTIFIER_PATTERN = Pattern.compile("#\\d+");
+
+    private static class IdMap<K> {
+        private final Map<K, Integer> map = new HashMap<>();
+        private int counter = 0;
+
+        public int getId(K key) {
+            return map.computeIfAbsent(key, k -> counter++);
+        }
+    }
 
     private static Test.TestResult verifyExisting(Path output, QueryPlan<?> plan) throws IOException {
         String testString = normalize(normalizeNameIds(plan));

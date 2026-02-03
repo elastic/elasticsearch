@@ -228,11 +228,6 @@ public class TestModel extends Model {
         public String modelId() {
             return model;
         }
-
-        @Override
-        public TestServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
-            return fromMap(serviceSettings);
-        }
     }
 
     public record TestTaskSettings(Integer temperature) implements TaskSettings {

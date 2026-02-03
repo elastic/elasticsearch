@@ -17,20 +17,27 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.MultiMatchQuery;
@@ -64,7 +71,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isMapExpression;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -75,9 +81,12 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
+import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeQuery;
 
 /**
  * Full text function that performs a {@link org.elasticsearch.xpack.esql.querydsl.query.MultiMatchQuery} .
@@ -103,6 +112,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
     );
 
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(
+        NULL,
         KEYWORD,
         TEXT,
         BOOLEAN,
@@ -335,15 +345,21 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
     }
 
     @Override
-    protected Query translate(TranslatorHandler handler) {
+    protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         Map<String, Float> fieldsWithBoost = new HashMap<>();
         for (Expression field : fields) {
-            var fieldAttribute = Match.fieldAsFieldAttribute(field);
+            if (Expressions.isGuaranteedNull(field)) {
+                // Skip fields that are guaranteed to be null, as they are not present in the mapping
+                continue;
+            }
+            var fieldAttribute = fieldAsFieldAttribute(field);
             Check.notNull(fieldAttribute, "MultiMatch must have field attributes as arguments #2 to #N-1.");
-            String fieldName = Match.getNameFromFieldAttribute(fieldAttribute);
+            String fieldName = getNameFromFieldAttribute(fieldAttribute);
             fieldsWithBoost.put(fieldName, 1.0f);
         }
-        return new MultiMatchQuery(source(), Objects.toString(queryAsObject()), fieldsWithBoost, getOptions());
+        assert fieldsWithBoost.isEmpty() == false
+            : "If no fields are present in the mapping, the MultiMatch function should have been folded to null";
+        return new MultiMatchQuery(source(), Foldables.queryAsString(query(), sourceText()), fieldsWithBoost, getOptions());
     }
 
     @Override
@@ -367,7 +383,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
             return options;
         }
 
-        Match.populateOptionsMap((MapExpression) options(), options, THIRD, sourceText(), OPTIONS);
+        Options.populateMap((MapExpression) options(), options, source(), THIRD, OPTIONS);
         return options;
     }
 
@@ -379,15 +395,14 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
     private TypeResolution resolveFields() {
         return fields.stream()
             .map(
-                (Expression field) -> isNotNull(field, sourceText(), SECOND).and(
-                    isType(
-                        field,
-                        FIELD_DATA_TYPES::contains,
-                        sourceText(),
-                        SECOND,
-                        "keyword, text, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version"
-                    )
+                (Expression field) -> isType(
+                    field,
+                    FIELD_DATA_TYPES::contains,
+                    sourceText(),
+                    SECOND,
+                    "null, keyword, text, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version"
                 )
+
             )
             .reduce(TypeResolution::and)
             .orElse(null);
@@ -415,18 +430,43 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
     }
 
     private TypeResolution resolveQuery() {
-        return isType(
+        TypeResolution result = isType(
             query(),
             QUERY_DATA_TYPES::contains,
             sourceText(),
             FIRST,
             "keyword, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version"
-        ).and(isNotNullAndFoldable(query(), sourceText(), FIRST));
+        ).and(isNotNull(query(), sourceText(), FIRST));
+        if (result.unresolved()) {
+            return result;
+        }
+        result = resolveTypeQuery(query(), sourceText(), forPreOptimizationValidation(query()));
+        if (result.equals(TypeResolution.TYPE_RESOLVED) == false) {
+            return result;
+        }
+        return TypeResolution.TYPE_RESOLVED;
     }
 
     @Override
     protected TypeResolution resolveParams() {
         return resolveQuery().and(resolveFields()).and(resolveOptions());
+    }
+
+    @Override
+    public boolean foldable() {
+        // The function is foldable if all fields are guaranteed to be null, due to the fields not being present in the mapping
+        return fields.stream().allMatch(Expressions::isGuaranteedNull);
+    }
+
+    @Override
+    public Object fold(FoldContext ctx) {
+        // We only fold when all fields are null (none is present in the mapping), so we return null
+        return Literal.NULL;
+    }
+
+    @Override
+    public Nullability nullable() {
+        return Expressions.nullable(fields);
     }
 
     @Override
@@ -451,7 +491,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
             super.postAnalysisPlanVerification().accept(plan, failures);
             plan.forEachExpression(MultiMatch.class, mm -> {
                 for (Expression field : fields) {
-                    if (Match.fieldAsFieldAttribute(field) == null) {
+                    if ((Expressions.isGuaranteedNull(field) == false) && (fieldAsFieldAttribute(field) == null)) {
                         failures.add(
                             Failure.fail(
                                 field,

@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -76,13 +75,7 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
     }
 
     public static void writeMappingMetadata(StreamOutput out, Map<String, MappingMetadata> mappings) throws IOException {
-        out.writeMap(mappings, out.getTransportVersion().before(TransportVersions.V_8_0_0) ? (o, v) -> {
-            o.writeVInt(v == EMPTY_MAPPINGS ? 0 : 1);
-            if (v != EMPTY_MAPPINGS) {
-                o.writeString(MapperService.SINGLE_MAPPING_NAME);
-                v.writeTo(o);
-            }
-        } : (o, v) -> {
+        out.writeMap(mappings, (o, v) -> {
             o.writeBoolean(v != EMPTY_MAPPINGS);
             if (v != EMPTY_MAPPINGS) {
                 v.writeTo(o);

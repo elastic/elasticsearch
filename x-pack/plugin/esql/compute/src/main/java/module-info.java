@@ -21,6 +21,8 @@ module org.elasticsearch.compute {
     requires org.elasticsearch.geo;
     requires org.elasticsearch.xcore;
     requires hppc;
+    requires org.elasticsearch.exponentialhistogram;
+    requires org.elasticsearch.swisshash;
 
     exports org.elasticsearch.compute;
     exports org.elasticsearch.compute.aggregation;
@@ -36,4 +38,6 @@ module org.elasticsearch.compute {
     exports org.elasticsearch.compute.aggregation.table;
     exports org.elasticsearch.compute.data.sort;
     exports org.elasticsearch.compute.querydsl.query;
+    exports org.elasticsearch.compute.lucene.read;
+    exports org.elasticsearch.compute.operator.fuse;
 }

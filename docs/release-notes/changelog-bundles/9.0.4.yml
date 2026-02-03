@@ -1,0 +1,102 @@
+version: 9.0.4
+released: true
+generated: 2025-07-22T14:06:39.720484275Z
+changelogs:
+  - pr: 129223
+    summary: Fix text similarity reranker does not propagate min score correctly
+    area: Search
+    type: bug
+    issues: []
+  - pr: 129325
+    summary: Check for model deployment in inference endpoints before stopping
+    area: Machine Learning
+    type: bug
+    issues:
+      - 128549
+  - pr: 129370
+    summary: Avoid dropping aggregate groupings in local plans
+    area: ES|QL
+    type: bug
+    issues:
+      - 129811
+      - 128054
+  - pr: 129600
+    summary: Make flattened synthetic source concatenate object keys on scalar/object mismatch
+    area: Mapping
+    type: bug
+    issues:
+      - 122936
+  - pr: 129725
+    summary: Throw a 400 when sorting for all types of range fields
+    area: Search
+    type: bug
+    issues: []
+  - pr: 129904
+    summary: Reverse disordered-version warning message
+    area: Infra/Core
+    type: bug
+    issues: []
+  - pr: 130083
+    summary: Fix timeout bug in DBQ deletion of unused and orphan ML data
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 130303
+    summary: Drain responses on completion for `TransportNodesAction`
+    area: Distributed
+    type: bug
+    issues: []
+  - pr: 130448
+    summary: Fix wildcard drop after lookup join
+    area: ES|QL
+    type: bug
+    issues:
+      - 129561
+  - pr: 130452
+    summary: "Aggs: Add cancellation checks to `FilterByFilter` aggregator"
+    area: Aggregations
+    type: bug
+    issues: []
+  - pr: 130521
+    summary: Trim to size lists created in source fetchers
+    area: Search
+    type: bug
+    issues: []
+  - pr: 130576
+    summary: Avoid O(N^2) in VALUES with ordinals grouping
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 130705
+    summary: Fix `BytesRef2BlockHash`
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 130776
+    summary: Fix msearch request parsing when index expression is null
+    area: Search
+    type: bug
+    issues:
+      - 129631
+  - pr: 130924
+    summary: Check field data type before casting when applying geo distance sort
+    area: Search
+    type: bug
+    issues:
+      - 129500
+  - pr: 131032
+    summary: "Fix: `GET _synonyms` returns synonyms with empty rules"
+    area: Relevance
+    type: bug
+    issues: []
+  - pr: 131081
+    summary: Fix knn search error when dimensions are not set
+    area: Vector Search
+    type: bug
+    issues:
+      - 129550
+  - pr: 131113
+    summary: Including `max_tokens` through the Service API for Anthropic
+    area: Machine Learning
+    type: bug
+    issues: []

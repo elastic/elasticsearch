@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.huggingface.rerank;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -16,6 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
@@ -27,7 +27,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
-import static org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettings.extractUri;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractUri;
 
 public class HuggingFaceRerankServiceSettings extends FilteredXContentObject
     implements
@@ -35,13 +35,16 @@ public class HuggingFaceRerankServiceSettings extends FilteredXContentObject
         HuggingFaceRateLimitServiceSettings {
 
     public static final String NAME = "hugging_face_rerank_service_settings";
-    public static final String URL = "url";
 
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(3000);
 
+    private static final TransportVersion ML_INFERENCE_HUGGING_FACE_RERANK_ADDED = TransportVersion.fromName(
+        "ml_inference_sagemaker_chat_completion"
+    );
+
     public static HuggingFaceRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
-        var uri = extractUri(map, URL, validationException);
+        var uri = extractUri(map, ServiceFields.URL, validationException);
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,
@@ -102,7 +105,7 @@ public class HuggingFaceRerankServiceSettings extends FilteredXContentObject
 
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
-        builder.field(URL, uri.toString());
+        builder.field(ServiceFields.URL, uri.toString());
         rateLimitSettings.toXContent(builder, params);
 
         return builder;
@@ -115,7 +118,13 @@ public class HuggingFaceRerankServiceSettings extends FilteredXContentObject
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_HUGGING_FACE_RERANK_ADDED;
+        assert false : "should never be called when supportsVersion is used";
+        return ML_INFERENCE_HUGGING_FACE_RERANK_ADDED;
+    }
+
+    @Override
+    public boolean supportsVersion(TransportVersion version) {
+        return version.supports(ML_INFERENCE_HUGGING_FACE_RERANK_ADDED);
     }
 
     @Override

@@ -9,16 +9,19 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.DiversifyingChildrenByteKnnVectorQuery;
+import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildrenByteKnnVectorQuery implements QueryProfilerProvider {
     private final int kParam;
     private long vectorOpsCount;
+    private final boolean earlyTermination;
 
     public ESDiversifyingChildrenByteKnnVectorQuery(
         String field,
@@ -29,8 +32,22 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
         BitSetProducer parentsFilter,
         KnnSearchStrategy strategy
     ) {
+        this(field, query, childFilter, k, numCands, parentsFilter, strategy, false);
+    }
+
+    public ESDiversifyingChildrenByteKnnVectorQuery(
+        String field,
+        byte[] query,
+        Query childFilter,
+        int k,
+        int numCands,
+        BitSetProducer parentsFilter,
+        KnnSearchStrategy strategy,
+        boolean earlyTermination
+    ) {
         super(field, query, childFilter, numCands, parentsFilter, strategy);
         this.kParam = k;
+        this.earlyTermination = earlyTermination;
     }
 
     @Override
@@ -47,5 +64,11 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
 
     public KnnSearchStrategy getStrategy() {
         return searchStrategy;
+    }
+
+    @Override
+    protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
+        KnnCollectorManager knnCollectorManager = super.getKnnCollectorManager(k, searcher);
+        return earlyTermination ? PatienceCollectorManager.wrap(knnCollectorManager) : knnCollectorManager;
     }
 }

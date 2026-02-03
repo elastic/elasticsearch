@@ -6,6 +6,7 @@
  */
 
 module org.elasticsearch.rank.vectors {
+    requires org.elasticsearch.base;
     requires org.elasticsearch.xcore;
     requires org.elasticsearch.painless.spi;
     requires org.elasticsearch.server;

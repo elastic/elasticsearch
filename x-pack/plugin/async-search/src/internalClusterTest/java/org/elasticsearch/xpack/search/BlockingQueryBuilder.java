@@ -12,7 +12,6 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -80,7 +79,7 @@ class BlockingQueryBuilder extends AbstractQueryBuilder<BlockingQueryBuilder> {
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) {
-        final Query delegate = Queries.newMatchAllQuery();
+        final Query delegate = Queries.ALL_DOCS_INSTANCE;
         return new Query() {
             @Override
             public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
@@ -131,7 +130,7 @@ class BlockingQueryBuilder extends AbstractQueryBuilder<BlockingQueryBuilder> {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 
     /**

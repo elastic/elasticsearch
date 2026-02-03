@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.aggregatemetric.aggregations.metrics;
 
+import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -59,7 +59,7 @@ class AggregateMetricBackedMinAggregator extends NumericMetricsAggregator.Single
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         final BigArrays bigArrays = bigArrays();
         final SortedNumericDoubleValues allValues = valuesSource.getAggregateMetricValues(aggCtx.getLeafReaderContext(), Metric.min);
-        final NumericDoubleValues values = MultiValueMode.MIN.select(allValues);
+        final DoubleValues values = MultiValueMode.MIN.select(allValues);
         return new LeafBucketCollectorBase(sub, allValues) {
 
             @Override

@@ -9,8 +9,6 @@
 
 package org.elasticsearch.action.admin.cluster.desirednodes;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,7 +19,6 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class UpdateDesiredNodesResponse extends ActionResponse implements ToXContentObject {
-    private static final TransportVersion DRY_RUN_SUPPORTING_VERSION = TransportVersions.V_8_4_0;
 
     private final boolean replacedExistingHistoryId;
     private final boolean dryRun;
@@ -37,15 +34,13 @@ public class UpdateDesiredNodesResponse extends ActionResponse implements ToXCon
 
     public UpdateDesiredNodesResponse(StreamInput in) throws IOException {
         this.replacedExistingHistoryId = in.readBoolean();
-        dryRun = in.getTransportVersion().onOrAfter(DRY_RUN_SUPPORTING_VERSION) ? in.readBoolean() : false;
+        dryRun = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(replacedExistingHistoryId);
-        if (out.getTransportVersion().onOrAfter(DRY_RUN_SUPPORTING_VERSION)) {
-            out.writeBoolean(dryRun);
-        }
+        out.writeBoolean(dryRun);
     }
 
     public boolean hasReplacedExistingHistoryId() {

@@ -16,12 +16,16 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class TopNOperatorStatusTests extends AbstractWireSerializingTestCase<TopNOperatorStatus> {
     public static TopNOperatorStatus simple() {
-        return new TopNOperatorStatus(10, 2000, 123, 123, 111, 222);
+        return new TopNOperatorStatus(100, 40, 10, 2000, 123, 123, 111, 222);
     }
 
     public static String simpleToJson() {
         return """
             {
+              "receive_nanos" : 100,
+              "receive_time" : "100nanos",
+              "emit_nanos" : 40,
+              "emit_time" : "40nanos",
               "occupied_rows" : 10,
               "ram_bytes_used" : 2000,
               "ram_used" : "1.9kb",
@@ -44,6 +48,8 @@ public class TopNOperatorStatusTests extends AbstractWireSerializingTestCase<Top
     @Override
     protected TopNOperatorStatus createTestInstance() {
         return new TopNOperatorStatus(
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
             randomNonNegativeInt(),
             randomNonNegativeLong(),
             randomNonNegativeInt(),
@@ -55,34 +61,51 @@ public class TopNOperatorStatusTests extends AbstractWireSerializingTestCase<Top
 
     @Override
     protected TopNOperatorStatus mutateInstance(TopNOperatorStatus instance) {
+        long receiveNanos = instance.receiveNanos();
+        long emitNanos = instance.emitNanos();
         int occupiedRows = instance.occupiedRows();
         long ramBytesUsed = instance.ramBytesUsed();
         int pagesReceived = instance.pagesReceived();
         int pagesEmitted = instance.pagesEmitted();
         long rowsReceived = instance.rowsReceived();
         long rowsEmitted = instance.rowsEmitted();
-        switch (between(0, 5)) {
+        switch (between(0, 7)) {
             case 0:
-                occupiedRows = randomValueOtherThan(occupiedRows, ESTestCase::randomNonNegativeInt);
+                receiveNanos = randomValueOtherThan(receiveNanos, ESTestCase::randomNonNegativeLong);
                 break;
             case 1:
-                ramBytesUsed = randomValueOtherThan(ramBytesUsed, ESTestCase::randomNonNegativeLong);
+                emitNanos = randomValueOtherThan(emitNanos, ESTestCase::randomNonNegativeLong);
                 break;
             case 2:
-                pagesReceived = randomValueOtherThan(pagesReceived, ESTestCase::randomNonNegativeInt);
+                occupiedRows = randomValueOtherThan(occupiedRows, ESTestCase::randomNonNegativeInt);
                 break;
             case 3:
-                pagesEmitted = randomValueOtherThan(pagesEmitted, ESTestCase::randomNonNegativeInt);
+                ramBytesUsed = randomValueOtherThan(ramBytesUsed, ESTestCase::randomNonNegativeLong);
                 break;
             case 4:
-                rowsReceived = randomValueOtherThan(rowsReceived, ESTestCase::randomNonNegativeLong);
+                pagesReceived = randomValueOtherThan(pagesReceived, ESTestCase::randomNonNegativeInt);
                 break;
             case 5:
+                pagesEmitted = randomValueOtherThan(pagesEmitted, ESTestCase::randomNonNegativeInt);
+                break;
+            case 6:
+                rowsReceived = randomValueOtherThan(rowsReceived, ESTestCase::randomNonNegativeLong);
+                break;
+            case 7:
                 rowsEmitted = randomValueOtherThan(rowsEmitted, ESTestCase::randomNonNegativeLong);
                 break;
             default:
                 throw new IllegalArgumentException();
         }
-        return new TopNOperatorStatus(occupiedRows, ramBytesUsed, pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
+        return new TopNOperatorStatus(
+            receiveNanos,
+            emitNanos,
+            occupiedRows,
+            ramBytesUsed,
+            pagesReceived,
+            pagesEmitted,
+            rowsReceived,
+            rowsEmitted
+        );
     }
 }

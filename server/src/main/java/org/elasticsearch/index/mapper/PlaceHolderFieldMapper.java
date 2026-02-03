@@ -10,12 +10,10 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -98,10 +96,10 @@ public class PlaceHolderFieldMapper extends FieldMapper {
 
     public static final class PlaceHolderFieldType extends MappedFieldType {
 
-        private String type;
+        private final String type;
 
         public PlaceHolderFieldType(String name, String type, Map<String, String> meta) {
-            super(name, false, false, false, TextSearchInfo.NONE, meta);
+            super(name, IndexType.NONE, false, meta);
             this.type = type;
         }
 
@@ -220,48 +218,6 @@ public class PlaceHolderFieldMapper extends FieldMapper {
         @Override
         public Query distanceFeatureQuery(Object origin, String pivot, SearchExecutionContext context) {
             throw new QueryShardException(context, fail("distance feature query"));
-        }
-
-        @Override
-        public IntervalsSource termIntervals(BytesRef term, SearchExecutionContext context) {
-            throw new QueryShardException(context, fail("term intervals query"));
-        }
-
-        @Override
-        public IntervalsSource prefixIntervals(BytesRef prefix, SearchExecutionContext context) {
-            throw new QueryShardException(context, fail("term intervals query"));
-        }
-
-        @Override
-        public IntervalsSource fuzzyIntervals(
-            String term,
-            int maxDistance,
-            int prefixLength,
-            boolean transpositions,
-            SearchExecutionContext context
-        ) {
-            throw new QueryShardException(context, fail("fuzzy intervals query"));
-        }
-
-        @Override
-        public IntervalsSource wildcardIntervals(BytesRef pattern, SearchExecutionContext context) {
-            throw new QueryShardException(context, fail("wildcard intervals query"));
-        }
-
-        @Override
-        public IntervalsSource regexpIntervals(BytesRef pattern, SearchExecutionContext context) {
-            throw new QueryShardException(context, fail("regexp intervals query"));
-        }
-
-        @Override
-        public IntervalsSource rangeIntervals(
-            BytesRef lowerTerm,
-            BytesRef upperTerm,
-            boolean includeLower,
-            boolean includeUpper,
-            SearchExecutionContext context
-        ) {
-            throw new QueryShardException(context, fail("range intervals query"));
         }
 
         @Override

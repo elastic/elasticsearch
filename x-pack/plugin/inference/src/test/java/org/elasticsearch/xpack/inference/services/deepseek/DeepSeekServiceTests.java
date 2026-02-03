@@ -13,15 +13,21 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
+import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -35,6 +41,8 @@ import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
+import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.junit.After;
 import org.junit.Before;
 
@@ -52,7 +60,7 @@ import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureLi
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
@@ -61,8 +69,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isA;
 import static org.mockito.Mockito.mock;
 
-public class DeepSeekServiceTests extends ESTestCase {
+public class DeepSeekServiceTests extends InferenceServiceTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+    private static final String INFERENCE_ENTITY_ID_VALUE = "inference_id";
+    private static final String DEEPSEEK_SERVICE_NAME = "deepseek";
+    private static final String API_KEY_VALUE = "api_key";
+    private static final String MODEL_ID_VALUE = "some-cool-model";
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
@@ -70,7 +82,7 @@ public class DeepSeekServiceTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         webServer.start();
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
     }
 
@@ -93,7 +105,7 @@ public class DeepSeekServiceTests extends ESTestCase {
             """, webServer.getUri(null).toString()), assertNoFailureListener(model -> {
             if (model instanceof DeepSeekChatCompletionModel deepSeekModel) {
                 assertThat(deepSeekModel.apiKey().get().getChars(), equalTo("12345".toCharArray()));
-                assertThat(deepSeekModel.model(), equalTo("some-cool-model"));
+                assertThat(deepSeekModel.model(), equalTo(MODEL_ID_VALUE));
                 assertThat(deepSeekModel.uri(), equalTo(webServer.getUri(null)));
             } else {
                 fail("Expected DeepSeekModel, found " + (model != null ? model.getClass().getSimpleName() : "null"));
@@ -161,7 +173,7 @@ public class DeepSeekServiceTests extends ESTestCase {
             }
             """);
         assertThat(deepSeekModel.apiKey(), equalTo(Optional.empty()));
-        assertThat(deepSeekModel.model(), equalTo("some-cool-model"));
+        assertThat(deepSeekModel.model(), equalTo(MODEL_ID_VALUE));
     }
 
     public void testParsePersistedConfigWithUrl() throws IOException {
@@ -174,7 +186,7 @@ public class DeepSeekServiceTests extends ESTestCase {
             }
             """);
         assertThat(deepSeekModel.apiKey(), equalTo(Optional.empty()));
-        assertThat(deepSeekModel.model(), equalTo("some-cool-model"));
+        assertThat(deepSeekModel.model(), equalTo(MODEL_ID_VALUE));
         assertThat(deepSeekModel.uri(), equalTo(URI.create("http://localhost:989")));
     }
 
@@ -348,20 +360,35 @@ public class DeepSeekServiceTests extends ESTestCase {
             }}""");
     }
 
-    public void testDoChunkedInferAlwaysFails() throws IOException {
+    public void testChunkedInferFails() throws IOException {
         try (var service = createService()) {
-            service.doChunkedInfer(mock(), mock(), Map.of(), InputType.UNSPECIFIED, TIMEOUT, assertNoSuccessListener(e -> {
-                assertThat(e, isA(UnsupportedOperationException.class));
-                assertThat(e.getMessage(), equalTo("The deepseek service only supports unified completion"));
-            }));
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            service.chunkedInfer(mock(), null, List.of(new ChunkInferenceInput("a")), Map.of(), InputType.UNSPECIFIED, TIMEOUT, listener);
+            var exception = expectThrows(UnsupportedOperationException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(exception.getMessage(), is("deepseek service does not support chunked inference"));
+        }
+    }
+
+    public void testChunkedInferFails_noInputs() throws IOException {
+        try (var service = createService()) {
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            service.chunkedInfer(mock(), null, List.of(), Map.of(), InputType.UNSPECIFIED, TIMEOUT, listener);
+            var exception = expectThrows(UnsupportedOperationException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(exception.getMessage(), is("deepseek service does not support chunked inference"));
         }
     }
 
     private DeepSeekService createService() {
         return new DeepSeekService(
             HttpRequestSenderTests.createSenderFactory(threadPool, clientManager),
-            createWithEmptySettings(threadPool)
+            createWithEmptySettings(threadPool),
+            mockClusterServiceEmpty()
         );
+    }
+
+    @Override
+    public InferenceService createInferenceService() {
+        return createService();
     }
 
     private void parseRequestConfig(String json, ActionListener<Model> listener) throws IOException {
@@ -419,5 +446,54 @@ public class DeepSeekServiceTests extends ESTestCase {
             """));
         assertThat(model, isA(DeepSeekChatCompletionModel.class));
         return (DeepSeekChatCompletionModel) model;
+    }
+
+    public void testBuildModelFromConfigAndSecrets_ChatCompletion() throws IOException {
+        var model = new DeepSeekChatCompletionModel(
+            new ModelConfigurations(
+                INFERENCE_ENTITY_ID_VALUE,
+                TaskType.CHAT_COMPLETION,
+                DEEPSEEK_SERVICE_NAME,
+                new DeepSeekChatCompletionModel.DeepSeekServiceSettings(MODEL_ID_VALUE, null)
+            ),
+            new ModelSecrets(new DefaultSecretSettings(new SecureString(API_KEY_VALUE.toCharArray())))
+        );
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_UnsupportedTaskType() throws IOException {
+        var modelConfigurations = new ModelConfigurations(
+            INFERENCE_ENTITY_ID_VALUE,
+            TaskType.SPARSE_EMBEDDING,
+            DEEPSEEK_SERVICE_NAME,
+            mock(ServiceSettings.class)
+        );
+        try (var inferenceService = createInferenceService()) {
+            var thrownException = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> inferenceService.buildModelFromConfigAndSecrets(modelConfigurations, mock(ModelSecrets.class))
+            );
+            assertThat(
+                thrownException.getMessage(),
+                is(
+                    org.elasticsearch.core.Strings.format(
+                        """
+                            Failed to parse stored model [%s] for [%s] service, error: [The [%s] service does not support task type [%s]]. \
+                            Please delete and add the service again""",
+                        INFERENCE_ENTITY_ID_VALUE,
+                        DEEPSEEK_SERVICE_NAME,
+                        DEEPSEEK_SERVICE_NAME,
+                        TaskType.SPARSE_EMBEDDING
+                    )
+                )
+            );
+        }
+    }
+
+    private void validateModelBuilding(Model model) throws IOException {
+        try (var inferenceService = createInferenceService()) {
+            var resultModel = inferenceService.buildModelFromConfigAndSecrets(model.getConfigurations(), model.getSecrets());
+            assertThat(resultModel, is(model));
+        }
     }
 }

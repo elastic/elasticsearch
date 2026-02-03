@@ -209,3 +209,77 @@ tsdb:
       $body: |
         /^(tsdb \s+ 0 \s+ p \s+ \d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3} \s+ _\d (\s\d){3} \s+
         (\d+|\d+[.]\d+)(kb|b) \s+ \d+ (\s+ (false|true)){2} \s+  \d+\.\d+(\.\d+)? \s+ (false|true) \s? \n?)$/
+
+---
+Wildcard Expansion Settings:
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_cat/segments
+          capabilities: [ allow_closed ]
+      test_runner_features: [ capabilities ]
+      reason: Capability required to run test
+
+  - do:
+      indices.create:
+        index: basic-index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      index:
+        index: basic-index
+        id: "1"
+        body:
+          field: "basic doc 1"
+
+  - do:
+      indices.create:
+        index: hidden-index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            index.hidden: true
+
+  - do:
+      index:
+        index: hidden-index
+        id: "1"
+        body:
+          field: "hidden doc 1"
+
+  - do:
+      indices.create:
+        index: closed-index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      index:
+        index: closed-index
+        id: "1"
+        body:
+          field: "closed doc 1"
+
+  - do:
+      indices.refresh:
+        index: [ basic-index, closed-index, hidden-index ]
+
+  - do:
+      indices.close:
+        index: closed-index
+
+  - do:
+      cat.segments:
+        v: true
+        s: index
+        expand_wildcards: all
+        allow_closed: true
+  - match:
+      $body: |
+        /basic-index(\s)+0(\s)+p.*\nclosed-index(\s)+0(\s)+p.*\nhidden-index(\s)+0(\s)+p.*/

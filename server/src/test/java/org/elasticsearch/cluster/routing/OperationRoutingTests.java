@@ -9,9 +9,15 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -19,6 +25,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -173,13 +180,18 @@ public class OperationRoutingTests extends ESTestCase {
         for (int i = 0; i < numRepeatedSearches; i++) {
             List<ShardRouting> searchedShards = new ArrayList<>(numShards);
             Set<String> selectedNodes = Sets.newHashSetWithExpectedSize(numShards);
-            final List<ShardIterator> groupIterator = opRouting.searchShards(state.projectState(projectId), indexNames, null, sessionKey);
+            final List<SearchShardRouting> groupIterator = opRouting.searchShards(
+                state.projectState(projectId),
+                indexNames,
+                null,
+                sessionKey
+            );
 
             assertThat("One group per index shard", groupIterator.size(), equalTo(numIndices * numShards));
-            for (ShardIterator shardIterator : groupIterator) {
-                assertThat(shardIterator.size(), equalTo(numReplicas + 1));
+            for (SearchShardRouting routing : groupIterator) {
+                assertThat(routing.size(), equalTo(numReplicas + 1));
 
-                ShardRouting firstChoice = shardIterator.nextOrNull();
+                ShardRouting firstChoice = routing.nextOrNull();
                 assertNotNull(firstChoice);
                 ShardRouting duelFirst = duelGetShards(state, firstChoice.shardId(), sessionKey).nextOrNull();
                 assertThat("Regression test failure", duelFirst, equalTo(firstChoice));
@@ -300,7 +312,7 @@ public class OperationRoutingTests extends ESTestCase {
         TestThreadPool threadPool = new TestThreadPool("test");
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         ResponseCollectorService collector = new ResponseCollectorService(clusterService);
-        List<ShardIterator> groupIterator = opRouting.searchShards(project, indexNames, null, null, collector, new HashMap<>());
+        List<SearchShardRouting> groupIterator = opRouting.searchShards(project, indexNames, null, null, collector, new HashMap<>());
 
         assertThat("One group per index shard", groupIterator.size(), equalTo(numIndices * numShards));
 
@@ -381,7 +393,7 @@ public class OperationRoutingTests extends ESTestCase {
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
 
         ResponseCollectorService collector = new ResponseCollectorService(clusterService);
-        List<ShardIterator> groupIterator = opRouting.searchShards(project, indexNames, null, null, collector, new HashMap<>());
+        List<SearchShardRouting> groupIterator = opRouting.searchShards(project, indexNames, null, null, collector, new HashMap<>());
         assertThat("One group per index shard", groupIterator.size(), equalTo(numIndices * numShards));
 
         // We have two nodes, where the second has more load
@@ -442,7 +454,7 @@ public class OperationRoutingTests extends ESTestCase {
         Map<String, Long> outstandingRequests = new HashMap<>();
 
         // Check that we choose to search over both nodes
-        List<ShardIterator> groupIterator = opRouting.searchShards(project, indexNames, null, null, collector, outstandingRequests);
+        List<SearchShardRouting> groupIterator = opRouting.searchShards(project, indexNames, null, null, collector, outstandingRequests);
 
         Set<String> nodeIds = new HashSet<>();
         nodeIds.add(groupIterator.get(0).nextOrNull().currentNodeId());
@@ -463,6 +475,288 @@ public class OperationRoutingTests extends ESTestCase {
         nodeIds.add(groupIterator.get(1).nextOrNull().currentNodeId());
         assertThat(nodeIds, equalTo(Set.of("node_1")));
         assertThat(outstandingRequests.get("node_1"), equalTo(2L));
+
+        IOUtils.close(clusterService);
+        terminate(threadPool);
+    }
+
+    public void testOperationRoutingWithResharding() throws IOException {
+        var threadPool = new TestThreadPool("testOperationRoutingWithResharding");
+        var clusterService = ClusterServiceUtils.createClusterService(threadPool);
+
+        final ProjectId projectId = randomProjectIdOrDefault();
+        final String indexName = "test";
+        final int shardCount = randomIntBetween(1, 4);
+        final int newShardCount = shardCount * 2;
+
+        var indexMetadata = IndexMetadata.builder(indexName)
+            .settings(indexSettings(IndexVersion.current(), newShardCount, 1))
+            .numberOfShards(newShardCount)
+            .numberOfReplicas(1)
+            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(shardCount, 2))
+            .build();
+
+        ClusterState.Builder initialStateBuilder = ClusterState.builder(new ClusterName("test"));
+        initialStateBuilder.metadata(
+            Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).generateClusterUuidIfNeeded()
+        );
+        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
+        for (int i = 0; i < newShardCount; i++) {
+            final ShardId shardId = new ShardId(indexName, "_na_", i);
+            IndexShardRoutingTable.Builder indexShardRoutingBuilder = IndexShardRoutingTable.builder(shardId);
+            indexShardRoutingBuilder.addShard(
+                TestShardRouting.newShardRouting(indexName, i, "node0", null, true, ShardRoutingState.STARTED)
+            );
+            indexShardRoutingBuilder.addShard(
+                TestShardRouting.newShardRouting(indexName, i, "node1", null, false, ShardRoutingState.STARTED)
+            );
+            indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder);
+        }
+        initialStateBuilder.routingTable(
+            GlobalRoutingTable.builder().put(projectId, RoutingTable.builder().add(indexRoutingTableBuilder.build())).build()
+        );
+
+        var initialState = initialStateBuilder.build();
+        ClusterServiceUtils.setState(clusterService, initialState);
+
+        var initialSearchShards = clusterService.operationRouting()
+            .searchShards(clusterService.state().projectState(projectId), new String[] { indexName }, null, null);
+        assertEquals(shardCount, initialSearchShards.size());
+        for (int i = 0; i < shardCount; i++) {
+            assertEquals(i, initialSearchShards.get(i).shardId().id());
+            assertEquals(SplitShardCountSummary.fromInt(shardCount), initialSearchShards.get(i).reshardSplitShardCountSummary());
+        }
+
+        // We are testing a case when there is routing configuration but not for the index in question.
+        // Actual routing behavior is tested in IndexRoutingTests.
+        var initialSearchShardsWithRouting = clusterService.operationRouting()
+            .searchShards(clusterService.state().projectState(projectId), new String[] { indexName }, Map.of("other", Set.of("1")), null);
+        assertEquals(shardCount, initialSearchShardsWithRouting.size());
+        for (int i = 0; i < shardCount; i++) {
+            assertEquals(i, initialSearchShardsWithRouting.get(i).shardId().id());
+            assertEquals(SplitShardCountSummary.fromInt(shardCount), initialSearchShardsWithRouting.get(i).reshardSplitShardCountSummary());
+        }
+
+        var initialWriteableShards = clusterService.operationRouting()
+            .allWritableShards(clusterService.state().projectState(projectId), indexName);
+        for (int i = 0; i < shardCount; i++) {
+            assertEquals(i, initialWriteableShards.next().shardId().id());
+        }
+        assertFalse(initialWriteableShards.hasNext());
+
+        final Index index = clusterService.state().metadata().getProject(projectId).index(indexName).getIndex();
+
+        var shardChangingSplitTargetState = randomIntBetween(shardCount, newShardCount - 1);
+
+        var currentIndexMetadata = clusterService.state().projectState(projectId).metadata().index(indexName);
+        var updatedReshardingMetadataOneShardInHandoff = IndexMetadata.builder(currentIndexMetadata)
+            .reshardingMetadata(
+                currentIndexMetadata.getReshardingMetadata()
+                    .transitionSplitTargetToNewState(
+                        new ShardId(index, shardChangingSplitTargetState),
+                        IndexReshardingState.Split.TargetShardState.HANDOFF
+                    )
+            )
+            .build();
+        var newState = ClusterState.builder(initialState)
+            .putProjectMetadata(
+                ProjectMetadata.builder(initialState.projectState(projectId).metadata())
+                    .put(updatedReshardingMetadataOneShardInHandoff, true)
+                    .build()
+            );
+        ClusterServiceUtils.setState(clusterService, newState);
+
+        var searchShardsWithOneShardHandoff = clusterService.operationRouting()
+            .searchShards(clusterService.state().projectState(projectId), new String[] { indexName }, null, null);
+        assertEquals(shardCount, searchShardsWithOneShardHandoff.size());
+        for (int i = 0; i < shardCount; i++) {
+            assertEquals(i, searchShardsWithOneShardHandoff.get(i).shardId().id());
+            assertEquals(
+                SplitShardCountSummary.fromInt(shardCount),
+                searchShardsWithOneShardHandoff.get(i).reshardSplitShardCountSummary()
+            );
+        }
+
+        var searchShardsWithOneShardHandoffAndRouting = clusterService.operationRouting()
+            .searchShards(clusterService.state().projectState(projectId), new String[] { indexName }, Map.of("other", Set.of("1")), null);
+        assertEquals(shardCount, searchShardsWithOneShardHandoffAndRouting.size());
+        for (int i = 0; i < shardCount; i++) {
+            assertEquals(i, searchShardsWithOneShardHandoffAndRouting.get(i).shardId().id());
+            assertEquals(
+                SplitShardCountSummary.fromInt(shardCount),
+                searchShardsWithOneShardHandoffAndRouting.get(i).reshardSplitShardCountSummary()
+            );
+        }
+
+        var writeableShardsWithOneShardHandoff = clusterService.operationRouting()
+            .allWritableShards(clusterService.state().projectState(projectId), indexName);
+        for (int i = 0; i < shardCount; i++) {
+            assertEquals(i, writeableShardsWithOneShardHandoff.next().shardId().id());
+        }
+        assertEquals(shardChangingSplitTargetState, writeableShardsWithOneShardHandoff.next().shardId().id());
+        assertFalse(writeableShardsWithOneShardHandoff.hasNext());
+
+        currentIndexMetadata = clusterService.state().projectState(projectId).metadata().index(indexName);
+        var updatedReshardingMetadataOneShardInSplit = IndexMetadata.builder(currentIndexMetadata)
+            .reshardingMetadata(
+                currentIndexMetadata.getReshardingMetadata()
+                    .transitionSplitTargetToNewState(
+                        new ShardId(index, shardChangingSplitTargetState),
+                        IndexReshardingState.Split.TargetShardState.SPLIT
+                    )
+            )
+            .build();
+        newState = ClusterState.builder(initialState)
+            .putProjectMetadata(
+                ProjectMetadata.builder(initialState.projectState(projectId).metadata())
+                    .put(updatedReshardingMetadataOneShardInSplit, true)
+                    .build()
+            );
+        ClusterServiceUtils.setState(clusterService, newState);
+
+        // This shard is always last since target shards all have ids larger than the previous shards.
+        int indexOfShardWithNewState = shardCount;
+        int sourceShard = updatedReshardingMetadataOneShardInSplit.getReshardingMetadata()
+            .getSplit()
+            .sourceShard(shardChangingSplitTargetState);
+
+        var searchShardsWithOneShardSplit = clusterService.operationRouting()
+            .searchShards(clusterService.state().projectState(projectId), new String[] { indexName }, null, null);
+        assertEquals(shardCount + 1, searchShardsWithOneShardSplit.size());
+        for (int i = 0; i < shardCount; i++) {
+            assertEquals(i, searchShardsWithOneShardSplit.get(i).shardId().id());
+        }
+        assertEquals(shardChangingSplitTargetState, searchShardsWithOneShardSplit.get(indexOfShardWithNewState).shardId().id());
+        // Since the target shard is in SPLIT state, reshardSplitShardCountSummary is updated for it and the corresponding source shard.
+        assertEquals(
+            SplitShardCountSummary.fromInt(newShardCount),
+            searchShardsWithOneShardSplit.get(indexOfShardWithNewState).reshardSplitShardCountSummary()
+        );
+        for (int i = 0; i < shardCount; i++) {
+            if (i == sourceShard) {
+                assertEquals(
+                    SplitShardCountSummary.fromInt(newShardCount),
+                    searchShardsWithOneShardSplit.get(i).reshardSplitShardCountSummary()
+                );
+            } else {
+                assertEquals(
+                    SplitShardCountSummary.fromInt(shardCount),
+                    searchShardsWithOneShardSplit.get(i).reshardSplitShardCountSummary()
+                );
+            }
+        }
+
+        var searchShardsWithOneShardSplitAndRouting = clusterService.operationRouting()
+            .searchShards(clusterService.state().projectState(projectId), new String[] { indexName }, Map.of("other", Set.of("1")), null);
+        assertEquals(shardCount + 1, searchShardsWithOneShardSplitAndRouting.size());
+        for (int i = 0; i < shardCount; i++) {
+            assertEquals(i, searchShardsWithOneShardSplitAndRouting.get(i).shardId().id());
+        }
+        assertEquals(shardChangingSplitTargetState, searchShardsWithOneShardSplitAndRouting.get(indexOfShardWithNewState).shardId().id());
+        // Since the target shard is in SPLIT state, reshardSplitShardCountSummary is updated for it and the corresponding source shard.
+        assertEquals(
+            SplitShardCountSummary.fromInt(newShardCount),
+            searchShardsWithOneShardSplitAndRouting.get(indexOfShardWithNewState).reshardSplitShardCountSummary()
+        );
+        for (int i = 0; i < shardCount; i++) {
+            if (i == sourceShard) {
+                assertEquals(
+                    SplitShardCountSummary.fromInt(newShardCount),
+                    searchShardsWithOneShardSplitAndRouting.get(i).reshardSplitShardCountSummary()
+                );
+            } else {
+                assertEquals(
+                    SplitShardCountSummary.fromInt(shardCount),
+                    searchShardsWithOneShardSplitAndRouting.get(i).reshardSplitShardCountSummary()
+                );
+            }
+        }
+
+        var writeableShardsWithOneShardSplit = clusterService.operationRouting()
+            .allWritableShards(clusterService.state().projectState(projectId), indexName);
+        for (int i = 0; i < shardCount; i++) {
+            assertEquals(i, writeableShardsWithOneShardSplit.next().shardId().id());
+        }
+        assertEquals(shardChangingSplitTargetState, writeableShardsWithOneShardSplit.next().shardId().id());
+        assertFalse(writeableShardsWithOneShardSplit.hasNext());
+
+        currentIndexMetadata = clusterService.state().projectState(projectId).metadata().index(indexName);
+        var updatedReshardingMetadataOneShardInDone = IndexMetadata.builder(currentIndexMetadata)
+            .reshardingMetadata(
+                currentIndexMetadata.getReshardingMetadata()
+                    .transitionSplitTargetToNewState(
+                        new ShardId(index, shardChangingSplitTargetState),
+                        IndexReshardingState.Split.TargetShardState.DONE
+                    )
+            )
+            .build();
+        newState = ClusterState.builder(initialState)
+            .putProjectMetadata(
+                ProjectMetadata.builder(initialState.projectState(projectId).metadata())
+                    .put(updatedReshardingMetadataOneShardInDone, true)
+                    .build()
+            );
+        ClusterServiceUtils.setState(clusterService, newState);
+
+        var searchShardsWithOneShardDone = clusterService.operationRouting()
+            .searchShards(clusterService.state().projectState(projectId), new String[] { indexName }, null, null);
+        assertEquals(shardCount + 1, searchShardsWithOneShardDone.size());
+        for (int i = 0; i < shardCount; i++) {
+            assertEquals(i, searchShardsWithOneShardDone.get(i).shardId().id());
+        }
+        assertEquals(shardChangingSplitTargetState, searchShardsWithOneShardDone.get(indexOfShardWithNewState).shardId().id());
+        // Since the target shard is past SPLIT state, reshardSplitShardCountSummary is updated for it and the corresponding source shard.
+        assertEquals(
+            SplitShardCountSummary.fromInt(newShardCount),
+            searchShardsWithOneShardDone.get(indexOfShardWithNewState).reshardSplitShardCountSummary()
+        );
+        for (int i = 0; i < shardCount; i++) {
+            if (i == sourceShard) {
+                assertEquals(
+                    SplitShardCountSummary.fromInt(newShardCount),
+                    searchShardsWithOneShardDone.get(i).reshardSplitShardCountSummary()
+                );
+            } else {
+                assertEquals(
+                    SplitShardCountSummary.fromInt(shardCount),
+                    searchShardsWithOneShardDone.get(i).reshardSplitShardCountSummary()
+                );
+            }
+        }
+
+        var searchShardsWithOneShardDoneAndRouting = clusterService.operationRouting()
+            .searchShards(clusterService.state().projectState(projectId), new String[] { indexName }, Map.of("other", Set.of("1")), null);
+        assertEquals(shardCount + 1, searchShardsWithOneShardDoneAndRouting.size());
+        for (int i = 0; i < shardCount; i++) {
+            assertEquals(i, searchShardsWithOneShardDoneAndRouting.get(i).shardId().id());
+        }
+        assertEquals(shardChangingSplitTargetState, searchShardsWithOneShardDoneAndRouting.get(indexOfShardWithNewState).shardId().id());
+        // Since the target shard is past SPLIT state, reshardSplitShardCountSummary is updated for it and the corresponding source shard.
+        assertEquals(
+            SplitShardCountSummary.fromInt(newShardCount),
+            searchShardsWithOneShardDoneAndRouting.get(indexOfShardWithNewState).reshardSplitShardCountSummary()
+        );
+        for (int i = 0; i < shardCount; i++) {
+            if (i == sourceShard) {
+                assertEquals(
+                    SplitShardCountSummary.fromInt(newShardCount),
+                    searchShardsWithOneShardDoneAndRouting.get(i).reshardSplitShardCountSummary()
+                );
+            } else {
+                assertEquals(
+                    SplitShardCountSummary.fromInt(shardCount),
+                    searchShardsWithOneShardDoneAndRouting.get(i).reshardSplitShardCountSummary()
+                );
+            }
+        }
+
+        var writeableShardsWithOneShardDone = clusterService.operationRouting()
+            .allWritableShards(clusterService.state().projectState(projectId), indexName);
+        for (int i = 0; i < shardCount; i++) {
+            assertEquals(i, writeableShardsWithOneShardDone.next().shardId().id());
+        }
+        assertEquals(shardChangingSplitTargetState, writeableShardsWithOneShardDone.next().shardId().id());
+        assertFalse(writeableShardsWithOneShardDone.hasNext());
 
         IOUtils.close(clusterService);
         terminate(threadPool);

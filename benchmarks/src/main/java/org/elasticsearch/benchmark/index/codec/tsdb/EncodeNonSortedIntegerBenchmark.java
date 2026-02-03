@@ -9,9 +9,11 @@
 
 package org.elasticsearch.benchmark.index.codec.tsdb;
 
-import org.elasticsearch.benchmark.index.codec.tsdb.internal.AbstractDocValuesForUtilBenchmark;
+import org.elasticsearch.benchmark.index.codec.tsdb.internal.AbstractTSDBCodecBenchmark;
+import org.elasticsearch.benchmark.index.codec.tsdb.internal.CompressionMetrics;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.EncodeBenchmark;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.NonSortedIntegerSupplier;
+import org.elasticsearch.benchmark.index.codec.tsdb.internal.ThroughputMetrics;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -29,37 +31,64 @@ import org.openjdk.jmh.infra.Blackhole;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Benchmark for encoding non-sorted integer patterns.
+ */
 @Fork(value = 1)
 @Warmup(iterations = 3)
-@Measurement(iterations = 10)
-@BenchmarkMode(value = Mode.AverageTime)
-@OutputTimeUnit(value = TimeUnit.NANOSECONDS)
-@State(value = Scope.Benchmark)
+@Measurement(iterations = 5)
+@BenchmarkMode(Mode.Throughput)
+@OutputTimeUnit(TimeUnit.SECONDS)
+@State(Scope.Benchmark)
 public class EncodeNonSortedIntegerBenchmark {
     private static final int SEED = 17;
-    private static final int BLOCK_SIZE = 128;
-    @Param({ "4", "8", "12", "16", "20", "24", "28", "32", "36", "40", "44", "48", "52", "56", "60", "64" })
+
+    @Param({ "1", "4", "8", "9", "16", "17", "24", "25", "32", "33", "40", "48", "56", "57", "64" })
     private int bitsPerValue;
 
-    private final AbstractDocValuesForUtilBenchmark encode;
+    /**
+     * Number of blocks encoded per measured benchmark invocation.
+     *
+     * <p>Default is 10: the smallest batch size that provides stable measurements with good
+     * signal-to-noise ratio for regression tracking. Exposed as a JMH parameter to allow
+     * tuning without code changes.
+     */
+    @Param({ "10" })
+    private int blocksPerInvocation;
+
+    private final AbstractTSDBCodecBenchmark encode;
 
     public EncodeNonSortedIntegerBenchmark() {
         this.encode = new EncodeBenchmark();
-
     }
 
-    @Setup(Level.Invocation)
-    public void setupInvocation() throws IOException {
-        encode.setupInvocation(bitsPerValue);
-    }
+    @Setup(Level.Trial)
+    public void setupTrial() throws IOException {
+        encode.setupTrial(new NonSortedIntegerSupplier(SEED, bitsPerValue, encode.getBlockSize()));
 
-    @Setup(Level.Iteration)
-    public void setupIteration() throws IOException {
-        encode.setupIteration(bitsPerValue, new NonSortedIntegerSupplier(SEED, bitsPerValue, BLOCK_SIZE));
+        encode.setBlocksPerInvocation(blocksPerInvocation);
+        encode.run();
     }
 
     @Benchmark
-    public void benchmark(Blackhole bh) throws IOException {
-        encode.benchmark(bitsPerValue, bh);
+    public void throughput(Blackhole bh, ThroughputMetrics metrics) throws IOException {
+        encode.benchmark(bh);
+        metrics.recordOperation(encode.getBlockSize() * blocksPerInvocation, encode.getEncodedSize() * blocksPerInvocation);
+    }
+
+    /**
+     * Reports compression metrics (encoded size, compression ratio, bits per value).
+     *
+     * <p>This benchmark exists only to collect compression statistics via {@link CompressionMetrics}.
+     * The reported time is not meaningful and should be ignored. Metrics are per-block regardless
+     * of the {@code blocksPerInvocation} setting.
+     */
+    @Benchmark
+    @BenchmarkMode(Mode.SingleShotTime)
+    @Warmup(iterations = 0)
+    @Measurement(iterations = 1)
+    public void compression(Blackhole bh, CompressionMetrics metrics) throws IOException {
+        encode.benchmark(bh);
+        metrics.recordOperation(encode.getBlockSize(), encode.getEncodedSize(), bitsPerValue);
     }
 }

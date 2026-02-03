@@ -17,8 +17,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-import static org.elasticsearch.system_indices.task.FeatureMigrationResults.MIGRATION_ADDED_VERSION;
-
 /**
  * The params used to initialize {@link SystemIndexMigrator} when it's initially kicked off.
  *
@@ -68,7 +66,7 @@ public class SystemIndexMigrationTaskParams implements PersistentTaskParams {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return MIGRATION_ADDED_VERSION;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

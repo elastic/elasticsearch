@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.elasticsearch.core.Nullable;
+
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -16,7 +18,7 @@ import java.lang.annotation.Target;
  * Describes function parameters.
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.PARAMETER)
+@Target({ ElementType.PARAMETER, ElementType.FIELD })
 public @interface Param {
     String name();
 
@@ -25,4 +27,31 @@ public @interface Param {
     String description() default "";
 
     boolean optional() default false;
+
+    // version since which the parameter is available
+    String since() default "";
+
+    @Nullable
+    Hint hint() default @Hint(entityType = Hint.ENTITY_TYPE.NONE);
+
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.PARAMETER)
+    @interface Hint {
+        enum ENTITY_TYPE {
+            NONE,
+            INFERENCE_ENDPOINT,
+        }
+
+        ENTITY_TYPE entityType();
+
+        Constraint[] constraints() default {};
+
+        @Retention(RetentionPolicy.RUNTIME)
+        @Target(ElementType.PARAMETER)
+        @interface Constraint {
+            String name();
+
+            String value();
+        }
+    }
 }

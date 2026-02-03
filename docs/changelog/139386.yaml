@@ -1,0 +1,6 @@
+pr: 139386
+summary: Exempt internal request markers from streams request param restrictions
+area: Data streams
+type: bug
+issues:
+ - 139367

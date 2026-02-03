@@ -32,7 +32,7 @@ public class ShowInfo extends LeafPlan implements TelemetryAware {
 
         attributes = new ArrayList<>();
         for (var name : List.of("version", "date", "hash")) {
-            attributes.add(new ReferenceAttribute(Source.EMPTY, name, KEYWORD));
+            attributes.add(new ReferenceAttribute(Source.EMPTY, null, name, KEYWORD));
         }
     }
 

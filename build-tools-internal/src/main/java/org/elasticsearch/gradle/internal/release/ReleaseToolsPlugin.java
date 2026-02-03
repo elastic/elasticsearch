@@ -53,6 +53,7 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
         project.getTasks().register("extractCurrentVersions", ExtractCurrentVersionsTask.class);
         project.getTasks().register("tagVersions", TagVersionsTask.class);
         project.getTasks().register("setCompatibleVersions", SetCompatibleVersionsTask.class, t -> t.setThisVersion(version));
+        project.getTasks().register("updateBranchesJson", UpdateBranchesJsonTask.class);
 
         final Directory changeLogDirectory = projectDirectory.dir("docs/changelog");
         final Directory changeLogBundlesDirectory = projectDirectory.dir("docs/release-notes/changelog-bundles");

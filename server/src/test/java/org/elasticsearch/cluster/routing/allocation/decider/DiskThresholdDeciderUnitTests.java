@@ -48,6 +48,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
@@ -109,7 +110,11 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             Map.of(),
             Map.of(),
             Map.of(),
-            Map.of()
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            Set.of()
         );
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(Collections.singleton(decider)),
@@ -181,7 +186,11 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             Map.of(),
             Map.of(),
             Map.of(),
-            Map.of()
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            Set.of()
         );
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(Collections.singleton(decider)),
@@ -327,7 +336,11 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             Map.of(),
             shardRoutingMap,
             Map.of(),
-            Map.of()
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            Set.of()
         );
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(Collections.singleton(decider)),
@@ -716,7 +729,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
             ShardRouting.Role.DEFAULT
         );
-        assertEquals(110L, getExpectedShardSize(target2, 0L, allocation));
+        assertEquals(510L, getExpectedShardSize(target2, 0L, allocation));
 
         target2 = ShardRouting.newUnassigned(
             new ShardId(new Index("target2", "9101112"), 1),
@@ -725,7 +738,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
             ShardRouting.Role.DEFAULT
         );
-        assertEquals(1000L, getExpectedShardSize(target2, 0L, allocation));
+        assertEquals(600L, getExpectedShardSize(target2, 0L, allocation));
 
         // check that the DiskThresholdDecider still works even if the source index has been deleted
         ClusterState clusterStateWithMissingSourceIndex = ClusterState.builder(clusterState)
@@ -840,15 +853,11 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         allFullUsages.put("node_0", new DiskUsage("node_0", "node_0", "_na_", 100, 0)); // all full
         allFullUsages.put("node_1", new DiskUsage("node_1", "node_1", "_na_", 100, 0)); // all full
 
-        final ClusterInfo clusterInfo = new ClusterInfo(
-            allFullUsages,
-            allFullUsages,
-            Map.of("[test][0][p]", 10L),
-            Map.of(),
-            Map.of(),
-            Map.of(),
-            Map.of()
-        );
+        final ClusterInfo clusterInfo = ClusterInfo.builder()
+            .leastAvailableSpaceUsage(allFullUsages)
+            .mostAvailableSpaceUsage(allFullUsages)
+            .shardSizes(Map.of("[test][0][p]", 10L))
+            .build();
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(Collections.singleton(decider)),
             clusterState,
@@ -908,15 +917,11 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         // bigger than available space
         final long shardSize = randomIntBetween(1, 10);
         shardSizes.put("[test][0][p]", shardSize);
-        ClusterInfo clusterInfo = new ClusterInfo(
-            leastAvailableUsages,
-            mostAvailableUsage,
-            shardSizes,
-            Map.of(),
-            Map.of(),
-            Map.of(),
-            Map.of()
-        );
+        ClusterInfo clusterInfo = ClusterInfo.builder()
+            .leastAvailableSpaceUsage(leastAvailableUsages)
+            .mostAvailableSpaceUsage(mostAvailableUsage)
+            .shardSizes(shardSizes)
+            .build();
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(Collections.singleton(decider)),
             clusterState,

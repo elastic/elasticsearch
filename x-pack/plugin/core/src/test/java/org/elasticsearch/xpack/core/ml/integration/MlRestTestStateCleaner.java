@@ -17,6 +17,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.rest.ESRestTestCase.performPostFeaturesReset;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -33,7 +34,7 @@ public class MlRestTestStateCleaner {
     public void resetFeatures() throws IOException {
         deletePipelinesWithInferenceProcessors();
         // This resets all features, not just ML, but they should have been getting reset between tests anyway so it shouldn't matter
-        adminClient.performRequest(new Request("POST", "/_features/_reset"));
+        performPostFeaturesReset(adminClient);
     }
 
     @SuppressWarnings("unchecked")

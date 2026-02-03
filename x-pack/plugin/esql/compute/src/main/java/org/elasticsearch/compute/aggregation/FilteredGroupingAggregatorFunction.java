@@ -39,13 +39,13 @@ record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, EvalO
     }
 
     @Override
-    public AddInput prepareProcessPage(SeenGroupIds seenGroupIds, Page page) {
+    public AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page) {
         try (BooleanBlock filterResult = ((BooleanBlock) filter.eval(page))) {
             ToMask mask = filterResult.toMask();
             // TODO warn on mv fields
             AddInput nextAdd = null;
             try {
-                nextAdd = next.prepareProcessPage(seenGroupIds, page);
+                nextAdd = next.prepareProcessRawInputPage(seenGroupIds, page);
                 AddInput result = new FilteredAddInput(mask.mask(), nextAdd, page.getPositionCount());
                 mask = null;
                 nextAdd = null;
@@ -101,13 +101,18 @@ record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, EvalO
     }
 
     @Override
-    public void addIntermediateInput(int positionOffset, IntVector groupIdVector, Page page) {
+    public void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, Page page) {
         next.addIntermediateInput(positionOffset, groupIdVector, page);
     }
 
     @Override
-    public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-        next.addIntermediateRowInput(groupId, ((FilteredGroupingAggregatorFunction) input).next(), position);
+    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIdVector, Page page) {
+        next.addIntermediateInput(positionOffset, groupIdVector, page);
+    }
+
+    @Override
+    public void addIntermediateInput(int positionOffset, IntVector groupIdVector, Page page) {
+        next.addIntermediateInput(positionOffset, groupIdVector, page);
     }
 
     @Override

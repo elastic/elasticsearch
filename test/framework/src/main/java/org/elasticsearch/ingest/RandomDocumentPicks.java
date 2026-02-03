@@ -40,7 +40,12 @@ public final class RandomDocumentPicks {
             if (i > 0) {
                 fieldName.append('.');
             }
-            fieldName.append(randomString(random));
+            String pathSegment;
+            // can't contain a dot since might lead to invalid empty segment, e.g. `one..two.three`
+            do {
+                pathSegment = randomString(random);
+            } while (pathSegment.contains("."));
+            fieldName.append(pathSegment);
         }
         if (numLevels > 1) {
             fieldName.append('.');

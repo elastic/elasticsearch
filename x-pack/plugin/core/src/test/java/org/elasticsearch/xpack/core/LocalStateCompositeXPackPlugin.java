@@ -41,6 +41,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.http.HttpPreRequest;
@@ -66,6 +67,7 @@ import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
@@ -79,8 +81,12 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.interceptor.RestServerActionPlugin;
+import org.elasticsearch.plugins.internal.InternalSearchPlugin;
+import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
+import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
@@ -88,7 +94,7 @@ import org.elasticsearch.rest.RestInterceptor;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.snapshots.Snapshot;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -134,8 +140,10 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         IndexStorePlugin,
         SystemIndexPlugin,
         SearchPlugin,
+        InternalSearchPlugin,
         ShutdownAwarePlugin,
-        RestServerActionPlugin {
+        RestServerActionPlugin,
+        InternalVectorFormatProviderPlugin {
 
     private XPackLicenseState licenseState;
     private SSLService sslService;
@@ -208,6 +216,12 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         ArrayList<Setting<?>> settings = new ArrayList<>(super.getSettings());
         filterPlugins(Plugin.class).forEach(p -> settings.addAll(p.getSettings()));
         return settings;
+    }
+
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        super.loadExtensions(loader);
+        filterPlugins(ExtensiblePlugin.class).forEach(p -> p.loadExtensions(loader));
     }
 
     @Override
@@ -291,6 +305,15 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @Override
+    public List<QueryRewriteInterceptor> getQueryRewriteInterceptors() {
+        List<QueryRewriteInterceptor> interceptors = new ArrayList<>();
+        filterPlugins(InternalSearchPlugin.class).stream()
+            .flatMap(p -> p.getQueryRewriteInterceptors().stream())
+            .forEach(interceptors::add);
+        return interceptors;
+    }
+
+    @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(super.getNamedXContent());
         for (Plugin p : plugins) {
@@ -365,7 +388,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         HttpServerTransport.Dispatcher dispatcher,
         BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
         ClusterSettings clusterSettings,
-        Tracer tracer
+        TelemetryProvider telemetryProvider
     ) {
         Map<String, Supplier<HttpServerTransport>> transports = new HashMap<>();
         filterPlugins(NetworkPlugin.class).forEach(
@@ -381,7 +404,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                     dispatcher,
                     perRequestThreadContext,
                     clusterSettings,
-                    tracer
+                    telemetryProvider
                 )
             )
         );
@@ -512,14 +535,31 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         ClusterService clusterService,
         BigArrays bigArrays,
         RecoverySettings recoverySettings,
-        RepositoriesMetrics repositoriesMetrics
+        RepositoriesMetrics repositoriesMetrics,
+        SnapshotMetrics snapshotMetrics
     ) {
         HashMap<String, Repository.Factory> repositories = new HashMap<>(
-            super.getRepositories(env, namedXContentRegistry, clusterService, bigArrays, recoverySettings, repositoriesMetrics)
+            super.getRepositories(
+                env,
+                namedXContentRegistry,
+                clusterService,
+                bigArrays,
+                recoverySettings,
+                repositoriesMetrics,
+                snapshotMetrics
+            )
         );
         filterPlugins(RepositoryPlugin.class).forEach(
             r -> repositories.putAll(
-                r.getRepositories(env, namedXContentRegistry, clusterService, bigArrays, recoverySettings, RepositoriesMetrics.NOOP)
+                r.getRepositories(
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings,
+                    RepositoriesMetrics.NOOP,
+                    SnapshotMetrics.NOOP
+                )
             )
         );
         return repositories;
@@ -687,6 +727,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         ClusterService clusterService,
         ProjectResolver projectResolver,
         Client client,
+        TimeValue masterNodeTimeout,
         ActionListener<ResetFeatureStateStatus> finalListener
     ) {
         List<SystemIndexPlugin> systemPlugins = filterPlugins(SystemIndexPlugin.class);
@@ -704,7 +745,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                 }
             })
         );
-        systemPlugins.forEach(plugin -> plugin.cleanUpFeature(clusterService, projectResolver, client, allListeners));
+        systemPlugins.forEach(plugin -> plugin.cleanUpFeature(clusterService, projectResolver, client, masterNodeTimeout, allListeners));
     }
 
     @Override

@@ -1,0 +1,5 @@
+pr: 136996
+summary: Add periodic PKC JWK set reloading capability to JWT realm
+area: Security
+type: enhancement
+issues: []

@@ -1,0 +1,5 @@
+pr: 135714
+summary: Improve performance when a single-valued field filter gets pushed down. (SingleValueMatchQuery)
+area: ES|QL
+type: enhancement
+issues: []

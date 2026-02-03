@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.XContentTestUtils;
 import org.junit.BeforeClass;
@@ -33,7 +34,7 @@ public class FeatureUpgradeIT extends AbstractRollingUpgradeTestCase {
 
     @BeforeClass
     public static void ensureNotForwardCompatTest() {
-        assumeFalse("Only supported by bwc tests", Boolean.parseBoolean(System.getProperty("tests.fwc", "false")));
+        assumeFalse("Only supported by bwc tests", Booleans.parseBoolean(System.getProperty("tests.fwc", "false")));
     }
 
     public void testGetFeatureUpgradeStatus() throws Exception {

@@ -3,21 +3,85 @@
 // This makes the output more predictable which is helpful here.
  
 
-reranker using a single field
+reranker using a single field, overwrite existing _score column
 required_capability: rerank
 required_capability: match_operator_colon
+required_capability: routing_function_update
 
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
-| RERANK "war and peace" ON title WITH test_reranker
-| KEEP book_no, title, author
+| SORT _score DESC, book_no ASC
+| RERANK "war and peace" ON title WITH { "inference_id" : "test_reranker" }
+| EVAL _score=ROUND(_score, 2)
+| KEEP book_no, title, author, _score
 ;
 
-book_no:keyword | title:text                                            | author:text
-5327            | War and Peace                                         | Leo Tolstoy
-4536            | War and Peace (Signet Classics)                       | [John Hockenberry, Leo Tolstoy, Pat Conroy]
-9032            | War and Peace: A Novel (6 Volumes)                    | Tolstoy Leo
-2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy
+book_no:keyword | title:text                                            | author:text                                 | _score:double
+5327            | War and Peace                                         | Leo Tolstoy                                 | 0.08
+9032            | War and Peace: A Novel (6 Volumes)                    | Tolstoy Leo                                 | 0.03
+4536            | War and Peace (Signet Classics)                       | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.03
+2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy                                 | 0.02
+;
+
+reranker using a single field, create a mew column
+required_capability: rerank
+required_capability: match_operator_colon
+required_capability: routing_function_update
+
+FROM books METADATA _score
+| WHERE title:"war and peace" AND author:"Tolstoy"
+| SORT _score DESC, book_no ASC
+| RERANK rerank_score="war and peace" ON title WITH { "inference_id" : "test_reranker" }
+| EVAL _score=ROUND(_score, 2), rerank_score=ROUND(rerank_score, 2)
+| KEEP book_no, title, author, rerank_score
+;
+
+book_no:keyword | title:text                                            | author:text                                 | rerank_score:double
+5327            | War and Peace                                         | Leo Tolstoy                                 | 0.08
+9032            | War and Peace: A Novel (6 Volumes)                    | Tolstoy Leo                                 | 0.03
+4536            | War and Peace (Signet Classics)                       | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.03
+2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy                                 | 0.02
+;
+
+reranker using a single field, create a mew column, sort by rerank_score
+required_capability: rerank
+required_capability: match_operator_colon
+required_capability: routing_function_update
+
+FROM books METADATA _score
+| WHERE title:"war and peace" AND author:"Tolstoy"
+| SORT _score DESC
+| RERANK rerank_score="war and peace" ON title WITH { "inference_id" : "test_reranker" }
+| EVAL _score=ROUND(_score, 2), rerank_score=ROUND(rerank_score, 2)
+| SORT rerank_score, _score ASC, book_no ASC
+| KEEP book_no, title, author, rerank_score
+;
+
+book_no:keyword | title:text                                            | author:text                                 | rerank_score:double
+2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy                                 | 0.02
+4536            | War and Peace (Signet Classics)                       | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.03
+9032            | War and Peace: A Novel (6 Volumes)                    | Tolstoy Leo                                 | 0.03
+5327            | War and Peace                                         | Leo Tolstoy                                 | 0.08
+;
+
+reranker using a sparse input field
+required_capability: rerank
+required_capability: match_operator_colon
+required_capability: routing_function_update
+
+FROM books METADATA _score
+| WHERE MATCH(title, "lord of the rings", {"minimum_should_match": "100%"}) AND author:"tolkien"
+| RERANK rerank_score="war and peace" ON collection WITH { "inference_id" : "test_reranker" }
+| EVAL _score=ROUND(_score, 2), rerank_score=ROUND(rerank_score, 2)
+| SORT rerank_score DESC NULLS LAST, _score  DESC
+| LIMIT 3
+| KEEP book_no, title, author, collection, rerank_score, _score
+;
+
+book_no:keyword | title:text                                                                                  | author:text                                                                      | collection:text       | rerank_score:double | _score:double
+2675            | The Lord of the Rings - Boxed Set                                                           | J.R.R. Tolkien                                                                   | The Lord of the Rings | 0.05                | 7.28
+2714            | Return of the King Being the Third Part of The Lord of the Rings                            | J. R. R. Tolkien                                                                 | The Lord of the Rings | 0.05                | 7.25
+4023            | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings | [Agnes Perkins, Charles Adolph Huttar, John Ronald Reuel Tolkien, Walter Scheps] | null                  | null                | 5.36
 ;
 
 
@@ -27,17 +91,18 @@ required_capability: match_operator_colon
 
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
-| RERANK "war and peace" ON title, author WITH test_reranker
-| KEEP book_no, title, author
+| RERANK "war and peace" ON title, author WITH { "inference_id" : "test_reranker" }
+| EVAL _score=ROUND(_score, 2)
+| SORT _score DESC, book_no ASC
+| KEEP book_no, title, author, _score
 ;
 
-book_no:keyword | title:text                                            | author:text 
-5327            | War and Peace                                         | Leo Tolstoy 
-9032            | War and Peace: A Novel (6 Volumes)                    | Tolstoy Leo 
-2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy 
-4536            | War and Peace (Signet Classics)                       | [John Hockenberry, Leo Tolstoy, Pat Conroy]
+book_no:keyword | title:text                                            | author:text                                 | _score:double
+4536            | War and Peace (Signet Classics)                       | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.1
+2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy                                 | 0.09
+5327            | War and Peace                                         | Leo Tolstoy                                 | 0.09
+9032            | War and Peace: A Novel (6 Volumes)                    | Tolstoy Leo                                 | 0.09     
 ;
-
 
 reranker after a limit
 required_capability: rerank
@@ -45,16 +110,18 @@ required_capability: match_operator_colon
 
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
-| SORT _score DESC
+| SORT _score DESC, book_no ASC
 | LIMIT 3
-| RERANK "war and peace" ON title WITH test_reranker
-| KEEP book_no, title, author
+| RERANK "war and peace" ON title WITH { "inference_id" : "test_reranker" }
+| EVAL _score=ROUND(_score, 2)
+| SORT _score DESC, book_no ASC
+| KEEP book_no, title, author, _score
 ;
 
-book_no:keyword | title:text                         | author:text
-5327            | War and Peace                      | Leo Tolstoy
-4536            | War and Peace (Signet Classics)    | [John Hockenberry, Leo Tolstoy, Pat Conroy]
-9032            | War and Peace: A Novel (6 Volumes) | Tolstoy Leo
+book_no:keyword | title:text                         | author:text                                 | _score:double
+5327            | War and Peace                      | Leo Tolstoy                                 | 0.08
+4536            | War and Peace (Signet Classics)    | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.03
+9032            | War and Peace: A Novel (6 Volumes) | Tolstoy Leo                                 | 0.03
 ;
 
 
@@ -64,15 +131,17 @@ required_capability: match_operator_colon
 
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
-| RERANK "war and peace" ON title WITH test_reranker
-| KEEP book_no, title, author
+| RERANK "war and peace" ON title WITH { "inference_id" : "test_reranker" }
+| EVAL _score=ROUND(_score, 2)
+| SORT _score DESC, book_no ASC
+| KEEP book_no, title, author, _score
 | LIMIT 3
 ;
 
-book_no:keyword | title:text                         | author:text
-5327            | War and Peace                      | Leo Tolstoy
-4536            | War and Peace (Signet Classics)    | [John Hockenberry, Leo Tolstoy, Pat Conroy]
-9032            | War and Peace: A Novel (6 Volumes) | Tolstoy Leo
+book_no:keyword | title:text                         | author:text                                 | _score:double
+5327            | War and Peace                      | Leo Tolstoy                                 | 0.08
+4536            | War and Peace (Signet Classics)    | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.03
+9032            | War and Peace: A Novel (6 Volumes) | Tolstoy Leo                                 | 0.03
 ;
 
 
@@ -82,35 +151,182 @@ required_capability: match_operator_colon
 
 FROM books
 | WHERE title:"war and peace" AND author:"Tolstoy"
-| RERANK "war and peace" ON title WITH test_reranker
-| KEEP book_no, title, author
+| RERANK "war and peace" ON title WITH { "inference_id" : "test_reranker" }
+| EVAL _score=ROUND(_score, 2)
+| KEEP book_no, title, author, _score
 | SORT author, title 
 | LIMIT 3
 ;
 
-book_no:keyword | title:text                                            | author:text
-4536            | War and Peace (Signet Classics)                       | [John Hockenberry, Leo Tolstoy, Pat Conroy]
-2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy
-5327            | War and Peace                                         | Leo Tolstoy
+book_no:keyword | title:text                                            | author:text                                 | _score:double
+4536            | War and Peace (Signet Classics)                       | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.03
+2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy                                 | 0.02
+5327            | War and Peace                                         | Leo Tolstoy                                 | 0.08
 ;
 
 
-reranker after RRF
-required_capability: fork
-required_capability: rrf
+reranker after FUSE
+required_capability: fork_v9
+required_capability: fuse_v6
 required_capability: match_operator_colon
 required_capability: rerank
+required_capability: routing_function_update
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
        ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
-| RRF
-| RERANK "Tolkien" ON title WITH test_reranker
+| FUSE
+| RERANK "Tolkien" ON title WITH { "inference_id" : "test_reranker" }
+| EVAL _score=ROUND(_score, 2)
+| SORT _score DESC, book_no ASC
 | LIMIT 2
-| KEEP book_no, title, author
+| KEEP book_no, title, author, _score
 ;
 
-book_no:keyword | title:keyword                         | author:keyword
-5335            | Letters of J R R Tolkien              | J.R.R. Tolkien
-2130            | The J. R. R. Tolkien Audio Collection | [Christopher Tolkien, John Ronald Reuel Tolkien]
+book_no:keyword | title:keyword             | author:keyword   | _score:double
+5335            | Letters of J R R Tolkien  | J.R.R. Tolkien   | 0.04
+7635            | Oliphaunt (Beastly Verse) | J. R. R. Tolkien | 0.04
+;
+
+
+simple
+required_capability: rerank
+required_capability: routing_function_update
+
+// tag::simple-query[]
+FROM books METADATA _score
+| WHERE MATCH(description, "hobbit")
+| SORT _score DESC
+| LIMIT 100
+| RERANK "hobbit" ON description WITH { "inference_id" : "test_reranker" }
+| LIMIT 3
+| KEEP title, _score
+// end::simple-query[]
+;
+
+// tag::simple-query-result[]
+title:text                        | _score:double
+Poems from the Hobbit             | 0.0015673980815336108
+The Lord of the Rings - Boxed Set | 0.0011135857785120606
+Letters of J R R Tolkien          | 0.0024999999441206455
+// end::simple-query-result[]
+;
+
+two_queries
+required_capability: rerank
+required_capability: routing_function_update
+
+// tag::two-queries[]
+FROM books METADATA _score
+| WHERE MATCH(description, "hobbit") OR MATCH(author, "Tolkien")
+| SORT _score DESC
+| LIMIT 100
+| RERANK rerank_score = "hobbit" ON description, author WITH { "inference_id" : "test_reranker" }
+| SORT rerank_score DESC, book_no DESC
+| LIMIT 3
+// end::two-queries[]
+| KEEP title, _score, rerank_score
+;
+
+// tag::two-queries-result[]
+title:text                                                                 | _score:double      | rerank_score:double
+The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1) | 0.7976278066635132 | 0.125
+A Middle English Reader and Vocabulary                                     | 1.043297290802002  | 0.07692307978868484
+FINAL WITNESS                                                              | 1.4058171510696411 | 0.07692307978868484
+// end::two-queries-result[]
+;
+
+combine
+required_capability: rerank
+required_capability: rerank_combine
+
+// tag::combine[]
+FROM books METADATA _score
+| WHERE MATCH(description, "hobbit") OR MATCH(author, "Tolkien")
+| SORT _score DESC
+| LIMIT 100
+| RERANK rerank_score = "hobbit" ON title, description WITH { "inference_id" : "test_reranker" }
+| EVAL original_score = _score, _score = rerank_score + original_score
+| SORT _score
+| LIMIT 3
+// end::combine[]
+| KEEP title, original_score, rerank_score, _score
+;
+
+// tag::combine-result[]
+title:text                                                                 | _score:double | rerank_score:double
+The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1) | 0.7976278     | 0.125
+A Middle English Reader and Vocabulary                                     | 1.043297      | 0.07692308
+FINAL WITNESS                                                              | 1.405817      | 0.07692308
+// end::combine-result[]
+;
+
+reranker followed by stats
+required_capability: rerank
+required_capability: match_operator_colon
+
+FROM books METADATA _score
+| WHERE title:"war and peace" AND author:"Tolstoy"
+| SORT _score DESC, book_no ASC
+| RERANK "war and peace" ON title WITH { "inference_id" : "test_reranker" }
+| STATS count_book = COUNT(*) WHERE _score >= 0.03
+;
+
+count_book:long
+2
+;
+
+rerank using snippets
+required_capability: rerank
+required_capability: top_snippets_function
+required_capability: match_function
+
+// tag::rerank-top-snippets[]
+FROM books
+| WHERE MATCH(title, "return")
+| RERANK "Tolkien" ON TOP_SNIPPETS(description, "Tolkien", { "num_snippets": 3, "num_words": 25 }) WITH { "inference_id" : "test_reranker" }
+// end::rerank-top-snippets[]
+| KEEP book_no, title, _score;
+ignoreOrder: true
+
+// tag::rerank-top-snippets-result[]
+book_no:keyword | title:text                                                           | _score:double 
+2714            | Return of the King Being the Third Part of The Lord of the Rings     | 0.007092198356986046            
+7350            | Return of the Shadow                                                 | 0.012500000186264515
+// end::rerank-top-snippets-result[]
+;
+
+rerank with row filtering null scores
+required_capability: rerank
+required_capability: fix_score_operator_planning
+
+ROW a = ["abc", "def", "ghi"]
+| MV_EXPAND a
+| EVAL a = case(a == "def", null,  a)
+| RERANK "foo" ON a WITH { "inference_id" : "test_reranker" }
+| WHERE _score IS NOT NULL
+| SORT a
+;
+
+a:keyword | _score:double
+abc       | 0.3333333432674408
+ghi       | 0.3333333432674408
+;
+
+rerank with null score filtering
+required_capability: rerank
+required_capability: fix_score_operator_planning
+
+FROM books METADATA _id, _index, _score
+| WHERE MATCH(description, "hobbit") OR MATCH(author, "Tolkien")
+| SORT _score DESC
+| LIMIT 3
+| EVAL title = CASE(book_no == "4289", NULL, title)
+| RERANK "hobbit" ON title WITH { "inference_id" : "test_reranker" }
+| KEEP book_no, title, _score
+| WHERE _score IS NULL
+;
+
+book_no:keyword | title:keyword | _score: double
+4289            | null          | null
 ;

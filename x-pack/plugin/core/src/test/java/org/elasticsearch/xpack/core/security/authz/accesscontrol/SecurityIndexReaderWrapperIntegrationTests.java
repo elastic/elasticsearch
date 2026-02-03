@@ -17,7 +17,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TotalHitCountCollectorManager;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
@@ -64,14 +64,10 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.singleton;
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -115,11 +111,11 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             null,
             () -> true,
             null,
-            emptyMap(),
+            Map.of(),
             MapperMetrics.NOOP
         );
         SearchExecutionContext searchExecutionContext = spy(realSearchExecutionContext);
-        DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
+        DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY);
         final MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
 
@@ -154,7 +150,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             if (doc % 11 == 0) {
                 iw.deleteDocuments(new Term("id", id));
             } else {
-                if (commitAfter % commitAfter == 0) {
+                if (doc % commitAfter == 0) {
                     iw.commit();
                 }
                 valuesHitCount[valueIndex]++;
@@ -172,7 +168,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             String termQuery = "{\"term\": {\"field\": \"" + values[i] + "\"} }";
             IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(
                 FieldPermissions.DEFAULT,
-                DocumentPermissions.filteredBy(singleton(new BytesArray(termQuery)))
+                DocumentPermissions.filteredBy(Set.of(new BytesArray(termQuery)))
             );
             SecurityIndexReaderWrapper wrapper = new SecurityIndexReaderWrapper(
                 s -> searchExecutionContext,
@@ -184,7 +180,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
                 @Override
                 protected IndicesAccessControl getIndicesAccessControl() {
-                    return new IndicesAccessControl(true, singletonMap("_index", indexAccessControl));
+                    return new IndicesAccessControl(true, Map.of("_index", indexAccessControl));
                 }
             };
 
@@ -203,7 +199,10 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             int expectedHitCount = valuesHitCount[i];
             logger.info("Going to verify hit count with query [{}] with expected total hits [{}]", parsedQuery.query(), expectedHitCount);
 
-            Integer totalHits = indexSearcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager(indexSearcher.getSlices()));
+            Integer totalHits = indexSearcher.search(
+                Queries.ALL_DOCS_INSTANCE,
+                new TotalHitCountCollectorManager(indexSearcher.getSlices())
+            );
             assertThat(totalHits, equalTo(expectedHitCount));
             assertThat(wrappedDirectoryReader.numDocs(), equalTo(expectedHitCount));
         }
@@ -237,9 +236,9 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             FieldPermissions.DEFAULT,
             DocumentPermissions.filteredBy(queries)
         );
-        queries = singleton(new BytesArray("{\"terms\" : { \"f1\" : [\"fv11\", \"fv21\", \"fv31\"] } }"));
+        queries = Set.of(new BytesArray("{\"terms\" : { \"f1\" : [\"fv11\", \"fv21\", \"fv31\"] } }"));
         if (restrictiveLimitedIndexPermissions) {
-            queries = singleton(new BytesArray("{\"terms\" : { \"f1\" : [\"fv11\", \"fv31\"] } }"));
+            queries = Set.of(new BytesArray("{\"terms\" : { \"f1\" : [\"fv11\", \"fv31\"] } }"));
         }
         IndicesAccessControl.IndexAccessControl limitedIndexAccessControl = new IndicesAccessControl.IndexAccessControl(
             FieldPermissions.DEFAULT,
@@ -271,11 +270,11 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             null,
             () -> true,
             null,
-            emptyMap(),
+            Map.of(),
             MapperMetrics.NOOP
         );
         SearchExecutionContext searchExecutionContext = spy(realSearchExecutionContext);
-        DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
+        DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY);
 
         final MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
@@ -289,13 +288,13 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {
-                IndicesAccessControl indicesAccessControl = new IndicesAccessControl(true, singletonMap("_index", indexAccessControl));
+                IndicesAccessControl indicesAccessControl = new IndicesAccessControl(true, Map.of("_index", indexAccessControl));
                 if (noFilteredIndexPermissions) {
                     return indicesAccessControl;
                 }
                 IndicesAccessControl limitedByIndicesAccessControl = new IndicesAccessControl(
                     true,
-                    singletonMap("_index", limitedIndexAccessControl)
+                    Map.of("_index", limitedIndexAccessControl)
                 );
                 return indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
             }
@@ -329,7 +328,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             true
         );
 
-        ScoreDoc[] hits = indexSearcher.search(new MatchAllDocsQuery(), 1000).scoreDocs;
+        ScoreDoc[] hits = indexSearcher.search(Queries.ALL_DOCS_INSTANCE, 1000).scoreDocs;
         Set<Integer> actualDocIds = new HashSet<>();
         for (ScoreDoc doc : hits) {
             actualDocIds.add(doc.doc);
@@ -477,7 +476,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             DocumentPermissions.filteredBy(queries)
         );
 
-        DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
+        DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY);
 
         final MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
@@ -492,11 +491,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {
-                IndicesAccessControl indicesAccessControl = new IndicesAccessControl(
-                    true,
-                    singletonMap(indexSettings().getIndex().getName(), indexAccessControl)
-                );
-                return indicesAccessControl;
+                return new IndicesAccessControl(true, Map.of(indexSettings().getIndex().getName(), indexAccessControl));
             }
         };
 
@@ -509,7 +504,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             true
         );
 
-        ScoreDoc[] hits = indexSearcher.search(new MatchAllDocsQuery(), 1000).scoreDocs;
+        ScoreDoc[] hits = indexSearcher.search(Queries.ALL_DOCS_INSTANCE, 1000).scoreDocs;
         assertThat(Arrays.stream(hits).map(h -> h.doc).collect(Collectors.toSet()), containsInAnyOrder(4, 5, 6, 7, 11, 12, 13));
 
         hits = indexSearcher.search(Queries.newNonNestedFilter(context.indexVersionCreated()), 1000).scoreDocs;
@@ -522,6 +517,6 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
     private static MappingLookup createMappingLookup(List<MappedFieldType> concreteFields) {
         List<FieldMapper> mappers = concreteFields.stream().map(MockFieldMapper::new).collect(Collectors.toList());
-        return MappingLookup.fromMappers(Mapping.EMPTY, mappers, emptyList());
+        return MappingLookup.fromMappers(Mapping.EMPTY, mappers, List.of(), randomFrom(IndexMode.values()));
     }
 }

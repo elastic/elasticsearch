@@ -8,10 +8,11 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
@@ -39,6 +40,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 
 public class Replace extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Replace", Replace::new);
+    private static final TransportVersion ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS = TransportVersion.fromName(
+        "esql_serialize_source_functions_warnings"
+    );
 
     private final Expression str;
     private final Expression regex;
@@ -49,11 +53,13 @@ public class Replace extends EsqlScalarFunction {
         description = """
             The function substitutes in the string `str` any match of the regular expression `regex`
             with the replacement string `newStr`.""",
-        examples = @Example(
-            file = "docs",
-            tag = "replaceString",
-            description = "This example replaces any occurrence of the word \"World\" with the word \"Universe\":"
-        )
+        examples = {
+            @Example(
+                file = "string",
+                tag = "replaceString",
+                description = "This example replaces any occurrence of the word \"World\" with the word \"Universe\":"
+            ),
+            @Example(file = "string", tag = "replaceRegex", description = "This example removes all spaces:") }
     )
     public Replace(
         Source source,
@@ -69,7 +75,7 @@ public class Replace extends EsqlScalarFunction {
 
     private Replace(StreamInput in) throws IOException {
         this(
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS)
+            in.getTransportVersion().supports(ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS)
                 ? Source.readFrom((PlanStreamInput) in)
                 : Source.EMPTY,
             in.readNamedWriteable(Expression.class),
@@ -80,7 +86,7 @@ public class Replace extends EsqlScalarFunction {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS)) {
+        if (out.getTransportVersion().supports(ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS)) {
             source().writeTo(out);
         }
         out.writeNamedWriteable(str);
@@ -199,7 +205,7 @@ public class Replace extends EsqlScalarFunction {
         if (regex.foldable() && regex.dataType() == DataType.KEYWORD) {
             Pattern regexPattern;
             try {
-                regexPattern = Pattern.compile(((BytesRef) regex.fold(toEvaluator.foldCtx())).utf8ToString());
+                regexPattern = Pattern.compile(BytesRefs.toString(regex.fold(toEvaluator.foldCtx())));
             } catch (PatternSyntaxException pse) {
                 // TODO this is not right (inconsistent). See also https://github.com/elastic/elasticsearch/issues/100038
                 // this should generate a header warning and return null (as do the rest of this functionality in evaluators),

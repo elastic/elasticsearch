@@ -21,6 +21,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOKUP_V12;
+import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 
 public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     @ClassRule
@@ -31,7 +32,11 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
         return cluster.getHttpAddresses();
     }
 
-    static final Version bwcVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
+    static final Version bwcVersion = Version.fromString(
+        System.getProperty("tests.old_cluster_version") != null
+            ? System.getProperty("tests.old_cluster_version").replace("-SNAPSHOT", "")
+            : null
+    );
 
     private static TestFeatureService oldClusterTestFeatureService = null;
 
@@ -40,11 +45,6 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
         if (oldClusterTestFeatureService == null) {
             oldClusterTestFeatureService = testFeatureService;
         }
-    }
-
-    protected static boolean oldClusterHasFeature(String featureId) {
-        assert oldClusterTestFeatureService != null;
-        return oldClusterTestFeatureService.clusterHasFeature(featureId);
     }
 
     @AfterClass
@@ -58,10 +58,9 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
         String testName,
         Integer lineNumber,
         CsvTestCase testCase,
-        String instructions,
-        Mode mode
+        String instructions
     ) {
-        super(fileName, groupName, testName, lineNumber, testCase, instructions, mode);
+        super(fileName, groupName, testName, lineNumber, testCase, instructions);
     }
 
     @Override
@@ -71,27 +70,27 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     }
 
     @Override
-    protected boolean supportTimeSeriesCommand() {
-        return false;
-    }
-
-    @Override
     protected boolean enableRoundingDoubleValuesOnAsserting() {
         return true;
     }
 
     @Override
-    protected boolean supportsInferenceTestService() {
+    protected boolean supportsSemanticTextInference() {
         return false;
     }
 
     @Override
-    protected boolean supportsIndexModeLookup() throws IOException {
-        return hasCapabilities(List.of(JOIN_LOOKUP_V12.capabilityName()));
+    protected boolean supportsInferenceTestServiceOnLocalCluster() {
+        return false;
     }
 
     @Override
-    protected boolean supportsSourceFieldMapping() throws IOException {
+    protected boolean supportsIndexModeLookup() {
+        return hasCapabilities(adminClient(), List.of(JOIN_LOOKUP_V12.capabilityName()));
+    }
+
+    @Override
+    protected boolean supportsSourceFieldMapping() {
         return false;
     }
 

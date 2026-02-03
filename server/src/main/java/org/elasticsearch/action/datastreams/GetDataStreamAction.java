@@ -8,7 +8,7 @@
  */
 package org.elasticsearch.action.datastreams;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -45,7 +46,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.V_8_11_X;
 import static org.elasticsearch.cluster.metadata.DataStream.AUTO_SHARDING_FIELD;
 
 public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response> {
@@ -117,21 +117,13 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
          * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until
          * we no longer need to support calling this action remotely.
          */
-        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+        @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
         public Request(StreamInput in) throws IOException {
             super(in);
             this.names = in.readOptionalStringArray();
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                this.includeDefaults = in.readBoolean();
-            } else {
-                this.includeDefaults = false;
-            }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                this.verbose = in.readBoolean();
-            } else {
-                this.verbose = false;
-            }
+            this.includeDefaults = in.readBoolean();
+            this.verbose = in.readBoolean();
         }
 
         @Override
@@ -209,11 +201,19 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
         public static final ParseField DATA_STREAMS_FIELD = new ParseField("data_streams");
 
+        private static final TransportVersion INTRODUCE_FAILURES_DEFAULT_RETENTION_PATCH = TransportVersion.fromName(
+            "introduce_failures_default_retention"
+        ).nextPatchVersion();
+        private static final TransportVersion INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM = TransportVersion.fromName(
+            "include_index_mode_in_get_data_stream"
+        );
+
         public static class DataStreamInfo implements SimpleDiffable<DataStreamInfo>, ToXContentObject {
 
             public static final ParseField STATUS_FIELD = new ParseField("status");
             public static final ParseField INDEX_TEMPLATE_FIELD = new ParseField("template");
             public static final ParseField SETTINGS_FIELD = new ParseField("settings");
+            public static final ParseField MAPPINGS_FIELD = new ParseField("mappings");
             public static final ParseField PREFER_ILM = new ParseField("prefer_ilm");
             public static final ParseField MANAGED_BY = new ParseField("managed_by");
             public static final ParseField NEXT_GENERATION_INDEX_MANAGED_BY = new ParseField("next_generation_managed_by");
@@ -325,27 +325,19 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
              * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
              * we no longer need to support calling this action remotely.
              */
-            @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+            @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 dataStream.writeTo(out);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ENABLED_BY_CLUSTER_SETTING)) {
-                    out.writeBoolean(failureStoreEffectivelyEnabled);
-                }
+                out.writeBoolean(failureStoreEffectivelyEnabled);
                 dataStreamStatus.writeTo(out);
                 out.writeOptionalString(indexTemplate);
                 out.writeOptionalString(ilmPolicyName);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
-                    out.writeOptionalWriteable(timeSeries);
-                }
-                if (out.getTransportVersion().onOrAfter(V_8_11_X)) {
-                    out.writeMap(indexSettingsValues);
-                    out.writeBoolean(templatePreferIlmValue);
-                }
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                    out.writeOptionalVLong(maximumTimestamp);
-                }
-                if (out.getTransportVersion().onOrAfter(TransportVersions.INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM)) {
+                out.writeOptionalWriteable(timeSeries);
+                out.writeMap(indexSettingsValues);
+                out.writeBoolean(templatePreferIlmValue);
+                out.writeOptionalVLong(maximumTimestamp);
+                if (out.getTransportVersion().supports(INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM)) {
                     out.writeOptionalString(indexMode);
                 }
             }
@@ -421,7 +413,13 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 builder.startObject(SETTINGS_FIELD.getPreferredName());
                 dataStream.getSettings().toXContent(builder, params);
                 builder.endObject();
-
+                builder.field(MAPPINGS_FIELD.getPreferredName());
+                Map<String, Object> uncompressedMappings = XContentHelper.convertToMap(
+                    dataStream.getMappings().uncompressed(),
+                    true,
+                    builder.contentType()
+                ).v2();
+                builder.map(uncompressedMappings);
                 builder.startObject(DataStream.FAILURE_STORE_FIELD.getPreferredName());
                 builder.field(FAILURE_STORE_ENABLED.getPreferredName(), failureStoreEffectivelyEnabled);
                 builder.field(DataStream.ROLLOVER_ON_WRITE_FIELD.getPreferredName(), dataStream.getFailureComponent().isRolloverOnWrite());
@@ -548,7 +546,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
              * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
              * we no longer need to support calling this action remotely.
              */
-            @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+            @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeCollection(temporalRanges, (out1, value) -> {
@@ -583,9 +581,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     in.readBoolean(),
                     in.readOptionalString(),
                     in.readEnum(ManagedBy.class),
-                    in.getTransportVersion().onOrAfter(TransportVersions.INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM)
-                        ? in.readOptionalString()
-                        : "unknown"
+                    in.getTransportVersion().supports(INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM) ? in.readOptionalString() : "unknown"
                 );
             }
 
@@ -594,7 +590,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 out.writeBoolean(preferIlm);
                 out.writeOptionalString(ilmPolicyName);
                 out.writeEnum(managedBy);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM)) {
+                if (out.getTransportVersion().supports(INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM)) {
                     out.writeOptionalString(indexMode);
                 }
             }
@@ -647,19 +643,17 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
          * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
          * we no longer need to support calling this action remotely.
          */
-        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+        @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(dataStreams);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                out.writeOptionalWriteable(rolloverConfiguration);
-            }
+            out.writeOptionalWriteable(rolloverConfiguration);
             // A version 9.x cluster will never read this, so we only need to include the patch version here.
-            if (out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_DEFAULT_RETENTION_BACKPORT_8_19)) {
+            if (out.getTransportVersion().supports(INTRODUCE_FAILURES_DEFAULT_RETENTION_PATCH)) {
                 out.writeOptionalTimeValue(dataGlobalRetention == null ? null : dataGlobalRetention.defaultRetention());
                 out.writeOptionalTimeValue(dataGlobalRetention == null ? null : dataGlobalRetention.maxRetention());
                 out.writeOptionalTimeValue(failuresGlobalRetention == null ? null : failuresGlobalRetention.defaultRetention());
-            } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+            } else {
                 out.writeOptionalWriteable(dataGlobalRetention);
             }
         }

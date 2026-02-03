@@ -1,0 +1,5 @@
+pr: 139053
+summary: Minimize doc values fetches in TSDBSyntheticIdFieldsProducer
+area: TSDB
+type: enhancement
+issues: []

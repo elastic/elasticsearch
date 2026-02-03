@@ -1,0 +1,6 @@
+pr: 138484
+summary: "[Inference API] Add `ElasticInferenceServiceDenseTextEmbeddingsServiceSettings`\
+  \ to `InferenceNamedWriteablesProvider`"
+area: Machine Learning
+type: bug
+issues: []

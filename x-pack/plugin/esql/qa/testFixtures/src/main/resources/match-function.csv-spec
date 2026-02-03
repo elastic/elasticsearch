@@ -860,3 +860,37 @@ c: long     |   scalerank: long
 10             | 3              
 15             | 2              
 ;
+
+
+testMatchWithReplace
+required_capability: match_function
+required_capability: no_plain_strings_in_literals
+from books 
+| keep book_no, author 
+| where match(author, REPLACE("FaulkneX", "X", "r"))
+| sort book_no 
+| limit 5;
+
+book_no:keyword | author:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+testMatchFunctionUnionAll
+required_capability: subquery_in_from_command
+required_capability: full_text_functions_accept_null_field
+
+from books, (from hosts)
+| where match(author, "Marquez")
+| sort year 
+| keep year, author, host
+;
+
+year:integer | author:text            | host:keyword
+1979         | Gabriel Garcia Marquez | null
+2005         | Gabriel Garcia Marquez | null
+2014         | Gabriel Garcia Marquez | null
+;

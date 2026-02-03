@@ -196,6 +196,14 @@ emp_no:integer | last_name:keyword | f_l:keyword
 10010 | Piveteau  | eau
 ;
 
+aggregate length
+FROM employees
+| STATS SUM(LENGTH(last_name));
+
+SUM(LENGTH(last_name)):long
+720
+;
+
 substring nested negative start
 from employees | where emp_no <= 10010 | eval f_l = substring(substring(last_name, -3),-1) | keep emp_no, last_name, f_l;
 ignoreOrder:true
@@ -388,6 +396,101 @@ emp_no:integer | name:keyword
 10010          | null
 ;
 
+
+contains
+required_capability: fn_contains
+// tag::contains[]
+ROW a = "hello"
+| EVAL has_ll = CONTAINS(a, "ll")
+// end::contains[]
+;
+
+// tag::contains-result[]
+a:keyword | has_ll:boolean
+hello     | true
+// end::contains-result[]
+;
+
+containsFail
+required_capability: fn_contains
+row a = "hello" | eval a_ll = contains(a, "int");
+
+a:keyword | a_ll:boolean
+hello | false
+;
+
+containsLongerSubstr
+required_capability: fn_contains
+row a = "hello" | eval a_ll = contains(a, "farewell");
+
+a:keyword | a_ll:boolean
+hello | false
+;
+
+containsSame
+required_capability: fn_contains
+row a = "hello" | eval a_ll = contains(a, "hello");
+
+a:keyword | a_ll:boolean
+hello | true
+;
+
+containsWithSubstring
+required_capability: fn_contains
+from employees | where emp_no <= 10010 | eval f_s = substring(last_name, 2) | eval f_l = contains(last_name, f_s) | keep emp_no, last_name, f_s, f_l;
+ignoreOrder:true
+
+emp_no:integer | last_name:keyword | f_s:keyword | f_l:boolean
+10001 | Facello   | acello | true
+10002 | Simmel    | immel | true
+10003 | Bamford   | amford | true
+10004 | Koblick   | oblick | true
+10005 | Maliniak  | aliniak | true
+10006 | Preusig   | reusig | true
+10007 | Zielinski | ielinski | true
+10008 | Kalloufi  | alloufi | true
+10009 | Peac      | eac | true
+10010 | Piveteau  | iveteau | true
+;
+
+containsUtf16Emoji
+required_capability: fn_contains
+row a = "🐱Meow!🐶Woof!" | eval f_s = substring(a, 2) | eval f_l = contains(a, f_s);
+
+a:keyword | f_s:keyword | f_l:boolean
+🐱Meow!🐶Woof! | Meow!🐶Woof! | true
+;
+
+containsNestedCase
+required_capability: fn_contains
+row a = "hello" | eval a_ll = CASE(contains(a, "ll"), "success","fail");
+
+a:keyword | a_ll:keyword
+hello | success
+;
+
+containsNestSubstring
+required_capability: fn_contains
+row a = "hello" | eval a_ll = contains(substring(a, 2), "ll");
+
+a:keyword | a_ll:boolean
+hello | true
+;
+
+containsWarnings
+required_capability: fn_contains
+
+from hosts | where host=="epsilon" | eval l1 = contains(host_group, "ate"), l2 = contains(description, "ate") | keep l1, l2;
+ignoreOrder:true
+warning:Line 1:82: evaluation of [contains(description, \"ate\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:82: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+l1:boolean | l2:boolean
+true          | null
+true          | null
+null       | false
+;
+
 // Note: no matches in MV returned
 in
 
@@ -567,6 +670,34 @@ min(salary):integer | max(salary):integer | job_positions:keyword
 29175               | 58121               | Business Analyst
 25945               | 74999               | Data Scientist
 25324               | 58715               | Head Human Resources
+;
+
+groupByMvMin
+  FROM employees
+| STATS MIN(salary), MAX(salary) BY job_positions=MV_MIN(job_positions)
+| SORT job_positions
+| LIMIT 5;
+
+MIN(salary):integer | MAX(salary):integer | job_positions:keyword
+25976               | 74970               | Accountant
+28941               | 69904               | Architect
+29175               | 50249               | Business Analyst
+25945               | 74999               | Data Scientist
+25324               | 50064               | Head Human Resources
+;
+
+groupByMvMax
+  FROM employees
+| STATS MIN(salary), MAX(salary) BY job_positions=MV_MAX(job_positions)
+| SORT job_positions
+| LIMIT 5;
+
+MIN(salary):integer | MAX(salary):integer | job_positions:keyword
+47411               | 47411               | Accountant
+28941               | 28941               | Architect
+39110               | 48942               | Head Human Resources
+26436               | 50128               | Internship
+25976               | 64675               | Junior Developer
 ;
 
 convertFromString
@@ -1127,6 +1258,33 @@ warningRegex:Line 5:10: java.util.regex.PatternSyntaxException: Unclosed group n
 first_name:keyword | result:keyword
 Alejandro          | null
 ;
+
+docsReplaceText
+//tag::replaceString[]
+ROW str = "Hello World"
+| EVAL str = REPLACE(str, "World", "Universe")
+// end::replaceString[]
+;
+
+//tag::replaceString-result[]
+str:keyword
+Hello Universe
+// end::replaceString-result[]
+;
+
+docsReplaceRegex
+//tag::replaceRegex[]
+ROW str = "Hello World"
+| EVAL str = REPLACE(str, "\\s+", "")
+// end::replaceRegex[]
+;
+
+//tag::replaceRegex-result[]
+str:keyword
+HelloWorld
+// end::replaceRegex-result[]
+;
+
 
 left
 // tag::left[]
@@ -1931,6 +2089,95 @@ l1:integer | l2:integer
 null       | 0
 ;
 
+mvContains
+required_capability: fn_mv_contains_v1
+// tag::mv_contains[]
+ROW set = ["a", "b", "c"], element = "a"
+| EVAL set_contains_element = mv_contains(set, element)
+// end::mv_contains[]
+;
+
+// tag::mv_contains-result[]
+set:keyword | element:keyword | set_contains_element:boolean 
+[a, b, c]   | a               | true         
+// end::mv_contains-result[]
+;
+
+mvContains_bothsides
+required_capability: fn_mv_contains_v1
+// tag::mv_contains_bothsides[]
+ROW setA = ["a","c"], setB = ["a", "b", "c"]
+| EVAL a_subset_of_b = mv_contains(setB, setA)
+| EVAL b_subset_of_a = mv_contains(setA, setB)
+// end::mv_contains_bothsides[]
+;
+
+// tag::mv_contains_bothsides-result[]
+setA:keyword | setB:keyword | a_subset_of_b:boolean | b_subset_of_a:boolean 
+[a, c]       | [a, b, c]    | true                  | false
+// end::mv_contains_bothsides-result[]
+;
+
+mvContainsCombinations
+required_capability: fn_mv_contains_v1
+
+ROW a = "a", b = ["a", "b", "c"], n = null
+| EVAL aa = mv_contains(a, a), 
+       bb = mv_contains(b, b), 
+       ab = mv_contains(a, b), 
+       ba = mv_contains(b,a), 
+       na = mv_contains(n, a), 
+       an = mv_contains(a, n), 
+       nn = mv_contains(n,n)
+;
+
+a:keyword | b:keyword | n:null | aa:boolean | bb:boolean   | ab:boolean | ba:boolean | na:boolean | an:boolean | nn:boolean
+a         | [a, b, c] | null   | true       | true         | false      | true       | false      | true       | true
+;
+
+mvContainsCombinations_multirow
+required_capability: fn_mv_contains_v1
+
+ROW row_number = [0,1,2,3,4,5], element = "e", n = null, emptyStringSet = [""], setA = ["b","d"], setB = ["a", "c", "e"]
+| MV_EXPAND row_number
+| EVAL superset = CASE(
+                    row_number == 0, ["a","e"],
+                    row_number == 1, ["b","d"],
+                    row_number == 2, null,
+                    row_number == 3, ["a","e","c","b","d"], 
+                    row_number == 4, ["a","d","c","b","e"],
+                    row_number == 5, ["a","d","c","b","","e"],
+                  null) 
+| EVAL contains_element         = mv_contains(superset, element), 
+       contains_null            = mv_contains(superset, n), 
+       contains_emptyStringSet  = mv_contains(superset, emptyStringSet), 
+       contains_setA            = mv_contains(superset, setA), 
+       contains_setB            = mv_contains(superset, setB) 
+;
+
+row_number:INTEGER | element:keyword | n:null | emptyStringSet:keyword | setA:keyword | setB:keyword    | superset:keyword         |contains_element:boolean | contains_null:boolean | contains_emptyStringSet:boolean | contains_setA:boolean | contains_setB:boolean
+0                  | "e"             | null   | [""]                   | ["b","d"]    | ["a", "c", "e"] | ["a","e"]                | true                    | true                  | false                           | false                 | false       
+1                  | "e"             | null   | [""]                   | ["b","d"]    | ["a", "c", "e"] | ["b","d"]                | false                   | true                  | false                           | true                  | false    
+2                  | "e"             | null   | [""]                   | ["b","d"]    | ["a", "c", "e"] | null                     | false                   | true                  | false                           | false                 | false    
+3                  | "e"             | null   | [""]                   | ["b","d"]    | ["a", "c", "e"] | ["a","e","c","b","d"]    | true                    | true                  | false                           | true                  | true    
+4                  | "e"             | null   | [""]                   | ["b","d"]    | ["a", "c", "e"] | ["a","d","c","b","e"]    | true                    | true                  | false                           | true                  | true    
+5                  | "e"             | null   | [""]                   | ["b","d"]    | ["a", "c", "e"] | ["a","d","c","b","","e"] | true                    | true                  | true                            | true                  | true    
+;
+
+mvContains_where
+required_capability: fn_mv_contains_v1
+// tag::mv_contains_where[]
+FROM airports
+| WHERE mv_contains(type, ["major","military"]) AND scalerank == 9
+| KEEP scalerank, name, country
+// end::mv_contains_where[]
+;
+
+// tag::mv_contains_where-result[]
+scalerank:integer | name:text               | country:keyword  
+9                 | Chandigarh Int'l        | India
+// end::mv_contains_where-result[]
+;
 
 mvAppend
 required_capability: fn_mv_append
@@ -2370,3 +2617,242 @@ warning:Line 2:9: java.lang.IllegalArgumentException: single-value function enco
     @timestamp:date     | message:text
 2023-10-23T13:55:01.544Z|Connected to 10.1.0.1
 ;
+
+mvStringEqualsMultiValueConstant
+required_capability: fix_mv_constant_equals_field
+FROM mv_text
+| WHERE message == ["Connected to 10.1.0.1", "Banana"]
+| KEEP @timestamp, message
+;
+warning:Line 2:9: evaluation of [message == [\"Connected to 10.1.0.1\", \"Banana\"]] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    @timestamp:date     | message:text
+;
+
+mvStringNotEqualsMultiValueConstant
+required_capability: fix_mv_constant_comparison_field
+FROM mv_text
+| WHERE message != ["Connected to 10.1.0.1", "Banana"]
+| KEEP @timestamp, message
+;
+warning:Line 2:9: evaluation of [message != [\"Connected to 10.1.0.1\", \"Banana\"]] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    @timestamp:date     | message:text
+;
+
+mvString_IN_MultiValueConstant
+required_capability: fix_mv_constant_equals_field
+FROM mv_text
+| WHERE message IN (["Connected to 10.1.0.1", "Banana"])
+| KEEP @timestamp, message
+;
+warning:Line 2:9: evaluation of [message IN ([\"Connected to 10.1.0.1\", \"Banana\"])] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    @timestamp:date     | message:text
+;
+
+mvKeyword_IN_MultiValueConstant
+required_capability: fix_mv_constant_equals_field
+FROM employees
+| WHERE job_positions IN (["Tech Lead" , "Data Scientist", "Senior Team Lead"])
+| KEEP emp_no, job_positions
+;
+warning:Line 2:9: evaluation of [job_positions IN ([\"Tech Lead\" , \"Data Scientist\", \"Senior Team Lead\"])] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    emp_no:integer     | job_positions:keyword
+;
+
+mvKeywordEqualsMultiValueConstant
+required_capability: fix_mv_constant_equals_field
+FROM employees
+| WHERE job_positions == ["Tech Lead" , "Data Scientist", "Senior Team Lead"]
+| KEEP emp_no, job_positions
+;
+warning:Line 2:9: evaluation of [job_positions == [\"Tech Lead\" , \"Data Scientist\", \"Senior Team Lead\"]] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    emp_no:integer     | job_positions:keyword
+;
+
+mvKeywordNotEqualsMultiValueConstant
+required_capability: fix_mv_constant_comparison_field
+FROM employees
+| WHERE job_positions != ["Tech Lead" , "Data Scientist", "Senior Team Lead"]
+| KEEP emp_no, job_positions
+;
+warning:Line 2:9: evaluation of [job_positions != [\"Tech Lead\" , \"Data Scientist\", \"Senior Team Lead\"]] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    emp_no:integer     | job_positions:keyword
+;
+
+url_encode sample for docs
+required_capability: url_encode
+
+// tag::url_encode[]
+ROW u = "https://example.com/?x=foo bar&y=baz" | EVAL u = URL_ENCODE(u)
+// end::url_encode[]
+;
+
+// tag::url_encode-result[]
+u:keyword
+https%3A%2F%2Fexample.com%2F%3Fx%3Dfoo+bar%26y%3Dbaz
+// end::url_encode-result[]
+;
+
+url_encode mixed functions tests
+required_capability: url_encode
+
+FROM employees 
+| WHERE emp_no == 10001 
+| EVAL a = TRIM(URL_ENCODE(first_name))
+| EVAL b = URL_ENCODE(TO_LOWER(first_name))
+| KEEP a,b;
+
+a:keyword | b:keyword
+Georgi    | georgi 
+;
+
+url_encode mixed input tests
+required_capability: url_encode
+required_capability: url_encode_component
+
+ROW u = ["hello elastic!", "a+b-c%d", "", ".-_~", "!#$&'()*+,/:;=?@[]", "🔥💧"] | EVAL u = URL_ENCODE(u);
+
+u:keyword
+["hello+elastic%21", "a%2Bb-c%25d", "", ".-_~", "%21%23%24%26%27%28%29%2A%2B%2C%2F%3A%3B%3D%3F%40%5B%5D", "%F0%9F%94%A5%F0%9F%92%A7"]
+;
+
+url_decode sample for docs
+required_capability: url_decode
+
+// tag::url_decode[]
+ROW u = "https%3A%2F%2Fexample.com%2F%3Fx%3Dfoo%20bar%26y%3Dbaz" 
+| EVAL u = URL_DECODE(u)
+// end::url_decode[]
+;
+
+// tag::url_decode-result[]
+u:keyword
+https://example.com/?x=foo bar&y=baz
+// end::url_decode-result[]
+;
+
+url_decode mixed functions tests
+required_capability: url_decode
+
+FROM employees 
+| WHERE emp_no == 10001 
+| EVAL a = TRIM(URL_DECODE(first_name))
+| EVAL b = URL_DECODE(TO_LOWER(first_name))
+| EVAL c = URL_DECODE(TO_LOWER(first_name))
+| KEEP a,b;
+
+a:keyword | b:keyword
+Georgi    | georgi 
+;
+
+url_decode mixed input tests
+required_capability: url_decode
+
+ROW u = "%21%23%24%26%27%28%29*%2B%2C%2F%3A%3B%3D%3F%40%5B%5D" | EVAL u = URL_DECODE(u);
+
+u:keyword
+"!#$&'()*+,/:;=?@[]"
+;
+
+url_decode bad input tests
+required_capability: url_decode
+required_capability: url_encode_component
+
+ROW u = "%#" | EVAL u = URL_DECODE(u);
+
+warning:Line 1:25: evaluation of [URL_DECODE(u)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:25: java.lang.IllegalArgumentException: URLDecoder: Incomplete trailing escape (%25) pattern
+
+u:keyword
+null
+;
+
+combined url encode decode tests with table reads
+required_capability: url_encode
+required_capability: url_decode
+
+FROM employees 
+| SORT emp_no
+| LIMIT 10
+| EVAL name = URL_DECODE(URL_ENCODE(CONCAT(gender, " - ", first_name, "+", last_name, "; ", CONCAT("@", first_name, last_name))))
+| KEEP emp_no, name;
+
+emp_no:integer | name:keyword
+10001          | M - Georgi+Facello; @GeorgiFacello
+10002          | F - Bezalel+Simmel; @BezalelSimmel
+10003          | M - Parto+Bamford; @PartoBamford
+10004          | M - Chirstian+Koblick; @ChirstianKoblick
+10005          | M - Kyoichi+Maliniak; @KyoichiMaliniak
+10006          | F - Anneke+Preusig; @AnnekePreusig
+10007          | F - Tzvetan+Zielinski; @TzvetanZielinski
+10008          | M - Saniya+Kalloufi; @SaniyaKalloufi
+10009          | F - Sumant+Peac; @SumantPeac
+10010          | null
+;
+
+combined url encode decode tests with random strings
+required_capability: url_encode
+required_capability: url_decode
+
+ROW u = ["https://www.example.com/papers?q=information+retrieval&year=2024&citations=high", "", "!#$&'()+/:;=?@[]", "💨🔥🪨💧"] 
+| eval u = URL_DECODE(URL_ENCODE(u));
+
+u:keyword
+["https://www.example.com/papers?q=information+retrieval&year=2024&citations=high", "", "!#$&'()+/:;=?@[]", "💨🔥🪨💧"]
+;
+
+url_encode_component sample for docs
+required_capability: url_encode_component
+
+// tag::url_encode_component[]
+ROW u = "https://example.com/?x=foo bar&y=baz" 
+| EVAL u = URL_ENCODE_COMPONENT(u)
+// end::url_encode_component[]
+;
+
+// tag::url_encode_component-result[]
+u:keyword
+https%3A%2F%2Fexample.com%2F%3Fx%3Dfoo%20bar%26y%3Dbaz
+// end::url_encode_component-result[]
+;
+
+url_encode_component special input tests
+required_capability: url_encode_component
+required_capability: url_decode
+
+ROW a = "+!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~", b = ".-_~", c = "❗🐶🐱"
+| EVAL a = URL_ENCODE_COMPONENT(a)
+| EVAL b = URL_ENCODE_COMPONENT(b)
+| EVAL c = URL_DECODE(URL_ENCODE_COMPONENT(c));
+
+a:keyword                                                                                                                                                   | b:keyword | c:keyword
+"%2B%21%22%23%24%25%26%27%28%29%2A%2B%2C-.%2F0123456789%3A%3B%3C%3D%3E%3F%40ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B%5C%5D%5E_%60abcdefghijklmnopqrstuvwxyz%7B%7C%7D~" | ".-_~"    |❗🐶🐱
+;
+
+url_encode_component tests with table reads
+required_capability: url_encode_component
+
+FROM books 
+| EVAL author_encoded = URL_ENCODE_COMPONENT(author), 
+        title_encoded = URL_ENCODE_COMPONENT(title)
+| KEEP book_no, author_encoded, title_encoded
+| SORT book_no
+| WHERE book_no IN ("1211", "1463")
+;
+
+book_no:keyword | author_encoded:keyword | title_encoded:keyword
+1211            | Fyodor%20Dostoevsky    | The%20brothers%20Karamazov
+1463            | J.%20R.%20R.%20Tolkien | Realms%20of%20Tolkien%3A%20Images%20of%20Middle-earth
+;
+

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,6 +29,8 @@ public class LimitExec extends UnaryExec implements EstimatesRowSize {
         LimitExec::new
     );
 
+    private static final TransportVersion ESQL_LIMIT_ROW_SIZE = TransportVersion.fromName("esql_limit_row_size");
+
     private final Expression limit;
     private final Integer estimatedRowSize;
 
@@ -43,7 +45,7 @@ public class LimitExec extends UnaryExec implements EstimatesRowSize {
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(PhysicalPlan.class),
             in.readNamedWriteable(Expression.class),
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LIMIT_ROW_SIZE) ? in.readOptionalVInt() : null
+            in.getTransportVersion().supports(ESQL_LIMIT_ROW_SIZE) ? in.readOptionalVInt() : null
         );
     }
 
@@ -52,7 +54,7 @@ public class LimitExec extends UnaryExec implements EstimatesRowSize {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
         out.writeNamedWriteable(limit());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LIMIT_ROW_SIZE)) {
+        if (out.getTransportVersion().supports(ESQL_LIMIT_ROW_SIZE)) {
             out.writeOptionalVInt(estimatedRowSize);
         }
     }

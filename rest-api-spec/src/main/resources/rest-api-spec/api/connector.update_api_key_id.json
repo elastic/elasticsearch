@@ -1,10 +1,10 @@
 {
   "connector.update_api_key_id": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/update-connector-api-key-id-api.html",
-      "description": "Updates the API key id and/or API key secret id fields in the connector document."
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-connector-update-api-key-id",
+      "description": "Update the connector API key ID"
     },
-    "stability": "experimental",
+    "stability": "beta",
     "visibility": "public",
     "headers": {
       "accept": [

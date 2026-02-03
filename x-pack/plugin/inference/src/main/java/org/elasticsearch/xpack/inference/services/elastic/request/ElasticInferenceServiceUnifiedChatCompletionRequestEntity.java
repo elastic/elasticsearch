@@ -28,7 +28,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestEntity implement
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        unifiedRequestEntity.toXContent(builder, UnifiedCompletionRequest.withMaxCompletionTokensTokens(modelId, params));
+        unifiedRequestEntity.toXContent(builder, UnifiedCompletionRequest.withMaxCompletionTokens(modelId, params));
         builder.endObject();
 
         return builder;

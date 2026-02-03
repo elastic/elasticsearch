@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.application.connector;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -145,10 +144,9 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        NamedXContentRegistry xContentRegistry,
-        ProjectResolver projectResolver
+        NamedXContentRegistry xContentRegistry
     ) {
-        super(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry, projectResolver);
+        super(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry);
     }
 
     @Override

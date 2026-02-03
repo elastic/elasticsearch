@@ -13,11 +13,13 @@ import fixture.aws.DynamicAwsCredentials;
 import fixture.aws.DynamicRegionSupplier;
 import fixture.aws.sts.AwsStsHttpFixture;
 import fixture.aws.sts.AwsStsHttpHandler;
+import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
@@ -39,7 +41,13 @@ public class RepositoryS3StsCredentialsRestIT extends AbstractRepositoryS3RestTe
     private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
     private static final DynamicAwsCredentials dynamicCredentials = new DynamicAwsCredentials(regionSupplier, "s3");
 
-    private static final S3HttpFixture s3HttpFixture = new S3HttpFixture(true, BUCKET, BASE_PATH, dynamicCredentials::isAuthorized);
+    private static final S3HttpFixture s3HttpFixture = new S3HttpFixture(
+        true,
+        BUCKET,
+        BASE_PATH,
+        S3ConsistencyModel::randomConsistencyModel,
+        dynamicCredentials::isAuthorized
+    );
 
     private static final String WEB_IDENTITY_TOKEN_FILE_CONTENTS = """
         Atza|IQEBLjAsAhRFiXuWpUXuRvQ9PZL3GMFcYevydwIUFAHZwXZXXXXXXXXJnrulxKDHwy87oGKPznh0D6bEQZTSCzyoCtL_8S07pLpr0zMbn6w1lfVZKNTBdDans\
@@ -48,7 +56,8 @@ public class RepositoryS3StsCredentialsRestIT extends AbstractRepositoryS3RestTe
 
     private static final AwsStsHttpFixture stsHttpFixture = new AwsStsHttpFixture(
         dynamicCredentials::addValidCredentials,
-        WEB_IDENTITY_TOKEN_FILE_CONTENTS
+        () -> WEB_IDENTITY_TOKEN_FILE_CONTENTS,
+        TimeValue.timeValueDays(1)
     );
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()

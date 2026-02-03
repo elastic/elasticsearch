@@ -16,6 +16,7 @@ import java.io.IOException;
 import static org.elasticsearch.common.blobstore.support.BlobContainerUtils.MAX_REGISTER_CONTENT_LENGTH;
 import static org.elasticsearch.common.blobstore.support.BlobContainerUtils.ensureValidRegisterContent;
 import static org.elasticsearch.common.blobstore.support.BlobContainerUtils.getRegisterUsingConsistentRead;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 
 public class BlobContainerUtilsTests extends ESTestCase {
 
@@ -28,7 +29,7 @@ public class BlobContainerUtilsTests extends ESTestCase {
 
     public void testGetRegisterUsingConsistentRead() throws IOException {
         final var content = randomBytesReference(between(0, MAX_REGISTER_CONTENT_LENGTH));
-        assertEquals(content, getRegisterUsingConsistentRead(content.streamInput(), "", ""));
+        assertThat(getRegisterUsingConsistentRead(content.streamInput(), "", ""), equalBytes(content));
 
         final var invalidContent = randomBytesReference(MAX_REGISTER_CONTENT_LENGTH + 1);
         expectThrows(IllegalStateException.class, () -> getRegisterUsingConsistentRead(invalidContent.streamInput(), "", ""));

@@ -10,10 +10,11 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
@@ -23,24 +24,105 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import java.io.IOException;
 
 /**
- * A Block is a columnar representation of homogenous data. It has a position (row) count, and
- * various data retrieval methods for accessing the underlying data that is stored at a given
- * position.
+ * A Block is a columnar representation of homogenous data. It has a
+ * {@link #getPositionCount() position (row) count}, and various data retrieval methods for
+ * accessing the underlying data that is stored at a given position ({@link IntBlock#getInt},
+ * {@link LongBlock#getLong}, {@link BytesRefBlock#getBytesRef}).
  *
- * <p> Blocks can represent various shapes of underlying data. A Block can represent either sparse
- * or dense data. A Block can represent either single or multivalued data. A Block that represents
- * dense single-valued data can be viewed as a {@link Vector}.
+ * <h2>Reading</h2>
+ * <p>
+ *     The usual way to read a block looks like:
+ * </p>
+ * <pre>{@code
+ * for (int p = 0; p < block.getPositionCount(); p++) {
+ *     int count = block.getValueCount(p);
+ *     switch (count) {
+ *         case 0 -> // Do stuff for nulls
+ *         case 1 -> {
+ *             // Do stuff with single valued data
+ *             int v = block.getInt(block.getFirstValueIndex(p));
+ *             ...
+ *         }
+ *         default -> {
+ *             // Do stuff with multi-valued data
+ *             int first = block.getFirstValueIndex(p);
+ *             int end = first + count;
+ *             for (int i = first; i < end; i++) {
+ *                 int v = block.getInt(i);
+ *             }
+ *         }
+ *     }
+ * }
+ * }</pre>
  *
- * <p> Blocks are reference counted; to make a shallow copy of a block (e.g. if a {@link Page} contains
- * the same column twice), use {@link Block#incRef()}. Before a block is garbage collected,
- * {@link Block#close()} must be called to release a block's resources; it must also be called one
- * additional time for each time {@link Block#incRef()} was called. Calls to {@link Block#decRef()} and
- * {@link Block#close()} are equivalent.
+ * <p>
+ *     But that's a ton of work! It's quite common that the {@link Block} itself represents
+ *     dense data. In that case, it'll return non-{@code null} from {@link #asVector} which
+ *     are much faster and easier to iterate. So generally you'll see code like:
+ * </p>
  *
- * <p> Block are immutable and can be passed between threads as long as no two threads hold a reference to
- * the same block at the same time.
+ * <pre>{@code
+ * IntVector vector = block.asVector();
+ * if (vector == null) {
+ *     // iterate the Block as above
+ * } else {
+ *     // iterate the Vector as documented in Vector
+ * }
+ * }</pre>
+ *
+ * <h2>Reference counted</h2>
+ * <p>
+ *     {@linkplain Block}s are reference counted. The JVM itself manages the pointers and GCs
+ *     as soon as there are no pointers, but we also maintain a reference count so we can
+ *     decrement a {@link CircuitBreaker} when we no longer reference the {@linkplain Block}.
+ * </p>
+ * <p>
+ *     When you build a {@link Block} it's reference counter is set to {@code 1}. If you want
+ *     to return a few copies of the {@linkplain Block} in the same {@link Page} you should
+ *     {@link #incRef} it.
+ * </p>
+ * <p>
+ *     When a {@linkplain Block} is unused it's refs must be decremented to 0. You do that
+ *     with {@link #decRef} or {@link #close}. Those two methods are the same, but folks
+ *     generally use {@linkplain Block} in try-with-resources like:
+ * </p>
+ * <pre>{@code
+ * try (
+ *     IntBlock lhs = lhsEval.eval(page);
+ *     IntBlock rhs = rhsEval.eval(page);
+ *     IntBlock.Builder builder = blockFactory.newIntBlockBuilder(lhs.getPositionCount());
+ * ) {
+ *     for (int p = 0; p < lhs.getPositionCount(); p++) {
+ *         // do stuff
+ *     }
+ *     return
+ * }
+ * }</pre>
+ * <p>
+ *     {@code lhsEval.eval(page)} returns a {@link Block}. If it builds the {@linkplain Block}
+ *     on the fly it'll have a reference count of {@code 1} and the {@link #close} called by
+ *     the try-with-resources will discard it. If it is read from the {@link Page} then the
+ *     read process will {@link #incRef} and the {@link #close} will just decrement the counter.
+ * </p>
+ *
+ * <h2>Thread safety</h2>
+ * <p>
+ *     {@link Block}s are immutable.
+ * </p>
+ * <p>
+ *     {@link Block}s can be passed between threads as long as no two threads hold a reference
+ *     to the {@linkplain Block} at the same time. That's important because {@link Driver} can
+ *     shift from thread to thread while it is running.
+ * </p>
+ * <p>
+ *     To pass a {@linkplain Block} to another {@linkplain Driver}, you must first call
+ *     {@link #allowPassingToDifferentDriver}.
+ * </p>
  */
 public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCounted, Releasable {
+
+    TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK = TransportVersion.fromName("esql_aggregate_metric_double_block");
+
     /**
      * The maximum number of values that can be added to one position via lookup.
      * TODO maybe make this everywhere?
@@ -54,28 +136,82 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      *
      * The exact overhead per block would be (more correctly) {@link RamUsageEstimator#NUM_BYTES_OBJECT_REF},
      * but we approximate it with {@link RamUsageEstimator#NUM_BYTES_OBJECT_ALIGNMENT} to avoid further alignments
-     * to object size (at the end of the alignment, it would make no practical difference).
+     * to object size (at the end of the alignment, it would make no practical difference). We uplift it {@code * 4}
+     * based on experiments with many small pages.
      */
-    int PAGE_MEM_OVERHEAD_PER_BLOCK = RamUsageEstimator.NUM_BYTES_OBJECT_ALIGNMENT;
+    int PAGE_MEM_OVERHEAD_PER_BLOCK = RamUsageEstimator.NUM_BYTES_OBJECT_ALIGNMENT * 4;
 
     /**
-     * {@return an efficient dense single-value view of this block}.
+     * {@return an efficient dense single-value view of this block}
      * Null, if the block is not dense single-valued. That is, if
      * mayHaveNulls returns true, or getTotalValueCount is not equal to getPositionCount.
      */
     Vector asVector();
 
-    /** {@return The total number of values in this block not counting nulls.} */
-    int getTotalValueCount();
-
-    /** {@return The number of positions in this block.} */
+    /**
+     * {@return the number of positions (rows) in this block}
+     * See class javadoc for the usual way to iterate these positions.
+     */
     int getPositionCount();
 
-    /** Gets the index of the first value for the given position. */
+    /**
+     * {@return the index of the first value for the given position}
+     * See class javadoc for the usual way to iterate these positions.
+     * <p>
+     *     For densely packed data this will return its parameter unchanged.
+     *     For fields with {@code null} values or multivalued fields, this
+     *     will shift. Here's an example:
+     * </p>
+     * <pre>{@code
+     *     0   <---+
+     *     1       | Values at first position
+     *     2       |
+     *     3   <---+
+     *     5   <---- Value at second position
+     *     6   <---+ Values at third position
+     *     7   <---+
+     * }</pre>
+     * <p>
+     *     This represents three rows. The first has the value {@code [0, 1, 2, 3]}.
+     *     The second has the value {@code 5}. The third has the value {@code [6, 7]}.
+     *     This method will return {@code 0} for the first position, {@code 4} for
+     *     the second, and {@code 5} for the third.
+     * </p>
+     */
     int getFirstValueIndex(int position);
 
-    /** Gets the number of values for the given position, possibly 0. */
+    /**
+     * {@return the number of values for the given position}
+     * See class javadoc for the usual way to iterate these positions.
+     * <p>
+     *     For densely packed data this will return {@code 1}. For {@code null}s
+     *     this will return {@code 0}. For multivalued fields, this will return
+     *     the number of values. Here's an example:
+     * </p>
+     * <pre>{@code
+     *     0   <---+
+     *     1       | Values at first position
+     *     2       |
+     *     3   <---+
+     *     5   <---- Value at second position
+     *     6   <---+ Values at third position
+     *     7   <---+
+     * }</pre>
+     * <p>
+     *     This represents three rows. The first has the value {@code [0, 1, 2, 3]}.
+     *     The second has the value {@code 5}. The third has the value {@code [6, 7]}.
+     *     This method will return {@code 4} for the first position, {@code 1} for
+     *     the second, and {@code 2} for the third.
+     * </p>
+     */
     int getValueCount(int position);
+
+    /**
+     * {@return the total number of values in this block not counting nulls}
+     * This powers the {@code COUNT} aggregation and is used to report the
+     * number of fields loaded by ESQL.
+     */
+    int getTotalValueCount();
 
     /**
      * {@return the element type of this block}
@@ -258,6 +394,12 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
     }
 
     /**
+     * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    Block deepCopy(BlockFactory blockFactory);
+
+    /**
      * Builds {@link Block}s. Typically, you use one of it's direct supinterfaces like {@link IntBlock.Builder}.
      * This is {@link Releasable} and should be released after building the block or if building the block fails.
      */
@@ -345,7 +487,7 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      * This should be paired with {@link #readTypedBlock(BlockStreamInput)}
      */
     static void writeTypedBlock(Block block, StreamOutput out) throws IOException {
-        if (false == supportsAggregateMetricDoubleBlock(out.getTransportVersion()) && block instanceof AggregateMetricDoubleBlock a) {
+        if (false == supportsAggregateMetricDoubleBlock(out.getTransportVersion()) && block instanceof AggregateMetricDoubleArrayBlock a) {
             block = a.asCompositeBlock();
         }
         block.elementType().writeTo(out);
@@ -360,14 +502,13 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
         ElementType elementType = ElementType.readFrom(in);
         Block block = elementType.reader.readBlock(in);
         if (false == supportsAggregateMetricDoubleBlock(in.getTransportVersion()) && block instanceof CompositeBlock compositeBlock) {
-            block = AggregateMetricDoubleBlock.fromCompositeBlock(compositeBlock);
+            block = AggregateMetricDoubleArrayBlock.fromCompositeBlock(compositeBlock);
         }
         return block;
     }
 
     static boolean supportsAggregateMetricDoubleBlock(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.AGGREGATE_METRIC_DOUBLE_BLOCK)
-            || version.isPatchFrom(TransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK_8_19);
+        return version.supports(ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK);
     }
 
     /**

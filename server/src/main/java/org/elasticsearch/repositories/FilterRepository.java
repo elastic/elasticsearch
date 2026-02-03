@@ -26,6 +26,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -67,8 +68,8 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId) {
-        return in.getSnapshotGlobalMetadata(snapshotId);
+    public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId, boolean fromProjectMetadata) {
+        return in.getSnapshotGlobalMetadata(snapshotId, fromProjectMetadata);
     }
 
     @Override
@@ -95,16 +96,6 @@ public class FilterRepository implements Repository {
         Runnable onCompletion
     ) {
         in.deleteSnapshots(snapshotIds, repositoryDataGeneration, minimumNodeVersion, repositoryDataUpdateListener, onCompletion);
-    }
-
-    @Override
-    public long getSnapshotThrottleTimeInNanos() {
-        return in.getSnapshotThrottleTimeInNanos();
-    }
-
-    @Override
-    public long getRestoreThrottleTimeInNanos() {
-        return in.getRestoreThrottleTimeInNanos();
     }
 
     @Override
@@ -173,6 +164,16 @@ public class FilterRepository implements Repository {
     @Override
     public void awaitIdle() {
         in.awaitIdle();
+    }
+
+    @Override
+    public LongWithAttributes getShardSnapshotsInProgress() {
+        return in.getShardSnapshotsInProgress();
+    }
+
+    @Override
+    public RepositoriesStats.SnapshotStats getSnapshotStats() {
+        return in.getSnapshotStats();
     }
 
     @Override

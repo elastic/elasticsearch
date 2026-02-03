@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicIntegerArray;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -105,47 +106,87 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
      * If documents were dropped or failed in ingest, this method wraps the action listener that will be notified when the
      * updated bulk operation is completed. The wrapped listener combines the dropped and failed document results from the ingest
      * service with the results returned from running the remaining write operations.
+     * <br>
+     * Use this method when you want the ingest time to be taken from the actual {@link BulkResponse} such as if you are wrapping
+     * a response multiple times and wish to preserve an already calculated ingest time.
      *
-     * @param ingestTookInMillis Time elapsed for ingestion to be passed to final result.
-     * @param actionListener The action listener that expects the final bulk response.
-     * @return An action listener that combines ingest failure results with the results from writing the remaining documents.
+     * @param actionListener the listener to wrap
+     * @return a wrapped listener that merges ingest and bulk results, or the original listener if no items were dropped/failed
+     */
+    ActionListener<BulkResponse> wrapActionListenerIfNeeded(ActionListener<BulkResponse> actionListener) {
+        if (itemResponses.isEmpty()) {
+            return actionListener;
+        } else {
+            return doWrapActionListenerIfNeeded(BulkResponse::getIngestTookInMillis, actionListener);
+        }
+    }
+
+    /**
+     * If documents were dropped or failed in ingest, this method wraps the action listener that will be notified when the
+     * updated bulk operation is completed. The wrapped listener combines the dropped and failed document results from the ingest
+     * service with the results returned from running the remaining write operations.
+     * <br>
+     * This variant is used when the ingest time is already known and should be explicitly set in the final response,
+     * rather than extracted from the {@link BulkResponse}.
+     *
+     * @param ingestTookInMillis the ingest time in milliseconds to use in the final response
+     * @param actionListener the listener to wrap
+     * @return a wrapped listener that merges ingest and bulk results, or the original listener if no items were dropped/failed
      */
     ActionListener<BulkResponse> wrapActionListenerIfNeeded(long ingestTookInMillis, ActionListener<BulkResponse> actionListener) {
         if (itemResponses.isEmpty()) {
             return actionListener.map(
                 response -> new BulkResponse(
                     response.getItems(),
-                    response.getTook().getMillis(),
+                    response.getTookInMillis(),
                     ingestTookInMillis,
                     response.getIncrementalState()
                 )
             );
         } else {
-            return actionListener.map(response -> {
-                // these items are the responses from the subsequent bulk request, their 'slots'
-                // are not correct for this response we're building
-                final BulkItemResponse[] bulkResponses = response.getItems();
-
-                final BulkItemResponse[] allResponses = new BulkItemResponse[bulkResponses.length + itemResponses.size()];
-
-                // the item responses are from the original request, so their slots are correct.
-                // these are the responses for requests that failed early and were not passed on to the subsequent bulk.
-                for (BulkItemResponse item : itemResponses) {
-                    allResponses[item.getItemId()] = item;
-                }
-
-                // use the original slots for the responses from the bulk
-                for (int i = 0; i < bulkResponses.length; i++) {
-                    allResponses[originalSlots.get(i)] = bulkResponses[i];
-                }
-
-                if (Assertions.ENABLED) {
-                    assertResponsesAreCorrect(bulkResponses, allResponses);
-                }
-
-                return new BulkResponse(allResponses, response.getTook().getMillis(), ingestTookInMillis, response.getIncrementalState());
-            });
+            return doWrapActionListenerIfNeeded(ignoredResponse -> ingestTookInMillis, actionListener);
         }
+    }
+
+    /**
+     * If documents were dropped or failed in ingest, this method wraps the action listener that will be notified when the
+     * updated bulk operation is completed. The wrapped listener combines the dropped and failed document results from the ingest
+     * service with the results returned from running the remaining write operations.
+     *
+     * @param ingestTimeProviderFunction A function to provide the ingest time taken for this response
+     * @param actionListener The action listener that expects the final bulk response.
+     * @return An action listener that combines ingest failure results with the results from writing the remaining documents.
+     */
+    private ActionListener<BulkResponse> doWrapActionListenerIfNeeded(
+        Function<BulkResponse, Long> ingestTimeProviderFunction,
+        ActionListener<BulkResponse> actionListener
+    ) {
+        return actionListener.map(response -> {
+            // these items are the responses from the subsequent bulk request, their 'slots'
+            // are not correct for this response we're building
+            final BulkItemResponse[] bulkResponses = response.getItems();
+
+            final BulkItemResponse[] allResponses = new BulkItemResponse[bulkResponses.length + itemResponses.size()];
+
+            // the item responses are from the original request, so their slots are correct.
+            // these are the responses for requests that failed early and were not passed on to the subsequent bulk.
+            for (BulkItemResponse item : itemResponses) {
+                allResponses[item.getItemId()] = item;
+            }
+
+            // use the original slots for the responses from the bulk
+            for (int i = 0; i < bulkResponses.length; i++) {
+                allResponses[originalSlots.get(i)] = bulkResponses[i];
+            }
+
+            if (Assertions.ENABLED) {
+                assertResponsesAreCorrect(bulkResponses, allResponses);
+            }
+
+            var ingestTookInMillis = ingestTimeProviderFunction.apply(response);
+
+            return new BulkResponse(allResponses, response.getTook().getMillis(), ingestTookInMillis, response.getIncrementalState());
+        });
     }
 
     private void assertResponsesAreCorrect(BulkItemResponse[] bulkResponses, BulkItemResponse[] allResponses) {
@@ -255,7 +296,7 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
                     () -> "Encountered exception while attempting to redirect a failed ingest operation: index ["
                         + targetIndexName
                         + "], source: ["
-                        + indexRequest.source().utf8ToString()
+                        + indexRequest.indexSource().bytes().utf8ToString()
                         + "]",
                     ioException
                 );

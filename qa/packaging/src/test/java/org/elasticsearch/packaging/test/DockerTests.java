@@ -57,6 +57,7 @@ import static org.elasticsearch.packaging.util.docker.Docker.chownWithPrivilegeE
 import static org.elasticsearch.packaging.util.docker.Docker.copyFromContainer;
 import static org.elasticsearch.packaging.util.docker.Docker.existsInContainer;
 import static org.elasticsearch.packaging.util.docker.Docker.findInContainer;
+import static org.elasticsearch.packaging.util.docker.Docker.getContainerId;
 import static org.elasticsearch.packaging.util.docker.Docker.getContainerLogs;
 import static org.elasticsearch.packaging.util.docker.Docker.getImageHealthcheck;
 import static org.elasticsearch.packaging.util.docker.Docker.getImageLabels;
@@ -123,13 +124,20 @@ public class DockerTests extends PackagingTestCase {
 
     @After
     public void teardownTest() {
-        removeContainer();
+        // Container cleanup is handled in PackagingTestCase.teardown() so that the TestWatcher
+        // can dump container logs before we remove the container on failures.
         rm(tempDir);
+    }
+
+    @Override
+    protected boolean shouldRemoveDockerContainerAfterTest() {
+        return true;
     }
 
     @Override
     protected void dumpDebug() {
         final Result containerLogs = getContainerLogs();
+        logger.warn("Container id for debug logs: " + getContainerId());
         logger.warn("Elasticsearch log stdout:\n" + containerLogs.stdout());
         logger.warn("Elasticsearch log stderr:\n" + containerLogs.stderr());
     }
@@ -205,7 +213,7 @@ public class DockerTests extends PackagingTestCase {
 
         listPluginArchive().forEach(System.out::println);
         assertThat("Expected " + plugin + " to not be installed", listPlugins(), not(hasItems(plugin)));
-        assertThat("Expected " + plugin + " available in archive", listPluginArchive(), hasSize(16));
+        assertThat("Expected " + plugin + " available in archive", listPluginArchive(), hasItems(containsString(plugin)));
 
         // Stuff the proxy settings with garbage, so any attempt to go out to the internet would fail
         sh.getEnv()
@@ -1023,8 +1031,8 @@ public class DockerTests extends PackagingTestCase {
     public void test150MachineDependentHeap() throws Exception {
         final List<String> xArgs = machineDependentHeapTest("1536m", List.of());
 
-        // This is roughly 0.5 * 1536
-        assertThat(xArgs, hasItems("-Xms768m", "-Xmx768m"));
+        // This is roughly 0.5 * (1536 - 100) where 100 MB is the server-cli overhead
+        assertThat(xArgs, hasItems("-Xms718m", "-Xmx718m"));
     }
 
     /**
@@ -1035,12 +1043,12 @@ public class DockerTests extends PackagingTestCase {
     public void test151MachineDependentHeapWithSizeOverride() throws Exception {
         final List<String> xArgs = machineDependentHeapTest(
             "942m",
-            // 799014912 = 762m
-            List.of("-Des.total_memory_bytes=799014912")
+            // 799014912 = 762m, 52428800 = 50m
+            List.of("-Des.total_memory_bytes=799014912", "-Des.total_memory_overhead_bytes=52428800")
         );
 
-        // This is roughly 0.4 * 762, in particular it's NOT 0.4 * 942
-        assertThat(xArgs, hasItems("-Xms304m", "-Xmx304m"));
+        // This is roughly 0.4 * (762 - 50)
+        assertThat(xArgs, hasItems("-Xms284m", "-Xmx284m"));
     }
 
     private List<String> machineDependentHeapTest(final String containerMemory, final List<String> extraJvmOptions) throws Exception {
@@ -1179,23 +1187,6 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Check that the Iron Bank image doesn't define extra labels
-     */
-    public void test310IronBankImageHasNoAdditionalLabels() throws Exception {
-        assumeTrue(distribution.packaging == Packaging.DOCKER_IRON_BANK);
-
-        final Map<String, String> labels = getImageLabels(distribution);
-
-        final Set<String> labelKeys = labels.keySet();
-
-        // We can't just assert that the labels map is empty, because it can inherit labels from its base.
-        // This is certainly the case when we build the Iron Bank image using a UBI base. It is unknown
-        // if that is true for genuine Iron Bank builds.
-        assertFalse(labelKeys.stream().anyMatch(l -> l.startsWith("org.label-schema.")));
-        assertFalse(labelKeys.stream().anyMatch(l -> l.startsWith("org.opencontainers.")));
-    }
-
-    /**
      * Check that the Cloud image contains the required Beats
      */
     public void test400CloudImageBundlesBeats() {
@@ -1232,7 +1223,6 @@ public class DockerTests extends PackagingTestCase {
             builder().envVar("readiness.port", "9399").envVar("xpack.security.enabled", "false").envVar("discovery.type", "single-node")
         );
         waitForElasticsearch(installation);
-        dumpDebug();
         // readiness may still take time as file settings are applied into cluster state (even non-existent file settings)
         assertBusy(() -> assertTrue(readinessProbe(9399)));
     }

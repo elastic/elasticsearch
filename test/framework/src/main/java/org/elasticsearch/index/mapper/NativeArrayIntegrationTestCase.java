@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -228,7 +229,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
             var reader = searcher.getDirectoryReader();
             var document = reader.storedFields().document(0);
             Set<String> storedFieldNames = new LinkedHashSet<>(document.getFields().stream().map(IndexableField::name).toList());
-            assertThat(storedFieldNames, contains("_ignored_source"));
+            assertThat(storedFieldNames, contains(IgnoredSourceFieldMapper.NAME));
             assertThat(FieldInfos.getMergedFieldInfos(reader).fieldInfo("parent.field.offsets"), nullValue());
         }
     }
@@ -256,14 +257,10 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
         verifySyntheticArray(arrays, arrays, mapping, expectedStoredFields);
     }
 
-    private XContentBuilder arrayToSource(Object[] array) throws IOException {
+    private XContentBuilder arrayToSource(Object obj) throws IOException {
         var source = jsonBuilder().startObject();
-        if (array != null) {
-            source.startArray("field");
-            for (Object arrayValue : array) {
-                source.value(arrayValue);
-            }
-            source.endArray();
+        if (obj != null) {
+            source.field("field", obj);
         } else {
             source.field("field").nullValue();
         }
@@ -272,7 +269,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
 
     protected void verifySyntheticArray(
         Object[][] inputArrays,
-        Object[][] expectedArrays,
+        Object[] expectedArrays,
         XContentBuilder mapping,
         String... expectedStoredFields
     ) throws IOException {
@@ -313,7 +310,9 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
                 Set<String> storedFieldNames = new LinkedHashSet<>(document.getFields().stream().map(IndexableField::name).toList());
                 assertThat(storedFieldNames, contains(expectedStoredFields));
             }
-            var fieldInfo = FieldInfos.getMergedFieldInfos(reader).fieldInfo("field.offsets");
+            var fieldInfos = getFieldInfos(reader);
+            var fieldInfo = fieldInfos.fieldInfo("field.offsets");
+            assertThat(fieldInfo, notNullValue());
             assertThat(fieldInfo.getDocValuesType(), equalTo(DocValuesType.SORTED));
         }
     }
@@ -368,7 +367,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
                 var document = reader.storedFields().document(i);
                 // Verify that there is ignored source because of leaf array being wrapped by object array:
                 List<String> storedFieldNames = document.getFields().stream().map(IndexableField::name).toList();
-                assertThat(storedFieldNames, contains("_id", "_ignored_source"));
+                assertThat(storedFieldNames, contains("_id", IgnoredSourceFieldMapper.NAME));
 
                 // Verify that there is no offset field:
                 LeafReader leafReader = reader.leaves().get(0).reader();
@@ -432,9 +431,18 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
                 Set<String> storedFieldNames = new LinkedHashSet<>(document.getFields().stream().map(IndexableField::name).toList());
                 assertThat(storedFieldNames, contains("_id"));
             }
-            var fieldInfo = FieldInfos.getMergedFieldInfos(reader).fieldInfo("object.field.offsets");
+            var fieldInfos = getFieldInfos(reader);
+            var fieldInfo = fieldInfos.fieldInfo("object.field.offsets");
+            assertThat(fieldInfo, notNullValue());
             assertThat(fieldInfo.getDocValuesType(), equalTo(DocValuesType.SORTED));
         }
     }
 
+    private FieldInfos getFieldInfos(DirectoryReader reader) {
+        var fieldInfos = FieldInfos.getMergedFieldInfos(reader);
+        for (FieldInfo fieldInfo : fieldInfos) {
+            logger.info("field name: {}, {}", fieldInfo.name, fieldInfo.attributes());
+        }
+        return fieldInfos;
+    }
 }

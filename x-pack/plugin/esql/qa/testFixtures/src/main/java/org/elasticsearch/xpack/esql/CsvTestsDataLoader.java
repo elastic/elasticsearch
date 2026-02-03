@@ -41,8 +41,11 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -55,18 +58,33 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
 public class CsvTestsDataLoader {
     private static final int BULK_DATA_SIZE = 100_000;
     private static final TestDataset EMPLOYEES = new TestDataset("employees", "mapping-default.json", "employees.csv").noSubfields();
+    private static final TestDataset VOYAGER = new TestDataset("voyager", "mapping-voyager.json", "voyager.csv").noSubfields();
     private static final TestDataset EMPLOYEES_INCOMPATIBLE = new TestDataset(
         "employees_incompatible",
         "mapping-default-incompatible.json",
         "employees_incompatible.csv"
     ).noSubfields();
+    // Note: this index currently has no data, and is only used by the golden tests.
+    private static final TestDataset ALL_TYPES = new TestDataset("all_types", "mapping-all-types.json", "all-types.csv");
     private static final TestDataset HOSTS = new TestDataset("hosts");
     private static final TestDataset APPS = new TestDataset("apps");
     private static final TestDataset APPS_SHORT = APPS.withIndex("apps_short").withTypeMapping(Map.of("id", "short"));
+    private static final TestDataset MULTI_COLUMN_JOINABLE = new TestDataset(
+        "multi_column_joinable",
+        "mapping-multi_column_joinable.json",
+        "multi_column_joinable.csv"
+    );
+    private static final TestDataset MULTI_COLUMN_JOINABLE_LOOKUP = new TestDataset(
+        "multi_column_joinable_lookup",
+        "mapping-multi_column_joinable_lookup.json",
+        "multi_column_joinable_lookup.csv"
+    ).withSetting("lookup-settings.json");
     private static final TestDataset LANGUAGES = new TestDataset("languages");
     private static final TestDataset LANGUAGES_LOOKUP = LANGUAGES.withIndex("languages_lookup").withSetting("lookup-settings.json");
+    private static final TestDataset LANGUAGES_NON_UNIQUE_KEY = new TestDataset("languages_non_unique_key");
     private static final TestDataset LANGUAGES_LOOKUP_NON_UNIQUE_KEY = LANGUAGES_LOOKUP.withIndex("languages_lookup_non_unique_key")
-        .withData("languages_non_unique_key.csv");
+        .withData("languages_non_unique_key.csv")
+        .withDynamicTypeMapping(Map.of("country", "text"));
     private static final TestDataset LANGUAGES_NESTED_FIELDS = new TestDataset(
         "languages_nested_fields",
         "mapping-languages_nested_fields.json",
@@ -87,7 +105,8 @@ public class CsvTestsDataLoader {
     private static final TestDataset SAMPLE_DATA_TS_NANOS = SAMPLE_DATA.withIndex("sample_data_ts_nanos")
         .withData("sample_data_ts_nanos.csv")
         .withTypeMapping(Map.of("@timestamp", "date_nanos"));
-    private static final TestDataset LOOKUP_SAMPLE_DATA_TS_NANOS = SAMPLE_DATA_TS_NANOS.withIndex("lookup_sample_data_ts_nanos")
+    // the double underscore is meant to not match `sample_data*`, but do match `sample_*`
+    private static final TestDataset SAMPLE_DATA_TS_NANOS_LOOKUP = SAMPLE_DATA_TS_NANOS.withIndex("sample__data_ts_nanos_lookup")
         .withSetting("lookup-settings.json");
     private static final TestDataset MISSING_IP_SAMPLE_DATA = new TestDataset("missing_ip_sample_data");
     private static final TestDataset SAMPLE_DATA_PARTIAL_MAPPING = new TestDataset("partial_mapping_sample_data");
@@ -123,7 +142,9 @@ public class CsvTestsDataLoader {
     private static final TestDataset HEIGHTS = new TestDataset("heights");
     private static final TestDataset DECADES = new TestDataset("decades");
     private static final TestDataset AIRPORTS = new TestDataset("airports");
-    private static final TestDataset AIRPORTS_MP = AIRPORTS.withIndex("airports_mp").withData("airports_mp.csv");
+    private static final TestDataset AIRPORTS_MP = AIRPORTS.withIndex("airports_mp")
+        .withData("airports_mp.csv")
+        .withSetting("lookup-settings.json");
     private static final TestDataset AIRPORTS_NO_DOC_VALUES = new TestDataset("airports_no_doc_values").withData("airports.csv");
     private static final TestDataset AIRPORTS_NOT_INDEXED = new TestDataset("airports_not_indexed").withData("airports.csv");
     private static final TestDataset AIRPORTS_NOT_INDEXED_NOR_DOC_VALUES = new TestDataset("airports_not_indexed_nor_doc_values").withData(
@@ -134,7 +155,9 @@ public class CsvTestsDataLoader {
     private static final TestDataset DATE_NANOS_UNION_TYPES = new TestDataset("date_nanos_union_types");
     private static final TestDataset COUNTRIES_BBOX = new TestDataset("countries_bbox");
     private static final TestDataset COUNTRIES_BBOX_WEB = new TestDataset("countries_bbox_web");
-    private static final TestDataset AIRPORT_CITY_BOUNDARIES = new TestDataset("airport_city_boundaries");
+    private static final TestDataset AIRPORT_CITY_BOUNDARIES = new TestDataset("airport_city_boundaries").withSetting(
+        "lookup-settings.json"
+    );
     private static final TestDataset CARTESIAN_MULTIPOLYGONS = new TestDataset("cartesian_multipolygons");
     private static final TestDataset CARTESIAN_MULTIPOLYGONS_NO_DOC_VALUES = new TestDataset("cartesian_multipolygons_no_doc_values")
         .withData("cartesian_multipolygons.csv");
@@ -142,17 +165,49 @@ public class CsvTestsDataLoader {
     private static final TestDataset MULTIVALUE_POINTS = new TestDataset("multivalue_points");
     private static final TestDataset DISTANCES = new TestDataset("distances");
     private static final TestDataset K8S = new TestDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json");
+    private static final TestDataset K8S_DATENANOS = new TestDataset("datenanos-k8s", "k8s-mappings-date_nanos.json", "k8s.csv")
+        .withSetting("k8s-settings.json");
+    private static final TestDataset K8S_DOWNSAMPLED = new TestDataset(
+        "k8s-downsampled",
+        "k8s-downsampled-mappings.json",
+        "k8s-downsampled.csv"
+    ).withSetting("k8s-downsampled-settings.json");
     private static final TestDataset ADDRESSES = new TestDataset("addresses");
     private static final TestDataset BOOKS = new TestDataset("books").withSetting("books-settings.json");
     private static final TestDataset SEMANTIC_TEXT = new TestDataset("semantic_text").withInferenceEndpoint(true);
     private static final TestDataset LOGS = new TestDataset("logs");
+    private static final TestDataset DENSE_VECTOR_TEXT = new TestDataset("dense_vector_text");
     private static final TestDataset MV_TEXT = new TestDataset("mv_text");
     private static final TestDataset DENSE_VECTOR = new TestDataset("dense_vector");
+    private static final TestDataset DENSE_VECTOR_BFLOAT16 = new TestDataset("dense_vector_bfloat16");
+    private static final TestDataset DENSE_VECTOR_ARITHMETIC = new TestDataset("dense_vector_arithmetic");
     private static final TestDataset COLORS = new TestDataset("colors");
+    private static final TestDataset COLORS_CMYK_LOOKUP = new TestDataset("colors_cmyk").withSetting("lookup-settings.json");
+    private static final TestDataset BASE_CONVERSION = new TestDataset("base_conversion");
+    private static final TestDataset EXP_HISTO_SAMPLE = new TestDataset(
+        "exp_histo_sample",
+        "exp_histo_sample-mappings.json",
+        "exp_histo_sample.csv"
+    ).withSetting("exp_histo_sample-settings.json");
+    private static final TestDataset TDIGEST_STANDARD_INDEX = new TestDataset("tdigest_standard_index");
+    private static final TestDataset HISTOGRAM_STANDARD_INDEX = new TestDataset("histogram_standard_index");
+    private static final TestDataset TDIGEST_TIMESERIES_INDEX = new TestDataset(
+        "tdigest_timeseries_index",
+        "tdigest_timeseries_index-mappings.json",
+        "tdigest_standard_index.csv"
+    ).withSetting("tdigest_timeseries_index-settings.json");
+    private static final TestDataset HISTOGRAM_TIMESERIES_INDEX = new TestDataset(
+        "histogram_timeseries_index",
+        "mapping-histogram_time_series_index.json",
+        "histogram_standard_index.csv"
+    ).withSetting("settings-histogram_time_series_index.json");
+    private static final TestDataset MANY_NUMBERS = new TestDataset("many_numbers");
 
     public static final Map<String, TestDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
+        Map.entry(VOYAGER.indexName, VOYAGER),
         Map.entry(EMPLOYEES_INCOMPATIBLE.indexName, EMPLOYEES_INCOMPATIBLE),
+        Map.entry(ALL_TYPES.indexName, ALL_TYPES),
         Map.entry(HOSTS.indexName, HOSTS),
         Map.entry(APPS.indexName, APPS),
         Map.entry(APPS_SHORT.indexName, APPS_SHORT),
@@ -172,7 +227,7 @@ public class CsvTestsDataLoader {
         Map.entry(SAMPLE_DATA_STR.indexName, SAMPLE_DATA_STR),
         Map.entry(SAMPLE_DATA_TS_LONG.indexName, SAMPLE_DATA_TS_LONG),
         Map.entry(SAMPLE_DATA_TS_NANOS.indexName, SAMPLE_DATA_TS_NANOS),
-        Map.entry(LOOKUP_SAMPLE_DATA_TS_NANOS.indexName, LOOKUP_SAMPLE_DATA_TS_NANOS),
+        Map.entry(SAMPLE_DATA_TS_NANOS_LOOKUP.indexName, SAMPLE_DATA_TS_NANOS_LOOKUP),
         Map.entry(MISSING_IP_SAMPLE_DATA.indexName, MISSING_IP_SAMPLE_DATA),
         Map.entry(CLIENT_IPS.indexName, CLIENT_IPS),
         Map.entry(CLIENT_IPS_LOOKUP.indexName, CLIENT_IPS_LOOKUP),
@@ -205,14 +260,29 @@ public class CsvTestsDataLoader {
         Map.entry(DATE_NANOS.indexName, DATE_NANOS),
         Map.entry(DATE_NANOS_UNION_TYPES.indexName, DATE_NANOS_UNION_TYPES),
         Map.entry(K8S.indexName, K8S),
+        Map.entry(K8S_DATENANOS.indexName, K8S_DATENANOS),
+        Map.entry(K8S_DOWNSAMPLED.indexName, K8S_DOWNSAMPLED),
         Map.entry(DISTANCES.indexName, DISTANCES),
         Map.entry(ADDRESSES.indexName, ADDRESSES),
         Map.entry(BOOKS.indexName, BOOKS),
         Map.entry(SEMANTIC_TEXT.indexName, SEMANTIC_TEXT),
         Map.entry(LOGS.indexName, LOGS),
+        Map.entry(DENSE_VECTOR_TEXT.indexName, DENSE_VECTOR_TEXT),
         Map.entry(MV_TEXT.indexName, MV_TEXT),
         Map.entry(DENSE_VECTOR.indexName, DENSE_VECTOR),
-        Map.entry(COLORS.indexName, COLORS)
+        Map.entry(DENSE_VECTOR_BFLOAT16.indexName, DENSE_VECTOR_BFLOAT16),
+        Map.entry(DENSE_VECTOR_ARITHMETIC.indexName, DENSE_VECTOR_ARITHMETIC),
+        Map.entry(COLORS.indexName, COLORS),
+        Map.entry(COLORS_CMYK_LOOKUP.indexName, COLORS_CMYK_LOOKUP),
+        Map.entry(BASE_CONVERSION.indexName, BASE_CONVERSION),
+        Map.entry(MULTI_COLUMN_JOINABLE.indexName, MULTI_COLUMN_JOINABLE),
+        Map.entry(MULTI_COLUMN_JOINABLE_LOOKUP.indexName, MULTI_COLUMN_JOINABLE_LOOKUP),
+        Map.entry(EXP_HISTO_SAMPLE.indexName, EXP_HISTO_SAMPLE),
+        Map.entry(TDIGEST_STANDARD_INDEX.indexName, TDIGEST_STANDARD_INDEX),
+        Map.entry(HISTOGRAM_STANDARD_INDEX.indexName, HISTOGRAM_STANDARD_INDEX),
+        Map.entry(TDIGEST_TIMESERIES_INDEX.indexName, TDIGEST_TIMESERIES_INDEX),
+        Map.entry(HISTOGRAM_TIMESERIES_INDEX.indexName, HISTOGRAM_TIMESERIES_INDEX),
+        Map.entry(MANY_NUMBERS.indexName, MANY_NUMBERS)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");
@@ -224,6 +294,8 @@ public class CsvTestsDataLoader {
     private static final EnrichConfig CITY_NAMES_ENRICH = new EnrichConfig("city_names", "enrich-policy-city_names.json");
     private static final EnrichConfig CITY_BOUNDARIES_ENRICH = new EnrichConfig("city_boundaries", "enrich-policy-city_boundaries.json");
     private static final EnrichConfig CITY_AIRPORTS_ENRICH = new EnrichConfig("city_airports", "enrich-policy-city_airports.json");
+    private static final EnrichConfig CITY_LOCATIONS_ENRICH = new EnrichConfig("city_locations", "enrich-policy-city_locations.json");
+    private static final EnrichConfig COLORS_ENRICH = new EnrichConfig("colors_policy", "enrich-policy-colors_cmyk.json");
 
     public static final List<String> ENRICH_SOURCE_INDICES = List.of(
         "languages",
@@ -232,7 +304,8 @@ public class CsvTestsDataLoader {
         "ages",
         "heights",
         "decades",
-        "airport_city_boundaries"
+        "airport_city_boundaries",
+        "colors_cmyk"
     );
     public static final List<EnrichConfig> ENRICH_POLICIES = List.of(
         LANGUAGES_ENRICH,
@@ -243,9 +316,26 @@ public class CsvTestsDataLoader {
         DECADES_ENRICH,
         CITY_NAMES_ENRICH,
         CITY_BOUNDARIES_ENRICH,
-        CITY_AIRPORTS_ENRICH
+        CITY_AIRPORTS_ENRICH,
+        CITY_LOCATIONS_ENRICH,
+        COLORS_ENRICH
     );
     public static final String NUMERIC_REGEX = "-?\\d+(\\.\\d+)?";
+
+    private static final ViewConfig COUNTRY_ADDRESSES = new ViewConfig("country_addresses");
+    private static final ViewConfig COUNTRY_AIRPORTS = new ViewConfig("country_airports");
+    private static final ViewConfig COUNTRY_LANGUAGES = new ViewConfig("country_languages");
+    private static final ViewConfig AIRPORTS_MP_FILTERED = new ViewConfig("airports_mp_filtered");
+    private static final ViewConfig EMPLOYEES_REHIRED = new ViewConfig("employees_rehired");
+    private static final ViewConfig EMPLOYEES_NOT_REHIRED = new ViewConfig("employees_not_rehired");
+    public static final List<ViewConfig> VIEW_CONFIGS = List.of(
+        COUNTRY_ADDRESSES,
+        COUNTRY_AIRPORTS,
+        COUNTRY_LANGUAGES,
+        AIRPORTS_MP_FILTERED,
+        EMPLOYEES_REHIRED,
+        EMPLOYEES_NOT_REHIRED
+    );
 
     /**
      * <p>
@@ -267,72 +357,149 @@ public class CsvTestsDataLoader {
         // Need to setup the log configuration properly to avoid messages when creating a new RestClient
         PluginManager.addPackage(LogConfigurator.class.getPackage().getName());
         LogConfigurator.configureESLogging();
+        boolean indexes = false;
+        boolean policies = false;
+        boolean views = false;
+        boolean delete = false;
+        boolean load = false;
 
-        String protocol = "http";
-        String host = "localhost";
-        int port = 9200;
-        String username = null;
-        String password = null;
-        if (args.length > 0) {
-            URL url = URI.create(args[0]).toURL();
-            protocol = url.getProtocol();
-            host = url.getHost();
-            port = url.getPort();
-            if (port < 0 || port > 65535) {
-                throw new IllegalArgumentException("Please specify a valid port [0 - 65535], found [" + port + "]");
-            }
-            String userInfo = url.getUserInfo();
-            if (userInfo != null) {
-                if (userInfo.contains(":") == false || userInfo.split(":").length != 2) {
-                    throw new IllegalArgumentException("Invalid user credentials [username:password], found [" + userInfo + "]");
+        RestClientBuilder builder = RestClient.builder(new HttpHost("localhost", 9200, "http"));
+        for (String arg : args) {
+            if (arg.startsWith("--")) {
+                switch (arg.substring(2).toLowerCase(Locale.ROOT)) {
+                    case "indexes", "indices", "data":
+                        indexes = true;
+                        break;
+                    case "policies", "enrich":
+                        policies = true;
+                        break;
+                    case "views":
+                        views = true;
+                        break;
+                    case "delete":
+                        delete = true;
+                        break;
+                    case "load":
+                        load = true;
+                        break;
+                    default:
+                        throw new IllegalArgumentException(
+                            "unknown option: " + arg + " (valid options are: --indexes, --policies, --views, --delete, --load)"
+                        );
                 }
-                String[] userPw = userInfo.split(":");
-                username = userPw[0];
-                password = userPw[1];
+            } else {
+                URL url = URI.create(args[0]).toURL();
+                String protocol = url.getProtocol();
+                String host = url.getHost();
+                int port = url.getPort();
+                if (port < 0 || port > 65535) {
+                    throw new IllegalArgumentException("Please specify a valid port [0 - 65535], found [" + port + "]");
+                }
+                builder = RestClient.builder(new HttpHost(host, port, protocol));
+                String userInfo = url.getUserInfo();
+                if (userInfo != null) {
+                    if (userInfo.contains(":") == false || userInfo.split(":").length != 2) {
+                        throw new IllegalArgumentException("Invalid user credentials [username:password], found [" + userInfo + "]");
+                    }
+                    String[] userPw = userInfo.split(":");
+                    String username = userPw[0];
+                    String password = userPw[1];
+                    CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+                    credentialsProvider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(username, password));
+                    builder = builder.setHttpClientConfigCallback(
+                        httpClientBuilder -> httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider)
+                    );
+                }
             }
         }
-        RestClientBuilder builder = RestClient.builder(new HttpHost(host, port, protocol));
-        if (username != null) {
-            CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
-            credentialsProvider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(username, password));
-            builder = builder.setHttpClientConfigCallback(
-                httpClientBuilder -> httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider)
-            );
+        // Choose all if none specified
+        if (indexes == false && policies == false && views == false) {
+            indexes = true;
+            policies = true;
+            views = true;
+        }
+        // Delete and re-load if none specified
+        if (delete == false && load == false) {
+            delete = true;
+            load = true;
         }
 
         try (RestClient client = builder.build()) {
-            loadDataSetIntoEs(client, true, true, (restClient, indexName, indexMapping, indexSettings) -> {
-                // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
-                StringBuilder jsonBody = new StringBuilder("{");
-                if (indexSettings != null && indexSettings.isEmpty() == false) {
-                    jsonBody.append("\"settings\":");
-                    jsonBody.append(Strings.toString(indexSettings));
-                    jsonBody.append(",");
+            if (delete) {
+                if (views) {
+                    deleteViews(client);
                 }
-                jsonBody.append("\"mappings\":");
-                jsonBody.append(indexMapping);
-                jsonBody.append("}");
+                if (policies) {
+                    deleteEnrichPolicies(client);
+                }
+                if (indexes) {
+                    deleteIndexes(client, true, true, false, false, true, true, true, true, true);
+                }
+            }
+            if (load) {
+                if (indexes) {
+                    loadDataSets(
+                        client,
+                        true,
+                        true,
+                        false,
+                        false,
+                        true,
+                        true,
+                        true,
+                        true,
+                        true,
+                        (restClient, indexName, indexMapping, indexSettings) -> {
+                            // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
+                            StringBuilder jsonBody = new StringBuilder("{");
+                            if (indexSettings != null && indexSettings.isEmpty() == false) {
+                                jsonBody.append("\"settings\":");
+                                jsonBody.append(Strings.toString(indexSettings));
+                                jsonBody.append(",");
+                            }
+                            jsonBody.append("\"mappings\":");
+                            jsonBody.append(indexMapping);
+                            jsonBody.append("}");
 
-                Request request = new Request("PUT", "/" + indexName);
-                request.setJsonEntity(jsonBody.toString());
-                restClient.performRequest(request);
-            });
+                            Request request = new Request("PUT", "/" + indexName);
+                            request.setJsonEntity(jsonBody.toString());
+                            restClient.performRequest(request);
+                        }
+                    );
+                }
+                if (policies) {
+                    loadEnrichPolicies(client);
+                }
+                if (views) {
+                    loadViewsIntoEs(client);
+                }
+            }
         }
     }
 
     public static Set<TestDataset> availableDatasetsForEs(
-        RestClient client,
         boolean supportsIndexModeLookup,
-        boolean supportsSourceFieldMapping
+        boolean supportsSourceFieldMapping,
+        boolean inferenceEnabled,
+        boolean requiresTimeSeries,
+        boolean exponentialHistogramFieldSupported,
+        boolean tDigestFieldSupported,
+        boolean histogramFieldSupported,
+        boolean bFloat16ElementTypeSupported,
+        boolean tDigestMetricFieldSupported
     ) throws IOException {
-        boolean inferenceEnabled = clusterHasSparseEmbeddingInferenceEndpoint(client);
-
         Set<TestDataset> testDataSets = new HashSet<>();
 
         for (TestDataset dataset : CSV_DATASET_MAP.values()) {
             if ((inferenceEnabled || dataset.requiresInferenceEndpoint == false)
                 && (supportsIndexModeLookup || isLookupDataset(dataset) == false)
-                && (supportsSourceFieldMapping || isSourceMappingDataset(dataset) == false)) {
+                && (supportsSourceFieldMapping || isSourceMappingDataset(dataset) == false)
+                && (requiresTimeSeries == false || isTimeSeries(dataset))
+                && (exponentialHistogramFieldSupported || containsExponentialHistogramFields(dataset) == false)
+                && (tDigestFieldSupported || containsTDigestFields(dataset) == false)
+                && (tDigestMetricFieldSupported || containsTDigestMetricFields(dataset) == false)
+                && (histogramFieldSupported || containsHistogramFields(dataset) == false)
+                && (bFloat16ElementTypeSupported || containsBFloat16ElementType(dataset) == false)) {
                 testDataSets.add(dataset);
             }
         }
@@ -356,40 +523,234 @@ public class CsvTestsDataLoader {
         return mappingNode.get("_source") != null;
     }
 
-    public static void loadDataSetIntoEs(RestClient client, boolean supportsIndexModeLookup, boolean supportsSourceFieldMapping)
-        throws IOException {
+    private static boolean containsExponentialHistogramFields(TestDataset dataset) throws IOException {
+        return containsFieldWithProperties(dataset, Map.of("type", "exponential_histogram"));
+    }
+
+    private static boolean containsTDigestFields(TestDataset dataset) throws IOException {
+        return containsFieldWithProperties(dataset, Map.of("type", "tdigest"));
+    }
+
+    private static boolean containsTDigestMetricFields(TestDataset dataset) throws IOException {
+        return containsFieldWithProperties(dataset, Map.of("type", "tdigest", "time_series_metric", "histogram"));
+    }
+
+    private static boolean containsBFloat16ElementType(TestDataset dataset) throws IOException {
+        return containsFieldWithProperties(dataset, Map.of("element_type", "bfloat16"));
+    }
+
+    private static boolean containsFieldWithProperties(TestDataset dataset, Map<String, Object> properties) throws IOException {
+        if (dataset.mappingFileName() == null || properties.isEmpty()) {
+            return false;
+        }
+
+        String mappingJsonText = readTextFile(getResource("/" + dataset.mappingFileName()));
+        Map<?, ?> mappingNode = new ObjectMapper().readValue(mappingJsonText, Map.class);
+        Object mappingProperties = mappingNode.get("properties");
+        if (mappingProperties instanceof Map<?, ?> mappingPropertiesMap) {
+            for (Object field : mappingPropertiesMap.values()) {
+                if (field instanceof Map<?, ?> fieldMap && fieldMap.entrySet().containsAll(properties.entrySet())) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static boolean containsHistogramFields(TestDataset dataset) throws IOException {
+        if (dataset.mappingFileName() == null) {
+            return false;
+        }
+        String mappingJsonText = readTextFile(getResource("/" + dataset.mappingFileName()));
+        JsonNode mappingNode = new ObjectMapper().readTree(mappingJsonText);
+        JsonNode properties = mappingNode.get("properties");
+        if (properties != null) {
+            for (var fieldWithValue : properties.properties()) {
+                JsonNode fieldProperties = fieldWithValue.getValue();
+                if (fieldProperties != null) {
+                    JsonNode typeNode = fieldProperties.get("type");
+                    if (typeNode != null && typeNode.asText().equals("histogram")) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean isTimeSeries(TestDataset dataset) throws IOException {
+        Settings settings = dataset.readSettingsFile();
+        String mode = settings.get("index.mode");
+        return (mode != null && mode.equalsIgnoreCase("time_series"));
+    }
+
+    public static void loadDataSetIntoEs(
+        RestClient client,
+        boolean supportsIndexModeLookup,
+        boolean supportsSourceFieldMapping,
+        boolean inferenceEnabled
+    ) throws IOException {
         loadDataSetIntoEs(
             client,
             supportsIndexModeLookup,
             supportsSourceFieldMapping,
+            inferenceEnabled,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+        );
+    }
+
+    public static void loadDataSetIntoEs(
+        RestClient client,
+        boolean supportsIndexModeLookup,
+        boolean supportsSourceFieldMapping,
+        boolean inferenceEnabled,
+        boolean timeSeriesOnly,
+        boolean exponentialHistogramFieldSupported,
+        boolean tDigestFieldSupported,
+        boolean histogramFieldSupported,
+        boolean bFloat16ElementTypeSupported,
+        boolean tDigestMetricFieldSupported
+    ) throws IOException {
+        loadDataSets(
+            client,
+            supportsIndexModeLookup,
+            supportsSourceFieldMapping,
+            inferenceEnabled,
+            timeSeriesOnly,
+            exponentialHistogramFieldSupported,
+            tDigestFieldSupported,
+            histogramFieldSupported,
+            bFloat16ElementTypeSupported,
+            tDigestMetricFieldSupported,
             (restClient, indexName, indexMapping, indexSettings) -> {
                 ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
             }
         );
+        if (timeSeriesOnly == false) {
+            loadEnrichPolicies(client);
+        }
     }
 
-    private static void loadDataSetIntoEs(
+    private static void loadDataSets(
         RestClient client,
         boolean supportsIndexModeLookup,
         boolean supportsSourceFieldMapping,
+        boolean inferenceEnabled,
+        boolean timeSeriesOnly,
+        boolean exponentialHistogramFieldSupported,
+        boolean tDigestFieldSupported,
+        boolean histogramFieldSupported,
+        boolean bFloat16ElementTypeSupported,
+        boolean tDigestMetricFieldSupported,
         IndexCreator indexCreator
     ) throws IOException {
         Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
 
         Set<String> loadedDatasets = new HashSet<>();
-        for (var dataset : availableDatasetsForEs(client, supportsIndexModeLookup, supportsSourceFieldMapping)) {
+        logger.info("Loading test datasets");
+        for (var dataset : availableDatasetsForEs(
+            supportsIndexModeLookup,
+            supportsSourceFieldMapping,
+            inferenceEnabled,
+            timeSeriesOnly,
+            exponentialHistogramFieldSupported,
+            tDigestFieldSupported,
+            histogramFieldSupported,
+            bFloat16ElementTypeSupported,
+            tDigestMetricFieldSupported
+        )) {
             load(client, dataset, logger, indexCreator);
             loadedDatasets.add(dataset.indexName);
         }
         forceMerge(client, loadedDatasets, logger);
+    }
+
+    private static void loadEnrichPolicies(RestClient client) throws IOException {
+        Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
+        logger.info("Loading enrich policies");
         for (var policy : ENRICH_POLICIES) {
             loadEnrichPolicy(client, policy.policyName, policy.policyFileName, logger);
+        }
+    }
+
+    public static void loadViewsIntoEs(RestClient client) throws IOException {
+        Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
+        if (clusterHasViewSupport(client, logger)) {
+            logger.info("Loading views");
+            for (var view : VIEW_CONFIGS) {
+                loadView(client, view.viewName, view.viewFileName, logger);
+            }
+            // Just for debugging output TODO: remove
+            clusterHasViewSupport(client, logger);
+        } else {
+            logger.info("Skipping loading views as the cluster does not support views");
+        }
+    }
+
+    public static void deleteViews(RestClient client) throws IOException {
+        Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
+        if (clusterHasViewSupport(client, logger)) {
+            logger.info("Deleting views");
+            for (var view : VIEW_CONFIGS) {
+                deleteView(client, view.viewName, logger);
+            }
+            // Just for debugging output TODO: remove
+            clusterHasViewSupport(client, logger);
+        } else {
+            logger.info("Skipping deleting views as the cluster does not support views");
+        }
+    }
+
+    private static void deleteIndexes(
+        RestClient client,
+        boolean supportsIndexModeLookup,
+        boolean supportsSourceFieldMapping,
+        boolean inferenceEnabled,
+        boolean timeSeriesOnly,
+        boolean exponentialHistogramFieldSupported,
+        boolean tDigestFieldSupported,
+        boolean histogramFieldSupported,
+        boolean bFloat16ElementTypeSupported,
+        boolean tDigestMetricFieldSupported
+    ) throws IOException {
+        Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
+        logger.info("Deleting test datasets");
+        for (var dataset : availableDatasetsForEs(
+            supportsIndexModeLookup,
+            supportsSourceFieldMapping,
+            inferenceEnabled,
+            timeSeriesOnly,
+            exponentialHistogramFieldSupported,
+            tDigestFieldSupported,
+            histogramFieldSupported,
+            bFloat16ElementTypeSupported,
+            tDigestMetricFieldSupported
+        )) {
+            deleteIndex(client, dataset.indexName(), logger);
+        }
+    }
+
+    private static void deleteEnrichPolicies(RestClient client) throws IOException {
+        Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
+        logger.info("Deleting enrich policies");
+        for (var policy : ENRICH_POLICIES) {
+            deleteEnrichPolicy(client, policy.policyName, logger);
         }
     }
 
     public static void createInferenceEndpoints(RestClient client) throws IOException {
         if (clusterHasSparseEmbeddingInferenceEndpoint(client) == false) {
             createSparseEmbeddingInferenceEndpoint(client);
+        }
+
+        if (clusterHasTextEmbeddingInferenceEndpoint(client) == false) {
+            createTextEmbeddingInferenceEndpoint(client);
         }
 
         if (clusterHasRerankInferenceEndpoint(client) == false) {
@@ -403,11 +764,12 @@ public class CsvTestsDataLoader {
 
     public static void deleteInferenceEndpoints(RestClient client) throws IOException {
         deleteSparseEmbeddingInferenceEndpoint(client);
+        deleteTextEmbeddingInferenceEndpoint(client);
         deleteRerankInferenceEndpoint(client);
         deleteCompletionInferenceEndpoint(client);
     }
 
-    /** The semantic_text mapping type require an inference endpoint that needs to be setup before creating the index. */
+    /** The semantic_text mapping type requires inference endpoints that need to be setup before creating the index. */
     public static void createSparseEmbeddingInferenceEndpoint(RestClient client) throws IOException {
         createInferenceEndpoint(client, TaskType.SPARSE_EMBEDDING, "test_sparse_inference", """
                   {
@@ -418,12 +780,36 @@ public class CsvTestsDataLoader {
             """);
     }
 
+    public static void createTextEmbeddingInferenceEndpoint(RestClient client) throws IOException {
+        createInferenceEndpoint(client, TaskType.TEXT_EMBEDDING, "test_dense_inference", """
+                  {
+                   "service": "text_embedding_test_service",
+                   "service_settings": {
+                        "model": "my_model",
+                        "api_key": "abc64",
+                        "dimensions": 3,
+                        "similarity": "l2_norm",
+                        "element_type": "float"
+                    },
+                   "task_settings": { }
+                 }
+            """);
+    }
+
     public static void deleteSparseEmbeddingInferenceEndpoint(RestClient client) throws IOException {
         deleteInferenceEndpoint(client, "test_sparse_inference");
     }
 
+    public static void deleteTextEmbeddingInferenceEndpoint(RestClient client) throws IOException {
+        deleteInferenceEndpoint(client, "test_dense_inference");
+    }
+
     public static boolean clusterHasSparseEmbeddingInferenceEndpoint(RestClient client) throws IOException {
         return clusterHasInferenceEndpoint(client, TaskType.SPARSE_EMBEDDING, "test_sparse_inference");
+    }
+
+    public static boolean clusterHasTextEmbeddingInferenceEndpoint(RestClient client) throws IOException {
+        return clusterHasInferenceEndpoint(client, TaskType.TEXT_EMBEDDING, "test_dense_inference");
     }
 
     public static void createRerankInferenceEndpoint(RestClient client) throws IOException {
@@ -464,13 +850,13 @@ public class CsvTestsDataLoader {
 
     private static void createInferenceEndpoint(RestClient client, TaskType taskType, String inferenceId, String modelSettings)
         throws IOException {
-        Request request = new Request("PUT", "_inference/" + taskType.name() + "/" + inferenceId);
+        Request request = new Request("PUT", "/_inference/" + taskType.name() + "/" + inferenceId);
         request.setJsonEntity(modelSettings);
         client.performRequest(request);
     }
 
     private static boolean clusterHasInferenceEndpoint(RestClient client, TaskType taskType, String inferenceId) throws IOException {
-        Request request = new Request("GET", "_inference/" + taskType.name() + "/" + inferenceId);
+        Request request = new Request("GET", "/_inference/" + taskType.name() + "/" + inferenceId);
         try {
             client.performRequest(request);
         } catch (ResponseException e) {
@@ -484,7 +870,7 @@ public class CsvTestsDataLoader {
 
     private static void deleteInferenceEndpoint(RestClient client, String inferenceId) throws IOException {
         try {
-            client.performRequest(new Request("DELETE", "_inference/" + inferenceId));
+            client.performRequest(new Request("DELETE", "/_inference/" + inferenceId));
         } catch (ResponseException e) {
             // 404 here means the endpoint was not created
             if (e.getResponse().getStatusLine().getStatusCode() != 404) {
@@ -493,7 +879,8 @@ public class CsvTestsDataLoader {
         }
     }
 
-    private static void loadEnrichPolicy(RestClient client, String policyName, String policyFileName, Logger logger) throws IOException {
+    public static void loadEnrichPolicy(RestClient client, String policyName, String policyFileName, Logger logger) throws IOException {
+        logger.info("Loading enrich policy [{}] from file [{}]", policyName, policyFileName);
         URL policyMapping = getResource("/" + policyFileName);
         String entity = readTextFile(policyMapping);
         Request request = new Request("PUT", "/_enrich/policy/" + policyName);
@@ -502,6 +889,87 @@ public class CsvTestsDataLoader {
 
         request = new Request("POST", "/_enrich/policy/" + policyName + "/_execute");
         client.performRequest(request);
+    }
+
+    private static void loadView(RestClient client, String viewName, String viewFilename, Logger logger) throws IOException {
+        String viewQuery = loadViewQuery(viewName, viewFilename, logger);
+        Request request = new Request("PUT", "/_query/view/" + viewName);
+        request.setJsonEntity("{\"query\":\"" + viewQuery.replace("\"", "\\\"").replace("\n", "\\\n") + "\"}");
+        Response response = client.performRequest(request);
+        logger.info("View creation response: {}", response.getStatusLine());
+        getView(client, viewName, logger);
+    }
+
+    static String loadViewQuery(String viewName, String viewFilename, Logger logger) throws IOException {
+        logger.info("Loading view [{}] from file [{}]", viewName, viewFilename);
+        URL viewFile = getResource("/" + viewFilename);
+        return readTextFile(viewFile);
+    }
+
+    private static boolean getView(RestClient client, String viewName, Logger logger) throws IOException {
+        Request request = new Request("GET", "/_query/view/" + viewName);
+        try {
+            Response response = client.performRequest(request);
+            logger.info("View response status: {}", response.getStatusLine());
+            logger.info("View response body info: {}", response.getEntity());
+            logger.info("View response body: {}", new String(response.getEntity().getContent().readAllBytes()));
+        } catch (ResponseException e) {
+            logger.info("View error: {}", e.getMessage());
+            int code = e.getResponse().getStatusLine().getStatusCode();
+            if (code == 400 || code == 404) {
+                return false;
+            }
+            throw e;
+        }
+        return true;
+    }
+
+    private static boolean clusterHasViewSupport(RestClient client, Logger logger) throws IOException {
+        Request request = new Request("GET", "/_query/view");
+        try {
+            Response response = client.performRequest(request);
+            logger.info("View listing response: {}", response.getStatusLine());
+            logger.info("View response body info: {}", response.getEntity());
+            logger.info("View response body: {}", new String(response.getEntity().getContent().readAllBytes()));
+        } catch (ResponseException e) {
+            logger.info("View listing error: {}", e.getMessage());
+            int code = e.getResponse().getStatusLine().getStatusCode();
+            // Different versions of Elasticsearch return different codes when views are not supported
+            if (code == 400 || code == 500 || code == 405) {
+                return false;
+            }
+            throw e;
+        }
+        return true;
+    }
+
+    private static void deleteView(RestClient client, String viewName, Logger logger) throws IOException {
+        try {
+            client.performRequest(new Request("DELETE", "/_query/view/" + viewName));
+        } catch (ResponseException e) {
+            logger.info("View delete error: {}", e.getMessage());
+            int code = e.getResponse().getStatusLine().getStatusCode();
+            // On older servers the view listing succeeds when it should not, so we get here when we should not, hence the 400 and 500
+            if (code != 404 && code != 400 && code != 500) {
+                throw e;
+            }
+        }
+    }
+
+    private static void deleteIndex(RestClient client, String indexName, Logger logger) throws IOException {
+        try {
+            client.performRequest(new Request("DELETE", "/" + indexName));
+        } catch (ResponseException e) {
+            logger.info("Index delete error: {}", e.getMessage());
+        }
+    }
+
+    private static void deleteEnrichPolicy(RestClient client, String policyName, Logger logger) throws IOException {
+        try {
+            client.performRequest(new Request("DELETE", "/_enrich/policy/" + policyName));
+        } catch (ResponseException e) {
+            logger.info("Enrich policy delete error: {}", e.getMessage());
+        }
     }
 
     private static URL getResource(String name) {
@@ -513,6 +981,7 @@ public class CsvTestsDataLoader {
     }
 
     private static void load(RestClient client, TestDataset dataset, Logger logger, IndexCreator indexCreator) throws IOException {
+        logger.info("Loading dataset [{}] into ES index [{}]", dataset.dataFileName, dataset.indexName);
         URL mapping = getResource("/" + dataset.mappingFileName);
         Settings indexSettings = dataset.readSettingsFile();
         indexCreator.createIndex(client, dataset.indexName, readMappingFile(mapping, dataset.typeMapping), indexSettings);
@@ -560,6 +1029,8 @@ public class CsvTestsDataLoader {
         }
     }
 
+    record ColumnHeader(String name, String type) {}
+
     @SuppressWarnings("unchecked")
     /**
      * Loads a classic csv file in an ES cluster using a RestClient.
@@ -575,14 +1046,15 @@ public class CsvTestsDataLoader {
      *   - multi-values are comma separated
      *   - commas inside multivalue fields can be escaped with \ (backslash) character
      */
-    private static void loadCsvData(RestClient client, String indexName, URL resource, boolean allowSubFields, Logger logger)
+    public static void loadCsvData(RestClient client, String indexName, URL resource, boolean allowSubFields, Logger logger)
         throws IOException {
+
         ArrayList<String> failures = new ArrayList<>();
         StringBuilder builder = new StringBuilder();
         try (BufferedReader reader = reader(resource)) {
             String line;
             int lineNumber = 1;
-            String[] columns = null; // list of column names. If one column name contains dot, it is a subfield and its value will be null
+            ColumnHeader[] columns = null; // Column info. If one column name contains dot, it is a subfield and its value will be null
             List<Integer> subFieldsIndices = new ArrayList<>(); // list containing the index of a subfield in "columns" String[]
 
             while ((line = reader.readLine()) != null) {
@@ -592,15 +1064,16 @@ public class CsvTestsDataLoader {
                     String[] entries = multiValuesAwareCsvToStringArray(line, lineNumber);
                     // the schema row
                     if (columns == null) {
-                        columns = new String[entries.length];
+                        columns = new ColumnHeader[entries.length];
                         for (int i = 0; i < entries.length; i++) {
                             int split = entries[i].indexOf(':');
                             if (split < 0) {
-                                columns[i] = entries[i].trim();
+                                columns[i] = new ColumnHeader(entries[i].trim(), null);
                             } else {
                                 String name = entries[i].substring(0, split).trim();
+                                String type = entries[i].substring(split + 1).trim();
                                 if (allowSubFields || name.contains(".") == false) {
-                                    columns[i] = name;
+                                    columns[i] = new ColumnHeader(name, type);
                                 } else {// if it's a subfield, ignore it in the _bulk request
                                     columns[i] = null;
                                     subFieldsIndices.add(i);
@@ -630,7 +1103,7 @@ public class CsvTestsDataLoader {
                                     // Value is null, skip
                                     continue;
                                 }
-                                if ("_id".equals(columns[i])) {
+                                if (columns[i] != null && "_id".equals(columns[i].name)) {
                                     // Value is an _id
                                     idField = entries[i];
                                     continue;
@@ -645,17 +1118,17 @@ public class CsvTestsDataLoader {
                                     if (multiValues.length > 1) {
                                         StringBuilder rowStringValue = new StringBuilder("[");
                                         for (String s : multiValues) {
-                                            rowStringValue.append(quoteIfNecessary(s)).append(",");
+                                            rowStringValue.append(toJson(columns[i].type, s)).append(",");
                                         }
                                         // remove the last comma and put a closing bracket instead
                                         rowStringValue.replace(rowStringValue.length() - 1, rowStringValue.length(), "]");
                                         entries[i] = rowStringValue.toString();
                                     } else {
-                                        entries[i] = quoteIfNecessary(entries[i]);
+                                        entries[i] = toJson(columns[i].type, entries[i]);
                                     }
                                     // replace any escaped commas with single comma
                                     entries[i] = entries[i].replace(ESCAPED_COMMA_SEQUENCE, ",");
-                                    row.append("\"").append(columns[i]).append("\":").append(entries[i]);
+                                    row.append("\"").append(columns[i].name).append("\":").append(entries[i]);
                                 } catch (Exception e) {
                                     throw new IllegalArgumentException(
                                         format(
@@ -693,10 +1166,23 @@ public class CsvTestsDataLoader {
         }
     }
 
-    private static String quoteIfNecessary(String value) {
-        boolean isQuoted = (value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("{") && value.endsWith("}"));
-        boolean isNumeric = value.matches(NUMERIC_REGEX);
-        return isQuoted || isNumeric ? value : "\"" + value + "\"";
+    private static final Pattern RANGE_PATTERN = Pattern.compile("([0-9\\-.Z:]+)\\.\\.([0-9\\-.Z:]+)");
+
+    private static String toJson(String type, String value) {
+        return switch (type == null ? "" : type) {
+            case "date_range", "double_range", "integer_range" -> {
+                Matcher m = RANGE_PATTERN.matcher(value);
+                if (m.matches() == false) {
+                    throw new IllegalArgumentException("can't parse range: " + value);
+                }
+                yield "{\"gte\": \"" + m.group(1) + "\", \"lt\": \"" + m.group(2) + "\"}";
+            }
+            default -> {
+                boolean isQuoted = (value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("{") && value.endsWith("}"));
+                boolean isNumeric = value.matches(NUMERIC_REGEX);
+                yield isQuoted || isNumeric ? value : "\"" + value + "\"";
+            }
+        };
     }
 
     private static void sendBulkRequest(String indexName, StringBuilder builder, RestClient client, Logger logger, List<String> failures)
@@ -762,15 +1248,16 @@ public class CsvTestsDataLoader {
         String dataFileName,
         String settingFileName,
         boolean allowSubFields,
-        @Nullable Map<String, String> typeMapping,
+        @Nullable Map<String, String> typeMapping, // Override mappings read from mappings file
+        @Nullable Map<String, String> dynamicTypeMapping, // Define mappings not in the mapping files, but available from field-caps
         boolean requiresInferenceEndpoint
     ) {
         public TestDataset(String indexName, String mappingFileName, String dataFileName) {
-            this(indexName, mappingFileName, dataFileName, null, true, null, false);
+            this(indexName, mappingFileName, dataFileName, null, true, null, null, false);
         }
 
         public TestDataset(String indexName) {
-            this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null, false);
+            this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null, null, false);
         }
 
         public TestDataset withIndex(String indexName) {
@@ -781,6 +1268,7 @@ public class CsvTestsDataLoader {
                 settingFileName,
                 allowSubFields,
                 typeMapping,
+                dynamicTypeMapping,
                 requiresInferenceEndpoint
             );
         }
@@ -793,6 +1281,7 @@ public class CsvTestsDataLoader {
                 settingFileName,
                 allowSubFields,
                 typeMapping,
+                dynamicTypeMapping,
                 requiresInferenceEndpoint
             );
         }
@@ -805,6 +1294,7 @@ public class CsvTestsDataLoader {
                 settingFileName,
                 allowSubFields,
                 typeMapping,
+                dynamicTypeMapping,
                 requiresInferenceEndpoint
             );
         }
@@ -817,6 +1307,7 @@ public class CsvTestsDataLoader {
                 settingFileName,
                 allowSubFields,
                 typeMapping,
+                dynamicTypeMapping,
                 requiresInferenceEndpoint
             );
         }
@@ -829,6 +1320,7 @@ public class CsvTestsDataLoader {
                 settingFileName,
                 false,
                 typeMapping,
+                dynamicTypeMapping,
                 requiresInferenceEndpoint
             );
         }
@@ -841,12 +1333,35 @@ public class CsvTestsDataLoader {
                 settingFileName,
                 allowSubFields,
                 typeMapping,
+                dynamicTypeMapping,
+                requiresInferenceEndpoint
+            );
+        }
+
+        public TestDataset withDynamicTypeMapping(Map<String, String> dynamicTypeMapping) {
+            return new TestDataset(
+                indexName,
+                mappingFileName,
+                dataFileName,
+                settingFileName,
+                allowSubFields,
+                typeMapping,
+                dynamicTypeMapping,
                 requiresInferenceEndpoint
             );
         }
 
         public TestDataset withInferenceEndpoint(boolean needsInference) {
-            return new TestDataset(indexName, mappingFileName, dataFileName, settingFileName, allowSubFields, typeMapping, needsInference);
+            return new TestDataset(
+                indexName,
+                mappingFileName,
+                dataFileName,
+                settingFileName,
+                allowSubFields,
+                typeMapping,
+                dynamicTypeMapping,
+                needsInference
+            );
         }
 
         private Settings readSettingsFile() throws IOException {
@@ -859,6 +1374,12 @@ public class CsvTestsDataLoader {
             }
 
             return indexSettings;
+        }
+    }
+
+    public record ViewConfig(String viewName, String viewFileName) {
+        public ViewConfig(String viewName) {
+            this(viewName, "views/" + viewName + ".esql");
         }
     }
 

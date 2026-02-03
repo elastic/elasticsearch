@@ -26,12 +26,21 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Predicate;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM;
+
 public class DynamicTemplate implements ToXContentObject {
+
+    /**
+     * Pattern to match <code>{{param}}</code> in dynamic template mappings.
+     * These will be replaced with values from {@link DocumentParserContext#getDynamicTemplateParams(String)}
+     */
+    private static final Pattern DYNAMIC_TEMPLATE_PARAM = Pattern.compile("\\{\\{(.*?)}}");
 
     public enum MatchType {
         /**
@@ -255,7 +264,7 @@ public class DynamicTemplate implements ToXContentObject {
     }
 
     @SuppressWarnings("unchecked")
-    static DynamicTemplate parse(String name, Map<String, Object> conf) throws MapperParsingException {
+    static DynamicTemplate parse(String name, Map<String, ?> conf) throws MapperParsingException {
         List<String> match = new ArrayList<>(4); // these pattern lists will typically be very small
         List<String> pathMatch = new ArrayList<>(4);
         List<String> unmatch = new ArrayList<>(4);
@@ -266,7 +275,7 @@ public class DynamicTemplate implements ToXContentObject {
         List<String> unmatchMappingType = new ArrayList<>(4);
         String matchPattern = MatchType.DEFAULT.toString();
 
-        for (Map.Entry<String, Object> entry : conf.entrySet()) {
+        for (Map.Entry<String, ?> entry : conf.entrySet()) {
             String propName = entry.getKey();
             if ("match".equals(propName)) {
                 addEntriesToPatternList(match, propName, entry);
@@ -379,7 +388,7 @@ public class DynamicTemplate implements ToXContentObject {
         return Stream.of(matchLists).anyMatch(Predicate.not(List::isEmpty));
     }
 
-    private static void addEntriesToPatternList(List<String> matchList, String propName, Map.Entry<String, Object> entry) {
+    private static void addEntriesToPatternList(List<String> matchList, String propName, Map.Entry<String, ?> entry) {
         if (entry.getValue() instanceof List<?> ls) {
             for (Object o : ls) {
                 if (o instanceof String s) {
@@ -447,6 +456,24 @@ public class DynamicTemplate implements ToXContentObject {
         return match;
     }
 
+    public boolean isTimeSeriesDimension() {
+        if (mapping != null) {
+            Object value = mapping.get(TIME_SERIES_DIMENSION_PARAM);
+            if (value instanceof Boolean bool) return bool;
+        }
+        return false;
+    }
+
+    public boolean isSimplePathMatch() {
+        return pathMatch.isEmpty() == false
+            && pathUnmatch.isEmpty()
+            && match.isEmpty()
+            && unmatch.isEmpty()
+            && matchMappingType.isEmpty()
+            && unmatchMappingType.isEmpty()
+            && matchType != MatchType.REGEX;
+    }
+
     public boolean match(String templateName, String path, String fieldName, XContentFieldType xcontentFieldType) {
         // If the template name parameter is specified, then we will check only the name of the template and ignore other matches.
         if (templateName != null) {
@@ -485,7 +512,9 @@ public class DynamicTemplate implements ToXContentObject {
         String type;
         if (mapping.containsKey("type")) {
             type = mapping.get("type").toString();
+            type = type.replace("{{dynamic_type}}", dynamicType);
             type = type.replace("{dynamic_type}", dynamicType);
+            type = type.replace("{{dynamicType}}", dynamicType);
             type = type.replace("{dynamicType}", dynamicType);
         } else {
             type = dynamicType;
@@ -512,39 +541,66 @@ public class DynamicTemplate implements ToXContentObject {
     }
 
     public Map<String, Object> mappingForName(String name, String dynamicType) {
-        return processMap(mapping, name, dynamicType);
+        return mappingForName(name, dynamicType, Map.of());
     }
 
-    private static Map<String, Object> processMap(Map<String, Object> map, String name, String dynamicType) {
+    public Map<String, Object> mappingForName(String name, String dynamicType, Map<String, String> params) {
+        return processMap(mapping, name, dynamicType, params);
+    }
+
+    private static Map<String, Object> processMap(Map<String, Object> map, String name, String dynamicType, Map<String, String> params) {
         Map<String, Object> processedMap = new HashMap<>();
         for (Map.Entry<String, Object> entry : map.entrySet()) {
-            String key = entry.getKey()
-                .replace("{name}", name)
-                .replace("{dynamic_type}", dynamicType)
-                .replace("{dynamicType}", dynamicType);
-            processedMap.put(key, extractValue(entry.getValue(), name, dynamicType));
+            String key = processString(entry.getKey(), name, dynamicType, params);
+            processedMap.put(key, extractValue(entry.getValue(), name, dynamicType, params));
         }
         return processedMap;
     }
 
-    private static List<?> processList(List<?> list, String name, String dynamicType) {
+    private static List<?> processList(List<?> list, String name, String dynamicType, Map<String, String> params) {
         List<Object> processedList = new ArrayList<>(list.size());
         for (Object value : list) {
-            processedList.add(extractValue(value, name, dynamicType));
+            processedList.add(extractValue(value, name, dynamicType, params));
         }
         return processedList;
     }
 
     @SuppressWarnings("unchecked")
-    private static Object extractValue(Object value, String name, String dynamicType) {
+    private static Object extractValue(Object value, String name, String dynamicType, Map<String, String> params) {
         if (value instanceof Map) {
-            return processMap((Map<String, Object>) value, name, dynamicType);
+            return processMap((Map<String, Object>) value, name, dynamicType, params);
         } else if (value instanceof List) {
-            return processList((List<?>) value, name, dynamicType);
-        } else if (value instanceof String) {
-            return value.toString().replace("{name}", name).replace("{dynamic_type}", dynamicType).replace("{dynamicType}", dynamicType);
+            return processList((List<?>) value, name, dynamicType, params);
+        } else if (value instanceof String valueString) {
+            valueString = processString(valueString, name, dynamicType, params);
+            return valueString;
         }
         return value;
+    }
+
+    private static String processString(String s, String name, String dynamicType, Map<String, String> params) {
+        if (s.contains("{{")) {
+            s = s.replace("{{name}}", name).replace("{{dynamic_type}}", dynamicType).replace("{{dynamicType}}", dynamicType);
+        }
+        if (s.contains("{")) {
+            s = s.replace("{name}", name).replace("{dynamic_type}", dynamicType).replace("{dynamicType}", dynamicType);
+        }
+
+        if (s.contains("{{") == false) {
+            return s;
+        }
+
+        // Handle {{param}} replacements
+        Matcher matcher = DYNAMIC_TEMPLATE_PARAM.matcher(s);
+        StringBuilder sb = new StringBuilder();
+        while (matcher.find()) {
+            String key = matcher.group(1);
+            String replacement = params.getOrDefault(key, "");
+            matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));
+        }
+        matcher.appendTail(sb);
+
+        return sb.toString();
     }
 
     String getName() {

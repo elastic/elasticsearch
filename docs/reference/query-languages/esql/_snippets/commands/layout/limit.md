@@ -1,4 +1,7 @@
-## `LIMIT` [esql-limit]
+```yaml {applies_to}
+serverless: ga
+stack: ga
+```
 
 The `LIMIT` processing command enables you to limit the number of rows that are
 returned.

@@ -30,3 +30,7 @@ dependencies {
 
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
 }
+
+tasks.named('yamlRestTest') {
+  usesDefaultDistribution("Uses the inference API")
+}

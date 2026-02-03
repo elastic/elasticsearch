@@ -1,14 +1,18 @@
 {
   "esql.list_queries": {
     "documentation": {
-      "url": null,
-      "description": "Executes a list ESQL queries request"
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-list-queries",
+      "description": "Get running ES|QL queries information"
     },
     "stability": "experimental",
     "visibility": "public",
     "headers": {
-      "accept": ["application/json"],
-      "content_type": ["application/json"]
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
     "url": {
       "paths": [

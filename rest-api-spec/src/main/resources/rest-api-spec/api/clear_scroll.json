@@ -1,45 +1,53 @@
 {
-  "clear_scroll":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/clear-scroll-api.html",
-      "description":"Explicitly clears the search context for a scroll."
+  "clear_scroll": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-clear-scroll",
+      "description": "Clear a scrolling search"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json","text/plain"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json",
+        "text/plain"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_search/scroll",
-          "methods":[
+          "path": "/_search/scroll",
+          "methods": [
             "DELETE"
           ]
         },
         {
-          "path":"/_search/scroll/{scroll_id}",
-          "methods":[
+          "path": "/_search/scroll/{scroll_id}",
+          "methods": [
             "DELETE"
           ],
-          "parts":{
-            "scroll_id":{
-              "type":"list",
-              "description":"A comma-separated list of scroll IDs to clear",
-              "deprecated":true
+          "parts": {
+            "scroll_id": {
+              "type": "list",
+              "description": "A comma-separated list of scroll IDs to clear",
+              "deprecated": {
+                "version": "7.0.0",
+                "description": "A scroll id can be quite large and should be specified as part of the body"
+              }
             }
           },
-          "deprecated":{
-            "version":"7.0.0",
-            "description":"A scroll id can be quite large and should be specified as part of the body"
+          "deprecated": {
+            "version": "7.0.0",
+            "description": "A scroll id can be quite large and should be specified as part of the body"
           }
         }
       ]
     },
-    "params":{},
-    "body":{
-      "description":"A comma-separated list of scroll IDs to clear if none was specified via the scroll_id parameter"
+    "body": {
+      "description": "A comma-separated list of scroll IDs to clear if none was specified via the scroll_id parameter",
+      "required": false
     }
   }
 }

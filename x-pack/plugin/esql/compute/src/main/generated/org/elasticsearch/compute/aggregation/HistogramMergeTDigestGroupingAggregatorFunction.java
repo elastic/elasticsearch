@@ -1,0 +1,264 @@
+// Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+// or more contributor license agreements. Licensed under the Elastic License
+// 2.0; you may not use this file except in compliance with the Elastic License
+// 2.0.
+package org.elasticsearch.compute.aggregation;
+
+import java.lang.Integer;
+import java.lang.Override;
+import java.lang.String;
+import java.lang.StringBuilder;
+import java.util.List;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
+import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.TDigestBlock;
+import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.compute.operator.DriverContext;
+
+/**
+ * {@link GroupingAggregatorFunction} implementation for {@link HistogramMergeTDigestAggregator}.
+ * This class is generated. Edit {@code GroupingAggregatorImplementer} instead.
+ */
+public final class HistogramMergeTDigestGroupingAggregatorFunction implements GroupingAggregatorFunction {
+  private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
+      new IntermediateStateDesc("value", ElementType.TDIGEST),
+      new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
+
+  private final TDigestStates.GroupingState state;
+
+  private final List<Integer> channels;
+
+  private final DriverContext driverContext;
+
+  public HistogramMergeTDigestGroupingAggregatorFunction(List<Integer> channels,
+      TDigestStates.GroupingState state, DriverContext driverContext) {
+    this.channels = channels;
+    this.state = state;
+    this.driverContext = driverContext;
+  }
+
+  public static HistogramMergeTDigestGroupingAggregatorFunction create(List<Integer> channels,
+      DriverContext driverContext) {
+    return new HistogramMergeTDigestGroupingAggregatorFunction(channels, HistogramMergeTDigestAggregator.initGrouping(driverContext.bigArrays(), driverContext), driverContext);
+  }
+
+  public static List<IntermediateStateDesc> intermediateStateDesc() {
+    return INTERMEDIATE_STATE_DESC;
+  }
+
+  @Override
+  public int intermediateBlockCount() {
+    return INTERMEDIATE_STATE_DESC.size();
+  }
+
+  @Override
+  public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
+      Page page) {
+    TDigestBlock valueBlock = page.getBlock(channels.get(0));
+    maybeEnableGroupIdTracking(seenGroupIds, valueBlock);
+    return new GroupingAggregatorFunction.AddInput() {
+      @Override
+      public void add(int positionOffset, IntArrayBlock groupIds) {
+        addRawInput(positionOffset, groupIds, valueBlock);
+      }
+
+      @Override
+      public void add(int positionOffset, IntBigArrayBlock groupIds) {
+        addRawInput(positionOffset, groupIds, valueBlock);
+      }
+
+      @Override
+      public void add(int positionOffset, IntVector groupIds) {
+        addRawInput(positionOffset, groupIds, valueBlock);
+      }
+
+      @Override
+      public void close() {
+      }
+    };
+  }
+
+  private void addRawInput(int positionOffset, IntArrayBlock groups, TDigestBlock valueBlock) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int valuesPosition = groupPosition + positionOffset;
+      if (valueBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
+        int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
+        for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+          TDigestHolder valueValue = valueBlock.getTDigestHolder(valueOffset);
+          HistogramMergeTDigestAggregator.combine(state, groupId, valueValue);
+        }
+      }
+    }
+  }
+
+  @Override
+  public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block valueUncast = page.getBlock(channels.get(0));
+    if (valueUncast.areAllValuesNull()) {
+      return;
+    }
+    TDigestBlock value = (TDigestBlock) valueUncast;
+    Block seenUncast = page.getBlock(channels.get(1));
+    if (seenUncast.areAllValuesNull()) {
+      return;
+    }
+    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+    assert value.getPositionCount() == seen.getPositionCount();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        int valuesPosition = groupPosition + positionOffset;
+        HistogramMergeTDigestAggregator.combineIntermediate(state, groupId, value.getTDigestHolder(value.getFirstValueIndex(valuesPosition)), seen.getBoolean(valuesPosition));
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, TDigestBlock valueBlock) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int valuesPosition = groupPosition + positionOffset;
+      if (valueBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
+        int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
+        for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+          TDigestHolder valueValue = valueBlock.getTDigestHolder(valueOffset);
+          HistogramMergeTDigestAggregator.combine(state, groupId, valueValue);
+        }
+      }
+    }
+  }
+
+  @Override
+  public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block valueUncast = page.getBlock(channels.get(0));
+    if (valueUncast.areAllValuesNull()) {
+      return;
+    }
+    TDigestBlock value = (TDigestBlock) valueUncast;
+    Block seenUncast = page.getBlock(channels.get(1));
+    if (seenUncast.areAllValuesNull()) {
+      return;
+    }
+    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+    assert value.getPositionCount() == seen.getPositionCount();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        int valuesPosition = groupPosition + positionOffset;
+        HistogramMergeTDigestAggregator.combineIntermediate(state, groupId, value.getTDigestHolder(value.getFirstValueIndex(valuesPosition)), seen.getBoolean(valuesPosition));
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntVector groups, TDigestBlock valueBlock) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int valuesPosition = groupPosition + positionOffset;
+      if (valueBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groups.getInt(groupPosition);
+      int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
+      int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
+      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+        TDigestHolder valueValue = valueBlock.getTDigestHolder(valueOffset);
+        HistogramMergeTDigestAggregator.combine(state, groupId, valueValue);
+      }
+    }
+  }
+
+  @Override
+  public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block valueUncast = page.getBlock(channels.get(0));
+    if (valueUncast.areAllValuesNull()) {
+      return;
+    }
+    TDigestBlock value = (TDigestBlock) valueUncast;
+    Block seenUncast = page.getBlock(channels.get(1));
+    if (seenUncast.areAllValuesNull()) {
+      return;
+    }
+    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+    assert value.getPositionCount() == seen.getPositionCount();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int groupId = groups.getInt(groupPosition);
+      int valuesPosition = groupPosition + positionOffset;
+      HistogramMergeTDigestAggregator.combineIntermediate(state, groupId, value.getTDigestHolder(value.getFirstValueIndex(valuesPosition)), seen.getBoolean(valuesPosition));
+    }
+  }
+
+  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, TDigestBlock valueBlock) {
+    if (valueBlock.mayHaveNulls()) {
+      state.enableGroupIdTracking(seenGroupIds);
+    }
+  }
+
+  @Override
+  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
+    state.enableGroupIdTracking(seenGroupIds);
+  }
+
+  @Override
+  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
+    state.toIntermediate(blocks, offset, selected, driverContext);
+  }
+
+  @Override
+  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = HistogramMergeTDigestAggregator.evaluateFinal(state, selected, ctx);
+  }
+
+  @Override
+  public String toString() {
+    StringBuilder sb = new StringBuilder();
+    sb.append(getClass().getSimpleName()).append("[");
+    sb.append("channels=").append(channels);
+    sb.append("]");
+    return sb.toString();
+  }
+
+  @Override
+  public void close() {
+    state.close();
+  }
+}

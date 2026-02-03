@@ -11,12 +11,17 @@ package org.elasticsearch.repositories.azure;
 import fixture.azure.AzureHttpHandler;
 import fixture.azure.MockAzureBlobStore;
 
+import com.azure.storage.blob.batch.BlobBatchAsyncClient;
 import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RetryPolicyType;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -24,6 +29,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -41,6 +47,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.BackgroundIndexer;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
@@ -62,6 +70,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_REQUESTS_TOTAL;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomRetryingPurpose;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.allOf;
@@ -73,6 +82,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
+@ESTestCase.WithoutEntitlements // due to dependency issue ES-12435
 public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
 
     protected static final String DEFAULT_ACCOUNT_NAME = "account";
@@ -170,8 +180,13 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
         }
 
         @Override
-        AzureStorageService createAzureStorageService(Settings settingsToUse, AzureClientProvider azureClientProvider) {
-            return new AzureStorageService(settingsToUse, azureClientProvider) {
+        AzureStorageService createAzureStorageService(
+            Settings settingsToUse,
+            AzureClientProvider azureClientProvider,
+            ClusterService clusterService,
+            ProjectResolver projectResolver
+        ) {
+            return new AzureStorageService(settingsToUse, azureClientProvider, clusterService, projectResolver) {
                 @Override
                 RequestRetryOptions getRetryOptions(LocationMode locationMode, AzureStorageSettings azureStorageSettings) {
                     return new RequestRetryOptions(
@@ -301,37 +316,74 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
         }
     }
 
-    public void testDeleteBlobsIgnoringIfNotExists() throws Exception {
-        // Test with a smaller batch size here
-        final int deleteBatchSize = randomIntBetween(1, 30);
-        final String repositoryName = randomRepositoryName();
-        createRepository(
-            repositoryName,
-            Settings.builder()
-                .put(repositorySettings(repositoryName))
-                .put(AzureRepository.Repository.DELETION_BATCH_SIZE_SETTING.getKey(), deleteBatchSize)
-                .build(),
-            true
+    public void testDeleteNonexistentBlob() throws Exception {
+        final var repo = asInstanceOf(
+            AzureRepository.class,
+            internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class)
+                .repository(ProjectId.DEFAULT, createRepository(randomRepositoryName(), false))
         );
-        try (BlobStore store = newBlobStore(repositoryName)) {
-            final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
-            final int toDeleteCount = randomIntBetween(deleteBatchSize, 3 * deleteBatchSize);
-            final List<String> blobsToDelete = new ArrayList<>();
-            for (int i = 0; i < toDeleteCount; i++) {
-                byte[] bytes = randomBytes(randomInt(100));
-                String blobName = randomAlphaOfLength(10);
-                container.writeBlob(randomPurpose(), blobName, new BytesArray(bytes), false);
-                blobsToDelete.add(blobName);
+        final var blobContainer = repo.blobStore().blobContainer(BlobPath.EMPTY);
+        final var blobNames = new ArrayList<String>(10);
+        for (int i = 0; i < 10; i++) {
+            final var blobName = "test-blob-" + i + "-" + randomIdentifier();
+            final var contents = new BytesArray(randomAlphaOfLength(100));
+            blobContainer.writeBlob(randomPurpose(), blobName, contents, randomBoolean());
+            assertEquals(contents, Streams.readFully(blobContainer.readBlob(randomPurpose(), blobName)));
+            blobNames.add(blobName);
+        }
+
+        MockLog.assertThatLogger(() -> {
+            try {
+                blobContainer.deleteBlobsIgnoringIfNotExists(randomPurpose(), randomNonEmptySubsetOf(blobNames).iterator());
+                blobContainer.deleteBlobsIgnoringIfNotExists(randomPurpose(), blobNames.iterator());
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+        },
+            "com.azure.storage.blob.batch.BlobBatchAsyncClient",
+            new MockLog.UnseenEventExpectation("no errors", "com.azure.storage.blob.batch.BlobBatchAsyncClient", Level.ERROR, "*")
+        );
+    }
+
+    public void testDeleteBlobsIgnoringIfNotExists() throws Exception {
+        try (var mockLog = MockLog.capture(BlobBatchAsyncClient.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation("no errors", BlobBatchAsyncClient.class.getCanonicalName(), Level.ERROR, "*")
+            );
+
+            // Test with a smaller batch size here
+            final int deleteBatchSize = randomIntBetween(1, 30);
+            final String repositoryName = randomRepositoryName();
+            createRepository(
+                repositoryName,
+                Settings.builder()
+                    .put(repositorySettings(repositoryName))
+                    .put(AzureRepository.Repository.DELETION_BATCH_SIZE_SETTING.getKey(), deleteBatchSize)
+                    .build(),
+                true
+            );
+            try (BlobStore store = newBlobStore(repositoryName)) {
+                final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
+                final int toDeleteCount = randomIntBetween(deleteBatchSize, 3 * deleteBatchSize);
+                final List<String> blobsToDelete = new ArrayList<>();
+                for (int i = 0; i < toDeleteCount; i++) {
+                    byte[] bytes = randomBytes(randomInt(100));
+                    String blobName = randomAlphaOfLength(10);
+                    container.writeBlob(randomPurpose(), blobName, new BytesArray(bytes), false);
+                    blobsToDelete.add(blobName);
+                }
+
+                // Try to delete non existent blobs
+                for (int i = 0; i < 10; i++) {
+                    blobsToDelete.add(randomName());
+                }
+
+                Randomness.shuffle(blobsToDelete);
+                container.deleteBlobsIgnoringIfNotExists(randomPurpose(), blobsToDelete.iterator());
+                assertThat(container.listBlobs(randomPurpose()), is(anEmptyMap()));
             }
 
-            // Try to delete non existent blobs
-            for (int i = 0; i < 10; i++) {
-                blobsToDelete.add(randomName());
-            }
-
-            Randomness.shuffle(blobsToDelete);
-            container.deleteBlobsIgnoringIfNotExists(randomPurpose(), blobsToDelete.iterator());
-            assertThat(container.listBlobs(randomPurpose()), is(anEmptyMap()));
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -351,7 +403,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             container.writeBlob(randomPurpose(), blobName, new ByteArrayInputStream(data), data.length, true);
 
             var originalDataInputStream = new ByteArrayInputStream(data);
-            try (var azureInputStream = container.readBlob(randomPurpose(), blobName)) {
+            try (var azureInputStream = container.readBlob(randomRetryingPurpose(), blobName)) {
                 for (int i = 0; i < data.length; i++) {
                     assertThat(originalDataInputStream.read(), is(equalTo(azureInputStream.read())));
                 }

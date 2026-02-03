@@ -214,7 +214,7 @@ public abstract class TransportTasksAction<
         if (request.getTargetTaskId().isSet()) {
             // we are only checking one task, we can optimize it
             Task task = taskManager.getTask(request.getTargetTaskId().getId());
-            if (task != null) {
+            if (task != null && match(task)) {
                 if (request.match(task)) {
                     return List.of((OperationTask) task);
                 } else {
@@ -226,12 +226,17 @@ public abstract class TransportTasksAction<
         } else {
             final var tasks = new ArrayList<OperationTask>();
             for (Task task : taskManager.getTasks().values()) {
-                if (request.match(task)) {
+                if (match(task) && request.match(task)) {
                     tasks.add((OperationTask) task);
                 }
             }
             return tasks;
         }
+    }
+
+    // Determine if a task should be processed, allows subclass to extend filtering of tasks
+    protected boolean match(Task task) {
+        return true;
     }
 
     protected abstract TasksResponse newResponse(

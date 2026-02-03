@@ -51,7 +51,7 @@ Either this parameter or `keep_words_path` must be specified.
 
 
 `keep_words_path`
-:   (Required*, array of strings) Path to a file that contains a list of words to keep. Only tokens that match words in this list are included in the output.
+:   (Required*, string) Path to a file that contains a list of words to keep. Only tokens that match words in this list are included in the output.
 
 This path must be absolute or relative to the `config` location, and the file must be UTF-8 encoded. Each word in the file must be separated by a line break.
 

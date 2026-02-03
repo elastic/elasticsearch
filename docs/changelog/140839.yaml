@@ -1,0 +1,5 @@
+pr: 140839
+summary: Corrects a seemingly simple bug where we pass `numCands` instead of k
+area: Vector Search
+type: bug
+issues: []

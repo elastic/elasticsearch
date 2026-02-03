@@ -1,6 +1,0 @@
-pr: 127583
-summary: Add optimization to purge join on null merge key
-area: ES|QL
-type: enhancement
-issues:
- - 125577

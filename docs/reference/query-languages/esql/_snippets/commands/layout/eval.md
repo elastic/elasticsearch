@@ -1,4 +1,7 @@
-## `EVAL` [esql-eval]
+```yaml {applies_to}
+serverless: ga
+stack: ga
+```
 
 The `EVAL` processing command enables you to append new columns with calculated
 values.

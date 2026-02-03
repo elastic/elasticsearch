@@ -98,3 +98,9 @@ setup:
         index: index,index2
   - is_true: index
   - is_true: index2
+---
+"Delete nonexistent concrete index":
+    - do:
+        catch: missing
+        indices.delete:
+            index: nonexistent_index

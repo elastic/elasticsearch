@@ -11,7 +11,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.Releasable;
@@ -85,7 +87,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         final AtomicReference<ComputeResponse> finalResponse = new AtomicReference<>();
         listener = listener.delegateResponse((l, e) -> {
             final boolean receivedResults = finalResponse.get() != null || pagesFetched.get();
-            if (EsqlCCSUtils.shouldIgnoreRuntimeError(executionInfo, clusterAlias, e)
+            if (executionInfo.shouldSkipOnFailure(clusterAlias)
                 || (configuration.allowPartialResults() && EsqlCCSUtils.canAllowPartial(e))) {
                 EsqlCCSUtils.markClusterWithFinalStateAndNoShards(
                     executionInfo,
@@ -107,7 +109,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             listener.delegateFailure((l, unused) -> {
                 final CancellableTask groupTask;
                 final Runnable onGroupFailure;
-                boolean failFast = executionInfo.isSkipUnavailable(clusterAlias) == false && configuration.allowPartialResults() == false;
+                boolean failFast = executionInfo.shouldSkipOnFailure(clusterAlias) == false && configuration.allowPartialResults() == false;
                 if (failFast) {
                     groupTask = rootTask;
                     onGroupFailure = cancelQueryOnFailure;
@@ -154,23 +156,36 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
 
     private void updateExecutionInfo(EsqlExecutionInfo executionInfo, String clusterAlias, ComputeResponse resp) {
         executionInfo.swapCluster(clusterAlias, (k, v) -> {
-            var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(resp.getTotalShards())
-                .setSuccessfulShards(resp.getSuccessfulShards())
-                .setSkippedShards(resp.getSkippedShards())
-                .setFailedShards(resp.getFailedShards());
-            if (resp.getTook() != null) {
-                builder.setTook(TimeValue.timeValueNanos(executionInfo.planningTookTime().nanos() + resp.getTook().nanos()));
+            var builder = new EsqlExecutionInfo.Cluster.Builder(v);
+            if (executionInfo.isMainPlan()) {
+                builder.setTotalShards(resp.getTotalShards())
+                    .setSuccessfulShards(resp.getSuccessfulShards())
+                    .setSkippedShards(resp.getSkippedShards())
+                    .setFailedShards(resp.getFailedShards());
+            }
+            if (v.getTook() != null && resp.getTook() != null) {
+                // This can happen when we had some subplan executions before the main plan - we need to accumulate the took time
+                builder.setTook(TimeValue.timeValueNanos(v.getTook().nanos() + resp.getTook().nanos()));
             } else {
-                // if the cluster is an older version and does not send back took time, then calculate it here on the coordinator
-                // and leave shard info unset, so it is not shown in the CCS metadata section of the JSON response
-                builder.setTook(executionInfo.tookSoFar());
+                if (resp.getTook() != null) {
+                    builder.setTook(
+                        TimeValue.timeValueNanos(executionInfo.queryProfile().planning().timeTook().nanos() + resp.getTook().nanos())
+                    );
+                } else {
+                    // if the cluster is an older version and does not send back took time, then calculate it here on the coordinator
+                    // and leave shard info unset, so it is not shown in the CCS metadata section of the JSON response
+                    builder.setTook(executionInfo.queryProfile().total().timeSinceStarted());
+                }
             }
             if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
-                builder.setFailures(resp.failures);
-                if (executionInfo.isStopped() || resp.failedShards > 0 || resp.failures.isEmpty() == false) {
-                    builder.setStatus(EsqlExecutionInfo.Cluster.Status.PARTIAL);
-                } else {
-                    builder.setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+                builder.addFailures(v.getFailures());
+                builder.addFailures(resp.failures);
+                if (executionInfo.isMainPlan()) {
+                    if (executionInfo.isStopped() || resp.failedShards > 0 || resp.failures.isEmpty() == false) {
+                        builder.setStatus(EsqlExecutionInfo.Cluster.Status.PARTIAL);
+                    } else {
+                        builder.setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+                    }
                 }
             }
             return builder.build();
@@ -248,8 +263,19 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             () -> exchangeService.finishSinkHandler(globalSessionId, new TaskCancelledException(parentTask.getReasonCancelled()))
         );
         final String localSessionId = clusterAlias + ":" + globalSessionId;
-        final PhysicalPlan coordinatorPlan = ComputeService.reductionPlan(plan, true);
+        ReductionPlan reductionPlan = ComputeService.reductionPlan(
+            computeService.plannerSettings(),
+            computeService.createFlags(),
+            configuration,
+            configuration.newFoldContext(),
+            plan,
+            true,
+            false,
+            configuration.profile() ? new PlanTimeProfile() : null
+        );
+        PhysicalPlan coordinatorPlan = reductionPlan.nodeReducePlan();
         final AtomicReference<ComputeResponse> finalResponse = new AtomicReference<>();
+        final EsqlFlags flags = computeService.createFlags();
         final long startTimeInNanos = System.nanoTime();
         final Runnable cancelQueryOnFailure = computeService.cancelQueryOnFailure(parentTask);
         try (var computeListener = new ComputeListener(transportService.getThreadPool(), cancelQueryOnFailure, listener.map(profiles -> {
@@ -269,21 +295,24 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         localSessionId,
                         "remote_reduce",
                         clusterAlias,
-                        List.of(),
+                        flags,
+                        EmptyIndexedByShardId.instance(),
                         configuration,
                         configuration.newFoldContext(),
                         exchangeSource::createExchangeSource,
                         () -> exchangeSink.createExchangeSink(() -> {})
                     ),
                     coordinatorPlan,
+                    configuration.profile() ? new PlanTimeProfile() : null,
                     computeListener.acquireCompute()
                 );
                 dataNodeComputeHandler.startComputeOnDataNodes(
                     localSessionId,
                     clusterAlias,
                     parentTask,
+                    flags,
                     configuration,
-                    plan,
+                    reductionPlan.dataNodePlan(),
                     concreteIndices,
                     originalIndices,
                     exchangeSource,

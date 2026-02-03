@@ -11,6 +11,7 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.painless.Compiler.Loader;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
@@ -414,7 +415,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
 
             value = copy.remove(CompilerSettings.PICKY);
             if (value != null) {
-                compilerSettings.setPicky(Boolean.parseBoolean(value));
+                compilerSettings.setPicky(Booleans.parseBoolean(value));
             }
 
             value = copy.remove(CompilerSettings.INITIAL_CALL_SITE_DEPTH);

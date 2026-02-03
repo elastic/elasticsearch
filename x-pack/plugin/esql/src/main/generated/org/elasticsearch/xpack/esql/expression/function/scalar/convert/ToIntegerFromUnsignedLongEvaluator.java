@@ -6,6 +6,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -22,6 +23,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToIntegerFromUnsignedLongEvaluator extends AbstractConvertFunction.AbstractEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToIntegerFromUnsignedLongEvaluator.class);
+
   private final EvalOperator.ExpressionEvaluator ul;
 
   public ToIntegerFromUnsignedLongEvaluator(Source source, EvalOperator.ExpressionEvaluator ul,
@@ -112,6 +115,13 @@ public final class ToIntegerFromUnsignedLongEvaluator extends AbstractConvertFun
   @Override
   public void close() {
     Releasables.closeExpectNoException(ul);
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += ul.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

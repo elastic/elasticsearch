@@ -1,0 +1,5 @@
+pr: 135851
+summary: DiskBBQ - missing min competitive similarity check on tail docs
+area: Vector Search
+type: bug
+issues: []

@@ -1,0 +1,6 @@
+pr: 136610
+summary: Pushing down eval expression when it requires data access
+area: ES|QL
+type: bug
+issues:
+ - 133462

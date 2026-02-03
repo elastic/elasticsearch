@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.elastic.sparseembeddings;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -17,17 +18,15 @@ import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceExecutableActionModel;
-import org.elasticsearch.xpack.inference.services.elastic.action.ElasticInferenceServiceActionVisitor;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
 
-public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferenceServiceExecutableActionModel {
+public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferenceServiceModel {
 
     private final URI uri;
 
@@ -39,7 +38,8 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
         Map<String, Object> taskSettings,
         Map<String, Object> secrets,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        ChunkingSettings chunkingSettings
     ) {
         this(
             inferenceEntityId,
@@ -48,7 +48,8 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
             ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
-            elasticInferenceServiceComponents
+            elasticInferenceServiceComponents,
+            chunkingSettings
         );
     }
 
@@ -67,20 +68,28 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
         ElasticInferenceServiceSparseEmbeddingsServiceSettings serviceSettings,
         @Nullable TaskSettings taskSettings,
         @Nullable SecretSettings secretSettings,
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents,
+        ChunkingSettings chunkingSettings
+    ) {
+        this(
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
+            new ModelSecrets(secretSettings),
+            elasticInferenceServiceComponents
+        );
+    }
+
+    public ElasticInferenceServiceSparseEmbeddingsModel(
+        ModelConfigurations modelConfigurations,
+        ModelSecrets modelSecrets,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
-            new ModelSecrets(secretSettings),
-            serviceSettings,
+            modelConfigurations,
+            modelSecrets,
+            (ElasticInferenceServiceSparseEmbeddingsServiceSettings) modelConfigurations.getServiceSettings(),
             elasticInferenceServiceComponents
         );
         this.uri = createUri();
-    }
-
-    @Override
-    public ExecutableAction accept(ElasticInferenceServiceActionVisitor visitor, Map<String, Object> taskSettings) {
-        return visitor.create(this);
     }
 
     @Override

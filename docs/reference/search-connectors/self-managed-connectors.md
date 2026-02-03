@@ -18,7 +18,8 @@ Self-managed [Elastic connectors](/reference/search-connectors/index.md) are run
 ## Availability and Elastic prerequisites [es-build-connector-prerequisites]
 
 ::::{note}
-Self-managed connectors currently don’t support Windows. Use this [compatibility matrix](https://www.elastic.co/support/matrix#matrix_os) to check which operating systems are supported by self-managed connectors. Find this information under **self-managed connectors** on that page.
+Self-managed connectors currently don’t support Windows. Use this [compatibility matrix](https://www.elastic.co/support/matrix#matrix_os) to check which operating systems are supported by self-managed connectors.
+% Find this information under **self-managed connectors** on that page.
 
 ::::
 
@@ -28,7 +29,7 @@ Your Elastic deployment must include the following Elastic services:
 * **Elasticsearch**
 * **Kibana**
 
-(A new Elastic Cloud deployment includes these services by default.)
+A new {{ech}} deployment or {{es-serverless}} project includes these services by default.
 
 To run self-managed connectors, your self-deployed connector service version must match your Elasticsearch version. For example, if you’re running Elasticsearch 8.10.1, your connector service should be version 8.10.1.x. Elastic does not support deployments running mismatched versions (except during upgrades).
 
@@ -64,7 +65,9 @@ Note the following information regarding support for self-managed connectors:
 In order to set up, configure, and run a connector you’ll be moving between your third-party service, the Elastic UI, and your terminal. At a high-level, the workflow looks like this:
 
 1. Satisfy any data source prerequisites (e.g., create an OAuth application).
-2. Create a connector in the UI (or via the API).
+2. Create a connector.
+   - Use the UI. Search for "connectors" in the [global search field](docs-content://explore-analyze/find-and-organize/find-apps-and-objects.md).
+   - Use the API. Refer to [create connector API]({{es-apis}}/operation/operation-connector-post).
 3. Deploy the connector service:
     - [Option 1: Run with Docker](es-connectors-run-from-docker.md) (recommended)
     - [Option 2: Run from source](es-connectors-run-from-source.md)

@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.querydsl.query.EqualsSyntheticSourceDelegate
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 
 import java.time.ZoneId;
+import java.util.Collection;
 import java.util.Map;
 
 public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
@@ -48,6 +49,9 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
         Map.entry(DataType.CARTESIAN_POINT, EqualsGeometriesEvaluator.Factory::new),
         Map.entry(DataType.GEO_SHAPE, EqualsGeometriesEvaluator.Factory::new),
         Map.entry(DataType.CARTESIAN_SHAPE, EqualsGeometriesEvaluator.Factory::new),
+        Map.entry(DataType.GEOHASH, EqualsLongsEvaluator.Factory::new),
+        Map.entry(DataType.GEOTILE, EqualsLongsEvaluator.Factory::new),
+        Map.entry(DataType.GEOHEX, EqualsLongsEvaluator.Factory::new),
         Map.entry(DataType.KEYWORD, EqualsKeywordsEvaluator.Factory::new),
         Map.entry(DataType.TEXT, EqualsKeywordsEvaluator.Factory::new),
         Map.entry(DataType.VERSION, EqualsKeywordsEvaluator.Factory::new),
@@ -74,6 +78,9 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
                 "double",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
@@ -93,6 +100,9 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
                 "double",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
@@ -130,6 +140,12 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
         if (right() instanceof Literal lit) {
+            // Multi-valued literals are not supported going further. This also makes sure that we are handling multi-valued literals with
+            // a "warning" header, as well (see EqualsKeywordsEvaluator, for example, where lhs and rhs are both dealt with equally when
+            // it comes to multi-value handling).
+            if (lit.value() instanceof Collection<?>) {
+                return Translatable.NO;
+            }
             if (left().dataType() == DataType.TEXT && left() instanceof FieldAttribute fa) {
                 if (pushdownPredicates.canUseEqualityOnSyntheticSourceDelegate(fa, ((BytesRef) lit.value()).utf8ToString())) {
                     return Translatable.YES_BUT_RECHECK_NEGATED;

@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -20,31 +20,23 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class SetResetModeActionRequest extends AcknowledgedRequest<SetResetModeActionRequest> implements ToXContentObject {
-    public static SetResetModeActionRequest enabled() {
-        return new SetResetModeActionRequest(true, false);
+
+    public static SetResetModeActionRequest enabled(TimeValue masterNodeTimeout) {
+        return new SetResetModeActionRequest(masterNodeTimeout, true, false);
     }
 
-    public static SetResetModeActionRequest disabled(boolean deleteMetadata) {
-        return new SetResetModeActionRequest(false, deleteMetadata);
+    public static SetResetModeActionRequest disabled(TimeValue masterNodeTimeout, boolean deleteMetadata) {
+        return new SetResetModeActionRequest(masterNodeTimeout, false, deleteMetadata);
     }
 
     private final boolean enabled;
     private final boolean deleteMetadata;
 
-    private static final ParseField ENABLED = new ParseField("enabled");
-    private static final ParseField DELETE_METADATA = new ParseField("delete_metadata");
-    public static final ConstructingObjectParser<SetResetModeActionRequest, Void> PARSER = new ConstructingObjectParser<>(
-        "set_reset_mode_action_request",
-        a -> new SetResetModeActionRequest((Boolean) a[0], (Boolean) a[1])
-    );
+    static final String ENABLED_FIELD_NAME = "enabled";
+    static final String DELETE_METADATA_FIELD_NAME = "delete_metadata";
 
-    static {
-        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ENABLED);
-        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), DELETE_METADATA);
-    }
-
-    SetResetModeActionRequest(boolean enabled, Boolean deleteMetadata) {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    SetResetModeActionRequest(TimeValue masterNodeTimeout, boolean enabled, Boolean deleteMetadata) {
+        super(masterNodeTimeout, MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT /* wait indefinitely for acks */);
         this.enabled = enabled;
         this.deleteMetadata = deleteMetadata != null && deleteMetadata;
     }
@@ -72,7 +64,7 @@ public class SetResetModeActionRequest extends AcknowledgedRequest<SetResetModeA
 
     @Override
     public int hashCode() {
-        return Objects.hash(enabled, deleteMetadata);
+        return Objects.hash(masterNodeTimeout(), enabled, deleteMetadata);
     }
 
     @Override
@@ -84,15 +76,17 @@ public class SetResetModeActionRequest extends AcknowledgedRequest<SetResetModeA
             return false;
         }
         SetResetModeActionRequest other = (SetResetModeActionRequest) obj;
-        return Objects.equals(enabled, other.enabled) && Objects.equals(deleteMetadata, other.deleteMetadata);
+        return Objects.equals(masterNodeTimeout(), other.masterNodeTimeout())
+            && Objects.equals(enabled, other.enabled)
+            && Objects.equals(deleteMetadata, other.deleteMetadata);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
-        builder.field(ENABLED.getPreferredName(), enabled);
+        builder.field(ENABLED_FIELD_NAME, enabled);
         if (enabled == false) {
-            builder.field(DELETE_METADATA.getPreferredName(), deleteMetadata);
+            builder.field(DELETE_METADATA_FIELD_NAME, deleteMetadata);
         }
         builder.endObject();
         return builder;

@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -21,7 +20,6 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -42,7 +40,7 @@ import java.util.stream.Collectors;
 public record ChatCompletionResults(List<Result> results) implements InferenceServiceResults {
 
     public static final String NAME = "chat_completion_service_results";
-    public static final String COMPLETION = TaskType.COMPLETION.name().toLowerCase(Locale.ROOT);
+    public static final String COMPLETION = "completion";
 
     public ChatCompletionResults(StreamInput in) throws IOException {
         this(in.readCollectionAsList(Result::new));

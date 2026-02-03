@@ -11,7 +11,6 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.highlight.SimpleFragmenter;
 import org.apache.lucene.search.highlight.SimpleSpanFragmenter;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -144,9 +143,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         postTags(in.readOptionalStringArray());
         fragmentSize(in.readOptionalVInt());
         numOfFragments(in.readOptionalVInt());
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            encoder(in.readOptionalString());
-        }
+        encoder(in.readOptionalString());
         highlighterType(in.readOptionalString());
         fragmenter(in.readOptionalString());
         if (in.readBoolean()) {
@@ -180,9 +177,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         out.writeOptionalStringArray(postTags);
         out.writeOptionalVInt(fragmentSize);
         out.writeOptionalVInt(numOfFragments);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            out.writeOptionalString(encoder);
-        }
+        out.writeOptionalString(encoder);
         out.writeOptionalString(highlighterType);
         out.writeOptionalString(fragmenter);
         boolean hasQuery = highlightQuery != null;

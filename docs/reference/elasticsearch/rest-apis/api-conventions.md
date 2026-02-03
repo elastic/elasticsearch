@@ -273,7 +273,8 @@ GET /%3Clogstash-%7Bnow%2Fd-2d%7D%3E%2C%3Clogstash-%7Bnow%2Fd-1d%7D%3E%2C%3Clogs
   }
 }
 ```
-
+% TEST[s/^/PUT logstash-2016.09.20\nPUT logstash-2016.09.19\nPUT logstash-2016.09.18\n/]
+% TEST[s/now/2016.09.20%7C%7C/]
 
 ## Multi-target syntax [api-multi-index]
 
@@ -281,7 +282,21 @@ Most APIs that accept a `<data-stream>`, `<index>`, or `<target>` request path p
 
 In multi-target syntax, you can use a comma-separated list to run a request on multiple resources, such as data streams, indices, or aliases: `test1,test2,test3`. You can also use [glob-like](https://en.wikipedia.org/wiki/Glob_(programming)) wildcard (`*`) expressions to target resources that match a pattern: `test*` or `*test` or `te*t` or `*test*`.
 
-You can exclude targets using the `-` character: `test*,-test3`.
+Targets can be excluded by prefixing with the `-` character. This applies to both concrete names and wildcard patterns.
+For example, `test*,-test3` resolves to all resources that start with `test` except for the resource named `test3`.
+It is possible for exclusion to exclude all resources. For example, `test*,-test*` resolves to an empty set.
+An exclusion affects targets listed _before_ it and has no impact on targets listed _after_ it.
+For example, `test3*,-test3,test*` resolves to all resources that start with `test`, including `test3`, because it is included
+by the last `test*` pattern.
+
+{applies_to}`stack: ga 9.3` A dash-prefixed (`-`) expression is always treated as an exclusion. The dash character must be
+followed by a concrete name or wildcard pattern. It is invalid to use the dash character on its own.
+
+In previous versions, dash-prefixed expressions were sometimes not treated as exclusions due to a bug. For example:
+- `test,-test` threw an `IndexNotFoundException` instead of excluding `test`
+- `test3,-test*` incorrectly resolved to `test3` instead of excluding matches to the wildcard pattern
+
+This bug is fixed in 9.3.
 
 ::::{important}
 Aliases are resolved after wildcard expressions. This can result in a request that targets an excluded alias. For example, if `test3` is an index alias, the pattern `test*,-test3` still targets the indices for `test3`. To avoid this, exclude the concrete indices for the alias instead.
@@ -420,6 +435,42 @@ GET /_nodes/rack:2
 GET /_nodes/ra*:2
 GET /_nodes/ra*:2*
 ```
+
+### Component selectors [api-component-selectors]
+```{applies_to}
+stack: ga 9.1
+```
+
+A data stream component is a logical grouping of indices that help organize data inside a data stream. All data streams contain a `data` component by default. The `data` component comprises the data stream's backing indices. When searching, managing, or indexing into a data stream, the `data` component is what you are interacting with by default.
+
+Some data stream features are exposed as additional components alongside its `data` component. These other components are comprised of separate sets of backing indices. These additional components store supplemental data independent of the data stream's regular backing indices. An example of another component is the `failures` component exposed by the data stream [failure store](docs-content://manage-data/data-store/data-streams/failure-store.md) feature, which captures documents that fail to be ingested in a separate set of backing indices on the data stream.
+
+Some APIs that accept a `<data-stream>`, `<index>`, or `<target>` request path parameter also support *selector syntax* which defines which component on a data stream the API should operate on. To use a selector, it is appended to the index or data stream name. Selectors can be combined with other index pattern syntax like [date math](#api-date-math-index-names) and wildcards.
+
+There are two selector suffixes supported by {{es}} APIs:
+
+`::data`
+:   Refers to a data stream's backing indices containing regular data. Data streams always contain a data component.
+
+`::failures`
+:   This component refers to the internal indices used for a data stream's [failure store](docs-content://manage-data/data-store/data-streams/failure-store.md).
+
+As an example, [search]({{es-apis}}group/endpoint-search), [field capabilities]({{es-apis}}operation/operation-field-caps), and [index stats]({{es-apis}}operation/operation-indices-stats) APIs can all report results from a different component rather than from the default data.
+
+```console
+# Search a data stream normally
+GET my-data-stream/_search
+# Search a data stream's failure data if present
+GET my-data-stream::failures/_search
+
+# Syntax can be combined with other index pattern syntax (wildcards, multi-target, date math, cross cluster search, etc)
+GET logs-*::failures/_search
+GET logs-*::data,logs-*::failures/_count
+GET remote-cluster:logs-*-*::failures/_search
+GET *::data,*::failures,-logs-rdbms-*::failures/_stats
+GET <logs-{now/d}>::failures/_search
+```
+% TEST[skip:backport]
 
 ## Parameters [api-conventions-parameters]
 

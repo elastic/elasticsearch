@@ -13,6 +13,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 public class AddSerializationTests extends AbstractArithmeticSerializationTests<Add> {
     @Override
     protected Add create(Source source, Expression left, Expression right) {
-        return new Add(source, left, right);
+        return new Add(source, left, right, configuration());
     }
 }

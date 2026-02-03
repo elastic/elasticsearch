@@ -28,6 +28,7 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.tests.util.TestUtil;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
@@ -652,7 +653,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             .lenient(true)
             .toQuery(createSearchExecutionContext());
         List<Query> expectedQueries = new ArrayList<>();
-        expectedQueries.add(new MatchNoDocsQuery(""));
+        expectedQueries.add(Queries.NO_DOCS_INSTANCE);
         expectedQueries.add(new PrefixQuery(new Term(TEXT_FIELD_NAME, "t")));
         DisjunctionMaxQuery expected = new DisjunctionMaxQuery(expectedQueries, 1.0f);
         assertEquals(expected, query);
@@ -692,11 +693,11 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             .field(KEYWORD_FIELD_NAME)
             .analyzer("stop")
             .toQuery(createSearchExecutionContext());
-        assertEquals(new MatchNoDocsQuery(), query);
+        assertEquals(Queries.NO_DOCS_INSTANCE, query);
 
         query = new BoolQueryBuilder().should(new SimpleQueryStringBuilder("the").field(TEXT_FIELD_NAME).analyzer("stop"))
             .toQuery(createSearchExecutionContext());
-        expected = new BooleanQuery.Builder().add(new MatchNoDocsQuery(), BooleanClause.Occur.SHOULD).build();
+        expected = new BooleanQuery.Builder().add(Queries.NO_DOCS_INSTANCE, BooleanClause.Occur.SHOULD).build();
         assertEquals(expected, query);
 
         query = new BoolQueryBuilder().should(
@@ -739,9 +740,9 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             .field("another_unmapped")
             .defaultOperator(Operator.AND)
             .toQuery(createSearchExecutionContext());
-        expected = new BooleanQuery.Builder().add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
-            .add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
-            .add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
+        expected = new BooleanQuery.Builder().add(Queries.NO_DOCS_INSTANCE, BooleanClause.Occur.MUST)
+            .add(Queries.NO_DOCS_INSTANCE, BooleanClause.Occur.MUST)
+            .add(Queries.NO_DOCS_INSTANCE, BooleanClause.Occur.MUST)
             .build();
         assertEquals(expected, query);
     }

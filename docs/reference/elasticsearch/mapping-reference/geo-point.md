@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Geopoint"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/geo-point.html
@@ -243,6 +246,7 @@ PUT idx/_doc/1
   ]
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -254,5 +258,5 @@ Will become:
    ]
 }
 ```
-
+% TEST[s/^/{"_source":/ s/\n$/}/]
 

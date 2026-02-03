@@ -35,6 +35,11 @@ public class EqualsSyntheticSourceDelegate extends Query {
         return fieldName + "(delegate):" + value;
     }
 
+    @Override
+    public boolean containsPlan() {
+        return false;
+    }
+
     private class Builder extends BaseTermQueryBuilder<Builder> {
         private Builder(String name, String value) {
             super(name, value);
@@ -43,7 +48,7 @@ public class EqualsSyntheticSourceDelegate extends Query {
         @Override
         protected org.apache.lucene.search.Query doToQuery(SearchExecutionContext context) {
             TextFieldMapper.TextFieldType ft = (TextFieldMapper.TextFieldType) context.getFieldType(fieldName);
-            return ft.syntheticSourceDelegate().termQuery(value, context);
+            return ft.syntheticSourceDelegate().orElse(null).termQuery(value, context);
         }
 
         @Override

@@ -109,6 +109,7 @@ public class TimeValueTests extends ESTestCase {
         assertThat(TimeValue.parseTimeValue(s, null, "test").getStringRep(), equalTo(s));
         final TimeValue t = new TimeValue(randomIntBetween(1, 128), randomFrom(TimeUnit.values()));
         assertThat(TimeValue.parseTimeValue(t.getStringRep(), null, "test"), equalTo(t));
+        assertThat(TimeValue.timeValueSeconds(-1), equalTo(TimeValue.parseTimeValue(TimeValue.timeValueSeconds(-1).getStringRep(), "foo")));
     }
 
     private static final String FRACTIONAL_TIME_VALUES_ARE_NOT_SUPPORTED = "fractional time values are not supported";

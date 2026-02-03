@@ -60,6 +60,13 @@ final class ClusterComputeRequest extends AbstractTransportRequest implements In
     }
 
     ClusterComputeRequest(StreamInput in) throws IOException {
+        this(in, null);
+    }
+
+    /**
+     * @param idMapper must always be null in production. Only used in tests to remap NameIds when deserializing.
+     */
+    ClusterComputeRequest(StreamInput in, PlanStreamInput.NameIdMapper idMapper) throws IOException {
         super(in);
         this.clusterAlias = in.readString();
         this.sessionId = in.readString();
@@ -67,7 +74,7 @@ final class ClusterComputeRequest extends AbstractTransportRequest implements In
             // TODO make EsqlConfiguration Releasable
             new BlockStreamInput(in, new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE))
         );
-        this.plan = RemoteClusterPlan.from(new PlanStreamInput(in, in.namedWriteableRegistry(), configuration));
+        this.plan = RemoteClusterPlan.from(new PlanStreamInput(in, in.namedWriteableRegistry(), configuration, idMapper));
         this.indices = plan.originalIndices().indices();
     }
 

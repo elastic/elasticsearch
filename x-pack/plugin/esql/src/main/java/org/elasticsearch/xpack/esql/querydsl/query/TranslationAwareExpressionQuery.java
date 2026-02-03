@@ -40,4 +40,9 @@ public class TranslationAwareExpressionQuery extends Query {
         // All Full Text Functions are translated to queries using this method
         return true;
     }
+
+    @Override
+    public boolean containsPlan() {
+        return false;
+    }
 }

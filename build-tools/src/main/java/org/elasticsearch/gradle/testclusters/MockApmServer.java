@@ -9,18 +9,35 @@
 
 package org.elasticsearch.gradle.testclusters;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.util.LRUMap;
+import com.fasterxml.jackson.databind.util.LookupCache;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.stream.Streams;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.slf4j.LoggerFactory;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+import javax.annotation.concurrent.NotThreadSafe;
 
 /**
  * This is a server which just accepts lines of JSON code and if the JSON
@@ -32,102 +49,163 @@ import java.net.InetSocketAddress;
  * <p>
  * The HTTP server used is the JDK embedded com.sun.net.httpserver
  */
+@NotThreadSafe
 public class MockApmServer {
     private static final Logger logger = Logging.getLogger(MockApmServer.class);
-    private int port;
+    private static final org.slf4j.Logger log = LoggerFactory.getLogger(MockApmServer.class);
+    private static final LookupCache<String, String> transactionCache = new LRUMap(16, 16);
 
-    public MockApmServer(int port) {
-        this.port = port;
+    private final Pattern metricFilter;
+    private final Pattern transactionFilter;
+    private final Pattern transactionExcludesFilter;
+
+    private HttpServer instance;
+
+    public MockApmServer(String metricFilter, String transactionFilter, String transactionExcludesFilter) {
+        this.metricFilter = createWildcardPattern(metricFilter);
+        this.transactionFilter = createWildcardPattern(transactionFilter);
+        this.transactionExcludesFilter = createWildcardPattern(transactionExcludesFilter);
     }
 
-    /**
-     * Simple main that starts a mock APM server and prints the port it is
-     * running on. This is not needed
-     * for testing, it is just a convenient template for trying things out
-     * if you want play around.
-     */
-    public static void main(String[] args) throws IOException, InterruptedException {
-        MockApmServer server = new MockApmServer(9999);
-        server.start();
+    private Pattern createWildcardPattern(String filter) {
+        if (filter == null || filter.isEmpty()) {
+            return null;
+        }
+        var pattern = Arrays.stream(filter.split(",\\s*"))
+            .map(Pattern::quote)
+            .map(s -> s.replace("*", "\\E.*\\Q"))
+            .collect(Collectors.joining(")|(", "(", ")"));
+        return Pattern.compile(pattern);
     }
-
-    private static volatile HttpServer instance;
 
     /**
      * Start the Mock APM server. Just returns empty JSON structures for every incoming message
      *
-     * @return - the port the Mock APM server started on
      * @throws IOException
      */
-    public synchronized int start() throws IOException {
+    public void start() throws IOException {
         if (instance != null) {
-            String hostname = instance.getAddress().getHostName();
-            int port = instance.getAddress().getPort();
-            logger.lifecycle("MockApmServer is already running. Reusing on address:port " + hostname + ":" + port);
-            return port;
+            throw new IllegalStateException("MockApmServer already started");
         }
-        InetSocketAddress addr = new InetSocketAddress("0.0.0.0", port);
+        InetSocketAddress addr = new InetSocketAddress("0.0.0.0", 0);
         HttpServer server = HttpServer.create(addr, 10);
-        server.createContext("/exit", new ExitHandler());
         server.createContext("/", new RootHandler());
-
         server.start();
         instance = server;
         logger.lifecycle("MockApmServer started on port " + server.getAddress().getPort());
-        return server.getAddress().getPort();
     }
 
     public int getPort() {
-        return port;
+        if (instance == null) {
+            throw new IllegalStateException("MockApmServer not started");
+        }
+        return instance.getAddress().getPort();
     }
 
     /**
      * Stop the server gracefully if possible
      */
-    public synchronized void stop() {
-        logger.lifecycle("stopping apm server");
-        instance.stop(1);
-        instance = null;
+    public void stop() {
+        if (instance != null) {
+            logger.lifecycle("stopping apm server");
+            instance.stop(1);
+            instance = null;
+        }
     }
 
     class RootHandler implements HttpHandler {
+        // checked by APM agent to identify the APM server version to adjust its behavior accordingly
+        private static final String FAKE_VERSION = """
+            {
+              "build_date": "2021-12-18T19:59:06Z",
+              "build_sha": "24fe620eeff5a19e2133c940c7e5ce1ceddb1445",
+              "publish_ready": true,
+              "version": "9.0.0"
+            }
+            """;
+
         public void handle(HttpExchange t) {
             try {
-                InputStream body = t.getRequestBody();
-                ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-                byte[] buffer = new byte[8 * 1024];
-                int lengthRead;
-                while ((lengthRead = body.read(buffer)) > 0) {
-                    bytes.write(buffer, 0, lengthRead);
+                if ("GET".equals(t.getRequestMethod()) && "/".equals(t.getRequestURI().getPath())) {
+                    t.sendResponseHeaders(200, FAKE_VERSION.length());
+                    try (OutputStream os = t.getResponseBody()) {
+                        os.write(FAKE_VERSION.getBytes());
+                    }
+                    return;
                 }
-                logger.lifecycle(("MockApmServer reading JSON objects: " + bytes.toString()));
+
+                InputStream body = t.getRequestBody();
+                if (metricFilter == null && transactionFilter == null) {
+                    logRequestBody(body);
+                } else {
+                    logFiltered(body);
+                }
 
                 String response = "{}";
                 t.sendResponseHeaders(200, response.length());
-                OutputStream os = t.getResponseBody();
-                os.write(response.getBytes());
-                os.close();
+                try (OutputStream os = t.getResponseBody()) {
+                    os.write(response.getBytes());
+                }
             } catch (Exception e) {
                 e.printStackTrace();
             }
         }
-    }
 
-    static class ExitHandler implements HttpHandler {
-        private static final int STOP_TIME = 3;
+        private void logRequestBody(InputStream body) throws IOException {
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            IOUtils.copy(body, bytes);
+            logger.lifecycle(("MockApmServer reading JSON objects: " + bytes.toString()));
+        }
 
-        public void handle(HttpExchange t) {
-            try {
-                InputStream body = t.getRequestBody();
-                String response = "{}";
-                t.sendResponseHeaders(200, response.length());
-                OutputStream os = t.getResponseBody();
-                os.write(response.getBytes());
-                os.close();
-                instance.stop(STOP_TIME);
-                instance = null;
-            } catch (Exception e) {
-                e.printStackTrace();
+        private void logFiltered(InputStream body) throws IOException {
+            ObjectMapper mapper = new ObjectMapper();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(body))) {
+                String line;
+                String nodeMetadata = null;
+
+                List<JsonNode> spans = new ArrayList<>();
+
+                while ((line = reader.readLine()) != null) {
+                    var jsonNode = mapper.readTree(line);
+
+                    if (jsonNode.has("metadata")) {
+                        nodeMetadata = jsonNode.path("metadata").path("service").path("node").path("configured_name").asText(null);
+                        var tier = jsonNode.path("metadata").path("labels").path("node_tier").asText(null);
+                        nodeMetadata += tier != null ? "/" + tier : "";
+
+                    } else if (transactionFilter != null && jsonNode.has("transaction")) {
+                        var transaction = jsonNode.get("transaction");
+                        var name = transaction.get("name").asText();
+                        if (transactionFilter.matcher(name).matches()
+                            && (transactionExcludesFilter == null || transactionExcludesFilter.matcher(name).matches() == false)) {
+                            transactionCache.put(transaction.get("id").asText(), name);
+                            logger.lifecycle("Transaction {} [{}]: {}", name, nodeMetadata, transaction);
+                        }
+                    } else if (jsonNode.has("span")) {
+                        spans.add(jsonNode.get("span")); // make sure to record all transactions first
+                    } else if (metricFilter != null && jsonNode.has("metricset")) {
+                        var metricset = jsonNode.get("metricset");
+                        var samples = (ObjectNode) metricset.get("samples");
+                        for (var name : Streams.of(samples.fieldNames()).toList()) {
+                            if (metricFilter.matcher(name).matches() == false) {
+                                samples.remove(name);
+                            }
+                        }
+                        if (samples.isEmpty() == false) {
+                            logger.lifecycle("Metricset [{}]: {}", nodeMetadata, metricset);
+                        }
+                    }
+                }
+
+                // emit only spans for previously matched transactions using the transaction cache
+                for (var span : spans) {
+                    var name = span.get("name").asText();
+                    var transactionId = span.get("transaction_id").asText();
+                    var transactionName = transactionCache.get(transactionId);
+                    if (transactionName != null) {
+                        logger.lifecycle("Span {} of {} [{}]: {}", name, transactionName, nodeMetadata, span);
+                    }
+                }
             }
         }
     }

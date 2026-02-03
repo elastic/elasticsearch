@@ -18,6 +18,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -25,6 +26,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskSettings;
@@ -48,6 +50,8 @@ import static org.elasticsearch.xpack.inference.mock.AbstractTestInferenceServic
 
 public class TestRerankingServiceExtension implements InferenceServiceExtension {
 
+    public static final int RERANK_WINDOW_SIZE = 333;
+
     @Override
     public List<Factory> getInferenceServiceFactories() {
         return List.of(TestInferenceService::new);
@@ -62,7 +66,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         }
     }
 
-    public static class TestInferenceService extends AbstractTestInferenceService {
+    public static class TestInferenceService extends AbstractTestInferenceService implements RerankingInferenceService {
         public static final String NAME = "test_reranking_service";
 
         private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.RERANK);
@@ -119,6 +123,10 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             TimeValue timeout,
             ActionListener<InferenceServiceResults> listener
         ) {
+            if (((TestRerankingServiceExtension.TestTaskSettings) model.getTaskSettings()).shouldFailValidation()) {
+                listener.onFailure(new RuntimeException("validation call intentionally failed based on task settings"));
+                return;
+            }
             TaskSettings taskSettings = model.getTaskSettings().updatedTaskSettings(taskSettingsMap);
 
             switch (model.getConfigurations().getTaskType()) {
@@ -143,6 +151,21 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         }
 
         @Override
+        public void embeddingInfer(
+            Model model,
+            EmbeddingRequest request,
+            TimeValue timeout,
+            ActionListener<InferenceServiceResults> listener
+        ) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
+                    RestStatus.BAD_REQUEST
+                )
+            );
+        }
+
+        @Override
         public void chunkedInfer(
             Model model,
             @Nullable String query,
@@ -161,34 +184,48 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         }
 
         private RankedDocsResults makeResults(List<String> input, TestRerankingServiceExtension.TestTaskSettings taskSettings) {
-            int totalResults = input.size();
+            if (taskSettings.useTextLength) {
+                return makeResultFromTextInput(input, taskSettings);
+            }
+
             try {
+                int totalResults = input.size();
                 List<RankedDocsResults.RankedDoc> results = new ArrayList<>();
                 for (int i = 0; i < totalResults; i++) {
                     results.add(new RankedDocsResults.RankedDoc(i, Float.parseFloat(input.get(i)), input.get(i)));
                 }
                 return new RankedDocsResults(results.stream().sorted(Comparator.reverseOrder()).toList());
             } catch (NumberFormatException ex) {
-                List<RankedDocsResults.RankedDoc> results = new ArrayList<>();
-
-                float minScore = taskSettings.minScore();
-                float resultDiff = taskSettings.resultDiff();
-                for (int i = 0; i < input.size(); i++) {
-                    float relevanceScore = minScore + resultDiff * (totalResults - i);
-                    String inputText = input.get(totalResults - 1 - i);
-                    if (taskSettings.useTextLength()) {
-                        relevanceScore = 1f / inputText.length();
-                    }
-                    results.add(new RankedDocsResults.RankedDoc(totalResults - 1 - i, relevanceScore, inputText));
-                }
-                // Ensure result are sorted by descending score
-                results.sort((a, b) -> -Float.compare(a.relevanceScore(), b.relevanceScore()));
-                return new RankedDocsResults(results);
+                return makeResultFromTextInput(input, taskSettings);
             }
+        }
+
+        private RankedDocsResults makeResultFromTextInput(List<String> input, TestRerankingServiceExtension.TestTaskSettings taskSettings) {
+            int totalResults = input.size();
+
+            List<RankedDocsResults.RankedDoc> results = new ArrayList<>();
+            float minScore = taskSettings.minScore();
+            float resultDiff = taskSettings.resultDiff();
+            for (int i = 0; i < input.size(); i++) {
+                float relevanceScore = minScore + resultDiff * (totalResults - i);
+                String inputText = input.get(totalResults - 1 - i);
+                if (taskSettings.useTextLength()) {
+                    relevanceScore = 1f / inputText.length();
+                }
+                results.add(new RankedDocsResults.RankedDoc(totalResults - 1 - i, relevanceScore, inputText));
+            }
+            // Ensure result are sorted by descending score
+            results.sort((a, b) -> -Float.compare(a.relevanceScore(), b.relevanceScore()));
+            return new RankedDocsResults(results);
         }
 
         protected ServiceSettings getServiceSettingsFromMap(Map<String, Object> serviceSettingsMap) {
             return TestServiceSettings.fromMap(serviceSettingsMap);
+        }
+
+        @Override
+        public int rerankerWindowSize(String modelId) {
+            return RERANK_WINDOW_SIZE;
         }
 
         public static class Configuration {
@@ -211,6 +248,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
                     );
 
                     return new InferenceServiceConfiguration.Builder().setService(NAME)
+                        .setName(NAME)
                         .setTaskTypes(supportedTaskTypes)
                         .setConfigurations(configurationMap)
                         .build();
@@ -219,14 +257,21 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         }
     }
 
-    public record TestTaskSettings(boolean useTextLength, float minScore, float resultDiff) implements TaskSettings {
+    public record TestTaskSettings(boolean shouldFailValidation, boolean useTextLength, float minScore, float resultDiff)
+        implements
+            TaskSettings {
 
         static final String NAME = "test_reranking_task_settings";
 
         public static TestTaskSettings fromMap(Map<String, Object> map) {
+            boolean shouldFailValidation = false;
             boolean useTextLength = false;
             float minScore = random.nextFloat(-1f, 1f);
             float resultDiff = 0.2f;
+
+            if (map.containsKey("should_fail_validation")) {
+                shouldFailValidation = Boolean.parseBoolean(map.remove("should_fail_validation").toString());
+            }
 
             if (map.containsKey("use_text_length")) {
                 useTextLength = Boolean.parseBoolean(map.remove("use_text_length").toString());
@@ -240,11 +285,11 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
                 resultDiff = Float.parseFloat(map.remove("result_diff").toString());
             }
 
-            return new TestTaskSettings(useTextLength, minScore, resultDiff);
+            return new TestTaskSettings(shouldFailValidation, useTextLength, minScore, resultDiff);
         }
 
         public TestTaskSettings(StreamInput in) throws IOException {
-            this(in.readBoolean(), in.readFloat(), in.readFloat());
+            this(in.readBoolean(), in.readBoolean(), in.readFloat(), in.readFloat());
         }
 
         @Override
@@ -254,6 +299,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            out.writeBoolean(shouldFailValidation);
             out.writeBoolean(useTextLength);
             out.writeFloat(minScore);
             out.writeFloat(resultDiff);
@@ -281,8 +327,9 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
 
         @Override
         public TaskSettings updatedTaskSettings(Map<String, Object> newSettingsMap) {
-            TestTaskSettings newSettingsObject = fromMap(Map.copyOf(newSettingsMap));
+            TestTaskSettings newSettingsObject = fromMap(new HashMap<>(newSettingsMap));
             return new TestTaskSettings(
+                newSettingsMap.containsKey("should_fail_validation") ? newSettingsObject.shouldFailValidation() : shouldFailValidation,
                 newSettingsMap.containsKey("use_text_length") ? newSettingsObject.useTextLength() : useTextLength,
                 newSettingsMap.containsKey("min_score") ? newSettingsObject.minScore() : minScore,
                 newSettingsMap.containsKey("result_diff") ? newSettingsObject.resultDiff() : resultDiff
@@ -300,7 +347,10 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             String model = (String) map.remove("model_id");
 
             if (model == null) {
-                validationException.addValidationError("missing model");
+                model = (String) map.remove("model");
+                if (model == null) {
+                    validationException.addValidationError("missing model");
+                }
             }
 
             if (validationException.validationErrors().isEmpty() == false) {

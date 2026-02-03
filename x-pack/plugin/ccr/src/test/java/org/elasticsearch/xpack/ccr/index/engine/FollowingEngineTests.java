@@ -37,6 +37,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.engine.TranslogHandler;
@@ -74,9 +75,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.engine.EngineTestCase.getDocIds;
+import static org.elasticsearch.index.EngineTestUtils.getDocIds;
 import static org.elasticsearch.index.engine.EngineTestCase.getNumVersionLookups;
 import static org.elasticsearch.index.engine.EngineTestCase.getTranslog;
 import static org.hamcrest.Matchers.containsString;
@@ -260,7 +262,7 @@ public class FollowingEngineTests extends ESTestCase {
             newMergePolicy(),
             indexWriterConfig.getAnalyzer(),
             indexWriterConfig.getSimilarity(),
-            new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE),
+            new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, null),
             new Engine.EventListener() {
                 @Override
                 public void onFailedEngine(String reason, Exception e) {
@@ -284,7 +286,9 @@ public class FollowingEngineTests extends ESTestCase {
             null,
             true,
             mapperService,
-            new EngineResetLock()
+            new EngineResetLock(),
+            MergeMetrics.NOOP,
+            Function.identity()
         );
     }
 

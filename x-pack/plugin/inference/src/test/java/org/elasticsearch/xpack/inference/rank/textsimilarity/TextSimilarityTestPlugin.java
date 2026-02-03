@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.services.cohere.CohereService;
+import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTaskSettings;
 
@@ -132,7 +133,7 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
                         request.getInferenceEntityId(),
                         request.getTaskType(),
                         CohereService.NAME,
-                        new CohereRerankServiceSettings("uri", "model", null),
+                        new CohereRerankServiceSettings("uri", "model", null, CohereServiceSettings.CohereApiVersion.V2),
                         topN == null ? new EmptyTaskSettings() : new CohereRerankTaskSettings(topN, null, null)
                     )
                 )
@@ -175,9 +176,10 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
             String inferenceText,
             Float minScore,
             boolean failuresAllowed,
-            String throwingType
+            String throwingType,
+            ChunkScorerConfig chunkScorerConfig
         ) {
-            super(field, inferenceId, inferenceText, rankWindowSize, minScore, failuresAllowed);
+            super(field, inferenceId, inferenceText, rankWindowSize, minScore, failuresAllowed, chunkScorerConfig);
             this.throwingRankBuilderType = AbstractRerankerIT.ThrowingRankBuilderType.valueOf(throwingType);
         }
 
@@ -217,7 +219,8 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
                     inferenceId,
                     inferenceText,
                     minScore,
-                    failuresAllowed()
+                    failuresAllowed(),
+                    null
                 ) {
                     @Override
                     protected InferenceAction.Request generateRequest(List<String> docFeatures) {

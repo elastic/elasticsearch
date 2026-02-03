@@ -21,15 +21,16 @@ You can view a list of in-progress and completed recoveries using the [cat recov
 ## Recovery settings [recovery-settings]
 
 `indices.recovery.max_bytes_per_sec`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Limits total inbound and outbound recovery traffic for each node. Applies to both peer recoveries as well as snapshot recoveries (i.e., restores from a snapshot). Defaults to `40mb` unless the node is a dedicated [cold](docs-content://manage-data/lifecycle/data-tiers.md#cold-tier) or [frozen](docs-content://manage-data/lifecycle/data-tiers.md#frozen-tier) node, in which case the default relates to the total memory available to the node:
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), [byte value](/reference/elasticsearch/rest-apis/api-conventions.md#byte-units) per second) Limits total inbound and outbound recovery traffic for each node. Applies to both peer recoveries as well as snapshot recoveries (i.e., restores from a snapshot). Defaults to `40mb` (i.e. 40MiB/s) unless the node is a dedicated [cold](docs-content://manage-data/lifecycle/data-tiers.md#cold-tier) or [frozen](docs-content://manage-data/lifecycle/data-tiers.md#frozen-tier) node, in which case the default relates to the total memory available to the node:
 
-    | Total memory | Default recovery rate on cold and frozen nodes |
-    | --- | --- |
-    | ≤ 4 GB | 40 MB/s |
-    | > 4 GB and ≤ 8 GB | 60 MB/s |
-    | > 8 GB and ≤ 16 GB | 90 MB/s |
-    | > 16 GB and ≤ 32 GB | 125 MB/s |
-    | > 32 GB | 250 MB/s |
+
+    | Total memory          | Default recovery rate on cold and frozen nodes |
+    | ---                   | ---        |
+    | ≤ 4 GiB               | 40 MiB/s   |
+    | > 4 GiB and ≤ 8 GiB   | 60 MiB/s   |
+    | > 8 GiB and ≤ 16 GiB  | 90 MiB/s   |
+    | > 16 GiB and ≤ 32 GiB | 125 MiB/s  |
+    | > 32 GiB              | 250 MiB/s  |
 
     This limit applies to each node separately. If multiple nodes in a cluster perform recoveries at the same time, the cluster’s total recovery traffic may exceed this limit.
 

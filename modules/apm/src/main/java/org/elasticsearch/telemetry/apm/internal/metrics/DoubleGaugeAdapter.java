@@ -55,7 +55,7 @@ public class DoubleGaugeAdapter extends AbstractInstrument<ObservableDoubleGauge
                 .gaugeBuilder(name)
                 .setDescription(description)
                 .setUnit(unit)
-                .buildWithCallback(OtelHelper.doubleMeasurementCallback(observer));
+                .buildWithCallback(OtelHelper.doubleMeasurementCallback(name, observer));
         }
     }
 }

@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
@@ -64,7 +65,8 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
             BigArrays bigArrays,
             TransportService transportService,
             ActionFilters actionFilters,
-            CcrRestoreSourceService restoreSourceService
+            CcrRestoreSourceService restoreSourceService,
+            NamedWriteableRegistry namedWriteableRegistry
         ) {
             super(
                 actionName,
@@ -73,7 +75,13 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
                 GetCcrRestoreFileChunkRequest::new,
                 transportService.getThreadPool().executor(ThreadPool.Names.GENERIC)
             );
-            TransportActionProxy.registerProxyAction(transportService, actionName, false, GetCcrRestoreFileChunkResponse::new);
+            TransportActionProxy.registerProxyAction(
+                transportService,
+                actionName,
+                false,
+                GetCcrRestoreFileChunkResponse::new,
+                namedWriteableRegistry
+            );
             this.restoreSourceService = restoreSourceService;
             this.bigArrays = bigArrays;
         }
@@ -111,9 +119,10 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
             BigArrays bigArrays,
             TransportService transportService,
             ActionFilters actionFilters,
-            CcrRestoreSourceService restoreSourceService
+            CcrRestoreSourceService restoreSourceService,
+            NamedWriteableRegistry namedWriteableRegistry
         ) {
-            super(INTERNAL_NAME, bigArrays, transportService, actionFilters, restoreSourceService);
+            super(INTERNAL_NAME, bigArrays, transportService, actionFilters, restoreSourceService, namedWriteableRegistry);
         }
     }
 
@@ -123,9 +132,10 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
             BigArrays bigArrays,
             TransportService transportService,
             ActionFilters actionFilters,
-            CcrRestoreSourceService restoreSourceService
+            CcrRestoreSourceService restoreSourceService,
+            NamedWriteableRegistry namedWriteableRegistry
         ) {
-            super(NAME, bigArrays, transportService, actionFilters, restoreSourceService);
+            super(NAME, bigArrays, transportService, actionFilters, restoreSourceService, namedWriteableRegistry);
         }
 
         @Override

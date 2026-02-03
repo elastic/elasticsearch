@@ -15,12 +15,14 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -53,6 +55,14 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
     private static final String USER = "test_user";
     private static final SecureString PASS = new SecureString("x-pack-test-password".toCharArray());
     private static final String MONITORING_PATTERN = ".monitoring-*";
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = SmokeTestPluginsSslCluster.create();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     static Path trustStore;
 

@@ -1,0 +1,5 @@
+pr: 139074
+summary: "[ESQL][Inference] Introduce usage limits for COMPLETION and RERANK"
+area: ES|QL
+type: enhancement
+issues: []

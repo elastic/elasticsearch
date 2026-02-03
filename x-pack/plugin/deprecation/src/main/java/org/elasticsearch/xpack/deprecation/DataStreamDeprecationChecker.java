@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -33,7 +33,7 @@ import static java.util.Map.ofEntries;
 public class DataStreamDeprecationChecker implements ResourceDeprecationChecker {
 
     public static final String NAME = "data_streams";
-    private static final List<BiFunction<DataStream, ClusterState, DeprecationIssue>> DATA_STREAM_CHECKS = List.of(
+    private static final List<BiFunction<DataStream, ProjectMetadata, DeprecationIssue>> DATA_STREAM_CHECKS = List.of(
         DataStreamDeprecationChecker::oldIndicesCheck,
         DataStreamDeprecationChecker::ignoredOldIndicesCheck
     );
@@ -44,27 +44,27 @@ public class DataStreamDeprecationChecker implements ResourceDeprecationChecker 
     }
 
     /**
-     * @param clusterState The cluster state provided for the checker
+     * @param project The project metadata provided for the checker
      * @param request not used yet in these checks
      * @param precomputedData not used yet in these checks
      * @return the name of the data streams that have violated the checks with their respective warnings.
      */
     @Override
     public Map<String, List<DeprecationIssue>> check(
-        ClusterState clusterState,
+        ProjectMetadata project,
         DeprecationInfoAction.Request request,
         TransportDeprecationInfoAction.PrecomputedData precomputedData
     ) {
-        return check(clusterState);
+        return check(project);
     }
 
     /**
-     * @param clusterState The cluster state provided for the checker
+     * @param project The project metadata provided for the checker
      * @return the name of the data streams that have violated the checks with their respective warnings.
      */
-    public Map<String, List<DeprecationIssue>> check(ClusterState clusterState) {
+    public Map<String, List<DeprecationIssue>> check(ProjectMetadata project) {
         List<String> dataStreamNames = indexNameExpressionResolver.dataStreamNames(
-            clusterState,
+            project,
             IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN
         );
         if (dataStreamNames.isEmpty()) {
@@ -72,10 +72,10 @@ public class DataStreamDeprecationChecker implements ResourceDeprecationChecker 
         }
         Map<String, List<DeprecationIssue>> dataStreamIssues = new HashMap<>();
         for (String dataStreamName : dataStreamNames) {
-            DataStream dataStream = clusterState.metadata().getProject().dataStreams().get(dataStreamName);
+            DataStream dataStream = project.dataStreams().get(dataStreamName);
             if (dataStream.isSystem() == false) {
                 List<DeprecationIssue> issuesForSingleDataStream = DATA_STREAM_CHECKS.stream()
-                    .map(c -> c.apply(dataStream, clusterState))
+                    .map(c -> c.apply(dataStream, project))
                     .filter(Objects::nonNull)
                     .toList();
                 if (issuesForSingleDataStream.isEmpty() == false) {
@@ -86,11 +86,27 @@ public class DataStreamDeprecationChecker implements ResourceDeprecationChecker 
         return dataStreamIssues.isEmpty() ? Map.of() : dataStreamIssues;
     }
 
-    static DeprecationIssue oldIndicesCheck(DataStream dataStream, ClusterState clusterState) {
+    static DeprecationIssue oldIndicesCheck(DataStream dataStream, ProjectMetadata project) {
         List<Index> backingIndices = dataStream.getIndices();
-
-        Set<String> indicesNeedingUpgrade = getReindexRequiredIndices(backingIndices, clusterState, false);
-
+        Set<String> percolatorIndicesNeedingUpgrade = getReindexRequiredIndicesWithPercolatorFields(backingIndices, project, false);
+        if (percolatorIndicesNeedingUpgrade.isEmpty() == false) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
+                "Field mappings with incompatible percolator type",
+                "https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/percolator#_reindexing_your_percolator_queries",
+                "The data stream was created before 9.latest and contains mappings that must be reindexed due to containing percolator "
+                    + "fields.",
+                false,
+                ofEntries(
+                    entry("reindex_required", true),
+                    entry("excluded_actions", List.of("readOnly")),
+                    entry("total_backing_indices", backingIndices.size()),
+                    entry("indices_requiring_upgrade_count", percolatorIndicesNeedingUpgrade.size()),
+                    entry("indices_requiring_upgrade", percolatorIndicesNeedingUpgrade)
+                )
+            );
+        }
+        Set<String> indicesNeedingUpgrade = getReindexRequiredIndices(backingIndices, project, false);
         if (indicesNeedingUpgrade.isEmpty() == false) {
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
@@ -110,9 +126,27 @@ public class DataStreamDeprecationChecker implements ResourceDeprecationChecker 
         return null;
     }
 
-    static DeprecationIssue ignoredOldIndicesCheck(DataStream dataStream, ClusterState clusterState) {
+    static DeprecationIssue ignoredOldIndicesCheck(DataStream dataStream, ProjectMetadata project) {
         List<Index> backingIndices = dataStream.getIndices();
-        Set<String> ignoredIndices = getReindexRequiredIndices(backingIndices, clusterState, true);
+        Set<String> percolatorIgnoredIndices = getReindexRequiredIndicesWithPercolatorFields(backingIndices, project, true);
+        if (percolatorIgnoredIndices.isEmpty() == false) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
+                "Field mappings with incompatible percolator type",
+                "https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/percolator#_reindexing_your_percolator_queries",
+                "The data stream was created before 9.latest and contains mappings that must be reindexed due to containing percolator "
+                    + "fields.",
+                false,
+                ofEntries(
+                    entry("reindex_required", true),
+                    entry("excluded_actions", List.of("readOnly")),
+                    entry("total_backing_indices", backingIndices.size()),
+                    entry("ignored_indices_requiring_upgrade_count", percolatorIgnoredIndices.size()),
+                    entry("ignored_indices_requiring_upgrade", percolatorIgnoredIndices)
+                )
+            );
+        }
+        Set<String> ignoredIndices = getReindexRequiredIndices(backingIndices, project, true);
         if (ignoredIndices.isEmpty() == false) {
             return new DeprecationIssue(
                 DeprecationIssue.Level.WARNING,
@@ -135,12 +169,24 @@ public class DataStreamDeprecationChecker implements ResourceDeprecationChecker 
 
     private static Set<String> getReindexRequiredIndices(
         List<Index> backingIndices,
-        ClusterState clusterState,
+        ProjectMetadata project,
+        boolean filterToBlockedStatus
+    ) {
+        return backingIndices.stream()
+            .filter(DeprecatedIndexPredicate.getReindexRequiredPredicate(project, filterToBlockedStatus, false))
+            .map(Index::getName)
+            .collect(Collectors.toUnmodifiableSet());
+    }
+
+    private static Set<String> getReindexRequiredIndicesWithPercolatorFields(
+        List<Index> backingIndices,
+        ProjectMetadata project,
         boolean filterToBlockedStatus
     ) {
         return backingIndices.stream()
             .filter(
-                DeprecatedIndexPredicate.getReindexRequiredPredicate(clusterState.metadata().getProject(), filterToBlockedStatus, false)
+                index -> DeprecatedIndexPredicate.reindexRequiredForPecolatorFields(project.index(index), filterToBlockedStatus, false)
+                    .isEmpty() == false
             )
             .map(Index::getName)
             .collect(Collectors.toUnmodifiableSet());

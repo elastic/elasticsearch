@@ -18,6 +18,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.qa.rest.RequestIndexFilteringTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.hamcrest.Matcher;
@@ -35,9 +36,12 @@ import java.util.Map;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
@@ -48,6 +52,8 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
     @ClassRule
     public static TestRule clusterRule = RuleChain.outerRule(remoteCluster).around(localCluster);
     private static RestClient remoteClient;
+
+    private boolean isCCSRequest;
 
     @Override
     protected String getTestRestCluster() {
@@ -60,9 +66,8 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
             var clusterHosts = parseClusterHosts(remoteCluster.getHttpAddresses());
             remoteClient = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[0]));
         }
+        isCCSRequest = randomBoolean();
     }
-
-    private boolean isCCSRequest;
 
     @AfterClass
     public static void closeRemoteClients() throws IOException {
@@ -81,7 +86,6 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
 
     @Override
     protected String from(String... indexName) {
-        isCCSRequest = randomBoolean();
         if (isCCSRequest) {
             return "FROM *:" + String.join(",*:", indexName);
         } else {
@@ -91,6 +95,12 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
 
     @Override
     public Map<String, Object> runEsql(RestEsqlTestCase.RequestObjectBuilder requestObject) throws IOException {
+        return runEsql(requestObject, true);
+    }
+
+    @Override
+    public Map<String, Object> runEsql(RestEsqlTestCase.RequestObjectBuilder requestObject, boolean checkPartialResults)
+        throws IOException {
         if (requestObject.allowPartialResults() != null) {
             assumeTrue(
                 "require allow_partial_results on local cluster",
@@ -98,7 +108,7 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
             );
         }
         requestObject.includeCCSMetadata(true);
-        return super.runEsql(requestObject);
+        return super.runEsql(requestObject, checkPartialResults);
     }
 
     @After
@@ -142,8 +152,41 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
     }
 
     private static boolean checkVersion(org.elasticsearch.Version version) {
-        return version.onOrAfter(Version.fromString("9.1.0"))
-            || (version.onOrAfter(Version.fromString("8.19.0")) && version.before(Version.fromString("9.0.0")));
+        return version.onOrAfter(Version.V_9_1_0) || (version.onOrAfter(Version.V_8_19_0) && version.before(Version.V_9_0_0));
+    }
+
+    @Override
+    public void testIndicesDontExist() throws IOException {
+        assumeFalse("skip_unavailable=true causes partial result with corresponding remote being skipped", isCCSRequest);
+        super.testIndicesDontExist();
+    }
+
+    public void testIndicesDontExistWithRemoteLookupJoin() throws IOException {
+        // This check is for "local" cluster - which is different from test runner actually, so it could be old
+        assumeTrue(
+            "Only works with remote LOOKUP JOIN support",
+            clusterHasCapability(
+                client(),
+                "POST",
+                "_query",
+                List.of(),
+                List.of(EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.capabilityName())
+            ).orElse(false)
+        );
+
+        int docsTest1 = randomIntBetween(1, 5);
+        indexTimestampData(docsTest1, "test1", "2024-11-26", "id1");
+
+        var pattern = "FROM test1,*:test1";
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> runEsql(timestampFilter("gte", "2020-01-01").query(pattern + " | LOOKUP JOIN foo ON id1"))
+        );
+        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+        assertThat(
+            e.getMessage(),
+            allOf(containsString("verification_exception"), containsString("Unknown index [foo,remote_cluster:foo]"))
+        );
     }
 
     // We need a separate test since remote missing indices and local missing indices now work differently
@@ -154,7 +197,30 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
         indexTimestampData(docsTest1, "test1", "2024-11-26", "id1");
 
         Map<String, Object> result = runEsql(
-            timestampFilter("gte", "2020-01-01").query("FROM *:foo,*:test1 METADATA _index | SORT id1 | KEEP _index, id*")
+            timestampFilter("gte", "2020-01-01").query("FROM *:foo,*:test1 METADATA _index | SORT id1 | KEEP _index, id*"),
+            false
+        );
+
+        // `foo` index doesn't exist, so the request will currently be successful, but with partial results
+        var isPartial = result.get("is_partial");
+        assertThat(isPartial, is(true));
+        assertThat(
+            result,
+            matchesMap().entry(
+                "_clusters",
+                matchesMap().entry(
+                    "details",
+                    matchesMap().entry(
+                        "remote_cluster",
+                        matchesMap().entry(
+                            "failures",
+                            matchesList().item(
+                                matchesMap().entry("reason", matchesMap().entry("reason", "no such index [foo]").extraOk()).extraOk()
+                            )
+                        ).extraOk()
+                    ).extraOk()
+                ).extraOk()
+            ).extraOk()
         );
         @SuppressWarnings("unchecked")
         var columns = (List<List<Object>>) result.get("columns");

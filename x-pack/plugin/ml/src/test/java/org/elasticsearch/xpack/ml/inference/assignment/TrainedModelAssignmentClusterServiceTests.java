@@ -15,7 +15,6 @@ import org.apache.logging.log4j.message.Message;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.internal.Client;
@@ -34,6 +33,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationD
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -70,7 +70,6 @@ import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests;
 import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
-import org.elasticsearch.xpack.ml.test.MockAppender;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -208,7 +207,6 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         TrainedModelAssignmentClusterService serviceSpy = spy(createClusterService(randomInt(5)));
         doNothing().when(serviceSpy).logMlNodeHeterogeneity();
         doReturn(false).when(serviceSpy).eventStateHasGlobalBlockStateNotRecoveredBlock(any());
-        doReturn(false).when(serviceSpy).eventStateMinTransportVersionIsBeforeDistributedModelAllocationTransportVersion(any());
 
         ClusterChangedEvent mockNodesAddedEvent = mock(ClusterChangedEvent.class);
         ClusterState mockState = mock(ClusterState.class);
@@ -440,7 +438,6 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .add(buildNode("ml-node-without-room", true, 1000L, 2))
             .add(buildNode("not-ml-node", false, ByteSizeValue.ofGb(4).getBytes(), 2))
             .add(buildNode("ml-node-shutting-down", true, ByteSizeValue.ofGb(4).getBytes(), 2))
-            .add(buildOldNode("old-ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes(), 2))
             .build();
         nodeAvailabilityZoneMapper = randomFrom(
             new NodeRealAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes),
@@ -490,7 +487,6 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .add(buildNode("ml-node-without-room", true, 1000L, 2))
             .add(buildNode("not-ml-node", false, ByteSizeValue.ofGb(4).getBytes(), 2))
             .add(buildNode("ml-node-shutting-down", true, ByteSizeValue.ofGb(4).getBytes(), 2))
-            .add(buildOldNode("old-ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes(), 2))
             .build();
         nodeAvailabilityZoneMapper = randomFrom(
             new NodeRealAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes),
@@ -2138,17 +2134,6 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
 
     private static RoutingInfoUpdate started() {
         return RoutingInfoUpdate.updateStateAndReason(new RoutingStateAndReason(RoutingState.STARTED, ""));
-    }
-
-    private static DiscoveryNode buildOldNode(String name, boolean isML, long nativeMemory, int allocatedProcessors) {
-        return buildNode(
-            name,
-            isML,
-            nativeMemory,
-            allocatedProcessors,
-            VersionInformation.inferVersions(Version.V_7_15_0),
-            MlConfigVersion.V_7_15_0
-        );
     }
 
     private static StartTrainedModelDeploymentAction.TaskParams newParams(String modelId, long modelSize) {

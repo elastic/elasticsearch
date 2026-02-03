@@ -1,4 +1,7 @@
-## `KEEP` [esql-keep]
+```yaml {applies_to}
+serverless: ga
+stack: ga
+```
 
 The `KEEP` processing command enables you to specify what columns are returned
 and the order in which they are returned.

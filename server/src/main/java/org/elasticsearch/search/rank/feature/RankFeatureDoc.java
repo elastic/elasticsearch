@@ -10,12 +10,14 @@
 package org.elasticsearch.search.rank.feature;
 
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -25,8 +27,10 @@ public class RankFeatureDoc extends RankDoc {
 
     public static final String NAME = "rank_feature_doc";
 
+    private static final TransportVersion RERANK_SNIPPETS = TransportVersion.fromName("rerank_snippets");
+
     // TODO: update to support more than 1 fields; and not restrict to string data
-    public String featureData;
+    public List<String> featureData;
 
     public RankFeatureDoc(int doc, float score, int shardIndex) {
         super(doc, score, shardIndex);
@@ -34,7 +38,12 @@ public class RankFeatureDoc extends RankDoc {
 
     public RankFeatureDoc(StreamInput in) throws IOException {
         super(in);
-        featureData = in.readOptionalString();
+        if (in.getTransportVersion().supports(RERANK_SNIPPETS)) {
+            featureData = in.readOptionalStringCollectionAsList();
+        } else {
+            String featureDataString = in.readOptionalString();
+            featureData = featureDataString == null ? null : List.of(featureDataString);
+        }
     }
 
     @Override
@@ -42,13 +51,17 @@ public class RankFeatureDoc extends RankDoc {
         throw new UnsupportedOperationException("explain is not supported for {" + getClass() + "}");
     }
 
-    public void featureData(String featureData) {
+    public void featureData(List<String> featureData) {
         this.featureData = featureData;
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(featureData);
+        if (out.getTransportVersion().supports(RERANK_SNIPPETS)) {
+            out.writeOptionalStringCollection(featureData);
+        } else {
+            out.writeOptionalString(featureData.get(0));
+        }
     }
 
     @Override
@@ -59,7 +72,7 @@ public class RankFeatureDoc extends RankDoc {
 
     @Override
     protected int doHashCode() {
-        return Objects.hashCode(featureData);
+        return Objects.hash(featureData);
     }
 
     @Override
@@ -69,6 +82,6 @@ public class RankFeatureDoc extends RankDoc {
 
     @Override
     protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("featureData", featureData);
+        builder.array("featureData", featureData);
     }
 }

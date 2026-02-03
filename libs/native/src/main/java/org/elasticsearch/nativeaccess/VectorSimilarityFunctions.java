@@ -19,25 +19,93 @@ import java.lang.invoke.MethodHandle;
  * the method handles will, by definition, require access to MemorySegment.
  */
 public interface VectorSimilarityFunctions {
-    /**
-     * Produces a method handle returning the dot product of byte (unsigned int7) vectors.
-     *
-     * <p> Unsigned int7 byte vectors have values in the range of 0 to 127 (inclusive).
-     *
-     * <p> The type of the method handle will have {@code int} as return type, The type of
-     * its first and second arguments will be {@code MemorySegment}, whose contents is the
-     * vector data bytes. The third argument is the length of the vector data.
-     */
-    MethodHandle dotProductHandle7u();
 
-    /**
-     * Produces a method handle returning the square distance of byte (unsigned int7) vectors.
-     *
-     * <p> Unsigned int7 byte vectors have values in the range of 0 to 127 (inclusive).
-     *
-     * <p> The type of the method handle will have {@code int} as return type, The type of
-     * its first and second arguments will be {@code MemorySegment}, whose contents is the
-     * vector data bytes. The third argument is the length of the vector data.
-     */
-    MethodHandle squareDistanceHandle7u();
+    enum Function {
+        /**
+         * Dot product distance
+         */
+        DOT_PRODUCT,
+        /**
+         * Squared Euclidean distance
+         */
+        SQUARE_DISTANCE
+    }
+
+    enum DataType {
+        /**
+         * Unsigned int7. Single vector score returns results as an int.
+         */
+        INT7(Byte.BYTES),
+        /**
+         * 4-byte float. Single vector score returns results as a float.
+         */
+        FLOAT32(Float.BYTES),
+        /**
+         * 1-bit data, 4-bit queries. Single vector score returns results as a long.
+         * <p>
+         * Checks are special-cased, so {@link #bytes()} is not called
+         */
+        I1I4(Byte.BYTES),
+        /**
+         * 2-bit data, 4-bit queries. Single vector score returns results as a long.
+         * <p>
+         * Checks are special-cased, so {@link #bytes()} is not called
+         */
+        I2I4(Byte.BYTES);
+
+        private final int bytes;
+
+        DataType(int bytes) {
+            this.bytes = bytes;
+        }
+
+        public int bytes() {
+            return bytes;
+        }
+    }
+
+    enum Operation {
+        /**
+         * Scores a single vector against another.
+         * <p>
+         * Method handle takes arguments {@code (MemorySegment, MemorySegment, int)}:
+         * <ol>
+         *     <li>First vector</li>
+         *     <li>Second vector</li>
+         *     <li>Number of dimensions, or for bbq, the number of index bytes</li>
+         * </ol>
+         * Return value type is determined by the {@link DataType}.
+         */
+        SINGLE,
+        /**
+         * Scores multiple vectors against a single vector.
+         * <p>
+         * Method handle takes arguments {@code (MemorySegment, MemorySegment, int, int, MemorySegment}:
+         * <ol>
+         *     <li>Multiple vectors to score {@code a}</li>
+         *     <li>Single vector to score against</li>
+         *     <li>Number of dimensions, or for bbq, the number of index bytes</li>
+         *     <li>Number of vectors in {@code a}</li>
+         *     <li>Score results, as 4-byte floats</li>
+         * </ol>
+         */
+        BULK,
+        /**
+         * Scores multiple vectors against a single vector, with an offset array to determine the vectors to score.
+         * <p>
+         * Method handle takes arguments {@code (MemorySegment, MemorySegment, int, int, MemorySegment, int, MemorySegment}:
+         * <ol>
+         *     <li>Multiple vectors to score</li>
+         *     <li>Single vector to score against</li>
+         *     <li>Number of dimensions, or for bbq, the number of index bytes</li>
+         *     <li>Number of bytes between the start of one vector and the start of the next vector in {@code a}</li>
+         *     <li>Array of 4-byte ints containing indices of vectors to score in {@code a}</li>
+         *     <li>Number of vectors to score</li>
+         *     <li>Score results, as 4-byte floats, in order of iteration through the offset array</li>
+         * </ol>
+         */
+        BULK_OFFSETS
+    }
+
+    MethodHandle getHandle(Function function, DataType dataType, Operation operation);
 }

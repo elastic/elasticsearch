@@ -1,13 +1,16 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/index-mapping-ignore-above.html
+applies_to:
+  stack: all
+  serverless: all
 ---
 
-# index.mapping.ignore_above [index-mapping-ignore-above]
+# ignore_above index setting [index-mapping-ignore-above]
 
-The `ignore_above` setting, typically used at the field level, can also be applied at the index level using `index.mapping.ignore_above`. This setting lets you define a maximum string length for all applicable fields across the index, including `keyword`, `wildcard`, and keyword values in `flattened` fields. Any values that exceed this limit will be ignored during indexing and won’t be stored.
+The [`ignore_above` field-level setting](./ignore-above.md) can also be applied at the index level using `index.mapping.ignore_above`. This setting lets you define a maximum string length for all applicable fields across the index, including `keyword`, `wildcard`, and keyword values in `flattened` fields. Any values that exceed this limit will be [ignored](./mapping-ignored-field.md) during indexing and won’t be stored.
 
-This index-wide setting ensures a consistent approach to managing excessively long values. It works the same as the field-level setting—if a string’s length goes over the specified limit, that string won’t be indexed or stored. When dealing with arrays, each element is evaluated separately, and only the elements that exceed the limit are ignored.
+This index-level setting ensures a consistent approach to managing excessively long values. It works the same as the field-level setting—if a string’s length goes over the specified limit, that string won’t be indexed or stored. When dealing with arrays, each element is evaluated separately, and only the elements that exceed the limit are ignored.
 
 ```console
 PUT my-index-000001

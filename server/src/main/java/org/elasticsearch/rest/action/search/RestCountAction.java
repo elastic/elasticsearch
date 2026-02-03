@@ -14,6 +14,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -23,6 +24,7 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -35,6 +37,12 @@ import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestCountAction extends BaseRestHandler {
+
+    private final CrossProjectModeDecider crossProjectModeDecider;
+
+    public RestCountAction(Settings settings) {
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+    }
 
     @Override
     public List<Route> routes() {
@@ -54,17 +62,25 @@ public class RestCountAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         SearchRequest countRequest = new SearchRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        countRequest.indicesOptions(IndicesOptions.fromRequest(request, countRequest.indicesOptions()));
+        IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, countRequest.indicesOptions());
+        if (crossProjectModeDecider.crossProjectEnabled() && countRequest.allowsCrossProject()) {
+            indicesOptions = IndicesOptions.builder(indicesOptions)
+                .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                .build();
+        }
+        countRequest.indicesOptions(indicesOptions);
+
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).trackTotalHits(true);
         countRequest.source(searchSourceBuilder);
         request.withContentOrSourceParamParserOrNull(parser -> {
             if (parser == null) {
                 QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
                 if (queryBuilder != null) {
+                    // since there is no request body, no need to pass in countRequest to handle project_routing param
                     searchSourceBuilder.query(queryBuilder);
                 }
             } else {
-                searchSourceBuilder.query(RestActions.getQueryContent(parser));
+                searchSourceBuilder.query(RestActions.getQueryContent(parser, countRequest));
             }
         });
         countRequest.routing(request.param("routing"));

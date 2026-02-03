@@ -18,6 +18,7 @@ import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileFilter;
 import java.io.FilenameFilter;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
@@ -73,7 +74,6 @@ import java.nio.file.FileStore;
 import java.nio.file.FileVisitOption;
 import java.nio.file.FileVisitor;
 import java.nio.file.LinkOption;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -191,6 +191,16 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         ClassLoader parent,
         URLStreamHandlerFactory factory
     ) {
+        policyChecker.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$java_net_URLClassLoader$$newInstance(Class<?> callerClass, URL[] urls) {
+        policyChecker.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$java_net_URLClassLoader$$newInstance(Class<?> callerClass, URL[] urls, ClassLoader parent) {
         policyChecker.checkCreateClassLoader(callerClass);
     }
 
@@ -499,7 +509,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
-    public void check$java_net_DatagramSocket$connect(Class<?> callerClass, DatagramSocket that, InetAddress addr) {
+    public void check$java_net_DatagramSocket$connect(Class<?> callerClass, DatagramSocket that, InetAddress addr, int port) {
         policyChecker.checkAllNetworkAccess(callerClass);
     }
 
@@ -1490,8 +1500,19 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
+    public void check$java_io_File$$createTempFile(Class<?> callerClass, String prefix, String suffix) {
+        policyChecker.checkCreateTempFile(callerClass);
+    }
+
+    @Override
     public void check$java_io_File$$createTempFile(Class<?> callerClass, String prefix, String suffix, File directory) {
-        policyChecker.checkFileWrite(callerClass, directory);
+        // A null value for the directory parameter means using the temp directory (java.io.tmpdir,
+        // aka org.elasticsearch.env.Environment#tmpDir, aka PathLookup#TEMP).
+        if (directory == null) {
+            policyChecker.checkCreateTempFile(callerClass);
+        } else {
+            policyChecker.checkFileWrite(callerClass, directory);
+        }
     }
 
     @Override
@@ -2716,7 +2737,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
-    public void checkPathToRealPath(Class<?> callerClass, Path that, LinkOption... options) throws NoSuchFileException {
+    public void checkPathToRealPath(Class<?> callerClass, Path that, LinkOption... options) throws IOException {
         boolean followLinks = true;
         for (LinkOption option : options) {
             if (option == LinkOption.NOFOLLOW_LINKS) {

@@ -25,7 +25,7 @@ sudo bin/elasticsearch-plugin install mapper-annotated-text
 
 The plugin must be installed on every node in the cluster, and each node must be restarted after installation.
 
-You can download this plugin for [offline install](/reference/elasticsearch-plugins/plugin-management-custom-url.md) from [https://artifacts.elastic.co/downloads/elasticsearch-plugins/mapper-annotated-text/mapper-annotated-text-{{version}}.zip](https://artifacts.elastic.co/downloads/elasticsearch-plugins/mapper-annotated-text/mapper-annotated-text-{{version}}.zip). To verify the `.zip` file, use the [SHA hash](https://artifacts.elastic.co/downloads/elasticsearch-plugins/mapper-annotated-text/mapper-annotated-text-{{version}}.zip.sha512) or [ASC key](https://artifacts.elastic.co/downloads/elasticsearch-plugins/mapper-annotated-text/mapper-annotated-text-{{version}}.zip.asc).
+You can download this plugin for [offline install](/reference/elasticsearch-plugins/plugin-management-custom-url.md) from [https://artifacts.elastic.co/downloads/elasticsearch-plugins/mapper-annotated-text/mapper-annotated-text-{{version.stack}}.zip](https://artifacts.elastic.co/downloads/elasticsearch-plugins/mapper-annotated-text/mapper-annotated-text-{{version.stack}}.zip). To verify the `.zip` file, use the [SHA hash](https://artifacts.elastic.co/downloads/elasticsearch-plugins/mapper-annotated-text/mapper-annotated-text-{{version.stack}}.zip.sha512) or [ASC key](https://artifacts.elastic.co/downloads/elasticsearch-plugins/mapper-annotated-text/mapper-annotated-text-{{version.stack}}.zip.asc).
 
 
 ## Removal [mapper-annotated-text-remove]

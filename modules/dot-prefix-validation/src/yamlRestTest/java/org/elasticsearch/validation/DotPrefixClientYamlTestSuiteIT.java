@@ -14,6 +14,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -50,7 +51,7 @@ public class DotPrefixClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             .setting("xpack.security.enabled", "true")
             .keystore("bootstrap.password", "x-pack-test-password")
             .user("x_pack_rest_user", "x-pack-test-password");
-        boolean setNodes = Boolean.parseBoolean(System.getProperty("yaml.rest.tests.set_num_nodes", "true"));
+        boolean setNodes = Booleans.parseBoolean(System.getProperty("yaml.rest.tests.set_num_nodes", "true"));
         if (setNodes) {
             clusterBuilder.nodes(2);
         }

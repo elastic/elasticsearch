@@ -168,6 +168,23 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
     }
 
     @Override
+    public CompositeBlock deepCopy(BlockFactory blockFactory) {
+        CompositeBlock result = null;
+        final Block[] copied = new Block[blocks.length];
+        try {
+            for (int i = 0; i < blocks.length; i++) {
+                copied[i] = blocks[i].deepCopy(blockFactory);
+            }
+            result = new CompositeBlock(copied);
+            return result;
+        } finally {
+            if (result == null) {
+                Releasables.close(copied);
+            }
+        }
+    }
+
+    @Override
     public Block keepMask(BooleanVector mask) {
         CompositeBlock result = null;
         final Block[] masked = new Block[blocks.length];

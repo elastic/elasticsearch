@@ -21,14 +21,20 @@ import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.Elements;
 
+import static org.elasticsearch.compute.gen.Methods.optionalStaticMethod;
+import static org.elasticsearch.compute.gen.Methods.requireArgs;
+import static org.elasticsearch.compute.gen.Methods.requireName;
+import static org.elasticsearch.compute.gen.Methods.requireType;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_FUNCTION_SUPPLIER;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.LIST_AGG_FUNC_DESC;
@@ -210,17 +216,36 @@ public class AggregatorFunctionSupplierImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("describe").returns(String.class);
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
 
-        String name = declarationType.getSimpleName().toString();
-        name = name.replace("BytesRef", "Byte"); // The hack expects one word types so let's make BytesRef into Byte
-        String[] parts = name.split("(?=\\p{Upper})");
-        if (false == parts[parts.length - 1].equals("Aggregator") || parts.length < 3) {
-            throw new IllegalArgumentException("Can't generate description for " + declarationType.getSimpleName());
+        Map<String, String> complexTypesMapping = Map.of(
+            "BytesRef",
+            "Byte",
+            "ExponentialHistogram",
+            "Exponential_histogram",
+            "TDigest",
+            "Tdigest"
+        );
+
+        ExecutableElement describe = optionalStaticMethod(declarationType, requireType(STRING), requireName("describe"), requireArgs());
+        if (describe == null) {
+            String name = declarationType.getSimpleName().toString();
+            for (var entry : complexTypesMapping.entrySet()) {
+                // The hack expects one word types so let's turn complex types into single words
+                name = name.replace(entry.getKey(), entry.getValue());
+            }
+            String[] parts = name.split("(?=\\p{Upper})");
+            if (false == parts[parts.length - 1].equals("Aggregator") || parts.length < 3) {
+                throw new IllegalArgumentException("Can't generate description for " + declarationType.getSimpleName());
+            }
+
+            String operation = Arrays.stream(parts, 0, parts.length - 2)
+                .map(s -> s.toLowerCase(Locale.ROOT))
+                .collect(Collectors.joining("_"));
+            String type = parts[parts.length - 2];
+
+            builder.addStatement("return $S", operation + " of " + type.toLowerCase(Locale.ROOT) + "s");
+        } else {
+            builder.addStatement("return $T.$L()", declarationType, "describe");
         }
-
-        String operation = Arrays.stream(parts, 0, parts.length - 2).map(s -> s.toLowerCase(Locale.ROOT)).collect(Collectors.joining("_"));
-        String type = parts[parts.length - 2];
-
-        builder.addStatement("return $S", operation + " of " + type.toLowerCase(Locale.ROOT) + "s");
         return builder.build();
     }
 }

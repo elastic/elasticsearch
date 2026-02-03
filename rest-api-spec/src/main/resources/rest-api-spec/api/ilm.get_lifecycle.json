@@ -1,44 +1,48 @@
 {
-  "ilm.get_lifecycle":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-get-lifecycle.html",
-      "description": "Returns the specified policy definition. Includes the policy version and last modified date."
+  "ilm.get_lifecycle": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ilm-get-lifecycle",
+      "description": "Get lifecycle policies"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_ilm/policy/{policy}",
-          "methods":[
+          "path": "/_ilm/policy/{policy}",
+          "methods": [
             "GET"
           ],
-          "parts":{
-            "policy":{
-              "type":"string",
-              "description":"The name of the index lifecycle policy"
+          "parts": {
+            "policy": {
+              "type": "string",
+              "description": "The name of the index lifecycle policy"
             }
           }
         },
         {
-          "path":"/_ilm/policy",
-          "methods":[
+          "path": "/_ilm/policy",
+          "methods": [
             "GET"
           ]
         }
       ]
     },
-    "params":{
-      "master_timeout":{
-        "type":"time",
-        "description":"Explicit operation timeout for connection to master node"
+    "params": {
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout for connection to master node"
       },
-      "timeout":{
-        "type":"time",
-        "description":"Explicit operation timeout"
+      "timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout"
       }
     }
   }

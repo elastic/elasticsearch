@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
@@ -41,8 +40,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
@@ -68,7 +67,7 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         webServer.start();
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
     }
 
@@ -87,7 +86,7 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
         );
 
         try (var sender = senderFactory.createSender()) {
-            sender.start();
+            sender.startSynchronously();
 
             String responseJson = """
                 {
@@ -115,7 +114,7 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new EmbeddingsInput(List.of("abc"), null, InputTypeTests.randomWithNull()),
+                new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -155,7 +154,7 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(
-            new EmbeddingsInput(List.of("abc"), null, InputTypeTests.randomWithNull()),
+            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
             InferenceAction.Request.DEFAULT_TIMEOUT,
             listener
         );
@@ -179,7 +178,7 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(
-            new EmbeddingsInput(List.of(new ChunkInferenceInput("abc")), InputTypeTests.randomWithNull()),
+            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
             InferenceAction.Request.DEFAULT_TIMEOUT,
             listener
         );
@@ -203,7 +202,7 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(
-            new EmbeddingsInput(List.of(new ChunkInferenceInput("abc")), InputTypeTests.randomWithNull()),
+            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
             InferenceAction.Request.DEFAULT_TIMEOUT,
             listener
         );
@@ -221,7 +220,7 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(
-            new EmbeddingsInput(List.of(new ChunkInferenceInput("abc")), InputTypeTests.randomWithNull()),
+            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
             InferenceAction.Request.DEFAULT_TIMEOUT,
             listener
         );
@@ -239,7 +238,7 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(
-            new EmbeddingsInput(List.of(new ChunkInferenceInput("abc")), InputTypeTests.randomWithNull()),
+            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
             InferenceAction.Request.DEFAULT_TIMEOUT,
             listener
         );

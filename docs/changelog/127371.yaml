@@ -1,6 +1,0 @@
-pr: 127371
-summary: Add cancellation support in `TransportGetAllocationStatsAction`
-area: Allocation
-type: feature
-issues:
- - 123248

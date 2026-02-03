@@ -77,6 +77,6 @@ public class TransportMigrateToDataStreamAction extends AcknowledgedTransportMas
 
     @Override
     protected ClusterBlockException checkBlock(MigrateToDataStreamAction.Request request, ProjectState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 }

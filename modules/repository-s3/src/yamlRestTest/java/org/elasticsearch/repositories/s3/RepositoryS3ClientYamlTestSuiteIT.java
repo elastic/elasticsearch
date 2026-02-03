@@ -9,6 +9,7 @@
 
 package org.elasticsearch.repositories.s3;
 
+import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
@@ -37,6 +38,7 @@ public class RepositoryS3ClientYamlTestSuiteIT extends AbstractRepositoryS3Clien
         true,
         "bucket",
         "base_path_integration_tests",
+        S3ConsistencyModel::randomConsistencyModel,
         fixedAccessKey(ACCESS_KEY, ANY_REGION, "s3")
     );
 
@@ -52,7 +54,7 @@ public class RepositoryS3ClientYamlTestSuiteIT extends AbstractRepositoryS3Clien
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return createParameters(new String[] { "repository_s3/10_basic", "repository_s3/20_repository_permanent_credentials" });
+        return createParameters("repository_s3/10_basic", "repository_s3/20_repository_permanent_credentials");
     }
 
     public RepositoryS3ClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

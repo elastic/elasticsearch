@@ -10,19 +10,18 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.CoreMatchers;
 
@@ -39,7 +38,13 @@ public class MappingParserTests extends MapperServiceTestCase {
     }
 
     private static MappingParser createMappingParser(Settings settings, IndexVersion version, TransportVersion transportVersion) {
-        ScriptService scriptService = new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap(), () -> 1L);
+        ScriptService scriptService = new ScriptService(
+            settings,
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
         IndexSettings indexSettings = createIndexSettings(version, settings);
         IndexAnalyzers indexAnalyzers = createIndexAnalyzers();
         SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, Collections.emptyMap());
@@ -58,7 +63,8 @@ public class MappingParserTests extends MapperServiceTestCase {
             indexAnalyzers,
             indexSettings,
             indexSettings.getMode().idFieldMapperWithoutFieldData(),
-            bitsetFilterCache::getBitSetProducer
+            bitsetFilterCache::getBitSetProducer,
+            null
         );
 
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
@@ -106,7 +112,7 @@ public class MappingParserTests extends MapperServiceTestCase {
             b.endObject();
         });
         Mapping mapping = createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
-        MappingLookup mappingLookup = MappingLookup.fromMapping(mapping);
+        MappingLookup mappingLookup = MappingLookup.fromMapping(mapping, IndexMode.STANDARD);
         assertNotNull(mappingLookup.getMapper("foo.bar"));
         assertNotNull(mappingLookup.getMapper("foo.baz.deep.field"));
         assertNotNull(mappingLookup.objectMappers().get("foo"));
@@ -317,33 +323,6 @@ public class MappingParserTests extends MapperServiceTestCase {
                 () -> createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
             );
             assertEquals("field name cannot contain only whitespaces", iae.getMessage());
-        }
-    }
-
-    public void testBlankFieldNameBefore8_6_0() throws Exception {
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(
-            random(),
-            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
-            IndexVersions.V_8_5_0
-        );
-        TransportVersion transportVersion = TransportVersions.V_8_5_0;
-        {
-            XContentBuilder builder = mapping(b -> b.startObject(" ").field("type", randomFieldType()).endObject());
-            MappingParser mappingParser = createMappingParser(Settings.EMPTY, version, transportVersion);
-            Mapping mapping = mappingParser.parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
-            assertNotNull(mapping.getRoot().getMapper(" "));
-        }
-        {
-            XContentBuilder builder = mapping(b -> b.startObject("top. .foo").field("type", randomFieldType()).endObject());
-            MappingParser mappingParser = createMappingParser(Settings.EMPTY, version, transportVersion);
-            Mapping mapping = mappingParser.parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
-            assertNotNull(((ObjectMapper) mapping.getRoot().getMapper("top")).getMapper(" "));
-        }
-        {
-            XContentBuilder builder = mappingNoSubobjects(b -> b.startObject(" ").field("type", "keyword").endObject());
-            MappingParser mappingParser = createMappingParser(Settings.EMPTY, version, transportVersion);
-            Mapping mapping = mappingParser.parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
-            assertNotNull(mapping.getRoot().getMapper(" "));
         }
     }
 

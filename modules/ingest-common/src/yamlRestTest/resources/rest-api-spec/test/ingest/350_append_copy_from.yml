@@ -1,0 +1,157 @@
+---
+setup:
+  - requires:
+      cluster_features: [ "ingest.append.copy_from" ]
+      reason: "The copy_from option of the append processor is new"
+  - do:
+      ingest.put_pipeline:
+        id: "test-pipeline-1"
+        body: >
+          {
+            "processors": [
+              {
+                "append": {
+                  "field": "dest",
+                  "copy_from": "src"
+                }
+              }
+            ]
+          }
+  - do:
+      indices.create:
+        index: "test-some-index"
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: "test-some-index"
+        ignore_unavailable: true
+  - do:
+      ingest.delete_pipeline:
+        id: "test-pipeline-1"
+        ignore: 404
+
+---
+"It is not permitted to have both copy_from and value":
+
+  - do:
+      ingest.put_pipeline:
+        id: "test-pipeline-fail"
+        body: >
+          {
+            "processors": [
+              {
+                "append": {
+                  "tag": "some_tag",
+                  "field": "dest",
+                  "copy_from": "src",
+                  "value": "uh_oh"
+                }
+              }
+            ]
+          }
+      catch: bad_request
+  - match: { status: 400 }
+  - match: { error.reason: "[copy_from] cannot set both `copy_from` and `value` in the same processor" }
+  - match: { error.property_name: "copy_from" }
+  - match: { error.processor_type: "append" }
+  - match: { error.processor_tag: "some_tag" }
+
+---
+"Simple value into an absent value":
+  - do:
+      index:
+        index: test-some-index
+        id: 1
+        pipeline: test-pipeline-1
+        body: >
+          {
+            "src": 1
+          }
+
+  - do:
+      get:
+        index: test-some-index
+        id: "1"
+  - match: { _source.src: 1 }
+  - match: { _source.dest: [1] }
+
+---
+"Simple value into a present simple value":
+  - do:
+      index:
+        index: test-some-index
+        id: 1
+        pipeline: test-pipeline-1
+        body: >
+          {
+            "src": 2,
+            "dest": 1
+          }
+
+  - do:
+      get:
+        index: test-some-index
+        id: "1"
+  - match: { _source.src: 2 }
+  - match: { _source.dest: [1, 2] }
+
+---
+"Simple value into a present array":
+  - do:
+      index:
+        index: test-some-index
+        id: 1
+        pipeline: test-pipeline-1
+        body: >
+          {
+            "src": 3,
+            "dest": [1, 2]
+          }
+
+  - do:
+      get:
+        index: test-some-index
+        id: "1"
+  - match: { _source.src: 3 }
+  - match: { _source.dest: [1, 2, 3] }
+
+---
+"Array into an absent value":
+  - do:
+      index:
+        index: test-some-index
+        id: 1
+        pipeline: test-pipeline-1
+        body: >
+          {
+            "src": [1, 2]
+          }
+
+  - do:
+      get:
+        index: test-some-index
+        id: "1"
+  - match: { _source.src: [1, 2]  }
+  - match: { _source.dest: [1, 2] }
+
+---
+"Array into a present array":
+  - do:
+      index:
+        index: test-some-index
+        id: 1
+        pipeline: test-pipeline-1
+        body: >
+          {
+            "src": [2],
+            "dest": [1]
+          }
+
+  - do:
+      get:
+        index: test-some-index
+        id: "1"
+  - match: { _source.src: [2]  }
+  - match: { _source.dest: [1, 2] }

@@ -19,11 +19,13 @@ import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
@@ -36,6 +38,7 @@ import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -51,9 +54,17 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
 
     public static final NodeFeature INNER_RETRIEVERS_FILTER_SUPPORT = new NodeFeature("inner_retrievers_filter_support");
 
+    /**
+     * The rank window size, in most cases, will determine the maximum number of top_docs that this
+     * retriever will be able to receive from the inner retrievers.
+     */
     public static final ParseField RANK_WINDOW_SIZE_FIELD = new ParseField("rank_window_size");
 
-    public record RetrieverSource(RetrieverBuilder retriever, SearchSourceBuilder source) {}
+    public record RetrieverSource(RetrieverBuilder retriever, SearchSourceBuilder source) {
+        public static RetrieverSource from(RetrieverBuilder retriever) {
+            return new RetrieverSource(retriever, null);
+        }
+    }
 
     protected final int rankWindowSize;
     protected final List<RetrieverSource> innerRetrievers;
@@ -65,7 +76,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
 
     @SuppressWarnings("unchecked")
     public T addChild(RetrieverBuilder retrieverBuilder) {
-        innerRetrievers.add(new RetrieverSource(retrieverBuilder, null));
+        innerRetrievers.add(RetrieverSource.from(retrieverBuilder));
         return (T) this;
     }
 
@@ -99,6 +110,11 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
             throw new IllegalStateException("PIT is required");
         }
 
+        RetrieverBuilder rewritten = doRewrite(ctx);
+        if (rewritten != this) {
+            return rewritten;
+        }
+
         // Rewrite prefilters
         // We eagerly rewrite prefilters, because some of the innerRetrievers
         // could be compound too, so we want to propagate all the necessary filter information to them
@@ -121,7 +137,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
             }
             RetrieverBuilder newRetriever = entry.retriever.rewrite(ctx);
             if (newRetriever != entry.retriever) {
-                newRetrievers.add(new RetrieverSource(newRetriever, null));
+                newRetrievers.add(RetrieverSource.from(newRetriever));
                 hasChanged |= true;
             } else {
                 var sourceBuilder = entry.source != null
@@ -157,33 +173,47 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                     for (int i = 0; i < items.getResponses().length; i++) {
                         var item = items.getResponses()[i];
                         if (item.isFailure()) {
-                            failures.add(item.getFailure());
+                            failures.add(processInnerItemFailureException(item.getFailure()));
                             retrieversWithFailures.add(innerRetrievers.get(i).retriever().getName());
                             if (ExceptionsHelper.status(item.getFailure()).getStatus() > statusCode) {
                                 statusCode = ExceptionsHelper.status(item.getFailure()).getStatus();
                             }
                         } else {
                             assert item.getResponse() != null;
-                            var rankDocs = getRankDocs(item.getResponse());
-                            innerRetrievers.get(i).retriever().setRankDocs(rankDocs);
-                            topDocs.add(rankDocs);
+                            // TODO: handle partial failures by passing them back up with the results
+                            if (item.getResponse().getFailedShards() > 0 && ctx.allowPartialSearchResults() == false) {
+                                statusCode = handleShardFailures(item.getResponse(), statusCode, failures);
+                            } else {
+                                var rankDocs = getRankDocs(item.getResponse());
+                                innerRetrievers.get(i).retriever().setRankDocs(rankDocs);
+                                topDocs.add(rankDocs);
+                            }
                         }
                     }
-                    if (false == failures.isEmpty()) {
-                        assert statusCode != RestStatus.OK.getStatus();
-                        final String errMessage = "["
-                            + getName()
-                            + "] search failed - retrievers '"
-                            + retrieversWithFailures
-                            + "' returned errors. "
-                            + "All failures are attached as suppressed exceptions.";
-                        Exception ex = new ElasticsearchStatusException(errMessage, RestStatus.fromCode(statusCode));
-                        failures.forEach(ex::addSuppressed);
-                        listener.onFailure(ex);
-                    } else {
-                        results.set(combineInnerRetrieverResults(topDocs, ctx.isExplain()));
-                        listener.onResponse(null);
+
+                    if (failures.isEmpty()) {
+                        try {
+                            boolean enrichResults = ctx.isExplain() || ctx.isProfile();
+                            results.set(combineInnerRetrieverResults(topDocs, enrichResults));
+                            listener.onResponse(null);
+                            return;
+                        } catch (ElasticsearchStatusException esEx) {
+                            retrieversWithFailures.add(getName());
+                            failures.add(esEx);
+                            statusCode = esEx.status().getStatus();
+                        }
                     }
+
+                    assert statusCode != RestStatus.OK.getStatus();
+                    final String errMessage = "["
+                        + getName()
+                        + "] search failed - retrievers '"
+                        + retrieversWithFailures
+                        + "' returned errors. "
+                        + "All failures are attached as suppressed exceptions.";
+                    Exception ex = new ElasticsearchStatusException(errMessage, RestStatus.fromCode(statusCode));
+                    failures.forEach(ex::addSuppressed);
+                    listener.onFailure(ex);
                 }
 
                 @Override
@@ -200,6 +230,37 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         );
         rankDocsRetrieverBuilder.retrieverName(retrieverName());
         return rankDocsRetrieverBuilder;
+    }
+
+    int handleShardFailures(SearchResponse response, int statusCode, List<Exception> failures) {
+        ShardSearchFailure[] shardFailures = response.getShardFailures();
+        for (ShardSearchFailure shardFailure : shardFailures) {
+            if (shardFailure != null) {
+                int shardFailureStatusCode = ExceptionsHelper.status(shardFailure.getCause()).getStatus();
+                failures.add(
+                    processInnerItemFailureException(
+                        new ElasticsearchStatusException(
+                            "failed to retrieve data from shard ["
+                                + shardFailure.shardId()
+                                + "] with message: "
+                                + shardFailure.getCause().getMessage(),
+                            RestStatus.fromCode(shardFailureStatusCode)
+                        )
+                    )
+                );
+                statusCode = Math.max(shardFailureStatusCode, statusCode);
+            }
+        }
+        return statusCode;
+    }
+
+    /**
+     * Overridable method to check or modify any failures from child retrievers if needed
+     * @param ex the exception thrown
+     * @return the failure exception
+     */
+    protected Exception processInnerItemFailureException(Exception ex) {
+        return ex;
     }
 
     @Override
@@ -236,12 +297,6 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                     rankWindowSize,
                     size
                 ),
-                validationException
-            );
-        }
-        if (allowPartialSearchResults) {
-            validationException = addValidationError(
-                "cannot specify [" + getName() + "] and [allow_partial_search_results]",
                 validationException
             );
         }
@@ -291,6 +346,10 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         return rankWindowSize;
     }
 
+    public List<RetrieverSource> innerRetrievers() {
+        return Collections.unmodifiableList(innerRetrievers);
+    }
+
     protected final SearchSourceBuilder createSearchSourceBuilder(PointInTimeBuilder pit, RetrieverBuilder retrieverBuilder) {
         var sourceBuilder = new SearchSourceBuilder().pointInTimeBuilder(pit)
             .trackTotalHits(false)
@@ -317,6 +376,28 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         return sourceBuilder;
     }
 
+    /**
+     * Perform any custom rewrite logic necessary
+     *
+     * @param ctx The query rewrite context
+     * @return RetrieverBuilder the rewritten retriever
+     */
+    protected RetrieverBuilder doRewrite(QueryRewriteContext ctx) {
+        return this;
+    }
+
+    /**
+     * Overridable method to create the rank doc for the result set.
+     *
+     * @param docId the decoded docId
+     * @param hit the SearchHit object
+     * @param shardRequestIndex the shared request index
+     * @return a RankDoc (or subclass)
+     */
+    protected RankDoc createRankDocFromHit(int docId, SearchHit hit, int shardRequestIndex) {
+        return new RankDoc(docId, hit.getScore(), shardRequestIndex);
+    }
+
     private RankDoc[] getRankDocs(SearchResponse searchResponse) {
         int size = searchResponse.getHits().getHits().length;
         RankDoc[] docs = new RankDoc[size];
@@ -325,7 +406,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
             long sortValue = (long) hit.getRawSortValues()[hit.getRawSortValues().length - 1];
             int doc = ShardDocSortField.decodeDoc(sortValue);
             int shardRequestIndex = ShardDocSortField.decodeShardRequestIndex(sortValue);
-            docs[i] = new RankDoc(doc, hit.getScore(), shardRequestIndex);
+            docs[i] = createRankDocFromHit(doc, hit, shardRequestIndex);
             docs[i].rank = i + 1;
         }
         return docs;

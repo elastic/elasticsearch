@@ -44,7 +44,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -254,12 +253,7 @@ public class StoreRecoveryTests extends ESTestCase {
         try {
             Files.createFile(path.resolve("foo.bar"));
             Files.createLink(path.resolve("test"), path.resolve("foo.bar"));
-            BasicFileAttributes destAttr = Files.readAttributes(path.resolve("test"), BasicFileAttributes.class);
-            BasicFileAttributes sourceAttr = Files.readAttributes(path.resolve("foo.bar"), BasicFileAttributes.class);
-            // we won't get here - no permission ;)
-            return destAttr.fileKey() != null && destAttr.fileKey().equals(sourceAttr.fileKey());
-        } catch (SecurityException ex) {
-            return true; // if we run into that situation we know it's supported.
+            return true; // createLink returning without exception means hard links are supported
         } catch (UnsupportedOperationException ex) {
             return false;
         }

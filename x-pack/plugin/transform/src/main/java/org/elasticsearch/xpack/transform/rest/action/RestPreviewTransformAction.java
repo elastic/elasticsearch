@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -69,12 +68,15 @@ public class RestPreviewTransformAction extends BaseRestHandler {
             );
         }
 
-        TimeValue timeout = restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
+        var timeout = restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
+        var previewAsIndexRequest = restRequest.paramAsBoolean(TransformField.PREVIEW_AS_INDEX_REQUEST.getPreferredName(), false);
 
         SetOnce<PreviewTransformAction.Request> previewRequestHolder = new SetOnce<>();
 
         if (Strings.isNullOrEmpty(transformId)) {
-            previewRequestHolder.set(PreviewTransformAction.Request.fromXContent(restRequest.contentOrSourceParamParser(), timeout));
+            previewRequestHolder.set(
+                PreviewTransformAction.Request.fromXContent(restRequest.contentOrSourceParamParser(), timeout, previewAsIndexRequest)
+            );
         }
 
         Client client = new RestCancellableNodeClient(nodeClient, restRequest.getHttpChannel());
@@ -97,7 +99,11 @@ public class RestPreviewTransformAction extends BaseRestHandler {
                             )
                         );
                     } else {
-                        PreviewTransformAction.Request previewRequest = new PreviewTransformAction.Request(transforms.get(0), timeout);
+                        PreviewTransformAction.Request previewRequest = new PreviewTransformAction.Request(
+                            transforms.getFirst(),
+                            timeout,
+                            previewAsIndexRequest
+                        );
                         client.execute(PreviewTransformAction.INSTANCE, previewRequest, listener);
                     }
                 }, listener::onFailure));

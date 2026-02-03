@@ -1,25 +1,31 @@
 {
-  "rollup.get_rollup_index_caps":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/rollup-get-rollup-index-caps.html",
-      "description":"Returns the rollup capabilities of all jobs inside of a rollup index (e.g. the index where rollup data is stored)."
+  "rollup.get_rollup_index_caps": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-rollup-get-rollup-index-caps",
+      "description": "Get the rollup index capabilities"
     },
-    "stability":"experimental",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "experimental",
+    "visibility": "public",
+    "deprecated": {
+      "version": "8.11.0",
+      "description": "Rollup APIs are deprecated, use downsampling with time series data stream instead"
     },
-    "url":{
-      "paths":[
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
         {
-          "path":"/{index}/_rollup/data",
-          "methods":[
+          "path": "/{index}/_rollup/data",
+          "methods": [
             "GET"
           ],
-          "parts":{
-            "index":{
-              "type":"string",
-              "description":"The rollup index or index pattern to obtain rollup capabilities from."
+          "parts": {
+            "index": {
+              "type": "list",
+              "description": "Comma-separated list of data streams or indices to check for rollup capabilities. Wildcard (`*`) expressions are supported."
             }
           }
         }

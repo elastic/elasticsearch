@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -20,8 +21,10 @@ import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -34,12 +37,14 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -51,6 +56,10 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractIntsFromDocValuesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.index.translog.Translog;
@@ -60,16 +69,19 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.lookup.SourceProvider;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matcher;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -91,6 +103,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -111,6 +124,33 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      */
     protected void minimalMapping(XContentBuilder b, IndexVersion indexVersion) throws IOException {
         minimalMapping(b);
+    }
+
+    /**
+     * When creating a mapper service on an index version in this set, no exceptions should be thrown.
+     * Default: all IndexVersions
+     * @return a set of supported IndexVersions
+     */
+    protected Set<IndexVersion> getSupportedVersions() {
+        return IndexVersionUtils.allReleasedVersions();
+    }
+
+    /**
+     * When creating a mapper service on an index version in this set, a
+     * {@link MapperException} should be thrown. There should be no
+     * deprecation warnings. Default: no IndexVersions.
+     * @return a set of unsupported IndexVersions
+     */
+    protected Set<IndexVersion> getUnsupportedVersions() {
+        return Set.of();
+    }
+
+    /**
+     * Test that we get expected warnings for a specific indexVersion. Default: no-op
+     * @param indexVersion to test
+     */
+    protected void assertWarningsForIndexVersion(IndexVersion indexVersion) {
+        // no-op
     }
 
     /**
@@ -166,12 +206,15 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     protected void assertAggregatableConsistency(MappedFieldType ft) {
         if (ft.isAggregatable()) {
             try {
-                ft.fielddataBuilder(FieldDataContext.noRuntimeFields("aggregation_test"));
+                ft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "aggregation_test"));
             } catch (Exception e) {
-                fail("Unexpected exception when fetching field data from aggregatable field type");
+                fail("Unexpected exception when fetching field data from aggregatable field type: " + e.getMessage());
             }
         } else {
-            expectThrows(IllegalArgumentException.class, () -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("aggregation_test")));
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "aggregation_test"))
+            );
         }
     }
 
@@ -317,6 +360,17 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
     }
 
+    protected void assertIgnoredSourceIsEmpty(ParsedDocument doc) {
+        Set<String> ignoredFields = doc.rootDoc()
+            .getFields(IgnoredSourceFieldMapper.NAME)
+            .stream()
+            .flatMap(field -> IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding.decode(field.binaryValue()).stream())
+            .map(IgnoredSourceFieldMapper.NameValue::name)
+            .collect(Collectors.toSet());
+
+        assertThat(ignoredFields, empty());
+    }
+
     protected void assertExistsQuery(MapperService mapperService) throws IOException {
         LuceneDocument fields = mapperService.documentMapper().parse(source(this::writeField)).rootDoc();
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
@@ -339,7 +393,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             // is not added to _field_names because it is not indexed nor stored
             assertEquals("field", termQuery.getTerm().text());
             assertNoDocValuesField(fields, "field");
-            if (fieldType.isIndexed() || fieldType.isStored()) {
+            IndexType indexType = fieldType.indexType();
+            if (indexType.hasPoints() || indexType.hasTerms() || fieldType.isStored()) {
                 assertNotNull(fields.getField(FieldNamesFieldMapper.NAME));
             } else {
                 assertNoFieldNamesField(fields);
@@ -379,6 +434,50 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         @SuppressWarnings("unchecked") // Syntactic sugar in tests
         T fieldType = (T) mapperService.fieldType("field");
         assertThat(checker.apply(fieldType), equalTo(isDimension));
+    }
+
+    public void assertTimeSeriesIndexing() throws IOException {
+        assertTimeSeriesIndexing(IndexVersions.TIME_SERIES_DIMENSIONS_USE_SKIPPERS, true, true);
+        assertTimeSeriesIndexing(IndexVersions.TIME_SERIES_DIMENSIONS_USE_SKIPPERS, false, false);
+        assertTimeSeriesIndexing(IndexVersions.TIME_SERIES_ALL_FIELDS_USE_SKIPPERS, true, true);
+        assertTimeSeriesIndexing(IndexVersions.TIME_SERIES_ALL_FIELDS_USE_SKIPPERS, false, true);
+        assertTimeSeriesIndexing(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID, true, false);
+        assertTimeSeriesIndexing(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID, false, false);
+    }
+
+    public void assertTimeSeriesIndexing(IndexVersion indexVersion, boolean isDimension, boolean hasSkippers) throws IOException {
+
+        // In time series mode, index=false and skippers=true for all fields,
+        // regardless of their dimension status
+
+        Settings settings = Settings.builder()
+            .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .put("index.routing_path", "dim")
+            .build();
+        MapperService mapperService = createMapperService(indexVersion, settings, fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_dimension", isDimension);
+        }));
+        assumeTrue("Skippers disabled by feature flag", mapperService.getIndexSettings().useDocValuesSkipper());
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, b -> {
+            writeField(b);
+            b.field("@timestamp", "2025-11-14T12:00:00.000Z");
+            b.field("dim", "foo");
+        }, null));
+        IndexableField field = doc.rootDoc().getField("field");
+
+        if (hasSkippers) {
+            assertSame(DocValuesSkipIndexType.RANGE, field.fieldType().docValuesSkipIndexType());
+            assertSame(IndexOptions.NONE, field.fieldType().indexOptions());
+            assertEquals(0, field.fieldType().pointDimensionCount());
+            assertEquals(IndexType.skippers(), mapperService.fieldType("field").indexType());
+        } else {
+            assertSame(DocValuesSkipIndexType.NONE, field.fieldType().docValuesSkipIndexType());
+            assertTrue(mapperService.fieldType("field").indexType().hasDenseIndex());
+        }
+
     }
 
     protected <T> void assertMetricType(String metricType, Function<T, Enum<TimeSeriesParams.MetricType>> checker) throws IOException {
@@ -434,9 +533,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertParseMaximalWarnings();
     }
 
-    public void testTotalFieldsCount() throws IOException {
+    public final void testTotalFieldsCount() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         assertEquals(1, mapperService.documentMapper().mapping().getRoot().getTotalFieldsCount());
+        assertParseMinimalWarnings();
     }
 
     protected final void assertParseMinimalWarnings() {
@@ -733,7 +833,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     protected void assertSearchable(MappedFieldType fieldType) {
-        assertEquals(fieldType.isIndexed(), fieldType.getTextSearchInfo() != TextSearchInfo.NONE);
+        assertEquals(fieldType.isSearchable(), fieldType.getTextSearchInfo() != TextSearchInfo.NONE);
     }
 
     /**
@@ -853,10 +953,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         SourceToParse source = source(b -> b.field(ft.name(), value));
         ValueFetcher docValueFetcher = new DocValueFetcher(
             ft.docValueFormat(format, null),
-            ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
+            ft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "test"))
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
         );
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
         when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
         when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
         when(searchExecutionContext.getForField(ft, fdt)).thenAnswer(inv -> fieldDataLookup(mapperService).apply(ft, () -> {
@@ -932,14 +1033,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
             LeafReaderContext ctx = ir.leaves().get(0);
 
-            DocValuesScriptFieldFactory docValuesFieldSource = fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
+            DocValuesScriptFieldFactory docValuesFieldSource = fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "test"))
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
                 .load(ctx)
                 .getScriptFieldFactory("test");
             docValuesFieldSource.setNextDocId(0);
 
             DocumentLeafReader reader = new DocumentLeafReader(doc.rootDoc(), Collections.emptyMap());
-            DocValuesScriptFieldFactory indexData = fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
+            DocValuesScriptFieldFactory indexData = fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "test"))
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
                 .load(reader.getContext())
                 .getScriptFieldFactory("test");
@@ -1201,8 +1302,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     start,
                     maxDocs,
                     true,
-                    randomBoolean(),
-                    IndexVersion.current()
+                    randomBoolean()
                 );
                 for (int i = start; i < maxDocs; i++) {
                     var example = examples.get(i);
@@ -1219,7 +1319,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         return true;
     }
 
-    public void testSupportsParsingObject() throws IOException {
+    public final void testSupportsParsingObject() throws IOException {
         DocumentMapper mapper = createMapperService(fieldMapping(this::minimalMapping)).documentMapper();
         FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
         if (fieldMapper.supportsParsingObject()) {
@@ -1237,6 +1337,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 b.endObject();
             })));
         }
+        assertParseMinimalWarnings();
     }
 
     public final void testSyntheticSourceMany() throws IOException {
@@ -1498,6 +1599,181 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertThat(actual, equalTo(expected));
     }
 
+    protected boolean supportsBulkLongBlockReading() {
+        return false;
+    }
+
+    protected boolean supportsBulkIntBlockReading() {
+        return false;
+    }
+
+    protected boolean supportsBulkDoubleBlockReading() {
+        return false;
+    }
+
+    protected Object[] getThreeSampleValues() {
+        return new Object[] { 1L, 2L, 3L };
+    }
+
+    protected Object[] getThreeEncodedSampleValues() {
+        return getThreeSampleValues();
+    }
+
+    public void testSingletonIntBulkBlockReading() throws IOException {
+        assumeTrue("field type supports bulk singleton int reading", supportsBulkIntBlockReading());
+        testSingletonBulkBlockReading(columnAtATimeReader -> (AbstractIntsFromDocValuesBlockLoader.Singleton) columnAtATimeReader);
+    }
+
+    public void testSingletonLongBulkBlockReading() throws IOException {
+        assumeTrue("field type supports bulk singleton long reading", supportsBulkLongBlockReading());
+        testSingletonBulkBlockReading(columnAtATimeReader -> (LongsBlockLoader.Singleton) columnAtATimeReader);
+    }
+
+    public void testSingletonDoubleBulkBlockReading() throws IOException {
+        assumeTrue("field type supports bulk singleton double reading", supportsBulkDoubleBlockReading());
+        testSingletonBulkBlockReading(columnAtATimeReader -> (DoublesBlockLoader.Singleton) columnAtATimeReader);
+    }
+
+    private void testSingletonBulkBlockReading(Function<BlockLoader.ColumnAtATimeReader, BlockDocValuesReader> readerCast)
+        throws IOException {
+        assumeTrue("field type supports bulk singleton long reading", supportsBulkLongBlockReading());
+        var settings = indexSettings(IndexVersion.current(), 1, 1).put("index.mode", "logsdb").build();
+        var mapperService = createMapperService(settings, fieldMapping(this::minimalMapping));
+        var mapper = mapperService.documentMapper();
+        var mockBlockContext = mock(MappedFieldType.BlockLoaderContext.class);
+        when(mockBlockContext.fieldExtractPreference()).thenReturn(MappedFieldType.FieldExtractPreference.DOC_VALUES);
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
+        when(mockBlockContext.indexSettings()).thenReturn(indexSettings);
+
+        var sampleValuesForIndexing = getThreeSampleValues();
+        var expectedSampleValues = getThreeEncodedSampleValues();
+        {
+            // Dense
+            CheckedConsumer<RandomIndexWriter, IOException> builder = iw -> {
+                for (int i = 0; i < 3; i++) {
+                    var value = sampleValuesForIndexing[i];
+                    var doc = mapper.parse(source(b -> b.field("@timestamp", 1L).field("field", "" + value))).rootDoc();
+                    iw.addDocument(doc);
+                }
+            };
+            CheckedConsumer<DirectoryReader, IOException> test = reader -> {
+                assertThat(reader.leaves(), hasSize(1));
+                assertThat(reader.numDocs(), equalTo(3));
+                LeafReaderContext context = reader.leaves().get(0);
+                var blockLoader = mapperService.fieldType("field").blockLoader(mockBlockContext);
+                BlockDocValuesReader columnReader = readerCast.apply(blockLoader.columnAtATimeReader(context));
+                assertThat(
+                    ((BlockDocValuesReader.NumericDocValuesAccessor) columnReader).numericDocValues(),
+                    instanceOf(BlockLoader.OptionalColumnAtATimeReader.class)
+                );
+                var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
+                var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, randomBoolean());
+                for (int i = 0; i < block.size(); i++) {
+                    assertThat(block.get(i), equalTo(expectedSampleValues[i]));
+                }
+            };
+            withLuceneIndex(mapperService, builder, test);
+        }
+        {
+            // Sparse
+            CheckedConsumer<RandomIndexWriter, IOException> builder = iw -> {
+                var doc = mapper.parse(source(b -> b.field("@timestamp", 1L).field("field", "" + sampleValuesForIndexing[0]))).rootDoc();
+                iw.addDocument(doc);
+                doc = mapper.parse(source(b -> b.field("@timestamp", 1L))).rootDoc();
+                iw.addDocument(doc);
+                doc = mapper.parse(source(b -> b.field("@timestamp", 1L).field("field", "" + sampleValuesForIndexing[2]))).rootDoc();
+                iw.addDocument(doc);
+            };
+            CheckedConsumer<DirectoryReader, IOException> test = reader -> {
+                assertThat(reader.leaves(), hasSize(1));
+                assertThat(reader.numDocs(), equalTo(3));
+                LeafReaderContext context = reader.leaves().get(0);
+                var blockLoader = mapperService.fieldType("field").blockLoader(mockBlockContext);
+                BlockDocValuesReader columnReader = readerCast.apply(blockLoader.columnAtATimeReader(context));
+                var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
+                var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
+                assertThat(block.get(0), equalTo(expectedSampleValues[0]));
+                assertThat(block.get(1), nullValue());
+                assertThat(block.get(2), equalTo(expectedSampleValues[2]));
+
+                docBlock = TestBlock.docs(0, 2);
+                columnReader = readerCast.apply(blockLoader.columnAtATimeReader(context));
+                var numeric = ((BlockDocValuesReader.NumericDocValuesAccessor) columnReader).numericDocValues();
+                assertThat(numeric, instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
+                var directReader = (BlockLoader.OptionalColumnAtATimeReader) numeric;
+                boolean toInt = supportsBulkIntBlockReading();
+                assertNull(directReader.tryRead(TestBlock.factory(), docBlock, 0, false, null, toInt, false));
+                block = (TestBlock) directReader.tryRead(TestBlock.factory(), docBlock, 0, true, null, toInt, false);
+                assertNotNull(block);
+                assertThat(block.get(0), equalTo(expectedSampleValues[0]));
+                assertThat(block.get(1), equalTo(expectedSampleValues[2]));
+            };
+            withLuceneIndex(mapperService, builder, test);
+        }
+        {
+            // Multi-value
+            CheckedConsumer<RandomIndexWriter, IOException> builder = iw -> {
+                var doc = mapper.parse(source(b -> b.field("@timestamp", 1L).field("field", "" + sampleValuesForIndexing[0]))).rootDoc();
+                iw.addDocument(doc);
+                doc = mapper.parse(
+                    source(
+                        b -> b.field("@timestamp", 1L)
+                            .field("field", List.of("" + sampleValuesForIndexing[0], "" + sampleValuesForIndexing[1]))
+                    )
+                ).rootDoc();
+                iw.addDocument(doc);
+                doc = mapper.parse(source(b -> b.field("@timestamp", 1L).field("field", "" + sampleValuesForIndexing[2]))).rootDoc();
+                iw.addDocument(doc);
+            };
+            CheckedConsumer<DirectoryReader, IOException> test = reader -> {
+                assertThat(reader.leaves(), hasSize(1));
+                assertThat(reader.numDocs(), equalTo(3));
+                LeafReaderContext context = reader.leaves().get(0);
+                var blockLoader = mapperService.fieldType("field").blockLoader(mockBlockContext);
+                var columnReader = blockLoader.columnAtATimeReader(context);
+                assertThat(
+                    columnReader,
+                    anyOf(
+                        instanceOf(LongsBlockLoader.Sorted.class),
+                        instanceOf(DoublesBlockLoader.Sorted.class),
+                        instanceOf(AbstractIntsFromDocValuesBlockLoader.Singleton.class)
+                    )
+                );
+                var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
+                var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
+                assertThat(block.get(0), equalTo(expectedSampleValues[0]));
+                assertThat(block.get(1), equalTo(List.of(expectedSampleValues[0], expectedSampleValues[1])));
+                assertThat(block.get(2), equalTo(expectedSampleValues[2]));
+            };
+            withLuceneIndex(mapperService, builder, test);
+        }
+    }
+
+    public void testSupportedIndexVersions() throws IOException {
+        Set<IndexVersion> supportedVersions = getSupportedVersions();
+        for (int i = 0; i < Math.min(supportedVersions.size(), 100); i++) {
+            IndexVersion indexVersion = randomFrom(supportedVersions);
+            try {
+                MapperService mapperService = createMapperService(indexVersion, fieldMapping(this::minimalMapping));
+            } catch (MapperException e) {
+                fail(e, "failed on version=%s msg=%s", indexVersion, e.getMessage());
+            }
+            assertWarningsForIndexVersion(indexVersion);
+        }
+    }
+
+    public void testUnsupportedIndexVersions() {
+        Set<IndexVersion> unsupportedVersions = getUnsupportedVersions();
+        for (int i = 0; i < Math.min(unsupportedVersions.size(), 100); i++) {
+            IndexVersion indexVersion = randomFrom(unsupportedVersions);
+
+            expectThrows(MapperException.class, () -> {
+                MapperService mapperService = createMapperService(indexVersion, fieldMapping(this::minimalMapping));
+            });
+        }
+    }
+
     protected String randomSyntheticSourceKeep() {
         return randomFrom("all", "arrays");
     }
@@ -1538,5 +1814,183 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
          * field doesn't support fields scripts.
          */
         abstract ScriptFactory nonEmptyFieldScript();
+    }
+
+    /**
+     * Return a list of scenarios where sorts on this field should or should not produce
+     * competitive iterators.  Field types that do not support sorting should return an
+     * empty List.
+     */
+    protected abstract List<SortShortcutSupport> getSortShortcutSupport();
+
+    private static Consumer<DocIdSetIterator> checkNotNull(boolean supportsShortcut) {
+        if (supportsShortcut) {
+            return Assert::assertNotNull;
+        } else {
+            return Assert::assertNull;
+        }
+    }
+
+    public record SortShortcutSupport(
+        IndexVersion indexVersion,
+        Settings settings,
+        String fieldname,
+        CheckedConsumer<XContentBuilder, IOException> fieldMapping,
+        CheckedConsumer<XContentBuilder, IOException> additionalMappings,
+        CheckedConsumer<XContentBuilder, IOException> document,
+        Consumer<DocIdSetIterator> competitiveIteratorCheck
+    ) {
+        public SortShortcutSupport(
+            CheckedConsumer<XContentBuilder, IOException> mappings,
+            CheckedConsumer<XContentBuilder, IOException> document,
+            boolean supportsShortcut
+        ) {
+            this(IndexVersion.current(), SETTINGS, "field", mappings, b -> {}, document, checkNotNull(supportsShortcut));
+        }
+
+        public SortShortcutSupport(
+            IndexVersion indexVersion,
+            CheckedConsumer<XContentBuilder, IOException> mappings,
+            CheckedConsumer<XContentBuilder, IOException> document,
+            boolean supportsShortcut
+        ) {
+            this(indexVersion, SETTINGS, "field", mappings, b -> {}, document, checkNotNull(supportsShortcut));
+        }
+    }
+
+    public final void testSortShortcuts() throws IOException {
+        List<SortShortcutSupport> tests = getSortShortcutSupport();
+        if (tests == null || tests.isEmpty()) {
+            MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+            MappedFieldType ft = mapperService.fieldType("field");
+            expectThrows(IllegalArgumentException.class, () -> {
+                ft.fielddataBuilder(
+                    new FieldDataContext(
+                        "",
+                        mapperService.getIndexSettings(),
+                        () -> null,
+                        Set::of,
+                        MappedFieldType.FielddataOperation.SEARCH
+                    )
+                ).build(null, null).sortField(false, IndexVersion.current(), null, MultiValueMode.MIN, null, false);
+            });
+        } else {
+            for (SortShortcutSupport sortShortcutSupport : tests) {
+                MapperService mapperService = createMapperService(
+                    sortShortcutSupport.indexVersion(),
+                    sortShortcutSupport.settings,
+                    () -> true
+                );
+                merge(mapperService, mapping(b -> {
+                    b.startObject(sortShortcutSupport.fieldname);
+                    sortShortcutSupport.fieldMapping.accept(b);
+                    b.endObject();
+                    sortShortcutSupport.additionalMappings.accept(b);
+                }));
+                withLuceneIndex(mapperService, iw -> {
+                    iw.addDocument(
+                        mapperService.documentParser()
+                            .parseDocument(source(sortShortcutSupport.document()), mapperService.mappingLookup())
+                            .rootDoc()
+                    );
+                }, reader -> {
+                    IndexSearcher searcher = newSearcher(reader);
+                    MappedFieldType ft = mapperService.fieldType(sortShortcutSupport.fieldname);
+                    SortField sortField = ft.fielddataBuilder(new FieldDataContext("", mapperService.getIndexSettings(), () -> {
+                        throw new UnsupportedOperationException();
+                    }, Set::of, MappedFieldType.FielddataOperation.SEARCH))
+                        .build(null, null)
+                        .sortField(false, getVersion(), null, MultiValueMode.MIN, null, false);
+                    var comparator = sortField.getComparator(1, Pruning.GREATER_THAN_OR_EQUAL_TO);
+                    var leafComparator = comparator.getLeafComparator(searcher.getLeafContexts().getFirst());
+                    leafComparator.setHitsThresholdReached();
+                    leafComparator.setBottom(0);
+                    sortShortcutSupport.competitiveIteratorCheck.accept(leafComparator.competitiveIterator());
+                });
+            }
+        }
+        assertParseMinimalWarnings();
+    }
+
+    protected boolean supportsDocValuesSkippers() {
+        return true;
+    }
+
+    public void testDocValuesSkippers() throws IOException {
+        assumeTrue("Mapper does not support doc values skippers", supportsDocValuesSkippers());
+
+        IndexVersion preSkipperVersion = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS);
+        IndexVersion withSkipperVersion = IndexVersions.STANDARD_INDEXES_USE_SKIPPERS;
+
+        Settings skippersDisabled = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false).build();
+        Settings skippersEnabled = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true).build();
+
+        {
+            MapperService mapperService = createMapperService(preSkipperVersion, fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("doc_values", true);
+                b.field("index", false);
+            }));
+            assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.docValuesOnly()));
+        }
+
+        {
+            MapperService mapperService = createMapperService(withSkipperVersion, skippersEnabled, fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("doc_values", true);
+                b.field("index", false);
+            }));
+            assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.skippers()));
+        }
+
+        {
+            MapperService mapperService = createMapperService(withSkipperVersion, skippersDisabled, fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("doc_values", true);
+                b.field("index", false);
+            }));
+            assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.docValuesOnly()));
+        }
+
+        Settings statelessSkipperDefault = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
+        IndexVersion statelessNoSkipperVersion = IndexVersionUtils.randomPreviousCompatibleVersion(
+            IndexVersions.STANDARD_INDEXES_USE_SKIPPERS
+        );
+        {
+            MapperService mapperService = createMapperService(statelessNoSkipperVersion, statelessSkipperDefault, fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("doc_values", true);
+                b.field("index", false);
+            }));
+            assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.docValuesOnly()));
+        }
+
+        Settings statelessSkipperTSDB = Settings.builder()
+            .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .build();
+        IndexVersion statelessSkipperVersion = IndexVersions.STATELESS_SKIPPERS_ENABLED_FOR_TSDB;
+        {
+            MapperService mapperService = createMapperService(statelessSkipperVersion, statelessSkipperTSDB, fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("doc_values", true);
+                b.field("index", false);
+            }));
+            assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.skippers()));
+        }
+
+        Settings statelessSkipperEnabled = Settings.builder()
+            .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
+            .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true)
+            .build();
+        {
+            MapperService mapperService = createMapperService(statelessSkipperVersion, statelessSkipperEnabled, fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("doc_values", true);
+                b.field("index", false);
+            }));
+            assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.skippers()));
+        }
     }
 }

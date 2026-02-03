@@ -17,6 +17,7 @@ import com.sun.net.httpserver.HttpPrincipal;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 
@@ -29,6 +30,8 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.aMapWithSize;
@@ -40,7 +43,7 @@ public class AwsStsHttpHandlerTests extends ESTestCase {
         final Map<String, String> generatedCredentials = new HashMap<>();
 
         final var webIdentityToken = randomUnicodeOfLength(10);
-        final var handler = new AwsStsHttpHandler(generatedCredentials::put, webIdentityToken);
+        final var handler = new AwsStsHttpHandler(generatedCredentials::put, () -> webIdentityToken, randomValidDuration());
 
         final var response = handleRequest(
             handler,
@@ -67,14 +70,14 @@ public class AwsStsHttpHandlerTests extends ESTestCase {
     }
 
     public void testInvalidAction() {
-        final var handler = new AwsStsHttpHandler((key, token) -> fail(), randomUnicodeOfLength(10));
+        final var handler = new AwsStsHttpHandler((key, token) -> fail(), () -> randomUnicodeOfLength(10), randomValidDuration());
         final var response = handleRequest(handler, Map.of("Action", "Unsupported"));
         assertEquals(RestStatus.BAD_REQUEST, response.status());
     }
 
     public void testInvalidRole() {
         final var webIdentityToken = randomUnicodeOfLength(10);
-        final var handler = new AwsStsHttpHandler((key, token) -> fail(), webIdentityToken);
+        final var handler = new AwsStsHttpHandler((key, token) -> fail(), () -> webIdentityToken, randomValidDuration());
         final var response = handleRequest(
             handler,
             Map.of(
@@ -92,8 +95,15 @@ public class AwsStsHttpHandlerTests extends ESTestCase {
     }
 
     public void testInvalidToken() {
-        final var webIdentityToken = randomUnicodeOfLength(10);
-        final var handler = new AwsStsHttpHandler((key, token) -> fail(), webIdentityToken);
+        final var webIdentityTokenRef = new AtomicReference<>(randomUnicodeOfLength(10));
+        final String incorrectToken;
+        final var handler = new AwsStsHttpHandler((key, token) -> fail(), webIdentityTokenRef::get, randomValidDuration());
+        if (randomBoolean()) {
+            incorrectToken = webIdentityTokenRef.get();
+            webIdentityTokenRef.set(randomValueOtherThan(incorrectToken, () -> randomUnicodeOfLength(10)));
+        } else {
+            incorrectToken = randomValueOtherThan(webIdentityTokenRef.get(), () -> randomUnicodeOfLength(10));
+        }
         final var response = handleRequest(
             handler,
             Map.of(
@@ -104,7 +114,7 @@ public class AwsStsHttpHandlerTests extends ESTestCase {
                 "RoleArn",
                 AwsStsHttpHandler.ROLE_ARN,
                 "WebIdentityToken",
-                randomValueOtherThan(webIdentityToken, () -> randomUnicodeOfLength(10))
+                incorrectToken
             )
         );
         assertEquals(RestStatus.UNAUTHORIZED, response.status());
@@ -112,7 +122,7 @@ public class AwsStsHttpHandlerTests extends ESTestCase {
 
     public void testInvalidARN() {
         final var webIdentityToken = randomUnicodeOfLength(10);
-        final var handler = new AwsStsHttpHandler((key, token) -> fail(), webIdentityToken);
+        final var handler = new AwsStsHttpHandler((key, token) -> fail(), () -> webIdentityToken, randomValidDuration());
         final var response = handleRequest(
             handler,
             Map.of(
@@ -265,4 +275,7 @@ public class AwsStsHttpHandlerTests extends ESTestCase {
         }
     }
 
+    private static TimeValue randomValidDuration() {
+        return randomTimeValue(1, 100000, TimeUnit.SECONDS);
+    }
 }

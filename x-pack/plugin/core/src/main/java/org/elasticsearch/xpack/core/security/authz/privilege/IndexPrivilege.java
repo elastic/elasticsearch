@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
@@ -84,9 +85,18 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton READ_AUTOMATON = patterns(
         "indices:data/read/*",
         ResolveIndexAction.NAME,
-        TransportResolveClusterAction.NAME
+        TransportResolveClusterAction.NAME,
+        GetInferenceFieldsInternalAction.NAME  // cross-cluster inference for semantic search
     );
-    private static final Automaton READ_FAILURE_STORE_AUTOMATON = patterns("indices:data/read/*", ResolveIndexAction.NAME);
+    private static final Automaton READ_FAILURE_STORE_AUTOMATON = patterns(
+        "indices:data/read/*",
+        ResolveIndexAction.NAME,
+        "internal:transport/proxy/indices:data/read/*",
+        TransportClusterSearchShardsAction.TYPE.name(),
+        TransportSearchShardsAction.TYPE.name(),
+        TransportResolveClusterAction.NAME,
+        GetInferenceFieldsInternalAction.NAME // cross-cluster inference for semantic search
+    );
     private static final Automaton READ_CROSS_CLUSTER_AUTOMATON = patterns(
         "internal:transport/proxy/indices:data/read/*",
         TransportClusterSearchShardsAction.TYPE.name(),
@@ -98,20 +108,23 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton CREATE_AUTOMATON = patterns(
         "indices:data/write/index*",
         "indices:data/write/bulk*",
-        "indices:data/write/simulate/bulk*"
+        "indices:data/write/simulate/bulk*",
+        "indices:data/write/otlp/*"
     );
     private static final Automaton CREATE_DOC_AUTOMATON = patterns(
         "indices:data/write/index",
         "indices:data/write/index[*",
         "indices:data/write/index:op_type/create",
         "indices:data/write/bulk*",
-        "indices:data/write/simulate/bulk*"
+        "indices:data/write/simulate/bulk*",
+        "indices:data/write/otlp/*"
     );
     private static final Automaton INDEX_AUTOMATON = patterns(
         "indices:data/write/index*",
         "indices:data/write/bulk*",
         "indices:data/write/update*",
-        "indices:data/write/simulate/bulk*"
+        "indices:data/write/simulate/bulk*",
+        "indices:data/write/otlp/*"
     );
     private static final Automaton DELETE_AUTOMATON = patterns("indices:data/write/delete*", "indices:data/write/bulk*");
     private static final Automaton WRITE_AUTOMATON = patterns("indices:data/write/*", TransportAutoPutMappingAction.TYPE.name());

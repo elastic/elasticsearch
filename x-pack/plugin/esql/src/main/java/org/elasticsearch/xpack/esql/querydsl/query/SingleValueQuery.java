@@ -13,7 +13,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -125,6 +124,11 @@ public class SingleValueQuery extends Query {
         return Objects.hash(super.hashCode(), next, field, useSyntheticSourceDelegate);
     }
 
+    @Override
+    public boolean containsPlan() {
+        return next.containsPlan();
+    }
+
     public abstract static class AbstractBuilder extends AbstractQueryBuilder<AbstractBuilder> {
         private final QueryBuilder next;
         private final String field;
@@ -140,20 +144,14 @@ public class SingleValueQuery extends Query {
             super(in);
             this.next = in.readNamedWriteable(QueryBuilder.class);
             this.field = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                if (in instanceof PlanStreamInput psi) {
-                    this.source = Source.readFrom(psi);
-                } else {
-                    /*
-                     * For things like CanMatchNodeRequest we serialize without the Source. But we
-                     * don't use it, so that's ok.
-                     */
-                    this.source = Source.readEmpty(in);
-                }
-            } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                this.source = readOldSource(in);
+            if (in instanceof PlanStreamInput psi) {
+                this.source = Source.readFrom(psi);
             } else {
-                this.source = Source.EMPTY;
+                /*
+                 * For things like CanMatchNodeRequest we serialize without the Source. But we
+                 * don't use it, so that's ok.
+                 */
+                this.source = Source.readEmpty(in);
             }
         }
 
@@ -161,11 +159,7 @@ public class SingleValueQuery extends Query {
         protected final void doWriteTo(StreamOutput out) throws IOException {
             out.writeNamedWriteable(next);
             out.writeString(field);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                source.writeTo(out);
-            } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                writeOldSource(out, source);
-            }
+            source.writeTo(out);
         }
 
         public QueryBuilder next() {
@@ -207,12 +201,7 @@ public class SingleValueQuery extends Query {
         protected final org.apache.lucene.search.Query simple(MappedFieldType ft, SearchExecutionContext context) throws IOException {
             SingleValueMatchQuery singleValueQuery = new SingleValueMatchQuery(
                 context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH),
-                Warnings.createWarnings(
-                    DriverContext.WarningsMode.COLLECT,
-                    source().source().getLineNumber(),
-                    source().source().getColumnNumber(),
-                    source().text()
-                ),
+                Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, source()),
                 "single-value function encountered multi-value"
             );
             org.apache.lucene.search.Query rewrite = singleValueQuery.rewrite(context.searcher());
@@ -224,6 +213,10 @@ public class SingleValueQuery extends Query {
             builder.add(next().toQuery(context), BooleanClause.Occur.FILTER);
             builder.add(rewrite, BooleanClause.Occur.FILTER);
             return builder.build();
+        }
+
+        public String fieldName() {
+            return field;
         }
     }
 
@@ -255,7 +248,7 @@ public class SingleValueQuery extends Query {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_11_X; // the first version of ESQL
+            return TransportVersion.minimumCompatible();
         }
 
         @Override
@@ -328,19 +321,14 @@ public class SingleValueQuery extends Query {
             if (ft == null) {
                 return new MatchNoDocsQuery("missing field [" + field() + "]");
             }
-            ft = ((TextFieldMapper.TextFieldType) ft).syntheticSourceDelegate();
+            ft = ((TextFieldMapper.TextFieldType) ft).syntheticSourceDelegate().orElse(null);
 
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
             builder.add(next().toQuery(context), BooleanClause.Occur.FILTER);
 
             org.apache.lucene.search.Query singleValueQuery = new SingleValueMatchQuery(
                 context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH),
-                Warnings.createWarnings(
-                    DriverContext.WarningsMode.COLLECT,
-                    source().source().getLineNumber(),
-                    source().source().getColumnNumber(),
-                    source().text()
-                ),
+                Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, source()),
                 "single-value function encountered multi-value"
             );
             singleValueQuery = singleValueQuery.rewrite(context.searcher());
@@ -428,7 +416,7 @@ public class SingleValueQuery extends Query {
             if (ft == null) {
                 return new MatchNoDocsQuery("missing field [" + field() + "]");
             }
-            ft = ((TextFieldMapper.TextFieldType) ft).syntheticSourceDelegate();
+            ft = ((TextFieldMapper.TextFieldType) ft).syntheticSourceDelegate().orElse(null);
             org.apache.lucene.search.Query svNext = simple(ft, context);
 
             org.apache.lucene.search.Query ignored = new TermQuery(new org.apache.lucene.index.Term(IgnoredFieldMapper.NAME, ft.name()));

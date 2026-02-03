@@ -1,0 +1,5 @@
+pr: 138949
+summary: Shadow plugin-cli JAR to avoid conflicts with BC FIPS classes
+area: Security
+type: enhancement
+issues: []

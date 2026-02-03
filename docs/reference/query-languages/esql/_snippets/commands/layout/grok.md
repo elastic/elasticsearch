@@ -1,4 +1,7 @@
-## `GROK` [esql-grok]
+```yaml {applies_to}
+serverless: ga
+stack: ga
+```
 
 `GROK` enables you to [extract structured data out of a string](/reference/query-languages/esql/esql-process-data-with-dissect-grok.md).
 

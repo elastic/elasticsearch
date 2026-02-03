@@ -11,7 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -33,7 +33,7 @@ import org.elasticsearch.core.ReleasableIterator;
  */
 final class BytesRefBlockHash extends BlockHash {
     private final int channel;
-    final BytesRefHash hash;
+    final BytesRefHashTable hash;
 
     /**
      * Have we seen any {@code null} values?
@@ -47,7 +47,7 @@ final class BytesRefBlockHash extends BlockHash {
     BytesRefBlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
-        this.hash = new BytesRefHash(1, blockFactory.bigArrays());
+        this.hash = HashImplFactory.newBytesRefHash(blockFactory);
     }
 
     @Override
@@ -78,6 +78,11 @@ final class BytesRefBlockHash extends BlockHash {
      *  Adds the vector values to the hash, and returns a new vector with the group IDs for those positions.
      */
     IntVector add(BytesRefVector vector) {
+        if (vector.isConstant()) {
+            BytesRef v = vector.getBytesRef(0, new BytesRef());
+            int groupId = Math.toIntExact(hashOrdToGroupNullReserved(hash.add(v)));
+            return blockFactory.newConstantIntVector(groupId, vector.getPositionCount());
+        }
         var ordinals = vector.asOrdinals();
         if (ordinals != null) {
             return addOrdinalsVector(ordinals);
@@ -127,15 +132,18 @@ final class BytesRefBlockHash extends BlockHash {
 
     private IntVector addOrdinalsVector(OrdinalBytesRefVector inputBlock) {
         IntVector inputOrds = inputBlock.getOrdinalsVector();
-        try (
-            var builder = blockFactory.newIntVectorBuilder(inputOrds.getPositionCount());
-            var hashOrds = add(inputBlock.getDictionaryVector())
-        ) {
-            for (int p = 0; p < inputOrds.getPositionCount(); p++) {
-                int ord = hashOrds.getInt(inputOrds.getInt(p));
-                builder.appendInt(ord);
+        try (var hashOrds = add(inputBlock.getDictionaryVector())) {
+            if (inputOrds.isConstant()) {
+                int ord = hashOrds.getInt(inputOrds.getInt(0));
+                return blockFactory.newConstantIntVector(ord, inputOrds.getPositionCount());
             }
-            return builder.build();
+            try (var builder = blockFactory.newIntVectorBuilder(inputOrds.getPositionCount())) {
+                for (int p = 0; p < inputOrds.getPositionCount(); p++) {
+                    int ord = hashOrds.getInt(inputOrds.getInt(p));
+                    builder.appendInt(ord);
+                }
+                return builder.build();
+            }
         }
     }
 
@@ -221,7 +229,16 @@ final class BytesRefBlockHash extends BlockHash {
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(seenNull ? 0 : 1, Math.toIntExact(hash.size() + 1), blockFactory);
+        return blockFactory.newIntRangeVector(seenNull ? 0 : 1, Math.toIntExact(hash.size() + 1));
+    }
+
+    @Override
+    public int numKeys() {
+        if (seenNull) {
+            return Math.toIntExact(hash.size() + 1);
+        } else {
+            return Math.toIntExact(hash.size());
+        }
     }
 
     @Override

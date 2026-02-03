@@ -4,7 +4,7 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
   - wait: null
@@ -13,7 +13,7 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
   - label: part2
@@ -21,7 +21,7 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
   - label: part3
@@ -29,7 +29,7 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
   - label: part4
@@ -37,11 +37,19 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
   - label: part5
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints checkPart5
+    timeout_in_minutes: 300
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      machineType: custom-32-98304
+      buildDirectory: /dev/shm/bk
+  - label: part6
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints checkPart6
     timeout_in_minutes: 300
     agents:
       provider: gcp
@@ -60,7 +68,7 @@ steps:
               - 8.10.0
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: custom-32-98304
           buildDirectory: /dev/shm/bk
         env:
@@ -70,6 +78,6 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk

@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ESTestCase;
@@ -160,7 +161,7 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
     }
 
     private static FieldMapper createFieldMapper(String parent, String name) {
-        return new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE, false, IndexVersion.current(), null).build(
+        return new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE, defaultIndexSettings()).build(
             new MapperBuilderContext(
                 parent,
                 false,
@@ -178,7 +179,7 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
             name,
             name,
             Explicit.IMPLICIT_TRUE,
-            Optional.empty(),
+            ObjectMapper.Defaults.SUBOBJECTS,
             Optional.empty(),
             ObjectMapper.Dynamic.FALSE,
             emptyMap()
@@ -204,6 +205,13 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
             new MetadataFieldMapper[0],
             Collections.emptyMap()
         );
-        return MappingLookup.fromMappers(mapping, fieldMappers, objectMappers, fieldAliasMappers, emptyList());
+        return MappingLookup.fromMappers(
+            mapping,
+            fieldMappers,
+            objectMappers,
+            fieldAliasMappers,
+            emptyList(),
+            randomFrom(IndexMode.values())
+        );
     }
 }

@@ -29,12 +29,14 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Delayed;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
@@ -47,7 +49,7 @@ import java.util.function.Function;
  */
 public class DeterministicTaskQueue {
 
-    private static final Logger logger = LogManager.getLogger(DeterministicTaskQueue.class);
+    protected static final Logger logger = LogManager.getLogger(DeterministicTaskQueue.class);
 
     public static final String NODE_ID_LOG_CONTEXT_KEY = "nodeId";
 
@@ -262,10 +264,278 @@ public class DeterministicTaskQueue {
      * @return A <code>ThreadPool</code> that uses this task queue and wraps <code>Runnable</code>s in the given wrapper.
      */
     public ThreadPool getThreadPool(Function<Runnable, Runnable> runnableWrapper) {
-        return new ThreadPool() {
-            private final Map<String, ThreadPool.Info> infos = new HashMap<>();
+        return new DeterministicThreadPool(runnableWrapper);
+    }
 
-            private final ExecutorService forkingExecutor = new ExecutorService() {
+    protected class DeterministicThreadPool extends ThreadPool {
+        private final Map<String, Info> infos = new HashMap<>();
+
+        protected final ExecutorService forkingExecutor = new ExecutorService() {
+
+            @Override
+            public void shutdown() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public List<Runnable> shutdownNow() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean isShutdown() {
+                return false;
+            }
+
+            @Override
+            public boolean isTerminated() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean awaitTermination(long timeout, TimeUnit unit) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public <T> Future<T> submit(Callable<T> task) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public <T> Future<T> submit(Runnable task, T result1) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Future<?> submit(Runnable task) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public <T> T invokeAny(Collection<? extends Callable<T>> tasks) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public <T> T invokeAny(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void execute(Runnable command) {
+                scheduleNow(runnableWrapper.apply(command));
+            }
+
+            @Override
+            public String toString() {
+                return "DeterministicTaskQueue/forkingExecutor";
+            }
+        };
+
+        protected final Function<Runnable, Runnable> runnableWrapper;
+
+        protected DeterministicThreadPool(Function<Runnable, Runnable> runnableWrapper) {
+            this.runnableWrapper = runnable -> getThreadContext().preserveContext(runnableWrapper.apply(runnable));
+        }
+
+        @Override
+        public long relativeTimeInNanos() {
+            return TimeValue.timeValueMillis(currentTimeMillis).nanos();
+        }
+
+        @Override
+        public long relativeTimeInMillis() {
+            return currentTimeMillis;
+        }
+
+        @Override
+        public long rawRelativeTimeInMillis() {
+            return currentTimeMillis;
+        }
+
+        @Override
+        public long absoluteTimeInMillis() {
+            return currentTimeMillis;
+        }
+
+        @Override
+        public ThreadPoolInfo info() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Info info(String name) {
+            return infos.computeIfAbsent(name, n -> new Info(n, ThreadPoolType.FIXED, random.nextInt(10) + 1));
+        }
+
+        @Override
+        public ThreadPoolStats stats() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public ExecutorService generic() {
+            return executor(Names.GENERIC);
+        }
+
+        @Override
+        public ExecutorService executor(String name) {
+            return forkingExecutor;
+        }
+
+        @Override
+        public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
+            final int NOT_STARTED = 0;
+            final int STARTED = 1;
+            final int CANCELLED = 2;
+            final AtomicInteger taskState = new AtomicInteger(NOT_STARTED);
+
+            scheduleAt(currentTimeMillis + delay.millis(), runnableWrapper.apply(new Runnable() {
+                @Override
+                public void run() {
+                    if (taskState.compareAndSet(NOT_STARTED, STARTED)) {
+                        command.run();
+                    }
+                }
+
+                @Override
+                public String toString() {
+                    return command.toString();
+                }
+            }));
+
+            return new ScheduledCancellable() {
+                @Override
+                public long getDelay(TimeUnit unit) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public int compareTo(Delayed o) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public boolean cancel() {
+                    return taskState.compareAndSet(NOT_STARTED, CANCELLED);
+                }
+
+                @Override
+                public boolean isCancelled() {
+                    return taskState.get() == CANCELLED;
+                }
+
+            };
+        }
+
+        @Override
+        public void shutdown() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void shutdownNow() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean awaitTermination(long timeout, TimeUnit unit) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public ScheduledExecutorService scheduler() {
+            return new ScheduledExecutorService() {
+                @Override
+                public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
+                    // For GlobalCheckpointListeners#add
+                    final int NOT_STARTED = 0;
+                    final int STARTED = 1;
+                    final int CANCELLED = 2;
+                    final int DONE = 3;
+                    final AtomicInteger taskState = new AtomicInteger(NOT_STARTED);
+
+                    scheduleAt(currentTimeMillis + new TimeValue(delay, unit).millis(), runnableWrapper.apply(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (taskState.compareAndSet(NOT_STARTED, STARTED)) {
+                                try {
+                                    command.run();
+                                } finally {
+                                    taskState.compareAndSet(STARTED, DONE);
+                                }
+                            }
+                        }
+
+                        @Override
+                        public String toString() {
+                            return command.toString();
+                        }
+                    }));
+
+                    return new ScheduledFuture<>() {
+                        @Override
+                        public long getDelay(TimeUnit unit) {
+                            throw new UnsupportedOperationException();
+                        }
+
+                        @Override
+                        public int compareTo(Delayed o) {
+                            throw new UnsupportedOperationException();
+                        }
+
+                        @Override
+                        public boolean cancel(boolean mayInterruptIfRunning) {
+                            return taskState.compareAndSet(NOT_STARTED, CANCELLED);
+                        }
+
+                        @Override
+                        public boolean isCancelled() {
+                            return taskState.get() == CANCELLED;
+                        }
+
+                        @Override
+                        public boolean isDone() {
+                            return taskState.get() == DONE;
+                        }
+
+                        @Override
+                        public Object get() throws InterruptedException, ExecutionException {
+                            throw new UnsupportedOperationException();
+                        }
+
+                        @Override
+                        public Object get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
+                            throw new UnsupportedOperationException();
+                        }
+                    };
+                }
+
+                @Override
+                public <V> ScheduledFuture<V> schedule(Callable<V> callable, long delay, TimeUnit unit) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, long initialDelay, long delay, TimeUnit unit) {
+                    throw new UnsupportedOperationException();
+                }
 
                 @Override
                 public void shutdown() {
@@ -279,7 +549,7 @@ public class DeterministicTaskQueue {
 
                 @Override
                 public boolean isShutdown() {
-                    return false;
+                    throw new UnsupportedOperationException();
                 }
 
                 @Override
@@ -298,7 +568,7 @@ public class DeterministicTaskQueue {
                 }
 
                 @Override
-                public <T> Future<T> submit(Runnable task, T result1) {
+                public <T> Future<T> submit(Runnable task, T result) {
                     throw new UnsupportedOperationException();
                 }
 
@@ -329,211 +599,10 @@ public class DeterministicTaskQueue {
 
                 @Override
                 public void execute(Runnable command) {
-                    scheduleNow(runnableWrapper.apply(command));
-                }
-
-                @Override
-                public String toString() {
-                    return "DeterministicTaskQueue/forkingExecutor";
+                    throw new UnsupportedOperationException();
                 }
             };
-
-            @Override
-            public long relativeTimeInNanos() {
-                return TimeValue.timeValueMillis(currentTimeMillis).nanos();
-            }
-
-            @Override
-            public long relativeTimeInMillis() {
-                return currentTimeMillis;
-            }
-
-            @Override
-            public long rawRelativeTimeInMillis() {
-                return currentTimeMillis;
-            }
-
-            @Override
-            public long absoluteTimeInMillis() {
-                return currentTimeMillis;
-            }
-
-            @Override
-            public ThreadPoolInfo info() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public Info info(String name) {
-                return infos.computeIfAbsent(name, n -> new Info(n, ThreadPoolType.FIXED, random.nextInt(10) + 1));
-            }
-
-            @Override
-            public ThreadPoolStats stats() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public ExecutorService generic() {
-                return executor(Names.GENERIC);
-            }
-
-            @Override
-            public ExecutorService executor(String name) {
-                return forkingExecutor;
-            }
-
-            @Override
-            public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
-                final int NOT_STARTED = 0;
-                final int STARTED = 1;
-                final int CANCELLED = 2;
-                final AtomicInteger taskState = new AtomicInteger(NOT_STARTED);
-                final Runnable contextPreservingRunnable = getThreadContext().preserveContext(command);
-
-                scheduleAt(currentTimeMillis + delay.millis(), runnableWrapper.apply(new Runnable() {
-                    @Override
-                    public void run() {
-                        if (taskState.compareAndSet(NOT_STARTED, STARTED)) {
-                            contextPreservingRunnable.run();
-                        }
-                    }
-
-                    @Override
-                    public String toString() {
-                        return command.toString();
-                    }
-                }));
-
-                return new ScheduledCancellable() {
-                    @Override
-                    public long getDelay(TimeUnit unit) {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public int compareTo(Delayed o) {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public boolean cancel() {
-                        return taskState.compareAndSet(NOT_STARTED, CANCELLED);
-                    }
-
-                    @Override
-                    public boolean isCancelled() {
-                        return taskState.get() == CANCELLED;
-                    }
-
-                };
-            }
-
-            @Override
-            public void shutdown() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public void shutdownNow() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public boolean awaitTermination(long timeout, TimeUnit unit) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public ScheduledExecutorService scheduler() {
-                return new ScheduledExecutorService() {
-                    @Override
-                    public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public <V> ScheduledFuture<V> schedule(Callable<V> callable, long delay, TimeUnit unit) {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit) {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, long initialDelay, long delay, TimeUnit unit) {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public void shutdown() {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public List<Runnable> shutdownNow() {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public boolean isShutdown() {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public boolean isTerminated() {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public boolean awaitTermination(long timeout, TimeUnit unit) {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public <T> Future<T> submit(Callable<T> task) {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public <T> Future<T> submit(Runnable task, T result) {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public Future<?> submit(Runnable task) {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks) {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit) {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public <T> T invokeAny(Collection<? extends Callable<T>> tasks) {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public <T> T invokeAny(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit) {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public void execute(Runnable command) {
-                        throw new UnsupportedOperationException();
-                    }
-                };
-            }
-        };
+        }
     }
 
     public long getLatestDeferredExecutionTime() {

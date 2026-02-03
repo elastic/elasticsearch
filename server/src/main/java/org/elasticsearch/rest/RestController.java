@@ -389,6 +389,26 @@ public class RestController implements HttpServerTransport.Dispatcher {
         return Collections.unmodifiableSortedMap(allStats);
     }
 
+    private void maybeAggregateAndDispatchRequest(
+        RestRequest restRequest,
+        RestChannel restChannel,
+        RestHandler handler,
+        MethodHandlers methodHandlers,
+        ThreadContext threadContext
+    ) throws Exception {
+        if (handler.supportsContentStream()) {
+            dispatchRequest(restRequest, restChannel, handler, methodHandlers, threadContext);
+        } else {
+            RestContentAggregator.aggregate(restRequest, (aggregatedRequest) -> {
+                try {
+                    dispatchRequest(aggregatedRequest, restChannel, handler, methodHandlers, threadContext);
+                } catch (Exception e) {
+                    throw new ElasticsearchException(e);
+                }
+            });
+        }
+    }
+
     private void dispatchRequest(
         RestRequest request,
         RestChannel channel,
@@ -401,20 +421,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 sendContentTypeErrorMessage(request.getAllHeaderValues("Content-Type"), channel);
                 return;
             }
-            final XContentType xContentType = request.getXContentType();
-            // TODO consider refactoring to handler.supportsContentStream(xContentType). It is only used with JSON and SMILE
-            if (handler.supportsBulkContent()
-                && XContentType.JSON != xContentType.canonical()
-                && XContentType.SMILE != xContentType.canonical()) {
-                channel.sendResponse(
-                    RestResponse.createSimpleErrorResponse(
-                        channel,
-                        RestStatus.NOT_ACCEPTABLE,
-                        "Content-Type [" + xContentType + "] does not support stream parsing. Use JSON or SMILE instead"
-                    )
-                );
-                return;
-            }
         }
         RestChannel responseChannel = channel;
         if (apiProtections.isEnabled()) {
@@ -424,8 +430,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 return;
             }
         }
-        // TODO: estimate streamed content size for circuit breaker,
-        // something like http_max_chunk_size * avg_compression_ratio(for compressed content)
         final int contentLength = request.isFullContent() ? request.contentLength() : 0;
         try {
             if (handler.canTripCircuitBreaker()) {
@@ -623,7 +627,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 } else {
                     startTrace(threadContext, channel, handlers.getPath());
                     var decoratedChannel = new MeteringRestChannelDecorator(channel, requestsCounter, handler.getConcreteRestHandler());
-                    dispatchRequest(request, decoratedChannel, handler, handlers, threadContext);
+                    maybeAggregateAndDispatchRequest(request, decoratedChannel, handler, handlers, threadContext);
                     return;
                 }
             }
@@ -878,7 +882,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     // exposed for tests; marked as UpdateForV10 because this assertion should have flushed out all double-close bugs by the time v10 is
     // released so we should be able to drop the tests that check we behave reasonably in production on this impossible path
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
     static boolean PERMIT_DOUBLE_RESPONSE = false;
 
     private static final class ResourceHandlingHttpChannel extends DelegatingRestChannel {

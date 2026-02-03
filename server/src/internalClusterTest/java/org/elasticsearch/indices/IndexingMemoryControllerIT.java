@@ -69,7 +69,7 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
                 config.getMergePolicy(),
                 config.getAnalyzer(),
                 config.getSimilarity(),
-                new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE),
+                new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, null),
                 config.getEventListener(),
                 config.getQueryCache(),
                 config.getQueryCachingPolicy(),
@@ -88,7 +88,9 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
                 config.getIndexCommitListener(),
                 config.isPromotableToPrimary(),
                 config.getMapperService(),
-                config.getEngineResetLock()
+                config.getEngineResetLock(),
+                config.getMergeMetrics(),
+                config.getIndexDeletionPolicyWrapper()
             );
         }
 

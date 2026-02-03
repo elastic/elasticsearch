@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Source commands"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-commands.html
@@ -15,14 +18,5 @@ An {{esql}} source command produces a table, typically with data from {{es}}. An
 {{esql}} supports these source commands:
 
 :::{include} ../_snippets/lists/source-commands.md
-:::
-
-:::{include} ../_snippets/commands/layout/from.md
-:::
-
-:::{include} ../_snippets/commands/layout/row.md
-:::
-
-:::{include} ../_snippets/commands/layout/show.md
 :::
 

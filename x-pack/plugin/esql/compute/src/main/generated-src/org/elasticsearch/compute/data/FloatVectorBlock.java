@@ -59,6 +59,11 @@ public final class FloatVectorBlock extends AbstractVectorBlock implements Float
     }
 
     @Override
+    public FloatBlock deepCopy(BlockFactory blockFactory) {
+        return vector.deepCopy(blockFactory).asBlock();
+    }
+
+    @Override
     public ReleasableIterator<? extends FloatBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
         return vector.lookup(positions, targetBlockSize);
     }

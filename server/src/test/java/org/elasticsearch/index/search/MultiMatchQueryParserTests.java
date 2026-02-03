@@ -14,7 +14,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
@@ -213,13 +212,13 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
         FakeFieldType ft2 = new FakeFieldType("bar") {
             @Override
             public Query termQuery(Object value, SearchExecutionContext context) {
-                return new MatchAllDocsQuery();
+                return Queries.ALL_DOCS_INSTANCE;
             }
         };
         Term[] terms = new Term[] { new Term("foo", "baz") };
         float[] boosts = new float[] { 2 };
         Query expectedDisjunct1 = BlendedTermQuery.dismaxBlendedQuery(terms, boosts, 1.0f);
-        Query expectedDisjunct2 = new BoostQuery(new MatchAllDocsQuery(), 3);
+        Query expectedDisjunct2 = new BoostQuery(Queries.ALL_DOCS_INSTANCE, 3);
         Query expected = new DisjunctionMaxQuery(Arrays.asList(expectedDisjunct2, expectedDisjunct1), 1.0f);
         Query actual = MultiMatchQueryParser.blendTerm(indexService.newSearchExecutionContext(randomInt(20), 0, null, () -> {
             throw new UnsupportedOperationException();

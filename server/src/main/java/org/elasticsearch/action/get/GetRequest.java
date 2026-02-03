@@ -9,17 +9,20 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.RealtimeRequest;
+import org.elasticsearch.action.SplitAwareRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
@@ -38,7 +41,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 // It's not possible to suppress teh warning at #realtime(boolean) at a method-level.
 @SuppressWarnings("unchecked")
-public class GetRequest extends SingleShardRequest<GetRequest> implements RealtimeRequest {
+public class GetRequest extends SingleShardRequest<GetRequest> implements RealtimeRequest, SplitAwareRequest {
 
     private String id;
     private String routing;
@@ -55,6 +58,9 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     private VersionType versionType = VersionType.INTERNAL;
     private long version = Versions.MATCH_ANY;
 
+    private static final TransportVersion SPLIT_SHARD_COUNT_SUMMARY = TransportVersion.fromName("get_split_shard_count_summary");
+    private SplitShardCountSummary splitShardCountSummary = SplitShardCountSummary.UNSET;
+
     /**
      * Should this request force {@link SourceLoader.Synthetic synthetic source}?
      * Use this to test if the mapping supports synthetic _source and to get a sense
@@ -67,9 +73,6 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
 
     public GetRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readString();
-        }
         id = in.readString();
         routing = in.readOptionalString();
         preference = in.readOptionalString();
@@ -80,19 +83,15 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         this.versionType = VersionType.fromValue(in.readByte());
         this.version = in.readLong();
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::readFrom);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            forceSyntheticSource = in.readBoolean();
-        } else {
-            forceSyntheticSource = false;
+        forceSyntheticSource = in.readBoolean();
+        if (in.getTransportVersion().supports(SPLIT_SHARD_COUNT_SUMMARY)) {
+            this.splitShardCountSummary = new SplitShardCountSummary(in);
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeString(MapperService.SINGLE_MAPPING_NAME);
-        }
         out.writeString(id);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
@@ -103,12 +102,9 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         out.writeByte(versionType.getValue());
         out.writeLong(version);
         out.writeOptionalWriteable(fetchSourceContext);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            out.writeBoolean(forceSyntheticSource);
-        } else {
-            if (forceSyntheticSource) {
-                throw new IllegalArgumentException("force_synthetic_source is not supported before 8.4.0");
-            }
+        out.writeBoolean(forceSyntheticSource);
+        if (out.getTransportVersion().supports(SPLIT_SHARD_COUNT_SUMMARY)) {
+            splitShardCountSummary.writeTo(out);
         }
     }
 
@@ -248,6 +244,17 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     public GetRequest version(long version) {
         this.version = version;
         return this;
+    }
+
+    public SplitShardCountSummary getSplitShardCountSummary() {
+        return splitShardCountSummary;
+    }
+
+    public void setSplitShardCountSummary(ProjectMetadata projectMetadata, String index) {
+        final var indexMetadata = projectMetadata.index(index);
+        final var indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
+        final var shardId = indexRouting.getShard(id(), routing());
+        this.splitShardCountSummary = SplitShardCountSummary.forSearch(indexMetadata, shardId);
     }
 
     /**

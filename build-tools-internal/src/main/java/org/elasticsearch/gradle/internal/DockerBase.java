@@ -17,7 +17,7 @@ public enum DockerBase {
     DEFAULT("redhat/ubi9-minimal:latest", "", "microdnf", "dockerfiles/default/Dockerfile"),
 
     // The Iron Bank base image is UBI (albeit hardened), but we are required to parameterize the Docker build
-    IRON_BANK("${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG}", "-ironbank", "yum", "Dockerfile"),
+    IRON_BANK("${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG}", "-ironbank", "yum", "dockerfiles/ironbank/Dockerfile"),
 
     // Chainguard based wolfi image with latest jdk
     WOLFI(

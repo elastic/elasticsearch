@@ -1,0 +1,6 @@
+pr: 136441
+summary: Add TRANGE ES|QL function
+area: ES|QL
+type: enhancement
+issues:
+ - 135599

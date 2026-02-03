@@ -17,6 +17,7 @@
  * under the License.
  */
 import org.elasticsearch.gradle.internal.conventions.precommit.LicenseHeadersTask
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
@@ -67,7 +68,7 @@ tasks.named('forbiddenApisTest').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 
-tasks.named("dependencyLicenses").configure {
+tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: /http.*/, to: 'httpclient'
   mapping from: /commons-.*/, to: 'commons'
 }

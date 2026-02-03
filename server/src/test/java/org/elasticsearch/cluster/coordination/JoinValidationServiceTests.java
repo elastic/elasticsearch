@@ -30,7 +30,6 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistryTests;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -427,9 +426,7 @@ public class JoinValidationServiceTests extends ESTestCase {
     private static BytesTransportRequest serializeClusterState(ClusterState clusterState) {
         try (
             var bytesStream = new BytesStreamOutput();
-            var compressedStream = new OutputStreamStreamOutput(
-                CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(bytesStream))
-            )
+            var compressedStream = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(Streams.flushOnCloseStream(bytesStream))
         ) {
             compressedStream.setTransportVersion(TransportVersion.current());
             clusterState.writeTo(compressedStream);

@@ -10,19 +10,19 @@
 package org.elasticsearch.repositories.gcs;
 
 import com.google.cloud.BaseServiceException;
-import com.google.cloud.BatchResult;
 import com.google.cloud.WriteChannel;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.Storage.BlobListOption;
-import com.google.cloud.storage.StorageBatch;
+import com.google.cloud.storage.StorageBatchResult;
 import com.google.cloud.storage.StorageException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -40,6 +40,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -56,18 +57,16 @@ import java.nio.channels.WritableByteChannel;
 import java.nio.file.FileAlreadyExistsException;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.net.HttpURLConnection.HTTP_GONE;
-import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
 import static java.net.HttpURLConnection.HTTP_PRECON_FAILED;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.rest.RestStatus.TOO_MANY_REQUESTS;
 
 class GoogleCloudStorageBlobStore implements BlobStore {
 
@@ -83,7 +82,9 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     // called "resumable upload")
     // https://cloud.google.com/storage/docs/json_api/v1/how-tos/resumable-upload
     public static final int LARGE_BLOB_THRESHOLD_BYTE_SIZE;
-    public static final int MAX_DELETES_PER_BATCH = 1000;
+
+    // MAX deletes per batch is 100 https://docs.cloud.google.com/storage/docs/batch#overview
+    public static final int MAX_DELETES_PER_BATCH = 100;
 
     static {
         final String key = "es.repository_gcs.large_blob_threshold_byte_size";
@@ -104,7 +105,9 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         }
     }
 
-    private final String bucketName;
+    @Nullable // for cluster level object store in MP
+    private final ProjectId projectId;
+    protected final String bucketName;
     private final String clientName;
     private final String repositoryName;
     private final GoogleCloudStorageService storageService;
@@ -114,6 +117,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     private final BackoffPolicy casBackoffPolicy;
 
     GoogleCloudStorageBlobStore(
+        ProjectId projectId,
         String bucketName,
         String clientName,
         String repositoryName,
@@ -123,6 +127,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         BackoffPolicy casBackoffPolicy,
         GcsRepositoryStatsCollector statsCollector
     ) {
+        this.projectId = projectId;
         this.bucketName = bucketName;
         this.clientName = clientName;
         this.repositoryName = repositoryName;
@@ -133,8 +138,12 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         this.casBackoffPolicy = casBackoffPolicy;
     }
 
-    private MeteredStorage client() throws IOException {
-        return storageService.client(clientName, repositoryName, statsCollector);
+    MeteredStorage client() throws IOException {
+        return storageService.client(projectId, clientName, repositoryName, statsCollector);
+    }
+
+    int getMaxRetries() {
+        return storageService.clientSettings(projectId, clientName).getMaxRetries();
     }
 
     @Override
@@ -144,7 +153,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
     @Override
     public void close() {
-        storageService.closeRepositoryClients(repositoryName);
+        storageService.closeRepositoryClients(projectId, repositoryName);
     }
 
     /**
@@ -223,7 +232,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      * @return the InputStream used to read the blob's content
      */
     InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
-        return new GoogleCloudStorageRetryingInputStream(purpose, client(), BlobId.of(bucketName, blobName));
+        return new GoogleCloudStorageRetryingInputStream(this, purpose, BlobId.of(bucketName, blobName));
     }
 
     /**
@@ -246,8 +255,8 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             return new ByteArrayInputStream(new byte[0]);
         } else {
             return new GoogleCloudStorageRetryingInputStream(
+                this,
                 purpose,
-                client(),
                 BlobId.of(bucketName, blobName),
                 position,
                 Math.addExact(position, length - 1)
@@ -541,72 +550,6 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         return deleteResult;
     }
 
-    /**
-     * Deletes multiple blobs from the specific bucket using a batch request
-     *
-     * @param purpose the operation purpose
-     * @param blobNames names of the blobs to delete
-     */
-    void deleteBlobs(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
-        if (blobNames.hasNext() == false) {
-            return;
-        }
-        final Iterator<BlobId> blobIdsToDelete = new Iterator<>() {
-            @Override
-            public boolean hasNext() {
-                return blobNames.hasNext();
-            }
-
-            @Override
-            public BlobId next() {
-                return BlobId.of(bucketName, blobNames.next());
-            }
-        };
-        final List<BlobId> failedBlobs = Collections.synchronizedList(new ArrayList<>());
-        try {
-            final AtomicReference<StorageException> ioe = new AtomicReference<>();
-            StorageBatch batch = client().batch();
-            int pendingDeletesInBatch = 0;
-            while (blobIdsToDelete.hasNext()) {
-                BlobId blob = blobIdsToDelete.next();
-                batch.delete(blob).notify(new BatchResult.Callback<>() {
-                    @Override
-                    public void success(Boolean result) {}
-
-                    @Override
-                    public void error(StorageException exception) {
-                        if (exception.getCode() != HTTP_NOT_FOUND) {
-                            // track up to 10 failed blob deletions for the exception message below
-                            if (failedBlobs.size() < 10) {
-                                failedBlobs.add(blob);
-                            }
-                            if (ioe.compareAndSet(null, exception) == false) {
-                                ioe.get().addSuppressed(exception);
-                            }
-                        }
-                    }
-                });
-                pendingDeletesInBatch++;
-                if (pendingDeletesInBatch % MAX_DELETES_PER_BATCH == 0) {
-                    batch.submit();
-                    batch = client().batch();
-                    pendingDeletesInBatch = 0;
-                }
-            }
-            if (pendingDeletesInBatch > 0) {
-                batch.submit();
-            }
-
-            final StorageException exception = ioe.get();
-            if (exception != null) {
-                throw exception;
-            }
-        } catch (final Exception e) {
-            throw new IOException("Exception when deleting blobs " + failedBlobs, e);
-        }
-        assert failedBlobs.isEmpty();
-    }
-
     private static String buildKey(String keyPath, String s) {
         assert s != null;
         return keyPath + s;
@@ -739,7 +682,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                 if (statusCode == RestStatus.PRECONDITION_FAILED.getStatus()) {
                     return OptionalBytesReference.MISSING;
                 }
-                if (statusCode == RestStatus.TOO_MANY_REQUESTS.getStatus()) {
+                if (statusCode == TOO_MANY_REQUESTS.getStatus()) {
                     finalException = ExceptionsHelper.useOrSuppress(finalException, serviceException);
                     if (retries.hasNext()) {
                         try {
@@ -752,6 +695,105 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                     } else {
                         throw finalException;
                     }
+                }
+            }
+        }
+    }
+
+    // GCS retry codes https://docs.cloud.google.com/storage/docs/retry-strategy#java
+    private static boolean isRetryErrCode(int code) {
+        final var status = RestStatus.fromCode(code);
+        if (status == null) {
+            return false;
+        }
+        return switch (status) {
+            case REQUEST_TIMEOUT, TOO_MANY_REQUESTS, INTERNAL_SERVER_ERROR, BAD_GATEWAY, SERVICE_UNAVAILABLE, GATEWAY_TIMEOUT -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * Deletes multiple blobs from the specific bucket using a batch request
+     *
+     * @param blobNames names of the blobs to delete
+     */
+    void deleteBlobs(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
+        if (blobNames.hasNext() == false) {
+            return;
+        }
+
+        record DeleteResult(BlobId blobId, StorageBatchResult<Boolean> result) {}
+        record DeleteFailure(BlobId blobId, int errCode) {}
+
+        // The following algorithm maximizes the size of every batch by merging retryable items
+        // from the previous batch and new items. When batch results have failed items, we first retry
+        // only a single item using the SDK client's retry strategy (exponential-backoff). Retrying
+        // a single item should provide enough time to back-off from throttling or temporary GCS
+        // failures. Once a single item successfully retries, we proceed with the next batch, combining
+        // the remaining failures and new items.
+        //
+        // Which is roughly looks like this:
+        // - create batch of 100 new items
+        // - submit batch
+        // - receive 100 results, with 10 retryable failures
+        // - retry 1 failure using non-batched delete using SDK retry strategy
+        // - (loop) create batch from 9 remaining failures and 91 new items
+
+        final var batchResults = new ArrayList<DeleteResult>(MAX_DELETES_PER_BATCH);
+        final var batchFailures = new ArrayList<DeleteFailure>(MAX_DELETES_PER_BATCH);
+        while (blobNames.hasNext() || batchFailures.isEmpty() == false) {
+
+            // create a new batch from failed and new items, failed first
+            final var batch = client().batch();
+            for (var failure : batchFailures) {
+                batchResults.add(new DeleteResult(failure.blobId, batch.delete(failure.blobId)));
+            }
+            batchFailures.clear();
+            while (blobNames.hasNext() && batchResults.size() < MAX_DELETES_PER_BATCH) {
+                final var blobId = BlobId.of(bucketName, blobNames.next());
+                batchResults.add(new DeleteResult(blobId, batch.delete(blobId)));
+            }
+
+            // The whole batch request uses GCS client's retry logic, but individual item failures are not retried.
+            // Collect all retryable failures or terminate on non-retryable error.
+            try {
+                batch.submit();
+            } catch (Exception e) {
+                throw new IOException("Failed to execute batch", e);
+            }
+            StorageException nonRetryableException = null;
+            for (var deleteResult : batchResults) {
+                try {
+                    deleteResult.result.get();
+                } catch (StorageException e) {
+                    final var errCode = e.getCode();
+                    batchFailures.add(new DeleteFailure(deleteResult.blobId, e.getCode()));
+                    if (nonRetryableException == null && isRetryErrCode(errCode) == false) {
+                        nonRetryableException = e;
+                    }
+                }
+            }
+            if (nonRetryableException != null) {
+                throw new IOException(
+                    "One or more batch items failed, non-retryable exception; all batch failures: " + batchFailures,
+                    nonRetryableException
+                );
+            }
+            batchResults.clear();
+
+            // Delete single item using GCS client's retry logic.
+            // It should provide enough back-off before trying next batch.
+            if (batchFailures.isEmpty() == false) {
+                final var retryBlobId = batchFailures.getLast().blobId;
+                try {
+                    client().delete(purpose, retryBlobId);
+                    // remaining items go into the next batch
+                    batchFailures.removeLast();
+                } catch (StorageException e) {
+                    throw new IOException(
+                        "Failed to retry single batch item, blobId=" + retryBlobId + "; all batch failures: " + batchFailures,
+                        e
+                    );
                 }
             }
         }

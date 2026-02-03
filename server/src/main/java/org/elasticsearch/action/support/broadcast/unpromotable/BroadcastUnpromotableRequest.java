@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.support.broadcast.unpromotable;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
@@ -47,7 +46,7 @@ public class BroadcastUnpromotableRequest extends LegacyActionRequest implements
         indexShardRoutingTable = null;
         shardId = new ShardId(in);
         indices = new String[] { shardId.getIndex().getName() };
-        failShardOnError = in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X) && in.readBoolean();
+        failShardOnError = in.readBoolean();
     }
 
     public BroadcastUnpromotableRequest(IndexShardRoutingTable indexShardRoutingTable) {
@@ -78,9 +77,7 @@ public class BroadcastUnpromotableRequest extends LegacyActionRequest implements
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeWriteable(shardId);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeBoolean(failShardOnError);
-        }
+        out.writeBoolean(failShardOnError);
     }
 
     @Override

@@ -1,0 +1,5 @@
+pr: 137072
+summary: Adding base64 indexing for vector values
+area: Vector Search
+type: enhancement
+issues: []

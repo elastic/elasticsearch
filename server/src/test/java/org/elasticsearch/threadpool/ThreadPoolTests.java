@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor.UtilizationTrackingPurpose;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.telemetry.InstrumentType;
@@ -509,13 +510,17 @@ public class ThreadPoolTests extends ESTestCase {
 
             final long beforePreviousCollectNanos = System.nanoTime();
             meterRegistry.getRecorder().collect();
+            double allocationUtilization = executor.pollUtilization(UtilizationTrackingPurpose.ALLOCATION);
             final long afterPreviousCollectNanos = System.nanoTime();
-            metricAsserter.assertLatestMetricValueMatches(
+
+            var metricValue = metricAsserter.assertLatestMetricValueMatches(
                 InstrumentType.DOUBLE_GAUGE,
                 ThreadPool.THREAD_POOL_METRIC_NAME_UTILIZATION,
                 Measurement::getDouble,
                 equalTo(0.0d)
             );
+            logger.info("---> Utilization metric data points, APM: " + metricValue + ", Allocation: " + allocationUtilization);
+            assertThat(allocationUtilization, equalTo(0.0d));
 
             final AtomicLong minimumDurationNanos = new AtomicLong(Long.MAX_VALUE);
             final long beforeStartNanos = System.nanoTime();
@@ -528,13 +533,16 @@ public class ThreadPoolTests extends ESTestCase {
             });
             safeAwait(barrier);
             safeGet(future);
-            final long maxDurationNanos = System.nanoTime() - beforeStartNanos;
-
             // Wait for TaskExecutionTimeTrackingEsThreadPoolExecutor#afterExecute to run
             assertBusy(() -> assertThat(executor.getTotalTaskExecutionTime(), greaterThan(0L)));
+            // When you call submit, the TimedRunnable wraps the FutureTask, so safeGet can return before the duration of
+            // the task is calculated. Waiting for totalTaskExecutionTime to be updated ensures maxDurationNanos is greater
+            // than the actual duration.
+            final long maxDurationNanos = System.nanoTime() - beforeStartNanos;
 
             final long beforeMetricsCollectedNanos = System.nanoTime();
             meterRegistry.getRecorder().collect();
+            allocationUtilization = executor.pollUtilization(UtilizationTrackingPurpose.ALLOCATION);
             final long afterMetricsCollectedNanos = System.nanoTime();
 
             // Calculate upper bound on utilisation metric
@@ -549,12 +557,14 @@ public class ThreadPoolTests extends ESTestCase {
 
             logger.info("Utilization must be in [{}, {}]", minimumUtilization, maximumUtilization);
             Matcher<Double> matcher = allOf(greaterThan(minimumUtilization), lessThan(maximumUtilization));
-            metricAsserter.assertLatestMetricValueMatches(
+            metricValue = metricAsserter.assertLatestMetricValueMatches(
                 InstrumentType.DOUBLE_GAUGE,
                 ThreadPool.THREAD_POOL_METRIC_NAME_UTILIZATION,
                 Measurement::getDouble,
                 matcher
             );
+            logger.info("---> Utilization metric data points, APM: " + metricValue + ", Allocation: " + allocationUtilization);
+            assertThat(allocationUtilization, matcher);
         } finally {
             ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }
@@ -573,6 +583,7 @@ public class ThreadPoolTests extends ESTestCase {
                 ThreadPool.Names.GENERIC,
                 ThreadPool.Names.ANALYZE,
                 ThreadPool.Names.WRITE,
+                ThreadPool.Names.WRITE_COORDINATION,
                 ThreadPool.Names.SEARCH
             );
             final ThreadPool.Info threadPoolInfo = threadPool.info(threadPoolName);
@@ -664,7 +675,7 @@ public class ThreadPoolTests extends ESTestCase {
             assertLatestMetricValueMatches(instrumentType, metricName, Measurement::getLong, matcher);
         }
 
-        <T> void assertLatestMetricValueMatches(
+        <T> T assertLatestMetricValueMatches(
             InstrumentType instrumentType,
             String name,
             Function<Measurement, T> valueExtractor,
@@ -673,7 +684,9 @@ public class ThreadPoolTests extends ESTestCase {
             List<Measurement> measurements = meterRegistry.getRecorder()
                 .getMeasurements(instrumentType, ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + name);
             assertFalse(name + " has no measurements", measurements.isEmpty());
-            assertThat(valueExtractor.apply(measurements.getLast()), matcher);
+            var latestMetric = valueExtractor.apply(measurements.getLast());
+            assertThat(latestMetric, matcher);
+            return latestMetric;
         }
     }
 

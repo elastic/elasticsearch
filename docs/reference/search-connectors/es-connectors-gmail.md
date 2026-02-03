@@ -9,10 +9,6 @@ mapped_pages:
 
 The *Elastic GMail connector* is a [connector](/reference/search-connectors/index.md) for GMail.
 
-::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
-::::
-
 ## **Self-managed connector reference** [es-connectors-gmail-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-gmail-client-availability]
@@ -31,7 +27,7 @@ To use this connector, satisfy all [self-managed connector requirements](/refere
 
 To create a new Gmail connector:
 
-1. In the Kibana UI, navigate to the **Search → Content → Connectors** page from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
+1. In the Kibana UI, search for "connectors" using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects) and choose the "Elasticsearch" connectors.
 2. Follow the instructions to create a new  **Gmail** self-managed connector.
 
 
@@ -49,6 +45,7 @@ PUT _connector/my-gmail-connector
   "service_type": "gmail"
 }
 ```
+% TEST[skip:can’t test in isolation]
 
 :::::{dropdown} You’ll also need to create an API key for the connector to use.
 ::::{note}
@@ -132,6 +129,8 @@ To get started, log into [Google Cloud Platform](https://cloud.google.com) and g
     You need to grant the following **OAuth Scopes** to your service account:
 
     * `https://www.googleapis.com/auth/admin.directory.user.readonly`
+    * `https://www.googleapis.com/auth/admin.directory.group.readonly`
+    * `https://www.googleapis.com/auth/gmail.readonly`
 
     This step allows the connector to access user data and their group memberships in your Google Workspace organization.
 
@@ -172,8 +171,9 @@ You can deploy the Gmail connector as a self-managed connector using Docker. Fol
 Download the sample configuration file. You can either download it manually or run the following command:
 
 ```sh
-curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
+curl https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example --output ~/connectors-config/config.yml
 ```
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -211,13 +211,13 @@ Note: You can change other default configurations by simply uncommenting specifi
 ::::{dropdown} Step 3: Run the Docker image
 Run the Docker image with the Connector Service using the following command:
 
-```sh
+```sh subs=true
 docker run \
 -v ~/connectors-config:/config \
 --network "elastic" \
 --tty \
 --rm \
-docker.elastic.co/integrations/elastic-connectors:9.0.0 \
+docker.elastic.co/integrations/elastic-connectors:{{version.stack}} \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ```
@@ -264,6 +264,7 @@ For example:
   ]
 }
 ```
+% NOTCONSOLE
 
 
 ### Document level security [es-connectors-gmail-client-document-level-security]
@@ -296,4 +297,4 @@ See [Security](/reference/search-connectors/es-connectors-security.md).
 
 This connector is built in Python with the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
-View the [source code for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/gmail.py) (branch *main*, compatible with Elastic *9.0*).
+View the [source code for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/gmail) (branch *main*, compatible with Elastic *9.0*).

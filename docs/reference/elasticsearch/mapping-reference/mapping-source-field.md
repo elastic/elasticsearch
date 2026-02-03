@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-source-field.html
+applies_to:
+  stack: all
+  serverless: all
 ---
 
 # _source field [mapping-source-field]
@@ -14,7 +17,11 @@ If disk usage is important to you, then consider the following options:
 
 ## Synthetic `_source` [synthetic-source]
 
-Though very handy to have around, the source field takes up a significant amount of space on disk. Instead of storing source documents on disk exactly as you send them, Elasticsearch can reconstruct source content on the fly upon retrieval. To enable this [subscription](https://www.elastic.co/subscriptions) feature, use the value `synthetic` for the index setting `index.mapping.source.mode`:
+:::{note}
+This feature requires a [subscription](https://www.elastic.co/subscriptions).
+:::
+
+Though very handy to have around, the source field takes up a significant amount of space on disk. Instead of storing source documents on disk exactly as you send them, Elasticsearch can reconstruct source content on the fly upon retrieval. To enable this feature, use the value `synthetic` for the index setting `index.mapping.source.mode`:
 
 $$$enable-synthetic-source-example$$$
 
@@ -32,6 +39,7 @@ PUT idx
   }
 }
 ```
+% TESTSETUP
 
 While this on-the-fly reconstruction is *generally* slower than saving the source documents verbatim and loading them at query time, it saves a lot of storage space. Additional latency can be avoided by not loading `_source` field in queries when it is not needed.
 
@@ -48,7 +56,7 @@ For all other field types, the original value of the field is stored as is, in t
 
 Some field types have additional restrictions. These restrictions are documented in the **synthetic `_source`** section of the field type’s [documentation](/reference/elasticsearch/mapping-reference/field-data-types.md).
 
-Synthetic source is not supported in [source-only](docs-content://deploy-manage/tools/snapshot-and-restore/source-only-repository.md) snapshot repositories. To store indexes that use synthetic `_source`, choose a different repository type.
+Synthetic source is not supported in [source-only](docs-content://deploy-manage/tools/snapshot-and-restore/source-only-repository.md) snapshot repositories. To store indices that use synthetic `_source`, choose a different repository type.
 
 ### Synthetic `_source` modifications [synthetic-source-modifications]
 
@@ -73,6 +81,7 @@ PUT idx/_doc/1
   ]
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -83,6 +92,7 @@ Will become:
   }
 }
 ```
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 This can cause some arrays to vanish:
 
@@ -101,6 +111,7 @@ PUT idx/_doc/1
   ]
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -112,7 +123,7 @@ Will become:
   }
 }
 ```
-
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 #### Fields named as they are mapped [synthetic-source-modifications-field-names]
 
@@ -126,6 +137,7 @@ PUT idx/_doc/1
   "foo.bar.baz": 1
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -138,24 +150,28 @@ Will become:
   }
 }
 ```
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 This impacts how source contents can be referenced in [scripts](docs-content://explore-analyze/scripting/modules-scripting-using.md). For instance, referencing a script in its original source form will return null:
 
 ```js
 "script": { "source": """  emit(params._source['foo.bar.baz'])  """ }
 ```
+% NOTCONSOLE
 
 Instead, source references need to be in line with the mapping structure:
 
 ```js
 "script": { "source": """  emit(params._source['foo']['bar']['baz'])  """ }
 ```
+% NOTCONSOLE
 
 or simply
 
 ```js
 "script": { "source": """  emit(params._source.foo.bar.baz)  """ }
 ```
+% NOTCONSOLE
 
 The following [field APIs](docs-content://explore-analyze/scripting/modules-scripting-fields.md) are preferable as, in addition to being agnostic to the mapping structure, they make use of docvalues if available and fall back to synthetic source only when needed. This reduces source synthesizing, a slow and costly operation.
 
@@ -163,7 +179,7 @@ The following [field APIs](docs-content://explore-analyze/scripting/modules-scri
 "script": { "source": """  emit(field('foo.bar.baz').get(null))   """ }
 "script": { "source": """  emit($('foo.bar.baz', null))   """ }
 ```
-
+% NOTCONSOLE
 
 #### Alphabetical sorting [synthetic-source-modifications-alphabetical]
 
@@ -218,6 +234,7 @@ PUT idx_keep
   }
 }
 ```
+% TEST
 
 $$$synthetic-source-keep-example$$$
 
@@ -234,6 +251,7 @@ PUT idx_keep/_doc/1
   "ids": [ 200, 100, 300, 100 ]
 }
 ```
+% TEST[s/$/\nGET idx_keep\/_doc\/1?filter_path=_source\n/]
 
 returns the original source, with no array deduplication and sorting:
 
@@ -249,6 +267,7 @@ returns the original source, with no array deduplication and sorting:
   "ids": [ 200, 100, 300, 100 ]
 }
 ```
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 The option for capturing the source of arrays can be applied at index level, by setting `index.mapping.synthetic_source_keep` to `arrays`. This applies to all objects and fields in the index, except for the ones with explicit overrides of `synthetic_source_keep` set to `none`. In this case, the storage overhead grows with the number and sizes of arrays present in source of each document, naturally.
 
@@ -305,13 +324,12 @@ PUT my-index-000001
 }
 ```
 
-::::{admonition} Think before disabling the _source field
-:class: warning
+::::{warning}
 
-Users often disable the `_source` field without thinking about the consequences, and then live to regret it. If the `_source` field isn’t available then a number of features are not supported:
+Do not disable the `_source` field, unless absolutely necessary. If you disable it, the following critical features will not be supported:
 
 * The [`update`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update), [`update_by_query`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update-by-query), and [`reindex`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex) APIs.
-* In the {{kib}} [Discover](docs-content://explore-analyze/discover.md) application, field data will not be displayed.
+* Display of field data in the {{kib}} [Discover](docs-content://explore-analyze/discover.md) application.
 * On the fly [highlighting](/reference/elasticsearch/rest-apis/highlighting.md).
 * The ability to reindex from one Elasticsearch index to another, either to change mappings or analysis, or to upgrade an index to a new major version.
 * The ability to debug queries or aggregations by viewing the original document used at index time.
@@ -320,7 +338,7 @@ Users often disable the `_source` field without thinking about the consequences,
 ::::
 
 ::::{note}
-You can't disable the `_source` field for indexes with [`index_mode`](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) set to `logsdb` or `time_series`.
+You can't disable the `_source` field for indices with [`index_mode`](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) set to `logsdb` or `time_series`.
 ::::
 
 
@@ -338,6 +356,9 @@ An expert-only feature is the ability to prune the contents of the `_source` fie
 Removing fields from the `_source` has similar downsides to disabling `_source`, especially the fact that you cannot reindex documents from one Elasticsearch index to another. Consider using [source filtering](/reference/elasticsearch/rest-apis/retrieve-selected-fields.md#source-filtering) instead.
 ::::
 
+::::{note}
+Source pruning is not available in {{serverless-short}}
+::::
 
 The `includes`/`excludes` parameters (which also accept wildcards) can be used as follows:
 

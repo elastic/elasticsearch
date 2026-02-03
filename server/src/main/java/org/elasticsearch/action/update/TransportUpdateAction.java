@@ -54,6 +54,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -215,7 +216,14 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             assert ThreadPool.assertCurrentThreadPool(Names.SYSTEM_WRITE, Names.WRITE);
             return deleteInferenceResults(
                 request,
-                updateHelper.prepare(request, indexShard, threadPool::absoluteTimeInMillis), // Gets the doc using the engine
+                // Gets the doc using the engine
+                updateHelper.prepare(
+                    request,
+                    indexShard,
+                    threadPool::absoluteTimeInMillis,
+                    // Exclude inference fields to ensure embeddings are recomputed.
+                    FetchSourceContext.FETCH_ALL_SOURCE_EXCLUDE_INFERENCE_FIELDS
+                ),
                 indexService.getMetadata(),
                 mappingLookup
             );

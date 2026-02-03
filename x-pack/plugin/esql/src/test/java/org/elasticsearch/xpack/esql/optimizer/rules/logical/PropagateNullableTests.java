@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.ONE;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
@@ -100,8 +101,8 @@ public class PropagateNullableTests extends ESTestCase {
 
         Expression nullified = new And(
             EMPTY,
-            greaterThanOf(new Div(EMPTY, new Add(EMPTY, fa, ONE), TWO), ONE),
-            greaterThanOf(new Add(EMPTY, fa, TWO), ONE)
+            greaterThanOf(new Div(EMPTY, new Add(EMPTY, fa, ONE, TEST_CFG), TWO), ONE),
+            greaterThanOf(new Add(EMPTY, fa, TWO, TEST_CFG), ONE)
         );
         Expression kept = new And(EMPTY, isNull, lessThanOf(getFieldAttribute("b"), THREE));
         And and = new And(EMPTY, nullified, kept);
@@ -136,7 +137,7 @@ public class PropagateNullableTests extends ESTestCase {
         IsNull isNull = new IsNull(EMPTY, fa);
 
         Or or = new Or(EMPTY, isNull, greaterThanOf(fa, THREE));
-        And and = new And(EMPTY, new Add(EMPTY, fa, ONE), or);
+        And and = new And(EMPTY, new Add(EMPTY, fa, ONE, TEST_CFG), or);
 
         assertEquals(and, propagateNullable(and));
     }

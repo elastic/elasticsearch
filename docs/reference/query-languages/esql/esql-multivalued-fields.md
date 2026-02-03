@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Multivalued fields"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-multivalued-fields.html
@@ -6,7 +9,7 @@ mapped_pages:
 
 # {{esql}} multivalued fields [esql-multivalued-fields]
 
-{{esql}} is fine reading from multivalued fields:
+{{esql}} can read from multivalued fields:
 
 $$$esql-multivalued-fields-reorders$$$
 
@@ -39,6 +42,7 @@ Multivalued fields come back as a JSON array:
   ]
 }
 ```
+% TESTRESPONSE[s/"took": 28/"took": "$body.took"/]
 
 The relative order of values in a multivalued field is undefined. They’ll frequently be in ascending order but don’t rely on that.
 
@@ -87,6 +91,7 @@ And {{esql}} sees that removal:
   ]
 }
 ```
+% TESTRESPONSE[s/"took": 28/"took": "$body.took"/]
 
 But other types, like `long` don’t remove duplicates.
 
@@ -130,6 +135,7 @@ And {{esql}} also sees that:
   ]
 }
 ```
+% TESTRESPONSE[s/"took": 28/"took": "$body.took"/]
 
 This is all at the storage layer. If you store duplicate `long`s and then convert them to strings the duplicates will stay:
 
@@ -171,6 +177,7 @@ POST /_query
   ]
 }
 ```
+% TESTRESPONSE[s/"took": 28/"took": "$body.took"/]
 
 
 ## `null` in a list [esql-multivalued-nulls]
@@ -194,14 +201,14 @@ POST /_query
   "took": 28,
   "is_partial": false,
   "columns": [
-    { "name": "a", "type": "long"},
+    { "name": "a", "type": "long"}
   ],
   "values": [
-    [[1, 2]],
+    [[1, 2]]
   ]
 }
 ```
-
+% TESTRESPONSE[s/"took": 28/"took": "$body.took"/]
 
 ## Functions [esql-multivalued-fields-functions]
 
@@ -223,6 +230,11 @@ POST /_query
   "query": "FROM mv | EVAL b + 2, a + b | LIMIT 4"
 }
 ```
+% TEST[continued]
+% TEST[warning:Line 1:16: evaluation of [b + 2] failed, treating result as null. Only first 20 failures recorded.]
+% TEST[warning:Line 1:16: java.lang.IllegalArgumentException: single-value function encountered multi-value]
+% TEST[warning:Line 1:23: evaluation of [a + b] failed, treating result as null. Only first 20 failures recorded.]
+% TEST[warning:Line 1:23: java.lang.IllegalArgumentException: single-value function encountered multi-value]
 
 ```console-result
 {
@@ -240,6 +252,7 @@ POST /_query
   ]
 }
 ```
+% TESTRESPONSE[s/"took": 28/"took": "$body.took"/]
 
 Work around this limitation by converting the field to single value with one of:
 
@@ -257,6 +270,7 @@ POST /_query
   "query": "FROM mv | EVAL b=MV_MIN(b) | EVAL b + 2, a + b | LIMIT 4"
 }
 ```
+% TEST[continued]
 
 ```console-result
 {
@@ -274,4 +288,5 @@ POST /_query
   ]
 }
 ```
+% TESTRESPONSE[s/"took": 28/"took": "$body.took"/]
 

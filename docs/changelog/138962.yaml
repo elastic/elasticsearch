@@ -1,0 +1,5 @@
+pr: 138962
+summary: Allows Cross Project for close `PointInTime`
+area: Search
+type: enhancement
+issues: []

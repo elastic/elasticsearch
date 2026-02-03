@@ -1,0 +1,5 @@
+pr: 139347
+summary: "Enable bfloat16 support for semantic text"
+area: Mapping
+type: enhancement
+issues: []

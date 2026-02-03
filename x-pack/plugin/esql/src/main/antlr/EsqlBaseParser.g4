@@ -21,7 +21,12 @@ options {
 }
 
 import Expression,
-       Join;
+       Join,
+       Promql;
+
+statements
+    : setCommand* singleStatement EOF
+    ;
 
 singleStatement
     : query EOF
@@ -33,12 +38,13 @@ query
     ;
 
 sourceCommand
-    : explainCommand
-    | fromCommand
+    : fromCommand
     | rowCommand
     | showCommand
+    | timeSeriesCommand
+    | promqlCommand
     // in development
-    | {this.isDevVersion()}? timeSeriesCommand
+    | {this.isDevVersion()}? explainCommand
     ;
 
 processingCommand
@@ -57,14 +63,15 @@ processingCommand
     | joinCommand
     | changePointCommand
     | completionCommand
+    | sampleCommand
+    | forkCommand
+    | rerankCommand
+    | inlineStatsCommand
+    | fuseCommand
     // in development
-    | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
-    | {this.isDevVersion()}? forkCommand
-    | {this.isDevVersion()}? rerankCommand
-    | {this.isDevVersion()}? rrfCommand
-    | {this.isDevVersion()}? sampleCommand
+    | {this.isDevVersion()}? mmrCommand
     ;
 
 whereCommand
@@ -87,39 +94,42 @@ field
     : (qualifiedName ASSIGN)? booleanExpression
     ;
 
-rerankFields
-    : rerankField (COMMA rerankField)*
-    ;
-
-rerankField
-    : qualifiedName (ASSIGN booleanExpression)?
-    ;
-
 fromCommand
     : FROM indexPatternAndMetadataFields
     ;
 
 timeSeriesCommand
-    : DEV_TIME_SERIES indexPatternAndMetadataFields
+    : TS indexPatternAndMetadataFields
     ;
 
-indexPatternAndMetadataFields:
-    indexPattern (COMMA indexPattern)* metadata?
+indexPatternAndMetadataFields
+    : indexPatternOrSubquery (COMMA indexPatternOrSubquery)* metadata?
+    ;
+
+indexPatternOrSubquery
+    : indexPattern
+    | {this.isDevVersion()}? subquery
+    ;
+
+subquery
+    : LP fromCommand (PIPE processingCommand)* RP
     ;
 
 indexPattern
-    : (clusterString COLON)? indexString
-    | indexString (CAST_OP selectorString)?
+    : (clusterString COLON)? unquotedIndexString (CAST_OP selectorString)?
+    | indexString
     ;
 
 clusterString
     : UNQUOTED_SOURCE
-    | QUOTED_STRING
     ;
 
 selectorString
     : UNQUOTED_SOURCE
-    | QUOTED_STRING
+    ;
+
+unquotedIndexString
+    : UNQUOTED_SOURCE
     ;
 
 indexString
@@ -148,11 +158,21 @@ aggField
     ;
 
 qualifiedName
+    : {this.isDevVersion()}? OPENING_BRACKET qualifier=UNQUOTED_IDENTIFIER? CLOSING_BRACKET DOT OPENING_BRACKET name=fieldName CLOSING_BRACKET
+    | name=fieldName
+    ;
+
+fieldName
     : identifierOrParameter (DOT identifierOrParameter)*
     ;
 
 qualifiedNamePattern
-    : identifierPattern (DOT identifierPattern)*
+    : {this.isDevVersion()}? OPENING_BRACKET qualifier=ID_PATTERN? CLOSING_BRACKET DOT OPENING_BRACKET name=fieldNamePattern CLOSING_BRACKET
+    | name=fieldNamePattern
+    ;
+
+fieldNamePattern
+    : (identifierPattern (DOT identifierPattern)*)
     ;
 
 qualifiedNamePatterns
@@ -186,6 +206,11 @@ identifierOrParameter
     | doubleParameter
     ;
 
+stringOrParameter
+    : string
+    | parameter
+    ;
+
 limitCommand
     : LIMIT constant
     ;
@@ -216,31 +241,36 @@ renameClause:
     ;
 
 dissectCommand
-    : DISSECT primaryExpression string commandOptions?
+    : DISSECT primaryExpression string dissectCommandOptions?
+    ;
+
+dissectCommandOptions
+    : dissectCommandOption (COMMA dissectCommandOption)*
+    ;
+
+dissectCommandOption
+    : identifier ASSIGN constant
+    ;
+
+
+commandNamedParameters
+    : (WITH mapExpression)?
     ;
 
 grokCommand
-    : GROK primaryExpression string
+    : GROK primaryExpression string (COMMA string)*
     ;
 
 mvExpandCommand
     : MV_EXPAND qualifiedName
     ;
 
-commandOptions
-    : commandOption (COMMA commandOption)*
-    ;
-
-commandOption
-    : identifier ASSIGN constant
-    ;
-
 explainCommand
-    : EXPLAIN subqueryExpression
+    : DEV_EXPLAIN subqueryExpression
     ;
 
 subqueryExpression
-    : OPENING_BRACKET query CLOSING_BRACKET
+    : LP query RP
     ;
 
 showCommand
@@ -248,34 +278,28 @@ showCommand
     ;
 
 enrichCommand
-    : ENRICH policyName=ENRICH_POLICY_NAME (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
+    : ENRICH policyName=enrichPolicyName (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
+    ;
+
+enrichPolicyName
+    : ENRICH_POLICY_NAME
+    | QUOTED_STRING
     ;
 
 enrichWithClause
     : (newName=qualifiedNamePattern ASSIGN)? enrichField=qualifiedNamePattern
     ;
 
-//
-// In development
-//
-lookupCommand
-    : DEV_LOOKUP tableName=indexPattern ON matchFields=qualifiedNamePatterns
-    ;
-
-inlinestatsCommand
-    : DEV_INLINESTATS stats=aggFields (BY grouping=fields)?
+sampleCommand
+    : SAMPLE probability=constant
     ;
 
 changePointCommand
     : CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)?
     ;
 
-insistCommand
-    : DEV_INSIST qualifiedNamePatterns
-    ;
-
 forkCommand
-    : DEV_FORK forkSubQueries
+    : FORK forkSubQueries
     ;
 
 forkSubQueries
@@ -292,26 +316,62 @@ forkSubQueryCommand
     ;
 
 forkSubQueryProcessingCommand
-    : evalCommand
-    | whereCommand
-    | limitCommand
-    | statsCommand
-    | sortCommand
-    | dissectCommand
+    : processingCommand
     ;
 
-rrfCommand
-   : DEV_RRF
-   ;
-
 rerankCommand
-    : DEV_RERANK queryText=constant ON rerankFields (WITH inferenceId=identifierOrParameter)?
+    : RERANK (targetField=qualifiedName ASSIGN)? queryText=constant ON rerankFields=fields commandNamedParameters
     ;
 
 completionCommand
-    : COMPLETION (targetField=qualifiedName ASSIGN)? prompt=primaryExpression WITH inferenceId=identifierOrParameter
+    : COMPLETION (targetField=qualifiedName ASSIGN)? prompt=primaryExpression commandNamedParameters
     ;
 
-sampleCommand
-    : DEV_SAMPLE probability=decimalValue
+inlineStatsCommand
+    : INLINE INLINE_STATS stats=aggFields (BY grouping=fields)?
+    // TODO: drop after next minor release
+    | INLINESTATS stats=aggFields (BY grouping=fields)?
+    ;
+
+fuseCommand
+    : FUSE (fuseType=identifier)? (fuseConfiguration)*
+    ;
+
+fuseConfiguration
+    : SCORE BY score=qualifiedName
+    | KEY BY key=fuseKeyByFields
+    | GROUP BY group=qualifiedName
+    | WITH options=mapExpression
+    ;
+
+fuseKeyByFields
+   : qualifiedName (COMMA qualifiedName)*
+   ;
+
+//
+// In development
+//
+lookupCommand
+    : DEV_LOOKUP tableName=indexPattern ON matchFields=qualifiedNamePatterns
+    ;
+
+insistCommand
+    : DEV_INSIST qualifiedNamePatterns
+    ;
+
+setCommand
+    : SET setField SEMICOLON
+    ;
+
+setField
+    : identifier ASSIGN ( constant | mapExpression )
+    ;
+
+mmrCommand
+    :  DEV_MMR (queryVector=mmrQueryVectorParams)? ON diversifyField=qualifiedName MMR_LIMIT limitValue=integerValue commandNamedParameters
+    ;
+
+mmrQueryVectorParams
+    : parameter                           # mmrQueryVectorParameter
+    | primaryExpression                   # mmrQueryVectorExpression
     ;

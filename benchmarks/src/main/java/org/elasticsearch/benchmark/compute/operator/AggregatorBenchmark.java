@@ -11,6 +11,7 @@ package org.elasticsearch.benchmark.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
@@ -114,6 +115,8 @@ public class AggregatorBenchmark {
     private static final String CONSTANT_FALSE = "constant_false";
 
     static {
+        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+
         // Smoke test all the expected values and force loading subclasses more like prod
         if (false == "true".equals(System.getProperty("skipSelfTest"))) {
             selfTest();
@@ -191,13 +194,16 @@ public class AggregatorBenchmark {
                 new BlockHash.GroupSpec(2, ElementType.BYTES_REF)
             );
             case TOP_N_LONGS -> List.of(
-                new BlockHash.GroupSpec(0, ElementType.LONG, false, new BlockHash.TopNDef(0, true, true, TOP_N_LIMIT))
+                new BlockHash.GroupSpec(0, ElementType.LONG, null, new BlockHash.TopNDef(0, true, true, TOP_N_LIMIT))
             );
             default -> throw new IllegalArgumentException("unsupported grouping [" + grouping + "]");
         };
         return new HashAggregationOperator(
+            AggregatorMode.SINGLE,
             List.of(supplier(op, dataType, filter).groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(groups.size()))),
             () -> BlockHash.build(groups, driverContext.blockFactory(), 16 * 1024, false),
+            Integer.MAX_VALUE,
+            1.0,
             driverContext
         );
     }
@@ -667,6 +673,11 @@ public class AggregatorBenchmark {
             }
 
             @Override
+            public long baseRamBytesUsed() {
+                return 0;
+            }
+
+            @Override
             public void close() {
                 mask.close();
             }
@@ -725,6 +736,6 @@ public class AggregatorBenchmark {
     }
 
     static DriverContext driverContext() {
-        return new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory);
+        return new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
     }
 }

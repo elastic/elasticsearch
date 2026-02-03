@@ -14,13 +14,23 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 /** Vector similarity type. */
 public enum VectorSimilarityType {
 
-    COSINE,
+    COSINE(VectorSimilarityFunction.COSINE),
 
-    DOT_PRODUCT,
+    DOT_PRODUCT(VectorSimilarityFunction.DOT_PRODUCT),
 
-    EUCLIDEAN,
+    EUCLIDEAN(VectorSimilarityFunction.EUCLIDEAN),
 
-    MAXIMUM_INNER_PRODUCT;
+    MAXIMUM_INNER_PRODUCT(VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT);
+
+    private final VectorSimilarityFunction function;
+
+    VectorSimilarityType(VectorSimilarityFunction function) {
+        this.function = function;
+    }
+
+    public VectorSimilarityFunction function() {
+        return function;
+    }
 
     /** Converts from the given vector similarity type to this similarity type. */
     public static VectorSimilarityType of(VectorSimilarityFunction func) {
@@ -29,16 +39,6 @@ public enum VectorSimilarityType {
             case COSINE -> VectorSimilarityType.COSINE;
             case DOT_PRODUCT -> VectorSimilarityType.DOT_PRODUCT;
             case MAXIMUM_INNER_PRODUCT -> VectorSimilarityType.MAXIMUM_INNER_PRODUCT;
-        };
-    }
-
-    /** Converts from this vector similarity type to VectorSimilarityFunction. */
-    public static VectorSimilarityFunction of(VectorSimilarityType func) {
-        return switch (func) {
-            case EUCLIDEAN -> VectorSimilarityFunction.EUCLIDEAN;
-            case COSINE -> VectorSimilarityFunction.COSINE;
-            case DOT_PRODUCT -> VectorSimilarityFunction.DOT_PRODUCT;
-            case MAXIMUM_INNER_PRODUCT -> VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
         };
     }
 }

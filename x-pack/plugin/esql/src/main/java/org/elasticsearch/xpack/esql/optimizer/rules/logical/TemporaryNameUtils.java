@@ -22,8 +22,8 @@ class TemporaryNameUtils {
         return Attribute.rawTemporaryName(in, out, String.valueOf(suffix));
     }
 
-    public static String locallyUniqueTemporaryName(String inner, String outer) {
-        return Attribute.rawTemporaryName(inner, outer, (new NameId()).toString());
+    public static String locallyUniqueTemporaryName(String inner) {
+        return Attribute.rawTemporaryName(inner, "temp_name", (new NameId()).toString());
     }
 
     static String toString(Expression ex) {

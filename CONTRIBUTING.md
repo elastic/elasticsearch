@@ -49,6 +49,13 @@ We add the `help wanted` label to existing GitHub issues for which community
 contributions are particularly welcome, and we use the `good first issue` label
 to mark issues that we think will be suitable for new contributors.
 
+We generally do not assign issues to contributors outside of Elastic, but
+please check the discussion on the issue to see if anyone else is working on
+the same topic. If there are other active contributors in the same area then it
+is a good idea to reach out to them so you can work together on the issue. If
+there hasn't been any discussion for a while then go ahead and start working on
+the issue yourself.
+
 The process for contributing to any of the [Elastic repositories](https://github.com/elastic/) is similar. Details for individual projects can be found below.
 
 ### Fork and clone the repository
@@ -202,6 +209,18 @@ Alternative manual steps for IntelliJ.
    2. Gear icon > Import Scheme > Eclipse XML Profile
    3. Navigate to the file `build-conventions/formatterConfig.xml`
    4. Click "OK"
+
+#### Options
+
+When importing to IntelliJ, we offer a few options that can be used to
+configure the behaviour of the import:
+
+| Property                                   | Description                                                                                          | Values (* = default) |
+|--------------------------------------------|------------------------------------------------------------------------------------------------------|----------------------|
+| `org.elasticsearch.idea-configuration-cache` | Should IntelliJ enable the Gradle Configuration cache to speed up builds when generating run configs | *`true`, `false`         |
+| `org.elasticsearch.idea-delegate-to-gradle`  | Should IntelliJ use Gradle for all generated run / test configs or prompt each time                  | `true`, *`false`         |
+
+These options can be set anywhere on the Gradle config path including in `~/.gradle/gradle.properties`
 
 ### REST endpoint conventions
 

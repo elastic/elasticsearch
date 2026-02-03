@@ -109,7 +109,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
     }
 
     public void testDefaultDocValueConfigurationOnPre7_8() throws IOException {
-        IndexVersion oldVersion = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersions.V_7_7_0);
+        IndexVersion oldVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.V_7_0_0, IndexVersions.V_7_7_0);
         DocumentMapper defaultMapper = createDocumentMapper(oldVersion, fieldMapping(this::minimalMapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
         assertThat(fieldMapper, instanceOf(fieldMapperClass()));
@@ -325,7 +325,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
             };
 
             // indices created before 8 should allow parameters but issue a warning
-            IndexVersion pre8version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
+            IndexVersion pre8version = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.V_8_0_0);
             MapperService m = createMapperService(
                 pre8version,
                 fieldMapping(b -> b.field("type", getFieldName()).field(deprecatedParam, value))
@@ -359,7 +359,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
             }
 
             // indices created after 8 should throw an error
-            IndexVersion post8version = IndexVersionUtils.randomCompatibleWriteVersion(random());
+            IndexVersion post8version = IndexVersionUtils.randomCompatibleWriteVersion();
             Exception ex = expectThrows(
                 MapperParsingException.class,
                 () -> createMapperService(post8version, fieldMapping(b -> b.field("type", getFieldName()).field(deprecatedParam, value)))
@@ -376,7 +376,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
     }
 
     public void testGeoShapeLegacyMerge() throws Exception {
-        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
+        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.V_8_0_0);
         MapperService m = createMapperService(version, fieldMapping(b -> b.field("type", getFieldName())));
         Exception e = expectThrows(
             IllegalArgumentException.class,
@@ -393,7 +393,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
     }
 
     public void testGeoShapeLegacyCircle() throws Exception {
-        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
+        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.V_8_0_0);
         MapperService mapperService = createMapperService(version, fieldMapping(b -> {
             b.field("type", getFieldName());
             b.field("strategy", "recursive");
@@ -552,5 +552,10 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
     }
 }

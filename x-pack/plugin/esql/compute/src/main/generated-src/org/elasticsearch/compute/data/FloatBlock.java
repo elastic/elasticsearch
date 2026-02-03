@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.data;
 
 // begin generated imports
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
@@ -34,11 +33,71 @@ public sealed interface FloatBlock extends Block permits FloatArrayBlock, FloatV
      */
     float getFloat(int valueIndex);
 
+    /**
+     * Checks if this block has the given value at position. If at this index we have a
+     * multivalue, then it returns true if any values match.
+     *
+     * @param position the index at which we should check the value(s)
+     * @param value the value to check against
+     */
+    default boolean hasValue(int position, float value) {
+        final var count = getValueCount(position);
+        final var startIndex = getFirstValueIndex(position);
+        final var BINARYSEARCH_THRESHOLD = 16;
+        if (count > BINARYSEARCH_THRESHOLD && mvSortedAscending()) {
+            return binarySearch(this, position, count, value) >= 0;
+        }
+
+        for (int index = startIndex; index < startIndex + count; index++) {
+            if (value == getFloat(index)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Perform a binary search on this block
+     *
+     * @param block to search in
+     * @param startIndex
+     * @param count number of positions to search beyond the startIndex
+     * @param value to search for
+     * @return position or negative number if not found
+     */
+    static int binarySearch(FloatBlock block, int startIndex, int count, float value) {
+        int low = startIndex;
+        int high = count - 1;
+
+        while (low <= high) {
+            int mid = (low + high) >>> 1;
+            float midVal = block.getFloat(mid);
+
+            if (midVal < value) low = mid + 1;
+            else if (midVal > value) high = mid - 1;
+            else return mid; // key found
+        }
+        return -(low + 1);  // key not found.
+    }
+
     @Override
     FloatVector asVector();
 
     @Override
     FloatBlock filter(int... positions);
+
+    /**
+     * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default FloatBlock deepCopy(BlockFactory blockFactory) {
+        try (FloatBlock.Builder builder = blockFactory.newFloatBlockBuilder(getPositionCount())) {
+            builder.copyFrom(this, 0, getPositionCount());
+            builder.mvOrdering(mvOrdering());
+            return builder.build();
+        }
+    }
 
     @Override
     FloatBlock keepMask(BooleanVector mask);
@@ -89,10 +148,10 @@ public sealed interface FloatBlock extends Block permits FloatArrayBlock, FloatV
         if (vector != null) {
             out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof FloatArrayBlock b) {
+        } else if (this instanceof FloatArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_ARRAY);
             b.writeArrayBlock(out);
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof FloatBigArrayBlock b) {
+        } else if (this instanceof FloatBigArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_BIG_ARRAY);
             b.writeArrayBlock(out);
         } else {

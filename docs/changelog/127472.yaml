@@ -1,6 +1,0 @@
-pr: 127472
-summary: Change queries ID to be the same as the async
-area: ES|QL
-type: feature
-issues:
- - 127187

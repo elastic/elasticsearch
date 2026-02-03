@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -34,8 +33,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.ProjectRepo;
 import org.elasticsearch.repositories.RepositoryOperation;
-import org.elasticsearch.repositories.RepositoryOperation.ProjectRepo;
 import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
@@ -49,6 +48,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -58,16 +58,31 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.repositories.RepositoryOperation.PROJECT_REPO_SERIALIZER;
+import static org.elasticsearch.repositories.ProjectRepo.PROJECT_REPO_SERIALIZER;
 
 /**
- * Meta data about snapshots that are currently executing
+ * Metadata about snapshots that are currently executing.
+ * <p>
+ * This data structure serves two purposes:
+ * <ol>
+ * <li>It records a checkpoint of the state of the ongoing snapshots so that if the current master fails and a new master is elected then
+ * the ongoing snapshots can continue without having to re-do an excessive amount of work. In practice today the only work that is repeated
+ * on a master failover is the finalization of any snapshots that are ready to finalize.</li>
+ * <li>It communicates to the data nodes the snapshot work they should currently be performing, which it does by setting each shard's
+ * {@link ShardSnapshotStatus#state} field to {@link ShardState#INIT}.</li>
+ * </ol>
  */
 public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implements Custom {
 
     private static final Logger logger = LogManager.getLogger(SnapshotsInProgress.class);
+
+    private static final Tuple<Map<State, Integer>, Map<ShardState, Integer>> NO_SNAPSHOTS_IN_PROGRESS_STATS = Tuple.tuple(
+        Arrays.stream(State.values()).collect(Collectors.toUnmodifiableMap(v -> v, v -> 0)),
+        Arrays.stream(ShardState.values()).collect(Collectors.toUnmodifiableMap(v -> v, v -> 0))
+    );
 
     public static final SnapshotsInProgress EMPTY = new SnapshotsInProgress(Map.of(), Set.of());
 
@@ -105,9 +120,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     }
 
     private static Set<String> readNodeIdsForRemoval(StreamInput in) throws IOException {
-        return in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
-            ? in.readCollectionAsImmutableSet(StreamInput::readString)
-            : Set.of();
+        return in.readCollectionAsImmutableSet(StreamInput::readString);
     }
 
     private static Map<ProjectRepo, ByRepo> collectByRepo(StreamInput in) throws IOException {
@@ -174,11 +187,31 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return forRepo(Metadata.DEFAULT_PROJECT_ID, repository);
     }
 
+    public List<Entry> forRepo(ProjectId projectId, String repository) {
+        return forRepo(new ProjectRepo(projectId, repository));
+    }
+
+    /**
+     * Calculate snapshot and shard state summaries for this repository
+     *
+     * @param projectId The project ID
+     * @param repository The repository name
+     * @return A tuple containing the snapshot and shard stat summaries
+     */
+    public Tuple<Map<State, Integer>, Map<ShardState, Integer>> shardStateSummaryForRepository(ProjectId projectId, String repository) {
+        ByRepo byRepo = entries.get(new ProjectRepo(projectId, repository));
+        if (byRepo != null) {
+            return byRepo.calculateStateSummaries();
+        } else {
+            return NO_SNAPSHOTS_IN_PROGRESS_STATS;
+        }
+    }
+
     /**
      * Returns the list of snapshots in the specified repository.
      */
-    public List<Entry> forRepo(ProjectId projectId, String repository) {
-        return entries.getOrDefault(new ProjectRepo(projectId, repository), ByRepo.EMPTY).entries;
+    public List<Entry> forRepo(ProjectRepo projectRepo) {
+        return entries.getOrDefault(projectRepo, ByRepo.EMPTY).entries;
     }
 
     public boolean isEmpty() {
@@ -197,8 +230,28 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return () -> Iterators.map(entries.values().iterator(), byRepo -> byRepo.entries);
     }
 
+    /**
+     * Similar to {@link #entriesByRepo()} but only returns entries for the specified project.
+     */
+    public Iterable<List<Entry>> entriesByRepo(ProjectId projectId) {
+        return () -> Iterators.map(
+            Iterators.filter(entries.entrySet().iterator(), entry -> entry.getKey().projectId().equals(projectId)),
+            entry -> entry.getValue().entries
+        );
+    }
+
     public Stream<Entry> asStream() {
         return entries.values().stream().flatMap(t -> t.entries.stream());
+    }
+
+    /**
+     * Similar to {@link #asStream()} but only returns entries for the specified project.
+     */
+    public Stream<Entry> asStream(ProjectId projectId) {
+        return entries.entrySet()
+            .stream()
+            .filter(entry -> entry.getKey().projectId().equals(projectId))
+            .flatMap(entry -> entry.getValue().entries.stream());
     }
 
     @Nullable
@@ -219,25 +272,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             }
         }
         return null;
-    }
-
-    /**
-     * Computes a map of repository shard id to set of shard generations, containing all shard generations that became obsolete and may be
-     * deleted from the repository as the cluster state moves from the given old value of {@link SnapshotsInProgress} to this instance.
-     * <p>
-     * An unique shard generation is created for every in-progress shard snapshot. The shard generation file contains information about all
-     * the files needed by pre-existing and any new shard snapshots that were in-progress. When a shard snapshot is finalized, its file list
-     * is promoted to the official shard snapshot list for the index shard. This final list will contain metadata about any other
-     * in-progress shard snapshots that were not yet finalized when it began. All these other in-progress shard snapshot lists are scheduled
-     * for deletion now.
-     */
-    @FixForMultiProject
-    @Deprecated(forRemoval = true)
-    public Map<RepositoryShardId, Set<ShardGeneration>> obsoleteGenerations(
-        String repository,
-        SnapshotsInProgress oldClusterStateSnapshots
-    ) {
-        return obsoleteGenerations(Metadata.DEFAULT_PROJECT_ID, repository, oldClusterStateSnapshots);
     }
 
     /**
@@ -302,16 +336,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.MINIMUM_COMPATIBLE;
+        return TransportVersion.minimumCompatible();
     }
 
-    private static final TransportVersion DIFFABLE_VERSION = TransportVersions.V_8_5_0;
-
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(DIFFABLE_VERSION)) {
-            return new SnapshotInProgressDiff(in);
-        }
-        return readDiffFrom(Custom.class, TYPE, in);
+        return new SnapshotInProgressDiff(in);
     }
 
     @Override
@@ -326,11 +355,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         while (iterator.hasNext()) {
             iterator.next().writeTo(out);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeStringCollection(nodesIdsForRemoval);
-        } else {
-            assert nodesIdsForRemoval.isEmpty() : nodesIdsForRemoval;
-        }
+        out.writeStringCollection(nodesIdsForRemoval);
     }
 
     @Override
@@ -514,8 +539,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
      * running shard snapshots.
      */
     public SnapshotsInProgress withUpdatedNodeIdsForRemoval(ClusterState clusterState) {
-        assert clusterState.getMinTransportVersion().onOrAfter(TransportVersions.V_8_13_0);
-
         final var updatedNodeIdsForRemoval = new HashSet<>(nodesIdsForRemoval);
 
         final var nodeIdsMarkedForRemoval = getNodesIdsMarkedForRemoval(clusterState);
@@ -1203,12 +1226,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 allQueued &= status.state() == ShardState.QUEUED;
                 if (status.state().completed() == false) {
                     final String nodeId = status.nodeId();
-                    status = new ShardSnapshotStatus(
-                        nodeId,
-                        nodeId == null ? ShardState.FAILED : ShardState.ABORTED,
-                        status.generation(),
-                        "aborted by snapshot deletion"
-                    );
+                    final var newState = (nodeId == null || status.state() == ShardState.PAUSED_FOR_NODE_REMOVAL)
+                        ? ShardState.FAILED
+                        : ShardState.ABORTED;
+                    status = new ShardSnapshotStatus(nodeId, newState, status.generation(), "aborted by snapshot deletion");
                 }
                 completed &= status.state().completed();
                 shardsBuilder.put(shardEntry.getKey(), status);
@@ -1775,6 +1796,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     private static final class SnapshotInProgressDiff implements NamedDiff<Custom> {
 
+        private static final TransportVersion PROJECT_ID_IN_SNAPSHOT = TransportVersion.fromName("project_id_in_snapshot");
+
         private final SnapshotsInProgress after;
 
         private final DiffableUtils.MapDiff<ProjectRepo, ByRepo, Map<ProjectRepo, ByRepo>> mapDiff;
@@ -1787,7 +1810,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
 
         SnapshotInProgressDiff(StreamInput in) throws IOException {
-            if (in.getTransportVersion().before(TransportVersions.PROJECT_ID_IN_SNAPSHOT)) {
+            if (in.getTransportVersion().supports(PROJECT_ID_IN_SNAPSHOT) == false) {
                 final var oldMapDiff = DiffableUtils.readJdkMapDiff(
                     in,
                     DiffableUtils.getStringKeySerializer(),
@@ -1826,7 +1849,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.MINIMUM_COMPATIBLE;
+            return TransportVersion.minimumCompatible();
         }
 
         @Override
@@ -1837,30 +1860,22 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             assert after != null : "should only write instances that were diffed from this node's state";
-            if (out.getTransportVersion().onOrAfter(DIFFABLE_VERSION)) {
-                if (out.getTransportVersion().before(TransportVersions.PROJECT_ID_IN_SNAPSHOT)) {
-                    DiffableUtils.jdkMapDiffWithUpdatedKeys(mapDiff, projectRepo -> {
-                        if (ProjectId.DEFAULT.equals(projectRepo.projectId()) == false) {
-                            final var message = "Cannot write instance with non-default project id "
-                                + projectRepo.projectId()
-                                + " to version before "
-                                + TransportVersions.PROJECT_ID_IN_SNAPSHOT;
-                            assert false : message;
-                            throw new IllegalArgumentException(message);
-                        }
-                        return projectRepo.name();
-                    }, DiffableUtils.getStringKeySerializer()).writeTo(out);
-                } else {
-                    mapDiff.writeTo(out);
-                }
+            if (out.getTransportVersion().supports(PROJECT_ID_IN_SNAPSHOT) == false) {
+                DiffableUtils.jdkMapDiffWithUpdatedKeys(mapDiff, projectRepo -> {
+                    if (ProjectId.DEFAULT.equals(projectRepo.projectId()) == false) {
+                        final var message = "Cannot write instance with non-default project id "
+                            + projectRepo.projectId()
+                            + " to version before "
+                            + PROJECT_ID_IN_SNAPSHOT;
+                        assert false : message;
+                        throw new IllegalArgumentException(message);
+                    }
+                    return projectRepo.name();
+                }, DiffableUtils.getStringKeySerializer()).writeTo(out);
             } else {
-                new SimpleDiffable.CompleteDiff<>(after).writeTo(out);
+                mapDiff.writeTo(out);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                out.writeStringCollection(nodeIdsForRemoval);
-            } else {
-                assert nodeIdsForRemoval.isEmpty() : nodeIdsForRemoval;
-            }
+            out.writeStringCollection(nodeIdsForRemoval);
         }
     }
 
@@ -1888,6 +1903,31 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         private ByRepo(List<Entry> entries) {
             this.entries = List.copyOf(entries);
+        }
+
+        /**
+         * Calculate summaries of how many shards and snapshots are in each shard/snapshot state
+         *
+         * @return a {@link Tuple} containing the snapshot and shard state summaries respectively
+         */
+        public Tuple<Map<State, Integer>, Map<ShardState, Integer>> calculateStateSummaries() {
+            final int[] snapshotCounts = new int[State.values().length];
+            final int[] shardCounts = new int[ShardState.values().length];
+            for (Entry entry : entries) {
+                snapshotCounts[entry.state().ordinal()]++;
+                if (entry.isClone()) {
+                    // Can't get shards for clone entry
+                    continue;
+                }
+                for (ShardSnapshotStatus shardSnapshotStatus : entry.shards().values()) {
+                    shardCounts[shardSnapshotStatus.state().ordinal()]++;
+                }
+            }
+            final Map<State, Integer> snapshotStates = Arrays.stream(State.values())
+                .collect(Collectors.toUnmodifiableMap(state -> state, state -> snapshotCounts[state.ordinal()]));
+            final Map<ShardState, Integer> shardStates = Arrays.stream(ShardState.values())
+                .collect(Collectors.toUnmodifiableMap(shardState -> shardState, state -> shardCounts[state.ordinal()]));
+            return Tuple.tuple(snapshotStates, shardStates);
         }
 
         @Override

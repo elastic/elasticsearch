@@ -33,6 +33,7 @@ import java.util.List;
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TSID_DATA_TYPE;
 
 public class ToBase64 extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToBase64", ToBase64::new);
@@ -42,7 +43,10 @@ public class ToBase64 extends UnaryScalarFunction {
         description = "Encode a string to a base64 string.",
         examples = @Example(file = "string", tag = "to_base64")
     )
-    public ToBase64(Source source, @Param(name = "string", type = { "keyword", "text" }, description = "A string.") Expression string) {
+    public ToBase64(
+        Source source,
+        @Param(name = "string", type = { "keyword", "text", "_tsid" }, description = "A string.") Expression string
+    ) {
         super(source, string);
     }
 
@@ -60,7 +64,9 @@ public class ToBase64 extends UnaryScalarFunction {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        return isString(field, sourceText(), TypeResolutions.ParamOrdinal.DEFAULT);
+
+        return TypeResolutions.isType(field, dt -> dt == TSID_DATA_TYPE, sourceText(), TypeResolutions.ParamOrdinal.DEFAULT, "_tsid")
+            .or(isString(field, sourceText(), TypeResolutions.ParamOrdinal.DEFAULT));
     }
 
     @Override

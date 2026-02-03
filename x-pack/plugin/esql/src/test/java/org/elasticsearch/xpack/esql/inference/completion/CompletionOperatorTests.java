@@ -7,19 +7,25 @@
 
 package org.elasticsearch.xpack.esql.inference.completion;
 
-import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.esql.inference.InferenceOperatorTestCase;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.hamcrest.Matcher;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -27,9 +33,16 @@ import static org.hamcrest.Matchers.hasSize;
 public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompletionResults> {
     private static final String SIMPLE_INFERENCE_ID = "test_completion";
 
+    private int inputChannel;
+
+    @Before
+    public void initCompletionChannels() {
+        inputChannel = between(0, inputsCount - 1);
+    }
+
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new CompletionOperator.Factory(mockedSimpleInferenceRunner(), SIMPLE_INFERENCE_ID, evaluatorFactory(0));
+        return new CompletionOperator.Factory(mockedInferenceService(), SIMPLE_INFERENCE_ID, evaluatorFactory(inputChannel), Map.of());
     }
 
     @Override
@@ -43,37 +56,33 @@ public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompl
             assertEquals(inputPage.getPositionCount(), resultPage.getPositionCount());
             assertEquals(inputPage.getBlockCount() + 1, resultPage.getBlockCount());
 
+            // Verify all original blocks are preserved
             for (int channel = 0; channel < inputPage.getBlockCount(); channel++) {
                 Block inputBlock = inputPage.getBlock(channel);
                 Block resultBlock = resultPage.getBlock(channel);
                 assertBlockContentEquals(inputBlock, resultBlock);
             }
 
+            // Verify completion results in the new block
             assertCompletionResults(inputPage, resultPage);
         }
     }
 
     private void assertCompletionResults(Page inputPage, Page resultPage) {
-        BytesRefBlock inputBlock = resultPage.getBlock(0);
+        BytesRefBlock inputBlock = resultPage.getBlock(inputChannel);
         BytesRefBlock resultBlock = resultPage.getBlock(inputPage.getBlockCount());
 
-        BytesRef scratch = new BytesRef();
-        StringBuilder inputBuilder = new StringBuilder();
+        BlockStringReader blockReader = new BlockStringReader();
 
         for (int curPos = 0; curPos < inputPage.getPositionCount(); curPos++) {
-            inputBuilder.setLength(0);
-            int valueIndex = inputBlock.getFirstValueIndex(curPos);
-            while (valueIndex < inputBlock.getFirstValueIndex(curPos) + inputBlock.getValueCount(curPos)) {
-                scratch = inputBlock.getBytesRef(valueIndex, scratch);
-                inputBuilder.append(scratch.utf8ToString());
-                if (valueIndex < inputBlock.getValueCount(curPos) - 1) {
-                    inputBuilder.append("\n");
-                }
-                valueIndex++;
+            if (inputBlock.isNull(curPos)) {
+                assertThat(resultBlock.isNull(curPos), equalTo(true));
+            } else {
+                assertThat(
+                    blockReader.readString(resultBlock, curPos),
+                    equalTo(blockReader.readString(inputBlock, curPos).toUpperCase(Locale.ROOT))
+                );
             }
-            scratch = resultBlock.getBytesRef(resultBlock.getFirstValueIndex(curPos), scratch);
-
-            assertThat(scratch.utf8ToString(), equalTo(inputBuilder.toString().toUpperCase(Locale.ROOT)));
         }
     }
 
@@ -94,5 +103,27 @@ public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompl
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
         return equalTo("CompletionOperator[inference_id=[" + SIMPLE_INFERENCE_ID + "]]");
+    }
+
+    public void testInferenceFailure() {
+        AtomicBoolean shouldFail = new AtomicBoolean(true);
+        Exception expectedException = new ElasticsearchException("Inference service unavailable");
+        InferenceService failingService = mockedInferenceService(shouldFail, expectedException);
+
+        Operator.OperatorFactory factory = new CompletionOperator.Factory(
+            failingService,
+            SIMPLE_INFERENCE_ID,
+            evaluatorFactory(inputChannel),
+            Map.of()
+        );
+
+        DriverContext driverContext = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1, 100)));
+        Exception actualException = expectThrows(
+            ElasticsearchException.class,
+            () -> drive(factory.get(driverContext), input.iterator(), driverContext)
+        );
+
+        assertThat(actualException.getMessage(), equalTo("Inference service unavailable"));
     }
 }

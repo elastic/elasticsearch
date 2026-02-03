@@ -58,9 +58,11 @@ public class GetComponentTemplateResponseTests extends ESTestCase {
             new Template(settings, mappings, aliases, lifecycle, dataStreamOptions),
             randomBoolean() ? null : randomNonNegativeLong(),
             null,
-            false
+            false,
+            null,
+            null
         );
-        var rolloverConfiguration = RolloverConfigurationTests.randomRolloverConditions();
+        var rolloverConfiguration = RolloverConfigurationTests.randomRolloverConfiguration();
         var response = new GetComponentTemplateAction.Response(Map.of(randomAlphaOfLength(10), template), rolloverConfiguration);
 
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {

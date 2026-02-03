@@ -12,9 +12,7 @@ dependencies {
   javaRestTestImplementation project(':x-pack:plugin:security')
 }
 
-boolean literalUsername = buildParams.random.nextBoolean()
-
 tasks.named("javaRestTest").configure {
   usesDefaultDistribution("to be triaged")
-  systemProperty 'test.literalUsername', literalUsername
+  systemProperty 'test.literalUsername', buildParams.random.map{r -> r.nextBoolean()}.get()
 }

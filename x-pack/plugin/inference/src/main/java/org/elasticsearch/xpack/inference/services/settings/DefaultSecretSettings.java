@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.settings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,12 +30,13 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractReq
 
 /**
  * Contains secret settings that are common to all services.
+ *
  * @param apiKey the key used to authenticate with the 3rd party service
  */
 public record DefaultSecretSettings(SecureString apiKey) implements SecretSettings, ApiKeySecrets {
     public static final String NAME = "default_secret_settings";
 
-    static final String API_KEY = "api_key";
+    public static final String API_KEY = "api_key";
 
     public static DefaultSecretSettings fromMap(@Nullable Map<String, Object> map) {
         if (map == null) {
@@ -101,7 +101,7 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_12_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

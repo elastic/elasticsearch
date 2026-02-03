@@ -227,7 +227,7 @@ public class CrudDataStreamLifecycleIT extends ESIntegTestCase {
 
     public void testDeleteLifecycle() throws Exception {
         DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
-            .dataRetention(randomPositiveTimeValue())
+            .dataRetention(randomTimeValueGreaterThan(TimeValue.timeValueSeconds(10)))
             .buildTemplate();
         putComposableIndexTemplate("id1", null, List.of("with-lifecycle*"), null, null, lifecycle);
         putComposableIndexTemplate("id2", null, List.of("without-lifecycle*"), null, null, null);

@@ -1,5 +1,0 @@
-pr: 120488
-summary: Publish queue latency metrics from tracked thread pools
-area: "Infra/Metrics"
-type: enhancement
-issues: []

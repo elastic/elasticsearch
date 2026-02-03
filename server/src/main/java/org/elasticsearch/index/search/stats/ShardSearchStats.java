@@ -117,6 +117,11 @@ public final class ShardSearchStats implements SearchOperationListener {
         });
     }
 
+    @Override
+    public void onDfsPhase(SearchContext searchContext, long tookInNanos) {
+        computeStats(searchContext, statsHolder -> { statsHolder.recentSearchLoad.addIncrement(tookInNanos, System.nanoTime()); });
+    }
+
     private void computeStats(SearchContext searchContext, Consumer<StatsHolder> consumer) {
         consumer.accept(totalStats);
         var groupStats = searchContext.groupStats();

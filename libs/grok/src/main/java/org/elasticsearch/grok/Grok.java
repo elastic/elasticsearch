@@ -105,8 +105,8 @@ public final class Grok {
             name.getBytes(StandardCharsets.UTF_8).length,
             region
         );
-        int begin = region.beg[number];
-        int end = region.end[number];
+        int begin = region.getBeg(number);
+        int end = region.getEnd(number);
         if (begin < 0) { // no match found
             return null;
         }
@@ -131,7 +131,7 @@ public final class Grok {
             } finally {
                 matcherWatchdog.unregister(matcher);
             }
-
+            handleInterrupted(result);
             if (result < 0) {
                 return res.append(grokPattern).toString();
             }
@@ -159,7 +159,12 @@ public final class Grok {
                 grokPart = String.format(Locale.US, "(?<%s>%s)", patternName + "_" + result, pattern);
             }
             String start = new String(grokPatternBytes, 0, result, StandardCharsets.UTF_8);
-            String rest = new String(grokPatternBytes, region.end[0], grokPatternBytes.length - region.end[0], StandardCharsets.UTF_8);
+            String rest = new String(
+                grokPatternBytes,
+                region.getEnd(0),
+                grokPatternBytes.length - region.getEnd(0),
+                StandardCharsets.UTF_8
+            );
             grokPattern = grokPart + rest;
             res.append(start);
         }
@@ -181,6 +186,7 @@ public final class Grok {
         } finally {
             matcherWatchdog.unregister(matcher);
         }
+        handleInterrupted(result);
         return (result != -1);
     }
 
@@ -234,11 +240,7 @@ public final class Grok {
         } finally {
             matcherWatchdog.unregister(matcher);
         }
-        if (result == Matcher.INTERRUPTED) {
-            throw new RuntimeException(
-                "grok pattern matching was interrupted after [" + matcherWatchdog.maxExecutionTimeInMillis() + "] ms"
-            );
-        }
+        handleInterrupted(result);
         if (result == Matcher.FAILED) {
             return false;
         }
@@ -257,4 +259,40 @@ public final class Grok {
         return compiledExpression;
     }
 
+    private void handleInterrupted(int result) {
+        if (result == Matcher.INTERRUPTED) {
+            throw new RuntimeException(
+                "grok pattern matching was interrupted after [" + matcherWatchdog.maxExecutionTimeInMillis() + "] ms"
+            );
+        }
+    }
+
+    public static String combinePatterns(List<String> patterns) {
+        return combinePatterns(patterns, null);
+    }
+
+    public static String combinePatterns(List<String> patterns, String traceMatchKey) {
+        String combinedPattern;
+        if (patterns.size() > 1) {
+            combinedPattern = "";
+            for (int i = 0; i < patterns.size(); i++) {
+                String pattern = patterns.get(i);
+                String valueWrap;
+                if (traceMatchKey != null) {
+                    valueWrap = "(?<" + traceMatchKey + "." + i + ">" + pattern + ")";
+                } else {
+                    valueWrap = "(?:" + patterns.get(i) + ")";
+                }
+                if (combinedPattern.isEmpty()) {
+                    combinedPattern = valueWrap;
+                } else {
+                    combinedPattern = combinedPattern + "|" + valueWrap;
+                }
+            }
+        } else {
+            combinedPattern = patterns.getFirst();
+        }
+
+        return combinedPattern;
+    }
 }

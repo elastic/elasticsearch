@@ -13,12 +13,12 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -26,46 +26,50 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.AsyncOperator;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
-import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.AsyncOperatorTestCase;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.threadpool.FixedExecutorBuilder;
-import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.HashSet;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
-public abstract class InferenceOperatorTestCase<InferenceResultsType extends InferenceServiceResults> extends OperatorTestCase {
-    private ThreadPool threadPool;
+public abstract class InferenceOperatorTestCase<InferenceResultsType extends InferenceServiceResults> extends AsyncOperatorTestCase {
+    protected ThreadPool threadPool;
+    protected int inputsCount;
 
     @Before
     public void setThreadPool() {
-        threadPool = new TestThreadPool(
-            getTestClass().getSimpleName(),
-            new FixedExecutorBuilder(
-                Settings.EMPTY,
-                EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
-                between(1, 10),
-                1024,
-                "esql",
-                EsExecutors.TaskTrackingConfig.DEFAULT
+        threadPool = createThreadPool(
+            new ScalingExecutorBuilder(
+                "inference_response",
+                0,
+                10,
+                TimeValue.timeValueMinutes(10),
+                false,
+                "xpack.inference.inference_response_thread_pool"
             )
         );
+    }
+
+    @Before
+    public void initChannels() {
+        inputsCount = randomIntBetween(1, 10);
     }
 
     @After
@@ -78,8 +82,13 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
     }
 
     @Override
+    protected int largeInputSize() {
+        return between(100, 1_000);
+    }
+
+    @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return new AbstractBlockSourceOperator(blockFactory, 8 * 1024) {
+        return new AbstractBlockSourceOperator(blockFactory, between(100, 8 * 1024)) {
             @Override
             protected int remaining() {
                 return size - currentPosition;
@@ -88,63 +97,71 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
             @Override
             protected Page createPage(int positionOffset, int length) {
                 length = Integer.min(length, remaining());
-                try (var builder = blockFactory.newBytesRefBlockBuilder(length)) {
-                    for (int i = 0; i < length; i++) {
-                        if (randomInt() % 100 == 0) {
-                            builder.appendNull();
-                        } else {
-                            builder.appendBytesRef(new BytesRef(randomAlphaOfLength(10)));
+                Block[] blocks = new Block[inputsCount];
+                try {
+                    for (int b = 0; b < inputsCount; b++) {
+                        try (var builder = blockFactory.newBytesRefBlockBuilder(length)) {
+                            for (int i = 0; i < length; i++) {
+                                if (randomInt() % 100 == 0) {
+                                    builder.appendNull();
+                                } else {
+                                    builder.appendBytesRef(new BytesRef(randomAlphaOfLength(10)));
+                                }
+                            }
+                            blocks[b] = builder.build();
                         }
-
                     }
-                    currentPosition += length;
-                    return new Page(builder.build());
+                } catch (Exception e) {
+                    Releasables.closeExpectNoException(blocks);
+                    throw e;
                 }
+
+                currentPosition += length;
+                return new Page(blocks);
+
             }
         };
     }
 
-    @Override
-    public void testOperatorStatus() {
-        DriverContext driverContext = driverContext();
-        try (var operator = simple().get(driverContext)) {
-            AsyncOperator.Status status = asInstanceOf(AsyncOperator.Status.class, operator.status());
-
-            assertThat(status, notNullValue());
-            assertThat(status.receivedPages(), equalTo(0L));
-            assertThat(status.completedPages(), equalTo(0L));
-            assertThat(status.procesNanos(), greaterThanOrEqualTo(0L));
-        }
+    @SuppressWarnings("unchecked")
+    protected InferenceService mockedInferenceService() {
+        return mockedInferenceService(new AtomicBoolean(false), new RuntimeException("default error"));
     }
 
     @SuppressWarnings("unchecked")
-    protected InferenceRunner mockedSimpleInferenceRunner() {
-        Client client = new NoOpClient(threadPool) {
+    protected InferenceService mockedInferenceService(AtomicBoolean shouldFail, Exception failureException) {
+        Client mockClient = new NoOpClient(threadPool) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,
                 Request request,
                 ActionListener<Response> listener
             ) {
-                Runnable runnable = () -> {
-                    if (action == InferenceAction.INSTANCE && request instanceof InferenceAction.Request inferenceRequest) {
-                        InferenceAction.Response inferenceResponse = new InferenceAction.Response(mockInferenceResult(inferenceRequest));
-                        listener.onResponse((Response) inferenceResponse);
+                runWithRandomDelay(() -> {
+                    if (action instanceof InferenceAction && request instanceof InferenceAction.Request inferenceRequest) {
+                        if (shouldFail.get()) {
+                            listener.onFailure(failureException);
+                            return;
+                        }
+                        listener.onResponse((Response) new InferenceAction.Response(mockInferenceResult(inferenceRequest)));
                         return;
                     }
 
-                    fail("Unexpected call to action [" + action.name() + "]");
-                };
+                    listener.onFailure(new UnsupportedOperationException("Unexpected action: " + action));
+                });
+            }
 
-                if (randomBoolean()) {
-                    runnable.run();
-                } else {
-                    threadPool.schedule(runnable, TimeValue.timeValueNanos(between(1, 100)), threadPool.executor(ThreadPool.Names.SEARCH));
-                }
+            private void runWithRandomDelay(Runnable runnable) {
+                threadPool.schedule(runnable, TimeValue.timeValueNanos(between(1, 1_000)), threadPool.executor("inference_response"));
             }
         };
 
-        return new InferenceRunner(client, threadPool);
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(InferenceSettings.getSettings()));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+
+        return new InferenceService(mockClient, clusterService);
     }
 
     protected abstract InferenceResultsType mockInferenceResult(InferenceAction.Request request);
@@ -201,7 +218,14 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
         return context -> new EvalOperator.ExpressionEvaluator() {
             @Override
             public Block eval(Page page) {
-                return BlockUtils.deepCopyOf(page.getBlock(channel), blockFactory());
+                Block b = page.getBlock(channel);
+                b.incRef();
+                return b;
+            }
+
+            @Override
+            public long baseRamBytesUsed() {
+                return 0;
             }
 
             @Override
@@ -209,5 +233,28 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
 
             }
         };
+    }
+
+    public static class BlockStringReader {
+
+        private final StringBuilder sb = new StringBuilder();
+        private BytesRef scratch = new BytesRef();
+
+        public String readString(BytesRefBlock block, int pos) {
+            sb.setLength(0);
+            int valueIndex = block.getFirstValueIndex(pos);
+            while (valueIndex < block.getFirstValueIndex(pos) + block.getValueCount(pos)) {
+                scratch = block.getBytesRef(valueIndex, scratch);
+                sb.append(scratch.utf8ToString());
+                if (valueIndex < block.getValueCount(pos) - 1) {
+                    sb.append("\n");
+                }
+                valueIndex++;
+            }
+            scratch = block.getBytesRef(block.getFirstValueIndex(pos), scratch);
+
+            return sb.toString();
+        }
+
     }
 }

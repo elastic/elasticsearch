@@ -427,6 +427,11 @@ indexed dense vectors:
   - requires:
       cluster_features: ["gte_v8.5.0"]
       reason: introduced in 8.5.0
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [ exclude_source_vectors_setting ]
 
   - do:
       indices.create:
@@ -457,6 +462,8 @@ indexed dense vectors:
       get:
         index: test
         id:    1
+        _source_exclude_vectors: false
+
   - match: {_index: "test"}
   - match: {_id: "1"}
   - match: {_version: 1}
@@ -472,6 +479,11 @@ non-indexed dense vectors:
   - requires:
       cluster_features: ["gte_v8.5.0"]
       reason: introduced in 8.5.0
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [ exclude_source_vectors_setting ]
 
   - do:
       indices.create:
@@ -501,6 +513,8 @@ non-indexed dense vectors:
       get:
         index: test
         id:    1
+        _source_exclude_vectors: false
+
   - match: {_index: "test"}
   - match: {_id: "1"}
   - match: {_version: 1}

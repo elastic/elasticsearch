@@ -25,20 +25,25 @@ import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.snapshots.SnapshotsServiceUtils;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -60,15 +65,19 @@ public class MetadataDataStreamsService {
     private final MasterServiceTaskQueue<SetRolloverOnWriteTask> setRolloverOnWriteTaskQueue;
     private final MasterServiceTaskQueue<UpdateOptionsTask> updateOptionsTaskQueue;
     private final MasterServiceTaskQueue<UpdateSettingsTask> updateSettingsTaskQueue;
+    private final MasterServiceTaskQueue<UpdateMappingsTask> updateMappingsTaskQueue;
+    private final IndexSettingProviders indexSettingProviders;
 
     public MetadataDataStreamsService(
         ClusterService clusterService,
         IndicesService indicesService,
-        DataStreamGlobalRetentionSettings globalRetentionSettings
+        DataStreamGlobalRetentionSettings globalRetentionSettings,
+        IndexSettingProviders indexSettingProviders
     ) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.globalRetentionSettings = globalRetentionSettings;
+        this.indexSettingProviders = indexSettingProviders;
         ClusterStateTaskExecutor<UpdateLifecycleTask> updateLifecycleExecutor = new SimpleBatchedAckListenerTaskExecutor<>() {
 
             @Override
@@ -127,7 +136,7 @@ public class MetadataDataStreamsService {
                     ClusterState.builder(clusterState)
                         .putProjectMetadata(
                             updateDataStreamOptions(
-                                clusterState.projectState(modifyOptionsTask.projectId).metadata(),
+                                clusterState.metadata().getProject(modifyOptionsTask.projectId),
                                 modifyOptionsTask.getDataStreamNames(),
                                 modifyOptionsTask.getOptions()
                             )
@@ -163,6 +172,32 @@ public class MetadataDataStreamsService {
             "update-data-stream-settings",
             Priority.NORMAL,
             updateSettingsExecutor
+        );
+        ClusterStateTaskExecutor<UpdateMappingsTask> updateMappingsExecutor = new SimpleBatchedAckListenerTaskExecutor<>() {
+
+            @Override
+            public Tuple<ClusterState, ClusterStateAckListener> executeTask(
+                UpdateMappingsTask updateMappingsTask,
+                ClusterState clusterState
+            ) throws Exception {
+                DataStream dataStream = createDataStreamForUpdatedDataStreamMappings(
+                    updateMappingsTask.projectId,
+                    updateMappingsTask.dataStreamName,
+                    updateMappingsTask.mappingsOverrides,
+                    clusterState
+                );
+                ProjectMetadata projectMetadata = clusterState.metadata().getProject(updateMappingsTask.projectId);
+                ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
+                projectMetadataBuilder.removeDataStream(updateMappingsTask.dataStreamName);
+                projectMetadataBuilder.put(dataStream);
+                ClusterState updatedClusterState = ClusterState.builder(clusterState).putProjectMetadata(projectMetadataBuilder).build();
+                return new Tuple<>(updatedClusterState, updateMappingsTask);
+            }
+        };
+        this.updateMappingsTaskQueue = clusterService.createTaskQueue(
+            "update-data-stream-mappings",
+            Priority.NORMAL,
+            updateMappingsExecutor
         );
     }
 
@@ -452,22 +487,175 @@ public class MetadataDataStreamsService {
         ProjectMetadata projectMetadata = clusterState.metadata().getProject(projectId);
         Map<String, DataStream> dataStreamMap = projectMetadata.dataStreams();
         DataStream dataStream = dataStreamMap.get(dataStreamName);
-        Settings existingSettings = dataStream.getSettings();
+        Settings existingDataStreamSettings = dataStream.getSettings();
 
-        Template.Builder templateBuilder = Template.builder();
-        Settings.Builder mergedSettingsBuilder = Settings.builder().put(existingSettings).put(settingsOverrides);
-        Settings mergedSettings = mergedSettingsBuilder.build();
+        Settings.Builder mergedSettingsBuilder = Settings.builder().put(existingDataStreamSettings).put(settingsOverrides);
+        /*
+         * A null value for a setting override means that we remove it from the data stream, and let the value from the template (if any)
+         * be used.
+         */
+        settingsOverrides.keySet().forEach(key -> {
+            if (mergedSettingsBuilder.get(key) == null) {
+                mergedSettingsBuilder.remove(key);
+            }
+        });
+        Settings mergedDataStreamSettings = mergedSettingsBuilder.build();
 
         final ComposableIndexTemplate template = lookupTemplateForDataStream(dataStreamName, projectMetadata);
-        ComposableIndexTemplate mergedTemplate = template.mergeSettings(mergedSettings);
+        Settings templateSettings = MetadataIndexTemplateService.resolveSettings(template, projectMetadata.componentTemplates());
+        Settings mergedEffectiveSettings = templateSettings.merge(mergedDataStreamSettings);
+        CompressedXContent effectiveMappings = dataStream.getEffectiveMappings(projectMetadata, indicesService);
         MetadataIndexTemplateService.validateTemplate(
-            mergedTemplate.template().settings(),
-            mergedTemplate.template().mappings(),
+            addSettingsFromIndexSettingProviders(dataStreamName, effectiveMappings, projectMetadata, mergedEffectiveSettings),
+            effectiveMappings,
             indicesService
         );
 
-        templateBuilder.settings(mergedSettingsBuilder);
-        return dataStream.copy().setSettings(mergedSettings).build();
+        return dataStream.copy().setSettings(mergedDataStreamSettings).build();
+    }
+
+    private Settings addSettingsFromIndexSettingProviders(
+        String dataStreamName,
+        CompressedXContent effectiveMappings,
+        ProjectMetadata projectMetadata,
+        Settings settings
+    ) {
+        Settings.Builder additionalSettings = Settings.builder();
+        IndexMode indexMode = projectMetadata.dataStreams().get(dataStreamName).getIndexMode();
+        Set<String> overrulingSettings = new HashSet<>();
+        indexSettingProviders.getIndexSettingProviders().forEach(indexSettingProvider -> {
+            Settings.Builder providerSettingsBuilder = Settings.builder();
+            indexSettingProvider.provideAdditionalSettings(
+                dataStreamName,
+                dataStreamName,
+                indexMode,
+                projectMetadata,
+                Instant.now(),
+                settings,
+                List.of(effectiveMappings),
+                IndexVersion.current(),
+                providerSettingsBuilder
+            );
+            Settings providerSettings = providerSettingsBuilder.build();
+            if (indexSettingProvider.overrulesTemplateAndRequestSettings()) {
+                overrulingSettings.addAll(providerSettings.keySet());
+            }
+            additionalSettings.put(providerSettings);
+        });
+        Settings filteredmergedEffectiveSettings = settings;
+        if (overrulingSettings.isEmpty() == false) {
+            // Filter any conflicting settings from overruling providers, to avoid overwriting their values from templates.
+            final Settings.Builder filtered = Settings.builder().put(settings);
+            for (String setting : overrulingSettings) {
+                filtered.remove(setting);
+            }
+            filteredmergedEffectiveSettings = filtered.build();
+        }
+        return additionalSettings.put(filteredmergedEffectiveSettings).build();
+    }
+
+    private DataStream createDataStreamForUpdatedDataStreamMappings(
+        ProjectId projectId,
+        String dataStreamName,
+        CompressedXContent mappingsOverrides,
+        ClusterState clusterState
+    ) throws Exception {
+        ProjectMetadata projectMetadata = clusterState.metadata().getProject(projectId);
+        Map<String, DataStream> dataStreamMap = projectMetadata.dataStreams();
+        DataStream dataStream = dataStreamMap.get(dataStreamName);
+
+        final ComposableIndexTemplate template = lookupTemplateForDataStream(dataStreamName, projectMetadata);
+        CompressedXContent effectiveMappings = DataStream.getEffectiveMappings(
+            projectMetadata,
+            template,
+            mappingsOverrides,
+            dataStream.getWriteIndex(),
+            indicesService
+        );
+        MetadataIndexTemplateService.validateTemplate(
+            getEffectiveSettings(projectMetadata, dataStream, mappingsOverrides),
+            effectiveMappings,
+            indicesService
+        );
+        return dataStream.copy().setMappings(mappingsOverrides).build();
+    }
+
+    /**
+     * This method gets the effective settings for the given data stream. The effective settings include the combination of template
+     * settings, data stream settings overrides, and the implicit settings provide by IndexSettingsProviders.
+     * @param projectMetadata The project metadata
+     * @param dataStream The data stream
+     * @return The effective settings for the data stream, which are a the combination of template settings, data stream settings overrides,
+     * and the implicit settings provide by IndexSettingsProviders
+     * @throws IOException
+     */
+    public Settings getEffectiveSettings(ProjectMetadata projectMetadata, DataStream dataStream) throws IOException {
+        return getEffectiveSettings(projectMetadata, dataStream, dataStream.getMappings());
+    }
+
+    /**
+     * This method gets the effective settings for the given data stream, using the passed-in mappingOverrides rather than the data stream's
+     * mapping overrides. This can be used to evaluate the validity of the settings and mappings before applying the mapping overrides to
+     * the data stream. The effective settings include the combination of template settings, data stream settings overrides, and the
+     * implicit settings provide by IndexSettingsProviders.
+     * @param projectMetadata The project metadata
+     * @param dataStream The data stream
+     * @param mappingOverrides The mapping overrides to be used in place of the mapping overrides on the data stream currently
+     * @return The effective settings for the data stream, which are a the combination of template settings, data stream settings overrides,
+     * and the implicit settings provide by IndexSettingsProviders
+     * @throws IOException
+     */
+    public Settings getEffectiveSettings(ProjectMetadata projectMetadata, DataStream dataStream, CompressedXContent mappingOverrides)
+        throws IOException {
+        ComposableIndexTemplate template = lookupTemplateForDataStream(dataStream.getName(), projectMetadata);
+        Settings templateSettings = MetadataIndexTemplateService.resolveSettings(template, projectMetadata.componentTemplates());
+        CompressedXContent effectiveMappings = DataStream.getEffectiveMappings(
+            projectMetadata,
+            template,
+            mappingOverrides,
+            dataStream.getWriteIndex(),
+            indicesService
+        );
+        return addSettingsFromIndexSettingProviders(
+            dataStream.getName(),
+            effectiveMappings,
+            projectMetadata,
+            templateSettings.merge(dataStream.getSettings())
+        );
+    }
+
+    public void updateMappings(
+        ProjectId projectId,
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        String dataStreamName,
+        CompressedXContent mappingsOverrides,
+        boolean dryRun,
+        ActionListener<DataStream> listener
+    ) {
+        if (dryRun) {
+            /*
+             * If this is a dry run, we'll do the settings validation and apply the changes to the data stream locally, but we won't run
+             * the task that actually updates the cluster state.
+             */
+            try {
+                DataStream updatedDataStream = createDataStreamForUpdatedDataStreamMappings(
+                    projectId,
+                    dataStreamName,
+                    mappingsOverrides,
+                    clusterService.state()
+                );
+                listener.onResponse(updatedDataStream);
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        } else {
+            updateMappingsTaskQueue.submitTask(
+                "updating mappings on data stream",
+                new UpdateMappingsTask(projectId, dataStreamName, mappingsOverrides, clusterService, ackTimeout, listener),
+                masterNodeTimeout
+            );
+        }
     }
 
     private static void addBackingIndex(
@@ -572,7 +760,7 @@ public class MetadataDataStreamsService {
         }
 
         Set<String> dataStreamNames = dataStreams.stream().map(DataStream::getName).collect(Collectors.toSet());
-        Set<String> snapshottingDataStreams = SnapshotsService.snapshottingDataStreams(projectState, dataStreamNames);
+        Set<String> snapshottingDataStreams = SnapshotsServiceUtils.snapshottingDataStreams(projectState, dataStreamNames);
         if (snapshottingDataStreams.isEmpty() == false) {
             throw new SnapshotInProgressException(
                 "Cannot delete data streams that are being snapshotted: ["
@@ -730,7 +918,7 @@ public class MetadataDataStreamsService {
         ) {
             super(ackTimeout, listener.safeMap(response -> {
                 if (response.isAcknowledged()) {
-                    return clusterService.state().projectState(projectId).metadata().dataStreams().get(dataStreamName);
+                    return clusterService.state().metadata().getProject(projectId).dataStreams().get(dataStreamName);
                 } else {
                     throw new ElasticsearchException("Updating settings not accepted for unknown reasons");
                 }
@@ -738,6 +926,32 @@ public class MetadataDataStreamsService {
             this.projectId = projectId;
             this.dataStreamName = dataStreamName;
             this.settingsOverrides = settingsOverrides;
+        }
+    }
+
+    static class UpdateMappingsTask extends AckedBatchedClusterStateUpdateTask {
+        final ProjectId projectId;
+        private final String dataStreamName;
+        private final CompressedXContent mappingsOverrides;
+
+        UpdateMappingsTask(
+            ProjectId projectId,
+            String dataStreamName,
+            CompressedXContent mappingsOverrides,
+            ClusterService clusterService,
+            TimeValue ackTimeout,
+            ActionListener<DataStream> listener
+        ) {
+            super(ackTimeout, listener.safeMap(response -> {
+                if (response.isAcknowledged()) {
+                    return clusterService.state().projectState(projectId).metadata().dataStreams().get(dataStreamName);
+                } else {
+                    throw new ElasticsearchException("Updating mappings not accepted for unknown reasons");
+                }
+            }));
+            this.projectId = projectId;
+            this.dataStreamName = dataStreamName;
+            this.mappingsOverrides = mappingsOverrides;
         }
     }
 }

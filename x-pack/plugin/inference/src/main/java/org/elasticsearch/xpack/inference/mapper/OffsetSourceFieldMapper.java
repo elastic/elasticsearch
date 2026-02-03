@@ -7,16 +7,15 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
-import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
@@ -133,7 +132,7 @@ public class OffsetSourceFieldMapper extends FieldMapper {
         private final CharsetFormat charset;
 
         public OffsetSourceFieldType(String name, CharsetFormat charset, Map<String, String> meta) {
-            super(name, true, false, false, TextSearchInfo.NONE, meta);
+            super(name, IndexType.terms(true, false), false, meta);
             this.charset = charset;
         }
 
@@ -144,11 +143,6 @@ public class OffsetSourceFieldMapper extends FieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
-        }
-
-        @Override
-        public boolean fieldHasValue(FieldInfos fieldInfos) {
-            return fieldInfos.fieldInfo(name()) != null;
         }
 
         @Override

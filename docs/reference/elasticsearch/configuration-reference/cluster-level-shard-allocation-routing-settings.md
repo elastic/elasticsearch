@@ -87,7 +87,7 @@ Rebalancing is important to ensure the cluster returns to a healthy and fully re
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Defines the number of concurrent shard rebalances are allowed across the whole cluster. Defaults to `2`. Note that this setting only controls the number of concurrent shard relocations due to imbalances in the cluster. This setting does not limit shard relocations due to [allocation filtering](#cluster-shard-allocation-filtering) or [forced awareness](docs-content://deploy-manage/distributed-architecture/shard-allocation-relocation-recovery/shard-allocation-awareness.md#forced-awareness). Increasing this setting may cause the cluster to use additional resources moving shards between nodes, so we generally do not recommend adjusting this setting from its default of `2`.
 
 `cluster.routing.allocation.type`
-:   Selects the algorithm used for computing the cluster balance. Defaults to `desired_balance` which selects the *desired balance allocator*. This allocator runs a background task which computes the desired balance of shards in the cluster. Once this background task completes, {{es}} moves shards to their desired locations.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Selects the algorithm used for computing the cluster balance. Defaults to `desired_balance` which selects the *desired balance allocator*. This allocator runs a background task which computes the desired balance of shards in the cluster. Once this background task completes, {{es}} moves shards to their desired locations.
 
 
 :::{admonition} Deprecated in 8.8
@@ -254,6 +254,7 @@ PUT _cluster/settings
   }
 }
 ```
+% TEST[skip:TODO]
 
 ### Cluster routing settings [cluster-routing-settings]
 
@@ -304,9 +305,9 @@ PUT _cluster/settings
   }
 }
 ```
+% TEST[skip:TODO]
 
+## Node allocation stats cache [node-allocation-stats-cache]
 
-## Node Allocation Stats Cache [node-allocation-stats-cache]
-
-`cluster.routing.allocation.stats.cache.ttl`
+`cluster.routing.allocation.stats.cache.ttl` {applies_to}`stack: ga 9.1`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Calculating the node allocation stats for a [Get node statistics API call](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-nodes-stats) can become expensive on the master for clusters with a high number of nodes. To prevent overloading the master the node allocation stats are cached on the master for 1 minute `1m` by default.  This setting can be used to adjust the cache time to live value, if necessary, keeping in mind the tradeoff between the freshness of the statistics and the processing costs on the master.  The cache can be disabled (not recommended) by setting the value to `0s` (the minimum value). The maximum value is 10 minutes `10m`.

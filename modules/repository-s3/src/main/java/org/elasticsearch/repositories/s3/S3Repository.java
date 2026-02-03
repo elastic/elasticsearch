@@ -31,6 +31,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -39,9 +40,11 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.snapshots.SnapshotsServiceUtils;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -130,18 +133,6 @@ class S3Repository extends MeteredBlobStoreRepository {
         DEFAULT_BUFFER_SIZE,
         MIN_PART_SIZE_USING_MULTIPART,
         MAX_PART_SIZE_USING_MULTIPART
-    );
-
-    /**
-     * Maximum size allowed for copy without multipart.
-     * Objects larger than this will be copied using multipart copy. S3 enforces a minimum multipart size of 5 MiB and a maximum
-     * non-multipart copy size of 5 GiB. The default is to use the maximum allowable size in order to minimize request count.
-     */
-    static final Setting<ByteSizeValue> MAX_COPY_SIZE_BEFORE_MULTIPART = Setting.byteSizeSetting(
-        "max_copy_size_before_multipart",
-        MAX_FILE_SIZE,
-        MIN_PART_SIZE_USING_MULTIPART,
-        MAX_FILE_SIZE
     );
 
     /**
@@ -246,6 +237,11 @@ class S3Repository extends MeteredBlobStoreRepository {
         Setting.Property.Dynamic
     );
 
+    static final Setting<Boolean> UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES = Setting.boolSetting(
+        "unsafely_incompatible_with_s3_conditional_writes",
+        false
+    );
+
     private final S3Service service;
 
     private final String bucket;
@@ -253,8 +249,6 @@ class S3Repository extends MeteredBlobStoreRepository {
     private final ByteSizeValue bufferSize;
 
     private final ByteSizeValue chunkSize;
-
-    private final ByteSizeValue maxCopySizeBeforeMultipart;
 
     private final boolean serverSideEncryption;
 
@@ -268,6 +262,13 @@ class S3Repository extends MeteredBlobStoreRepository {
      */
     private final TimeValue coolDown;
 
+    /**
+     * Some storage claims S3-compatibility despite failing to support the {@code If-Match} and {@code If-None-Match} functionality
+     * properly. We allow to disable the use of this functionality, making all writes unconditional, using the
+     * {@link #UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES} setting.
+     */
+    private final boolean supportsConditionalWrites;
+
     private final Executor snapshotExecutor;
 
     private final S3RepositoriesMetrics s3RepositoriesMetrics;
@@ -276,14 +277,15 @@ class S3Repository extends MeteredBlobStoreRepository {
      * Constructs an s3 backed repository
      */
     S3Repository(
-        final ProjectId projectId,
+        @Nullable final ProjectId projectId,
         final RepositoryMetadata metadata,
         final NamedXContentRegistry namedXContentRegistry,
         final S3Service service,
         final ClusterService clusterService,
         final BigArrays bigArrays,
         final RecoverySettings recoverySettings,
-        final S3RepositoriesMetrics s3RepositoriesMetrics
+        final S3RepositoriesMetrics s3RepositoriesMetrics,
+        final SnapshotMetrics snapshotMetrics
     ) {
         super(
             projectId,
@@ -293,7 +295,8 @@ class S3Repository extends MeteredBlobStoreRepository {
             bigArrays,
             recoverySettings,
             buildBasePath(metadata),
-            buildLocation(metadata)
+            buildLocation(metadata),
+            snapshotMetrics
         );
         this.service = service;
         this.s3RepositoriesMetrics = s3RepositoriesMetrics;
@@ -325,8 +328,6 @@ class S3Repository extends MeteredBlobStoreRepository {
             );
         }
 
-        this.maxCopySizeBeforeMultipart = MAX_COPY_SIZE_BEFORE_MULTIPART.get(metadata.settings());
-
         this.serverSideEncryption = SERVER_SIDE_ENCRYPTION_SETTING.get(metadata.settings());
 
         this.storageClass = STORAGE_CLASS_SETTING.get(metadata.settings());
@@ -342,15 +343,26 @@ class S3Repository extends MeteredBlobStoreRepository {
         }
 
         coolDown = COOLDOWN_PERIOD.get(metadata.settings());
+        supportsConditionalWrites = UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.get(metadata.settings()) == Boolean.FALSE;
+
+        if (supportsConditionalWrites == false) {
+            logger.warn(
+                """
+                    repository [{}] is configured to unsafely avoid conditional writes which may lead to repository corruption; to resolve \
+                    this warning, upgrade your storage to a system that is fully compatible with AWS S3 and then remove the [{}] \
+                    repository setting; for more information, see [{}]""",
+                metadata.name(),
+                UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getKey(),
+                ReferenceDocs.S3_COMPATIBLE_REPOSITORIES
+            );
+        }
 
         logger.debug(
-            "using bucket [{}], chunk_size [{}], server_side_encryption [{}], buffer_size [{}], "
-                + "max_copy_size_before_multipart [{}], cannedACL [{}], storageClass [{}]",
+            "using bucket [{}], chunk_size [{}], server_side_encryption [{}], buffer_size [{}], cannedACL [{}], storageClass [{}]",
             bucket,
             chunkSize,
             serverSideEncryption,
             bufferSize,
-            maxCopySizeBeforeMultipart,
             cannedACL,
             storageClass
         );
@@ -388,9 +400,10 @@ class S3Repository extends MeteredBlobStoreRepository {
     @Override
     public void finalizeSnapshot(final FinalizeSnapshotContext finalizeSnapshotContext) {
         final FinalizeSnapshotContext wrappedFinalizeContext;
-        if (SnapshotsService.useShardGenerations(finalizeSnapshotContext.repositoryMetaVersion()) == false) {
+        if (SnapshotsServiceUtils.useShardGenerations(finalizeSnapshotContext.repositoryMetaVersion()) == false) {
             final ListenableFuture<Void> metadataDone = new ListenableFuture<>();
             wrappedFinalizeContext = new FinalizeSnapshotContext(
+                finalizeSnapshotContext.serializeProjectMetadata(),
                 finalizeSnapshotContext.updatedShardGenerations(),
                 finalizeSnapshotContext.repositoryStateId(),
                 finalizeSnapshotContext.clusterMetadata(),
@@ -476,9 +489,9 @@ class S3Repository extends MeteredBlobStoreRepository {
             bucket,
             serverSideEncryption,
             bufferSize,
-            maxCopySizeBeforeMultipart,
             cannedACL,
             storageClass,
+            supportsConditionalWrites,
             metadata,
             bigArrays,
             threadPool,

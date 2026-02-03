@@ -1,0 +1,5 @@
+pr: 138023
+summary: Push down COUNT(*) BY DATE_TRUNC
+area: ES|QL
+type: feature
+issues: []

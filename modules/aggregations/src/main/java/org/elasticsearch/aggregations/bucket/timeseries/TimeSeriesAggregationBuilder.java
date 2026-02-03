@@ -10,7 +10,6 @@
 package org.elasticsearch.aggregations.bucket.timeseries;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -155,6 +154,6 @@ public class TimeSeriesAggregationBuilder extends AbstractAggregationBuilder<Tim
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_1_0;
+        return TransportVersion.minimumCompatible();
     }
 }

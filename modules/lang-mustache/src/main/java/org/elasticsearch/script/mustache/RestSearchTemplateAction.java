@@ -11,6 +11,7 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -18,10 +19,12 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -36,9 +39,11 @@ public class RestSearchTemplateAction extends BaseRestHandler {
     private static final Set<String> RESPONSE_PARAMS = Set.of(TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM);
 
     private final Predicate<NodeFeature> clusterSupportsFeature;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
-    public RestSearchTemplateAction(Predicate<NodeFeature> clusterSupportsFeature) {
+    public RestSearchTemplateAction(Predicate<NodeFeature> clusterSupportsFeature, Settings settings) {
         this.clusterSupportsFeature = clusterSupportsFeature;
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
     }
 
     @Override
@@ -58,6 +63,8 @@ public class RestSearchTemplateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
+
         // Creates the search request with all required params
         SearchRequest searchRequest = new SearchRequest();
         RestSearchAction.parseSearchRequest(
@@ -65,7 +72,9 @@ public class RestSearchTemplateAction extends BaseRestHandler {
             request,
             null,
             clusterSupportsFeature,
-            size -> searchRequest.source().size(size)
+            size -> searchRequest.source().size(size),
+            null,
+            Optional.of(crossProjectEnabled)
         );
 
         // Creates the search template request
@@ -73,6 +82,15 @@ public class RestSearchTemplateAction extends BaseRestHandler {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             searchTemplateRequest = SearchTemplateRequest.fromXContent(parser);
         }
+
+        if (searchTemplateRequest.getProjectRouting() != null) {
+            if (crossProjectEnabled) {
+                searchRequest.setProjectRouting(searchTemplateRequest.getProjectRouting());
+            } else {
+                throw new IllegalArgumentException("Unknown key for a VALUE_STRING in [project_routing]");
+            }
+        }
+
         searchTemplateRequest.setRequest(searchRequest);
         // This param is parsed within the search request
         if (searchRequest.source().explain() != null) {

@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SequenceBytesRefBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 
@@ -30,8 +31,8 @@ abstract class AbstractTopBytesRefAggregatorFunctionTests extends AggregatorFunc
     protected abstract BytesRef randomValue();
 
     @Override
-    public final void assertSimpleOutput(List<Block> input, Block result) {
-        Object[] values = input.stream().flatMap(AggregatorFunctionTestCase::allBytesRefs).sorted().limit(LIMIT).toArray(Object[]::new);
+    public final void assertSimpleOutput(List<Page> input, Block result) {
+        Object[] values = input.stream().flatMap(p -> allBytesRefs(p.getBlock(0))).sorted().limit(LIMIT).toArray(Object[]::new);
         assertThat((List<?>) BlockUtils.toJavaObject(result, 0), contains(values));
     }
 }

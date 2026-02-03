@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -30,7 +29,6 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.PositionTrackingOutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -92,8 +90,6 @@ public class PublicationTransportHandler {
         TransportRequestOptions.Type.STATE
     );
 
-    public static final TransportVersion INCLUDES_LAST_COMMITTED_DATA_VERSION = TransportVersions.V_8_6_0;
-
     private final SerializationStatsTracker serializationStatsTracker = new SerializationStatsTracker();
 
     public PublicationTransportHandler(
@@ -130,7 +126,7 @@ public class PublicationTransportHandler {
         ActionListener<PublishWithJoinResponse> publishResponseListener
     ) throws IOException {
         assert ThreadPool.assertCurrentThreadPool(GENERIC);
-        final Compressor compressor = CompressorFactory.compressor(request.bytes());
+        final Compressor compressor = CompressorFactory.compressorForUnknownXContentType(request.bytes());
         StreamInput in = request.bytes().streamInput();
         try {
             if (compressor != null) {
@@ -187,29 +183,20 @@ public class PublicationTransportHandler {
         ClusterState incomingState;
         try {
             final Diff<ClusterState> diff;
-            final boolean includesLastCommittedData = request.version().onOrAfter(INCLUDES_LAST_COMMITTED_DATA_VERSION);
             final boolean clusterUuidCommitted;
             final CoordinationMetadata.VotingConfiguration lastCommittedConfiguration;
 
             // Close stream early to release resources used by the de-compression as early as possible
             try (StreamInput input = in) {
                 diff = ClusterState.readDiffFrom(input, currentState.nodes().getLocalNode());
-                if (includesLastCommittedData) {
-                    clusterUuidCommitted = in.readBoolean();
-                    lastCommittedConfiguration = new CoordinationMetadata.VotingConfiguration(in);
-                } else {
-                    clusterUuidCommitted = false;
-                    lastCommittedConfiguration = null;
-                }
+                clusterUuidCommitted = in.readBoolean();
+                lastCommittedConfiguration = new CoordinationMetadata.VotingConfiguration(in);
                 assert input.read() == -1;
             }
             incomingState = diff.apply(currentState); // might throw IncompatibleClusterStateVersionException
-            if (includesLastCommittedData) {
-                final var adjustedMetadata = incomingState.metadata()
-                    .withLastCommittedValues(clusterUuidCommitted, lastCommittedConfiguration);
-                if (adjustedMetadata != incomingState.metadata()) {
-                    incomingState = ClusterState.builder(incomingState).metadata(adjustedMetadata).build();
-                }
+            final var adjustedMetadata = incomingState.metadata().withLastCommittedValues(clusterUuidCommitted, lastCommittedConfiguration);
+            if (adjustedMetadata != incomingState.metadata()) {
+                incomingState = ClusterState.builder(incomingState).metadata(adjustedMetadata).build();
             }
         } catch (IncompatibleClusterStateVersionException e) {
             incompatibleClusterStateDiffReceivedCount.incrementAndGet();
@@ -264,11 +251,7 @@ public class PublicationTransportHandler {
     private ReleasableBytesReference serializeFullClusterState(ClusterState clusterState, DiscoveryNode node, TransportVersion version) {
         try (RecyclerBytesStreamOutput bytesStream = transportService.newNetworkBytesStream()) {
             final long uncompressedBytes;
-            try (
-                StreamOutput stream = new PositionTrackingOutputStreamStreamOutput(
-                    CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(bytesStream))
-                )
-            ) {
+            try (StreamOutput stream = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(Streams.flushOnCloseStream(bytesStream))) {
                 stream.setTransportVersion(version);
                 stream.writeBoolean(true);
                 clusterState.writeTo(stream);
@@ -297,18 +280,12 @@ public class PublicationTransportHandler {
         final long clusterStateVersion = newState.version();
         try (RecyclerBytesStreamOutput bytesStream = transportService.newNetworkBytesStream()) {
             final long uncompressedBytes;
-            try (
-                StreamOutput stream = new PositionTrackingOutputStreamStreamOutput(
-                    CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(bytesStream))
-                )
-            ) {
+            try (StreamOutput stream = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(Streams.flushOnCloseStream(bytesStream))) {
                 stream.setTransportVersion(version);
                 stream.writeBoolean(false);
                 diff.writeTo(stream);
-                if (version.onOrAfter(INCLUDES_LAST_COMMITTED_DATA_VERSION)) {
-                    stream.writeBoolean(newState.metadata().clusterUUIDCommitted());
-                    newState.getLastCommittedConfiguration().writeTo(stream);
-                }
+                stream.writeBoolean(newState.metadata().clusterUUIDCommitted());
+                newState.getLastCommittedConfiguration().writeTo(stream);
                 uncompressedBytes = stream.position();
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to serialize cluster state diff for publishing to node {}", e, node);

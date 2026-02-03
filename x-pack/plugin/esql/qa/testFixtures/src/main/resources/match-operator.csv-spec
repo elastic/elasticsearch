@@ -5,23 +5,64 @@
 matchWithField
 required_capability: match_operator_colon
 
-// tag::match-with-field[]
+// tag::match-with-text-field[]
 FROM books 
 | WHERE author:"Faulkner"
-// end::match-with-field[]
+// end::match-with-text-field[]
 | KEEP book_no, author 
-| SORT book_no 
+| SORT book_no
 | LIMIT 5
 ;
 
-// tag::match-with-field-result[]
+// tag::match-with-text-field-result[]
 book_no:keyword | author:text
 2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
 2713            | William Faulkner
 2847            | Colleen Faulkner
 2883            | William Faulkner
 3293            | Danny Faulkner
-// end::match-with-field-result[]
+// end::match-with-text-field-result[]
+;
+
+matchWithMultivaluedKeywordField
+required_capability: match_operator_colon
+
+// tag::match-with-keyword-field[]
+FROM employees
+| WHERE job_positions:"Internship"
+| KEEP emp_no, job_positions
+// end::match-with-keyword-field[]
+| SORT emp_no
+| LIMIT 3
+;
+
+// tag::match-with-keyword-field-result[]
+emp_no:integer | job_positions:keyword
+10008          | [Internship, Junior Developer, Purchase Manager, Senior Python Developer]
+10009          | [Internship, Senior Python Developer]
+10022          | [Data Scientist, Internship, Python Developer, Reporting Analyst]
+// end::match-with-keyword-field-result[]
+;
+
+# this is a docs example for semantic search, it's skipped because constructing a meaningful
+# example for semantic search is hard, when we don't use a real ML model to generate embeddings
+matchWithSemanticTextDocsExample-Ignore
+required_capability: match_operator_colon
+
+// tag::match-with-semantic-text-field[]
+FROM books METADATA _score
+| WHERE semantic_title:"Shakespeare"
+| SORT _score DESC
+| KEEP _score, semantic_title
+// end::match-with-semantic-text-field[]
+;
+
+// tag::match-with-semantic-text-field-result[]
+_score:double | semantic_text_field:text
+9.5770        | Romeo and Juliet
+9.6850        | Hamlet
+8.232         | Othello
+// end::match-with-semantic-text-field-result[]
 ;
 
 matchWithMultipleFunctions
@@ -752,6 +793,31 @@ host:keyword | semantic_text_field:text | language_name:keyword | language_code:
 "host1"      | live long and prosper    | English               | 1
 ;
 
+testFTFWithLookupJoin
+required_capability: match_operator_colon
+required_capability: match_phrase_function
+required_capability: kql_function
+required_capability: qstr_function
+required_capability: join_lookup_v12
+
+FROM sample_*,-sample__data_*
+| WHERE message : "Connected to 10.1.0.1"
+| WHERE MATCH_PHRASE(message, "Connected to 10.1.0.1")
+| WHERE KQL("message : Connected*")
+| WHERE QSTR("message : *")
+| EVAL @timestamp_millis = TO_DATETIME(@timestamp)
+| EVAL client_ip = TO_IP(client_ip)
+| LOOKUP JOIN sample__data_ts_nanos_lookup ON client_ip
+| STATS BY @timestamp_millis, client_ip, @timestamp, event_duration, message
+| SORT event_duration
+;
+
+@timestamp_millis:date  |client_ip:ip   |@timestamp:date_nanos         |event_duration:long |message:keyword
+2023-10-23T13:55:01.543Z|172.21.3.15    |2023-10-23T13:51:54.732123456Z|725448              |Connection error     
+2023-10-23T13:55:01.543Z|172.21.3.15    |2023-10-23T13:55:01.543123456Z|1756467             |Connected to 10.1.0.1
+2023-10-23T13:55:01.543Z|172.21.3.15    |2023-10-23T13:53:55.832123456Z|5033755             |Connection error     
+2023-10-23T13:55:01.543Z|172.21.3.15    |2023-10-23T13:52:55.015123456Z|8268153             |Connection error     
+;
 
 testMatchInStatsNonPushable
 required_capability: match_operator_colon
@@ -776,4 +842,20 @@ from books
 
 c:long
 22
+;
+
+testMatchOperatorUnionAll
+required_capability: subquery_in_from_command
+required_capability: full_text_functions_accept_null_field
+
+from books, (from hosts)
+| where author: "Marquez"
+| sort year 
+| keep year, author, host
+;
+
+year:integer | author:text            | host:keyword
+1979         | Gabriel Garcia Marquez | null
+2005         | Gabriel Garcia Marquez | null
+2014         | Gabriel Garcia Marquez | null
 ;

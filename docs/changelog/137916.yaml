@@ -1,0 +1,6 @@
+pr: 137916
+summary: Do not assume we hear back from all linked projects when validating resolved
+  index expressions for CPS
+area: CCS
+type: enhancement
+issues: []

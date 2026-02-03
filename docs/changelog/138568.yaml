@@ -1,0 +1,5 @@
+pr: 138568
+summary: Use doc values skipper for `_tsid` in synthetic `_id` postings
+area: TSDB
+type: enhancement
+issues: []

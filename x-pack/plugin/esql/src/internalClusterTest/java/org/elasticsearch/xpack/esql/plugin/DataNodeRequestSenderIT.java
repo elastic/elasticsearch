@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
@@ -131,12 +132,8 @@ public class DataNodeRequestSenderIT extends AbstractEsqlIntegTestCase {
                 (handler, request, channel, task) -> {
                     // move index shard
                     if (shouldMove.compareAndSet(true, false)) {
-                        var currentShardNodeId = clusterService().state()
-                            .routingTable()
-                            .index("index-1")
-                            .shard(0)
-                            .primaryShard()
-                            .currentNodeId();
+                        var shardRouting = clusterService().state().routingTable(ProjectId.DEFAULT).shardRoutingTable("index-1", 0);
+                        var currentShardNodeId = shardRouting.primaryShard().currentNodeId();
                         assertAcked(
                             client().admin()
                                 .indices()

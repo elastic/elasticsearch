@@ -1,0 +1,6 @@
+pr: 135895
+summary: Add optional parameters support to KQL function
+area: ES|QL
+type: enhancement
+issues:
+ - 135823

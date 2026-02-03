@@ -12,12 +12,14 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.blobstore.testkit.analyze.BlobAnalyzeAction;
 import org.elasticsearch.repositories.blobstore.testkit.analyze.RepositoryAnalyzeAction;
 import org.elasticsearch.repositories.blobstore.testkit.analyze.RestRepositoryAnalyzeAction;
 import org.elasticsearch.repositories.blobstore.testkit.integrity.RepositoryVerifyIntegrityTask;
@@ -81,5 +83,10 @@ public class SnapshotRepositoryTestKit extends Plugin implements ActionPlugin {
                 RepositoryVerifyIntegrityTask.Status::new
             )
         );
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(BlobAnalyzeAction.ENABLE_COPY_DURING_WRITE_CONTENTION);
     }
 }

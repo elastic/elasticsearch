@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.common.amazon;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -83,7 +82,7 @@ public class AwsSecretSettings implements SecretSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -136,7 +135,7 @@ public class AwsSecretSettings implements SecretSettings {
 
         private static final LazyInitializable<Map<String, SettingsConfiguration>, RuntimeException> configuration =
             new LazyInitializable<>(
-                () -> configuration(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION)).collect(
+                () -> configuration(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION)).collect(
                     Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)
                 )
             );

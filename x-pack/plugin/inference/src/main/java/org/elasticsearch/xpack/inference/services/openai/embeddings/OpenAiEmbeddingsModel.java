@@ -34,8 +34,7 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
             return model;
         }
 
-        var requestTaskSettings = OpenAiEmbeddingsRequestTaskSettings.fromMap(taskSettings);
-        return new OpenAiEmbeddingsModel(model, OpenAiEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
+        return new OpenAiEmbeddingsModel(model, model.getTaskSettings().updatedTaskSettings(taskSettings));
     }
 
     public OpenAiEmbeddingsModel(
@@ -53,14 +52,13 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
             taskType,
             service,
             OpenAiEmbeddingsServiceSettings.fromMap(serviceSettings, context),
-            OpenAiEmbeddingsTaskSettings.fromMap(taskSettings, context),
+            new OpenAiEmbeddingsTaskSettings(taskSettings),
             chunkingSettings,
             DefaultSecretSettings.fromMap(secrets)
         );
     }
 
-    // Should only be used directly for testing
-    OpenAiEmbeddingsModel(
+    public OpenAiEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
@@ -69,12 +67,23 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
         ChunkingSettings chunkingSettings,
         @Nullable DefaultSecretSettings secrets
     ) {
-        super(
+        this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
-            new ModelSecrets(secrets),
-            serviceSettings,
-            secrets,
-            buildUri(serviceSettings.uri(), OpenAiService.NAME, OpenAiEmbeddingsModel::buildDefaultUri)
+            new ModelSecrets(secrets)
+        );
+    }
+
+    public OpenAiEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(
+            modelConfigurations,
+            modelSecrets,
+            (OpenAiEmbeddingsServiceSettings) modelConfigurations.getServiceSettings(),
+            (DefaultSecretSettings) modelSecrets.getSecretSettings(),
+            buildUri(
+                ((OpenAiEmbeddingsServiceSettings) modelConfigurations.getServiceSettings()).uri(),
+                OpenAiService.NAME,
+                OpenAiEmbeddingsModel::buildDefaultUri
+            )
         );
     }
 

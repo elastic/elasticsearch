@@ -21,10 +21,12 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.AssertWarnings;
+import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 import org.junit.ClassRule;
+import org.junit.Rule;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -54,6 +56,9 @@ import static org.hamcrest.Matchers.startsWith;
 public class PushQueriesIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> spec.plugin("inference-service-test"));
+
+    @Rule(order = Integer.MIN_VALUE)
+    public ProfileLogger profileLogger = new ProfileLogger();
 
     @ParametersFactory(argumentFormatting = "%1s")
     public static List<Object[]> args() {
@@ -128,16 +133,16 @@ public class PushQueriesIT extends ESRestTestCase {
             FROM test
             | WHERE test == "%value" OR test == "%tooBig"
             """.replace("%tooBig", tooBig);
-        String luceneQuery = switch (type) {
-            case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> "*:*";
-            case KEYWORD -> "test:(%tooBig %value)".replace("%tooBig", tooBig);
-            case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+        List<String> luceneQuery = switch (type) {
+            case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> List.of("*:*");
+            case KEYWORD -> List.of("test:(%tooBig %value)".replace("%tooBig", tooBig), "test:(%value %tooBig)".replace("%tooBig", tooBig));
+            case SEMANTIC_TEXT_WITH_KEYWORD -> List.of("FieldExistsQuery [field=_primary_term]");
         };
         ComputeSignature dataNodeSignature = switch (type) {
             case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
         };
-        testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
+        testPushQuery(value, esqlQuery, luceneQuery, dataNodeSignature, true);
     }
 
     public void testEqualityOrOther() throws IOException {
@@ -146,17 +151,21 @@ public class PushQueriesIT extends ESRestTestCase {
             FROM test
             | WHERE test == "%value" OR foo == 2
             """;
-        String luceneQuery = switch (type) {
-            case AUTO, TEXT_WITH_KEYWORD -> "(#test.keyword:%value -_ignored:test.keyword) foo:[2 TO 2]";
-            case KEYWORD -> "test:%value foo:[2 TO 2]";
-            case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD -> "*:*";
-            case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+        // query rewrite optimizations apply to foo, since it's query value is always outside the range of indexed values
+        List<String> luceneQuery = switch (type) {
+            case AUTO, TEXT_WITH_KEYWORD -> List.of(
+                "#test.keyword:%value -_ignored:test.keyword",
+                "(#test.keyword:%value -_ignored:test.keyword) foo:[2 TO 2]"
+            );
+            case KEYWORD -> List.of("test:%value", "test:%value foo:[2 TO 2]");
+            case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD -> List.of("*:*");
+            case SEMANTIC_TEXT_WITH_KEYWORD -> List.of("FieldExistsQuery [field=_primary_term]");
         };
         ComputeSignature dataNodeSignature = switch (type) {
             case AUTO, CONSTANT_KEYWORD, KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
             case MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
         };
-        testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
+        testPushQuery(value, esqlQuery, luceneQuery, dataNodeSignature, true);
     }
 
     public void testEqualityAndOther() throws IOException {
@@ -165,16 +174,21 @@ public class PushQueriesIT extends ESRestTestCase {
             FROM test
             | WHERE test == "%value" AND foo == 1
             """;
+        // query rewrite optimizations apply to foo, since it's query value is always within the range of indexed values
         List<String> luceneQueryOptions = switch (type) {
-            case AUTO, TEXT_WITH_KEYWORD -> List.of("#test.keyword:%value -_ignored:test.keyword #foo:[1 TO 1]");
-            case KEYWORD -> List.of("#test:%value #foo:[1 TO 1]");
-            case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD -> List.of("foo:[1 TO 1]");
+            case AUTO, TEXT_WITH_KEYWORD -> List.of(
+                "#test.keyword:%value -_ignored:test.keyword",
+                "#test.keyword:%value -_ignored:test.keyword foo:[2 TO 2]"
+            );
+            case KEYWORD -> List.of("test:%value", "test:%value foo:[2 TO 2]");
+            case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD -> List.of("*:*");
             case SEMANTIC_TEXT_WITH_KEYWORD ->
                 /*
-                 * single_value_match is here because there are extra documents hiding in the index
-                 * that don't have the `foo` field.
+                 * FieldExistsQuery is because there are extra documents hiding in the index
+                 * that don't have the `foo` field. "*:*" is because sometimes we end up on
+                 * a shard where all `foo = 1`.
                  */
-                List.of("#foo:[1 TO 1] #single_value_match(foo)", "foo:[1 TO 1]");
+                List.of("#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]", "foo:[1 TO 1]", "FieldExistsQuery [field=_primary_term]");
         };
         ComputeSignature dataNodeSignature = switch (type) {
             case AUTO, CONSTANT_KEYWORD, KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
@@ -229,12 +243,84 @@ public class PushQueriesIT extends ESRestTestCase {
             """;
         String luceneQuery = switch (type) {
             case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> "*:*";
-            case KEYWORD -> "CaseInsensitiveTermQuery{test:%value}";
+            case KEYWORD -> "".equals(value) ? "test:" : "CaseInsensitiveTermQuery{test:%value}";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
         };
         ComputeSignature dataNodeSignature = switch (type) {
             case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+        };
+        testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
+    }
+
+    public void testLike() throws IOException {
+        String value = "v".repeat(between(1, 256));
+        String esqlQuery = """
+            FROM test
+            | WHERE test like "%value*"
+            """;
+        String luceneQuery = switch (type) {
+            case KEYWORD -> "test:%value*";
+            case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, AUTO, TEXT_WITH_KEYWORD -> "*:*";
+            case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+        };
+        ComputeSignature dataNodeSignature = switch (type) {
+            case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
+            case AUTO, TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+        };
+        testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
+    }
+
+    public void testLikeList() throws IOException {
+        String value = "v".repeat(between(1, 256));
+        String esqlQuery = """
+            FROM test
+            | WHERE test like ("%value*", "abc*")
+            """;
+        String luceneQuery = switch (type) {
+            case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, AUTO, TEXT_WITH_KEYWORD -> "*:*";
+            case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+            case KEYWORD -> "test:LIKE(\"%value*\", \"abc*\"), caseInsensitive=false";
+        };
+        ComputeSignature dataNodeSignature = switch (type) {
+            case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
+            case AUTO, TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+        };
+        testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
+    }
+
+    public void testRLike() throws IOException {
+        String value = "v".repeat(between(1, 256));
+        String esqlQuery = """
+            FROM test
+            | WHERE test rlike "%value.*"
+            """;
+        String luceneQuery = switch (type) {
+            case KEYWORD -> "test:/%value.*/";
+            case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, AUTO, TEXT_WITH_KEYWORD -> "*:*";
+            case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+        };
+        ComputeSignature dataNodeSignature = switch (type) {
+            case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
+            case AUTO, TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+        };
+        testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
+    }
+
+    public void testRLikeList() throws IOException {
+        String value = "v".repeat(between(1, 256));
+        String esqlQuery = """
+            FROM test
+            | WHERE test rlike ("%value.*", "abc.*")
+            """;
+        String luceneQuery = switch (type) {
+            case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, AUTO, TEXT_WITH_KEYWORD -> "*:*";
+            case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+            case KEYWORD -> "test:RLIKE(\"%value.*\", \"abc.*\"), caseInsensitive=false";
+        };
+        ComputeSignature dataNodeSignature = switch (type) {
+            case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
+            case AUTO, TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
     }
@@ -276,14 +362,22 @@ public class PushQueriesIT extends ESRestTestCase {
         String replacedQuery = esqlQuery.replaceAll("%value", value).replaceAll("%different_value", differentValue);
         RestEsqlTestCase.RequestObjectBuilder builder = requestObjectBuilder().query(replacedQuery + "\n| KEEP test");
         builder.profile(true);
-        Map<String, Object> result = runEsql(builder, new AssertWarnings.NoWarnings(), RestEsqlTestCase.Mode.SYNC);
+        Map<String, Object> result = runEsql(builder, new AssertWarnings.NoWarnings(), profileLogger, RestEsqlTestCase.Mode.SYNC);
         assertResultMap(
             result,
             getResultMatcher(result).entry(
                 "profile",
-                matchesMap().entry("drivers", instanceOf(List.class))
+                matchesMap() //
+                    .entry("drivers", instanceOf(List.class))
+                    .entry("plans", instanceOf(List.class))
                     .entry("planning", matchesMap().extraOk())
+                    .entry("parsing", matchesMap().extraOk())
+                    .entry("preanalysis", matchesMap().extraOk())
+                    .entry("dependency_resolution", matchesMap().extraOk())
+                    .entry("analysis", matchesMap().extraOk())
                     .entry("query", matchesMap().extraOk())
+                    .entry("field_caps_calls", instanceOf(Integer.class))
+                    .entry("minimumTransportVersion", instanceOf(Integer.class))
             ),
             matchesList().item(matchesMap().entry("name", "test").entry("type", anyOf(equalTo("text"), equalTo("keyword")))),
             equalTo(found ? List.of(List.of(value)) : List.of())
@@ -433,7 +527,7 @@ public class PushQueriesIT extends ESRestTestCase {
             }""";
     }
 
-    private static final Pattern TO_NAME = Pattern.compile("\\[.+", Pattern.DOTALL);
+    static final Pattern TO_NAME = Pattern.compile("\\[.+", Pattern.DOTALL);
 
     private static String checkOperatorProfile(Map<String, Object> o, Matcher<String> query) {
         String name = (String) o.get("operator");
@@ -465,7 +559,7 @@ public class PushQueriesIT extends ESRestTestCase {
             return;
         }
         setupEmbeddings = true;
-        Request request = new Request("PUT", "_inference/text_embedding/test");
+        Request request = new Request("PUT", "/_inference/text_embedding/test");
         request.setJsonEntity("""
                   {
                    "service": "text_embedding_test_service",

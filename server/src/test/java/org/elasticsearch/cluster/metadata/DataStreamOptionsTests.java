@@ -9,7 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -20,6 +20,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DataStreamOptionsTests extends AbstractXContentSerializingTestCase<DataStreamOptions> {
+
+    private static final TransportVersion SETTINGS_IN_DATA_STREAMS = TransportVersion.fromName("settings_in_data_streams");
 
     @Override
     protected Writeable.Reader<DataStreamOptions> instanceReader() {
@@ -57,20 +59,20 @@ public class DataStreamOptionsTests extends AbstractXContentSerializingTestCase<
     }
 
     public void testBackwardCompatibility() throws IOException {
-        DataStreamOptions result = copyInstance(DataStreamOptions.EMPTY, TransportVersions.SETTINGS_IN_DATA_STREAMS);
+        DataStreamOptions result = copyInstance(DataStreamOptions.EMPTY, SETTINGS_IN_DATA_STREAMS);
         assertThat(result, equalTo(DataStreamOptions.EMPTY));
 
         DataStreamOptions withEnabled = new DataStreamOptions(
             new DataStreamFailureStore(randomBoolean(), DataStreamLifecycleTests.randomFailuresLifecycle())
         );
-        result = copyInstance(withEnabled, TransportVersions.SETTINGS_IN_DATA_STREAMS);
+        result = copyInstance(withEnabled, SETTINGS_IN_DATA_STREAMS);
         assertThat(result.failureStore().enabled(), equalTo(withEnabled.failureStore().enabled()));
         assertThat(result.failureStore().lifecycle(), nullValue());
 
         DataStreamOptions withoutEnabled = new DataStreamOptions(
             new DataStreamFailureStore(null, DataStreamLifecycleTests.randomFailuresLifecycle())
         );
-        result = copyInstance(withoutEnabled, TransportVersions.SETTINGS_IN_DATA_STREAMS);
+        result = copyInstance(withoutEnabled, SETTINGS_IN_DATA_STREAMS);
         assertThat(result, equalTo(DataStreamOptions.EMPTY));
     }
 }

@@ -17,11 +17,7 @@ The *Elastic SharePoint Online connector* is a [connector](/reference/search-con
 
 This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
-View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/sharepoint_online.py) (branch *main*, compatible with Elastic *9.0*).
-
-::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
-::::
+View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/sharepoint/sharepoint_online) (branch *main*, compatible with Elastic *9.0*).
 
 ## **Self-managed connector** [es-connectors-sharepoint-online-connector-client-reference]
 
@@ -281,8 +277,9 @@ You can deploy the SharePoint Online connector as a self-managed connector using
 Download the sample configuration file. You can either download it manually or run the following command:
 
 ```sh
-curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
+curl https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example --output ~/connectors-config/config.yml
 ```
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -320,13 +317,13 @@ Note: You can change other default configurations by simply uncommenting specifi
 ::::{dropdown} Step 3: Run the Docker image
 Run the Docker image with the Connector Service using the following command:
 
-```sh
+```sh subs=true
 docker run \
 -v ~/connectors-config:/config \
 --network "elastic" \
 --tty \
 --rm \
-docker.elastic.co/integrations/elastic-connectors:9.0.0 \
+docker.elastic.co/integrations/elastic-connectors:{{version.stack}} \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ```
@@ -401,6 +398,7 @@ Example:
 	"skipExtractingDriveItemsOlderThan": 60
 }
 ```
+% NOTCONSOLE
 
 This rule will not extract content of any drive items (files in document libraries) that haven’t been modified for 60 days or more.
 
@@ -514,6 +512,7 @@ POST INDEX_NAME/_update_by_query?conflicts=proceed
   }
 }
 ```
+% TEST[skip:TODO]
 
 
 ### Document-level security [es-connectors-sharepoint-online-client-dls]
@@ -591,6 +590,19 @@ make ftest NAME=sharepoint_online DATA_SIZE=small
         If the configuration `Enumerate All Sites?` is enabled, incremental syncs may not behave as expected. Drive Item documents that were deleted between incremental syncs may not be detected as deleted.
 
         **Workaround**: Disable `Enumerate All Sites?`, and configure full site paths for all desired sites.
+
+* **ACL is not properly inherited for Site Pages and List Items inside of a folder with Unique Permissions when DLS is enabled with Fetch unique list item permissions, Fetch unique page permissions or Fetch drive item permissions**
+
+    There is a known issue with ACL propagation when List Items, Site Pages or Drive Items are located inside of a folder that has Unique permissions enabled. Consider the following example:
+
+    ```
+    [0] Root Site (Access: All)
+    [1]  Subsite Travel (Access: inherit)
+    [2]    Folder "/es" (Access: Spanish Employees)
+    [3]      Page "destinations.html" (Access: inherit)
+    ```
+
+    Expected permissions for `destinations.html` should be `Access: Spanish Employees`, but will be `Access: All`, because permissions will be assumed from Subsite Travel, rather than folder "/es".
 
 
 Refer to [Known issues](/release-notes/known-issues.md) for a list of known issues for all connectors.

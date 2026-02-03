@@ -1,0 +1,33 @@
+{
+  "reindex_list": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch#TODO",
+      "description": "List all running reindex operations"
+    },
+    "stability": "beta",
+    "visibility": "feature_flag",
+    "feature_flag": "reindex_resilience",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_reindex",
+          "methods": [
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params": {
+      "detailed": {
+        "type": "boolean",
+        "default": false,
+        "description": "Return detailed reindex information (default: false)"
+      }
+    }
+  }
+}

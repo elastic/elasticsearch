@@ -12,10 +12,16 @@ package org.elasticsearch.rest.action.document;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.TransportAbstractBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectIdResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.streams.StreamType;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -40,6 +46,13 @@ public class RestIndexAction extends BaseRestHandler {
         + "index requests is deprecated, use the typeless endpoints instead (/{index}/_doc/{id}, /{index}/_doc, "
         + "or /{index}/_create/{id}).";
     private final Set<String> capabilities = Set.of(FAILURE_STORE_STATUS_CAPABILITY);
+    private final ClusterService clusterService;
+    private final ProjectIdResolver projectIdResolver;
+
+    public RestIndexAction(ClusterService clusterService, ProjectIdResolver projectIdResolver) {
+        this.clusterService = clusterService;
+        this.projectIdResolver = projectIdResolver;
+    }
 
     @Override
     public List<Route> routes() {
@@ -53,6 +66,10 @@ public class RestIndexAction extends BaseRestHandler {
 
     @ServerlessScope(Scope.PUBLIC)
     public static final class CreateHandler extends RestIndexAction {
+
+        public CreateHandler(ClusterService clusterService, ProjectIdResolver projectIdResolver) {
+            super(clusterService, projectIdResolver);
+        }
 
         @Override
         public String getName() {
@@ -81,7 +98,9 @@ public class RestIndexAction extends BaseRestHandler {
     @ServerlessScope(Scope.PUBLIC)
     public static final class AutoIdHandler extends RestIndexAction {
 
-        public AutoIdHandler() {}
+        public AutoIdHandler(ClusterService clusterService, ProjectIdResolver projectIdResolver) {
+            super(clusterService, projectIdResolver);
+        }
 
         @Override
         public String getName() {
@@ -105,11 +124,15 @@ public class RestIndexAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         ReleasableBytesReference source = request.requiredContent();
-        IndexRequest indexRequest = new IndexRequest(request.param("index"));
+        String index = request.param("index");
+
+        validateStreamsParamRestrictions(request, index);
+
+        IndexRequest indexRequest = new IndexRequest(index);
         indexRequest.id(request.param("id"));
         indexRequest.routing(request.param("routing"));
         indexRequest.setPipeline(request.param("pipeline"));
-        indexRequest.source(source, request.getXContentType());
+        indexRequest.indexSource().source(source, request.getXContentType());
         indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
         indexRequest.setRefreshPolicy(request.param("refresh"));
         indexRequest.version(RestActions.parseVersion(request));
@@ -138,6 +161,28 @@ public class RestIndexAction extends BaseRestHandler {
                 )
             );
         };
+    }
+
+    private void validateStreamsParamRestrictions(RestRequest request, String index) {
+        ProjectMetadata projectMetadata = null;
+
+        for (StreamType streamType : StreamType.values()) {
+            if (index.equals(streamType.getStreamName())) {
+                if (projectMetadata == null) {
+                    projectMetadata = clusterService.state().projectState(projectIdResolver.getProjectId()).metadata();
+                }
+
+                if (streamType.streamTypeIsEnabled(projectMetadata)
+                    && Sets.difference(request.params().keySet(), TransportAbstractBulkAction.STREAMS_ALLOWED_PARAMS).isEmpty() == false) {
+                    throw new IllegalArgumentException(
+                        "When writing to a stream, only the following parameters are allowed: ["
+                            + String.join(", ", TransportAbstractBulkAction.STREAMS_ALLOWED_PARAMS)
+                            + "] however the following were used: "
+                            + request.params().keySet()
+                    );
+                }
+            }
+        }
     }
 
     @Override

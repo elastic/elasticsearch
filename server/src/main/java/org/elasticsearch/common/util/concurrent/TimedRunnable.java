@@ -73,6 +73,13 @@ class TimedRunnable extends AbstractRunnable implements WrappedRunnable {
     }
 
     /**
+     * Returns the time in nanoseconds since this task was created.
+     */
+    long getTimeSinceCreationNanos() {
+        return System.nanoTime() - creationTimeNanos;
+    }
+
+    /**
      * Return the time this task spent being run.
      * If the task is still running or has not yet been run, returns -1.
      */

@@ -104,6 +104,11 @@ final class ConstantDoubleVector extends AbstractVector implements DoubleVector 
     }
 
     @Override
+    public DoubleVector deepCopy(BlockFactory blockFactory) {
+        return blockFactory.newConstantDoubleVector(value, getPositionCount());
+    }
+
+    @Override
     public long ramBytesUsed() {
         return RAM_BYTES_USED;
     }

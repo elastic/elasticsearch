@@ -11,11 +11,11 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
@@ -78,10 +78,25 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
         return new StringField(NAME, Uid.encodeId(id), Field.Store.YES);
     }
 
+    /**
+     * Create a {@link Field} corresponding to a synthetic {@code _id} field, which is not indexed but instead resolved at runtime.
+     */
+    public static Field syntheticIdField(String id) {
+        return new SyntheticIdField(Uid.encodeId(id));
+    }
+
+    /**
+     * Create a {@link Field} corresponding to a synthetic {@code _id} field, which is not indexed but instead resolved at runtime. The id
+     * must be already encoded using {@link Uid#encodeId(String)}.
+     */
+    public static Field syntheticIdField(BytesRef uid) {
+        return new SyntheticIdField(uid);
+    }
+
     protected abstract static class AbstractIdFieldType extends TermBasedFieldType {
 
         public AbstractIdFieldType() {
-            super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(NAME, IndexType.terms(true, false), true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -115,12 +130,12 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            return new MatchAllDocsQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return new BlockStoredFieldsReader.IdBlockLoader();
+            return IdLoader.create(blContext.indexSettings(), blContext.mappingLookup()).blockLoader();
         }
 
         @Override

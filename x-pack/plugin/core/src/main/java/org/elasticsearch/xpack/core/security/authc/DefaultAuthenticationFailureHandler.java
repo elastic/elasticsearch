@@ -29,6 +29,11 @@ import static org.elasticsearch.xpack.core.security.support.Exceptions.authentic
  * response headers like 'WWW-Authenticate'
  */
 public class DefaultAuthenticationFailureHandler implements AuthenticationFailureHandler {
+    /**
+     * Metadata key to denote exceptions that are allowed to return with 403 status
+     */
+    public static final String ACCESS_DENIED_METADATA_KEY = "es.security.access_denied";
+
     private volatile Map<String, List<String>> defaultFailureResponseHeaders;
 
     /**
@@ -113,6 +118,11 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
         if (e instanceof ElasticsearchAuthenticationProcessingError) {
             return (ElasticsearchAuthenticationProcessingError) e;
         }
+        if (e instanceof ElasticsearchSecurityException ese) {
+            if (ese.status() == RestStatus.FORBIDDEN && ese.getMetadata(ACCESS_DENIED_METADATA_KEY) != null) {
+                return ese;
+            }
+        }
         return createAuthenticationError("error attempting to authenticate request", e, (Object[]) null);
     }
 
@@ -127,6 +137,11 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
         // {@link RestStatus#SERVICE_UNAVAILABLE}, besides the obvious {@link RestStatus#UNAUTHORIZED}
         if (e instanceof ElasticsearchAuthenticationProcessingError) {
             return (ElasticsearchAuthenticationProcessingError) e;
+        }
+        if (e instanceof ElasticsearchSecurityException ese) {
+            if (ese.status() == RestStatus.FORBIDDEN && ese.getMetadata(ACCESS_DENIED_METADATA_KEY) != null) {
+                return ese;
+            }
         }
         return createAuthenticationError("error attempting to authenticate request", e, (Object[]) null);
     }
@@ -168,15 +183,15 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
         final ElasticsearchSecurityException ese;
         final boolean containsNegotiateWithToken;
         if (t instanceof ElasticsearchSecurityException) {
-            assert ((ElasticsearchSecurityException) t).status() == RestStatus.UNAUTHORIZED;
+            assert ((ElasticsearchSecurityException) t).status() == RestStatus.UNAUTHORIZED : "rest status must be 401 UNAUTHORIZED";
             ese = (ElasticsearchSecurityException) t;
-            if (ese.getHeader("WWW-Authenticate") != null && ese.getHeader("WWW-Authenticate").isEmpty() == false) {
+            if (ese.getBodyHeader("WWW-Authenticate") != null && ese.getBodyHeader("WWW-Authenticate").isEmpty() == false) {
                 /**
                  * If 'WWW-Authenticate' header is present with 'Negotiate ' then do not
                  * replace. In case of kerberos spnego mechanism, we use
                  * 'WWW-Authenticate' header value to communicate outToken to peer.
                  */
-                containsNegotiateWithToken = ese.getHeader("WWW-Authenticate")
+                containsNegotiateWithToken = ese.getBodyHeader("WWW-Authenticate")
                     .stream()
                     .anyMatch(s -> s != null && s.regionMatches(true, 0, "Negotiate ", 0, "Negotiate ".length()));
             } else {
@@ -191,7 +206,7 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
                 return;
             }
             // If it is already present then it will replace the existing header.
-            ese.addHeader(key, value);
+            ese.addBodyHeader(key, value);
         });
         return ese;
     }

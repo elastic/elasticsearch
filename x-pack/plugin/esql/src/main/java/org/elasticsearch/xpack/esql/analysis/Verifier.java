@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
@@ -16,12 +17,14 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -29,16 +32,20 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Esq
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -55,12 +62,21 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
  */
 public class Verifier {
 
+    /**
+     * Extra plan verification checks defined in plugins.
+     */
+    private final List<BiConsumer<LogicalPlan, Failures>> extraCheckers;
     private final Metrics metrics;
     private final XPackLicenseState licenseState;
 
     public Verifier(Metrics metrics, XPackLicenseState licenseState) {
+        this(metrics, licenseState, Collections.emptyList());
+    }
+
+    public Verifier(Metrics metrics, XPackLicenseState licenseState, List<BiConsumer<LogicalPlan, Failures>> extraCheckers) {
         this.metrics = metrics;
         this.licenseState = licenseState;
+        this.extraCheckers = extraCheckers;
     }
 
     /**
@@ -77,6 +93,8 @@ public class Verifier {
         // quick verification for unresolved attributes
         checkUnresolvedAttributes(plan, failures);
 
+        ConfigurationAware.verifyNoMarkerConfiguration(plan, failures);
+
         // in case of failures bail-out as all other checks will be redundant
         if (failures.hasFailures()) {
             return failures.failures();
@@ -84,6 +102,7 @@ public class Verifier {
 
         // collect plan checkers
         var planCheckers = planCheckers(plan);
+        planCheckers.addAll(extraCheckers);
 
         // Concrete verifications
         plan.forEachDown(p -> {
@@ -96,7 +115,9 @@ public class Verifier {
 
             checkOperationsOnUnsignedLong(p, failures);
             checkBinaryComparison(p, failures);
+            checkUnsupportedAttributeRenaming(p, failures);
             checkInsist(p, failures);
+            checkLimitBeforeInlineStats(p, failures);
         });
 
         if (failures.hasFailures() == false) {
@@ -133,14 +154,10 @@ public class Verifier {
                 }
 
                 e.forEachUp(ae -> {
-                    // Special handling for Project and unsupported/union types: disallow renaming them but pass them through otherwise.
-                    if (p instanceof Project || p instanceof Insist) {
-                        if (ae instanceof Alias as && as.child() instanceof UnsupportedAttribute ua) {
-                            failures.add(fail(ae, ua.unresolvedMessage()));
-                        }
-                        if (ae instanceof UnsupportedAttribute) {
-                            return;
-                        }
+                    // UnsupportedAttribute can pass through Project/Insist unchanged.
+                    // Renaming is checked separately in #checkUnsupportedAttributeRenaming.
+                    if ((p instanceof Project || p instanceof Insist) && ae instanceof UnsupportedAttribute) {
+                        return;
                     }
 
                     // Do not fail multiple times in case the children are already unresolved.
@@ -162,9 +179,20 @@ public class Verifier {
                 // do groupings first
                 var groupings = agg.groupings();
                 groupings.forEach(unresolvedExpressions);
+
+                // We don't count _timeseries which is added implicitly to grouping but not to a list of aggs
+                boolean hasGroupByAll = false;
+                for (Expression grouping : groupings) {
+                    if (MetadataAttribute.isTimeSeriesAttribute(grouping)) {
+                        hasGroupByAll = true;
+                        break;
+                    }
+                }
+                int groupingSize = hasGroupByAll ? groupings.size() - 1 : groupings.size();
+
                 // followed by just the aggregates (to avoid going through the groups again)
                 var aggs = agg.aggregates();
-                int size = aggs.size() - groupings.size();
+                int size = aggs.size() - groupingSize;
                 aggs.subList(0, size).forEach(unresolvedExpressions);
             }
             // similar approach for Lookup
@@ -179,6 +207,11 @@ public class Verifier {
                     lookup.matchFields().forEach(unresolvedExpressions);
                 }
             }
+            // The expressions of the PromqlCommand itself are not relevant here.
+            // The promqlPlan is a separate tree and its children may contain UnresolvedAttribute expressions
+            else if (p instanceof PromqlCommand promql) {
+                promql.promqlPlan().forEachExpressionDown(Expression.class, unresolvedExpressions);
+            }
 
             else {
                 p.forEachExpression(unresolvedExpressions);
@@ -186,6 +219,9 @@ public class Verifier {
         });
     }
 
+    /**
+     * Build a list of checkers based on the components in the plan.
+     */
     private static List<BiConsumer<LogicalPlan, Failures>> planCheckers(LogicalPlan plan) {
         List<BiConsumer<LogicalPlan, Failures>> planCheckers = new ArrayList<>();
         Consumer<? super Node<?>> collectPlanCheckers = p -> {
@@ -238,6 +274,60 @@ public class Verifier {
             LogicalPlan child = i.child();
             if ((child instanceof EsRelation || child instanceof Insist) == false) {
                 failures.add(fail(i, "[insist] can only be used after [from] or [insist] commands, but was [{}]", child.sourceText()));
+            }
+        }
+    }
+
+    /**
+     * Check that UnsupportedAttribute is not renamed via Alias in Project or Insist.
+     * UnsupportedAttribute can pass through these plans unchanged, but renaming is not allowed.
+     * This check runs unconditionally (not gated by {@link LogicalPlan#resolved()}) because
+     * {@link Project#expressionsResolved()} treats UnsupportedAttribute as resolved to allow pass-through.
+     */
+    private static void checkUnsupportedAttributeRenaming(LogicalPlan p, Failures failures) {
+        if (p instanceof Project || p instanceof Insist) {
+            p.forEachExpression(Alias.class, alias -> {
+                if (alias.child() instanceof UnsupportedAttribute ua) {
+                    failures.add(fail(alias, ua.unresolvedMessage()));
+                }
+            });
+        }
+    }
+
+    /*
+     * This is a rudimentary check to prevent INLINE STATS after LIMIT. A LIMIT command can be added by other commands by default,
+     * the best example being FORK. A more robust solution would be to track the commands that add LIMIT and prevent them from doing so
+     * if INLINE STATS is present in the plan. However, this would require authors of new such commands to be aware of this limitation and
+     * implement the necessary checks, which is error-prone.
+     */
+    private static void checkLimitBeforeInlineStats(LogicalPlan plan, Failures failures) {
+        if (plan instanceof InlineStats is) {
+            Holder<Limit> inlineStatsDescendantLimit = new Holder<>();
+            is.forEachDownMayReturnEarly((p, breakEarly) -> {
+                if (p instanceof Limit l) {
+                    inlineStatsDescendantLimit.set(l);
+                    breakEarly.set(true);
+                    return;
+                }
+            });
+
+            var firstLimit = inlineStatsDescendantLimit.get();
+            if (firstLimit != null) {
+                var isString = is.sourceText().length() > Node.TO_STRING_MAX_WIDTH
+                    ? is.sourceText().substring(0, Node.TO_STRING_MAX_WIDTH) + "..."
+                    : is.sourceText();
+                var limitString = firstLimit.sourceText().length() > Node.TO_STRING_MAX_WIDTH
+                    ? firstLimit.sourceText().substring(0, Node.TO_STRING_MAX_WIDTH) + "..."
+                    : firstLimit.sourceText();
+                failures.add(
+                    fail(
+                        is,
+                        "INLINE STATS cannot be used after an explicit or implicit LIMIT command, but was [{}] after [{}] [{}]",
+                        isString,
+                        limitString,
+                        firstLimit.source().source().toString()
+                    )
+                );
             }
         }
     }
@@ -299,6 +389,9 @@ public class Verifier {
         allowed.add(DataType.GEO_SHAPE);
         allowed.add(DataType.CARTESIAN_POINT);
         allowed.add(DataType.CARTESIAN_SHAPE);
+        allowed.add(DataType.GEOHASH);
+        allowed.add(DataType.GEOTILE);
+        allowed.add(DataType.GEOHEX);
         if (bc instanceof Equals || bc instanceof NotEquals) {
             allowed.add(DataType.BOOLEAN);
         }

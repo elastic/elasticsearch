@@ -23,8 +23,8 @@ public class BytesRefs {
         if (value == null) {
             return null;
         }
-        if (value instanceof BytesRef) {
-            return ((BytesRef) value).utf8ToString();
+        if (value instanceof BytesRef bytesRef) {
+            return bytesRef.utf8ToString();
         }
         return value.toString();
     }
@@ -36,8 +36,8 @@ public class BytesRefs {
         if (value == null) {
             return null;
         }
-        if (value instanceof BytesRef) {
-            return (BytesRef) value;
+        if (value instanceof BytesRef bytesRef) {
+            return bytesRef;
         }
         return new BytesRef(value.toString());
     }

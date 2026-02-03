@@ -9,6 +9,7 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -24,6 +25,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ParseIpLeadingZerosAreOctalEvaluator extends AbstractConvertFunction.AbstractEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ParseIpLeadingZerosAreOctalEvaluator.class);
+
   private final EvalOperator.ExpressionEvaluator string;
 
   private final BreakingBytesRefBuilder scratch;
@@ -120,6 +123,13 @@ public final class ParseIpLeadingZerosAreOctalEvaluator extends AbstractConvertF
   @Override
   public void close() {
     Releasables.closeExpectNoException(string, scratch);
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += string.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

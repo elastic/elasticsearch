@@ -79,6 +79,7 @@ The document’s `attachment` object contains extracted properties for the file:
   }
 }
 ```
+% TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 
 ## Exported fields [attachment-fields]
@@ -183,6 +184,7 @@ The document’s `_source` object includes the original binary field:
   }
 }
 ```
+% TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 
 ## Use the attachment processor with CBOR [attachment-cbor]
@@ -280,6 +282,7 @@ Returns this:
   }
 }
 ```
+% TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 ```console
 PUT _ingest/pipeline/attachment
@@ -325,6 +328,7 @@ Returns this:
   }
 }
 ```
+% TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 
 ## Using the attachment processor with arrays [attachment-with-arrays]
@@ -347,6 +351,7 @@ For example, given the following source:
   ]
 }
 ```
+% NOTCONSOLE
 
 In this case, we want to process the data field in each element of the attachments field and insert the properties into the document so the following `foreach` processor is used:
 
@@ -419,6 +424,7 @@ Returns this:
   }
 }
 ```
+% TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 Note that the `target_field` needs to be set, otherwise the default value is used which is a top level field `attachment`. The properties on this top level field will contain the value of the first attachment only. However, by specifying the `target_field` on to a value on `_ingest._value` it will correctly associate the properties with the correct attachment.
 

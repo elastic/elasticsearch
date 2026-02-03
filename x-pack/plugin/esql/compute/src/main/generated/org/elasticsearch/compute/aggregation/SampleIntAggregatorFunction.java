@@ -61,69 +61,79 @@ public final class SampleIntAggregatorFunction implements AggregatorFunction {
   public void addRawInput(Page page, BooleanVector mask) {
     if (mask.allFalse()) {
       // Entire page masked away
-      return;
-    }
-    if (mask.allTrue()) {
-      // No masking
-      IntBlock block = page.getBlock(channels.get(0));
-      IntVector vector = block.asVector();
-      if (vector != null) {
-        addRawVector(vector);
-      } else {
-        addRawBlock(block);
-      }
-      return;
-    }
-    // Some positions masked away, others kept
-    IntBlock block = page.getBlock(channels.get(0));
-    IntVector vector = block.asVector();
-    if (vector != null) {
-      addRawVector(vector, mask);
+    } else if (mask.allTrue()) {
+      addRawInputNotMasked(page);
     } else {
-      addRawBlock(block, mask);
+      addRawInputMasked(page, mask);
     }
   }
 
-  private void addRawVector(IntVector vector) {
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      SampleIntAggregator.combine(state, vector.getInt(i));
+  private void addRawInputMasked(Page page, BooleanVector mask) {
+    IntBlock valueBlock = page.getBlock(channels.get(0));
+    IntVector valueVector = valueBlock.asVector();
+    if (valueVector == null) {
+      addRawBlock(valueBlock, mask);
+      return;
+    }
+    addRawVector(valueVector, mask);
+  }
+
+  private void addRawInputNotMasked(Page page) {
+    IntBlock valueBlock = page.getBlock(channels.get(0));
+    IntVector valueVector = valueBlock.asVector();
+    if (valueVector == null) {
+      addRawBlock(valueBlock);
+      return;
+    }
+    addRawVector(valueVector);
+  }
+
+  private void addRawVector(IntVector valueVector) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      int valueValue = valueVector.getInt(valuesPosition);
+      SampleIntAggregator.combine(state, valueValue);
     }
   }
 
-  private void addRawVector(IntVector vector, BooleanVector mask) {
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+  private void addRawVector(IntVector valueVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      SampleIntAggregator.combine(state, vector.getInt(i));
+      int valueValue = valueVector.getInt(valuesPosition);
+      SampleIntAggregator.combine(state, valueValue);
     }
   }
 
-  private void addRawBlock(IntBlock block) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
-      if (block.isNull(p)) {
+  private void addRawBlock(IntBlock valueBlock) {
+    for (int p = 0; p < valueBlock.getPositionCount(); p++) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        SampleIntAggregator.combine(state, block.getInt(i));
+      int valueStart = valueBlock.getFirstValueIndex(p);
+      int valueEnd = valueStart + valueValueCount;
+      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+        int valueValue = valueBlock.getInt(valueOffset);
+        SampleIntAggregator.combine(state, valueValue);
       }
     }
   }
 
-  private void addRawBlock(IntBlock block, BooleanVector mask) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
+  private void addRawBlock(IntBlock valueBlock, BooleanVector mask) {
+    for (int p = 0; p < valueBlock.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (block.isNull(p)) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        SampleIntAggregator.combine(state, block.getInt(i));
+      int valueStart = valueBlock.getFirstValueIndex(p);
+      int valueEnd = valueStart + valueValueCount;
+      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+        int valueValue = valueBlock.getInt(valueOffset);
+        SampleIntAggregator.combine(state, valueValue);
       }
     }
   }
@@ -138,7 +148,7 @@ public final class SampleIntAggregatorFunction implements AggregatorFunction {
     }
     BytesRefBlock sample = (BytesRefBlock) sampleUncast;
     assert sample.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
+    BytesRef sampleScratch = new BytesRef();
     SampleIntAggregator.combineIntermediate(state, sample);
   }
 

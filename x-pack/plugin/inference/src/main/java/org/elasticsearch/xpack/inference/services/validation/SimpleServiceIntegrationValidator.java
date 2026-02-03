@@ -16,6 +16,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
 import org.elasticsearch.rest.RestStatus;
 
 import java.util.List;

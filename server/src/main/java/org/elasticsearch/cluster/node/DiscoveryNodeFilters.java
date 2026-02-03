@@ -250,6 +250,10 @@ public class DiscoveryNodeFilters {
             || (filters.size() > 1 && opType == OpType.AND && NON_ATTRIBUTE_NAMES.containsAll(filters.keySet()));
     }
 
+    public boolean hasFilters() {
+        return filters.isEmpty() == false;
+    }
+
     /**
      * Generates a human-readable string for the DiscoverNodeFilters.
      * Example: {@code _id:"id1 OR blah",name:"blah OR name2"}

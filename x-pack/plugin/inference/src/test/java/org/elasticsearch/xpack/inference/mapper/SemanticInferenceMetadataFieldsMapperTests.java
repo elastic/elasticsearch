@@ -54,7 +54,6 @@ public class SemanticInferenceMetadataFieldsMapperTests extends MapperServiceTes
             .put(
                 IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
                 IndexVersionUtils.randomVersionBetween(
-                    random(),
                     IndexVersions.SEMANTIC_TEXT_FIELD_TYPE,
                     IndexVersionUtils.getPreviousVersion(IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT)
                 )  // 8.x version range prior to the introduction of the new format
@@ -67,7 +66,6 @@ public class SemanticInferenceMetadataFieldsMapperTests extends MapperServiceTes
             .put(
                 IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
                 IndexVersionUtils.randomVersionBetween(
-                    random(),
                     IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
                     IndexVersionUtils.getPreviousVersion(IndexVersions.INFERENCE_METADATA_FIELDS)
                 )  // 9.x version range prior to the introduction of the new format
@@ -98,7 +96,7 @@ public class SemanticInferenceMetadataFieldsMapperTests extends MapperServiceTes
         settings = Settings.builder()
             .put(
                 IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
-                IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT)
+                IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT)
             )
             .build();
         assertFalse(InferenceMetadataFieldsMapper.isEnabled(settings));
@@ -107,7 +105,6 @@ public class SemanticInferenceMetadataFieldsMapperTests extends MapperServiceTes
             .put(
                 IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
                 IndexVersionUtils.randomVersionBetween(
-                    random(),
                     IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT,
                     IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_0_0)
                 )
@@ -140,12 +137,11 @@ public class SemanticInferenceMetadataFieldsMapperTests extends MapperServiceTes
             // Randomly choose an index version compatible with the legacy semantic text format
             if (randomBoolean()) {
                 // 9.x+ version
-                return IndexVersionUtils.randomVersionBetween(random(), IndexVersions.UPGRADE_TO_LUCENE_10_0_0, IndexVersion.current());
+                return IndexVersionUtils.randomVersionBetween(IndexVersions.UPGRADE_TO_LUCENE_10_0_0, IndexVersion.current());
             }
 
             // 8.x version
             return IndexVersionUtils.randomVersionBetween(
-                random(),
                 IndexVersions.SEMANTIC_TEXT_FIELD_TYPE,
                 IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_0_0)
             );
@@ -153,16 +149,14 @@ public class SemanticInferenceMetadataFieldsMapperTests extends MapperServiceTes
             // Randomly choose an index version compatible with the new semantic text format
             if (randomBoolean()) {
                 // 9.x+ version
-                return IndexVersionUtils.randomVersionBetween(random(), IndexVersions.INFERENCE_METADATA_FIELDS, IndexVersion.current());
+                return IndexVersionUtils.randomVersionBetween(IndexVersions.INFERENCE_METADATA_FIELDS, IndexVersion.current());
             }
 
             // 8.x version
             return IndexVersionUtils.randomVersionBetween(
-                random(),
                 IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT,
                 IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_0_0)
             );
         }
     }
-
 }

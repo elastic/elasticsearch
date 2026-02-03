@@ -1333,3 +1333,549 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "1" }
   - close_to: { hits.hits.0._score: { value: 1.0, error: 0.001} }
+
+---
+"linear retriever with top-level normalizer - minmax":
+  - requires:
+      cluster_features: [ "linear_retriever.top_level_normalizer" ]
+      reason: "Support for top-level normalizer in linear retriever"
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              normalizer: minmax
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        bool: {
+                          should: [
+                            { constant_score: { filter: { term: { keyword: { value: "one" } } }, boost: 10.0 } },
+                            { constant_score: { filter: { term: { keyword: { value: "two" } } }, boost: 5.0 } }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  weight: 1.0
+                },
+                {
+                  retriever: {
+                    knn: {
+                      field: "vector",
+                      query_vector: [4],
+                      k: 2,
+                      num_candidates: 10
+                    }
+                  },
+                  weight: 2.0
+                }
+              ]
+
+  - match: { hits.total.value: 4 }
+  - match: { hits.hits.0._id: "4" }
+  - close_to: { hits.hits.0._score: { value: 2.0, error: 0.01} }
+  - match: { hits.hits.1._id: "1" }
+  - close_to: { hits.hits.1._score: { value: 1.0, error: 0.01} }
+  - match: { hits.hits.2._id: "2" }
+  - close_to: { hits.hits.2._score: { value: 0.0, error: 0.01} }
+
+---
+"linear retriever with top-level normalizer - l2_norm":
+  - requires:
+      cluster_features: [ "linear_retriever.top_level_normalizer" ]
+      reason: "Support for top-level normalizer in linear retriever"
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              normalizer: l2_norm
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        bool: {
+                          should: [
+                            { constant_score: { filter: { term: { keyword: { value: "one" } } }, boost: 3.0 } },
+                            { constant_score: { filter: { term: { keyword: { value: "two" } } }, boost: 4.0 } }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  weight: 1.0
+                },
+                {
+                  retriever: {
+                    knn: {
+                      field: "vector",
+                      query_vector: [4],
+                      k: 2,
+                      num_candidates: 10
+                    }
+                  },
+                  weight: 2.0
+                }
+              ]
+
+  - match: { hits.total.value: 4 }
+  - match: { hits.hits.0._id: "4" }
+  - close_to: { hits.hits.0._score: { value: 1.79, error: 0.01} }
+  - match: { hits.hits.1._id: "3" }
+  - close_to: { hits.hits.1._score: { value: 0.89, error: 0.01} }
+  - match: { hits.hits.2._id: "2" }
+  - close_to: { hits.hits.2._score: { value: 0.8, error: 0.01} }
+
+---
+"linear retriever with top-level normalizer and per-retriever override":
+  - requires:
+      cluster_features: [ "linear_retriever.top_level_normalizer" ]
+      reason: "Support for top-level normalizer in linear retriever"
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              normalizer: minmax
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        bool: {
+                          should: [
+                            { constant_score: { filter: { term: { keyword: { value: "one" } } }, boost: 10.0 } },
+                            { constant_score: { filter: { term: { keyword: { value: "two" } } }, boost: 5.0 } }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  weight: 1.0,
+                  normalizer: l2_norm
+                },
+                {
+                  retriever: {
+                    knn: {
+                      field: "vector",
+                      query_vector: [4],
+                      k: 2,
+                      num_candidates: 10
+                    }
+                  },
+                  weight: 2.0
+                }
+              ]
+
+  - match: { hits.total.value: 4 }
+  - match: { hits.hits.0._id: "4" }
+  - close_to: { hits.hits.0._score: { value: 2.0, error: 0.01} }
+  - match: { hits.hits.1._id: "1" }
+  - close_to: { hits.hits.1._score: { value: 0.89, error: 0.01} }
+  - match: { hits.hits.2._id: "2" }
+  - close_to: { hits.hits.2._score: { value: 0.45, error: 0.01} }
+
+---
+"linear retriever with top-level normalizer - empty results":
+  - requires:
+      cluster_features: [ "linear_retriever.top_level_normalizer" ]
+      reason: "Support for top-level normalizer in linear retriever"
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              normalizer: minmax
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        term: {
+                          keyword: {
+                            value: "nonexistent"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  weight: 1.0
+                }
+              ]
+
+  - match: { hits.total.value: 0 }
+  - length: { hits.hits: 0 }
+
+---
+"Linear retriever with mixed normalizers - inheritance test":
+  - requires:
+      cluster_features: [ "linear_retriever.top_level_normalizer" ]
+      reason: "SSupport for top-level normalizer in linear retriever"
+
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              normalizer: l2_norm  # Top-level normalizer
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "one"
+                              }
+                            }
+                          },
+                          boost: 4.0
+                        }
+                      }
+                    }
+                  },
+                  weight: 1.0
+                  # No normalizer specified - should inherit top-level L2 norm
+                },
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "two"
+                              }
+                            }
+                          },
+                          boost: 8.0
+                        }
+                      }
+                    }
+                  },
+                  weight: 1.0,
+                  normalizer: minmax  # Override with minmax
+                },
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "three"
+                              }
+                            }
+                          },
+                          boost: 6.0
+                        }
+                      }
+                    }
+                  },
+                  weight: 2.0
+                  # No normalizer specified - should inherit top-level L2 norm
+                }
+              ]
+
+  - match: { hits.total.value: 3 }
+  # Complex mixed normalization scenario with different weights
+  # First retriever: L2 norm on [4.0] = 1.0, final = 1.0 * 1.0 = 1.0
+  # Second retriever: minmax on [8.0] = 1.0, final = 1.0 * 1.0 = 1.0  
+  # Third retriever: L2 norm on [6.0] = 1.0, final = 1.0 * 2.0 = 2.0
+  - match: { hits.hits.0._id: "3" }  # Highest score due to weight=2.0
+  - close_to: { hits.hits.0._score: { value: 2.0, error: 0.001} }
+  - match: { hits.hits.1._id: "1" }  # Second score = 1.0
+  - close_to: { hits.hits.1._score: { value: 1.0, error: 0.001} }
+  - match: { hits.hits.2._id: "2" }  # Third score = 1.0
+  - close_to: { hits.hits.2._score: { value: 1.0, error: 0.001} }
+
+---
+"Linear retriever with identity normalizer (no normalization)":
+  - requires:
+      cluster_features: [ "linear_retriever.top_level_normalizer" ]
+      reason: "Support for top-level normalizer in linear retriever"
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              normalizer: none
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "one"
+                              }
+                            }
+                          },
+                          boost: 7.5
+                        }
+                      }
+                    }
+                  },
+                  weight: 2.0
+                },
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "four"
+                              }
+                            }
+                          },
+                          boost: 3.2
+                        }
+                      }
+                    }
+                  },
+                  weight: 1.0
+                }
+              ]
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "4" }
+  - close_to: { hits.hits.0._score: { value: 15.0, error: 0.001} }
+  - close_to: { hits.hits.1._score: { value: 3.2, error: 0.001} }
+
+---
+"Linear retriever with all normalizers applied to same data":
+  - requires:
+      cluster_features: [ "linear_retriever.l2_norm" ]
+      reason: "Support for L2 normalization"
+
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "one"
+                              }
+                            }
+                          },
+                          boost: 10.0
+                        }
+                      }
+                    }
+                  },
+                  weight: 1.0,
+                  normalizer: none
+                },
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "one"
+                              }
+                            }
+                          },
+                          boost: 10.0
+                        }
+                      }
+                    }
+                  },
+                  weight: 1.0,
+                  normalizer: l2_norm
+                },
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "one"
+                              }
+                            }
+                          },
+                          boost: 10.0
+                        }
+                      }
+                    }
+                  },
+                  weight: 1.0,
+                  normalizer: minmax
+                }
+              ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+  - close_to: { hits.hits.0._score: { value: 12.0, error: 0.001} }
+
+---
+"Linear retriever normalization with zero scores":
+  - requires:
+      cluster_features: [ "linear_retriever.top_level_normalizer" ]
+      reason: "Support for top-level normalizer in linear retriever"
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              normalizer: minmax
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              nonexistent_field: "nonexistent_value"
+                            }
+                          },
+                          boost: 5.0
+                        }
+                      }
+                    }
+                  },
+                  weight: 1.0
+                },
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "one"
+                              }
+                            }
+                          },
+                          boost: 10.0
+                        }
+                      }
+                    }
+                  },
+                  weight: 2.0
+                }
+              ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+  - close_to: { hits.hits.0._score: { value: 2.0, error: 0.001} }
+
+---
+"Linear retriever error handling - invalid normalizer":
+  - requires:
+      cluster_features: [ "linear_retriever.top_level_normalizer" ]
+      reason: "Support for top-level normalizer in linear retriever"
+  - do:
+      catch: /Unknown normalizer \[invalid\]/
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              normalizer: invalid
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        match_all: {}
+                      }
+                    }
+                  },
+                  weight: 1.0
+                }
+              ]
+
+---
+"Linear retriever with large score differences and L2 normalization":
+  - requires:
+      cluster_features: [ "linear_retriever.top_level_normalizer" ]
+      reason: "Support for top-level normalizer in linear retriever"
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              normalizer: l2_norm
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "one"
+                              }
+                            }
+                          },
+                          boost: 1000.0
+                        }
+                      }
+                    }
+                  },
+                  weight: 1.0
+                },
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "four"
+                              }
+                            }
+                          },
+                          boost: 1.0
+                        }
+                      }
+                    }
+                  },
+                  weight: 1.0
+                }
+              ]
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "4" }
+  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.001} }
+  - close_to: { hits.hits.1._score: { value: 1.0, error: 0.001} }

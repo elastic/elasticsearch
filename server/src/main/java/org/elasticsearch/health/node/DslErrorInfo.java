@@ -9,7 +9,7 @@
 
 package org.elasticsearch.health.node;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,6 +24,8 @@ import java.io.IOException;
  */
 public record DslErrorInfo(String indexName, long firstOccurrence, int retryCount, ProjectId projectId) implements Writeable {
 
+    private static final TransportVersion ADD_PROJECT_ID_TO_DSL_ERROR_INFO = TransportVersion.fromName("add_project_id_to_dsl_error_info");
+
     public DslErrorInfo(String indexName, long firstOccurrence, int retryCount) {
         this(indexName, firstOccurrence, retryCount, ProjectId.DEFAULT);
     }
@@ -33,9 +35,7 @@ public record DslErrorInfo(String indexName, long firstOccurrence, int retryCoun
             in.readString(),
             in.readLong(),
             in.readVInt(),
-            in.getTransportVersion().onOrAfter(TransportVersions.ADD_PROJECT_ID_TO_DSL_ERROR_INFO)
-                ? ProjectId.readFrom(in)
-                : ProjectId.DEFAULT
+            in.getTransportVersion().supports(ADD_PROJECT_ID_TO_DSL_ERROR_INFO) ? ProjectId.readFrom(in) : ProjectId.DEFAULT
         );
     }
 
@@ -44,7 +44,7 @@ public record DslErrorInfo(String indexName, long firstOccurrence, int retryCoun
         out.writeString(indexName);
         out.writeLong(firstOccurrence);
         out.writeVInt(retryCount);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_PROJECT_ID_TO_DSL_ERROR_INFO)) {
+        if (out.getTransportVersion().supports(ADD_PROJECT_ID_TO_DSL_ERROR_INFO)) {
             projectId.writeTo(out);
         }
     }

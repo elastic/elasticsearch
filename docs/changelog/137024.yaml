@@ -1,0 +1,5 @@
+pr: 137024
+summary: Catch-and-rethrow `TooComplexToDeterminizeException` within ESQL
+area: ES|QL
+type: bug
+issues: []

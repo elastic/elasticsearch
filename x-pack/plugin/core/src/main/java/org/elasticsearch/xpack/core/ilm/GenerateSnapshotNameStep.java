@@ -21,6 +21,7 @@ import org.elasticsearch.index.Index;
 
 import java.util.Locale;
 import java.util.Objects;
+import java.util.function.BiFunction;
 
 /**
  * Generates a snapshot name for the given index and records it in the index metadata along with the provided snapshot repository.
@@ -35,10 +36,17 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
     private static final Logger logger = LogManager.getLogger(GenerateSnapshotNameStep.class);
 
     private final String snapshotRepository;
+    private final BiFunction<String, LifecycleExecutionState, String> targetIndexNameSupplier;
 
-    public GenerateSnapshotNameStep(StepKey key, StepKey nextStepKey, String snapshotRepository) {
+    public GenerateSnapshotNameStep(
+        StepKey key,
+        StepKey nextStepKey,
+        String snapshotRepository,
+        BiFunction<String, LifecycleExecutionState, String> targetIndexNameSupplier
+    ) {
         super(key, nextStepKey);
         this.snapshotRepository = snapshotRepository;
+        this.targetIndexNameSupplier = targetIndexNameSupplier;
     }
 
     public String getSnapshotRepository() {
@@ -72,9 +80,11 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
                     + "] cannot continue until the repository is created or the policy is changed"
             );
         }
+        final String indexName = targetIndexNameSupplier.apply(index.getName(), lifecycleState);
+        assert indexName != null : "target index name supplier must not return null";
 
         LifecycleExecutionState.Builder newLifecycleState = LifecycleExecutionState.builder(lifecycleState);
-        newLifecycleState.setSnapshotIndexName(index.getName());
+        newLifecycleState.setSnapshotIndexName(indexName);
         newLifecycleState.setSnapshotRepository(snapshotRepository);
         if (lifecycleState.snapshotName() == null) {
             // generate and validate the snapshotName

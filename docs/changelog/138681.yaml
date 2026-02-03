@@ -1,0 +1,5 @@
+pr: 138681
+summary: Field caps to support `project_routing` also in the body of the request
+area: Search
+type: enhancement
+issues: []

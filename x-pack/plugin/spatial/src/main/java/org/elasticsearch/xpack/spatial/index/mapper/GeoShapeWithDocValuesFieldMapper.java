@@ -39,6 +39,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.GeoShapeParser;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -231,7 +232,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             boolean isSyntheticSource,
             Map<String, String> meta
         ) {
-            super(name, indexed, isStored, hasDocValues, parser, orientation, meta);
+            super(name, IndexType.points(indexed, hasDocValues), isStored, parser, orientation, meta);
             this.scriptValues = scriptValues;
             this.geoFormatterFactory = geoFormatterFactory;
             this.isSyntheticSource = isSyntheticSource;
@@ -263,7 +264,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 );
             }
             Query query;
-            if (isIndexed()) {
+            if (indexType.hasPoints()) {
                 query = LatLonShape.newGeometryQuery(fieldName, relation.getLuceneRelation(), geometries);
                 if (hasDocValues()) {
                     final Query queryDocValues = new LatLonShapeDocValuesQuery(fieldName, relation.getLuceneRelation(), geometries);
@@ -378,6 +379,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
     private final Builder builder;
     private final GeoShapeIndexer indexer;
+    private final boolean indexed;
 
     public GeoShapeWithDocValuesFieldMapper(
         String simpleName,
@@ -399,6 +401,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         );
         this.builder = builder;
         this.indexer = indexer;
+        this.indexed = mappedFieldType.indexType().hasPoints();
     }
 
     @Override
@@ -409,7 +412,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
         final Geometry normalizedGeometry = indexer.normalize(geometry);
         final List<IndexableField> fields = indexer.getIndexableFields(normalizedGeometry);
-        if (fieldType().isIndexed()) {
+        if (indexed) {
             context.doc().addAll(fields);
         }
         if (fieldType().hasDocValues()) {
@@ -421,7 +424,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             }
             // we need to pass the original geometry to compute more precisely the centroid, e.g if lon > 180
             docValuesField.add(fields, geometry);
-        } else if (fieldType().isIndexed()) {
+        } else if (indexed) {
             context.addToFieldNames(fieldType().name());
         }
 

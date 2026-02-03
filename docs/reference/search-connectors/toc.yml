@@ -1,4 +1,4 @@
-project: 'Search connectors reference'
+project: 'Content connectors reference'
 toc:
 - file: index.md
 - file: connector-reference.md
@@ -8,6 +8,7 @@ toc:
     - file: es-connectors-confluence.md
     - file: es-connectors-dropbox.md
     - file: es-connectors-github.md
+    - file: es-connectors-gitlab.md
     - file: es-connectors-gmail.md
     - file: es-connectors-google-cloud.md
     - file: es-connectors-google-drive.md
@@ -26,6 +27,7 @@ toc:
     - file: es-connectors-redis.md
     - file: es-connectors-s3.md
     - file: es-connectors-salesforce.md
+    - file: es-connectors-sandfly.md
     - file: es-connectors-servicenow.md
     - file: es-connectors-sharepoint-online.md
     - file: es-connectors-sharepoint.md
@@ -38,7 +40,6 @@ toc:
     - file: es-connectors-run-from-source.md
     - file: es-connectors-docker-compose-quickstart.md
     - file: es-postgresql-connector-client-tutorial.md
-- file: elastic-managed-connectors.md # TODO: I should be deleted
 - file: build-customize-connectors.md
 - file: connectors-ui-in-kibana.md
 # TO DO: Do we want this page? (It's not in the inventory.)

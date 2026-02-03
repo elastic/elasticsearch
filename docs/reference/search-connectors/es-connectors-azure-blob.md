@@ -11,11 +11,7 @@ The *Elastic Azure Blob Storage connector* is a [connector](/reference/search-co
 
 This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
-View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/azure_blob_storage.py) (branch *main*, compatible with Elastic *9.0*).
-
-::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
-::::
+View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/azure_blob_storage) (branch *main*, compatible with Elastic *9.0*).
 
 ## **Self-managed connector** [es-connectors-azure-blob-connector-client-reference]
 
@@ -36,7 +32,7 @@ This connector has not been tested with Azure Government. Therefore we cannot gu
 
 To create a new Azure Blob Storage connector:
 
-1. In the Kibana UI, navigate to the **Search → Content → Connectors** page from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
+1. In the Kibana UI, search for "connectors" using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects) and choose the "Elasticsearch" connectors.
 2. Follow the instructions to create a new  **Azure Blob Storage** self-managed connector.
 
 
@@ -54,6 +50,7 @@ PUT _connector/my-azure_blob_storage-connector
   "service_type": "azure_blob_storage"
 }
 ```
+% TEST[skip:can’t test in isolation]
 
 :::::{dropdown} You’ll also need to create an API key for the connector to use.
 ::::{note}
@@ -144,8 +141,9 @@ You can deploy the Azure Blob Storage connector as a self-managed connector usin
 Download the sample configuration file. You can either download it manually or run the following command:
 
 ```sh
-curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
+curl https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example --output ~/connectors-config/config.yml
 ```
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -183,13 +181,13 @@ Note: You can change other default configurations by simply uncommenting specifi
 ::::{dropdown} Step 3: Run the Docker image
 Run the Docker image with the Connector Service using the following command:
 
-```sh
+```sh subs=true
 docker run \
 -v ~/connectors-config:/config \
 --network "elastic" \
 --tty \
 --rm \
-docker.elastic.co/integrations/elastic-connectors:9.0.0 \
+docker.elastic.co/integrations/elastic-connectors:{{version.stack}} \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ```

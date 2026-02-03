@@ -9,12 +9,15 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.search.lookup.SourceFilter;
 
@@ -22,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -43,7 +47,7 @@ public final class MappingLookup {
      * A lookup representing an empty mapping. It can be used to look up fields, although it won't hold any, but it does not
      * hold a valid {@link DocumentParser}, {@link IndexSettings} or {@link IndexAnalyzers}.
      */
-    public static final MappingLookup EMPTY = fromMappers(Mapping.EMPTY, List.of(), List.of());
+    public static final MappingLookup EMPTY = fromMappers(Mapping.EMPTY, List.of(), List.of(), IndexMode.STANDARD);
 
     private final CacheKey cacheKey = new CacheKey();
 
@@ -51,6 +55,7 @@ public final class MappingLookup {
     private final Map<String, Mapper> fieldMappers;
     private final Map<String, ObjectMapper> objectMappers;
     private final Map<String, InferenceFieldMetadata> inferenceFields;
+    private final Set<String> syntheticVectorFields;
     private final int runtimeFieldMappersCount;
     private final NestedLookup nestedLookup;
     private final FieldTypeLookup fieldTypeLookup;
@@ -59,14 +64,16 @@ public final class MappingLookup {
     private final List<FieldMapper> indexTimeScriptMappers;
     private final Mapping mapping;
     private final int totalFieldsCount;
+    private final IndexMode indexMode;
 
     /**
      * Creates a new {@link MappingLookup} instance by parsing the provided mapping and extracting its field definitions.
      *
      * @param mapping the mapping source
+     * @param indexMode the mode of the index
      * @return the newly created lookup instance
      */
-    public static MappingLookup fromMapping(Mapping mapping) {
+    public static MappingLookup fromMapping(Mapping mapping, IndexMode indexMode) {
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
         List<FieldMapper> newFieldMappers = new ArrayList<>();
         List<FieldAliasMapper> newFieldAliasMappers = new ArrayList<>();
@@ -79,7 +86,7 @@ public final class MappingLookup {
         for (Mapper child : mapping.getRoot()) {
             collect(child, newObjectMappers, newFieldMappers, newFieldAliasMappers, newPassThroughMappers);
         }
-        return new MappingLookup(mapping, newFieldMappers, newObjectMappers, newFieldAliasMappers, newPassThroughMappers);
+        return new MappingLookup(mapping, newFieldMappers, newObjectMappers, newFieldAliasMappers, newPassThroughMappers, indexMode);
     }
 
     private static void collect(
@@ -120,6 +127,7 @@ public final class MappingLookup {
      * @param objectMappers the object mappers
      * @param aliasMappers the field alias mappers
      * @param passThroughMappers the pass-through mappers
+     * @param indexMode the mode of the index
      * @return the newly created lookup instance
      */
     public static MappingLookup fromMappers(
@@ -127,13 +135,19 @@ public final class MappingLookup {
         Collection<FieldMapper> mappers,
         Collection<ObjectMapper> objectMappers,
         Collection<FieldAliasMapper> aliasMappers,
-        Collection<PassThroughObjectMapper> passThroughMappers
+        Collection<PassThroughObjectMapper> passThroughMappers,
+        IndexMode indexMode
     ) {
-        return new MappingLookup(mapping, mappers, objectMappers, aliasMappers, passThroughMappers);
+        return new MappingLookup(mapping, mappers, objectMappers, aliasMappers, passThroughMappers, indexMode);
     }
 
-    public static MappingLookup fromMappers(Mapping mapping, Collection<FieldMapper> mappers, Collection<ObjectMapper> objectMappers) {
-        return new MappingLookup(mapping, mappers, objectMappers, List.of(), List.of());
+    public static MappingLookup fromMappers(
+        Mapping mapping,
+        Collection<FieldMapper> mappers,
+        Collection<ObjectMapper> objectMappers,
+        IndexMode indexMode
+    ) {
+        return new MappingLookup(mapping, mappers, objectMappers, List.of(), List.of(), indexMode);
     }
 
     private MappingLookup(
@@ -141,7 +155,8 @@ public final class MappingLookup {
         Collection<FieldMapper> mappers,
         Collection<ObjectMapper> objectMappers,
         Collection<FieldAliasMapper> aliasMappers,
-        Collection<PassThroughObjectMapper> passThroughMappers
+        Collection<PassThroughObjectMapper> passThroughMappers,
+        IndexMode indexMode
     ) {
         this.totalFieldsCount = mapping.getRoot().getTotalFieldsCount();
         this.mapping = mapping;
@@ -188,12 +203,17 @@ public final class MappingLookup {
         this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, passThroughMappers, runtimeFields);
 
         Map<String, InferenceFieldMetadata> inferenceFields = new HashMap<>();
+        List<String> syntheticVectorFields = new ArrayList<>();
         for (FieldMapper mapper : mappers) {
             if (mapper instanceof InferenceFieldMapper inferenceFieldMapper) {
                 inferenceFields.put(mapper.fullPath(), inferenceFieldMapper.getMetadata(fieldTypeLookup.sourcePaths(mapper.fullPath())));
             }
+            if (mapper.syntheticVectorsLoader() != null) {
+                syntheticVectorFields.add(mapper.fullPath());
+            }
         }
         this.inferenceFields = Map.copyOf(inferenceFields);
+        this.syntheticVectorFields = Set.copyOf(syntheticVectorFields);
 
         if (runtimeFields.isEmpty()) {
             // without runtime fields this is the same as the field type lookup
@@ -207,6 +227,7 @@ public final class MappingLookup {
         this.runtimeFieldMappersCount = runtimeFields.size();
         this.indexAnalyzersMap = Map.copyOf(indexAnalyzersMap);
         this.indexTimeScriptMappers = List.copyOf(indexTimeScriptMappers);
+        this.indexMode = indexMode;
 
         runtimeFields.stream().flatMap(RuntimeField::asMappedFieldTypes).map(MappedFieldType::name).forEach(this::validateDoesNotShadow);
         assert assertMapperNamesInterned(this.fieldMappers, this.objectMappers);
@@ -283,7 +304,8 @@ public final class MappingLookup {
         checkFieldLimit(settings.getMappingTotalFieldsLimit());
         checkObjectDepthLimit(settings.getMappingDepthLimit());
         checkFieldNameLengthLimit(settings.getMappingFieldNameLengthLimit());
-        checkNestedLimit(settings.getMappingNestedFieldsLimit());
+        checkNestedFieldsLimit(settings.getMappingNestedFieldsLimit());
+        checkNestedParentsLimit(settings.getMappingNestedParentsLimit());
         checkDimensionFieldLimit(settings.getMappingDimensionFieldsLimit());
     }
 
@@ -341,7 +363,7 @@ public final class MappingLookup {
         }
     }
 
-    private void checkFieldNameLengthLimit(long limit) {
+    void checkFieldNameLengthLimit(long limit) {
         validateMapperNameIn(objectMappers.values(), limit);
         validateMapperNameIn(fieldMappers.values(), limit);
     }
@@ -355,15 +377,23 @@ public final class MappingLookup {
         }
     }
 
-    private void checkNestedLimit(long limit) {
-        long actualNestedFields = 0;
-        for (ObjectMapper objectMapper : objectMappers.values()) {
-            if (objectMapper.isNested()) {
-                actualNestedFields++;
-            }
-        }
-        if (actualNestedFields > limit) {
+    private void checkNestedFieldsLimit(long limit) {
+        if (nestedLookup.getNestedMappers().size() > limit) {
             throw new IllegalArgumentException("Limit of nested fields [" + limit + "] has been exceeded");
+        }
+    }
+
+    private void checkNestedParentsLimit(long limit) {
+        if (nestedLookup.getNestedMappers().size() < limit) {
+            return;
+        }
+
+        Set<Query> nestedPaths = new HashSet<>();
+        for (var nested : nestedLookup.getNestedMappers().values()) {
+            nestedPaths.add(nested.parentTypeFilter());
+        }
+        if (nestedPaths.size() > limit) {
+            throw new IllegalArgumentException("Limit of nested parents [" + limit + "] has been exceeded");
         }
     }
 
@@ -376,6 +406,10 @@ public final class MappingLookup {
      */
     public Map<String, InferenceFieldMetadata> inferenceFields() {
         return inferenceFields;
+    }
+
+    public Set<String> syntheticVectorFields() {
+        return syntheticVectorFields;
     }
 
     public NestedLookup nestedLookup() {
@@ -484,9 +518,29 @@ public final class MappingLookup {
      */
     public SourceLoader newSourceLoader(@Nullable SourceFilter filter, SourceFieldMetrics metrics) {
         if (isSourceSynthetic()) {
-            return new SourceLoader.Synthetic(filter, () -> mapping.syntheticFieldLoader(filter), metrics);
+            return new SourceLoader.Synthetic(filter, () -> mapping.syntheticFieldLoader(filter), metrics, mapping.ignoredSourceFormat());
+        }
+        var syntheticVectorsLoader = mapping.syntheticVectorsLoader(filter);
+        if (syntheticVectorsLoader != null) {
+            return new SourceLoader.SyntheticVectors(removeExcludedSyntheticVectorFields(filter), syntheticVectorsLoader);
         }
         return filter == null ? SourceLoader.FROM_STORED_SOURCE : new SourceLoader.Stored(filter);
+    }
+
+    private SourceFilter removeExcludedSyntheticVectorFields(@Nullable SourceFilter filter) {
+        if (filter == null || filter.getExcludes().length == 0) {
+            return filter;
+        }
+        List<String> newExcludes = new ArrayList<>();
+        for (var exclude : filter.getExcludes()) {
+            if (syntheticVectorFields().contains(exclude) == false) {
+                newExcludes.add(exclude);
+            }
+        }
+        if (newExcludes.isEmpty() && filter.getIncludes().length == 0) {
+            return null;
+        }
+        return new SourceFilter(filter.getIncludes(), newExcludes.toArray(String[]::new));
     }
 
     /**
@@ -500,18 +554,18 @@ public final class MappingLookup {
     }
 
     /**
-     * Returns if this mapping contains a timestamp field that is of type date, has doc values, and is either indexed or uses a doc values
-     * skipper.
-     * @return {@code true} if contains a timestamp field of type date that has doc values and is either indexed or uses a doc values
-     * skipper, {@code false} otherwise.
+     * If this mapping contains a timestamp field that is of type date, has doc values, and is either indexed or uses a doc values
+     * skipper, this returns the field type for it.
      */
-    public boolean hasTimestampField() {
+    public @Nullable DateFieldType getTimestampFieldType() {
         final MappedFieldType mappedFieldType = fieldTypesLookup().get(DataStream.TIMESTAMP_FIELD_NAME);
-        if (mappedFieldType instanceof DateFieldMapper.DateFieldType dateMappedFieldType) {
-            return dateMappedFieldType.hasDocValues() && (dateMappedFieldType.isIndexed() || dateMappedFieldType.hasDocValuesSkipper());
-        } else {
-            return false;
+        if (mappedFieldType instanceof DateFieldType dateMappedFieldType) {
+            IndexType indexType = dateMappedFieldType.indexType();
+            if (indexType.hasPoints() || indexType.hasDocValuesSkipper()) {
+                return dateMappedFieldType;
+            }
         }
+        return null;
     }
 
     /**
@@ -538,11 +592,13 @@ public final class MappingLookup {
         if (shadowed == null) {
             return;
         }
-        if (shadowed.isDimension()) {
-            throw new MapperParsingException("Field [" + name + "] attempted to shadow a time_series_dimension");
-        }
-        if (shadowed.getMetricType() != null) {
-            throw new MapperParsingException("Field [" + name + "] attempted to shadow a time_series_metric");
+        if (indexMode == IndexMode.TIME_SERIES) {
+            if (shadowed.isDimension()) {
+                throw new MapperParsingException("Field [" + name + "] attempted to shadow a time_series_dimension");
+            }
+            if (shadowed.getMetricType() != null) {
+                throw new MapperParsingException("Field [" + name + "] attempted to shadow a time_series_metric");
+            }
         }
     }
 }

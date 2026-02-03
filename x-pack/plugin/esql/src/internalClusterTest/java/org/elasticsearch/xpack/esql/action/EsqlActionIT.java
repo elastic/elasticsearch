@@ -27,10 +27,14 @@ import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.compute.operator.HashAggregationOperator;
+import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
@@ -38,6 +42,8 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
@@ -49,9 +55,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
@@ -86,6 +93,7 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
@@ -144,6 +152,26 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse response = run("row " + value)) {
             assertEquals(List.of(List.of(value)), getValuesList(response));
         }
+    }
+
+    public void testRowWithFilter() {
+        long value = randomLongBetween(0, Long.MAX_VALUE);
+        try (EsqlQueryResponse response = run(syncEsqlQueryRequest("ROW " + value).filter(randomQueryFilter()))) {
+            assertEquals(List.of(List.of(value)), getValuesList(response));
+        }
+    }
+
+    public void testInvalidRowWithFilter() {
+        long value = randomLongBetween(0, Long.MAX_VALUE);
+        expectThrows(
+            VerificationException.class,
+            containsString("Unknown column [x]"),
+            () -> run(syncEsqlQueryRequest("ROW " + value + " | EVAL x==NULL").filter(randomQueryFilter()))
+        );
+    }
+
+    private static QueryBuilder randomQueryFilter() {
+        return randomFrom(new MatchAllQueryBuilder(), new BoolQueryBuilder().boost(1.0f));
     }
 
     public void testFromStatsGroupingAvgWithSort() {
@@ -862,11 +890,10 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         long to = randomBoolean() ? Long.MAX_VALUE : randomLongBetween(from, from + 1000);
         QueryBuilder filter = new RangeQueryBuilder("val").from(from, true).to(to, true);
         try (
-            EsqlQueryResponse results = EsqlQueryRequestBuilder.newSyncEsqlQueryRequestBuilder(client())
-                .query(command)
-                .filter(filter)
-                .pragmas(randomPragmas())
-                .get()
+            EsqlQueryResponse results = client().execute(
+                EsqlQueryAction.INSTANCE,
+                syncEsqlQueryRequest(command).filter(filter).pragmas(randomPragmas())
+            ).get()
         ) {
             logger.info(results);
             OptionalDouble avg = docs.values().stream().filter(v -> from <= v && v <= to).mapToLong(n -> n).average();
@@ -950,7 +977,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             logger.info(results);
             assertThat(results.columns(), hasSize(1));
             assertThat(results.columns(), contains(new ColumnInfoImpl("a", "integer", null)));
-            assertThat(getValuesList(results), is(empty()));
+            assertThat(getValuesList(results).size(), is(40));
         }
     }
 
@@ -958,7 +985,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse results = run("from test | stats g = count(data) | drop g")) {
             logger.info(results);
             assertThat(results.columns(), is(empty()));
-            assertThat(getValuesList(results), is(empty()));
+            assertThat(getValuesList(results).size(), is(1));
         }
     }
 
@@ -1071,8 +1098,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         testCases.put("test_ds_patterns*::data,test_ds_patterns*::failures,-test_ds_patterns_2*::data", 19L);
         testCases.put("test_ds_patterns*::data,test_ds_patterns*::failures,-test_ds_patterns_2*::failures", 21L);
 
-        testCases.put("\"test_ds_patterns_1,test_ds_patterns_2\"::failures", 8L);
-
         runDataStreamTest(testCases, new String[] { "test_ds_patterns_1", "test_ds_patterns_2", "test_ds_patterns_3" }, (key, value) -> {
             try (var results = run("from " + key + " | stats count(@timestamp)")) {
                 assertEquals(key, 1, getValuesList(results).size());
@@ -1095,9 +1120,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         // Selectors must be outside of date math expressions or else they trip up the selector parsing
         testCases.put("<test-{now/d}::failures>", "Invalid index name [<test-{now/d}], must not contain the following characters [");
         // Only one selector separator is allowed per expression
-        testCases.put("::::data", "mismatched input '::' expecting {QUOTED_STRING, UNQUOTED_SOURCE}");
+        testCases.put("::::data", "mismatched input '::' expecting {QUOTED_STRING, '(', UNQUOTED_SOURCE}");
         // Suffix case is not supported because there is no component named with the empty string
-        testCases.put("index::", "missing {QUOTED_STRING, UNQUOTED_SOURCE} at '|'");
+        testCases.put("index::", "missing UNQUOTED_SOURCE at '|'");
 
         runDataStreamTest(testCases, new String[] { "test_ds_patterns_1" }, (key, value) -> {
             logger.info(key);
@@ -1680,6 +1705,40 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testGroupingStatsOnMissingFields() {
+        assumeTrue("Pragmas are only allowed in snapshots", Build.current().isSnapshot());
+        assertAcked(client().admin().indices().prepareCreate("missing_field_index").setMapping("data", "type=long"));
+        long oneValue = between(1, 1000);
+        indexDoc("missing_field_index", "1", "data", oneValue);
+        refresh("missing_field_index");
+        QueryPragmas pragmas = randomPragmas();
+        pragmas = new QueryPragmas(
+            Settings.builder().put(pragmas.getSettings()).put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build()
+        );
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("FROM missing_field_index,test | STATS s = sum(data) BY color, tag | SORT color");
+        request.pragmas(pragmas);
+        try (var r = run(request)) {
+            var rows = getValuesList(r);
+            assertThat(rows, hasSize(4));
+            for (List<Object> row : rows) {
+                assertThat(row, hasSize(3));
+            }
+            assertThat(rows.get(0).get(0), equalTo(20L));
+            assertThat(rows.get(0).get(1), equalTo("blue"));
+            assertNull(rows.get(0).get(2));
+            assertThat(rows.get(1).get(0), equalTo(10L));
+            assertThat(rows.get(1).get(1), equalTo("green"));
+            assertNull(rows.get(1).get(2));
+            assertThat(rows.get(2).get(0), equalTo(30L));
+            assertThat(rows.get(2).get(1), equalTo("red"));
+            assertNull(rows.get(2).get(2));
+            assertThat(rows.get(3).get(0), equalTo(oneValue));
+            assertNull(rows.get(3).get(1));
+            assertNull(rows.get(3).get(2));
+        }
+    }
+
     private void assertEmptyIndexQueries(String from) {
         try (EsqlQueryResponse resp = run(from + "METADATA _source | KEEP _source | LIMIT 1")) {
             assertFalse(resp.values().hasNext());
@@ -1817,6 +1876,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                     "time",
                     "type=long",
                     "color",
+                    "type=keyword",
+                    "tag",
                     "type=keyword"
                 )
         );
@@ -1848,7 +1909,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     public void testDefaultTruncationSizeSetting() {
         ClusterAdminClient client = admin().cluster();
 
-        Settings settings = Settings.builder().put(EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getKey(), 1).build();
+        Settings settings = Settings.builder().put(AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getKey(), 1).build();
 
         ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .persistentSettings(settings);
@@ -1858,14 +1919,14 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             logger.info(results);
             assertEquals(1, getValuesList(results).size());
         } finally {
-            clearPersistentSettings(EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE);
+            clearPersistentSettings(AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE);
         }
     }
 
     public void testMaxTruncationSizeSetting() {
         ClusterAdminClient client = admin().cluster();
 
-        Settings settings = Settings.builder().put(EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getKey(), 10).build();
+        Settings settings = Settings.builder().put(AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE.getKey(), 10).build();
 
         ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .persistentSettings(settings);
@@ -1875,7 +1936,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             logger.info(results);
             assertEquals(10, getValuesList(results).size());
         } finally {
-            clearPersistentSettings(EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE);
+            clearPersistentSettings(AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE);
         }
     }
 
@@ -1916,7 +1977,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             pragmaSettings.put("data_partitioning", "doc");
             pragmas = new QueryPragmas(pragmaSettings.build());
         }
-        try (EsqlQueryResponse resp = run("FROM test-script | SORT k1 | LIMIT " + numDocs, pragmas)) {
+        try (EsqlQueryResponse resp = run(syncEsqlQueryRequest("FROM test-script | SORT k1 | LIMIT " + numDocs).pragmas(pragmas))) {
             List<Object> k1Column = Iterators.toList(resp.column(0));
             assertThat(k1Column, equalTo(LongStream.range(0L, numDocs).boxed().toList()));
             List<Object> k2Column = Iterators.toList(resp.column(1));
@@ -1929,6 +1990,84 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 val += 10000.0;
             }
             assertThat(meterColumn, equalTo(expectedMeterColumn));
+        }
+    }
+
+    public void testAggregationEmitPartialResultPeriodically() {
+        String index = "test-agg";
+        createIndex(index, indexSettings(1, 0).build());
+        int numHosts = 20;
+        for (int h = 0; h < numHosts; h++) {
+            int numDocs = 10;
+            String host = "host-" + h;
+            for (int t = 0; t < numDocs; t++) {
+                Map<String, Object> doc = new HashMap<>();
+                doc.put("v", randomInt());
+                doc.put("host", host);
+                doc.put("t", t);
+                index(index, UUIDs.base64UUID(), doc);
+            }
+        }
+        client().admin().indices().prepareForceMerge(index).setMaxNumSegments(1).get();
+        refresh(index);
+        Settings pragma = Settings.builder()
+            .put(QueryPragmas.TASK_CONCURRENCY.getKey(), "1")
+            .put(QueryPragmas.PAGE_SIZE.getKey(), 1)
+            .put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getKey(), 5)
+            .put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getKey(), 0.1)
+            .build();
+
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("FROM " + index + " | STATS sum(v) BY host, t");
+        request.profile(true);
+        request.pragmas(new QueryPragmas(pragma));
+        request.acceptedPragmaRisks(true);
+        // enable partial periodic emit because of low keys threshold and uniqueness threshold
+        try (var result = run(request)) {
+            EsqlQueryResponse.Profile profile = result.profile();
+            List<DriverProfile> dataNodes = profile.drivers().stream().filter(d -> d.description().contains("data")).toList();
+            assertThat(dataNodes, hasSize(1));
+            List<OperatorStatus> hashOperator = dataNodes.get(0)
+                .operators()
+                .stream()
+                .filter(o -> o.status() instanceof HashAggregationOperator.Status)
+                .toList();
+            assertThat(hashOperator, hasSize(1));
+            HashAggregationOperator.Status partialAgg = (HashAggregationOperator.Status) hashOperator.get(0).status();
+            assertThat(partialAgg.emitCount(), greaterThan(4L));
+        }
+        // disable partial periodic emit because of high uniqueness threshold
+        pragma = Settings.builder().put(pragma).put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getKey(), 0.5).build();
+        request.pragmas(new QueryPragmas(pragma));
+        try (var result = run(request)) {
+            EsqlQueryResponse.Profile profile = result.profile();
+            List<DriverProfile> dataNodes = profile.drivers().stream().filter(d -> d.description().contains("data")).toList();
+            assertThat(dataNodes, hasSize(1));
+            List<OperatorStatus> hashOperator = dataNodes.get(0)
+                .operators()
+                .stream()
+                .filter(o -> o.status() instanceof HashAggregationOperator.Status)
+                .toList();
+            assertThat(hashOperator, hasSize(1));
+            HashAggregationOperator.Status partialAgg = (HashAggregationOperator.Status) hashOperator.get(0).status();
+            assertThat(partialAgg.emitCount(), greaterThan(1L));
+        }
+        // the final should emit once
+        pragma = Settings.builder().put(pragma).put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getKey(), 0.1).build();
+        request.query("FROM " + index + " | STATS BY host, t");
+        request.pragmas(new QueryPragmas(pragma));
+        try (var result = run(request)) {
+            EsqlQueryResponse.Profile profile = result.profile();
+            List<DriverProfile> dataNodes = profile.drivers().stream().filter(d -> d.description().contains("final")).toList();
+            assertThat(dataNodes, hasSize(1));
+            List<OperatorStatus> hashOperator = dataNodes.get(0)
+                .operators()
+                .stream()
+                .filter(o -> o.status() instanceof HashAggregationOperator.Status)
+                .toList();
+            assertThat(hashOperator, hasSize(1));
+            HashAggregationOperator.Status partialAgg = (HashAggregationOperator.Status) hashOperator.get(0).status();
+            assertThat(partialAgg.emitCount(), equalTo(1L));
         }
     }
 

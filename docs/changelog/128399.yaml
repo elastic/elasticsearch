@@ -1,5 +1,0 @@
-pr: 128399
-summary: Allow missing shard stats for restarted nodes for `_snapshot/_status`
-area: Snapshot/Restore
-type: enhancement
-issues: []

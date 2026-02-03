@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -80,11 +79,7 @@ public class JobTaskState implements PersistentTaskState, MlTaskState {
         state = JobState.fromStream(in);
         allocationId = in.readLong();
         reason = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            lastStateChangeTime = in.readOptionalInstant();
-        } else {
-            lastStateChangeTime = null;
-        }
+        lastStateChangeTime = in.readOptionalInstant();
     }
 
     public JobState getState() {
@@ -136,9 +131,7 @@ public class JobTaskState implements PersistentTaskState, MlTaskState {
         state.writeTo(out);
         out.writeLong(allocationId);
         out.writeOptionalString(reason);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalInstant(lastStateChangeTime);
-        }
+        out.writeOptionalInstant(lastStateChangeTime);
     }
 
     @Override

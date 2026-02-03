@@ -1,28 +1,31 @@
 {
-  "autoscaling.get_autoscaling_capacity":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/autoscaling-get-autoscaling-capacity.html",
-      "description": "Gets the current autoscaling capacity based on the configured autoscaling policy. Designed for indirect use by ECE/ESS and ECK. Direct use is not supported."
+  "autoscaling.get_autoscaling_capacity": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-autoscaling-get-autoscaling-capacity",
+      "description": "Get the autoscaling capacity"
     },
-    "stability":"stable",
-    "visibility":"private",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "private",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_autoscaling/capacity",
-          "methods":[
+          "path": "/_autoscaling/capacity",
+          "methods": [
             "GET"
           ]
         }
       ]
     },
-    "params":{
-      "master_timeout":{
-        "type":"time",
-        "description":"Timeout for processing on master node"
+    "params": {
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Timeout for processing on master node"
       }
     }
   }

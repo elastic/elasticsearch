@@ -16,13 +16,13 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 
-import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
-import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_KEY;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_VALUE;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_VALUE;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_VALUE;
 
 /**
  * A {@link SearchOperationListener} that is used to provide authorization for scroll requests.
@@ -67,7 +67,7 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
                 throw new SearchContextMissingException(readerContext.id());
             }
             // piggyback on context validation to assert the DLS/FLS permissions on the thread context of the scroll search handler
-            if (null == securityContext.getThreadContext().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY)) {
+            if (null == INDICES_PERMISSIONS_VALUE.get(securityContext.getThreadContext())) {
                 // fill in the DLS and FLS permissions for the scroll search action from the scroll context
                 securityContext.copyIndicesAccessControlFromReaderContext(readerContext);
             }
@@ -86,8 +86,7 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
 
     void ensureIndicesAccessControlForScrollThreadContext(SearchContext searchContext) {
         if (searchContext.readerContext().scrollContext() != null) {
-            IndicesAccessControl threadIndicesAccessControl = securityContext.getThreadContext()
-                .getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+            IndicesAccessControl threadIndicesAccessControl = INDICES_PERMISSIONS_VALUE.get(securityContext.getThreadContext());
             if (null == threadIndicesAccessControl) {
                 throw new ElasticsearchSecurityException(
                     "Unexpected null indices access control for search context ["
@@ -107,9 +106,9 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
             .accessDenied(
                 AuditUtil.extractRequestId(securityContext.getThreadContext()),
                 securityContext.getAuthentication(),
-                securityContext.getThreadContext().getTransient(ORIGINATING_ACTION_KEY),
+                ORIGINATING_ACTION_VALUE.get(securityContext.getThreadContext()),
                 request,
-                securityContext.getThreadContext().getTransient(AUTHORIZATION_INFO_KEY)
+                AUTHORIZATION_INFO_VALUE.get(securityContext.getThreadContext())
             );
     }
 }

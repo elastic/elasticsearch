@@ -48,7 +48,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -217,14 +217,18 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var threadPool = deterministicTaskQueue.getThreadPool();
 
-        final var settings = Settings.EMPTY;
+        final var settings = Settings.builder()
+            // disable thread watchdog to avoid infinitely repeating task
+            .put(ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL.getKey(), TimeValue.ZERO)
+            .build();
         final var clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         final var masterService = new MasterService(
             settings,
             clusterSettings,
             threadPool,
-            new TaskManager(settings, threadPool, Set.of())
+            new TaskManager(settings, threadPool, Set.of()),
+            MeterRegistry.NOOP
         ) {
             @Override
             protected ExecutorService createThreadPoolExecutor() {
@@ -489,8 +493,10 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
             clusterService,
             (clusterState, routingAllocationAction) -> strategyRef.get()
                 .executeWithRoutingAllocation(clusterState, "reconcile-desired-balance", routingAllocationAction),
-            TelemetryProvider.NOOP,
-            EMPTY_NODE_ALLOCATION_STATS
+            EMPTY_NODE_ALLOCATION_STATS,
+            TEST_ONLY_EXPLAINER,
+            DesiredBalanceMetrics.NOOP,
+            AllocationBalancingRoundMetrics.NOOP
         ) {
             @Override
             public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
@@ -503,7 +509,8 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             desiredBalanceShardsAllocator,
             clusterInfoService,
-            () -> SnapshotShardSizeInfo.EMPTY
+            () -> SnapshotShardSizeInfo.EMPTY,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
         strategyRef.set(strategy);
         return Map.entry(strategy, desiredBalanceShardsAllocator);
@@ -561,7 +568,12 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 dataPath.put(new ClusterInfo.NodeAndShard(shardRouting.currentNodeId(), shardRouting.shardId()), "/data");
             }
 
-            return new ClusterInfo(diskSpaceUsage, diskSpaceUsage, shardSizes, Map.of(), dataPath, Map.of(), Map.of());
+            return ClusterInfo.builder()
+                .leastAvailableSpaceUsage(diskSpaceUsage)
+                .mostAvailableSpaceUsage(diskSpaceUsage)
+                .shardSizes(shardSizes)
+                .dataPath(dataPath)
+                .build();
         }
 
     }

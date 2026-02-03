@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 
 import java.io.Closeable;
@@ -213,9 +214,9 @@ public abstract class SessionFactory implements Closeable, ReloadableSecurityCom
         SocketFactory socketFactory = null;
         if (ldapServers.ssl()) {
             final String sslKey = RealmSettings.realmSslPrefix(config.identifier());
-            final SslConfiguration ssl = clientSSLService.getSSLConfiguration(sslKey);
-            socketFactory = clientSSLService.sslSocketFactory(ssl);
-            if (ssl.verificationMode().isHostnameVerificationEnabled()) {
+            final SslProfile ssl = clientSSLService.profile(sslKey);
+            socketFactory = ssl.socketFactory();
+            if (ssl.configuration().verificationMode().isHostnameVerificationEnabled()) {
                 logger.debug("using encryption for LDAP connections with hostname verification");
             } else {
                 logger.debug("using encryption for LDAP connections without hostname verification");

@@ -54,6 +54,7 @@ import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -77,6 +78,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
+@WithoutEntitlements // commands don't run with entitlements enforced
 public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
 
     private ShardId shardId;
@@ -262,7 +264,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             failOnShardFailures();
             final IndexShard newShard = newStartedShard(p -> reopenIndexShard(false), true);
 
-            final Set<String> shardDocUIDs = getShardDocUIDs(newShard);
+            final Set<String> shardDocUIDs = getShardDocIDs(newShard);
 
             final Matcher matcher = NUM_CORRUPT_DOCS_PATTERN.matcher(output);
             assertThat(matcher.find(), equalTo(true));
@@ -323,7 +325,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         failOnShardFailures();
         final IndexShard newShard = newStartedShard(p -> reopenIndexShard(false), true);
 
-        final Set<String> shardDocUIDs = getShardDocUIDs(newShard);
+        final Set<String> shardDocUIDs = getShardDocIDs(newShard);
 
         assertThat(shardDocUIDs.size(), equalTo(numDocsToKeep));
 
@@ -379,7 +381,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         failOnShardFailures();
         final IndexShard newShard = newStartedShard(p -> reopenIndexShard(false), true);
 
-        final Set<String> shardDocUIDs = getShardDocUIDs(newShard);
+        final Set<String> shardDocUIDs = getShardDocIDs(newShard);
 
         final Matcher matcher = NUM_CORRUPT_DOCS_PATTERN.matcher(output);
         assertThat(matcher.find(), equalTo(true));
@@ -502,7 +504,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         failOnShardFailures();
         final IndexShard newShard = newStartedShard(p -> reopenIndexShard(false), true);
 
-        final Set<String> shardDocUIDs = getShardDocUIDs(newShard);
+        final Set<String> shardDocUIDs = getShardDocIDs(newShard);
         assertEquals(numDocs, shardDocUIDs.size());
 
         assertThat(t.getOutput(), containsString("This shard has been marked as corrupted but no corruption can now be detected."));

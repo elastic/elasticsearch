@@ -111,7 +111,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
         // index versions after its reintroduction.
         final IndexVersion indexVersionCreated = randomBoolean()
             ? IndexVersion.current()
-            : IndexVersionUtils.randomVersionBetween(random(), IndexVersions.NEW_SPARSE_VECTOR, IndexVersion.current());
+            : IndexVersionUtils.randomVersionBetween(IndexVersions.NEW_SPARSE_VECTOR, IndexVersion.current());
         return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexVersionCreated).build();
     }
 
@@ -124,7 +124,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
     @Override
     protected Object simulateMethod(Method method, Object[] args) {
         CoordinatedInferenceAction.Request request = (CoordinatedInferenceAction.Request) args[1];
-        assertEquals(InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API, request.getInferenceTimeout());
+        assertNull(request.getInferenceTimeout());
         assertEquals(TrainedModelPrefixStrings.PrefixType.SEARCH, request.getPrefixType());
         assertEquals(CoordinatedInferenceAction.Request.RequestModelType.NLP_MODEL, request.getRequestModelType());
 

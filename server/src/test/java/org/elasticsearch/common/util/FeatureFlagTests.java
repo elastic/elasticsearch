@@ -82,11 +82,11 @@ public class FeatureFlagTests extends ESTestCase {
             randomFrom(Build.Type.values()),
             Hex.encodeHexString(randomByteArrayOfLength(20)),
             Instant.now().toString(),
-            VersionUtils.randomVersion(random()).toString(),
+            VersionUtils.randomVersion().toString(),
             randomFrom(random(), null, "alpha1", "beta1", "rc2"),
             isSnapshot,
-            VersionUtils.randomVersion(random()).toString(),
-            VersionUtils.randomVersion(random()).toString(),
+            VersionUtils.randomVersion().toString(),
+            VersionUtils.randomVersion().toString(),
             randomAlphaOfLength(10)
         );
     }

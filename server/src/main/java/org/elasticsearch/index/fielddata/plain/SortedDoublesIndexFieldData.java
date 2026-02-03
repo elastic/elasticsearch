@@ -16,14 +16,16 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
+import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
@@ -43,25 +45,25 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
         private final NumericType numericType;
         private final ValuesSourceType valuesSourceType;
         protected final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
-        private final boolean indexed;
+        private final IndexType indexType;
 
         public Builder(
             String name,
             NumericType numericType,
             ValuesSourceType valuesSourceType,
             ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory,
-            boolean indexed
+            IndexType indexType
         ) {
             this.name = name;
             this.numericType = numericType;
             this.valuesSourceType = valuesSourceType;
             this.toScriptFieldFactory = toScriptFieldFactory;
-            this.indexed = indexed;
+            this.indexType = indexType;
         }
 
         @Override
         public SortedDoublesIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new SortedDoublesIndexFieldData(name, numericType, valuesSourceType, toScriptFieldFactory, indexed);
+            return new SortedDoublesIndexFieldData(name, numericType, valuesSourceType, toScriptFieldFactory, indexType);
         }
     }
 
@@ -69,21 +71,21 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
     protected final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
-    protected final boolean indexed;
+    protected final IndexType indexType;
 
     public SortedDoublesIndexFieldData(
         String fieldName,
         NumericType numericType,
         ValuesSourceType valuesSourceType,
         ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory,
-        boolean indexed
+        IndexType indexType
     ) {
         this.fieldName = fieldName;
         this.numericType = Objects.requireNonNull(numericType);
         assert this.numericType.isFloatingPoint();
         this.valuesSourceType = valuesSourceType;
         this.toScriptFieldFactory = toScriptFieldFactory;
-        this.indexed = indexed;
+        this.indexType = indexType;
     }
 
     @Override
@@ -102,8 +104,8 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
     }
 
     @Override
-    public boolean isIndexed() {
-        return indexed;
+    public IndexType indexType() {
+        return indexType;
     }
 
     @Override
@@ -181,7 +183,7 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
     /**
      * Wraps a NumericDocValues and exposes a single 16-bit float per document.
      */
-    static final class SingleHalfFloatValues extends NumericDoubleValues {
+    static final class SingleHalfFloatValues extends DoubleValues {
         final NumericDocValues in;
 
         SingleHalfFloatValues(NumericDocValues in) {
@@ -274,7 +276,7 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
     /**
      * Wraps a NumericDocValues and exposes a single 32-bit float per document.
      */
-    static final class SingleFloatValues extends NumericDoubleValues {
+    static final class SingleFloatValues extends DoubleValues {
         final NumericDocValues in;
 
         SingleFloatValues(NumericDocValues in) {
@@ -350,7 +352,7 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
         public SortedNumericDoubleValues getDoubleValues() {
             try {
                 SortedNumericDocValues raw = DocValues.getSortedNumeric(reader, field);
-                return FieldData.sortableLongBitsToDoubles(raw);
+                return FieldData.sortableLongBitsToDoubles(SortedNumericLongValues.wrap(raw));
             } catch (IOException e) {
                 throw new IllegalStateException("Cannot load doc values", e);
             }

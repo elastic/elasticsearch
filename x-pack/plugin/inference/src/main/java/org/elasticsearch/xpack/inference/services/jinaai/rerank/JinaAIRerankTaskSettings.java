@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.jinaai.rerank;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -54,6 +53,10 @@ public class JinaAIRerankTaskSettings implements TaskSettings {
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
+        }
+
+        if (returnDocuments == null && topNDocumentsOnly == null) {
+            return EMPTY_SETTINGS;
         }
 
         return of(topNDocumentsOnly, returnDocuments);
@@ -118,7 +121,7 @@ public class JinaAIRerankTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.JINA_AI_INTEGRATION_ADDED;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

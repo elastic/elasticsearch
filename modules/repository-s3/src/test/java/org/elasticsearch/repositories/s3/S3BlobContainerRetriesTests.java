@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.repositories.s3;
 
+import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpHandler;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.exception.SdkException;
@@ -21,6 +22,7 @@ import org.apache.http.conn.ConnectionPoolTimeoutException;
 import org.apache.http.conn.DnsResolver;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.BackoffPolicy;
@@ -29,9 +31,9 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
+import org.elasticsearch.common.blobstore.RetryingInputStream;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
@@ -50,7 +52,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
-import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
@@ -59,7 +60,6 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -93,26 +93,29 @@ import java.util.function.IntConsumer;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.cluster.node.DiscoveryNode.STATELESS_ENABLED_SETTING_NAME;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
+import static org.elasticsearch.common.io.Streams.readFully;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomFiniteRetryingPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomRetryingPurpose;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.DISABLE_CHUNKED_ENCODING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.ENDPOINT_SETTING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.MAX_CONNECTIONS_SETTING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.MAX_RETRIES_SETTING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.READ_TIMEOUT_SETTING;
-import static org.hamcrest.Matchers.allOf;
+import static org.elasticsearch.repositories.s3.S3ClientSettingsTests.DEFAULT_REGION_UNAVAILABLE;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.matchesRegex;
 
 /**
  * This class tests how a {@link S3BlobContainer} and its underlying AWS S3 client are retrying requests when reading or writing blobs.
@@ -133,7 +136,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool()),
             TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             Mockito.mock(ResourceWatcherService.class),
-            () -> null
+            DEFAULT_REGION_UNAVAILABLE
         ) {
             private InetAddress[] resolveHost(String host) throws UnknownHostException {
                 assertEquals("127.0.0.1", host);
@@ -239,14 +242,14 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final RepositoryMetadata repositoryMetadata = new RepositoryMetadata("repository", S3Repository.TYPE, repositorySettings.build());
 
         final S3BlobStore s3BlobStore = new S3BlobStore(
-            randomProjectIdOrDefault(),
+            ProjectId.DEFAULT,
             service,
             "bucket",
             S3Repository.SERVER_SIDE_ENCRYPTION_SETTING.getDefault(Settings.EMPTY),
             bufferSize == null ? S3Repository.BUFFER_SIZE_SETTING.getDefault(Settings.EMPTY) : bufferSize,
-            S3Repository.MAX_COPY_SIZE_BEFORE_MULTIPART.getDefault(Settings.EMPTY),
             S3Repository.CANNED_ACL_SETTING.getDefault(Settings.EMPTY),
             S3Repository.STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
+            S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getDefault(Settings.EMPTY) == Boolean.FALSE,
             repositoryMetadata,
             BigArrays.NON_RECYCLING_INSTANCE,
             new DeterministicTaskQueue().getThreadPool(),
@@ -294,7 +297,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     }
 
     private static S3HttpHandler.S3Request parseRequest(HttpExchange exchange) {
-        return new S3HttpHandler("bucket").parseRequest(exchange);
+        return new S3HttpHandler("bucket", S3ConsistencyModel.randomConsistencyModel()).parseRequest(exchange);
     }
 
     public void testWriteBlobWithRetries() throws Exception {
@@ -427,7 +430,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 assertThat(contentLength, anyOf(equalTo(lastPartSize), equalTo(bufferSize.getBytes())));
 
                 if (countDownUploads.decrementAndGet() % 2 == 0) {
-                    exchange.getResponseHeaders().add("ETag", getBase16MD5Digest(bytes));
+                    exchange.getResponseHeaders().add("ETag", S3HttpHandler.getEtagFromContents(bytes));
                     exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
                     exchange.close();
                     return;
@@ -526,7 +529,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
                 if (counterUploads.incrementAndGet() % 2 == 0) {
                     bytesReceived.addAndGet(bytes.length());
-                    exchange.getResponseHeaders().add("ETag", getBase16MD5Digest(bytes));
+                    exchange.getResponseHeaders().add("ETag", S3HttpHandler.getEtagFromContents(bytes));
                     exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
                     exchange.close();
                     return;
@@ -1043,7 +1046,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         }
 
         ThrottlingDeleteHandler(int throttleTimesBeforeSuccess, IntConsumer onAttemptCallback, String errorCode) {
-            super("bucket");
+            super("bucket", S3ConsistencyModel.randomConsistencyModel());
             this.numberOfDeleteAttempts = new AtomicInteger();
             this.numberOfSuccessfulDeletes = new AtomicInteger();
             this.throttleTimesBeforeSuccess = new AtomicInteger(throttleTimesBeforeSuccess);
@@ -1322,7 +1325,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             ),
             TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             Mockito.mock(ResourceWatcherService.class),
-            () -> null
+            DEFAULT_REGION_UNAVAILABLE
         );
         service.start();
         recordingMeterRegistry = new RecordingMeterRegistry();
@@ -1343,38 +1346,154 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         assertEquals(denyAccessAfterAttempt <= maxRetries ? 1 : 0, accessDeniedResponseCount.get());
     }
 
-    private static String getBase16MD5Digest(BytesReference bytesReference) {
-        return MessageDigests.toHexString(MessageDigests.digest(bytesReference, MessageDigests.md5()));
-    }
+    public void testUploadNotFoundInCompareAndExchange() {
+        final var blobContainerPath = BlobPath.EMPTY.add(getTestName());
+        final var statefulBlobContainer = createBlobContainer(1, null, null, null, null, null, blobContainerPath);
 
-    public void testGetBase16MD5Digest() {
-        // from Wikipedia, see also org.elasticsearch.common.hash.MessageDigestsTests.testMd5
-        assertBase16MD5Digest("", "d41d8cd98f00b204e9800998ecf8427e");
-        assertBase16MD5Digest("The quick brown fox jumps over the lazy dog", "9e107d9d372bb6826bd81d3542a419d6");
-        assertBase16MD5Digest("The quick brown fox jumps over the lazy dog.", "e4d909c290d0fb1ca068ffaddf22cbd0");
-    }
+        @SuppressForbidden(reason = "use a http server")
+        class RejectsUploadPartRequests extends S3HttpHandler {
+            RejectsUploadPartRequests() {
+                super("bucket", S3ConsistencyModel.randomConsistencyModel());
+            }
 
-    private static void assertBase16MD5Digest(String input, String expectedDigestString) {
-        assertEquals(expectedDigestString, getBase16MD5Digest(new BytesArray(input)));
-    }
+            @Override
+            public void handle(HttpExchange exchange) throws IOException {
+                final var s3request = parseRequest(exchange);
+                if (s3request.isUploadPartRequest() || s3request.isPutObjectRequest()) {
+                    exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                } else {
+                    super.handle(exchange);
+                }
+            }
+        }
 
-    @Override
-    protected Matcher<Integer> getMaxRetriesMatcher(int maxRetries) {
-        // some attempts make meaningful progress and do not count towards the max retry limit
-        return allOf(greaterThanOrEqualTo(maxRetries), lessThanOrEqualTo(S3RetryingInputStream.MAX_SUPPRESSED_EXCEPTIONS));
-    }
+        httpServer.createContext("/", new RejectsUploadPartRequests());
 
-    @Override
-    protected OperationPurpose randomRetryingPurpose() {
-        return randomValueOtherThan(OperationPurpose.REPOSITORY_ANALYSIS, BlobStoreTestUtil::randomPurpose);
-    }
-
-    @Override
-    protected OperationPurpose randomFiniteRetryingPurpose() {
-        return randomValueOtherThanMany(
-            purpose -> purpose == OperationPurpose.REPOSITORY_ANALYSIS || purpose == OperationPurpose.INDICES,
-            BlobStoreTestUtil::randomPurpose
+        safeAwait(
+            l -> statefulBlobContainer.compareAndExchangeRegister(
+                randomPurpose(),
+                "not_found_register",
+                BytesArray.EMPTY,
+                new BytesArray(new byte[1]),
+                l.map(result -> {
+                    assertFalse(result.isPresent());
+                    return null;
+                })
+            )
         );
+    }
+
+    public void testCompareAndExchangeWithConcurrentPutObject() throws Exception {
+        final var blobContainerPath = BlobPath.EMPTY.add(getTestName());
+        final var statefulBlobContainer = createBlobContainer(1, null, null, null, null, null, blobContainerPath);
+
+        final var objectContentsRequestedLatch = new CountDownLatch(1);
+
+        @SuppressForbidden(reason = "use a http server")
+        class AwaitsListMultipartUploads extends S3HttpHandler {
+            AwaitsListMultipartUploads() {
+                super("bucket", S3ConsistencyModel.AWS_DEFAULT);
+            }
+
+            @Override
+            public void handle(HttpExchange exchange) throws IOException {
+                if (parseRequest(exchange).isGetObjectRequest()) {
+                    // delay the overwrite until the CAS is checking the object contents, forcing a race
+                    objectContentsRequestedLatch.countDown();
+                }
+                super.handle(exchange);
+            }
+        }
+
+        httpServer.createContext("/", new AwaitsListMultipartUploads());
+
+        final var blobName = randomIdentifier();
+        final var initialValue = randomBytesReference(8);
+        final var overwriteValue = randomValueOtherThan(initialValue, () -> randomBytesReference(8));
+        final var casTargetValue = randomValueOtherThanMany(
+            v -> v.equals(initialValue) || v.equals(overwriteValue),
+            () -> randomBytesReference(8)
+        );
+
+        statefulBlobContainer.writeBlobAtomic(randomPurpose(), blobName, initialValue, randomBoolean());
+
+        runInParallel(
+            () -> safeAwait(
+                l -> statefulBlobContainer.compareAndExchangeRegister(
+                    randomPurpose(),
+                    blobName,
+                    initialValue,
+                    casTargetValue,
+                    l.map(result -> {
+                        // Really anything can happen here: success (sees initialValue) or failure (sees overwriteValue), or contention
+                        if (result.isPresent()) {
+                            assertThat(
+                                result.toString(),
+                                result.bytesReference(),
+                                anyOf(equalBytes(initialValue), equalBytes(overwriteValue))
+                            );
+                        }
+                        return null;
+                    })
+                )
+            ),
+            () -> {
+                try {
+                    safeAwait(objectContentsRequestedLatch);
+                    statefulBlobContainer.writeBlobAtomic(randomPurpose(), blobName, overwriteValue, false);
+                } catch (IOException e) {
+                    throw new AssertionError("writeBlobAtomic failed", e);
+                }
+            }
+        );
+
+        // If the CAS happens before the overwrite then we'll see the overwritten value, whereas if the CAS happens second then it will
+        // fail because the value was overwritten leaving the overwritten value in place. If, however, the CAS were not atomic with respect
+        // to other non-CAS-based writes, then we would see casTargetValue here:
+        assertThat(Streams.readFully(statefulBlobContainer.readBlob(randomPurpose(), blobName)), equalBytes(overwriteValue));
+    }
+
+    public void testContentsChangeWhileStreaming() throws IOException {
+        final S3HttpHandler handler = new S3HttpHandler("bucket", S3ConsistencyModel.randomConsistencyModel());
+        httpServer.createContext("/", handler);
+        // The blob needs to be large enough that it won't be entirely buffered on the first request
+        final int enoughBytesToNotBeEntirelyBuffered = Math.toIntExact(ByteSizeValue.ofMb(30).getBytes());
+
+        final BlobContainer container = createBlobContainer(1, null, null, null, null, null, null);
+
+        final String key = randomIdentifier();
+        byte[] initialValue = randomByteArrayOfLength(enoughBytesToNotBeEntirelyBuffered);
+        container.writeBlob(randomFiniteRetryingPurpose(), key, new BytesArray(initialValue), true);
+
+        BytesReference reference = readFully(container.readBlob(randomRetryingPurpose(), key));
+        assertThat(reference, equalBytes(new BytesArray(initialValue)));
+
+        try (InputStream inputStream = container.readBlob(randomRetryingPurpose(), key)) {
+            // Trigger the first chunk to load
+            int read = inputStream.read();
+            assert read != -1;
+
+            // Restart the server (this triggers a retry)
+            restartHttpServer();
+            httpServer.createContext("/", handler);
+
+            // Update the file
+            byte[] updatedValue = randomByteArrayOfLength(enoughBytesToNotBeEntirelyBuffered);
+            container.writeBlob(randomPurpose(), key, new BytesArray(updatedValue), false);
+
+            // Read the rest of the stream, it should throw because the contents changed
+            String message = assertThrows(NoSuchFileException.class, () -> readFully(inputStream)).getMessage();
+            assertThat(
+                message,
+                matchesRegex(
+                    "Blob object \\["
+                        + container.path().buildAsString()
+                        + key
+                        + "] with ETag \\[\\S+] unavailable on resume: At least one of the pre-conditions you specified did not hold "
+                        + "\\(Service: S3, Status Code: 412, Request ID: test-request-id\\) \\(SDK Attempt Count: 1\\)"
+                )
+            );
+        }
     }
 
     private void assertMetricsForOpeningStream() {
@@ -1449,13 +1568,13 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     }
 
     private static boolean isMultiDeleteRequest(HttpExchange exchange) {
-        return new S3HttpHandler("bucket").parseRequest(exchange).isMultiObjectDeleteRequest();
+        return new S3HttpHandler("bucket", S3ConsistencyModel.randomConsistencyModel()).parseRequest(exchange).isMultiObjectDeleteRequest();
     }
 
     /**
      * Asserts that an InputStream is fully consumed, or aborted, when it is closed
      */
-    private static class AssertingInputStream extends FilterInputStream {
+    private static class AssertingInputStream extends FilterInputStream implements RetryingInputStreamUnwrappable {
 
         private final String blobName;
         private final boolean range;
@@ -1509,6 +1628,11 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 assertThat(in, instanceOf(ByteArrayInputStream.class));
                 assertThat(((ByteArrayInputStream) in).available(), equalTo(0));
             }
+        }
+
+        @Override
+        public RetryingInputStream<?> unwrap() {
+            return in instanceof RetryingInputStream<?> retryingInputStream ? retryingInputStream : null;
         }
     }
 }

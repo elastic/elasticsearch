@@ -1,0 +1,5 @@
+pr: 135644
+summary: Add small optimizations to `PUT _component_template` API
+area: Indices APIs
+type: enhancement
+issues: []

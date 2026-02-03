@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -365,7 +366,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
             clusterService,
             mock(CacheInvalidatorRegistry.class),
             mock(ThreadPool.class),
-            MeterRegistry.NOOP
+            MeterRegistry.NOOP,
+            mock(FeatureService.class)
         );
     }
 
@@ -877,7 +879,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
             apiKeyName,
             roleDescriptorBuilder,
             expiration,
-            metadataWithSerialization.metadata()
+            metadataWithSerialization.metadata(),
+            null
         );
 
         final String requestId = randomRequestId();
@@ -933,7 +936,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
             createRequest.getId(),
             updateAccess,
             updateMetadataWithSerialization.metadata(),
-            newExpiration
+            newExpiration,
+            null
         );
         auditTrail.accessGranted(requestId, authentication, UpdateCrossClusterApiKeyAction.NAME, updateRequest, authorizationInfo);
 

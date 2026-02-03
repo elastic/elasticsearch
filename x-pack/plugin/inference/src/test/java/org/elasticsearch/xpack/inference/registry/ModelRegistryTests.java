@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.inference.registry;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -19,28 +17,23 @@ import org.elasticsearch.inference.MinimalServiceSettingsTests;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.model.TestModel;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -52,91 +45,12 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(LocalStateInferencePlugin.class);
+        return pluginList(ReindexPlugin.class, LocalStateInferencePlugin.class);
     }
 
     @Before
     public void createComponents() {
         registry = node().injector().getInstance(ModelRegistry.class);
-    }
-
-    public void testGetUnparsedModelMap_ThrowsResourceNotFound_WhenNoHitsReturned() {
-        var listener = new PlainActionFuture<UnparsedModel>();
-        registry.getModelWithSecrets("1", listener);
-
-        ResourceNotFoundException exception = expectThrows(ResourceNotFoundException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(exception.getMessage(), is("Inference endpoint not found [1]"));
-    }
-
-    public void testGetModelWithSecrets() {
-        assertStoreModel(
-            registry,
-            new TestModel(
-                "1",
-                TaskType.SPARSE_EMBEDDING,
-                "foo",
-                new TestModel.TestServiceSettings(null, null, null, null),
-                new TestModel.TestTaskSettings(randomInt(3)),
-                new TestModel.TestSecretSettings("secret")
-            )
-        );
-
-        var listener = new PlainActionFuture<UnparsedModel>();
-        registry.getModelWithSecrets("1", listener);
-
-        var modelConfig = listener.actionGet(TIMEOUT);
-        assertEquals("1", modelConfig.inferenceEntityId());
-        assertEquals("foo", modelConfig.service());
-        assertEquals(TaskType.SPARSE_EMBEDDING, modelConfig.taskType());
-        assertNotNull(modelConfig.settings().keySet());
-        assertThat(modelConfig.secrets().keySet(), hasSize(1));
-        assertThat(modelConfig.secrets().get("secret_settings"), instanceOf(Map.class));
-        @SuppressWarnings("unchecked")
-        var secretSettings = (Map<String, Object>) modelConfig.secrets().get("secret_settings");
-        assertThat(secretSettings.get("api_key"), equalTo("secret"));
-    }
-
-    public void testGetModelNoSecrets() {
-        assertStoreModel(
-            registry,
-            new TestModel(
-                "1",
-                TaskType.SPARSE_EMBEDDING,
-                "foo",
-                new TestModel.TestServiceSettings(null, null, null, null),
-                new TestModel.TestTaskSettings(randomInt(3)),
-                new TestModel.TestSecretSettings(randomAlphaOfLength(4))
-            )
-        );
-
-        var getListener = new PlainActionFuture<UnparsedModel>();
-        registry.getModel("1", getListener);
-
-        var modelConfig = getListener.actionGet(TIMEOUT);
-        assertEquals("1", modelConfig.inferenceEntityId());
-        assertEquals("foo", modelConfig.service());
-        assertEquals(TaskType.SPARSE_EMBEDDING, modelConfig.taskType());
-        assertNotNull(modelConfig.settings().keySet());
-        assertThat(modelConfig.secrets().keySet(), empty());
-    }
-
-    public void testStoreModel_ReturnsTrue_WhenNoFailuresOccur() {
-        var model = TestModel.createRandomInstance();
-        assertStoreModel(registry, model);
-    }
-
-    public void testStoreModel_ThrowsResourceAlreadyExistsException_WhenFailureIsAVersionConflict() {
-        var model = TestModel.createRandomInstance();
-        assertStoreModel(registry, model);
-
-        ResourceAlreadyExistsException exception = expectThrows(
-            ResourceAlreadyExistsException.class,
-            () -> assertStoreModel(registry, model)
-        );
-        assertThat(
-            exception.getMessage(),
-            is(format("Inference endpoint [%s] already exists", model.getConfigurations().getInferenceEntityId()))
-        );
     }
 
     public void testRemoveDefaultConfigs_DoesNotCallClient_WhenPassedAnEmptySet() {
@@ -176,15 +90,15 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
         assertFalse(matched.isPresent());
     }
 
-    public void testContainsDefaultConfigId() {
+    public void testContainsPreconfiguredInferenceEndpointId() {
         registry.addDefaultIds(
             new InferenceService.DefaultConfigId("foo", MinimalServiceSettings.sparseEmbedding("my_service"), mock(InferenceService.class))
         );
         registry.addDefaultIds(
             new InferenceService.DefaultConfigId("bar", MinimalServiceSettings.sparseEmbedding("my_service"), mock(InferenceService.class))
         );
-        assertTrue(registry.containsDefaultConfigId("foo"));
-        assertFalse(registry.containsDefaultConfigId("baz"));
+        assertTrue(registry.containsPreconfiguredInferenceEndpointId("foo"));
+        assertFalse(registry.containsPreconfiguredInferenceEndpointId("baz"));
     }
 
     public void testTaskTypeMatchedDefaults() {
@@ -237,16 +151,29 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
         );
     }
 
+    public void testDeleteModels_Succeeds_WhenNoInferenceIdsAreProvided() {
+        var model = TestModel.createRandomInstance();
+        assertStoreModel(registry, model);
+
+        var listener = new PlainActionFuture<Boolean>();
+        registry.deleteModels(Set.of(), listener);
+        assertTrue(listener.actionGet(TIMEOUT));
+    }
+
     public static void assertStoreModel(ModelRegistry registry, Model model) {
         PlainActionFuture<Boolean> storeListener = new PlainActionFuture<>();
         registry.storeModel(model, storeListener, TimeValue.THIRTY_SECONDS);
         assertTrue(storeListener.actionGet(TimeValue.THIRTY_SECONDS));
 
+        assertMinimalServiceSettings(registry, model);
+    }
+
+    public static void assertMinimalServiceSettings(ModelRegistry registry, Model model) {
         var settings = registry.getMinimalServiceSettings(model.getInferenceEntityId());
         assertNotNull(settings);
-        assertThat(settings.taskType(), equalTo(model.getTaskType()));
-        assertThat(settings.dimensions(), equalTo(model.getServiceSettings().dimensions()));
-        assertThat(settings.elementType(), equalTo(model.getServiceSettings().elementType()));
-        assertThat(settings.dimensions(), equalTo(model.getServiceSettings().dimensions()));
+        assertThat(settings.taskType(), Matchers.equalTo(model.getTaskType()));
+        assertThat(settings.dimensions(), Matchers.equalTo(model.getServiceSettings().dimensions()));
+        assertThat(settings.elementType(), Matchers.equalTo(model.getServiceSettings().elementType()));
+        assertThat(settings.dimensions(), Matchers.equalTo(model.getServiceSettings().dimensions()));
     }
 }

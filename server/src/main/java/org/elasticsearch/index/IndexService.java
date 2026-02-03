@@ -49,6 +49,7 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -89,7 +90,6 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
-import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -169,9 +169,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final Supplier<Sort> indexSortSupplier;
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final MapperMetrics mapperMetrics;
-    private final QueryRewriteInterceptor queryRewriteInterceptor;
     private final IndexingStatsSettings indexingStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
+    private final MergeMetrics mergeMetrics;
 
     @SuppressWarnings("this-escape")
     public IndexService(
@@ -208,9 +208,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
         Engine.IndexCommitListener indexCommitListener,
         MapperMetrics mapperMetrics,
-        QueryRewriteInterceptor queryRewriteInterceptor,
         IndexingStatsSettings indexingStatsSettings,
-        SearchStatsSettings searchStatsSettings
+        SearchStatsSettings searchStatsSettings,
+        MergeMetrics mergeMetrics
     ) {
         super(indexSettings);
         assert indexCreationContext != IndexCreationContext.RELOAD_ANALYZERS
@@ -240,17 +240,24 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 idFieldMapper,
                 scriptService,
                 bitsetFilterCache::getBitSetProducer,
-                mapperMetrics
+                mapperMetrics,
+                null,
+                () -> client.projectResolver().hasProject(clusterService.state())
+                    ? client.projectResolver().getProjectMetadata(clusterService.state())
+                    : null
             );
             this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService);
-            boolean sourceOnly = Boolean.parseBoolean(indexSettings.getSettings().get("index.source_only"));
+            boolean sourceOnly = indexSettings.getSettings().getAsBoolean("index.source_only", false);
             if (indexSettings.getIndexSortConfig().hasIndexSort() && sourceOnly == false) {
                 // we delay the actual creation of the sort order for this index because the mapping has not been merged yet.
                 // The sort order is validated right after the merge of the mapping later in the process.
                 this.indexSortSupplier = () -> indexSettings.getIndexSortConfig()
                     .buildIndexSort(
                         mapperService::fieldType,
-                        (fieldType, searchLookup) -> loadFielddata(fieldType, FieldDataContext.noRuntimeFields("index sort"))
+                        (fieldType, searchLookup) -> loadFielddata(
+                            fieldType,
+                            FieldDataContext.noRuntimeFields(indexSettings.getIndex().getName(), "index sort")
+                        )
                     );
             } else {
                 this.indexSortSupplier = () -> null;
@@ -287,7 +294,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.indexingOperationListeners = Collections.unmodifiableList(indexingOperationListeners);
         this.indexCommitListener = indexCommitListener;
         this.mapperMetrics = mapperMetrics;
-        this.queryRewriteInterceptor = queryRewriteInterceptor;
         try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
             // kick off async ops for the first shard in this index
             this.refreshTask = new AsyncRefreshTask(this);
@@ -297,6 +303,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
         this.indexingStatsSettings = indexingStatsSettings;
         this.searchStatsSettings = searchStatsSettings;
+        this.mergeMetrics = mergeMetrics;
         updateFsyncTaskIfNecessary();
     }
 
@@ -588,7 +595,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 indexCommitListener,
                 mapperMetrics,
                 indexingStatsSettings,
-                searchStatsSettings
+                searchStatsSettings,
+                mergeMetrics
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
@@ -819,6 +827,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             mappingLookup,
             parseRuntimeMappings(runtimeMappings, mapperService, indexSettings, mappingLookup),
             indexSettings,
+            null,
+            clusterAlias,
             new Index(
                 RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
                 indexSettings.getIndex().getUUID()
@@ -831,6 +841,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             null,
             null,
             null,
+            null,
+            false,
             false
         );
     }

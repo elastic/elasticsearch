@@ -69,6 +69,7 @@ import static org.hamcrest.Matchers.is;
  * {@link SecurityIntegTestCase} due to simplicity and improved speed from not needing to start
  * multiple nodes and wait for the cluster to form.
  */
+@ESTestCase.WithoutEntitlements // requires entitlement delegation ES-12382
 public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
 
     private static SecuritySettingsSource SECURITY_DEFAULT_SETTINGS = null;

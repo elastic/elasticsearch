@@ -33,6 +33,8 @@ public final class SearchCapabilities {
     private static final String TRANSFORM_RANK_RRF_TO_RETRIEVER = "transform_rank_rrf_to_retriever";
     /** Support kql query. */
     private static final String KQL_QUERY_SUPPORTED = "kql_query";
+    private static final String KQL_QUERY_BOOLEAN_FIELD_QUERY_SUPPORTED = "kql_query_boolean_field_query";
+
     /** Support propagating nested retrievers' inner_hits to top-level compound retrievers . */
     private static final String NESTED_RETRIEVER_INNER_HITS_SUPPORT = "nested_retriever_inner_hits_support";
     /** Fixed the math in {@code moving_fn}'s {@code linearWeightedAvg}. */
@@ -51,6 +53,15 @@ public final class SearchCapabilities {
     private static final String SIGNIFICANT_TERMS_BACKGROUND_FILTER_AS_SUB = "significant_terms_background_filter_as_sub";
     private static final String SIGNIFICANT_TERMS_ON_NESTED_FIELDS = "significant_terms_on_nested_fields";
     private static final String EXCLUDE_VECTORS_PARAM = "exclude_vectors_param";
+    private static final String DENSE_VECTOR_UPDATABLE_BBQ = "dense_vector_updatable_bbq";
+    private static final String FIELD_EXISTS_QUERY_FOR_TEXT_FIELDS_NO_INDEX_OR_DV = "field_exists_query_for_text_fields_no_index_or_dv";
+    private static final String KNN_FILTER_ON_NESTED_FIELDS_CAPABILITY = "knn_filter_on_nested_fields";
+    private static final String BUCKET_SCRIPT_PARENT_MULTI_BUCKET_ERROR = "bucket_script_parent_multi_bucket_error";
+    private static final String PIPELINE_AGGS_PARENT_MULTI_BUCKET_ERROR = "pipeline_aggs_parent_multi_bucket_error";
+    private static final String EXCLUDE_SOURCE_VECTORS_SETTING = "exclude_source_vectors_setting";
+    private static final String CLUSTER_STATS_EXTENDED_USAGE = "extended-search-usage-stats";
+    private static final String REJECT_INVALID_REVERSE_NESTING = "reject_invalid_reverse_nesting";
+    private static final String DENSE_VECTOR_DOCVALUE_FIELDS_FORMAT = "dense_vector_docvalue_fields_format";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -68,11 +79,21 @@ public final class SearchCapabilities {
         capabilities.add(MOVING_FN_RIGHT_MATH);
         capabilities.add(K_DEFAULT_TO_SIZE);
         capabilities.add(KQL_QUERY_SUPPORTED);
+        capabilities.add(KQL_QUERY_BOOLEAN_FIELD_QUERY_SUPPORTED);
         capabilities.add(HIGHLIGHT_MAX_ANALYZED_OFFSET_DEFAULT);
         capabilities.add(INDEX_SELECTOR_SYNTAX);
         capabilities.add(SIGNIFICANT_TERMS_BACKGROUND_FILTER_AS_SUB);
         capabilities.add(SIGNIFICANT_TERMS_ON_NESTED_FIELDS);
         capabilities.add(EXCLUDE_VECTORS_PARAM);
+        capabilities.add(DENSE_VECTOR_UPDATABLE_BBQ);
+        capabilities.add(FIELD_EXISTS_QUERY_FOR_TEXT_FIELDS_NO_INDEX_OR_DV);
+        capabilities.add(KNN_FILTER_ON_NESTED_FIELDS_CAPABILITY);
+        capabilities.add(BUCKET_SCRIPT_PARENT_MULTI_BUCKET_ERROR);
+        capabilities.add(PIPELINE_AGGS_PARENT_MULTI_BUCKET_ERROR);
+        capabilities.add(EXCLUDE_SOURCE_VECTORS_SETTING);
+        capabilities.add(CLUSTER_STATS_EXTENDED_USAGE);
+        capabilities.add(REJECT_INVALID_REVERSE_NESTING);
+        capabilities.add(DENSE_VECTOR_DOCVALUE_FIELDS_FORMAT);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -251,7 +252,7 @@ public final class ReportingAttachmentParser implements EmailAttachmentParser<Re
                     WARNINGS.forEach((warningKey, defaultWarning) -> {
                         String[] text = response.header(warningKey);
                         if (text != null && text.length > 0) {
-                            if (Boolean.valueOf(text[0])) {
+                            if (parseBoolean(text[0])) {
                                 String warning = String.format(Locale.ROOT, defaultWarning, attachment.id());
                                 String customWarning = customWarnings.get(warningKey);
                                 if (Strings.isNullOrEmpty(customWarning) == false) {
@@ -294,6 +295,10 @@ public final class ReportingAttachmentParser implements EmailAttachmentParser<Re
             attachment.id(),
             maxRetries
         );
+    }
+
+    private static boolean parseBoolean(String s) {
+        return Booleans.parseBooleanLenient(s, false);
     }
 
     private static void sleep(long sleepMillis, WatchExecutionContext context, ReportingAttachment attachment) {

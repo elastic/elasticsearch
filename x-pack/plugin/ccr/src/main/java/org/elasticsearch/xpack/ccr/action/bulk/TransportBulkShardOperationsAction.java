@@ -138,7 +138,7 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
             case INDEX -> {
                 final Translog.Index index = (Translog.Index) operation;
                 operationWithPrimaryTerm = new Translog.Index(
-                    index.id(),
+                    index.uid(),
                     index.seqNo(),
                     primaryTerm,
                     index.version(),
@@ -149,7 +149,7 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
             }
             case DELETE -> {
                 final Translog.Delete delete = (Translog.Delete) operation;
-                operationWithPrimaryTerm = new Translog.Delete(delete.id(), delete.seqNo(), primaryTerm, delete.version());
+                operationWithPrimaryTerm = new Translog.Delete(delete.uid(), delete.seqNo(), primaryTerm, delete.version());
             }
             case NO_OP -> {
                 final Translog.NoOp noOp = (Translog.NoOp) operation;

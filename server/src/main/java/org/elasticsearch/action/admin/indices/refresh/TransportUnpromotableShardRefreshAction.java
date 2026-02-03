@@ -96,7 +96,12 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
 
     @Override
     protected void doExecute(Task task, UnpromotableShardRefreshRequest request, ActionListener<ActionResponse.Empty> listener) {
-        beforeDispatchingRequestToUnpromotableShards(request, listener.delegateFailure((l, unused) -> super.doExecute(task, request, l)));
+        beforeDispatchingRequestToUnpromotableShards(request, listener.delegateFailure((l, unused) -> {
+            if (logger.isTraceEnabled()) {
+                logger.trace("dispatching refresh request for unpromotable shard {}", request.shardId());
+            }
+            super.doExecute(task, request, l);
+        }));
     }
 
     private void beforeDispatchingRequestToUnpromotableShards(UnpromotableShardRefreshRequest request, ActionListener<Void> listener) {
@@ -151,6 +156,9 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
         final var indexService = indicesService.indexService(request.shardId().getIndex());
         final var shard = indexService == null ? null : indexService.getShardOrNull(request.shardId().id());
         if (shard == null) {
+            if (logger.isTraceEnabled()) {
+                logger.trace("unpromotable shard {} not yet created, responding OK to refresh request", request.shardId());
+            }
             responseListener.onResponse(ActionResponse.Empty.INSTANCE);
             return;
         }
@@ -161,7 +169,17 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
         assert Engine.RefreshResult.UNKNOWN_GENERATION < segmentGeneration : segmentGeneration;
 
         ActionListener.run(responseListener, listener -> {
-            shard.waitForPrimaryTermAndGeneration(primaryTerm, segmentGeneration, listener.map(l -> ActionResponse.Empty.INSTANCE));
+            shard.waitForPrimaryTermAndGeneration(primaryTerm, segmentGeneration, listener.map(l -> {
+                if (logger.isTraceEnabled()) {
+                    logger.trace(
+                        "refreshed unpromotable shard {} for requested primary term {} and segment generation {}",
+                        request.shardId(),
+                        primaryTerm,
+                        segmentGeneration
+                    );
+                }
+                return ActionResponse.Empty.INSTANCE;
+            }));
         });
     }
 

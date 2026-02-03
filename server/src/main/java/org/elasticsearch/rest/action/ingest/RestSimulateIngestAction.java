@@ -85,11 +85,13 @@ public class RestSimulateIngestAction extends BaseRestHandler {
             "index_template_substitutions"
         );
         Object mappingAddition = sourceMap.remove("mapping_addition");
+        String mappingMergeType = request.param("merge_type");
         SimulateBulkRequest bulkRequest = new SimulateBulkRequest(
             pipelineSubstitutions == null ? Map.of() : pipelineSubstitutions,
             componentTemplateSubstitutions == null ? Map.of() : componentTemplateSubstitutions,
             indexTemplateSubstitutions == null ? Map.of() : indexTemplateSubstitutions,
-            mappingAddition == null ? Map.of() : Map.of("_doc", mappingAddition)
+            mappingAddition == null ? Map.of() : Map.of("_doc", mappingAddition),
+            mappingMergeType
         );
         BytesReference transformedData = convertToBulkRequestXContentBytes(sourceMap);
         bulkRequest.add(

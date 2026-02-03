@@ -9,14 +9,18 @@ package org.elasticsearch.xpack.inference.queries;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.TextField;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionType;
@@ -24,12 +28,13 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -42,6 +47,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -51,6 +57,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -58,11 +65,11 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.inference.FakeMlPlugin;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -75,14 +82,19 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
 import static org.apache.lucene.search.BooleanClause.Occur.MUST;
-import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
+import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
+import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS;
+import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS_TV;
+import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.SEMANTIC_SEARCH_CCS_SUPPORT;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -122,7 +134,10 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         // These are class variables because they are used when initializing additional mappings, which happens once per test suite run in
         // AbstractBuilderTestCase#beforeTest as part of service holder creation.
         inferenceResultType = randomFrom(InferenceResultType.values());
-        denseVectorElementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
+        denseVectorElementType = randomValueOtherThan(
+            DenseVectorFieldMapper.ElementType.BFLOAT16,
+            () -> randomFrom(DenseVectorFieldMapper.ElementType.values())
+        );
         useSearchInferenceId = randomBoolean();
     }
 
@@ -178,6 +193,22 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         );
 
         applyRandomInferenceResults(mapperService);
+    }
+
+    @Override
+    protected IndexReaderManager getIndexReaderManager() {
+        // note that because token pruning for sparse vector types are on by default now
+        // we have to have at least one document with the `semantic.inference.chunks.embeddings`
+        // populated or else the weightedTokenUtils will return a MatchNoDocsQuery instead of the
+        // expected BooleanQuery.
+        return new IndexReaderManager() {
+            @Override
+            protected void initIndexWriter(RandomIndexWriter indexWriter) throws IOException {
+                Document document = new Document();
+                document.add(new TextField("semantic.inference.chunks.embeddings", "a b x y", Field.Store.NO));
+                indexWriter.addDocument(document);
+            }
+        };
     }
 
     private void applyRandomInferenceResults(MapperService mapperService) throws IOException {
@@ -240,19 +271,15 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         assertThat(sparseQuery.getTermsQuery(), instanceOf(BooleanQuery.class));
 
         BooleanQuery innerBooleanQuery = (BooleanQuery) sparseQuery.getTermsQuery();
-        assertThat(innerBooleanQuery.clauses().size(), equalTo(queryTokenCount));
-        innerBooleanQuery.forEach(c -> {
-            assertThat(c.occur(), equalTo(SHOULD));
-            assertThat(c.query(), instanceOf(BoostQuery.class));
-            assertThat(((BoostQuery) c.query()).getBoost(), equalTo(TOKEN_WEIGHT));
-        });
+        // no clauses as tokens would be pruned
+        assertThat(innerBooleanQuery.clauses().size(), equalTo(0));
     }
 
     private void assertTextEmbeddingLuceneQuery(Query query) {
         Query innerQuery = assertOuterBooleanQuery(query);
 
         Class<? extends Query> expectedKnnQueryClass = switch (denseVectorElementType) {
-            case FLOAT -> KnnFloatVectorQuery.class;
+            case FLOAT, BFLOAT16 -> KnnFloatVectorQuery.class;
             case BYTE, BIT -> KnnByteVectorQuery.class;
         };
         assertThat(innerQuery, instanceOf(expectedKnnQueryClass));
@@ -322,9 +349,9 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         int inferenceLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(denseVectorElementType, TEXT_EMBEDDING_DIMENSION_COUNT);
         double[] inference = new double[inferenceLength];
         Arrays.fill(inference, 1.0);
-        MlTextEmbeddingResults textEmbeddingResults = new MlTextEmbeddingResults(DEFAULT_RESULTS_FIELD, inference, false);
+        MlDenseEmbeddingResults textEmbeddingResults = new MlDenseEmbeddingResults(DEFAULT_RESULTS_FIELD, inference, false);
 
-        return new InferenceAction.Response(TextEmbeddingFloatResults.of(List.of(textEmbeddingResults)));
+        return new InferenceAction.Response(DenseEmbeddingFloatResults.of(List.of(textEmbeddingResults)));
     }
 
     @Override
@@ -343,6 +370,154 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SemanticQueryBuilder("fieldName", null));
             assertThat(e.getMessage(), equalTo("[semantic] requires a query value"));
+        }
+    }
+
+    public void testSerializationRemoteClusterInferenceResults() throws IOException {
+        InferenceResults inferenceResults1 = new TextExpansionResults(
+            DEFAULT_RESULTS_FIELD,
+            List.of(new WeightedToken("foo", 1.0f)),
+            false
+        );
+        InferenceResults inferenceResults2 = new TextExpansionResults(
+            DEFAULT_RESULTS_FIELD,
+            List.of(new WeightedToken("bar", 2.0f)),
+            false
+        );
+
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap = Map.of(
+            new FullyQualifiedInferenceId(randomAlphaOfLength(5), randomAlphaOfLength(5)),
+            inferenceResults1,
+            new FullyQualifiedInferenceId(randomAlphaOfLength(5), randomAlphaOfLength(5)),
+            inferenceResults2
+        );
+
+        SemanticQueryBuilder originalQuery = new SemanticQueryBuilder(
+            randomAlphaOfLength(5),
+            randomAlphaOfLength(5),
+            null,
+            inferenceResultsMap
+        );
+
+        QueryBuilder deserializedQuery = copyNamedWriteable(originalQuery, namedWriteableRegistry(), QueryBuilder.class);
+        assertThat(deserializedQuery, equalTo(originalQuery));
+    }
+
+    public void testSerializationBwc() throws IOException {
+        InferenceResults inferenceResults1 = new TextExpansionResults(
+            DEFAULT_RESULTS_FIELD,
+            List.of(new WeightedToken("foo", 1.0f)),
+            false
+        );
+        InferenceResults inferenceResults2 = new TextExpansionResults(
+            DEFAULT_RESULTS_FIELD,
+            List.of(new WeightedToken("bar", 2.0f)),
+            false
+        );
+
+        // Single inference result
+        CheckedBiConsumer<InferenceResults, TransportVersion, IOException> assertSingleInferenceResult = (inferenceResults, version) -> {
+            String fieldName = randomAlphaOfLength(5);
+            String query = randomAlphaOfLength(5);
+
+            SemanticQueryBuilder originalQuery = new SemanticQueryBuilder(
+                fieldName,
+                query,
+                null,
+                Map.of(new FullyQualifiedInferenceId(LOCAL_CLUSTER_GROUP_KEY, randomAlphaOfLength(5)), inferenceResults)
+            );
+            SemanticQueryBuilder bwcQuery = new SemanticQueryBuilder(
+                fieldName,
+                query,
+                null,
+                SemanticQueryBuilder.buildSingleResultInferenceResultsMap(inferenceResults)
+            );
+
+            QueryBuilder deserializedQuery = copyNamedWriteable(originalQuery, namedWriteableRegistry(), QueryBuilder.class, version);
+            SemanticQueryBuilder expectedQuery = version.supports(SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS_TV) ? originalQuery : bwcQuery;
+            assertThat(deserializedQuery, equalTo(expectedQuery));
+        };
+
+        for (int i = 0; i < 100; i++) {
+            TransportVersion transportVersion = TransportVersionUtils.randomCompatibleVersion();
+            assertSingleInferenceResult.accept(inferenceResults1, transportVersion);
+        }
+
+        // Multiple inference results
+        CheckedBiConsumer<List<InferenceResults>, TransportVersion, IOException> assertMultipleInferenceResults = (
+            inferenceResultsList,
+            version) -> {
+            boolean remoteCluster = randomBoolean();
+            Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap = new HashMap<>(inferenceResultsList.size());
+            inferenceResultsList.forEach(
+                result -> inferenceResultsMap.put(
+                    new FullyQualifiedInferenceId(remoteCluster ? randomAlphaOfLength(5) : LOCAL_CLUSTER_GROUP_KEY, randomAlphaOfLength(5)),
+                    result
+                )
+            );
+            SemanticQueryBuilder originalQuery = new SemanticQueryBuilder(
+                randomAlphaOfLength(5),
+                randomAlphaOfLength(5),
+                null,
+                inferenceResultsMap
+            );
+
+            String expectedErrorMessage;
+            if (version.supports(INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS)) {
+                expectedErrorMessage = null;
+            } else if (version.supports(SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS_TV)) {
+                expectedErrorMessage = remoteCluster
+                    ? "Cannot serialize remote cluster inference results in a mixed-version cluster"
+                    : null;
+            } else {
+                expectedErrorMessage = "Cannot query multiple inference IDs in a mixed-version cluster";
+            }
+
+            if (expectedErrorMessage != null) {
+                IllegalArgumentException e = assertThrows(
+                    IllegalArgumentException.class,
+                    () -> copyNamedWriteable(originalQuery, namedWriteableRegistry(), QueryBuilder.class, version)
+                );
+                assertThat(e.getMessage(), equalTo(expectedErrorMessage));
+            } else {
+                QueryBuilder deserializedQuery = copyNamedWriteable(originalQuery, namedWriteableRegistry(), QueryBuilder.class, version);
+                assertThat(deserializedQuery, equalTo(originalQuery));
+            }
+        };
+
+        for (int i = 0; i < 100; i++) {
+            TransportVersion transportVersion = TransportVersionUtils.randomCompatibleVersion();
+            assertMultipleInferenceResults.accept(List.of(inferenceResults1, inferenceResults2), transportVersion);
+        }
+    }
+
+    public void testSerializationCcs() throws Exception {
+        SemanticQueryBuilder originalQuery = new SemanticQueryBuilder(randomAlphaOfLength(5), randomAlphaOfLength(5), null, Map.of(), true);
+        QueryBuilder deserializedQuery = copyNamedWriteable(originalQuery, namedWriteableRegistry(), QueryBuilder.class);
+        assertThat(deserializedQuery, equalTo(originalQuery));
+    }
+
+    public void testSerializationCcsBwc() throws Exception {
+        SemanticQueryBuilder originalQuery = new SemanticQueryBuilder(randomAlphaOfLength(5), randomAlphaOfLength(5), null, Map.of(), true);
+
+        for (int i = 0; i < 100; i++) {
+            TransportVersion transportVersion = TransportVersionUtils.randomVersionNotSupporting(TransportVersion.current());
+
+            if (transportVersion.supports(SEMANTIC_SEARCH_CCS_SUPPORT)) {
+                QueryBuilder deserializedQuery = copyNamedWriteable(
+                    originalQuery,
+                    namedWriteableRegistry(),
+                    QueryBuilder.class,
+                    transportVersion
+                );
+                assertThat(deserializedQuery, equalTo(originalQuery));
+            } else {
+                IllegalArgumentException e = assertThrows(
+                    IllegalArgumentException.class,
+                    () -> copyNamedWriteable(originalQuery, namedWriteableRegistry(), QueryBuilder.class, transportVersion)
+                );
+                assertThat(e.getMessage(), containsString("One or more nodes does not support semantic query cross-cluster search"));
+            }
         }
     }
 
@@ -376,18 +551,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         DenseVectorFieldMapper.ElementType denseVectorElementType,
         boolean useLegacyFormat
     ) throws IOException {
-        var modelSettings = switch (inferenceResultType) {
-            case NONE -> null;
-            case SPARSE_EMBEDDING -> new MinimalServiceSettings("my-service", TaskType.SPARSE_EMBEDDING, null, null, null);
-            case TEXT_EMBEDDING -> new MinimalServiceSettings(
-                "my-service",
-                TaskType.TEXT_EMBEDDING,
-                TEXT_EMBEDDING_DIMENSION_COUNT,
-                // l2_norm similarity is required for bit embeddings
-                denseVectorElementType == DenseVectorFieldMapper.ElementType.BIT ? SimilarityMeasure.L2_NORM : SimilarityMeasure.COSINE,
-                denseVectorElementType
-            );
-        };
+        var modelSettings = getModelSettingsForInferenceResultType(inferenceResultType, denseVectorElementType);
 
         SourceToParse sourceToParse = null;
         if (modelSettings != null) {
@@ -414,11 +578,22 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         return sourceToParse;
     }
 
-    public static class FakeMlPlugin extends Plugin {
-        @Override
-        public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-            return new MlInferenceNamedXContentProvider().getNamedWriteables();
-        }
+    private static MinimalServiceSettings getModelSettingsForInferenceResultType(
+        InferenceResultType inferenceResultType,
+        @Nullable DenseVectorFieldMapper.ElementType denseVectorElementType
+    ) {
+        return switch (inferenceResultType) {
+            case NONE -> null;
+            case SPARSE_EMBEDDING -> new MinimalServiceSettings("my-service", TaskType.SPARSE_EMBEDDING, null, null, null);
+            case TEXT_EMBEDDING -> new MinimalServiceSettings(
+                "my-service",
+                TaskType.TEXT_EMBEDDING,
+                TEXT_EMBEDDING_DIMENSION_COUNT,
+                // l2_norm similarity is required for bit embeddings
+                denseVectorElementType == DenseVectorFieldMapper.ElementType.BIT ? SimilarityMeasure.L2_NORM : SimilarityMeasure.COSINE,
+                denseVectorElementType
+            );
+        };
     }
 
     private static TestThreadPool threadPool;

@@ -13,6 +13,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.CollectionTerminatedException;
@@ -21,23 +22,24 @@ import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.Similarity;
-import org.apache.lucene.util.BitSet;
-import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.SparseFixedBitSet;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.elasticsearch.common.lucene.search.BitsIterator;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.lucene.util.CombinedBitSet;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.search.profile.query.ProfileWeight;
@@ -54,12 +56,14 @@ import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
  * Context-aware extension of {@link IndexSearcher}.
  */
 public class ContextIndexSearcher extends IndexSearcher implements Releasable {
+    private static final MatchNoDocsQuery REWRITE_TIMEOUT = new MatchNoDocsQuery("rewrite timed out");
 
     /**
      * The interval at which we check for search cancellation when we cannot use
@@ -187,6 +191,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         this.cancellable.clear();
     }
 
+    // clear all registered cancellation callbacks to prevent them from leaking into other phases
+    public void clearQueryCancellations() {
+        this.cancellable.clear();
+    }
+
     public boolean hasCancellations() {
         return this.cancellable.isEnabled();
     }
@@ -201,11 +210,22 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         if (profiler != null) {
             rewriteTimer = profiler.startRewriteTime();
         }
+
+        /**
+         * We override rewrite because this is where the superclass checks the max clause count.
+         * Overriding allows us to customize this limit and take full control by using our own
+         * visitor to ensure the query does not exceed our allowed limits.
+         */
         try {
-            return super.rewrite(original);
+            Query query = original;
+            for (Query rewrittenQuery = query.rewrite(this); rewrittenQuery != query; rewrittenQuery = query.rewrite(this)) {
+                query = rewrittenQuery;
+            }
+            verifyQueryLimit(query);
+            return query;
         } catch (TimeExceededException e) {
             timeExceeded = true;
-            return new MatchNoDocsQuery("rewrite timed out");
+            return REWRITE_TIMEOUT;
         } catch (TooManyClauses e) {
             throw new IllegalArgumentException("Query rewrite failed: too many clauses", e);
         } finally {
@@ -449,8 +469,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return;
         }
         Bits liveDocs = ctx.reader().getLiveDocs();
-        BitSet liveDocsBitSet = getSparseBitSetOrNull(liveDocs);
-        if (liveDocsBitSet == null) {
+        int numDocs = ctx.reader().numDocs();
+        // This threshold comes from the previous heuristic that checked whether the BitSet was a SparseFixedBitSet, which uses this
+        // threshold at creation time. But a higher threshold would likely perform better?
+        int threshold = ctx.reader().maxDoc() >> 7;
+        if (numDocs >= threshold) {
             BulkScorer bulkScorer = weight.bulkScorer(ctx);
             if (bulkScorer != null) {
                 if (cancellable.isEnabled()) {
@@ -470,7 +493,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 try {
                     intersectScorerAndBitSet(
                         scorer,
-                        liveDocsBitSet,
+                        liveDocs,
                         leafCollector,
                         this.cancellable.isEnabled() ? cancellable::checkCancelled : () -> {}
                     );
@@ -485,27 +508,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         leafCollector.finish();
     }
 
-    private static BitSet getSparseBitSetOrNull(Bits liveDocs) {
-        if (liveDocs instanceof SparseFixedBitSet) {
-            return (BitSet) liveDocs;
-        } else if (liveDocs instanceof CombinedBitSet
-            // if the underlying role bitset is sparse
-            && ((CombinedBitSet) liveDocs).getFirst() instanceof SparseFixedBitSet) {
-                return (BitSet) liveDocs;
-            } else {
-                return null;
-            }
-
-    }
-
-    static void intersectScorerAndBitSet(Scorer scorer, BitSet acceptDocs, LeafCollector collector, Runnable checkCancelled)
+    static void intersectScorerAndBitSet(Scorer scorer, Bits acceptDocs, LeafCollector collector, Runnable checkCancelled)
         throws IOException {
         collector.setScorer(scorer);
-        // ConjunctionDISI uses the DocIdSetIterator#cost() to order the iterators, so if roleBits has the lowest cardinality it should
-        // be used first:
-        DocIdSetIterator iterator = ConjunctionUtils.intersectIterators(
-            Arrays.asList(new BitSetIterator(acceptDocs, acceptDocs.approximateCardinality()), scorer.iterator())
-        );
+        DocIdSetIterator iterator = ConjunctionUtils.intersectIterators(Arrays.asList(new BitsIterator(acceptDocs), scorer.iterator()));
         int seen = 0;
         checkCancelled.run();
         for (int docId = iterator.nextDoc(); docId < DocIdSetIterator.NO_MORE_DOCS; docId = iterator.nextDoc()) {
@@ -603,6 +609,63 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
         public void clear() {
             runnables.clear();
+        }
+    }
+
+    /**
+     * Verifies that the given query does not exceed the maximum allowed clause count.
+     * Traverses the query upfront to estimate its total cost and fails fast by throwing
+     * {@link TooManyNestedClauses} if the limit is exceeded.
+     */
+    private static void verifyQueryLimit(Query query) {
+        final int[] numClauses = new int[1];
+        final int maxClauseCount = getMaxClauseCount();
+        query.visit(new QueryVisitor() {
+            @Override
+            public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
+                if (parent instanceof IndexOrDocValuesQuery) {
+                    if (numClauses[0] > maxClauseCount) {
+                        throw new TooManyNestedClauses();
+                    }
+                    ++numClauses[0];
+                    // ignore the subqueries inside IndexOrDocValuesQuery
+                    return QueryVisitor.EMPTY_VISITOR;
+                }
+                // Return this instance even for MUST_NOT and not an empty QueryVisitor
+                return this;
+            }
+
+            @Override
+            public void visitLeaf(Query query) {
+                if (query instanceof IndexSortSortedNumericDocValuesRangeQuery) {
+                    // ignore so we only count the fallback query
+                    return;
+                }
+                if (numClauses[0] > maxClauseCount) {
+                    throw new TooManyNestedClauses();
+                }
+                ++numClauses[0];
+            }
+
+            @Override
+            public void consumeTerms(Query query, Term... terms) {
+                if (numClauses[0] > maxClauseCount) {
+                    throw new TooManyNestedClauses();
+                }
+                numClauses[0] += terms.length;
+            }
+
+            @Override
+            public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
+                if (numClauses[0] > maxClauseCount) {
+                    throw new TooManyNestedClauses();
+                }
+                ++numClauses[0];
+            }
+        });
+
+        if (numClauses[0] > maxClauseCount) {
+            throw new TooManyNestedClauses();
         }
     }
 }

@@ -203,7 +203,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         AtomicBoolean nextPage = new AtomicBoolean(false);
 
         ArrayList<IncrementalBulkService.Handler> handlers = new ArrayList<>();
-        for (int i = 0; i < 4; ++i) {
+        for (int i = 0; i < 5; ++i) {
             ArrayList<DocWriteRequest<?>> requests = new ArrayList<>();
             add512BRequests(requests, index);
             IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
@@ -230,9 +230,11 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         // Test that a request larger than SPLIT_BULK_HIGH_WATERMARK_SIZE (1KB) is throttled
         add512BRequests(requestsThrottle, index);
         add512BRequests(requestsThrottle, index);
+        // Ensure we'll be above SPLIT_BULK_HIGH_WATERMARK
+        assertThat(indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes() + 1024, greaterThan(4096L));
 
         CountDownLatch finishLatch = new CountDownLatch(1);
-        blockWritePool(threadPool, finishLatch);
+        blockWriteCoordinationPool(threadPool, finishLatch);
         IncrementalBulkService.Handler handlerThrottled = incrementalBulkService.newBulkRequest();
         refCounted.incRef();
         handlerThrottled.addItems(requestsThrottle, refCounted::decRef, () -> nextPage.set(true));
@@ -295,8 +297,8 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class, randomNodeName);
             ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, randomNodeName);
 
-            blockWritePool(threadPool, blockingLatch);
-            fillWriteQueue(threadPool);
+            blockWriteCoordinationPool(threadPool, blockingLatch);
+            fillWriteCoordinationQueue(threadPool);
 
             IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
             if (randomBoolean()) {
@@ -333,7 +335,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             AtomicBoolean nextRequested = new AtomicBoolean(true);
             AtomicLong hits = new AtomicLong(0);
             try {
-                blockWritePool(threadPool, blockingLatch1);
+                blockWriteCoordinationPool(threadPool, blockingLatch1);
                 while (nextRequested.get()) {
                     nextRequested.set(false);
                     refCounted.incRef();
@@ -348,8 +350,8 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             CountDownLatch blockingLatch2 = new CountDownLatch(1);
 
             try {
-                blockWritePool(threadPool, blockingLatch2);
-                fillWriteQueue(threadPool);
+                blockWriteCoordinationPool(threadPool, blockingLatch2);
+                fillWriteCoordinationQueue(threadPool);
 
                 handler.lastItems(List.of(indexRequest(index)), refCounted::decRef, future);
             } finally {
@@ -531,8 +533,8 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         }
     }
 
-    private static void blockWritePool(ThreadPool threadPool, CountDownLatch finishLatch) {
-        final var threadCount = threadPool.info(ThreadPool.Names.WRITE).getMax();
+    private static void blockWriteCoordinationPool(ThreadPool threadPool, CountDownLatch finishLatch) {
+        final var threadCount = threadPool.info(ThreadPool.Names.WRITE_COORDINATION).getMax();
         final var startBarrier = new CyclicBarrier(threadCount + 1);
         final var blockingTask = new AbstractRunnable() {
             @Override
@@ -552,13 +554,13 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             }
         };
         for (int i = 0; i < threadCount; i++) {
-            threadPool.executor(ThreadPool.Names.WRITE).execute(blockingTask);
+            threadPool.executor(ThreadPool.Names.WRITE_COORDINATION).execute(blockingTask);
         }
         safeAwait(startBarrier);
     }
 
-    private static void fillWriteQueue(ThreadPool threadPool) {
-        final var queueSize = Math.toIntExact(threadPool.info(ThreadPool.Names.WRITE).getQueueSize().singles());
+    private static void fillWriteCoordinationQueue(ThreadPool threadPool) {
+        final var queueSize = Math.toIntExact(threadPool.info(ThreadPool.Names.WRITE_COORDINATION).getQueueSize());
         final var queueFilled = new AtomicBoolean(false);
         final var queueFillingTask = new AbstractRunnable() {
             @Override
@@ -577,7 +579,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             }
         };
         for (int i = 0; i < queueSize; i++) {
-            threadPool.executor(ThreadPool.Names.WRITE).execute(queueFillingTask);
+            threadPool.executor(ThreadPool.Names.WRITE_COORDINATION).execute(queueFillingTask);
         }
         queueFilled.set(true);
     }

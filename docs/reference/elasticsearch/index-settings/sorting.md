@@ -2,6 +2,9 @@
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-index-sorting.html
 navigation_title: Sorting
+applies_to:
+  stack: all
+  serverless: all
 ---
 
 # Index sorting settings [index-modules-index-sorting]
@@ -35,7 +38,7 @@ PUT my-index-000001
 ```
 
 1. This index is sorted by the `date` field
-2. …  in descending order.
+2. In descending order.
 
 
 It is also possible to sort the index by more than one field:
@@ -64,29 +67,32 @@ PUT my-index-000001
 ```
 
 1. This index is sorted by `username` first then by `date`
-2. …  in ascending order for the `username` field and in descending order for the `date` field.
+2. In ascending order for the `username` field and in descending order for the `date` field.
 
 
 Index sorting supports the following settings:
 
-`index.sort.field`
+$$$index-sort-field$$$
+`index.sort.field` {applies_to}`serverless: all`
 :   The list of fields used to sort the index. Only `boolean`, `numeric`, `date` and `keyword` fields with `doc_values` are allowed here.
 
-`index.sort.order`
+$$$index-sort-order$$$
+`index.sort.order` {applies_to}`serverless: all`
 :   The sort order to use for each field. The order option can have the following values:
 
     * `asc`:  For ascending order
     * `desc`: For descending order.
 
-
-`index.sort.mode`
+$$$index-sort-mode$$$
+`index.sort.mode` {applies_to}`serverless: all`
 :   Elasticsearch supports sorting by multi-valued fields. The mode option controls what value is picked to sort the document. The mode option can have the following values:
 
     * `min`: 	Pick the lowest value.
     * `max`: 	Pick the highest value.
 
 
-`index.sort.missing`
+$$$index-sort-missing$$$
+`index.sort.missing` {applies_to}`serverless: all`
 :   The missing parameter specifies how docs which are missing the field should be treated. The missing value can have the following values:
 
     * `_last`: Documents without value for the field are sorted last.
@@ -136,6 +142,7 @@ GET /events/_search
   ]
 }
 ```
+% TEST[continued]
 
 Elasticsearch will detect that the top docs of each segment are already sorted in the index and will only compare the first N documents per segment. The rest of the documents matching the query are collected to count the total number of results and to build aggregations.
 
@@ -151,6 +158,7 @@ GET /events/_search
   "track_total_hits": false
 }
 ```
+% TEST[continued]
 
 1. The index sort will be used to rank the top documents and each segment will early terminate the collection after the first 10 matches.
 
@@ -168,6 +176,8 @@ This time, Elasticsearch will not try to count the number of documents and will 
   "timed_out": false
 }
 ```
+% TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]
+% TESTRESPONSE[s/"took": 20,/"took": "$body.took",/]
 
 1. The total number of hits matching the query is unknown because of early termination.
 

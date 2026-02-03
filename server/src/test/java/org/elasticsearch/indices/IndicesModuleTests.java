@@ -100,7 +100,7 @@ public class IndicesModuleTests extends ESTestCase {
     public void testBuiltinMappers() {
         IndicesModule module = new IndicesModule(Collections.emptyList());
         {
-            IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersion.current());
+            IndexVersion version = IndexVersionUtils.randomVersionBetween(IndexVersions.V_8_0_0, IndexVersion.current());
             assertThat(
                 module.getMapperRegistry().getMapperParser("object", IndexVersion.current()),
                 instanceOf(ObjectMapper.TypeParser.class)
@@ -116,7 +116,6 @@ public class IndicesModuleTests extends ESTestCase {
         }
         {
             IndexVersion version = IndexVersionUtils.randomVersionBetween(
-                random(),
                 IndexVersions.V_7_0_0,
                 IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
             );

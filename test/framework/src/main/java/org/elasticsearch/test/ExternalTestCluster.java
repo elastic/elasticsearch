@@ -162,6 +162,11 @@ public final class ExternalTestCluster extends TestCluster {
     }
 
     @Override
+    protected Client internalClient() {
+        return client;
+    }
+
+    @Override
     public int size() {
         return httpAddresses.length;
     }
@@ -189,7 +194,13 @@ public final class ExternalTestCluster extends TestCluster {
     @Override
     public void ensureEstimatedStats() {
         if (size() > 0) {
-            NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().clear().setBreaker(true).setIndices(true).get();
+            NodesStatsResponse nodeStats = internalClient().admin()
+                .cluster()
+                .prepareNodesStats()
+                .clear()
+                .setBreaker(true)
+                .setIndices(true)
+                .get();
             for (NodeStats stats : nodeStats.getNodes()) {
                 assertThat(
                     "Fielddata breaker not reset to 0 on node: " + stats.getNode(),

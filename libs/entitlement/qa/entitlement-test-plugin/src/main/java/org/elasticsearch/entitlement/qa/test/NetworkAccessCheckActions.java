@@ -10,6 +10,7 @@
 package org.elasticsearch.entitlement.qa.test;
 
 import org.elasticsearch.core.SuppressForbidden;
+import org.xml.sax.helpers.DefaultHandler;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -46,6 +47,7 @@ import java.util.concurrent.ExecutionException;
 
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
+import javax.xml.parsers.SAXParserFactory;
 
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.ALWAYS_DENIED;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
@@ -401,6 +403,13 @@ class NetworkAccessCheckActions {
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
+    static void connectDatagramSocketInetAddress() throws IOException {
+        try (var socket = new DummyImplementations.DummyDatagramSocket()) {
+            socket.connect(InetAddress.getByAddress(new byte[] { (byte) 230, 0, 0, 1 }), 1234);
+        }
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void joinGroupDatagramSocket() throws IOException {
         try (var socket = new DummyImplementations.DummyDatagramSocket()) {
             socket.joinGroup(
@@ -432,6 +441,13 @@ class NetworkAccessCheckActions {
         try (var socket = new DummyImplementations.DummyDatagramSocket()) {
             socket.receive(new DatagramPacket(new byte[1], 1, InetAddress.getLocalHost(), 1234));
         }
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void javaXmlNetworkRequest() throws Exception {
+        // java.xml is part of the jdk, but not a system module. this checks it can't access the network
+        var saxParser = SAXParserFactory.newInstance().newSAXParser();
+        saxParser.parse("http://127.0.0.1/foo.json", new DefaultHandler());
     }
 
     private NetworkAccessCheckActions() {}

@@ -223,6 +223,11 @@ public class OptimizerRunTests extends ESTestCase {
         );
     }
 
+    public void testIfNullPercentile() {
+        LogicalPlan p = plan("SELECT NULLIF(PERCENTILE(0+int+int, 50), 0) from test");
+        assertNotNull(p);
+    }
+
     private void doTestSimplifyComparisonArithmetics(String expression, String fieldName, String compSymbol, Object bound) {
         BinaryComparison bc = extractPlannedBinaryComparison(expression);
         assertEquals(compSymbol, bc.symbol());

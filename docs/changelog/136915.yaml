@@ -1,0 +1,16 @@
+pr: 136915
+summary: Implement native synthetic source for normalized keywords
+area: Mapping
+type: breaking
+issues: []
+breaking:
+  title: Implement native synthetic source for normalized keywords
+  area: Mapping
+  details: "This adds a new mapping parameter `normalizer_skip_store_original_value` to keyword fields. When this\
+  \ parameter is set, and synthetic_source is enabled, keyword fields with configured normalizers will not store the\
+  \ original non-normalized value in _ignored_source, and will instead use the normalized value to reconstruct the\
+  \ source. This parameter enabled by default for the built-in `lowercase` normalizer, and is disabled by default for\
+  \ other custom normalizers."
+  impact: "Keyword fields using the `lowercase` normalizer will return the normalized value in the source when synthetic\
+    \ source is enabled."
+  notable: false

@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 dependencies {
   yamlRestTestImplementation project(':x-pack:qa')
@@ -10,10 +10,6 @@ restResources {
   }
 }
 
-testClusters.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
-  user username: "test_admin", password: "x-pack-test-password"
+tasks.named("yamlRestTest") {
+  usesDefaultDistribution("security and mustache features require default distribution")
 }

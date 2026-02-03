@@ -11,6 +11,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -21,7 +22,7 @@ import static org.hamcrest.Matchers.containsString;
 public class JinaAIRerankTaskSettingsTests extends AbstractWireSerializingTestCase<JinaAIRerankTaskSettings> {
 
     public static JinaAIRerankTaskSettings createRandom() {
-        var returnDocuments = randomBoolean() ? randomBoolean() : null;
+        var returnDocuments = randomOptionalBoolean();
         var topNDocsOnly = randomBoolean() ? randomIntBetween(1, 10) : null;
 
         return new JinaAIRerankTaskSettings(topNDocsOnly, returnDocuments);
@@ -109,22 +110,24 @@ public class JinaAIRerankTaskSettingsTests extends AbstractWireSerializingTestCa
 
     @Override
     protected JinaAIRerankTaskSettings mutateInstance(JinaAIRerankTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, JinaAIRerankTaskSettingsTests::createRandom);
+        if (randomBoolean()) {
+            var topNDocumentsOnly = randomValueOtherThan(instance.getTopNDocumentsOnly(), () -> randomFrom(randomIntBetween(1, 10), null));
+            return new JinaAIRerankTaskSettings(topNDocumentsOnly, instance.getReturnDocuments());
+        } else {
+            var returnDocuments = randomValueOtherThan(instance.getReturnDocuments(), ESTestCase::randomOptionalBoolean);
+            return new JinaAIRerankTaskSettings(instance.getTopNDocumentsOnly(), returnDocuments);
+        }
     }
 
-    public static Map<String, Object> getTaskSettingsMapEmpty() {
-        return new HashMap<>();
-    }
-
-    public static Map<String, Object> getTaskSettingsMap(@Nullable Integer topNDocumentsOnly, Boolean returnDocuments) {
+    public static Map<String, Object> getTaskSettingsMap(@Nullable Integer topNDocumentsOnly, @Nullable Boolean returnDocuments) {
         var map = new HashMap<String, Object>();
 
         if (topNDocumentsOnly != null) {
-            map.put(JinaAIRerankTaskSettings.TOP_N_DOCS_ONLY, topNDocumentsOnly.toString());
+            map.put(JinaAIRerankTaskSettings.TOP_N_DOCS_ONLY, topNDocumentsOnly);
         }
 
         if (returnDocuments != null) {
-            map.put(JinaAIRerankTaskSettings.RETURN_DOCUMENTS, returnDocuments.toString());
+            map.put(JinaAIRerankTaskSettings.RETURN_DOCUMENTS, returnDocuments);
         }
 
         return map;

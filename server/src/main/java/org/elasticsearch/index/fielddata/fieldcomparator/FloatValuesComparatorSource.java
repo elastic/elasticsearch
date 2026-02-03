@@ -20,10 +20,10 @@ import org.apache.lucene.search.comparators.FloatComparator;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.fielddata.DenseDoubleValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -54,7 +54,7 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
         return SortField.Type.FLOAT;
     }
 
-    NumericDoubleValues getNumericDocValues(LeafReaderContext context, double missingValue) throws IOException {
+    DenseDoubleValues getDenseDoubleValues(LeafReaderContext context, double missingValue) throws IOException {
         final SortedNumericDoubleValues values = indexFieldData.load(context).getDoubleValues();
         if (nested == null) {
             return FieldData.replaceMissing(sortMode.select(values), missingValue);
@@ -73,13 +73,17 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
         final float fMissingValue = (Float) missingObject(missingValue, reversed);
         // NOTE: it's important to pass null as a missing value in the constructor so that
         // the comparator doesn't check docsWithField since we replace missing values in select()
-        return new FloatComparator(numHits, null, null, reversed, Pruning.NONE) {
+        return new FloatComparator(numHits, fieldname, fMissingValue, reversed, enableSkipping) {
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                 return new FloatLeafComparator(context) {
                     @Override
                     protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
-                        return FloatValuesComparatorSource.this.getNumericDocValues(context, fMissingValue).getRawFloatValues();
+                        return DenseDoubleValues.asNumericDocValues(
+                            getDenseDoubleValues(context, fMissingValue),
+                            context.reader().maxDoc(),
+                            v -> Float.floatToRawIntBits((float) v)
+                        );
                     }
                 };
             }
@@ -105,7 +109,7 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
             @Override
             public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
                 return new Leaf(ctx) {
-                    private final NumericDoubleValues docValues = getNumericDocValues(ctx, dMissingValue);
+                    private final DenseDoubleValues docValues = getDenseDoubleValues(ctx, dMissingValue);
                     private float docValue;
 
                     @Override

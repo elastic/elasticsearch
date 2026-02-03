@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.health.node.action.HealthNodeRequest;
 import org.elasticsearch.health.node.action.TransportHealthNodeAction;
 import org.elasticsearch.injection.guice.Inject;
@@ -114,7 +115,7 @@ public class FetchHealthInfoCacheAction extends ActionType<FetchHealthInfoCacheA
                 actionFilters,
                 FetchHealthInfoCacheAction.Request::new,
                 FetchHealthInfoCacheAction.Response::new,
-                threadPool.executor(ThreadPool.Names.MANAGEMENT)
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
             this.nodeHealthOverview = nodeHealthOverview;
         }

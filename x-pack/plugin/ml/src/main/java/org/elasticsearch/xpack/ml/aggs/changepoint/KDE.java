@@ -38,9 +38,13 @@ final class KDE {
     }
 
     private ValueAndMagnitude evaluate(IntervalComplementFunction complement, KernelFunction kernel, double x) {
-        if (bandwidth == 0.0 || orderedValues.length == 0) {
+        if (orderedValues.length == 0) {
             return new ValueAndMagnitude(1.0, 0.0);
         }
+        if (bandwidth == 0) {
+            return new ValueAndMagnitude(x != orderedValues[0] ? 0.0 : 1.0, Math.abs(orderedValues[0] - x));
+        }
+
         int a = Math.min(lowerBound(orderedValues, x - 3.0 * bandwidth), orderedValues.length - 1);
         int b = Math.max(lowerBound(orderedValues, x + 3.0 * bandwidth), a + 1);
         // Account for all the values outside the interval [a, b) using the kernel complement.

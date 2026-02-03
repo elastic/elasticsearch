@@ -14,11 +14,11 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -171,7 +171,7 @@ public class MultiBucketCollectorTests extends ESTestCase {
                 expectedCounts.put(collector, expectedCount);
                 collectors.add(new TerminateAfterBucketCollector(collector, terminateAfter));
             }
-            searcher.search(new MatchAllDocsQuery(), MultiBucketCollector.wrap(true, collectors).asCollector());
+            searcher.search(Queries.ALL_DOCS_INSTANCE, MultiBucketCollector.wrap(true, collectors).asCollector());
             for (Map.Entry<TotalHitCountBucketCollector, Integer> expectedCount : expectedCounts.entrySet()) {
                 assertEquals(expectedCount.getValue().intValue(), expectedCount.getKey().getTotalHits());
             }

@@ -10,23 +10,25 @@ package org.elasticsearch.index.fielddata.fieldcomparator;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.LeafFieldComparator;
+import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.comparators.LongComparator;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.fielddata.DenseLongValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.lucene.comparators.XLongComparator;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.BucketedSort;
@@ -41,7 +43,7 @@ import java.util.function.Function;
 public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorSource {
 
     final IndexNumericFieldData indexFieldData;
-    private final Function<SortedNumericDocValues, SortedNumericDocValues> converter;
+    private final Function<SortedNumericLongValues, SortedNumericLongValues> converter;
     private final NumericType targetNumericType;
 
     public LongValuesComparatorSource(
@@ -59,7 +61,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         @Nullable Object missingValue,
         MultiValueMode sortMode,
         Nested nested,
-        Function<SortedNumericDocValues, SortedNumericDocValues> converter,
+        Function<SortedNumericLongValues, SortedNumericLongValues> converter,
         NumericType targetNumericType
     ) {
         super(missingValue, sortMode, nested);
@@ -73,9 +75,9 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         return SortField.Type.LONG;
     }
 
-    private SortedNumericDocValues loadDocValues(LeafReaderContext context) {
+    private SortedNumericLongValues loadDocValues(LeafReaderContext context) {
         final LeafNumericFieldData data = indexFieldData.load(context);
-        SortedNumericDocValues values;
+        SortedNumericLongValues values;
         if (data instanceof SortedNumericIndexFieldData.NanoSecondFieldData) {
             values = ((SortedNumericIndexFieldData.NanoSecondFieldData) data).getLongValuesAsNanos();
         } else {
@@ -84,8 +86,8 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         return converter != null ? converter.apply(values) : values;
     }
 
-    NumericDocValues getNumericDocValues(LeafReaderContext context, long missingValue) throws IOException {
-        final SortedNumericDocValues values = loadDocValues(context);
+    DenseLongValues getLongValues(LeafReaderContext context, long missingValue) throws IOException {
+        final SortedNumericLongValues values = loadDocValues(context);
         if (nested == null) {
             return FieldData.replaceMissing(sortMode.select(values), missingValue);
         }
@@ -100,15 +102,14 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
 
         final long lMissingValue = (Long) missingObject(missingValue, reversed);
-        // NOTE: it's important to pass null as a missing value in the constructor so that
-        // the comparator doesn't check docsWithField since we replace missing values in select()
-        return new LongComparator(numHits, null, null, reversed, Pruning.NONE) {
+        return new XLongComparator(numHits, fieldname, lMissingValue, reversed, enableSkipping) {
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
+                final int maxDoc = context.reader().maxDoc();
                 return new LongLeafComparator(context) {
                     @Override
                     protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
-                        return LongValuesComparatorSource.this.getNumericDocValues(context, lMissingValue);
+                        return wrap(getLongValues(context, lMissingValue), maxDoc);
                     }
                 };
             }
@@ -129,7 +130,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
             @Override
             public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
                 return new Leaf(ctx) {
-                    private final NumericDocValues docValues = getNumericDocValues(ctx, lMissingValue);
+                    private final LongValues docValues = getLongValues(ctx, lMissingValue);
                     private long docValue;
 
                     @Override
@@ -160,5 +161,51 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
             }
         }
         return super.missingObject(missingValue, reversed);
+    }
+
+    protected static NumericDocValues wrap(DenseLongValues longValues, int maxDoc) {
+        return new NumericDocValues() {
+
+            int doc = -1;
+
+            @Override
+            public long longValue() throws IOException {
+                return longValues.longValue();
+            }
+
+            @Override
+            public boolean advanceExact(int target) throws IOException {
+                doc = target;
+                return longValues.advanceExact(target);
+            }
+
+            @Override
+            public int docID() {
+                return doc;
+            }
+
+            @Override
+            public int nextDoc() throws IOException {
+                return advance(doc + 1);
+            }
+
+            @Override
+            public int advance(int target) throws IOException {
+                if (target >= maxDoc) {
+                    return doc = NO_MORE_DOCS;
+                }
+                // All documents are guaranteed to have a value, as all invocations of getLongValues
+                // always return `true` from `advanceExact()`
+                boolean hasValue = longValues.advanceExact(target);
+                assert hasValue : "LongValuesComparatorSource#wrap called with a LongValues that has missing values";
+                doc = target;
+                return target;
+            }
+
+            @Override
+            public long cost() {
+                throw new UnsupportedOperationException();
+            }
+        };
     }
 }

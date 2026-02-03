@@ -1,0 +1,5 @@
+pr: 139694
+summary: Refactor inference operator architecture for multi-value field support
+area: ES|QL
+type: enhancement
+issues: []

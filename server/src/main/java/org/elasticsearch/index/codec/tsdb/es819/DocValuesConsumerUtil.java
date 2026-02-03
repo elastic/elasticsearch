@@ -24,7 +24,7 @@ class DocValuesConsumerUtil {
 
     record MergeStats(boolean supported, long sumNumValues, int sumNumDocsWithField, int minLength, int maxLength) {}
 
-    static MergeStats compatibleWithOptimizedMerge(boolean optimizedMergeEnabled, MergeState mergeState, FieldInfo fieldInfo) {
+    static MergeStats compatibleWithOptimizedMerge(boolean optimizedMergeEnabled, MergeState mergeState, FieldInfo mergedFieldInfo) {
         if (optimizedMergeEnabled == false || mergeState.needsIndexSort == false) {
             return UNSUPPORTED;
         }
@@ -42,6 +42,10 @@ class DocValuesConsumerUtil {
         int maxLength = 0;
 
         for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
+            final FieldInfo fieldInfo = mergeState.fieldInfos[i].fieldInfo(mergedFieldInfo.name);
+            if (fieldInfo == null) {
+                continue;
+            }
             DocValuesProducer docValuesProducer = mergeState.docValuesProducers[i];
             if (docValuesProducer instanceof FilterDocValuesProducer filterDocValuesProducer) {
                 docValuesProducer = filterDocValuesProducer.getIn();
@@ -60,6 +64,9 @@ class DocValuesConsumerUtil {
                             if (entry != null) {
                                 sumNumValues += entry.numValues;
                                 sumNumDocsWithField += entry.numDocsWithField;
+                            } else {
+                                assert false : "unexpectedly got no entry for field [" + fieldInfo.number + "\\" + fieldInfo.name + "]";
+                                return UNSUPPORTED;
                             }
                         }
                         case SORTED_NUMERIC -> {
@@ -67,6 +74,9 @@ class DocValuesConsumerUtil {
                             if (entry != null) {
                                 sumNumValues += entry.numValues;
                                 sumNumDocsWithField += entry.numDocsWithField;
+                            } else {
+                                assert false : "unexpectedly got no entry for field [" + fieldInfo.number + "\\" + fieldInfo.name + "]";
+                                return UNSUPPORTED;
                             }
                         }
                         case SORTED -> {
@@ -74,6 +84,9 @@ class DocValuesConsumerUtil {
                             if (entry != null) {
                                 sumNumValues += entry.ordsEntry.numValues;
                                 sumNumDocsWithField += entry.ordsEntry.numDocsWithField;
+                            } else {
+                                assert false : "unexpectedly got no entry for field [" + fieldInfo.number + "\\" + fieldInfo.name + "]";
+                                return UNSUPPORTED;
                             }
                         }
                         case SORTED_SET -> {
@@ -86,6 +99,9 @@ class DocValuesConsumerUtil {
                                     sumNumValues += entry.ordsEntry.numValues;
                                     sumNumDocsWithField += entry.ordsEntry.numDocsWithField;
                                 }
+                            } else {
+                                assert false : "unexpectedly got no entry for field [" + fieldInfo.number + "\\" + fieldInfo.name + "]";
+                                return UNSUPPORTED;
                             }
                         }
                         case BINARY -> {
@@ -94,6 +110,9 @@ class DocValuesConsumerUtil {
                                 sumNumDocsWithField += entry.numDocsWithField;
                                 minLength = Math.min(minLength, entry.minLength);
                                 maxLength = Math.max(maxLength, entry.maxLength);
+                            } else {
+                                assert false : "unexpectedly got no entry for field [" + fieldInfo.number + "\\" + fieldInfo.name + "]";
+                                return UNSUPPORTED;
                             }
                         }
                         default -> throw new IllegalStateException("unexpected doc values producer type: " + fieldInfo.getDocValuesType());

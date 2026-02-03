@@ -39,6 +39,7 @@ import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.RepositoriesMetrics;
@@ -94,6 +95,8 @@ class S3BlobStore implements BlobStore {
 
     private final StorageClass storageClass;
 
+    private final boolean supportsConditionalWrites;
+
     private final RepositoryMetadata repositoryMetadata;
 
     private final ThreadPool threadPool;
@@ -109,15 +112,24 @@ class S3BlobStore implements BlobStore {
 
     private final boolean addPurposeCustomQueryParameter;
 
+    /**
+     * Some storage claims S3-compatibility despite failing to support the {@code If-Match} and {@code If-None-Match} functionality
+     * properly. We allow to disable the use of this functionality, making all writes unconditional, using the
+     * {@link S3Repository#UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES} setting.
+     */
+    public boolean supportsConditionalWrites() {
+        return supportsConditionalWrites;
+    }
+
     S3BlobStore(
         @Nullable ProjectId projectId,
         S3Service service,
         String bucket,
         boolean serverSideEncryption,
         ByteSizeValue bufferSize,
-        ByteSizeValue maxCopySizeBeforeMultipart,
         String cannedACL,
         String storageClass,
+        boolean supportConditionalWrites,
         RepositoryMetadata repositoryMetadata,
         BigArrays bigArrays,
         ThreadPool threadPool,
@@ -130,9 +142,10 @@ class S3BlobStore implements BlobStore {
         this.bucket = bucket;
         this.serverSideEncryption = serverSideEncryption;
         this.bufferSize = bufferSize;
-        this.maxCopySizeBeforeMultipart = maxCopySizeBeforeMultipart;
+        this.maxCopySizeBeforeMultipart = service.settings(projectId, repositoryMetadata).maxCopySizeBeforeMultipart;
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
+        this.supportsConditionalWrites = supportConditionalWrites;
         this.repositoryMetadata = repositoryMetadata;
         this.threadPool = threadPool;
         this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
@@ -140,7 +153,7 @@ class S3BlobStore implements BlobStore {
         this.bulkDeletionBatchSize = S3Repository.DELETION_BATCH_SIZE_SETTING.get(repositoryMetadata.settings());
         this.retryThrottledDeleteBackoffPolicy = retryThrottledDeleteBackoffPolicy;
         this.getRegisterRetryDelay = S3Repository.GET_REGISTER_RETRY_DELAY.get(repositoryMetadata.settings());
-        this.addPurposeCustomQueryParameter = service.settings(repositoryMetadata).addPurposeCustomQueryParameter;
+        this.addPurposeCustomQueryParameter = service.settings(projectId, repositoryMetadata).addPurposeCustomQueryParameter;
     }
 
     MetricPublisher getMetricPublisher(Operation operation, OperationPurpose purpose) {
@@ -200,7 +213,6 @@ class S3BlobStore implements BlobStore {
 
             long requestCount = 0;
             long responseCount = 0;
-            long awsErrorCount = 0;
             long throttleCount = 0;
             long http416ResponseCount = 0;
             for (final var apiCallAttemptMetrics : metricCollection.children()) {
@@ -210,7 +222,9 @@ class S3BlobStore implements BlobStore {
                 requestCount += 1;
                 final var errorTypes = apiCallAttemptMetrics.metricValues(CoreMetric.ERROR_TYPE);
                 if (errorTypes != null && errorTypes.size() > 0) {
-                    awsErrorCount += 1;
+                    final var attributesWithErrorType = Maps.copyMapWithAddedEntry(attributes, "error_type", errorTypes.getFirst());
+                    s3RepositoriesMetrics.common().exceptionCounter().incrementBy(1, attributesWithErrorType);
+                    s3RepositoriesMetrics.common().exceptionHistogram().record(1, attributesWithErrorType);
                     if (errorTypes.contains("Throttling")) {
                         throttleCount += 1;
                     }
@@ -234,10 +248,6 @@ class S3BlobStore implements BlobStore {
             }
 
             s3RepositoriesMetrics.common().requestCounter().incrementBy(requestCount, attributes);
-            if (awsErrorCount > 0) {
-                s3RepositoriesMetrics.common().exceptionCounter().incrementBy(awsErrorCount, attributes);
-                s3RepositoriesMetrics.common().exceptionHistogram().record(awsErrorCount, attributes);
-            }
             if (throttleCount > 0) {
                 s3RepositoriesMetrics.common().throttleCounter().incrementBy(throttleCount, attributes);
                 s3RepositoriesMetrics.common().throttleHistogram().record(throttleCount, attributes);
@@ -263,12 +273,11 @@ class S3BlobStore implements BlobStore {
     }
 
     public AmazonS3Reference clientReference() {
-        // TODO: use service.client(ProjectId, RepositoryMetadata), see https://github.com/elastic/elasticsearch/pull/127631
-        return service.client(repositoryMetadata);
+        return service.client(projectId, repositoryMetadata);
     }
 
     final int getMaxRetries() {
-        return service.settings(repositoryMetadata).maxRetries;
+        return service.settings(projectId, repositoryMetadata).maxRetries;
     }
 
     public String bucket() {
@@ -441,7 +450,7 @@ class S3BlobStore implements BlobStore {
 
     @Override
     public void close() throws IOException {
-        service.onBlobStoreClose();
+        service.onBlobStoreClose(projectId);
     }
 
     @Override

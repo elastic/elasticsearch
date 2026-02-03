@@ -17,6 +17,7 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -53,6 +54,7 @@ public class TransportDeleteDataFrameAnalyticsAction extends AcknowledgedTranspo
     private final MlMemoryTracker memoryTracker;
     private final DataFrameAnalyticsConfigProvider configProvider;
     private final DataFrameAnalyticsAuditor auditor;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportDeleteDataFrameAnalyticsAction(
@@ -63,7 +65,8 @@ public class TransportDeleteDataFrameAnalyticsAction extends AcknowledgedTranspo
         Client client,
         MlMemoryTracker memoryTracker,
         DataFrameAnalyticsConfigProvider configProvider,
-        DataFrameAnalyticsAuditor auditor
+        DataFrameAnalyticsAuditor auditor,
+        ProjectResolver projectResolver
     ) {
         super(
             DeleteDataFrameAnalyticsAction.NAME,
@@ -78,6 +81,7 @@ public class TransportDeleteDataFrameAnalyticsAction extends AcknowledgedTranspo
         this.memoryTracker = memoryTracker;
         this.configProvider = configProvider;
         this.auditor = Objects.requireNonNull(auditor);
+        this.projectResolver = Objects.requireNonNull(projectResolver);
     }
 
     @Override
@@ -172,6 +176,6 @@ public class TransportDeleteDataFrameAnalyticsAction extends AcknowledgedTranspo
 
     @Override
     protected ClusterBlockException checkBlock(DeleteDataFrameAnalyticsAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 }

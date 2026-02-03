@@ -9,6 +9,9 @@
 
 package org.elasticsearch.common.util.iterable;
 
+import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.core.Assertions;
+
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -80,5 +83,16 @@ public class Iterables {
 
     public static long size(Iterable<?> iterable) {
         return StreamSupport.stream(iterable.spliterator(), false).count();
+    }
+
+    /**
+     * Adds a wrapper around {@code iterable} which asserts that {@link Iterator#remove()} is not called on the iterator it returns.
+     */
+    public static <T> Iterable<T> assertReadOnly(Iterable<T> iterable) {
+        if (Assertions.ENABLED) {
+            return () -> Iterators.assertReadOnly(iterable.iterator());
+        } else {
+            return iterable;
+        }
     }
 }

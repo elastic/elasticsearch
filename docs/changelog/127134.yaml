@@ -1,5 +1,0 @@
-pr: 127134
-summary: Define a default oversample value for dense vectors with bbq_hnsw/bbq_flat
-area: Vector Search
-type: enhancement
-issues: []

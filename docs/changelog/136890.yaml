@@ -1,0 +1,5 @@
+pr: 136890
+summary: "Cat API: added endpoint for Circuit Breakers"
+area: Infra/REST API
+type: enhancement
+issues: []

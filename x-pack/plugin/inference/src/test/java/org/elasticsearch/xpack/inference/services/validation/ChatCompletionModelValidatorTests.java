@@ -13,6 +13,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.mockito.Mock;

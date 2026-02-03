@@ -202,6 +202,11 @@ public enum Releasables {
         }
     }
 
+    /** Creates a {@link Releasable} that calls {@link RefCounted#decRef()} when closed. */
+    public static Releasable fromRefCounted(RefCounted refCounted) {
+        return () -> refCounted.decRef();
+    }
+
     private static class ReleaseOnce extends AtomicReference<Releasable> implements Releasable {
         ReleaseOnce(Releasable releasable) {
             super(releasable);

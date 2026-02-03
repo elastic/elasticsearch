@@ -209,8 +209,6 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
                 .put("cluster.routing.allocation.awareness.attributes", "rack_id")
                 .put("cluster.routing.allocation.balance.index", 0.0f)
-                .put("cluster.routing.allocation.balance.replica", 1.0f)
-                .put("cluster.routing.allocation.balance.primary", 0.0f)
                 .build()
         );
 
@@ -734,8 +732,6 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.awareness.force.rack_id.values", "1,2")
                 .put("cluster.routing.allocation.awareness.attributes", "rack_id")
                 .put("cluster.routing.allocation.balance.index", 0.0f)
-                .put("cluster.routing.allocation.balance.replica", 1.0f)
-                .put("cluster.routing.allocation.balance.primary", 0.0f)
                 .build()
         );
 

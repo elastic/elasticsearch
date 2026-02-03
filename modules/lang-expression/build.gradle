@@ -19,10 +19,10 @@ dependencies {
   api "org.apache.lucene:lucene-expressions:${versions.lucene}"
   runtimeOnly "org.apache.lucene:lucene-codecs:${versions.lucene}"
   runtimeOnly "org.antlr:antlr4-runtime:${versions.antlr4}"
-  runtimeOnly 'org.ow2.asm:asm:7.2'
-  runtimeOnly 'org.ow2.asm:asm-commons:7.2'
-  runtimeOnly 'org.ow2.asm:asm-tree:7.2'
-  runtimeOnly 'org.ow2.asm:asm-analysis:7.2'
+  runtimeOnly 'org.ow2.asm:asm:9.9'
+  runtimeOnly 'org.ow2.asm:asm-commons:9.9'
+  runtimeOnly 'org.ow2.asm:asm-tree:9.9'
+  runtimeOnly 'org.ow2.asm:asm-analysis:9.9'
 }
 restResources {
   restApi {

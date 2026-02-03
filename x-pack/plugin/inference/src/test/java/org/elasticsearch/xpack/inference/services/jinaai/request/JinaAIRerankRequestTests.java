@@ -112,7 +112,7 @@ public class JinaAIRerankRequestTests extends ESTestCase {
         @Nullable Boolean returnDocuments,
         @Nullable Integer taskSettingsTopN
     ) {
-        var rerankModel = JinaAIRerankModelTests.createModel(API_KEY, modelId, taskSettingsTopN);
+        var rerankModel = JinaAIRerankModelTests.createModel(modelId, API_KEY, taskSettingsTopN);
         return new JinaAIRerankRequest(query, List.of(input), returnDocuments, topN, rerankModel);
 
     }

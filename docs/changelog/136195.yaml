@@ -1,0 +1,5 @@
+pr: 136195
+summary: Further simplify `SingleValueMatchQuery`
+area: ES|QL
+type: enhancement
+issues: []

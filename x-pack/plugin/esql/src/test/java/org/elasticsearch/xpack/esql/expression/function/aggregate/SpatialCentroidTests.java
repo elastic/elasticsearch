@@ -86,7 +86,7 @@ public class SpatialCentroidTests extends AbstractAggregationTestCase {
 
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
-                "SpatialCentroid[field=Attribute[channel=0]]",
+                standardAggregatorName("SpatialCentroid", fieldSupplier.type()) + "SourceValues",
                 fieldTypedData.type(),
                 centroidMatches(expectedX, expectedY, 1e-14)
             );

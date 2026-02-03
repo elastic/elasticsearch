@@ -21,6 +21,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.jsonEntityToMap;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.asyncEsqlQueryRequest;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.is;
 
 public class EsqlListQueriesActionIT extends AbstractPausableIntegTestCase {
@@ -90,12 +92,12 @@ public class EsqlListQueriesActionIT extends AbstractPausableIntegTestCase {
     private EsqlQueryResponse sendAsyncQuery() {
         scriptPermits.drainPermits();
         scriptPermits.release(between(1, 5));
-        return EsqlQueryRequestBuilder.newAsyncEsqlQueryRequestBuilder(client()).query(QUERY).execute().actionGet(60, TimeUnit.SECONDS);
+        return client().execute(EsqlQueryAction.INSTANCE, asyncEsqlQueryRequest(QUERY)).actionGet(60, TimeUnit.SECONDS);
     }
 
     private ActionFuture<EsqlQueryResponse> sendSyncQueryAsyncly() {
         scriptPermits.drainPermits();
         scriptPermits.release(between(1, 5));
-        return EsqlQueryRequestBuilder.newSyncEsqlQueryRequestBuilder(client()).query(QUERY).execute();
+        return client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(QUERY));
     }
 }

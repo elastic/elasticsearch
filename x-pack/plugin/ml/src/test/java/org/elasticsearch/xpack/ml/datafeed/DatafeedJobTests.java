@@ -67,6 +67,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.xpack.ml.MachineLearning.DELAYED_DATA_CHECK_FREQ;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -389,7 +390,7 @@ public class DatafeedJobTests extends ESTestCase {
             IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
             assertThat(indexRequest.index(), equalTo(AnnotationIndex.WRITE_ALIAS_NAME));
             assertThat(indexRequest.id(), equalTo(annotationDocId));
-            assertThat(indexRequest.source(), equalTo(expectedSource));
+            assertThat(indexRequest.source(), equalBytes(expectedSource));
             assertThat(indexRequest.opType(), equalTo(DocWriteRequest.OpType.INDEX));
         }
 

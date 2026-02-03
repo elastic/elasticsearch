@@ -1,0 +1,5 @@
+pr: 139366
+summary: Fix `project_routing`
+area: EQL
+type: bug
+issues: []

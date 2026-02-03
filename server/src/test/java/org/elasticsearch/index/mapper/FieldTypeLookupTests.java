@@ -14,6 +14,7 @@ import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -520,6 +521,31 @@ public class FieldTypeLookupTests extends ESTestCase {
         );
 
         assertEquals(foo.fieldType(), lookup.get("foo"));
+    }
+
+    public void testDotCount() {
+        assertEquals(0, FieldTypeLookup.dotCount(""));
+        assertEquals(1, FieldTypeLookup.dotCount("."));
+        assertEquals(2, FieldTypeLookup.dotCount(".."));
+        assertEquals(3, FieldTypeLookup.dotCount("..."));
+        assertEquals(4, FieldTypeLookup.dotCount("...."));
+        assertEquals(0, FieldTypeLookup.dotCount("foo"));
+        assertEquals(1, FieldTypeLookup.dotCount("foo.bar"));
+        assertEquals(2, FieldTypeLookup.dotCount("foo.bar.baz"));
+        assertEquals(3, FieldTypeLookup.dotCount("foo.bar.baz.bob"));
+        assertEquals(4, FieldTypeLookup.dotCount("foo.bar.baz.bob."));
+        assertEquals(4, FieldTypeLookup.dotCount("foo..bar.baz.bob"));
+        assertEquals(5, FieldTypeLookup.dotCount("foo..bar..baz.bob"));
+        assertEquals(6, FieldTypeLookup.dotCount("foo..bar..baz.bob."));
+
+        int times = atLeast(50);
+        for (int i = 0; i < times; i++) {
+            byte[] bytes = new byte[randomInt(1024)];
+            random().nextBytes(bytes);
+            String s = new String(bytes, StandardCharsets.UTF_8);
+            int expected = s.chars().map(c -> c == '.' ? 1 : 0).sum();
+            assertEquals(expected, FieldTypeLookup.dotCount(s));
+        }
     }
 
     @SafeVarargs

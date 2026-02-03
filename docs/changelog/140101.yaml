@@ -1,0 +1,6 @@
+pr: 140101
+summary: "Add timezone to add and sub operators, and `ConfigurationAware` planning\
+  \ support"
+area: ES|QL
+type: feature
+issues: []

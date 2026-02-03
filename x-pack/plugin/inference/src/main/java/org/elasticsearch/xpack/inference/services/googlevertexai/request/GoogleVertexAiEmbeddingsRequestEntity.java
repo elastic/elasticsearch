@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.request;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings;
 
 import java.io.IOException;
@@ -21,13 +22,15 @@ import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
 public record GoogleVertexAiEmbeddingsRequestEntity(
     List<String> inputs,
     InputType inputType,
-    GoogleVertexAiEmbeddingsTaskSettings taskSettings
+    GoogleVertexAiEmbeddingsTaskSettings taskSettings,
+    GoogleVertexAiEmbeddingsServiceSettings serviceSettings
 ) implements ToXContentObject {
 
     private static final String INSTANCES_FIELD = "instances";
     private static final String CONTENT_FIELD = "content";
     private static final String PARAMETERS_FIELD = "parameters";
     private static final String AUTO_TRUNCATE_FIELD = "autoTruncate";
+    private static final String OUTPUT_DIMENSIONALITY_FIELD = "outputDimensionality";
     private static final String TASK_TYPE_FIELD = "task_type";
 
     private static final String CLASSIFICATION_TASK_TYPE = "CLASSIFICATION";
@@ -38,6 +41,7 @@ public record GoogleVertexAiEmbeddingsRequestEntity(
     public GoogleVertexAiEmbeddingsRequestEntity {
         Objects.requireNonNull(inputs);
         Objects.requireNonNull(taskSettings);
+        Objects.requireNonNull(serviceSettings);
     }
 
     @Override
@@ -62,13 +66,17 @@ public record GoogleVertexAiEmbeddingsRequestEntity(
 
         builder.endArray();
 
-        if (taskSettings.autoTruncate() != null) {
-            builder.startObject(PARAMETERS_FIELD);
-            {
+        builder.startObject(PARAMETERS_FIELD);
+        {
+            if (taskSettings.autoTruncate() != null) {
                 builder.field(AUTO_TRUNCATE_FIELD, taskSettings.autoTruncate());
             }
-            builder.endObject();
+            if (serviceSettings.dimensionsSetByUser()) {
+                builder.field(OUTPUT_DIMENSIONALITY_FIELD, serviceSettings.dimensions());
+            }
         }
+        builder.endObject();
+
         builder.endObject();
 
         return builder;

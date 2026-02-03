@@ -75,7 +75,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends AbstractBuilderTestCase {
 
-    private static final int NUMBER_OF_TESTQUERIES = 20;
+    protected static final int NUMBER_OF_TESTQUERIES = 20;
 
     public final QB createTestQueryBuilder() {
         return createTestQueryBuilder(supportsBoost(), supportsQueryName());
@@ -999,7 +999,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             }
         }
 
-        protected void initIndexWriter(RandomIndexWriter indexWriter) {}
+        protected void initIndexWriter(RandomIndexWriter indexWriter) throws IOException {}
     }
 
     public static class NullIndexReaderManager extends IndexReaderManager {

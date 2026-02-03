@@ -945,16 +945,14 @@ public class IndicesPermissionTests extends ESTestCase {
 
     public void testResourceAuthorizedPredicateForDatastreams() {
         String dataStreamName = "logs-datastream";
-        Metadata.Builder mb = Metadata.builder(
-            DataStreamTestHelper.getClusterStateWithDataStreams(
-                List.of(Tuple.tuple(dataStreamName, 1)),
-                List.of(),
-                Instant.now().toEpochMilli(),
-                builder().build(),
-                1
-            ).getMetadata()
+        final var project = DataStreamTestHelper.getProjectWithDataStreams(
+            List.of(Tuple.tuple(dataStreamName, 1)),
+            List.of(),
+            Instant.now().toEpochMilli(),
+            builder().build(),
+            1
         );
-        DataStream dataStream = mb.dataStream(dataStreamName);
+        DataStream dataStream = project.dataStreams().get(dataStreamName);
         IndexAbstraction backingIndex = new IndexAbstraction.ConcreteIndex(
             DataStreamTestHelper.createBackingIndex(dataStreamName, 1).build(),
             dataStream
@@ -995,19 +993,17 @@ public class IndicesPermissionTests extends ESTestCase {
             StringMatcher.of(),
             StringMatcher.of("a", "d")
         );
-        Metadata.Builder mb = Metadata.builder(
-            DataStreamTestHelper.getClusterStateWithDataStreams(
-                List.of(Tuple.tuple("a", 1), Tuple.tuple("b", 1), Tuple.tuple("c", 1), Tuple.tuple("d", 1)),
-                List.of(),
-                Instant.now().toEpochMilli(),
-                builder().build(),
-                1
-            ).getMetadata()
+        final var project = DataStreamTestHelper.getProjectWithDataStreams(
+            List.of(Tuple.tuple("a", 1), Tuple.tuple("b", 1), Tuple.tuple("c", 1), Tuple.tuple("d", 1)),
+            List.of(),
+            Instant.now().toEpochMilli(),
+            builder().build(),
+            1
         );
-        DataStream dataStreamA = mb.dataStream("a");
-        DataStream dataStreamB = mb.dataStream("b");
-        DataStream dataStreamC = mb.dataStream("c");
-        DataStream dataStreamD = mb.dataStream("d");
+        DataStream dataStreamA = project.dataStreams().get("a");
+        DataStream dataStreamB = project.dataStreams().get("b");
+        DataStream dataStreamC = project.dataStreams().get("c");
+        DataStream dataStreamD = project.dataStreams().get("d");
         IndexAbstraction concreteIndexA = concreteIndexAbstraction("a");
         IndexAbstraction concreteIndexB = concreteIndexAbstraction("b");
         IndexAbstraction concreteIndexC = concreteIndexAbstraction("c");
@@ -1034,28 +1030,26 @@ public class IndicesPermissionTests extends ESTestCase {
             StringMatcher.of("a", "f", "g"),
             StringMatcher.of("a", "d")
         );
-        Metadata.Builder mb = Metadata.builder(
-            DataStreamTestHelper.getClusterStateWithDataStreams(
-                List.of(
-                    Tuple.tuple("a", 1),
-                    Tuple.tuple("b", 1),
-                    Tuple.tuple("c", 1),
-                    Tuple.tuple("d", 1),
-                    Tuple.tuple("e", 1),
-                    Tuple.tuple("f", 1)
-                ),
-                List.of(),
-                Instant.now().toEpochMilli(),
-                builder().build(),
-                1
-            ).getMetadata()
+        final var project = DataStreamTestHelper.getProjectWithDataStreams(
+            List.of(
+                Tuple.tuple("a", 1),
+                Tuple.tuple("b", 1),
+                Tuple.tuple("c", 1),
+                Tuple.tuple("d", 1),
+                Tuple.tuple("e", 1),
+                Tuple.tuple("f", 1)
+            ),
+            List.of(),
+            Instant.now().toEpochMilli(),
+            builder().build(),
+            1
         );
-        DataStream dataStreamA = mb.dataStream("a");
-        DataStream dataStreamB = mb.dataStream("b");
-        DataStream dataStreamC = mb.dataStream("c");
-        DataStream dataStreamD = mb.dataStream("d");
-        DataStream dataStreamE = mb.dataStream("e");
-        DataStream dataStreamF = mb.dataStream("f");
+        DataStream dataStreamA = project.dataStreams().get("a");
+        DataStream dataStreamB = project.dataStreams().get("b");
+        DataStream dataStreamC = project.dataStreams().get("c");
+        DataStream dataStreamD = project.dataStreams().get("d");
+        DataStream dataStreamE = project.dataStreams().get("e");
+        DataStream dataStreamF = project.dataStreams().get("f");
         IndexAbstraction concreteIndexA = concreteIndexAbstraction("a");
         IndexAbstraction concreteIndexB = concreteIndexAbstraction("b");
         IndexAbstraction concreteIndexC = concreteIndexAbstraction("c");

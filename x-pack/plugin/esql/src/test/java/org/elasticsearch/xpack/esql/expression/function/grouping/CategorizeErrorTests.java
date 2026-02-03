@@ -27,7 +27,7 @@ public class CategorizeErrorTests extends ErrorsForCasesWithoutExamplesTestCase 
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Categorize(source, args.get(0));
+        return new Categorize(source, args.get(0), args.size() > 1 ? args.get(1) : null);
     }
 
     @Override

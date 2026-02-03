@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.cluster.state.RemoteClusterStateRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -130,7 +130,7 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
         CcrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
             client,
             request.getRemoteCluster(),
-            new ClusterStateRequest(request.masterNodeTimeout()).clear().metadata(true),
+            new RemoteClusterStateRequest(request.masterNodeTimeout()).clear().metadata(true),
             listener::onFailure,
             consumer
         );

@@ -17,7 +17,7 @@ esplugin {
 }
 
 dependencies {
-  api "com.github.spullara.mustache.java:compiler:0.9.10"
+  api "com.github.spullara.mustache.java:compiler:0.9.14"
 }
 
 restResources {

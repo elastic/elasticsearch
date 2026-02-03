@@ -1,0 +1,6 @@
+pr: 140693
+summary: '`CodePointCount` implementation using Panama vectors API'
+area: Codec
+type: enhancement
+issues:
+ - 140567

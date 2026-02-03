@@ -505,7 +505,7 @@ In addition to the [Settings valid for all realms](#ref-realm-settings), you can
 `ssl.cipher_suites`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the cipher suites that should be supported when communicating with the LDAP server. Supported cipher suites vary depending on which version of Java you use. For example, for version 12 the default value is `TLS_AES_256_GCM_SHA384`, `TLS_AES_128_GCM_SHA256`, `TLS_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`, `TLS_RSA_WITH_AES_256_GCM_SHA384`, `TLS_RSA_WITH_AES_128_GCM_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA256`, `TLS_RSA_WITH_AES_128_CBC_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA`, `TLS_RSA_WITH_AES_128_CBC_SHA`.
 
-    For more information, see Oracle’s [Java Cryptography Architecture documentation](https://docs.oracle.com/en/java/javase/11/security/oracle-providers.md#GUID-7093246A-31A3-4304-AC5F-5FB6400405E2).
+    For more information, see Oracle’s [Java Cryptography Architecture documentation](https://docs.oracle.com/en/java/javase/11/security/java-cryptography-architecture-jca-reference-guide.html).
 
 
 `cache.ttl`
@@ -743,7 +743,7 @@ In addition to the [settings that are valid for all realms](#ref-realm-settings)
 `ssl.cipher_suites`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the cipher suites that should be supported when communicating with the Active Directory server. Supported cipher suites vary depending on which version of Java you use. For example, for version 12 the default value is `TLS_AES_256_GCM_SHA384`, `TLS_AES_128_GCM_SHA256`, `TLS_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`, `TLS_RSA_WITH_AES_256_GCM_SHA384`, `TLS_RSA_WITH_AES_128_GCM_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA256`, `TLS_RSA_WITH_AES_128_CBC_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA`, `TLS_RSA_WITH_AES_128_CBC_SHA`.
 
-    For more information, see Oracle’s [Java Cryptography Architecture documentation](https://docs.oracle.com/en/java/javase/11/security/oracle-providers.md#GUID-7093246A-31A3-4304-AC5F-5FB6400405E2).
+    For more information, see Oracle’s [Java Cryptography Architecture documentation](https://docs.oracle.com/en/java/javase/11/security/java-cryptography-architecture-jca-reference-guide.html).
 
 
 `cache.ttl`
@@ -768,6 +768,18 @@ In addition to the [settings that are valid for all realms](#ref-realm-settings)
 
 `username_pattern`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The regular expression pattern used to extract the username from the certificate DN. The username is used for auditing and logging. The username can also be used with the [role mapping API](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/mapping-users-groups-to-roles.md) and [authorization delegation](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/authorization-delegation.md). The first match group is the used as the username. Defaults to `CN=(.*?)(?:,|$)`.
+
+    This setting is ignored if either `username_rdn_oid` or `username_rdn_name` is set.
+
+`username_rdn_oid`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The relative distinguished name (RDN) attribute OID used to extract the username from the certificate DN. The username is used for auditing and logging. The username can also be used with the [role mapping API](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/mapping-users-groups-to-roles.md) and [authorization delegation](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/authorization-delegation.md). The value of the most specific RDN matching this attribute OID is used as the username.
+
+    This setting takes precedent over `username_pattern`. You cannot use this setting and `username_rdn_name` at the same time.
+
+`username_rdn_name`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The relative distinguished name (RDN) attribute name used to extract the username from the certificate DN. The username is used for auditing and logging. The username can also be used with the [role mapping API](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/mapping-users-groups-to-roles.md) and [authorization delegation](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/authorization-delegation.md). The value of the most specific RDN matching this attribute name is used as the username.
+
+    This setting takes precedent over `username_pattern`. You cannot use this setting and `username_rdn_oid` at the same time.
 
 `certificate_authorities`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) List of paths to the PEM certificate files that should be used to authenticate a user’s certificate as trusted. Defaults to the trusted certificates configured for SSL. This setting cannot be used with `truststore.path`.
@@ -826,6 +838,12 @@ In addition to the [settings that are valid for all realms](#ref-realm-settings)
 
 `idp.metadata.http.fail_on_error`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) If set to `true`, the realm will fail on startup (and prevent the node from starting) if it attempts to load metadata over HTTPS and that metadata is not available. If set to `false` (the default), the node will start but the affected SAML realm will not support user authentication until the metadata can be successfully loaded. This setting is ignored if metadata is loaded from a file.
+
+`idp.metadata.http.connect_timeout` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted") {applies_to}`stack: ga 9.1`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Controls the behavior of the HTTP client that is used for fetching the SAML 2.0 metadata file from a remote URL. Specifies the maximum time the client waits for a connection to be established. A value of zero means the timeout is not used. Defaults to `5s`.
+
+`idp.metadata.http.read_timeout` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted") {applies_to}`stack: ga 9.1`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Controls the behavior of the HTTP client that is used for fetching the SAML 2.0 metadata file from a remote URL. Specifies the maximum time the client waits when requesting a connection from the connection manager. Defaults to `10s`.
 
 `idp.metadata.http.refresh` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Controls the frequency with which `https` metadata is checked for changes. Defaults to `1h` (1 hour).
@@ -1104,7 +1122,7 @@ You cannot use this setting and `ssl.keystore.key_password` at the same time.
 `ssl.cipher_suites` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Supported cipher suites vary depending on which version of Java you use. For example, for version 12 the default value is `TLS_AES_256_GCM_SHA384`, `TLS_AES_128_GCM_SHA256`, `TLS_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`, `TLS_RSA_WITH_AES_256_GCM_SHA384`, `TLS_RSA_WITH_AES_128_GCM_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA256`, `TLS_RSA_WITH_AES_128_CBC_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA`, `TLS_RSA_WITH_AES_128_CBC_SHA`.
 
-    For more information, see Oracle’s [Java Cryptography Architecture documentation](https://docs.oracle.com/en/java/javase/11/security/oracle-providers.md#GUID-7093246A-31A3-4304-AC5F-5FB6400405E2).
+    For more information, see Oracle’s [Java Cryptography Architecture documentation](https://docs.oracle.com/en/java/javase/11/security/java-cryptography-architecture-jca-reference-guide.html).
 
 
 
@@ -1391,7 +1409,7 @@ These settings are *only* used for the back-channel communication between {{es}}
 `ssl.cipher_suites` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Supported cipher suites vary depending on which version of Java you use. For example, for version 12 the default value is `TLS_AES_256_GCM_SHA384`, `TLS_AES_128_GCM_SHA256`, `TLS_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`, `TLS_RSA_WITH_AES_256_GCM_SHA384`, `TLS_RSA_WITH_AES_128_GCM_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA256`, `TLS_RSA_WITH_AES_128_CBC_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA`, `TLS_RSA_WITH_AES_128_CBC_SHA`.
 
-    For more information, see Oracle’s [Java Cryptography Architecture documentation](https://docs.oracle.com/en/java/javase/11/security/oracle-providers.md#GUID-7093246A-31A3-4304-AC5F-5FB6400405E2).
+    For more information, see Oracle’s [Java Cryptography Architecture documentation](https://docs.oracle.com/en/java/javase/11/security/java-cryptography-architecture-jca-reference-guide.html).
 
 
 
@@ -1403,16 +1421,16 @@ In addition to the [settings that are valid for all realms](#ref-realm-settings)
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The token type, `id_token` or `access_token`, that the JWT realm uses to verify incoming JWTs. Defaults to `id_token`.
 
 `allowed_audiences` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) A list of allowed JWT audiences that {{es}} should verify. {{es}} will only consume JWTs that were intended for any of these audiences, as denoted by the `aud` claim in the JWT). The audiences are compared with exact string matches and do not support wildcards or regex. Examples of `aud` claim are `https://example.com/client1` and `other_service,elasticsearch`. When `token_type` is `access_token`, the audiences can be optionally denoted by a different claim in the JWT if `aud` does not exist. See also [`fallback_claims.aud`](#security-settings-jwt-fallback-claims-aud).
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) A list of allowed JWT audiences that {{es}} should verify. {{es}} will only consume JWTs that were intended for any of these audiences, as denoted by the `aud` claim in the JWT). The audiences are compared with exact string matches and do not support wildcards or regex. Examples of `aud` claim are `<example-url>/client1` and `other_service,elasticsearch`. When `token_type` is `access_token`, the audiences can be optionally denoted by a different claim in the JWT if `aud` does not exist. See also [`fallback_claims.aud`](#security-settings-jwt-fallback-claims-aud).
 
 `allowed_clock_skew` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The maximum allowed clock skew to be taken into consideration when validating JWTs with regards to their creation, not before, and expiration times.
 
 `allowed_issuer` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) A verifiable Identifier for your JWT Issuer. An Issuer Identifier is usually a case sensitive URL using the https scheme that contains scheme, host, and optionally, port number and path components and no query or fragment components. However, it can be any string. The value for this setting should be provided by your JWT Issuer. The issuer is compared with exact string matches and do not support wildcards or regex. Examples of `iss` claim are `https://example.com:8443/jwt` and `issuer123`.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) A verifiable Identifier for your JWT Issuer. An Issuer Identifier is usually a case sensitive URL using the https scheme that contains scheme, host, and optionally, port number and path components and no query or fragment components. However, it can be any string. The value for this setting should be provided by your JWT Issuer. The issuer is compared with exact string matches and do not support wildcards or regex. Examples of `iss` claim are `<example-url>:8443/jwt` and `issuer123`.
 
 `allowed_subjects` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) A list of allowed JWT subjects that {{es}} should verify. {{es}} will only consume JWTs that were issued for any of these subjects, as denoted by the `sub` claim in the JWT. The subjects are compared with exact string matches and do not support wildcards or regex. Examples of `sub` claim are `https://example.com/user1` and `user_1,user2`. When `token_type` is `access_token`, this setting is mandatory and the subject can be optionally denoted by a different claim in the JWT if `sub` does not exist. See also [`fallback_claims.sub`](#security-settings-jwt-fallback-claims-sub).
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) A list of allowed JWT subjects that {{es}} should verify. {{es}} will only consume JWTs that were issued for any of these subjects, as denoted by the `sub` claim in the JWT. The subjects are compared with exact string matches and do not support wildcards or regex. Examples of `sub` claim are `<example-url>/user1` and `user_1,user2`. When `token_type` is `access_token`, this setting is mandatory and the subject can be optionally denoted by a different claim in the JWT if `sub` does not exist. See also [`fallback_claims.sub`](#security-settings-jwt-fallback-claims-sub).
 
 $$$security-settings-jwt-fallback-claims-sub$$$
 
@@ -1517,7 +1535,19 @@ $$$jwt-claim-pattern-principal$$$
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the time-to-live for the period of time to cache JWT entries. JWTs can only be cached if client authentication is successful (or disabled). Uses the standard {{es}} [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). If clients use a different JWT for every request, set to `0` to disable the JWT cache. Defaults to `20m`.
 
 `pkc_jwkset_path` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The file name or URL to a JSON Web Key Set (JWKS) with the public key material that the JWT Realm uses for verifying token signatures. A value is considered a file name if it does not begin with `https`. The file name is resolved relative to the {{es}} configuration directory. If a URL is provided, then it must begin with `https://` (`http://` is not supported). {{es}} automatically caches the JWK set and will attempt to refresh the JWK set upon signature verification failure, as this might indicate that the JWT Provider has rotated the signing keys.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The file name or URL to a JSON Web Key Set (JWKS) with the public key material that the JWT Realm uses for verifying token signatures. A value is considered a file name if it does not begin with `https`. The file name is resolved relative to the {{es}} configuration directory. If a URL is provided, then it must begin with `https://` (`http://` is not supported). {{es}} automatically caches the JWK set and will attempt to refresh the JWK set upon signature verification failure, as this might indicate that the JWT Provider has rotated the signing keys. Background JWKS reloading can also be configured with the setting `pkc_jwkset_reload.enabled`. This ensures that rotated keys are automatically discovered and used to verify JWT signatures.
+
+`pkc_jwkset_reload.enabled` {applies_to}`stack: ga 9.3` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Indicates whether JWKS background reloading is enabled. Defaults to `false`.
+
+`pkc_jwkset_reload.file_interval` {applies_to}`stack: ga 9.3` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the reload interval for file-based JWKS. Defaults to `5m`.
+
+`pkc_jwkset_reload.url_interval_min` {applies_to}`stack: ga 9.3` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the minimum reload interval for URL-based JWKS. The `Expires` and `Cache-Control` HTTP response headers inform the reload interval. This configuration setting is the lower bound of what is considered, and it is also the default interval in the absence of useful response headers. Defaults to `1h`.
+
+`pkc_jwkset_reload.url_interval_max` {applies_to}`stack: ga 9.3` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the maximum reload interval for URL-based JWKS. This configuration setting is the upper bound of what is considered from header responses (`5d`).
 
 `hmac_jwkset` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Secure](docs-content://deploy-manage/security/secure-settings.md)) Contents of a JSON Web Key Set (JWKS), including the secret key that the JWT realm uses to verify token signatures. This format supports multiple keys and optional attributes, and is preferred over the `hmac_key` setting. Cannot be used in conjunction with the `hmac_key` setting. Refer to [Configure {{es}} to use a JWT realm](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/jwt.md).
@@ -1664,7 +1694,7 @@ These settings are *only* used for the back-channel communication between {{es}}
 `ssl.cipher_suites` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Supported cipher suites vary depending on which version of Java you use. For example, for version 12 the default value is `TLS_AES_256_GCM_SHA384`, `TLS_AES_128_GCM_SHA256`, `TLS_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`, `TLS_RSA_WITH_AES_256_GCM_SHA384`, `TLS_RSA_WITH_AES_128_GCM_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA256`, `TLS_RSA_WITH_AES_128_CBC_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA`, `TLS_RSA_WITH_AES_128_CBC_SHA`.
 
-    For more information, see Oracle’s [Java Cryptography Architecture documentation](https://docs.oracle.com/en/java/javase/11/security/oracle-providers.md#GUID-7093246A-31A3-4304-AC5F-5FB6400405E2).
+    For more information, see Oracle’s [Java Cryptography Architecture documentation](https://docs.oracle.com/en/java/javase/11/security/java-cryptography-architecture-jca-reference-guide.html).
 
 
 
@@ -1732,7 +1762,7 @@ You can configure the following TLS/SSL settings.
 `xpack.security.http.ssl.cipher_suites`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Supported cipher suites vary depending on which version of Java you use. For example, for version 12 the default value is `TLS_AES_256_GCM_SHA384`, `TLS_AES_128_GCM_SHA256`, `TLS_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`, `TLS_RSA_WITH_AES_256_GCM_SHA384`, `TLS_RSA_WITH_AES_128_GCM_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA256`, `TLS_RSA_WITH_AES_128_CBC_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA`, `TLS_RSA_WITH_AES_128_CBC_SHA`.
 
-    For more information, see Oracle’s [Java Cryptography Architecture documentation](https://docs.oracle.com/en/java/javase/11/security/oracle-providers.md#GUID-7093246A-31A3-4304-AC5F-5FB6400405E2).
+    For more information, see Oracle’s [Java Cryptography Architecture documentation](https://docs.oracle.com/en/java/javase/11/security/java-cryptography-architecture-jca-reference-guide.html).
 
 
 ### HTTP TLS/SSL key and trusted certificate settings [security-http-tls-ssl-key-trusted-certificate-settings]
@@ -1893,7 +1923,13 @@ PKCS#12 files are configured in the same way as Java keystore files:
 
 ## Transport TLS/SSL settings [transport-tls-ssl-settings]
 
-You can configure the following TLS/SSL settings.
+The settings in this section relate to node-to-node transport connections.
+
+By default, {{es}} uses mutual TLS (mTLS) to secure node-to-node transport connections within a cluster. With mTLS, data is encrypted in transit and both nodes must present valid certificates when connecting. Each node requires that certificates be issued by a trusted certificate authority, ensuring that only authorized nodes can connect. [Learn about configuring node-to-node mTLS](docs-content://deploy-manage/security/secure-cluster-communications.md#encrypt-internode-communication).
+
+::::{warning}
+Transport connections between Elasticsearch nodes are security-critical and you must protect them carefully. Malicious actors who can observe or interfere with unencrypted node-to-node transport traffic can read or modify cluster data. A malicious actor who can establish a transport connection might be able to invoke system-internal APIs, including APIs that read or modify cluster data.
+::::
 
 `xpack.security.transport.ssl.enabled`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Used to enable or disable TLS/SSL on the transport networking layer, which nodes use to communicate with each other. The default is `false`.
@@ -1909,7 +1945,11 @@ You can configure the following TLS/SSL settings.
 
 
 `xpack.security.transport.ssl.client_authentication`
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Controls the server’s behavior in regard to requesting a certificate from client connections. Valid values are `required`, `optional`, and `none`. `required` forces a client to present a certificate, while `optional` requests a client certificate but the client is not required to present one. Defaults to `required`.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Controls the node's behavior in regard to requesting a certificate when accepting an inbound transport connections from another {{es}} node. Valid values are `required`, `optional`, and `none`. The default is `required` which means that the connecting node must present a valid client certificate during the connection process. May also be set to `optional` which means that a client certificate is requested but the connecting node may choose not to present one, or `none` which means that no client certificate is even requested during the connection process.
+
+    ::::{warning}
+    Turning off mTLS by setting `xpack.security.transport.ssl.client_authentication` to `optional` or `none` allows anyone with network access to establish transport connections. Malicious actors can use these connections to invoke system-internal APIs that might read or modify cluster data. Use mTLS to protect your node-to-node transport connections unless you are absolutely certain that unauthorized network access to these nodes cannot occur.
+    ::::
 
 `xpack.security.transport.ssl.verification_mode`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Defines how to verify the certificates presented by another party in the TLS connection:
@@ -1928,11 +1968,13 @@ You can configure the following TLS/SSL settings.
 `xpack.security.transport.ssl.cipher_suites`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Supported cipher suites vary depending on which version of Java you use. For example, for version 12 the default value is `TLS_AES_256_GCM_SHA384`, `TLS_AES_128_GCM_SHA256`, `TLS_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`, `TLS_RSA_WITH_AES_256_GCM_SHA384`, `TLS_RSA_WITH_AES_128_GCM_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA256`, `TLS_RSA_WITH_AES_128_CBC_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA`, `TLS_RSA_WITH_AES_128_CBC_SHA`.
 
-    For more information, see Oracle’s [Java Cryptography Architecture documentation](https://docs.oracle.com/en/java/javase/11/security/oracle-providers.md#GUID-7093246A-31A3-4304-AC5F-5FB6400405E2).
+    For more information, see Oracle’s [Java Cryptography Architecture documentation](https://docs.oracle.com/en/java/javase/11/security/java-cryptography-architecture-jca-reference-guide.html).
 
 `xpack.security.transport.ssl.trust_restrictions.x509_fields` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   Specifies which field(s) from the TLS certificate is used to match for the restricted trust management that is used for remote clusters connections. This should only be set when a self managed cluster can not create certificates that follow the Elastic Cloud pattern. The default value is ["subjectAltName.otherName.commonName"], the Elastic Cloud pattern. "subjectAltName.dnsName" is also supported and can be configured in addition to or in replacement of the default.
 
+`xpack.security.transport.ssl.handshake_timeout` {applies_to}`stack: ga 9.2`
+:   Specifies the timeout for a TLS handshake when opening a transport connection. Defaults to `10s`.
 
 ### Transport TLS/SSL key and trusted certificate settings [security-transport-tls-ssl-key-trusted-certificate-settings]
 
@@ -2129,7 +2171,10 @@ You can configure the following TLS/SSL settings.
 `xpack.security.remote_cluster_server.ssl.cipher_suites`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Supported cipher suites vary depending on which version of Java you use. For example, for version 12 the default value is `TLS_AES_256_GCM_SHA384`, `TLS_AES_128_GCM_SHA256`, `TLS_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`, `TLS_RSA_WITH_AES_256_GCM_SHA384`, `TLS_RSA_WITH_AES_128_GCM_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA256`, `TLS_RSA_WITH_AES_128_CBC_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA`, `TLS_RSA_WITH_AES_128_CBC_SHA`.
 
-    For more information, see Oracle’s [Java Cryptography Architecture documentation](https://docs.oracle.com/en/java/javase/11/security/oracle-providers.md#GUID-7093246A-31A3-4304-AC5F-5FB6400405E2).
+    For more information, see Oracle’s [Java Cryptography Architecture documentation](https://docs.oracle.com/en/java/javase/11/security/java-cryptography-architecture-jca-reference-guide.html).
+
+`xpack.security.remote_cluster_server.ssl.handshake_timeout` {applies_to}`stack: ga 9.2`
+:   Specifies the timeout for a TLS handshake when handling an inbound remote-cluster connection. Defaults to `10s`.
 
 
 ### Remote cluster server (API key based model) TLS/SSL key and trusted certificate settings [security-remote-cluster-server-tls-ssl-key-trusted-certificate-settings]
@@ -2258,7 +2303,10 @@ You can configure the following TLS/SSL settings.
 `xpack.security.remote_cluster_client.ssl.cipher_suites`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Supported cipher suites vary depending on which version of Java you use. For example, for version 12 the default value is `TLS_AES_256_GCM_SHA384`, `TLS_AES_128_GCM_SHA256`, `TLS_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`, `TLS_RSA_WITH_AES_256_GCM_SHA384`, `TLS_RSA_WITH_AES_128_GCM_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA256`, `TLS_RSA_WITH_AES_128_CBC_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA`, `TLS_RSA_WITH_AES_128_CBC_SHA`.
 
-    For more information, see Oracle’s [Java Cryptography Architecture documentation](https://docs.oracle.com/en/java/javase/11/security/oracle-providers.md#GUID-7093246A-31A3-4304-AC5F-5FB6400405E2).
+    For more information, see Oracle’s [Java Cryptography Architecture documentation](https://docs.oracle.com/en/java/javase/11/security/java-cryptography-architecture-jca-reference-guide.html).
+
+`xpack.security.remote_cluster_client.ssl.handshake_timeout` {applies_to}`stack: ga 9.2`
+:   Specifies the timeout for a TLS handshake when opening a remote-cluster connection. Defaults to `10s`.
 
 
 ### Remote cluster client (API key based model) TLS/SSL key and trusted certificate settings [security-remote-cluster-client-tls-ssl-key-trusted-certificate-settings]

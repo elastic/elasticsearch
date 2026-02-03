@@ -17,17 +17,15 @@ import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceExecutableActionModel;
-import org.elasticsearch.xpack.inference.services.elastic.action.ElasticInferenceServiceActionVisitor;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
 
-public class ElasticInferenceServiceRerankModel extends ElasticInferenceServiceExecutableActionModel {
+public class ElasticInferenceServiceRerankModel extends ElasticInferenceServiceModel {
 
     private final URI uri;
 
@@ -61,18 +59,25 @@ public class ElasticInferenceServiceRerankModel extends ElasticInferenceServiceE
         @Nullable SecretSettings secretSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents
     ) {
-        super(
+        this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secretSettings),
-            serviceSettings,
+            elasticInferenceServiceComponents
+        );
+    }
+
+    public ElasticInferenceServiceRerankModel(
+        ModelConfigurations modelConfigurations,
+        ModelSecrets modelSecrets,
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents
+    ) {
+        super(
+            modelConfigurations,
+            modelSecrets,
+            (ElasticInferenceServiceRerankServiceSettings) modelConfigurations.getServiceSettings(),
             elasticInferenceServiceComponents
         );
         this.uri = createUri();
-    }
-
-    @Override
-    public ExecutableAction accept(ElasticInferenceServiceActionVisitor visitor, Map<String, Object> taskSettings) {
-        return visitor.create(this);
     }
 
     @Override
@@ -87,7 +92,7 @@ public class ElasticInferenceServiceRerankModel extends ElasticInferenceServiceE
     private URI createUri() throws ElasticsearchStatusException {
         try {
             // TODO, consider transforming the base URL into a URI for better error handling.
-            return new URI(elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/rerank");
+            return new URI(elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/rerank/text/text-similarity");
         } catch (URISyntaxException e) {
             throw new ElasticsearchStatusException(
                 "Failed to create URI for service ["

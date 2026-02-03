@@ -13,9 +13,9 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -54,7 +54,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNoDocs() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             // Intentionally not writing any docs
         }, tdigest -> {
             assertEquals(0L, tdigest.getState().size());
@@ -63,7 +63,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNoMatchingField() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 1)));
         }, tdigest -> {
@@ -83,7 +83,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 0)));
         }, tdigest -> {
             assertEquals(7L, tdigest.getState().size());
-            assertEquals(7L, tdigest.getState().centroidCount());
+            assertEquals(7L, tdigest.getState().centroids().size());
             assertEquals(4.0d, tdigest.percentile(75), 0.0d);
             assertEquals("4.0", tdigest.percentileAsString(75));
             assertEquals(2.0d, tdigest.percentile(50), 0.0d);
@@ -105,7 +105,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField("number", 0)));
         }, tdigest -> {
             assertEquals(tdigest.getState().size(), 7L);
-            assertEquals(tdigest.getState().centroidCount(), 7L);
+            assertEquals(tdigest.getState().centroids().size(), 7L);
             assertEquals(8.0d, tdigest.percentile(100), 0.0d);
             assertEquals("8.0", tdigest.percentileAsString(100));
             assertEquals(4.0d, tdigest.percentile(75), 0.0d);
@@ -133,7 +133,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
 
         testCase(LongPoint.newRangeQuery("row", 1, 4), docs, tdigest -> {
             assertEquals(4L, tdigest.getState().size());
-            assertEquals(4L, tdigest.getState().centroidCount());
+            assertEquals(4L, tdigest.getState().centroids().size());
             assertEquals(2.0d, tdigest.percentile(100), 0.0d);
             assertEquals(1.0d, tdigest.percentile(50), 0.0d);
             assertEquals(0.75d, tdigest.percentile(25), 0.0d);
@@ -142,7 +142,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
 
         testCase(LongPoint.newRangeQuery("row", 100, 110), docs, tdigest -> {
             assertEquals(0L, tdigest.getState().size());
-            assertEquals(0L, tdigest.getState().centroidCount());
+            assertEquals(0L, tdigest.getState().centroids().size());
             assertFalse(AggregationInspectionHelper.hasValue(tdigest));
         });
     }

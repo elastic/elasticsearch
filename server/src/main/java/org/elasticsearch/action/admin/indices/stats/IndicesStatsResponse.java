@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.action.admin.indices.stats.IndexStats.IndexStatsBuilder;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -56,15 +55,10 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
     IndicesStatsResponse(StreamInput in) throws IOException {
         super(in);
         shards = in.readArray(ShardStats::new, ShardStats[]::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-            // Between 8.1 and INDEX_STATS_ADDITIONAL_FIELDS, we had a different format for the response
-            // where we only had health and state available.
-            indexHealthMap = in.readMap(ClusterHealthStatus::readFrom);
-            indexStateMap = in.readMap(IndexMetadata.State::readFrom);
-        } else {
-            indexHealthMap = Map.of();
-            indexStateMap = Map.of();
-        }
+        // Between 8.1 and INDEX_STATS_ADDITIONAL_FIELDS, we had a different format for the response
+        // where we only had health and state available.
+        indexHealthMap = in.readMap(ClusterHealthStatus::readFrom);
+        indexStateMap = in.readMap(IndexMetadata.State::readFrom);
     }
 
     @FixForMultiProject(description = "we can pass ProjectMetadata here")
@@ -179,10 +173,8 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeArray(shards);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-            out.writeMap(indexHealthMap, StreamOutput::writeWriteable);
-            out.writeMap(indexStateMap, StreamOutput::writeWriteable);
-        }
+        out.writeMap(indexHealthMap, StreamOutput::writeWriteable);
+        out.writeMap(indexStateMap, StreamOutput::writeWriteable);
     }
 
     @Override

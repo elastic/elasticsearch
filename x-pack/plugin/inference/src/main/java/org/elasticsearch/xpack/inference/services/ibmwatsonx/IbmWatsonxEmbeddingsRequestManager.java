@@ -35,7 +35,7 @@ public class IbmWatsonxEmbeddingsRequestManager extends IbmWatsonxRequestManager
     private static final ResponseHandler HANDLER = createEmbeddingsHandler();
 
     private static ResponseHandler createEmbeddingsHandler() {
-        return new IbmWatsonxResponseHandler("ibm watsonx embeddings", IbmWatsonxEmbeddingsResponseEntity::fromResponse);
+        return new IbmWatsonxResponseHandler("IBM watsonx embeddings", IbmWatsonxEmbeddingsResponseEntity::fromResponse);
     }
 
     private final IbmWatsonxEmbeddingsModel model;
@@ -55,7 +55,7 @@ public class IbmWatsonxEmbeddingsRequestManager extends IbmWatsonxRequestManager
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        List<String> docsInput = EmbeddingsInput.of(inferenceInputs).getStringInputs();
+        List<String> docsInput = inferenceInputs.castTo(EmbeddingsInput.class).getTextInputs();
         var truncatedInput = truncate(docsInput, model.getServiceSettings().maxInputTokens());
 
         execute(

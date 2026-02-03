@@ -25,6 +25,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -48,6 +50,8 @@ public final class SpatialExtent extends SpatialAggregateFunction implements ToA
 
     @FunctionInfo(
         returnType = { "geo_shape", "cartesian_shape" },
+        preview = true,
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
         description = "Calculate the spatial extent over a field with geometry type. Returns a bounding box for all values of the field.",
         type = FunctionType.AGGREGATE,
         examples = @Example(file = "spatial", tag = "st_extent_agg-airports")
@@ -56,11 +60,11 @@ public final class SpatialExtent extends SpatialAggregateFunction implements ToA
         Source source,
         @Param(name = "field", type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" }) Expression field
     ) {
-        this(source, field, Literal.TRUE, FieldExtractPreference.NONE);
+        this(source, field, Literal.TRUE, NO_WINDOW, FieldExtractPreference.NONE);
     }
 
-    private SpatialExtent(Source source, Expression field, Expression filter, FieldExtractPreference preference) {
-        super(source, field, filter, preference);
+    private SpatialExtent(Source source, Expression field, Expression filter, Expression window, FieldExtractPreference preference) {
+        super(source, field, filter, window, preference);
     }
 
     private SpatialExtent(StreamInput in) throws IOException {
@@ -74,12 +78,12 @@ public final class SpatialExtent extends SpatialAggregateFunction implements ToA
 
     @Override
     public SpatialExtent withFilter(Expression filter) {
-        return new SpatialExtent(source(), field(), filter, fieldExtractPreference);
+        return new SpatialExtent(source(), field(), filter, window(), fieldExtractPreference);
     }
 
     @Override
     public SpatialExtent withFieldExtractPreference(FieldExtractPreference preference) {
-        return new SpatialExtent(source(), field(), filter(), preference);
+        return new SpatialExtent(source(), field(), filter(), window(), preference);
     }
 
     @Override

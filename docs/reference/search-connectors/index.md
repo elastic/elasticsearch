@@ -8,67 +8,86 @@ mapped_pages:
   - https://www.elastic.co/guide/en/enterprise-search/current/connectors.html
 ---
 
-# Search connectors
+# Content connectors
 
 $$$es-connectors-native$$$
 
 
 :::{note}
-This page is about Search connectors that synchronize third-party data into {{es}}. If you’re looking for Kibana connectors to integrate with services like generative AI model providers, refer to [Kibana Connectors](docs-content://deploy-manage/manage-connectors.md).
+This page is about Content connectors that synchronize third-party data into {{es}}. If you’re looking for Kibana connectors to integrate with services like generative AI model providers, refer to [Kibana Connectors](docs-content://deploy-manage/manage-connectors.md).
 :::
 
 A _connector_ is an Elastic integration that syncs data from an original data source to {{es}}. Use connectors to create searchable, read-only replicas of your data in {{es}}.
 
 Each connector extracts the original files, records, or objects; and transforms them into documents within {{es}}.
 
-These connectors are written in Python and the source code is available in the [`elastic/connectors`](https://github.com/elastic/connectors/tree/main/connectors/sources) repo.
+These connectors are written in Python and the source code is available in the [`elastic/connectors`](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources) repo.
+
+## Setup modes [setup-modes]
+
+You can set up content connectors in two ways. The availability of each setup mode is indicated on the interface of your {{kib}} **Content connectors** page. 
+
+| | **[Self-managed](self-managed-connectors.md)** | **Elastic managed** |
+|---|---|---|
+| **Infrastructure** | You deploy the connector service | Elastic hosts it for you |
+| **Availability** | Any Elastic environment | {{ecloud}} only ({{ech}}/Serverless), for {{product.observability}} and [{{product.security}}](docs-content://solutions/security/get-started/content-connectors.md) |
+| **Can send data to** | Any {{es}} instance | Deployment or project the connector is deployed within only |
+| **Customization** | Supported | Not supported |
 
 ## Available connectors
 
+This table provides an overview of our available connectors, their current support status, and the features they support.
 
-::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
-::::
+The columns provide specific information about each connector:
+
+- **Status**: Indicates whether the connector is in General Availability (GA), Technical Preview, Beta, or is an Example connector.
+- **Advanced sync rules**: Specifies the versions in which advanced sync rules are supported, if applicable.
+- **Local binary extraction service**: Specifies the versions in which the local binary extraction service is supported, if applicable.
+- **Incremental syncs**: Specifies the version in which incremental syncs are supported, if applicable.
+- **Document level security**: Specifies the version in which document level security is supported, if applicable.
 
 
-Connectors are available for the following third-party data sources:
 
-- [Azure Blob Storage](/reference/search-connectors/es-connectors-azure-blob.md)
-- [Box](/reference/search-connectors/es-connectors-box.md)
-- [Confluence](/reference/search-connectors/es-connectors-confluence.md)
-- [Dropbox](/reference/search-connectors/es-connectors-dropbox.md)
-- [GitHub](/reference/search-connectors/es-connectors-github.md)
-- [Gmail](/reference/search-connectors/es-connectors-gmail.md)
-- [Google Cloud Storage](/reference/search-connectors/es-connectors-google-cloud.md)
-- [Google Drive](/reference/search-connectors/es-connectors-google-drive.md)
-- [GraphQL](/reference/search-connectors/es-connectors-graphql.md)
-- [Jira](/reference/search-connectors/es-connectors-jira.md)
-- [MicrosoftSQL](/reference/search-connectors/es-connectors-ms-sql.md)
-- [MongoDB](/reference/search-connectors/es-connectors-mongodb.md)
-- [MySQL](/reference/search-connectors/es-connectors-mysql.md)
-- [Network drive](/reference/search-connectors/es-connectors-network-drive.md)
-- [Notion](/reference/search-connectors/es-connectors-notion.md)
-- [OneDrive](/reference/search-connectors/es-connectors-onedrive.md)
-- [OpenText Documentum](/reference/search-connectors/es-connectors-opentext.md)
-- [Oracle](/reference/search-connectors/es-connectors-oracle.md)
-- [Outlook](/reference/search-connectors/es-connectors-outlook.md)
-- [PostgreSQL](/reference/search-connectors/es-connectors-postgresql.md)
-- [Redis](/reference/search-connectors/es-connectors-redis.md)
-- [S3](/reference/search-connectors/es-connectors-s3.md)
-- [Salesforce](/reference/search-connectors/es-connectors-salesforce.md)
-- [ServiceNow](/reference/search-connectors/es-connectors-servicenow.md)
-- [SharePoint Online](/reference/search-connectors/es-connectors-sharepoint-online.md)
-- [SharePoint Server](/reference/search-connectors/es-connectors-sharepoint.md)
-- [Slack](/reference/search-connectors/es-connectors-slack.md)
-- [Teams](/reference/search-connectors/es-connectors-teams.md)
-- [Zoom](/reference/search-connectors/es-connectors-zoom.md)
+| Connector | Status | [Advanced sync rules](./es-sync-rules.md#es-sync-rules-advanced) | [Local binary extraction service](./es-connectors-content-extraction.md#es-connectors-content-extraction-local) | [Incremental syncs](./content-syncs.md#es-connectors-sync-types-incremental) | [Document level security](./document-level-security.md) | Source code                                                                                                                |
+| ------- | --------------- | -- | -- | -- | -- |----------------------------------------------------------------------------------------------------------------------------|
+| [Azure Blob](/reference/search-connectors/es-connectors-azure-blob.md) | **GA** | - | 8.11+ | 8.13+ | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/azure_blob_storage/) |
+| [Box](/reference/search-connectors/es-connectors-box.md)  | **Preview** | - | - | 8.13+ | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/box)                                     |
+| [Confluence Cloud](/reference/search-connectors/es-connectors-confluence.md) | **GA** | 8.9+ | 8.11+ | 8.13+ | 8.10 | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/atlassian/confluence)                              |
+| [Confluence Data Center](/reference/search-connectors/es-connectors-confluence.md) | **Preview** | 8.13+ | 8.13+ | 8.13+ | 8.14+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/atlassian/confluence)                              |
+| [Confluence Server](/reference/search-connectors/es-connectors-confluence.md)| **GA** | 8.9+ | 8.11+ | 8.13+ | 8.14+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/atlassian/confluence)                              |
+| [Dropbox](/reference/search-connectors/es-connectors-dropbox.md)| **GA** | - | 8.11+ | 8.13+ | 8.12+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/dropbox)                                 |
+| [GitHub](/reference/search-connectors/es-connectors-github.md)| **GA** | 8.10+ | 8.11+ | 8.13+ | 8.12+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/github)                                  |
+| [Gmail](/reference/search-connectors/es-connectors-gmail.md)| **GA** | - | - | 8.13+ | 8.10+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/gmail)                                   |
+| [Google Cloud Storage](/reference/search-connectors/es-connectors-google-cloud.md)| **GA** | - | 8.11+ | 8.13+ | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/google_cloud_storage)                    |
+| [Google Drive](/reference/search-connectors/es-connectors-google-drive.md)| **GA** | - | 8.11+ | 8.13+ | 8.10+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/google_drive)                            |
+| [GraphQL](/reference/search-connectors/es-connectors-graphql.md)| **Preview** | - | - | - | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/graphql)                                 |
+| [Jira Cloud](/reference/search-connectors/es-connectors-jira.md)| **GA** | 8.9+ | 8.11+ | 8.13+ | 8.10+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/atlassian/jira)                                    |
+| [Jira Data Center](/reference/search-connectors/es-connectors-jira.md)| **Preview** | 8.13+ | 8.13+ | 8.13+ | 8.13+*| [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/atlassian/jira)                                    |
+| [Jira Server](/reference/search-connectors/es-connectors-jira.md)| **GA** | 8.9+ | 8.11+ | 8.13+ | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/atlassian/jira)                                    |
+| [Microsoft SQL Server](/reference/search-connectors/es-connectors-ms-sql.md)| **GA** | 8.11+ | - | - | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/mssql)                                   |
+| [MongoDB](/reference/search-connectors/es-connectors-mongodb.md)| **GA** | 8.8 native/ 8.12 self-managed | - | - | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/mongo)                                   |
+| [MySQL](/reference/search-connectors/es-connectors-mysql.md)| **GA** | 8.8+ | - | - | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/mysql)                                   |
+| [Network drive](/reference/search-connectors/es-connectors-network-drive.md)| **GA** | 8.10+ | 8.14+ | 8.13+ | 8.11+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/network_drive)                           |
+| [Notion](/reference/search-connectors/es-connectors-notion.md)| **GA** | 8.14+ | - | - | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/notion)                                  |
+| [OneDrive](/reference/search-connectors/es-connectors-onedrive.md)| **GA** | 8.11+ | 8.11+ | 8.13+ | 8.11+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/onedrive)                                |
+| [Oracle](/reference/search-connectors/es-connectors-oracle.md)| **GA** | - | - | - | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/oracle)                                  |
+| [Outlook](/reference/search-connectors/es-connectors-outlook.md)| **GA** | - | 8.11+ | 8.13+ | 8.14+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/outlook)                                 |
+| [PostgreSQL](/reference/search-connectors/es-connectors-postgresql.md)| **GA** | 8.11+ | - | - | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/postgresql)                              |
+| [Redis](/reference/search-connectors/es-connectors-redis.md)| **Preview** | - | - | - | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/redis)                                   |
+| [Amazon S3](/reference/search-connectors/es-connectors-s3.md)| **GA** | 8.12+ | 8.11+ | - | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/s3)                                      |
+| [Salesforce](/reference/search-connectors/es-connectors-salesforce.md)| **GA** | 8.12+ | 8.11+ | 8.13+ | 8.13+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/salesforce)                              |
+| [ServiceNow](/reference/search-connectors/es-connectors-servicenow.md)| **GA** | 8.10+ | 8.11+ | 8.13+ | 8.13+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/servicenow)                              |
+| [Sharepoint Online](/reference/search-connectors/es-connectors-sharepoint-online.md)| **GA** | 8.9+ | 8.9+ | 8.9+ | 8.9+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/sharepoint/sharepoint_online)                       |
+| [Sharepoint Server](/reference/search-connectors/es-connectors-sharepoint.md)| **Beta** | - | 8.11+ | 8.13+ | 8.15+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/sharepoint/sharepoint_server)                       |
+| [Slack](/reference/search-connectors/es-connectors-slack.md)| **Preview** | - | - | - | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/slack)                                   |
+| [Teams](/reference/search-connectors/es-connectors-teams.md)| **Preview** | - | - | 8.13+ | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/microsoft_teams)                                   |
+| [Zoom](/reference/search-connectors/es-connectors-zoom.md)| **Preview** | - | 8.11+ | 8.13+ | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/zoom)                                    |
 
 :::{tip}
 Because prerequisites and configuration details vary by data source, you’ll need to refer to the individual connector references for specific details.
 :::
 
 ## Overview
-
 
 Because connectors are self-managed on your own infrastructure, they run outside of your Elastic deployment.
 

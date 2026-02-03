@@ -25,6 +25,7 @@ public record PathLookupImpl(
     Path homeDir,
     Path configDir,
     Path[] dataDirs,
+    Path sharedDataDir,
     Path[] sharedRepoDirs,
     Path libDir,
     Path modulesDir,
@@ -56,6 +57,7 @@ public record PathLookupImpl(
         return switch (baseDir) {
             case USER_HOME -> Stream.of(homeDir);
             case DATA -> Arrays.stream(dataDirs);
+            case SHARED_DATA -> Stream.ofNullable(sharedDataDir);
             case SHARED_REPO -> Arrays.stream(sharedRepoDirs);
             case CONFIG -> Stream.of(configDir);
             case LIB -> Stream.of(libDir);
@@ -74,5 +76,10 @@ public record PathLookupImpl(
             .map(Path::of)
             .toList();
         return getBaseDirPaths(baseDir).flatMap(path -> relativePaths.stream().map(path::resolve));
+    }
+
+    @Override
+    public boolean isPathOnDefaultFilesystem(Path path) {
+        return path.getFileSystem().getClass() == DEFAULT_FILESYSTEM_CLASS;
     }
 }

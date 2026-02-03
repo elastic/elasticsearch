@@ -1,0 +1,5 @@
+pr: 139084
+summary: "GPU: Restrict GPU indexing to FLOAT element types"
+area: Vector Search
+type: enhancement
+issues: []

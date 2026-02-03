@@ -65,6 +65,11 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
     }
 
     @Override
+    public BooleanBlock deepCopy(BlockFactory blockFactory) {
+        return vector.deepCopy(blockFactory).asBlock();
+    }
+
+    @Override
     public ReleasableIterator<? extends BooleanBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
         return vector.lookup(positions, targetBlockSize);
     }

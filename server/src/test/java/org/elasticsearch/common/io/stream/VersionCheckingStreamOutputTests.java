@@ -10,7 +10,6 @@
 package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -36,11 +35,7 @@ public class VersionCheckingStreamOutputTests extends ESTestCase {
     }
 
     public void testCheckVersionCompatibility() throws IOException {
-        TransportVersion streamVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.MINIMUM_COMPATIBLE,
-            TransportVersionUtils.getPreviousVersion(TransportVersion.current())
-        );
+        TransportVersion streamVersion = TransportVersionUtils.randomVersionNotSupporting(TransportVersion.current());
         try (VersionCheckingStreamOutput out = new VersionCheckingStreamOutput(streamVersion)) {
             out.writeNamedWriteable(QueryBuilders.matchAllQuery());
 

@@ -86,15 +86,6 @@ class DfsQueryPhase extends SearchPhase {
         );
 
         List<DfsKnnResults> knnResults = mergeKnnResults(context.getRequest(), searchResults);
-        if (context.getRequest().source() != null) {
-            // if we only have a single knn search and size is not defined
-            // override it on the request, so that we can ensure we will return at most `k` results
-            // after any potential oversampling on the query phase
-            var source = context.getRequest().source();
-            if (source.size() == -1 && source.knnSearch().size() == 1 && source.subSearches().isEmpty()) {
-                source.size(source.knnSearch().getFirst().k());
-            }
-        }
         for (final DfsSearchResult dfsResult : searchResults) {
             final SearchShardTarget shardTarget = dfsResult.getSearchShardTarget();
             final int shardIndex = dfsResult.getShardIndex();

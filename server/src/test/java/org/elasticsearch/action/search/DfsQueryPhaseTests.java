@@ -376,7 +376,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             VectorData.fromFloats(new float[] { 0.0f }),
             null,
             List.of(),
-            null,
+            1f,
             10
         );
         KnnScoreDocQueryBuilder ksdqb1 = new KnnScoreDocQueryBuilder(
@@ -385,7 +385,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             VectorData.fromFloats(new float[] { 0.0f }),
             null,
             List.of(),
-            null,
+            1f,
             10
         );
         assertEquals(

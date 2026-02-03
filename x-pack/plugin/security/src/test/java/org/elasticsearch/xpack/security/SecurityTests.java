@@ -32,16 +32,19 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.MergeMetrics;
@@ -256,6 +259,7 @@ public class SecurityTests extends ESTestCase {
         return security.createComponents(
             client,
             threadPool,
+            new MockBigArrays(new MockPageCacheRecycler(settings), ByteSizeValue.ofBytes(Long.MAX_VALUE)),
             clusterService,
             new FeatureService(List.of(new SecurityFeatures())),
             mock(ResourceWatcherService.class),
@@ -477,7 +481,7 @@ public class SecurityTests extends ESTestCase {
             () -> true,
             TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
             Collections.emptyMap(),
-            mock(SlowLogFieldProvider.class),
+            mock(ActionLoggingFieldsProvider.class),
             MapperMetrics.NOOP,
             List.of(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
@@ -939,8 +943,10 @@ public class SecurityTests extends ESTestCase {
         final Logger amLogger = LogManager.getLogger(ActionModule.class);
         Loggers.setLevel(amLogger, Level.DEBUG);
 
-        Settings settings = Settings.builder().put("xpack.security.enabled", false).put("path.home", createTempDir()).build();
-        SettingsModule settingsModule = new SettingsModule(Settings.EMPTY);
+        Path homeDir = createTempDir();
+        Settings settings = Settings.builder().put("xpack.security.enabled", false).put("path.home", homeDir).build();
+        // these settings cannot have xpack.security.enabled since we haven't loaded plugins, so that setting is unknown
+        SettingsModule settingsModule = new SettingsModule(Settings.builder().put("path.home", homeDir).build());
         ThreadPool threadPool = new TestThreadPool(getTestName());
 
         try (var mockLog = MockLog.capture(ActionModule.class)) {
@@ -959,7 +965,7 @@ public class SecurityTests extends ESTestCase {
             );
 
             ActionModule actionModule = new ActionModule(
-                settingsModule.getSettings(),
+                TestEnvironment.newEnvironment(settingsModule.getSettings()),
                 TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
                 null,
                 settingsModule.getIndexScopedSettings(),
@@ -1268,7 +1274,7 @@ public class SecurityTests extends ESTestCase {
 
         serializer.writeToContext(realmAuth, threadContext);
 
-        Map<String, String> authContext = security.getAuthContextForSlowLog();
+        Map<String, String> authContext = security.getAuthContextForLogging();
 
         assertNotNull(authContext);
 
@@ -1299,7 +1305,7 @@ public class SecurityTests extends ESTestCase {
         assertFalse(apiKeyAuth.isRunAs());
 
         serializer.writeToContext(apiKeyAuth, threadContext);
-        Map<String, String> authContext = security.getAuthContextForSlowLog();
+        Map<String, String> authContext = security.getAuthContextForLogging();
         assertNotNull(authContext);
 
         assertThat(authContext.get("user.name"), equalTo(apiKeyAuth.getAuthenticatingSubject().getUser().principal()));
@@ -1366,7 +1372,7 @@ public class SecurityTests extends ESTestCase {
 
         serializer.writeToContext(runAsAuth, threadContext);
 
-        Map<String, String> authContext = security.getAuthContextForSlowLog();
+        Map<String, String> authContext = security.getAuthContextForLogging();
 
         assertNotNull(authContext);
 
@@ -1418,7 +1424,7 @@ public class SecurityTests extends ESTestCase {
 
         serializer.writeToContext(outerCrossClusterAccessAuth, threadContext);
 
-        Map<String, String> authContext = security.getAuthContextForSlowLog();
+        Map<String, String> authContext = security.getAuthContextForLogging();
 
         assertNotNull(authContext);
 
@@ -1463,7 +1469,7 @@ public class SecurityTests extends ESTestCase {
 
         serializer.writeToContext(outerCrossClusterAccessAuth, threadContext);
 
-        Map<String, String> authContext = security.getAuthContextForSlowLog();
+        Map<String, String> authContext = security.getAuthContextForLogging();
 
         assertNotNull(authContext);
 
@@ -1522,7 +1528,7 @@ public class SecurityTests extends ESTestCase {
 
         serializer.writeToContext(outerCrossClusterAccessAuth, threadContext);
 
-        Map<String, String> authContext = security.getAuthContextForSlowLog();
+        Map<String, String> authContext = security.getAuthContextForLogging();
 
         assertNotNull(authContext);
         // Assertions for the fields derived from the inner Run-as user

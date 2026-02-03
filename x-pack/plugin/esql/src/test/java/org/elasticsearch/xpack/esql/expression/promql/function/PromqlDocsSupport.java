@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -55,7 +56,7 @@ public class PromqlDocsSupport extends DocsV3Support {
             for (PromqlFunctionRegistry.ParamInfo param : promqlDef.params()) {
                 builder.startObject();
                 builder.field("name", param.name());
-                builder.field("type", param.type());
+                builder.field("type", param.type().name().toLowerCase(Locale.ROOT));
                 builder.field("optional", param.optional());
                 builder.field("description", param.description());
                 builder.endObject();

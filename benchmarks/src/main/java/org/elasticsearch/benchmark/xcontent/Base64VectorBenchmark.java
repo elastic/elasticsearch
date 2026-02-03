@@ -12,6 +12,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -46,7 +47,7 @@ import java.util.concurrent.TimeUnit;
 public class Base64VectorBenchmark {
 
     @Param({ "384", "782", "1024", "1536" })
-    int dims;
+    public int dims;
 
     final int numVectors = 1000;
 
@@ -75,17 +76,24 @@ public class Base64VectorBenchmark {
                 builder.startObject();
                 final ByteBuffer buffer = ByteBuffer.allocate(Float.BYTES * dims).order(ByteOrder.BIG_ENDIAN);
                 buffer.asFloatBuffer().put(vector);
-                builder.field("vector", Base64.getEncoder().encode(buffer.array()));
+                builder.field("vector", Base64.getEncoder().encodeToString(buffer.array()));
                 builder.endObject();
                 builder.close();
                 bytesBase64[i] = ((ByteArrayOutputStream) builder.getOutputStream()).toByteArray();
             }
         }
+    }
 
+    public interface FloatArrayConsumer {
+        void consume(float[] value);
     }
 
     @Benchmark
     public void parserVectorFloats(Blackhole bh) throws IOException {
+        parserVectorFloatsImpl(bh::consume);
+    }
+
+    void parserVectorFloatsImpl(FloatArrayConsumer bh) throws IOException {
         float[] vector = new float[dims];
         for (int j = 0; j < numVectors; j++) {
             int i = 0;
@@ -103,6 +111,10 @@ public class Base64VectorBenchmark {
 
     @Benchmark
     public void parserVectorBase64(Blackhole bh) throws IOException {
+        parserVectorBase64Impl(bh::consume);
+    }
+
+    void parserVectorBase64Impl(FloatArrayConsumer bh) throws IOException {
         float[] vector = new float[dims];
         for (int j = 0; j < numVectors; j++) {
             try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bytesBase64[j])) {
@@ -111,6 +123,28 @@ public class Base64VectorBenchmark {
                 parser.nextToken(); // value
                 ByteBuffer byteBuffer = ByteBuffer.wrap(Base64.getDecoder().decode(parser.text())).order(ByteOrder.BIG_ENDIAN);
                 byteBuffer.asFloatBuffer().get(vector);
+                bh.consume(vector);
+            }
+        }
+    }
+
+    @Benchmark
+    public void parserVectorBase64NoCopy(Blackhole bh) throws IOException {
+        parserVectorBase64NoCopyImpl(bh::consume);
+    }
+
+    void parserVectorBase64NoCopyImpl(FloatArrayConsumer bh) throws IOException {
+        float[] vector = new float[dims];
+        for (int j = 0; j < numVectors; j++) {
+            try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bytesBase64[j])) {
+                parser.nextToken(); // start object
+                parser.nextToken(); // field name
+                parser.nextToken(); // value
+
+                XContentString.UTF8Bytes utfBytes = parser.optimizedText().bytes();
+                ByteBuffer srcBuffer = ByteBuffer.wrap(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
+                ByteBuffer decodedBuffer = Base64.getDecoder().decode(srcBuffer);
+                decodedBuffer.order(ByteOrder.BIG_ENDIAN).asFloatBuffer().get(vector);
                 bh.consume(vector);
             }
         }

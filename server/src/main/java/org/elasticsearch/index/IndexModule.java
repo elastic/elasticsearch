@@ -202,7 +202,7 @@ public final class IndexModule {
         final BooleanSupplier allowExpensiveQueries,
         final IndexNameExpressionResolver expressionResolver,
         final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
-        final SlowLogFieldProvider slowLogFieldProvider,
+        final ActionLoggingFieldsProvider loggingFieldsProvider,
         final MapperMetrics mapperMetrics,
         final List<SearchOperationListener> searchOperationListeners,
         final IndexingStatsSettings indexingStatsSettings,
@@ -214,8 +214,8 @@ public final class IndexModule {
         this.engineFactory = Objects.requireNonNull(engineFactory);
         // Need to have a mutable arraylist for plugins to add listeners to it
         this.searchOperationListeners = new ArrayList<>(searchOperationListeners);
-        this.searchOperationListeners.add(new SearchSlowLog(indexSettings, slowLogFieldProvider));
-        this.indexOperationListeners.add(new IndexingSlowLog(indexSettings, slowLogFieldProvider));
+        this.searchOperationListeners.add(new SearchSlowLog(indexSettings, loggingFieldsProvider));
+        this.indexOperationListeners.add(new IndexingSlowLog(indexSettings, loggingFieldsProvider));
         this.directoryFactories = Collections.unmodifiableMap(directoryFactories);
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.expressionResolver = expressionResolver;

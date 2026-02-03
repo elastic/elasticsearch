@@ -13,6 +13,9 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.DataType;
+import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.Function;
+import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.Operation;
 import org.elasticsearch.nativeaccess.lib.LoaderHelper;
 import org.elasticsearch.nativeaccess.lib.VectorLibrary;
 
@@ -22,12 +25,15 @@ import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
-import java.nio.channels.FileChannel;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
+import static java.lang.foreign.ValueLayout.JAVA_LONG;
 import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
 import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.functionAddressOrNull;
 
@@ -35,21 +41,9 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
     static final Logger logger = LogManager.getLogger(JdkVectorLibrary.class);
 
-    static final MethodHandle dot7u$mh;
-    static final MethodHandle dot7uBulk$mh;
-    static final MethodHandle dot7uBulkWithOffsets$mh;
+    private record OperationSignature(Function function, DataType dataType, Operation operation) {}
 
-    static final MethodHandle sqr7u$mh;
-    static final MethodHandle sqr7uBulk$mh;
-    static final MethodHandle sqr7uBulkWithOffsets$mh;
-
-    static final MethodHandle dotf32$mh;
-    static final MethodHandle dotf32Bulk$mh;
-    static final MethodHandle dotf32BulkWithOffsets$mh;
-
-    static final MethodHandle sqrf32$mh;
-    static final MethodHandle sqrf32Bulk$mh;
-    static final MethodHandle sqrf32BulkWithOffsets$mh;
+    private static final Map<OperationSignature, MethodHandle> HANDLES;
 
     public static final JdkVectorSimilarityFunctions INSTANCE;
 
@@ -86,13 +80,15 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
     static {
         LoaderHelper.loadLibrary("vec");
-        final MethodHandle vecCaps$mh = downcallHandle("vec_caps", FunctionDescriptor.of(JAVA_INT));
+        MethodHandle vecCaps$mh = downcallHandle("vec_caps", FunctionDescriptor.of(JAVA_INT));
+        Map<OperationSignature, MethodHandle> handles = new HashMap<>();
 
         try {
             int caps = (int) vecCaps$mh.invokeExact();
             logger.info("vec_caps=" + caps);
             if (caps > 0) {
                 FunctionDescriptor intSingle = FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT);
+                FunctionDescriptor longSingle = FunctionDescriptor.of(JAVA_LONG, ADDRESS, ADDRESS, JAVA_INT);
                 FunctionDescriptor floatSingle = FunctionDescriptor.of(JAVA_FLOAT, ADDRESS, ADDRESS, JAVA_INT);
                 FunctionDescriptor bulk = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS);
                 FunctionDescriptor bulkOffsets = FunctionDescriptor.ofVoid(
@@ -105,22 +101,45 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     ADDRESS
                 );
 
-                dot7u$mh = bindFunction("vec_dot7u", caps, intSingle);
-                dot7uBulk$mh = bindFunction("vec_dot7u_bulk", caps, bulk);
-                dot7uBulkWithOffsets$mh = bindFunction("vec_dot7u_bulk_offsets", caps, bulkOffsets);
+                for (Function f : Function.values()) {
+                    String funcName = switch (f) {
+                        case DOT_PRODUCT -> "dot";
+                        case SQUARE_DISTANCE -> "sqr";
+                    };
 
-                sqr7u$mh = bindFunction("vec_sqr7u", caps, intSingle);
-                sqr7uBulk$mh = bindFunction("vec_sqr7u_bulk", caps, bulk);
-                sqr7uBulkWithOffsets$mh = bindFunction("vec_sqr7u_bulk_offsets", caps, bulkOffsets);
+                    for (DataType type : DataType.values()) {
+                        String typeName = switch (type) {
+                            case INT7 -> "7u";
+                            case FLOAT32 -> "f32";
+                            case I1I4 -> "_int1_int4";
+                        };
 
-                dotf32$mh = bindFunction("vec_dotf32", caps, floatSingle);
-                dotf32Bulk$mh = bindFunction("vec_dotf32_bulk", caps, bulk);
-                dotf32BulkWithOffsets$mh = bindFunction("vec_dotf32_bulk_offsets", caps, bulkOffsets);
+                        if (type == DataType.I1I4 && f == Function.SQUARE_DISTANCE) continue;   // not implemented yet
 
-                sqrf32$mh = bindFunction("vec_sqrf32", caps, floatSingle);
-                sqrf32Bulk$mh = bindFunction("vec_sqrf32_bulk", caps, bulk);
-                sqrf32BulkWithOffsets$mh = bindFunction("vec_sqrf32_bulk_offsets", caps, bulkOffsets);
+                        for (Operation op : Operation.values()) {
+                            String opName = switch (op) {
+                                case SINGLE -> "";
+                                case BULK -> "_bulk";
+                                case BULK_OFFSETS -> "_bulk_offsets";
+                            };
 
+                            FunctionDescriptor descriptor = switch (op) {
+                                case SINGLE -> switch (type) {
+                                    case INT7 -> intSingle;
+                                    case FLOAT32 -> floatSingle;
+                                    case I1I4 -> longSingle;
+                                };
+                                case BULK -> bulk;
+                                case BULK_OFFSETS -> bulkOffsets;
+                            };
+
+                            MethodHandle handle = bindFunction("vec_" + funcName + typeName + opName, caps, descriptor);
+                            handles.put(new OperationSignature(f, type, op), handle);
+                        }
+                    }
+                }
+
+                HANDLES = Collections.unmodifiableMap(handles);
                 INSTANCE = new JdkVectorSimilarityFunctions();
             } else {
                 if (caps < 0) {
@@ -128,18 +147,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                         Your CPU supports vector capabilities, but they are disabled at OS level. For optimal performance, \
                         enable them in your OS/Hypervisor/VM/container""");
                 }
-                dot7u$mh = null;
-                dot7uBulk$mh = null;
-                dot7uBulkWithOffsets$mh = null;
-                sqr7u$mh = null;
-                sqr7uBulk$mh = null;
-                sqr7uBulkWithOffsets$mh = null;
-                dotf32$mh = null;
-                dotf32Bulk$mh = null;
-                dotf32BulkWithOffsets$mh = null;
-                sqrf32$mh = null;
-                sqrf32Bulk$mh = null;
-                sqrf32BulkWithOffsets$mh = null;
+                HANDLES = null;
                 INSTANCE = null;
             }
         } catch (Throwable t) {
@@ -163,7 +171,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
          * <p>
          * Vector data is consumed by native functions directly via a pointer to contiguous memory, represented in FFI by
          * {@link MemorySegment}s, which safely encapsulate a memory location, off-heap or on-heap.
-         * We mainly use <b>shared</b> MemorySegments for off-heap vectors (via {@link Arena#ofShared} or via {@link FileChannel#map}).
+         * We mainly use <b>shared</b> MemorySegments for off-heap vectors (via {@link Arena#ofShared} or via
+         * {@link java.nio.channels.FileChannel#map}).
          * <p>
          * Shared MemorySegments have a built-in check for liveness when accessed by native functions, implemented by JIT adding some
          * additional instructions before/after the native function is actually called.
@@ -233,377 +242,284 @@ public final class JdkVectorLibrary implements VectorLibrary {
             return new AssertionError(msg, t);
         }
 
-        /**
-         * Computes the dot product of given unsigned int7 byte vectors.
-         *
-         * <p> Unsigned int7 byte vectors have values in the range of 0 to 127 (inclusive).
-         *
-         * @param a      address of the first vector
-         * @param b      address of the second vector
-         * @param length the vector dimensions
-         */
+        static boolean checkBulk(int elementSize, MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
+            Objects.checkFromIndexSize(0, length * count * elementSize, (int) a.byteSize());
+            Objects.checkFromIndexSize(0, length, (int) b.byteSize());
+            Objects.checkFromIndexSize(0, count * Float.BYTES, (int) result.byteSize());
+            return true;
+        }
+
+        static boolean checkI1I4Bulk(
+            MemorySegment dataset,
+            MemorySegment query,
+            int datasetVectorLengthInBytes,
+            int count,
+            MemorySegment result
+        ) {
+            Objects.checkFromIndexSize(0, datasetVectorLengthInBytes * count, (int) dataset.byteSize());
+            Objects.checkFromIndexSize(0, datasetVectorLengthInBytes * 4L, (int) query.byteSize());
+            Objects.checkFromIndexSize(0, count * Float.BYTES, (int) result.byteSize());
+            return true;
+        }
+
+        static boolean checkBulkOffsets(
+            int elementSize,
+            MemorySegment a,
+            MemorySegment b,
+            int length,
+            int pitch,
+            MemorySegment offsets,
+            int count,
+            MemorySegment result
+        ) {
+            // TODO: more checks copied from checkBulk
+            if ((pitch % elementSize) != 0) throw new IllegalArgumentException("Pitch needs to be a multiple of " + elementSize);
+            return true;
+        }
+
+        static boolean checkI1I4BulkOffsets(
+            MemorySegment a,
+            MemorySegment b,
+            int length,
+            int pitch,
+            MemorySegment offsets,
+            int count,
+            MemorySegment result
+        ) {
+            return true;
+        }
+
+        private static final MethodHandle dot7uHandle = HANDLES.get(
+            new OperationSignature(Function.DOT_PRODUCT, DataType.INT7, Operation.SINGLE)
+        );
+
         static int dotProduct7u(MemorySegment a, MemorySegment b, int length) {
             checkByteSize(a, b);
             Objects.checkFromIndexSize(0, length, (int) a.byteSize());
-            return callSingleDistanceInt(dot7u$mh, a, b, length);
+            return callSingleDistanceInt(dot7uHandle, a, b, length);
         }
 
-        static void dotProduct7uBulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
-            Objects.checkFromIndexSize(0, length * count, (int) a.byteSize());
-            Objects.checkFromIndexSize(0, length, (int) b.byteSize());
-            Objects.checkFromIndexSize(0, count * Float.BYTES, (int) result.byteSize());
-            dot7uBulk(a, b, length, count, result);
-        }
+        private static final MethodHandle square7uHandle = HANDLES.get(
+            new OperationSignature(Function.SQUARE_DISTANCE, DataType.INT7, Operation.SINGLE)
+        );
 
-        static void dotProduct7uBulkWithOffsets(
-            MemorySegment a,
-            MemorySegment b,
-            int length,
-            int pitch,
-            MemorySegment offsets,
-            int count,
-            MemorySegment result
-        ) {
-            dot7uBulkWithOffsets(a, b, length, pitch, offsets, count, result);
-        }
-
-        /**
-         * Computes the square distance of given unsigned int7 byte vectors.
-         *
-         * <p> Unsigned int7 byte vectors have values in the range of 0 to 127 (inclusive).
-         *
-         * @param a      address of the first vector
-         * @param b      address of the second vector
-         * @param length the vector dimensions
-         */
         static int squareDistance7u(MemorySegment a, MemorySegment b, int length) {
             checkByteSize(a, b);
             Objects.checkFromIndexSize(0, length, (int) a.byteSize());
-            return callSingleDistanceInt(sqr7u$mh, a, b, length);
+            return callSingleDistanceInt(square7uHandle, a, b, length);
         }
 
-        static void squareDistance7uBulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
-            Objects.checkFromIndexSize(0, length * count, (int) a.byteSize());
-            Objects.checkFromIndexSize(0, length, (int) b.byteSize());
-            Objects.checkFromIndexSize(0, count * Float.BYTES, (int) result.byteSize());
-            sqr7uBulk(a, b, length, count, result);
-        }
+        private static final MethodHandle dotF32Handle = HANDLES.get(
+            new OperationSignature(Function.DOT_PRODUCT, DataType.FLOAT32, Operation.SINGLE)
+        );
 
-        static void squareDistance7uBulkWithOffsets(
-            MemorySegment a,
-            MemorySegment b,
-            int length,
-            int pitch,
-            MemorySegment offsets,
-            int count,
-            MemorySegment result
-        ) {
-            sqr7uBulkWithOffsets(a, b, length, pitch, offsets, count, result);
-        }
-
-        /**
-         * Computes the dot product of given float32 vectors.
-         *
-         * @param a      address of the first vector
-         * @param b      address of the second vector
-         * @param elementCount the vector dimensions, number of float32 elements in the segment
-         */
         static float dotProductF32(MemorySegment a, MemorySegment b, int elementCount) {
             checkByteSize(a, b);
             Objects.checkFromIndexSize(0, elementCount, (int) a.byteSize() / Float.BYTES);
-            return callSingleDistanceFloat(dotf32$mh, a, b, elementCount);
+            return callSingleDistanceFloat(dotF32Handle, a, b, elementCount);
         }
 
-        static void dotProductF32Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
-            Objects.checkFromIndexSize(0, length * count * Float.BYTES, (int) a.byteSize());
-            Objects.checkFromIndexSize(0, length * Float.BYTES, (int) b.byteSize());
-            Objects.checkFromIndexSize(0, count * Float.BYTES, (int) result.byteSize());
-            dotf32Bulk(a, b, length, count, result);
-        }
+        private static final MethodHandle squareF32Handle = HANDLES.get(
+            new OperationSignature(Function.SQUARE_DISTANCE, DataType.FLOAT32, Operation.SINGLE)
+        );
 
-        static void dotProductF32BulkWithOffsets(
-            MemorySegment a,
-            MemorySegment b,
-            int length,
-            int pitch,
-            MemorySegment offsets,
-            int count,
-            MemorySegment result
-        ) {
-            // pitch is in bytes, but needs to be 4-byte-aligned
-            if ((pitch % 4) != 0) throw new IllegalArgumentException("Pitch needs to be a multiple of 4");
-            dotf32BulkWithOffsets(a, b, length, pitch, offsets, count, result);
-        }
-
-        /**
-         * Computes the square distance of given float32 vectors.
-         *
-         * @param a      address of the first vector
-         * @param b      address of the second vector
-         * @param elementCount the vector dimensions, number of float32 elements in the segment
-         */
         static float squareDistanceF32(MemorySegment a, MemorySegment b, int elementCount) {
             checkByteSize(a, b);
             Objects.checkFromIndexSize(0, elementCount, (int) a.byteSize() / Float.BYTES);
-            return callSingleDistanceFloat(sqrf32$mh, a, b, elementCount);
+            return callSingleDistanceFloat(squareF32Handle, a, b, elementCount);
         }
 
-        static void squareDistanceF32Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
-            Objects.checkFromIndexSize(0, length * count * Float.BYTES, (int) a.byteSize());
-            Objects.checkFromIndexSize(0, length * Float.BYTES, (int) b.byteSize());
-            Objects.checkFromIndexSize(0, count * Float.BYTES, (int) result.byteSize());
-            sqrf32Bulk(a, b, length, count, result);
-        }
+        private static final MethodHandle dotI1I4Handle = HANDLES.get(
+            new OperationSignature(Function.DOT_PRODUCT, DataType.I1I4, Operation.SINGLE)
+        );
 
-        static void squareDistanceF32BulkWithOffsets(
-            MemorySegment a,
-            MemorySegment b,
-            int length,
-            int pitch,
-            MemorySegment offsets,
-            int count,
-            MemorySegment result
-        ) {
-            // pitch is in bytes, but needs to be 4-byte-aligned
-            if ((pitch % 4) != 0) throw new IllegalArgumentException("Pitch needs to be a multiple of 4");
-            sqrf32BulkWithOffsets(a, b, length, pitch, offsets, count, result);
+        /**
+         * Computes the dot product of a given int4 vector with a give bit vector (1 bit per element).
+         *
+         * @param a      address of the bit vector
+         * @param query  address of the int4 vector
+         * @param length the vector dimensions
+         */
+        static long dotProductI1I4(MemorySegment a, MemorySegment query, int length) {
+            Objects.checkFromIndexSize(0, length * 4L, (int) query.byteSize());
+            Objects.checkFromIndexSize(0, length, (int) a.byteSize());
+            return callSingleDistanceLong(dotI1I4Handle, a, query, length);
         }
 
         private static void checkByteSize(MemorySegment a, MemorySegment b) {
             if (a.byteSize() != b.byteSize()) {
-                throw new IllegalArgumentException("dimensions differ: " + a.byteSize() + "!=" + b.byteSize());
+                throw new IllegalArgumentException("Dimensions differ: " + a.byteSize() + "!=" + b.byteSize());
             }
         }
 
-        private static void dot7uBulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
-            try {
-                dot7uBulk$mh.invokeExact(a, b, length, count, result);
-            } catch (Throwable t) {
-                throw new AssertionError(t);
-            }
-        }
-
-        private static void dot7uBulkWithOffsets(
-            MemorySegment a,
-            MemorySegment b,
-            int length,
-            int pitch,
-            MemorySegment offsets,
-            int count,
-            MemorySegment result
-        ) {
-            try {
-                dot7uBulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, result);
-            } catch (Throwable t) {
-                throw new AssertionError(t);
-            }
-        }
-
-        private static void sqr7uBulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
-            try {
-                sqr7uBulk$mh.invokeExact(a, b, length, count, result);
-            } catch (Throwable t) {
-                throw new AssertionError(t);
-            }
-        }
-
-        private static void sqr7uBulkWithOffsets(
-            MemorySegment a,
-            MemorySegment b,
-            int length,
-            int pitch,
-            MemorySegment offsets,
-            int count,
-            MemorySegment result
-        ) {
-            try {
-                sqr7uBulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, result);
-            } catch (Throwable t) {
-                throw new AssertionError(t);
-            }
-        }
-
-        private static void dotf32Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
-            try {
-                dotf32Bulk$mh.invokeExact(a, b, length, count, result);
-            } catch (Throwable t) {
-                throw new AssertionError(t);
-            }
-        }
-
-        private static void dotf32BulkWithOffsets(
-            MemorySegment a,
-            MemorySegment b,
-            int length,
-            int pitch,
-            MemorySegment offsets,
-            int count,
-            MemorySegment result
-        ) {
-            try {
-                dotf32BulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, result);
-            } catch (Throwable t) {
-                throw new AssertionError(t);
-            }
-        }
-
-        private static void sqrf32Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
-            try {
-                sqrf32Bulk$mh.invokeExact(a, b, length, count, result);
-            } catch (Throwable t) {
-                throw new AssertionError(t);
-            }
-        }
-
-        private static void sqrf32BulkWithOffsets(
-            MemorySegment a,
-            MemorySegment b,
-            int length,
-            int pitch,
-            MemorySegment offsets,
-            int count,
-            MemorySegment result
-        ) {
-            try {
-                sqrf32BulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, result);
-            } catch (Throwable t) {
-                throw new AssertionError(t);
-            }
-        }
-
-        static final MethodHandle DOT_HANDLE_7U;
-        static final MethodHandle DOT_HANDLE_7U_BULK;
-        static final MethodHandle DOT_HANDLE_7U_BULK_WITH_OFFSETS;
-        static final MethodHandle SQR_HANDLE_7U;
-        static final MethodHandle SQR_HANDLE_7U_BULK;
-        static final MethodHandle SQR_HANDLE_7U_BULK_WITH_OFFSETS;
-        static final MethodHandle DOT_HANDLE_FLOAT32;
-        static final MethodHandle DOT_HANDLE_FLOAT32_BULK;
-        static final MethodHandle DOT_HANDLE_FLOAT32_BULK_WITH_OFFSETS;
-        static final MethodHandle SQR_HANDLE_FLOAT32;
-        static final MethodHandle SQR_HANDLE_FLOAT32_BULK;
-        static final MethodHandle SQR_HANDLE_FLOAT32_BULK_WITH_OFFSETS;
+        private static final Map<OperationSignature, MethodHandle> HANDLES_WITH_CHECKS;
 
         static {
+            MethodHandles.Lookup lookup = MethodHandles.lookup();
+
             try {
-                var lookup = MethodHandles.lookup();
+                Map<OperationSignature, MethodHandle> handlesWithChecks = new HashMap<>();
 
-                MethodType singleInt7Scorer = MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, int.class);
-                MethodType singleFloatScorer = MethodType.methodType(float.class, MemorySegment.class, MemorySegment.class, int.class);
-                MethodType bulkScorer = MethodType.methodType(
-                    void.class,
-                    MemorySegment.class,
-                    MemorySegment.class,
-                    int.class,
-                    int.class,
-                    MemorySegment.class
-                );
-                MethodType bulkOffsetScorer = MethodType.methodType(
-                    void.class,
-                    MemorySegment.class,
-                    MemorySegment.class,
-                    int.class,
-                    int.class,
-                    MemorySegment.class,
-                    int.class,
-                    MemorySegment.class
-                );
+                for (var op : HANDLES.entrySet()) {
+                    switch (op.getKey().operation()) {
+                        case SINGLE -> {
+                            // Single score methods are called once for each vector,
+                            // this means we need to reduce the overheads as much as possible.
+                            // So have specific hard-coded check methods rather than use guardWithTest
+                            // to create the check-and-call methods dynamically
+                            MethodHandle handleWithChecks = switch (op.getKey().dataType()) {
+                                case INT7 -> {
+                                    MethodType type = MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, int.class);
+                                    yield switch (op.getKey().function()) {
+                                        case DOT_PRODUCT -> lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProduct7u", type);
+                                        case SQUARE_DISTANCE -> lookup.findStatic(
+                                            JdkVectorSimilarityFunctions.class,
+                                            "squareDistance7u",
+                                            type
+                                        );
+                                    };
+                                }
+                                case FLOAT32 -> {
+                                    MethodType type = MethodType.methodType(
+                                        float.class,
+                                        MemorySegment.class,
+                                        MemorySegment.class,
+                                        int.class
+                                    );
+                                    yield switch (op.getKey().function()) {
+                                        case DOT_PRODUCT -> lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProductF32", type);
+                                        case SQUARE_DISTANCE -> lookup.findStatic(
+                                            JdkVectorSimilarityFunctions.class,
+                                            "squareDistanceF32",
+                                            type
+                                        );
+                                    };
+                                }
+                                case I1I4 -> {
+                                    MethodType type = MethodType.methodType(
+                                        long.class,
+                                        MemorySegment.class,
+                                        MemorySegment.class,
+                                        int.class
+                                    );
+                                    yield switch (op.getKey().function()) {
+                                        case DOT_PRODUCT -> lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProductI1I4", type);
+                                        case SQUARE_DISTANCE -> throw new UnsupportedOperationException("Not implemented");
+                                    };
+                                }
+                            };
 
-                DOT_HANDLE_7U = lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProduct7u", singleInt7Scorer);
-                DOT_HANDLE_7U_BULK = lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProduct7uBulk", bulkScorer);
-                DOT_HANDLE_7U_BULK_WITH_OFFSETS = lookup.findStatic(
-                    JdkVectorSimilarityFunctions.class,
-                    "dotProduct7uBulkWithOffsets",
-                    bulkOffsetScorer
-                );
+                            handlesWithChecks.put(op.getKey(), handleWithChecks);
+                        }
+                        case BULK -> {
+                            MethodHandle handleWithChecks = switch (op.getKey().dataType()) {
+                                case I1I4 -> {
+                                    MethodHandle checkMethod = lookup.findStatic(
+                                        JdkVectorSimilarityFunctions.class,
+                                        "checkI1I4Bulk",
+                                        MethodType.methodType(
+                                            boolean.class,
+                                            MemorySegment.class,
+                                            MemorySegment.class,
+                                            int.class,
+                                            int.class,
+                                            MemorySegment.class
+                                        )
+                                    );
+                                    yield MethodHandles.guardWithTest(
+                                        checkMethod,
+                                        op.getValue(),
+                                        MethodHandles.empty(op.getValue().type())
+                                    );
+                                }
+                                default -> {
+                                    MethodHandle checkMethod = lookup.findStatic(
+                                        JdkVectorSimilarityFunctions.class,
+                                        "checkBulk",
+                                        MethodType.methodType(
+                                            boolean.class,
+                                            int.class,
+                                            MemorySegment.class,
+                                            MemorySegment.class,
+                                            int.class,
+                                            int.class,
+                                            MemorySegment.class
+                                        )
+                                    );
+                                    yield MethodHandles.guardWithTest(
+                                        MethodHandles.insertArguments(checkMethod, 0, op.getKey().dataType().bytes()),
+                                        op.getValue(),
+                                        MethodHandles.empty(op.getValue().type())
+                                    );
+                                }
+                            };
 
-                SQR_HANDLE_7U = lookup.findStatic(JdkVectorSimilarityFunctions.class, "squareDistance7u", singleInt7Scorer);
-                SQR_HANDLE_7U_BULK = lookup.findStatic(JdkVectorSimilarityFunctions.class, "squareDistance7uBulk", bulkScorer);
-                SQR_HANDLE_7U_BULK_WITH_OFFSETS = lookup.findStatic(
-                    JdkVectorSimilarityFunctions.class,
-                    "squareDistance7uBulkWithOffsets",
-                    bulkOffsetScorer
-                );
+                            handlesWithChecks.put(op.getKey(), handleWithChecks);
+                        }
+                        case BULK_OFFSETS -> {
+                            MethodHandle handleWithChecks = switch (op.getKey().dataType()) {
+                                case I1I4 -> {
+                                    MethodHandle checkMethod = lookup.findStatic(
+                                        JdkVectorSimilarityFunctions.class,
+                                        "checkI1I4BulkOffsets",
+                                        MethodType.methodType(
+                                            boolean.class,
+                                            MemorySegment.class,
+                                            MemorySegment.class,
+                                            int.class,
+                                            int.class,
+                                            MemorySegment.class,
+                                            int.class,
+                                            MemorySegment.class
+                                        )
+                                    );
+                                    yield MethodHandles.guardWithTest(
+                                        checkMethod,
+                                        op.getValue(),
+                                        MethodHandles.empty(op.getValue().type())
+                                    );
+                                }
+                                default -> {
+                                    MethodHandle checkMethod = lookup.findStatic(
+                                        JdkVectorSimilarityFunctions.class,
+                                        "checkBulkOffsets",
+                                        MethodType.methodType(
+                                            boolean.class,
+                                            int.class,
+                                            MemorySegment.class,
+                                            MemorySegment.class,
+                                            int.class,
+                                            int.class,
+                                            MemorySegment.class,
+                                            int.class,
+                                            MemorySegment.class
+                                        )
+                                    );
+                                    yield MethodHandles.guardWithTest(
+                                        MethodHandles.insertArguments(checkMethod, 0, op.getKey().dataType().bytes()),
+                                        op.getValue(),
+                                        MethodHandles.empty(op.getValue().type())
+                                    );
+                                }
+                            };
 
-                DOT_HANDLE_FLOAT32 = lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProductF32", singleFloatScorer);
-                DOT_HANDLE_FLOAT32_BULK = lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProductF32Bulk", bulkScorer);
-                DOT_HANDLE_FLOAT32_BULK_WITH_OFFSETS = lookup.findStatic(
-                    JdkVectorSimilarityFunctions.class,
-                    "dotProductF32BulkWithOffsets",
-                    bulkOffsetScorer
-                );
+                            handlesWithChecks.put(op.getKey(), handleWithChecks);
+                        }
+                    }
+                }
 
-                SQR_HANDLE_FLOAT32 = lookup.findStatic(JdkVectorSimilarityFunctions.class, "squareDistanceF32", singleFloatScorer);
-                SQR_HANDLE_FLOAT32_BULK = lookup.findStatic(JdkVectorSimilarityFunctions.class, "squareDistanceF32Bulk", bulkScorer);
-                SQR_HANDLE_FLOAT32_BULK_WITH_OFFSETS = lookup.findStatic(
-                    JdkVectorSimilarityFunctions.class,
-                    "squareDistanceF32BulkWithOffsets",
-                    bulkOffsetScorer
-                );
-            } catch (NoSuchMethodException | IllegalAccessException e) {
+                HANDLES_WITH_CHECKS = Collections.unmodifiableMap(handlesWithChecks);
+            } catch (ReflectiveOperationException e) {
                 throw new AssertionError(e);
             }
         }
 
         @Override
-        public MethodHandle dotProductHandle7u() {
-            return DOT_HANDLE_7U;
+        public MethodHandle getHandle(Function function, DataType dataType, Operation operation) {
+            OperationSignature key = new OperationSignature(function, dataType, operation);
+            MethodHandle mh = HANDLES_WITH_CHECKS.get(key);
+            if (mh == null) throw new IllegalArgumentException("Signature not implemented: " + key);
+            return mh;
         }
-
-        @Override
-        public MethodHandle dotProductHandle7uBulk() {
-            return DOT_HANDLE_7U_BULK;
-        }
-
-        @Override
-        public MethodHandle dotProductHandle7uBulkWithOffsets() {
-            return DOT_HANDLE_7U_BULK_WITH_OFFSETS;
-        }
-
-        @Override
-        public MethodHandle squareDistanceHandle7u() {
-            return SQR_HANDLE_7U;
-        }
-
-        @Override
-        public MethodHandle squareDistanceHandle7uBulk() {
-            return SQR_HANDLE_7U_BULK;
-        }
-
-        @Override
-        public MethodHandle squareDistanceHandle7uBulkWithOffsets() {
-            return SQR_HANDLE_7U_BULK_WITH_OFFSETS;
-        }
-
-        @Override
-        public MethodHandle dotProductHandleFloat32() {
-            return DOT_HANDLE_FLOAT32;
-        }
-
-        @Override
-        public MethodHandle dotProductHandleFloat32Bulk() {
-            return DOT_HANDLE_FLOAT32_BULK;
-        }
-
-        @Override
-        public MethodHandle dotProductHandleFloat32BulkWithOffsets() {
-            return DOT_HANDLE_FLOAT32_BULK_WITH_OFFSETS;
-        }
-
-        @Override
-        public MethodHandle squareDistanceHandleFloat32() {
-            return SQR_HANDLE_FLOAT32;
-        }
-
-        @Override
-        public MethodHandle squareDistanceHandleFloat32Bulk() {
-            return SQR_HANDLE_FLOAT32_BULK;
-        }
-
-        @Override
-        public MethodHandle squareDistanceHandleFloat32BulkWithOffsets() {
-            return SQR_HANDLE_FLOAT32_BULK_WITH_OFFSETS;
-        }
-
     }
 }

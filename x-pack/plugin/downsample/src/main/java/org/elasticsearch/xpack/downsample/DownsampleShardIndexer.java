@@ -425,8 +425,6 @@ class DownsampleShardIndexer {
             final DocCountProvider docCountProvider;
             final LeafDownsampleCollector.FieldCollector<?>[] fieldCollectors;
 
-            // Capture the first timestamp in order to determine which leaf collector's leafBulkCollection() is invoked first.
-            long firstTimeStampForBulkCollection;
             final IntArrayList docIdBuffer = new IntArrayList(DOCID_BUFFER_SIZE);
             final long timestampBoundStartTime = searchExecutionContext.getIndexSettings().getTimestampBounds().startTime();
 
@@ -489,9 +487,6 @@ class DownsampleShardIndexer {
                     bucketsCreated++;
                 }
 
-                if (docIdBuffer.isEmpty()) {
-                    firstTimeStampForBulkCollection = aggCtx.getTimestamp();
-                }
                 // buffer.add() always delegates to system.arraycopy() and checks buffer size for resizing purposes:
                 docIdBuffer.buffer[docIdBuffer.elementsCount++] = docId;
                 if (docIdBuffer.size() == DOCID_BUFFER_SIZE) {

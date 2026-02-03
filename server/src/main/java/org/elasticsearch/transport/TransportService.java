@@ -77,7 +77,8 @@ public class TransportService extends AbstractLifecycleComponent
     implements
         ReportingService<TransportInfo>,
         TransportMessageListener,
-        TransportConnectionListener {
+        TransportConnectionListener,
+        RemoteTransportClient {
 
     private static final Logger logger = LogManager.getLogger(TransportService.class);
 
@@ -778,6 +779,7 @@ public class TransportService extends AbstractLifecycleComponent
         connectionManager.removeListener(listener);
     }
 
+    @Override
     public <T extends TransportResponse> void sendRequest(
         final DiscoveryNode node,
         final String action,

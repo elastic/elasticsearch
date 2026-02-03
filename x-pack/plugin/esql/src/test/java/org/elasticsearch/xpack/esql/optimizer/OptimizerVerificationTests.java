@@ -242,14 +242,15 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
 
         err = error("""
             FROM test
-            | RERANK language_code="test" ON languages WITH { "inference_id" : "reranking-inference-id" }
+            | EVAL language_code = languages
+            | RERANK "test" ON first_name WITH { "inference_id" : "reranking-inference-id" }
             | ENRICH _remote:languages ON language_code
             """, analyzer);
         assertThat(
             err,
             containsString(
                 "ENRICH with remote policy can't be executed after "
-                    + "[RERANK language_code=\"test\" ON languages WITH { \"inference_id\" : \"reranking-inference-id\" }]@2:3"
+                    + "[RERANK \"test\" ON first_name WITH { \"inference_id\" : \"reranking-inference-id\" }]@3:3"
             )
         );
 

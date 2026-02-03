@@ -54,13 +54,14 @@ public final class EndpointMetadataParser {
             return EndpointMetadata.EMPTY;
         }
 
+        var metadataRoot = pathToKey(root, METADATA);
         var heuristicsMap = ServiceUtils.removeFromMap(metadataMap, HEURISTICS);
         var internalMap = ServiceUtils.removeFromMap(metadataMap, INTERNAL);
         var displayMap = ServiceUtils.removeFromMap(metadataMap, DISPLAY);
 
-        var heuristics = heuristicsFromMap(heuristicsMap, pathToKey(root, HEURISTICS));
-        var internal = internalFromMap(internalMap, pathToKey(root, INTERNAL));
-        var display = displayFromMap(displayMap, pathToKey(root, DISPLAY));
+        var heuristics = heuristicsFromMap(heuristicsMap, pathToKey(metadataRoot, HEURISTICS));
+        var internal = internalFromMap(internalMap, pathToKey(metadataRoot, INTERNAL));
+        var display = displayFromMap(displayMap, pathToKey(metadataRoot, DISPLAY));
         return new EndpointMetadata(heuristics, internal, display);
     }
 

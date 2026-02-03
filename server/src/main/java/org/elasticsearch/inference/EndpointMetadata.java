@@ -72,6 +72,10 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, Display
         this(new Heuristics(in), new Internal(in), new Display(in));
     }
 
+    public boolean isEmpty() {
+        return this.equals(EMPTY);
+    }
+
     public Params getXContentParamsExcludeInternalFields() {
         return new ToXContent.MapParams(Map.of(INCLUDE_INTERNAL_FIELDS, Boolean.FALSE.toString()));
     }

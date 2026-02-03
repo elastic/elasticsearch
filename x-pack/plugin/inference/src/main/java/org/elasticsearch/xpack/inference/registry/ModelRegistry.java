@@ -1218,7 +1218,14 @@ public class ModelRegistry implements ClusterStateListener {
         try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = body.toXContent(
                 xContentBuilder,
-                new ToXContent.MapParams(Map.of(ModelConfigurations.USE_ID_FOR_INDEX, Boolean.TRUE.toString()))
+                new ToXContent.MapParams(
+                    Map.of(
+                        ModelConfigurations.USE_ID_FOR_INDEX,
+                        Boolean.TRUE.toString(),
+                        ModelConfigurations.INCLUDE_EMPTY_METADATA,
+                        Boolean.TRUE.toString()
+                    )
+                )
             );
 
             return new IndexRequestBuilder(client).setIndex(indexName)
@@ -1238,7 +1245,17 @@ public class ModelRegistry implements ClusterStateListener {
     private static UnparsedModel modelToUnparsedModel(Model model) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             model.getConfigurations()
-                .toXContent(builder, new ToXContent.MapParams(Map.of(ModelConfigurations.USE_ID_FOR_INDEX, Boolean.TRUE.toString())));
+                .toXContent(
+                    builder,
+                    new ToXContent.MapParams(
+                        Map.of(
+                            ModelConfigurations.USE_ID_FOR_INDEX,
+                            Boolean.TRUE.toString(),
+                            ModelConfigurations.INCLUDE_EMPTY_METADATA,
+                            Boolean.TRUE.toString()
+                        )
+                    )
+                );
 
             var modelConfigMap = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
             return unparsedModelFromMap(new ModelConfigMap(modelConfigMap, new HashMap<>()));

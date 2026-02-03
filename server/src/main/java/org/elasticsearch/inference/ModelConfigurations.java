@@ -32,6 +32,13 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
     public static final String SERVICE_SETTINGS = "service_settings";
     public static final String TASK_SETTINGS = "task_settings";
     public static final String CHUNKING_SETTINGS = "chunking_settings";
+    /**
+     * Controls whether to exclude the metadata field when serializing the model configurations.
+     * This is useful for excluding the field from the inference response when the metadata is empty. User created endpoints will have
+     * empty metadata.
+     */
+    public static final String INCLUDE_EMPTY_METADATA = "include_empty_metadata";
+
     private static final String NAME = "inference_model";
 
     public static ModelConfigurations of(Model model, TaskSettings taskSettings) {
@@ -213,10 +220,12 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
             builder.field(CHUNKING_SETTINGS, chunkingSettings);
         }
 
-        if (includeFilteredFields) {
-            builder.field(EndpointMetadata.METADATA, endpointMetadata);
-        } else {
-            builder.field(EndpointMetadata.METADATA, endpointMetadata, endpointMetadata.getXContentParamsExcludeInternalFields());
+        if (params.paramAsBoolean(INCLUDE_EMPTY_METADATA, false) || endpointMetadata.isEmpty() == false) {
+            if (includeFilteredFields) {
+                builder.field(EndpointMetadata.METADATA, endpointMetadata);
+            } else {
+                builder.field(EndpointMetadata.METADATA, endpointMetadata, endpointMetadata.getXContentParamsExcludeInternalFields());
+            }
         }
 
         builder.endObject();

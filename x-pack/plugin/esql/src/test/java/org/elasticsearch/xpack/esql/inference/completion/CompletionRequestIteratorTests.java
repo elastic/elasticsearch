@@ -14,6 +14,8 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem;
 
+import java.util.Map;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -31,7 +33,7 @@ public class CompletionRequestIteratorTests extends ComputeTestCase {
         final String inferenceId = randomIdentifier();
         final BytesRefBlock inputBlock = randomInputBlock(0);
 
-        try (CompletionRequestIterator requestIterator = new CompletionRequestIterator(inferenceId, inputBlock)) {
+        try (CompletionRequestIterator requestIterator = new CompletionRequestIterator(inferenceId, inputBlock, Map.of())) {
             // Empty page should have no iterations
             assertFalse(requestIterator.hasNext());
 
@@ -56,7 +58,7 @@ public class CompletionRequestIteratorTests extends ComputeTestCase {
             inputBlock = blockBuilder.build();
         }
 
-        try (CompletionRequestIterator requestIterator = new CompletionRequestIterator(inferenceId, inputBlock)) {
+        try (CompletionRequestIterator requestIterator = new CompletionRequestIterator(inferenceId, inputBlock, Map.of())) {
             // First request: batches prompt1 with trailing nulls
             // Expected position value counts: [1, 0, 0] - one prompt, two nulls batched together
             assertTrue(requestIterator.hasNext());
@@ -103,7 +105,7 @@ public class CompletionRequestIteratorTests extends ComputeTestCase {
             inputBlock = blockBuilder.build();
         }
 
-        try (CompletionRequestIterator requestIterator = new CompletionRequestIterator(inferenceId, inputBlock)) {
+        try (CompletionRequestIterator requestIterator = new CompletionRequestIterator(inferenceId, inputBlock, Map.of())) {
             // First request: skips leading nulls and finds prompt1
             // Expected position value counts: [0, 0, 1] - two nulls, then prompt1
             assertTrue(requestIterator.hasNext());
@@ -137,7 +139,7 @@ public class CompletionRequestIteratorTests extends ComputeTestCase {
             inputBlock = blockBuilder.build();
         }
 
-        try (CompletionRequestIterator requestIterator = new CompletionRequestIterator(inferenceId, inputBlock)) {
+        try (CompletionRequestIterator requestIterator = new CompletionRequestIterator(inferenceId, inputBlock, Map.of())) {
             // First request: prompt1
             assertTrue(requestIterator.hasNext());
             BulkInferenceRequestItem requestItem1 = requestIterator.next();
@@ -168,7 +170,7 @@ public class CompletionRequestIteratorTests extends ComputeTestCase {
             inputBlock = blockBuilder.build();
         }
 
-        try (CompletionRequestIterator requestIterator = new CompletionRequestIterator(inferenceId, inputBlock)) {
+        try (CompletionRequestIterator requestIterator = new CompletionRequestIterator(inferenceId, inputBlock, Map.of())) {
             // Single request with all nulls
             // Expected position value counts: [0, 0, 0]
             assertTrue(requestIterator.hasNext());
@@ -198,7 +200,7 @@ public class CompletionRequestIteratorTests extends ComputeTestCase {
             inputBlock = blockBuilder.build();
         }
 
-        try (CompletionRequestIterator requestIterator = new CompletionRequestIterator(inferenceId, inputBlock)) {
+        try (CompletionRequestIterator requestIterator = new CompletionRequestIterator(inferenceId, inputBlock, Map.of())) {
             // First request: leading null + prompt1 + trailing null
             assertTrue(requestIterator.hasNext());
             BulkInferenceRequestItem requestItem1 = requestIterator.next();
@@ -228,7 +230,7 @@ public class CompletionRequestIteratorTests extends ComputeTestCase {
         final int size = between(10, 1000);
         final BytesRefBlock inputBlock = randomInputBlock(size);
 
-        try (CompletionRequestIterator requestIterator = new CompletionRequestIterator(inferenceId, inputBlock)) {
+        try (CompletionRequestIterator requestIterator = new CompletionRequestIterator(inferenceId, inputBlock, Map.of())) {
             assertThat(requestIterator.estimatedSize(), equalTo(size));
         }
 
@@ -239,7 +241,7 @@ public class CompletionRequestIteratorTests extends ComputeTestCase {
         final String inferenceId = randomIdentifier();
         final BytesRefBlock inputBlock = randomInputBlock(size);
 
-        try (CompletionRequestIterator requestIterator = new CompletionRequestIterator(inferenceId, inputBlock)) {
+        try (CompletionRequestIterator requestIterator = new CompletionRequestIterator(inferenceId, inputBlock, Map.of())) {
             BytesRef scratch = new BytesRef();
             int iterationCount = 0;
 

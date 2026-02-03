@@ -39,7 +39,7 @@ import static org.elasticsearch.test.ESTestCase.terminate;
 
 /**
  * Utility for running {@link Driver} with configurations customized for tests.
- * See {@link #builder} for lots of utilities for building the operator.
+ * See {@link #builder} for lots of utilities for building the {@link Driver}.
  */
 public class TestDriverRunner {
     private Integer numThreads = null;

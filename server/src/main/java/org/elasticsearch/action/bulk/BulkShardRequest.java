@@ -24,6 +24,9 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
@@ -39,6 +42,7 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
     private final boolean isSimulated;
 
     private transient Map<String, InferenceFieldMetadata> inferenceFieldMap = null;
+    private transient TimeValue inferenceTimeout = null;
 
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
@@ -98,6 +102,21 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
      */
     public Map<String, InferenceFieldMetadata> getInferenceFieldMap() {
         return inferenceFieldMap;
+    }
+
+    /**
+     * Sets the timeout for inference operations on semantic text fields.
+     */
+    public void setInferenceTimeout(@Nullable TimeValue inferenceTimeout) {
+        this.inferenceTimeout = inferenceTimeout;
+    }
+
+    /**
+     * Returns the timeout for inference operations, or null if not set.
+     */
+    @Nullable
+    public TimeValue getInferenceTimeout() {
+        return inferenceTimeout;
     }
 
     public long totalSizeInBytes() {

@@ -68,6 +68,7 @@ public class BulkRequest extends LegacyActionRequest
     private static final TransportVersion STREAMS_ENDPOINT_PARAM_RESTRICTIONS = TransportVersion.fromName(
         "streams_endpoint_param_restrictions"
     );
+    private static final TransportVersion INFERENCE_TIMEOUT_ADDED = TransportVersion.fromName("bulk_inference_timeout");
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkRequest.class);
 
@@ -82,6 +83,8 @@ public class BulkRequest extends LegacyActionRequest
     private final Set<String> indices = new HashSet<>();
 
     protected TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;
+    @Nullable
+    private TimeValue inferenceTimeout;
     private IncrementalState incrementalState = IncrementalState.EMPTY;
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
     private RefreshPolicy refreshPolicy = RefreshPolicy.NONE;
@@ -110,6 +113,9 @@ public class BulkRequest extends LegacyActionRequest
         includeSourceOnError = in.readBoolean();
         if (in.getTransportVersion().supports(STREAMS_ENDPOINT_PARAM_RESTRICTIONS)) {
             paramsUsed = in.readCollectionAsImmutableSet(StreamInput::readString);
+        }
+        if (in.getTransportVersion().supports(INFERENCE_TIMEOUT_ADDED)) {
+            inferenceTimeout = in.readOptionalTimeValue();
         }
     }
 
@@ -392,6 +398,23 @@ public class BulkRequest extends LegacyActionRequest
         return timeout;
     }
 
+    /**
+     * Sets the timeout for inference operations on semantic text fields.
+     * If not set, inference operations will use the default replication timeout.
+     */
+    public final BulkRequest inferenceTimeout(TimeValue inferenceTimeout) {
+        this.inferenceTimeout = inferenceTimeout;
+        return this;
+    }
+
+    /**
+     * Returns the timeout for inference operations on semantic text fields, or null if not set.
+     */
+    @Nullable
+    public TimeValue inferenceTimeout() {
+        return inferenceTimeout;
+    }
+
     public IncrementalState incrementalState() {
         return incrementalState;
     }
@@ -475,6 +498,9 @@ public class BulkRequest extends LegacyActionRequest
         out.writeBoolean(includeSourceOnError);
         if (out.getTransportVersion().supports(STREAMS_ENDPOINT_PARAM_RESTRICTIONS)) {
             out.writeCollection(paramsUsed, StreamOutput::writeString);
+        }
+        if (out.getTransportVersion().supports(INFERENCE_TIMEOUT_ADDED)) {
+            out.writeOptionalTimeValue(inferenceTimeout);
         }
     }
 
@@ -560,6 +586,7 @@ public class BulkRequest extends LegacyActionRequest
         bulkRequest.setRefreshPolicy(getRefreshPolicy());
         bulkRequest.waitForActiveShards(waitForActiveShards());
         bulkRequest.timeout(timeout());
+        bulkRequest.inferenceTimeout(inferenceTimeout());
         bulkRequest.pipeline(pipeline());
         bulkRequest.routing(routing());
         bulkRequest.requireAlias(requireAlias());

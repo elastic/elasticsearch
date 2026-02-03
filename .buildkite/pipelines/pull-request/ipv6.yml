@@ -21,6 +21,7 @@ steps:
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
           JAVA_TOOL_OPTIONS: "-Djava.net.preferIPv6Addresses=true"
           _JAVA_OPTIONS: "-Djava.net.preferIPv6Addresses=true"
+          USE_IPV6_TESTING: "true"
           DISABLE_DOCKER_TESTS: "true"
         matrix:
           setup:

@@ -439,11 +439,6 @@ allprojects {
       integTestTask.mustRunAfter tasks.matching { it.name.equals("test") }
     }
 
-    // TODO remove
-    tasks.withType(Test) {
-      timeout = Duration.ofMinutes(45)
-    }
-
 /*    configurations.matching { it.canBeResolved }.all { Configuration configuration ->
       dependencies.matching { it instanceof ProjectDependency }.all { ProjectDependency dep ->
         Project upstreamProject = dep.dependencyProject

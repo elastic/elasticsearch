@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# TODO move this
-sudo bash -c 'echo "::1   localhost" | cat - /etc/hosts > temp_file && mv temp_file /etc/hosts'
-sudo sed -i '/^127\.0\.0\.1/d' /etc/hosts
-
-sudo cat /etc/hosts
-sudo resolvectl flush-caches || true
+if [[ "${USE_IPV6_TESTING:-}" == "true" ]]; then
+  # Ensure that `localhost` resolves to only `::1`
+  sudo bash -c 'echo "::1   localhost" | cat - /etc/hosts > temp_file && mv temp_file /etc/hosts'
+  sudo sed -i '/^127\.0\.0\.1/d' /etc/hosts
+  sudo resolvectl flush-caches || true
+fi
 
 # On some distros, this directory ends up not readable by the `elasticsearch` user that gets created during tests
 # This fixes that

@@ -122,16 +122,6 @@ public class MockWebServer implements Closeable {
         start(InetAddress.getLoopbackAddress());
     }
 
-    /**
-     * Starts the webserver on the specified address and binds it to an arbitrary ephemeral port.
-     * The webserver will be able to serve requests once this method returns.
-     * <p>
-     * Use this overload when you need to bind to a specific address, for example when using
-     * TLS certificates that only have SANs for specific addresses like 127.0.0.1.
-     *
-     * @param bindAddress the address to bind to
-     * @throws IOException in case of a binding or other I/O errors
-     */
     public void start(InetAddress bindAddress) throws IOException {
         InetSocketAddress address = new InetSocketAddress(bindAddress.getHostAddress(), 0);
         if (sslContext != null) {

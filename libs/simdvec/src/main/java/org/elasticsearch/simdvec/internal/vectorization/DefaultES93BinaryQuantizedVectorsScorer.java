@@ -27,27 +27,26 @@ class DefaultES93BinaryQuantizedVectorsScorer extends ES93BinaryQuantizedVectors
     ByteBuffer byteBuffer;
     int quantizedComponentSum;
 
-    DefaultES93BinaryQuantizedVectorsScorer(IndexInput slice, int numBytes) {
-        super(numBytes);
+    DefaultES93BinaryQuantizedVectorsScorer(IndexInput slice, int dimension, int numBytes) {
+        super(dimension, numBytes);
         this.slice = slice;
     }
 
     @Override
     public float score(
-        int dims,
-        VectorSimilarityFunction similarityFunction,
-        float centroidDp,
         byte[] q,
         float queryLowerInterval,
         float queryUpperInterval,
-        float queryAdditionalCorrection,
         int queryQuantizedComponentSum,
+        float queryAdditionalCorrection,
+        VectorSimilarityFunction similarityFunction,
+        float centroidDp,
         int targetOrd
     ) throws IOException {
         var d = values(targetOrd);
         float qcDist = ESVectorUtil.ipByteBinByte(q, d);
         return quantizedScore(
-            dims,
+            dimensions,
             similarityFunction,
             centroidDp,
             qcDist,

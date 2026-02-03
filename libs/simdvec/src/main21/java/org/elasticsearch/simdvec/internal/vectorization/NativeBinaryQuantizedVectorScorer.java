@@ -22,20 +22,19 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
 
     private final MemorySegmentAccessInput msai;
 
-    public NativeBinaryQuantizedVectorScorer(IndexInput in, int vectorLengthInBytes, MemorySegmentAccessInput msai) {
-        super(in, vectorLengthInBytes);
+    public NativeBinaryQuantizedVectorScorer(IndexInput in, int dimensions, int vectorLengthInBytes, MemorySegmentAccessInput msai) {
+        super(in, dimensions, vectorLengthInBytes);
         this.msai = msai;
     }
 
     public float score(
-        int dims,
-        VectorSimilarityFunction similarityFunction,
-        float centroidDp,
         byte[] q,
         float queryLowerInterval,
         float queryUpperInterval,
-        float queryAdditionalCorrection,
         int queryQuantizedComponentSum,
+        float queryAdditionalCorrection,
+        VectorSimilarityFunction similarityFunction,
+        float centroidDp,
         int targetOrd
     ) throws IOException {
 
@@ -43,14 +42,13 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
         var segment = msai.segmentSliceOrNull(offset, byteSize);
         if (segment == null) {
             super.score(
-                dims,
-                similarityFunction,
-                centroidDp,
                 q,
                 queryLowerInterval,
                 queryUpperInterval,
-                queryAdditionalCorrection,
                 queryQuantizedComponentSum,
+                queryAdditionalCorrection,
+                similarityFunction,
+                centroidDp,
                 targetOrd
             );
         }
@@ -62,7 +60,7 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
 
         var qcDist = Similarities.dotProductI1I4(segment, MemorySegment.ofArray(q), numBytes);
         return quantizedScore(
-            dims,
+            dimensions,
             similarityFunction,
             centroidDp,
             qcDist,

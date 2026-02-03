@@ -20,23 +20,24 @@ import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRO
 public abstract class ES93BinaryQuantizedVectorsScorer {
 
     protected static final float FOUR_BIT_SCALE = 1f / ((1 << 4) - 1);
+    protected final int dimensions;
     protected final int numBytes;
     protected final int byteSize;
 
-    public ES93BinaryQuantizedVectorsScorer(int numBytes) {
+    public ES93BinaryQuantizedVectorsScorer(int dimensions, int numBytes) {
+        this.dimensions = dimensions;
         this.numBytes = numBytes;
         this.byteSize = numBytes + (Float.BYTES * 3) + Short.BYTES;
     }
 
     public abstract float score(
-        int dims,
-        VectorSimilarityFunction similarityFunction,
-        float centroidDp,
         byte[] q,
         float queryLowerInterval,
         float queryUpperInterval,
-        float queryAdditionalCorrection,
         int queryQuantizedComponentSum,
+        float queryAdditionalCorrection,
+        VectorSimilarityFunction similarityFunction,
+        float centroidDp,
         int targetOrd
     ) throws IOException;
 

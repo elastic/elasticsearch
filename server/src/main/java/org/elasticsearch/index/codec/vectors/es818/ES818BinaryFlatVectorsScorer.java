@@ -172,7 +172,11 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
             this.quantizedQuery = new byte[queryVectors.quantizedDimension()];
             this.targetVectors = targetVectors;
             this.similarityFunction = similarityFunction;
-            this.scorer = ESVectorUtil.getES93BinaryQuantizedVectorsScorer(targetVectors.slice, targetVectors.getVectorByteLength());
+            this.scorer = ESVectorUtil.getES93BinaryQuantizedVectorsScorer(
+                targetVectors.slice,
+                targetVectors.dimension(),
+                targetVectors.getVectorByteLength()
+            );
         }
 
         @Override
@@ -181,14 +185,13 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
                 throw new IllegalStateException("score() called before setScoringOrdinal()");
             }
             return scorer.score(
-                targetVectors.dimension(),
-                similarityFunction,
-                targetVectors.getCentroidDP(),
                 quantizedQuery,
                 queryCorrections.lowerInterval(),
                 queryCorrections.upperInterval(),
-                queryCorrections.additionalCorrection(),
                 queryCorrections.quantizedComponentSum(),
+                queryCorrections.additionalCorrection(),
+                similarityFunction,
+                targetVectors.getCentroidDP(),
                 targetOrd
             );
         }

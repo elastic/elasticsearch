@@ -56,7 +56,7 @@ final class DefaultESVectorizationProvider extends ESVectorizationProvider {
     }
 
     @Override
-    public ES93BinaryQuantizedVectorsScorer newES93BinaryQuantizedVectorsScorer(IndexInput input, int vectorLengthInBytes) {
-        return new DefaultES93BinaryQuantizedVectorsScorer(input, vectorLengthInBytes);
+    public ES93BinaryQuantizedVectorsScorer newES93BinaryQuantizedVectorsScorer(IndexInput input, int dimension, int vectorLengthInBytes) {
+        return new DefaultES93BinaryQuantizedVectorsScorer(input, dimension, vectorLengthInBytes);
     }
 }

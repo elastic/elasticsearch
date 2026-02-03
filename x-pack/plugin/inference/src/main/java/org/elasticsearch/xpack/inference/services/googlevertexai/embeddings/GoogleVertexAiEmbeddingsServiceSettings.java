@@ -131,7 +131,7 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
         var validationException = new ValidationException();
         serviceSettings = new HashMap<>(serviceSettings);
 
-        var maxBatchSize = extractOptionalPositiveIntegerLessThanOrEqualToMax(
+        var extractedMaxBatchSize = extractOptionalPositiveIntegerLessThanOrEqualToMax(
             serviceSettings,
             MAX_BATCH_SIZE,
             EMBEDDING_MAX_BATCH_SIZE,
@@ -139,11 +139,9 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
-        return new GoogleVertexAiEmbeddingsServiceSettings(this, maxBatchSize);
+        return new GoogleVertexAiEmbeddingsServiceSettings(this, extractedMaxBatchSize);
     }
 
     private final String location;

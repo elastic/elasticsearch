@@ -84,11 +84,6 @@ public class ElasticInferenceServiceRerankServiceSettings extends FilteredXConte
     }
 
     @Override
-    public ElasticInferenceServiceRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
-        return fromMap(serviceSettings, ConfigurationParseContext.PERSISTENT);
-    }
-
-    @Override
     public RateLimitSettings rateLimitSettings() {
         return rateLimitSettings;
     }

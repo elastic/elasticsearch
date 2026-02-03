@@ -174,7 +174,7 @@ public class VectorScorerOSQBenchmark {
     float[] scratchScores;
     float[] corrections;
 
-    /** Buffering the postings list input amortized the cost of blocb-cache reads. */
+    /** Buffering the postings list input amortizes the cost of blob-cache reads. */
     static final int INPUT_BUFFER_SIZE = 1 << 16; // 64k
 
     @Setup

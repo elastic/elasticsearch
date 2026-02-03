@@ -60,6 +60,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -380,48 +381,45 @@ public abstract class GoldenTestCase extends ESTestCase {
         if (output.toString().contains("extra")) {
             throw new IllegalStateException("Extra output files should not be created automatically:" + output);
         }
-        Files.writeString(output, normalizeNameIds(plan), StandardCharsets.UTF_8);
+        Files.writeString(output, toCanonicalString(plan), StandardCharsets.UTF_8);
         return Test.TestResult.CREATED;
     }
 
-    private static String normalizeNameIds(Node<?> plan) {
+    private static String toCanonicalString(Node<?> plan) {
         String full = plan.toString(Node.NodeStringFormat.FULL);
-        full = normalizeSyntheticNames(full);
-        Matcher matcher = IDENTIFIER_PATTERN.matcher(full);
-        StringBuilder sb = new StringBuilder();
-        int lastEnd = 0;
+        return normalizeNameIds(normalizeSyntheticNames(full));
+    }
+
+    private static String normalizeNameIds(String plan) {
         var idMap = new IdMap<Integer>();
-        while (matcher.find()) {
-            sb.append(full, lastEnd, matcher.start());
-            int originalId = Integer.parseInt(matcher.group().substring(1)); // Drop the initial '#' prefix
-            sb.append("#").append(idMap.getId(originalId));
-            lastEnd = matcher.end();
-        }
-        sb.append(full, lastEnd, full.length());
-        return sb.toString();
+        return normalizeHelper(plan, IDENTIFIER_PATTERN, s -> "#" + idMap.getId(Integer.parseInt(s)));
     }
 
     /**
      * Normalizes synthetic attribute names of the form $$something($something)* that are followed by # (node id).
      * Replaces them with $$firstSegment$runningInt so golden output is stable across runs.
      */
-    private static String normalizeSyntheticNames(String full) {
-        Matcher matcher = SYNTHETIC_PATTERN.matcher(full);
+    private static String normalizeSyntheticNames(String plan) {
+        var idMap = new IdMap<String>();
+        return normalizeHelper(plan, SYNTHETIC_PATTERN, s -> "$$" + s + "$" + idMap.getId(s));
+    }
+
+    private static String normalizeHelper(String s, Pattern p, Function<String, String> replacer) {
+        Matcher matcher = p.matcher(s);
         StringBuilder sb = new StringBuilder();
         int lastEnd = 0;
-        var idMap = new IdMap<String>();
         while (matcher.find()) {
-            sb.append(full, lastEnd, matcher.start());
-            String firstSegment = matcher.group(1);
-            sb.append("$$").append(firstSegment).append("$").append(idMap.getId(firstSegment));
+            sb.append(s, lastEnd, matcher.start());
+            sb.append(replacer.apply(matcher.group(1)));
             lastEnd = matcher.end();
         }
-        sb.append(full, lastEnd, full.length());
+        sb.append(s, lastEnd, s.length());
         return sb.toString();
+
     }
 
     private static final Pattern SYNTHETIC_PATTERN = Pattern.compile("\\$\\$([^$\\s]+)(\\$\\d+)+(?=[{#])");
-    private static final Pattern IDENTIFIER_PATTERN = Pattern.compile("#\\d+");
+    private static final Pattern IDENTIFIER_PATTERN = Pattern.compile("#(\\d+)");
 
     private static class IdMap<K> {
         private final Map<K, Integer> map = new HashMap<>();
@@ -433,7 +431,7 @@ public abstract class GoldenTestCase extends ESTestCase {
     }
 
     private static Test.TestResult verifyExisting(Path output, QueryPlan<?> plan) throws IOException {
-        String testString = normalize(normalizeNameIds(plan));
+        String testString = normalize(toCanonicalString(plan));
         if (testString.equals(normalize(Files.readString(output)))) {
             if (System.getProperty("golden.cleanactual") != null) {
                 Path path = actualPath(output);

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Node;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -57,7 +58,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -377,23 +381,63 @@ public abstract class GoldenTestCase extends ESTestCase {
         if (output.toString().contains("extra")) {
             throw new IllegalStateException("Extra output files should not be created automatically:" + output);
         }
-        Files.writeString(output, toString(plan), StandardCharsets.UTF_8);
+        Files.writeString(output, normalizeNameIds(plan), StandardCharsets.UTF_8);
         return Test.TestResult.CREATED;
     }
 
-    private static String toString(Node<?> plan) {
-        String planString = plan.toString(Node.NodeStringFormat.FULL);
-        String withoutSyntheticPatterns = SYNTHETIC_PATTERN.matcher(planString).replaceAll("\\$\\$$1");
-        return IDENTIFIER_PATTERN.matcher(withoutSyntheticPatterns).replaceAll("");
+    private static String normalizeNameIds(Node<?> plan) {
+        String full = plan.toString(Node.NodeStringFormat.FULL);
+        // full = normalizeSyntheticNames(full);
+        Matcher matcher = IDENTIFIER_PATTERN.matcher(full);
+        StringBuilder sb = new StringBuilder();
+        int lastEnd = 0;
+        Holder<Integer> counterHolder = new Holder<>(0);
+        Map<Integer, Integer> idMap = new HashMap<>();
+        while (matcher.find()) {
+            sb.append(full, lastEnd, matcher.start());
+            int originalId = Integer.parseInt(matcher.group().substring(1)); // Drop the initial '#' prefix
+            int newId = idMap.computeIfAbsent(originalId, k -> {
+                int current = counterHolder.get();
+                counterHolder.set(current + 1);
+                return current;
+            });
+            sb.append("#").append(newId);
+            lastEnd = matcher.end();
+        }
+        sb.append(full, lastEnd, full.length());
+        return sb.toString();
     }
 
-    // Matches synthetic names like $$alias$1$2#3, since those $digits are generated during the test run and may differ each time. The
-    // #digit are removed by the next pattern.
-    private static final Pattern SYNTHETIC_PATTERN = Pattern.compile("\\$\\$([^$\\s]+)(\\$\\d+)*(?=[{#])");
+    /**
+     * Normalizes synthetic attribute names of the form $$something($something)* that are followed by # (node id).
+     * Replaces them with $$firstSegment$runningInt so golden output is stable across runs.
+     */
+    private static String normalizeSyntheticNames(String full) {
+        Matcher matcher = SYNTHETIC_PATTERN.matcher(full);
+        StringBuilder sb = new StringBuilder();
+        int lastEnd = 0;
+        Holder<Integer> runningInt = new Holder<>(0);
+        Map<String, Integer> idMap = new HashMap<>();
+        while (matcher.find()) {
+            sb.append(full, lastEnd, matcher.start());
+            String firstSegment = matcher.group(1);
+            int newId = idMap.computeIfAbsent(firstSegment, k -> {
+                int current = runningInt.get();
+                runningInt.set(current + 1);
+                return current;
+            });
+            sb.append("$$").append(firstSegment).append("$").append(newId);
+            lastEnd = matcher.end();
+        }
+        sb.append(full, lastEnd, full.length());
+        return sb.toString();
+    }
+
+    private static final Pattern SYNTHETIC_PATTERN = Pattern.compile("\\$\\$([^$\\s]+)(\\$\\d+)+(?=[{#])");
     private static final Pattern IDENTIFIER_PATTERN = Pattern.compile("#\\d+");
 
     private static Test.TestResult verifyExisting(Path output, QueryPlan<?> plan) throws IOException {
-        String testString = normalize(toString(plan));
+        String testString = normalize(normalizeNameIds(plan));
         if (testString.equals(normalize(Files.readString(output)))) {
             if (System.getProperty("golden.cleanactual") != null) {
                 Path path = actualPath(output);

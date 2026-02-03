@@ -10,19 +10,25 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LeakTracker;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -494,6 +500,39 @@ public interface ActionListener<Response> {
     static <Response> ActionListener<Response> withRef(ActionListener<Response> listener, RefCounted ref) {
         ref.mustIncRef();
         return releaseAfter(listener, ref::decRef);
+    }
+
+    /**
+     * Wrap the {@code delegate} listener so that it completes with a {@link ElasticsearchTimeoutException} if it has not been completed
+     * by the time the {@code timeout} elapses, and will also invoke the {@code cleanupOnTimeout} callback in this case. Completing the
+     * returned listener before the timeout has elapsed will cancel the timeout.
+     */
+    static <T> ActionListener<T> addTimeout(
+        @Nullable TimeValue timeout,
+        ThreadPool threadPool,
+        Executor executor,
+        ActionListener<T> delegate,
+        Runnable cleanupOnTimeout
+    ) {
+        if (timeout == null) {
+            return delegate;
+        } else {
+            var result = new SubscribableListener<T>();
+            result.addListener(delegate);
+            result.addListener(new ActionListener<T>() {
+                @Override
+                public void onResponse(T t) {}
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (e instanceof ElasticsearchTimeoutException) {
+                        cleanupOnTimeout.run();
+                    }
+                }
+            });
+            result.addTimeout(timeout, threadPool, executor);
+            return result;
+        }
     }
 
 }

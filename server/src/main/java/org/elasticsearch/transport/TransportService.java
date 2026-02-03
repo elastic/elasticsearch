@@ -625,35 +625,39 @@ public class TransportService extends AbstractLifecycleComponent
             connection,
             HANDSHAKE_ACTION_NAME,
             HandshakeRequest.INSTANCE,
-            TransportRequestOptions.timeout(handshakeTimeout),
-            new ActionListenerResponseHandler<>(listener.delegateFailure((l, response) -> {
-                if (clusterNamePredicate.test(response.clusterName) == false) {
-                    l.onFailure(
-                        new IllegalStateException(
-                            "handshake with ["
-                                + node
-                                + "] failed: remote cluster name ["
-                                + response.clusterName.value()
-                                + "] does not match "
-                                + clusterNamePredicate
-                        )
-                    );
-                } else if (response.version.isCompatible(localNode.getVersion()) == false) {
-                    l.onFailure(
-                        new IllegalStateException(
-                            "handshake with ["
-                                + node
-                                + "] failed: remote node version ["
-                                + response.version
-                                + "] is incompatible with local node version ["
-                                + localNode.getVersion()
-                                + "]"
-                        )
-                    );
-                } else {
-                    l.onResponse(response);
-                }
-            }), HandshakeResponse::new, threadPool.generic())
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(
+                ActionListener.addTimeout(handshakeTimeout, threadPool, threadPool.generic(), listener.delegateFailure((l, response) -> {
+                    if (clusterNamePredicate.test(response.clusterName) == false) {
+                        l.onFailure(
+                            new IllegalStateException(
+                                "handshake with ["
+                                    + node
+                                    + "] failed: remote cluster name ["
+                                    + response.clusterName.value()
+                                    + "] does not match "
+                                    + clusterNamePredicate
+                            )
+                        );
+                    } else if (response.version.isCompatible(localNode.getVersion()) == false) {
+                        l.onFailure(
+                            new IllegalStateException(
+                                "handshake with ["
+                                    + node
+                                    + "] failed: remote node version ["
+                                    + response.version
+                                    + "] is incompatible with local node version ["
+                                    + localNode.getVersion()
+                                    + "]"
+                            )
+                        );
+                    } else {
+                        l.onResponse(response);
+                    }
+                }), () -> {/* cannot cancel handshake, no cleanup to do */}),
+                HandshakeResponse::new,
+                threadPool.generic()
+            )
         );
     }
 

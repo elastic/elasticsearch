@@ -15,6 +15,9 @@ import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
+import org.apache.logging.log4j.message.MapMessage;
+import org.apache.logging.log4j.util.Chars;
+import org.apache.logging.log4j.util.StringBuilders;
 
 /**
  * Pattern converter to populate CustomMapFields in a pattern.
@@ -39,7 +42,31 @@ public final class CustomMapFieldsConverter extends LogEventPatternConverter {
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
         if (event.getMessage() instanceof ESLogMessage logMessage) {
-            logMessage.addJsonNoBrackets(toAppendTo);
+            addJsonNoBrackets(logMessage, toAppendTo);
+        }
+    }
+
+    /**
+     * This method is used in order to support ESJsonLayout which replaces %CustomMapFields from a pattern with JSON fields
+     * It is a modified version of {@link MapMessage#asJson(StringBuilder)} where the curly brackets are not added
+     * @param sb a string builder where JSON fields will be attached
+     */
+    private void addJsonNoBrackets(ESLogMessage logMessage, StringBuilder sb) {
+        var map = logMessage.getIndexedReadOnlyStringMap();
+        for (int i = 0; i < map.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append(Chars.DQUOTE);
+            int start = sb.length();
+            sb.append(map.getKeyAt(i));
+            StringBuilders.escapeJson(sb, start);
+            sb.append(Chars.DQUOTE).append(':').append(Chars.DQUOTE);
+            start = sb.length();
+            Object value = map.getValueAt(i);
+            sb.append(value);
+            StringBuilders.escapeJson(sb, start);
+            sb.append(Chars.DQUOTE);
         }
     }
 }

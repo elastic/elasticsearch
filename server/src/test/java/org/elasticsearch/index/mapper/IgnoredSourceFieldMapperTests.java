@@ -376,6 +376,19 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         assertArrayEquals(bytes, IgnoredSourceFieldMapper.encodeFromMap(mappedNameValue, mappedNameValue.map()));
     }
 
+    public void testDecodeAsMapReturnsNullForVoidEntry() throws IOException {
+        final IgnoredSourceFieldMapper.NameValue voidNameValue = new IgnoredSourceFieldMapper.NameValue(
+            "target_field",
+            0,
+            XContentDataHelper.voidValue(),
+            null
+        );
+        final IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = IgnoredSourceFieldMapper.decodeAsMap(
+            IgnoredSourceFieldMapper.encode(voidNameValue)
+        );
+        assertNull(mappedNameValue);
+    }
+
     public void testMultipleIgnoredFieldsRootObject() throws IOException {
         boolean booleanValue = randomBoolean();
         int intValue = randomInt();

@@ -1592,6 +1592,42 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         IOUtils.close(ir, iw, dir);
     }
 
+    public void testSyntheticSourceWithCopyToAndFLS() throws Exception {
+        final DocumentMapper mapper = createMapperService(
+            Settings.builder().put("index.mapping.source.mode", "synthetic").build(),
+            mapping(b -> {
+                b.startObject("user").field("type", "keyword").field("copy_to", "catch_all").endObject();
+                b.startObject("domain").field("type", "keyword").field("copy_to", "catch_all").endObject();
+                b.startObject("catch_all").field("type", "text").endObject();
+            })
+        ).documentMapper();
+
+        try (Directory directory = newDirectory()) {
+            final IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig());
+            final ParsedDocument doc = mapper.parse(source(b -> {
+                b.field("user", "darth.vader");
+                b.field("domain", "empire.gov");
+            }));
+            writer.addDocuments(doc.docs());
+            writer.commit();
+
+            final Automaton automaton = Automatons.patterns(Arrays.asList("user", "domain", IgnoredSourceFieldMapper.NAME));
+            try (
+                DirectoryReader reader = FieldSubsetReader.wrap(
+                    DirectoryReader.open(writer),
+                    new CharacterRunAutomaton(automaton),
+                    (fieldName) -> false
+                );
+            ) {
+                assertEquals(
+                    "{\"domain\":\"empire.gov\",\"user\":\"darth.vader\"}",
+                    syntheticSource(mapper, reader, doc.docs().size() - 1)
+                );
+            }
+            IOUtils.close(writer, directory);
+        }
+    }
+
     private static final String DOC_TEST_ITEM = """
         {
           "field_text" : "text",

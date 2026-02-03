@@ -421,19 +421,21 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
             } else if (IgnoredSourceFieldMapper.NAME.equals(fieldInfo.name)) {
                 // for _ignored_source, parse, filter out the field and its contents, and serialize back downstream
                 IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = IgnoredSourceFieldMapper.decodeAsMap(value);
-                Map<String, Object> transformedField = filter(mappedNameValue.map(), filter, 0);
-                if (transformedField.isEmpty() == false) {
-                    // The unfiltered map contains at least one element, the field name with its value. If the field contains
-                    // an object or an array, the value of the first element is a map or a list, respectively. Otherwise,
-                    // it's a single leaf value, e.g. a string or a number.
-                    var topValue = mappedNameValue.map().values().iterator().next();
-                    if (topValue instanceof Map<?, ?> || topValue instanceof List<?>) {
-                        // The field contains an object or an array, reconstruct it from the transformed map in case
-                        // any subfield has been filtered out.
-                        visitor.binaryField(fieldInfo, IgnoredSourceFieldMapper.encodeFromMap(mappedNameValue, transformedField));
-                    } else {
-                        // The field contains a leaf value, and it hasn't been filtered out. It is safe to propagate the original value.
-                        visitor.binaryField(fieldInfo, value);
+                if (mappedNameValue != null) {
+                    Map<String, Object> transformedField = filter(mappedNameValue.map(), filter, 0);
+                    if (transformedField.isEmpty() == false) {
+                        // The unfiltered map contains at least one element, the field name with its value. If the field contains
+                        // an object or an array, the value of the first element is a map or a list, respectively. Otherwise,
+                        // it's a single leaf value, e.g. a string or a number.
+                        var topValue = mappedNameValue.map().values().iterator().next();
+                        if (topValue instanceof Map<?, ?> || topValue instanceof List<?>) {
+                            // The field contains an object or an array, reconstruct it from the transformed map in case
+                            // any subfield has been filtered out.
+                            visitor.binaryField(fieldInfo, IgnoredSourceFieldMapper.encodeFromMap(mappedNameValue, transformedField));
+                        } else {
+                            // The field contains a leaf value, and it hasn't been filtered out. It is safe to propagate the original value.
+                            visitor.binaryField(fieldInfo, value);
+                        }
                     }
                 }
             } else {

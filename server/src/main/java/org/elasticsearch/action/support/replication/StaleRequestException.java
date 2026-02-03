@@ -15,6 +15,9 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
+/**
+ * An exception indicating a stale request during resharding.
+ */
 public class StaleRequestException extends ElasticsearchException {
 
     public StaleRequestException(String index) {

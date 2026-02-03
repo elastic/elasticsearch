@@ -981,7 +981,6 @@ FROM sample_data, (FROM k8s)
 
 subqueryInFromWithTimeSeriesDataTypesInMainQuery
 required_capability: subquery_in_from_command
-required_capability: aggregate_metric_double_v0
 
 FROM k8s-downsampled, (FROM sample_data)
 | WHERE @timestamp <= "2024-05-09T23:30:00.000Z"
@@ -1010,7 +1009,6 @@ FROM k8s-downsampled, (FROM sample_data)
 
 subqueryInFromWithTimeSeriesDataTypesInMainQueryAndSubquery
 required_capability: subquery_in_from_command
-required_capability: aggregate_metric_double_v0
 
 FROM k8s, (FROM k8s-downsampled | WHERE @timestamp <= "2024-05-09T23:30:00.000Z")
 | WHERE @timestamp <= "2024-05-10T00:01:00.000Z"

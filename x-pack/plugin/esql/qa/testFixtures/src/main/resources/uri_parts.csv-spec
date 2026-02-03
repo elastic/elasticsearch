@@ -1,5 +1,5 @@
 basic
-required_capability: compound_output_eval
+required_capability: uri_parts_command
 
 // tag::basic[]
 ROW uri = "http://myusername:mypassword@www.example.com:80/foo.gif?key1=val1&key2=val2#fragment"
@@ -16,7 +16,7 @@ www.example.com | fragment | /foo.gif | gif | 80 | key1=val1&key2=val2 | http | 
 
 
 rename
-required_capability: compound_output_eval
+required_capability: uri_parts_command
 
 ROW uri = "https://www.example.com:8080"
 | URI_PARTS_🐔 parts = uri
@@ -30,7 +30,7 @@ port:integer | scheme:keyword | domain:keyword
 
 
 testAfterFiltering
-required_capability: compound_output_eval
+required_capability: uri_parts_command
 
 FROM web_logs
 | WHERE domain == "www.elastic.co"
@@ -46,7 +46,7 @@ https                | www.elastic.co         | /guide/en/elasticsearch/referenc
 
 
 prefixSameAsInputFieldName
-required_capability: compound_output_eval
+required_capability: uri_parts_command
 
 FROM web_logs
 | WHERE timestamp == "2024-01-10T10:04:45.987Z"
@@ -60,7 +60,7 @@ https                | www.google.com         | /search
 
 
 prefixSameAsInputFieldNameDropInputField
-required_capability: compound_output_eval
+required_capability: uri_parts_command
 
 FROM web_logs
 | URI_PARTS_🐔 uri = uri
@@ -75,7 +75,7 @@ https                | www.google.com         | /search
 
 
 prefixSameAsInputFieldNameEvalInputField
-required_capability: compound_output_eval
+required_capability: uri_parts_command
 
 FROM web_logs
 | URI_PARTS_🐔 uri = uri
@@ -90,7 +90,7 @@ https                | www.google.com         | /search
 
 
 testBeforeFiltering
-required_capability: compound_output_eval
+required_capability: uri_parts_command
 
 FROM web_logs
 | URI_PARTS_🐔 p = uri
@@ -106,7 +106,7 @@ https                | www.elastic.co         | /downloads/elasticsearch
 
 
 testNonWebUri
-required_capability: compound_output_eval
+required_capability: uri_parts_command
 
 FROM web_logs
 | WHERE domain == "files.internal"
@@ -120,7 +120,7 @@ ftp              | files.internal       | /data.zip        | user               
 
 
 testNoSchemeUri
-required_capability: compound_output_eval
+required_capability: uri_parts_command
 
 FROM web_logs
 | WHERE domain == "app.example.com"
@@ -134,7 +134,7 @@ null             | null                   | /app/login     | session=expired
 
 
 testInvalidUri
-required_capability: compound_output_eval
+required_capability: uri_parts_command
 
 ROW uri = "not a valid uri"
 | URI_PARTS_🐔 parts = uri

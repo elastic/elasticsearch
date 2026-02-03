@@ -1657,7 +1657,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testUnsupportedFieldsInUriParts() {
-        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.COMPOUND_OUTPUT_EVAL.isEnabled());
+        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
         var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
         verifyUnsupported("""
             from test
@@ -6091,7 +6091,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testUriParts() {
-        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.COMPOUND_OUTPUT_EVAL.isEnabled());
+        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
         LogicalPlan plan = analyze("ROW uri=\"http://user:pass@host.com:8080/path/file.ext?query=1#frag\" | uri_parts_🐔 p = uri");
 
         Limit limit = as(plan, Limit.class);

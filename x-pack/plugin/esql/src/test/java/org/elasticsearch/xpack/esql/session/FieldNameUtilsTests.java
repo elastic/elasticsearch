@@ -3230,7 +3230,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testUriPartsResolvesOnlyInput() {
-        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.COMPOUND_OUTPUT_EVAL.isEnabled());
+        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
         assertFieldNames("""
             from employees
             | uri_parts_🐔 u = first_name

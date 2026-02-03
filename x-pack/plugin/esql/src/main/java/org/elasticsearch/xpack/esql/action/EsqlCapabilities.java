@@ -2042,10 +2042,9 @@ public class EsqlCapabilities {
         METADATA_SIZE_FIELD,
 
         /**
-         * Supports a group of commands that result in a compound (multi-column) output as a result if a single evaluation operation (e.g.
-         * {@code URI_PARTS}).
+         * Supports the {@code URI_PARTS}) command.
          */
-        COMPOUND_OUTPUT_EVAL(Build.current().isSnapshot()),
+        URI_PARTS_COMMAND(Build.current().isSnapshot()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

@@ -443,3 +443,48 @@ instance-2       | 2025-09-25T00:40:00.000Z | 2.25E-4    | 0.098632   | 0.0     
 instance-2       | 2025-09-25T00:50:00.000Z | 2.2E-4     | 0.092109   | 0.0        | 0.946027   | 0.0032622  | 290
 instance-2       | 2025-09-25T01:00:00.000Z | 2.45E-4    | 0.008362   | 0.0        | 0.033433   | 0.0011529  | 29
 ;
+
+// -------------------------------------------------------------------------------
+
+// this specifically tests the interaction with PushCountQueryAndTagsToSource rule
+Top level date group with no other groups (standard index)
+required_capability: histogram_release_version
+required_capability: count_of_histogram_types
+
+FROM histogram_standard_index
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
+ | WHERE TRANGE(to_datetime("2025-09-25T00:30:00Z"), to_datetime("2025-09-25T01:00:00Z"))
+ | STATS count = Count(to_tdigest(responseTime)) by time = Bucket(@timestamp, 10m)
+ | KEEP time, count
+;
+ignoreOrder:true
+
+time:datetime            | count:long
+2025-09-25T00:30:00.000Z | 1392
+2025-09-25T00:40:00.000Z | 1484
+2025-09-25T00:50:00.000Z | 1451
+2025-09-25T01:00:00.000Z | 147
+;
+
+// -------------------------------------------------------------------------------
+
+// this specifically tests the interaction with PushCountQueryAndTagsToSource rule
+Top level date group with no other groups (timeseries index)
+required_capability: ts_command_v0
+required_capability: histogram_release_version
+required_capability: count_of_histogram_types
+
+TS histogram_timeseries_index
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
+ | WHERE TRANGE(to_datetime("2025-09-25T00:30:00Z"), to_datetime("2025-09-25T01:00:00Z"))
+ | STATS count = Count(to_tdigest(responseTime)) by time = Bucket(@timestamp, 10m)
+ | KEEP time, count
+;
+ignoreOrder:true
+
+time:datetime            | count:long
+2025-09-25T00:30:00.000Z | 1392
+2025-09-25T00:40:00.000Z | 1484
+2025-09-25T00:50:00.000Z | 1451
+2025-09-25T01:00:00.000Z | 147
+;

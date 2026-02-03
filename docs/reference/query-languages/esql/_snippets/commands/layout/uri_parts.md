@@ -8,8 +8,9 @@ The `URI_PARTS` processing command parses a Uniform Resource Identifier (URI) st
 **Syntax**
 
 ```esql
-URI_PARTS prefix = expression
+URI_PARTS_🐔 prefix = expression
 ```
+The _🐔 suffix is required as long as this command is in dev mode.
 
 **Parameters**
 

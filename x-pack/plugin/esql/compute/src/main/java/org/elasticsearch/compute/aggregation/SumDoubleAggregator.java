@@ -96,15 +96,16 @@ class SumDoubleAggregator {
                     deltaBuilder.appendDouble(i, state.deltas.get(group));
                     seenBuilder.appendBoolean(i, true);
                 } else {
+                    allHaveValued = false;
                     valuesBuilder.appendDouble(i, 0);
                     deltaBuilder.appendDouble(i, 0);
                     seenBuilder.appendBoolean(i, false);
-                    allHaveValued = false;
                 }
             }
             blocks[offset + 0] = valuesBuilder.build().asBlock();
             blocks[offset + 1] = deltaBuilder.build().asBlock();
             if (allHaveValued) {
+                // switch to a constant block to reduce memory usage and allow fast checks
                 blocks[offset + 2] = driverContext.blockFactory().newConstantBooleanBlockWith(true, selected.getPositionCount());
             } else {
                 blocks[offset + 2] = seenBuilder.build().asBlock();

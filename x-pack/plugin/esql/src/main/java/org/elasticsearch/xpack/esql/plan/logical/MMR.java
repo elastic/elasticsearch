@@ -145,8 +145,6 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
             failures.add(fail(this, "MMR diversify field must be a dense vector field"));
         }
 
-        // TODO - make sure the child has a limited number of rows (e.g. PipelineBreaker)
-
         // ensure LIMIT value is integer
         Integer limitValue = getMMRLimitValue(limit);
         if (limitValue == null || limitValue < 1) {

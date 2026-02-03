@@ -15,6 +15,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Types;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SpecReader;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.RequestObjectBuilder;
@@ -76,7 +78,9 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createInferenceEndpoints;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteInferenceEndpoints;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteViews;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadViewsIntoEs;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COMPLETION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.KNN_FUNCTION_V5;
@@ -103,6 +107,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     protected final String instructions;
     protected final Mode mode;
     protected static Boolean supportsTook;
+    protected static Boolean supportsViews;
 
     public static final Map<String, String> LOGGING_CLUSTER_SETTINGS = Map.of(
         // additional logging for https://github.com/elastic/elasticsearch/issues/139262 investigation
@@ -176,10 +181,11 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     private static final Protected INGEST = new Protected();
+    private static final Protected VIEWS = new Protected();
     protected static boolean testClustersOk = true;
 
     @Before
-    public void setup() {
+    public void setup() throws IOException {
         assumeTrue("test clusters were broken", testClustersOk);
         INGEST.protectedBlock(() -> {
             // Inference endpoints must be created before ingesting any datasets that rely on them (mapping of inference_id)
@@ -196,10 +202,24 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 supportsExponentialHistograms(),
                 supportsTDigestField(),
                 supportsHistogramDataType(),
-                supportsBFloat16ElementType()
+                supportsBFloat16ElementType(),
+                supportsTDigestFieldAsMetric()
             );
             return null;
         });
+        // Views can be created before or after ingest, since index resolution is currently only done on the combined query
+        // Only load views for tests in the "views" group (from views.csv-spec) to avoid issues with wildcards like "FROM *"
+        if (shouldLoadViews()) {
+            VIEWS.protectedBlock(() -> {
+                if (supportsViews()) {
+                    loadViewsIntoEs(adminClient());
+                }
+                return null;
+            });
+        } else {
+            deleteViews(adminClient());
+            VIEWS.reset();
+        }
     }
 
     @AfterClass
@@ -216,6 +236,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             }
         }
         INGEST.reset();
+        deleteViews(adminClient());
+        VIEWS.reset();
         deleteInferenceEndpoints(adminClient());
     }
 
@@ -243,6 +265,11 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             testClustersOk = false;
             failure.addSuppressed(inner);
         }
+    }
+
+    // Only load views for tests in the "views" group (from views.csv-spec)
+    protected boolean shouldLoadViews() {
+        return "views".equals(groupName);
     }
 
     protected void shouldSkipTest(String testName) throws IOException {
@@ -332,6 +359,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW.capabilityName()));
     }
 
+    protected boolean supportsTDigestFieldAsMetric() {
+        return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TDIGEST_TIME_SERIES_METRIC.capabilityName()));
+    }
+
     protected boolean supportsHistogramDataType() {
         return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION.capabilityName()));
     }
@@ -354,6 +385,15 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         boolean checkTook = supportsTook() && rarely();
 
         Map<?, ?> prevTooks = checkTook ? tooks() : null;
+        if (randomBoolean()) {
+            Settings.Builder pragmaBuilder = Settings.builder();
+            addRandomPragma(pragmaBuilder);
+            Settings pragma = pragmaBuilder.build();
+            if (pragma.isEmpty() == false) {
+                builder.pragmas(pragma);
+                builder.pragmasOk();
+            }
+        }
         Map<String, Object> answer = RestEsqlTestCase.runEsql(
             builder.query(query),
             testCase.assertWarnings(deduplicateExactWarnings()),
@@ -383,6 +423,16 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             long took = ((Number) answer.get("took")).longValue();
             int prevTookHisto = ((Number) prevTooks.remove(tookKey(took))).intValue();
             assertMap(tooks(), matchesMap(prevTooks).entry(tookKey(took), prevTookHisto + 1));
+        }
+    }
+
+    /**
+     * Add a random pragma to the request. Defaults to no-op
+     */
+    protected void addRandomPragma(Settings.Builder pragma) {
+        if (randomBoolean() && hasCapabilities(client(), List.of("periodic_emit_partial_aggregation_results"))) {
+            pragma.put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getKey(), between(10, 1000))
+                .put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getKey(), randomDoubleBetween(0.1, 1.0, true));
         }
     }
 
@@ -607,6 +657,13 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             supportsTook = hasCapabilities(adminClient(), List.of("usage_contains_took"));
         }
         return supportsTook;
+    }
+
+    protected boolean supportsViews() {
+        if (supportsViews == null) {
+            supportsViews = hasCapabilities(adminClient(), List.of("views_with_no_branching"));
+        }
+        return supportsViews;
     }
 
     private String tookKey(long took) {

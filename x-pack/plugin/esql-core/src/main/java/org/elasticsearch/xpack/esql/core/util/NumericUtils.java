@@ -159,6 +159,19 @@ public abstract class NumericUtils {
     }
 
     /**
+     * Check if the provided float is both finite and a number (i.e. not Float.NaN).
+     * @param flt The float to verify.
+     * @return The input value.
+     * @throws ArithmeticException if the provided float is either infinite or not a number.
+     */
+    public static float asFiniteNumber(float flt) {
+        if (Double.isNaN(flt) || Double.isInfinite(flt)) {
+            throw new ArithmeticException("not a finite double number: " + flt);
+        }
+        return flt;
+    }
+
+    /**
      * Converts a number to an integer, saturating that integer if the number doesn't fit naturally.  That is to say, values
      * greater than Integer.MAX_VALUE yield Integer.MAX_VALUE and values less than Integer.MIN_VALUE yield Integer.MIN_VALUE
      *

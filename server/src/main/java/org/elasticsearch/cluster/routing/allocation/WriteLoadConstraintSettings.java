@@ -84,7 +84,7 @@ public class WriteLoadConstraintSettings {
     public static final Setting<WriteLoadDeciderShardWriteLoadType> WRITE_LOAD_DECIDER_SHARD_WRITE_LOAD_TYPE_SETTING = Setting.enumSetting(
         WriteLoadDeciderShardWriteLoadType.class,
         SETTING_PREFIX + "shard_write_load_type",
-        WriteLoadDeciderShardWriteLoadType.PEAK,
+        WriteLoadDeciderShardWriteLoadType.RECENT,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

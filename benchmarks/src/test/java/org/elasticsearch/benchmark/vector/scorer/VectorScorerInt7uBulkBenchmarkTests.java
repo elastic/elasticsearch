@@ -137,7 +137,6 @@ public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
             return () -> Arrays.stream(dims)
                 .map(Integer::parseInt)
                 .flatMap(i -> Arrays.stream(functions).map(VectorSimilarityType::valueOf).map(f -> new Object[] { f, i }))
-
                 .iterator();
         } catch (NoSuchFieldException e) {
             throw new AssertionError(e);

@@ -1,4 +1,4 @@
-The ES|QL documentation is composed of static content and generated content.
+The language documentation is composed of static content and generated content.
 The static content exists in this directory and can be edited by hand.
 However, the subdirectories `_snippets`, `images` and `kibana` contain a mix
 of static and generated content, and so updating them is a bit more involved.
@@ -273,3 +273,21 @@ The following example shows the detection of a step change:
 :::{include} ../examples/change_point.csv-spec/changePointForDocs.md
 :::
 ```
+
+## PromQL
+
+PromQL documentation is generated separately and stored in:
+```
+docs/reference/query-languages/promql/kibana/definitions/*.json
+```
+For PromQL function documentation, see: https://prometheus.io/docs/prometheus/latest/querying/functions/
+
+### Generating PromQL Function Definitions
+
+To generate the PromQL definition files, run:
+
+```bash
+./gradlew :x-pack:plugin:esql:test --tests "PromqlKibanaDefinitionGeneratorTests"
+```
+The result will be in `x-pack/plugin/esql/build/testrun/test/temp/promql/kibana/definitions/`.
+

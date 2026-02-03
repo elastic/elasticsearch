@@ -190,6 +190,7 @@ public class OperatorTests extends MapperServiceTestCase {
                 new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths) -> {
                     throw new UnsupportedOperationException();
                 }, 0.8)),
+                randomBoolean(),
                 0
             );
             List<Page> pages = new ArrayList<>();
@@ -411,6 +412,8 @@ public class OperatorTests extends MapperServiceTestCase {
                         AggregatorMode.INTERMEDIATE,
                         List.of(CountAggregatorFunction.supplier().groupingAggregatorFactory(AggregatorMode.INTERMEDIATE, List.of(1, 2))),
                         Integer.MAX_VALUE,
+                        Integer.MAX_VALUE,
+                        1.0,
                         null
                     );
                 DriverContext driverContext = driverContext();

@@ -25,9 +25,9 @@ static inline int64_t array_mapper(const int32_t i, const int32_t* offsets) {
    return offsets[i];
 }
 
-template <int offset, int64_t(*mapper)(const int32_t, const int32_t*)>
-static inline const int8_t* safe_mapper_offset(
-    const int8_t* a,
+template <typename T, int offset, int64_t(*mapper)(const int32_t, const int32_t*)>
+static inline const T* safe_mapper_offset(
+    const T* a,
     const int32_t pitch,
     const int32_t* offsets,
     const int32_t count

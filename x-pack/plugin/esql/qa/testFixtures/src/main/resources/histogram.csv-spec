@@ -1,7 +1,7 @@
 Make sure we can even load histogram data
 required_capability: histogram_release_version
 
-FROM histogram_standard_index | WHERE instance == "hand-rolled";
+FROM histogram_standard_index | WHERE instance == "hand-rolled" | KEEP @timestamp, instance, responseTime;
 
 @timestamp:date      | instance:keyword  | responseTime:histogram
 2025-01-01T00:00:00Z | hand-rolled       | "{""values"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}"
@@ -12,14 +12,18 @@ FROM histogram_standard_index | WHERE instance == "hand-rolled";
 Convert histogram into tdigest
 required_capability: histogram_release_version
 
+// tag::to_tdigest[]
 FROM histogram_standard_index 
  | WHERE instance == "hand-rolled"
  | EVAL tdigest = to_tdigest(responseTime) 
  | KEEP responseTime, tdigest
 ;
+// end::to_tdigest[]
 
+// tag::to_tdigest-result[]
 responseTime:histogram                                         | tdigest:tdigest
 "{""values"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}" | "{""min"": 0.1, ""max"": 0.5, ""sum"": 16.4, ""centroids"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}"
+// end::to_tdigest-result[]
 ;
 
 // -----------------------------------------
@@ -238,3 +242,24 @@ FROM histogram_standard_index
 min:double | max:double | p75:double | sum:double | avg:double
 NULL       | NULL       | NULL       | NULL       | NULL
 ;
+
+// -----------------------------------------
+
+Case return value test (Standard Mode)
+required_capability: histogram_release_version
+required_capability: case_support_for_summary_fields
+
+FROM tdigest_standard_index
+ | WHERE STARTS_WITH(instance, "hand-rolled") 
+ | EVAL result = CASE(instance == "hand-rolled-empty", caseTestPlaceholder, responseTime)
+ | KEEP result
+;
+ignoreOrder:true
+
+result:tdigest
+"{""centroids"":[3, 5],""counts"":[8, 32]}"
+"{""min"": 0.1, ""max"": 0.5, ""sum"": 16.4, ""centroids"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}"
+;
+
+
+

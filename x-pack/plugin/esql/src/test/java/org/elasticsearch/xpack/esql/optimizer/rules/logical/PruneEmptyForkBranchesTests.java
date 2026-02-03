@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
@@ -15,6 +16,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.List;
@@ -72,5 +75,60 @@ public class PruneEmptyForkBranchesTests extends AbstractLogicalPlanOptimizerTes
 
         var attributeNames = localRelation.output().stream().map(NamedExpression::name).toList();
         assertEquals(List.of("salary", "x", "_fork"), attributeNames);
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[10[INTEGER],false,false]
+     * \_UnionAll[[_meta_field{r}#28, emp_no{r}#29, first_name{r}#30, gender{r}#31, hire_date{r}#32, job{r}#33, job.raw{r}#34, l
+     * anguages{r}#35, last_name{r}#36, long_noidx{r}#37, salary{r}#38, x{r}#39]]
+     *   \_Project[[_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, gender{f}#7, hire_date{f}#12, job{f}#13, job.raw{f}#14, lang
+     * uages{f}#8, last_name{f}#9, long_noidx{f}#15, salary{f}#10, x{r}#4]]
+     *     \_Subquery[]
+     *       \_Eval[[1[INTEGER] AS x#4]]
+     *         \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     * }</pre>
+     */
+    public void testOneEmptySubquery() {
+        checkSubquerySupport();
+        var plan = plan("""
+            FROM (FROM test | EVAL x = 1),
+                 (FROM test | WHERE false)
+            | LIMIT 10
+            """);
+
+        var limit = as(plan, Limit.class);
+        var unionAll = as(limit.child(), UnionAll.class);
+
+        // the second subquery is removed
+        assertEquals(1, unionAll.children().size());
+
+        var project = as(unionAll.children().get(0), Project.class);
+        var subquery = as(project.child(), Subquery.class);
+        var eval = as(subquery.child(), Eval.class);
+        assertThat(eval.child(), instanceOf(EsRelation.class));
+    }
+
+    public void testAllEmptySubqueries() {
+        checkSubquerySupport();
+        var plan = plan("""
+            FROM (FROM test | KEEP salary | EVAL x = 1 | WHERE CONTAINS(CONCAT("something", "else"), "nothing")),
+                 (FROM test | KEEP salary | WHERE false)
+            | LIMIT 10
+            """);
+
+        var localRelation = as(plan, LocalRelation.class);
+        assertTrue(localRelation.hasEmptySupplier());
+
+        var attributeNames = localRelation.output().stream().map(NamedExpression::name).toList();
+        assertEquals(List.of("salary", "x"), attributeNames);
+    }
+
+    private void checkSubquerySupport() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue(
+            "Requires subquery in FROM command support",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
+        );
     }
 }

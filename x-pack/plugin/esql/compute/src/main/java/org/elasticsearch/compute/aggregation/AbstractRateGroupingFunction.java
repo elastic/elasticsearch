@@ -53,10 +53,9 @@ class AbstractRateGroupingFunction {
         }
 
         final void prepareSlicesOnly(int groupId, long firstTimestamp) {
-            if (lastGroupId == groupId) {
-                assert valueCount > 0 : "last_group_id = " + lastGroupId + ", value_count = " + valueCount;
+            if (lastGroupId == groupId && valueCount > 0) {
                 if (timestamps.get(valueCount - 1) > firstTimestamp) {
-                    return;
+                    return; // continue with the current slice
                 }
             }
             // start a new slice
@@ -135,8 +134,13 @@ class AbstractRateGroupingFunction {
             for (int i = startIndex; i < endIndex; i++) {
                 int start = sliceOffsets.get(i * 2L);
                 int end = sliceOffsets.get(i * 2L + 1);
-                queue.valueCount += (end - start);
-                queue.add(new Slice(buffer.timestamps, start, end));
+                if (start < end) {
+                    queue.valueCount += (end - start);
+                    queue.add(new Slice(buffer.timestamps, start, end));
+                }
+            }
+            if (queue.valueCount == 0) {
+                return null;
             }
             return queue;
         }

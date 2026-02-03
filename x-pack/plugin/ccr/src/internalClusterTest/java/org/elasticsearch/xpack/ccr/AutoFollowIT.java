@@ -596,7 +596,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
     public void testAutoFollowExclusion() throws Exception {
         Settings leaderIndexSettings = indexSettings(1, 0).build();
 
-        putAutoFollowPatterns("my-pattern1", new String[] { "logs-*" }, Collections.singletonList("logs-2018*"));
+        putAutoFollowPatterns("my-pattern1", new String[] { "logs-*" }, Collections.singletonList("logs-2018*"), "copy-{{leader_index}}");
 
         createLeaderIndex("logs-201801", leaderIndexSettings);
         AutoFollowStats autoFollowStats = getAutoFollowStats();
@@ -715,23 +715,8 @@ public class AutoFollowIT extends CcrIntegTestCase {
         assertThat(statsAfterDelete.getIndices(), hasKey(rolloverResponse.getNewIndex()));
     }
 
-    private void putAutoFollowPatterns(String name, String[] patterns) {
-        putAutoFollowPatterns(name, patterns, Collections.emptyList());
-    }
-
-    private void putAutoFollowPatterns(String name, String[] patterns, List<String> exclusionPatterns) {
-        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
-        request.setName(name);
-        request.setRemoteCluster("leader_cluster");
-        request.setLeaderIndexPatterns(Arrays.asList(patterns));
-        request.setLeaderIndexExclusionPatterns(exclusionPatterns);
-        // Need to set this, because following an index in the same cluster
-        request.setFollowIndexNamePattern("copy-{{leader_index}}");
-        if (randomBoolean()) {
-            request.masterNodeTimeout(TimeValue.timeValueSeconds(randomFrom(10, 20, 30)));
-        }
-
-        assertTrue(followerClient().execute(PutAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
+    protected void putAutoFollowPatterns(String name, String[] patterns) {
+        putAutoFollowPatterns(name, patterns, Collections.emptyList(), "copy-{{leader_index}}");
     }
 
     private void deleteAutoFollowPattern(final String name) {

@@ -642,7 +642,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 listener.onFailure(failures.get(0).getException());
             }
         } else {
-            listener.onResponse(FieldCapabilitiesResponse.builder().withMinTransportVersion(minTransportVersion.get()).build());
+            FieldCapabilitiesResponse.Builder builder = FieldCapabilitiesResponse.builder()
+                .withMinTransportVersion(minTransportVersion.get());
+            if (request.includeResolvedTo()) {
+                builder.withResolvedLocally(resolvedLocally);
+            }
+            listener.onResponse(builder.build());
         }
     }
 

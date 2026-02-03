@@ -4,9 +4,26 @@
   "operator" : "/",
   "name" : "div",
   "titleName" : "divide",
-  "description" : "Divide one number by another. If either field is multivalued then the result is `null`.",
-  "note" : "Division of two integer types will yield an integer result, rounding towards 0. If you need floating point division, `Cast (::)` one of the arguments to a `DOUBLE`.",
+  "description" : "Divide one value by another. For numeric operands, if either field is multivalued\nthen the result is `null`.\nnote = \"Division of two integer types will yield an integer result, rounding towards 0. \"\n+ \"If you need floating point division, `Cast (::)` one of the arguments to a `DOUBLE`.\nFor dense_vector operations, both arguments should be dense_vectors. Inequal vector dimensions generate null result.\n",
   "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "lhs",
+          "type" : "dense_vector",
+          "optional" : false,
+          "description" : "A numeric value."
+        },
+        {
+          "name" : "rhs",
+          "type" : "dense_vector",
+          "optional" : false,
+          "description" : "A numeric value."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "dense_vector"
+    },
     {
       "params" : [
         {

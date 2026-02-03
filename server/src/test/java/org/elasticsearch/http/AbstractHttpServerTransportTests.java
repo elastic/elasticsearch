@@ -32,6 +32,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.internal.RestExtension;
@@ -1142,7 +1143,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
     }
 
     private ActionModule getFakeActionModule(Set<RestHeaderDefinition> headersToCopy) {
-        SettingsModule settings = new SettingsModule(Settings.EMPTY);
+        SettingsModule settings = new SettingsModule(Settings.builder().put("path.home", createTempDir()).build());
         ActionPlugin copyHeadersPlugin = new ActionPlugin() {
             @Override
             public Collection<RestHeaderDefinition> getRestHeaders() {
@@ -1150,7 +1151,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             }
         };
         return new ActionModule(
-            settings.getSettings(),
+            TestEnvironment.newEnvironment(settings.getSettings()),
             TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
             null,
             settings.getIndexScopedSettings(),

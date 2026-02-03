@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-min-should-match-context.html
+applies_to:
+  stack: ga
+  serverless: ga
 products:
   - id: painless
 ---
@@ -9,7 +12,7 @@ products:
 
 Use a Painless script to specify the [minimum](/reference/query-languages/query-dsl/query-dsl-terms-set-query.md) number of terms that a specified field needs to match with for a document to be part of the query results.
 
-**Variables**
+## Variables
 
 `params` (`Map`, read-only)
 :   User-defined parameters passed in as part of the query.
@@ -20,52 +23,57 @@ Use a Painless script to specify the [minimum](/reference/query-languages/query-
 `doc` (`Map`, read-only)
 :   Contains the fields of the current document where each field is a `List` of values.
 
-**Return**
+## Return
 
 `int`
 :   The minimum number of terms required to match the current document.
 
-**API**
+## API
 
 The standard [Painless API](https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-api-reference-shared.html) is available.
 
-**Example**
+## Example
 
-To run this example, first follow the steps in [context examples](/reference/scripting-languages/painless/painless-context-examples.md).
+To run the example, first [install the eCommerce sample data](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
 
-Imagine that you want to find seats to performances by your favorite actors. You have a list of favorite actors in mind, and you want to find performances where the cast includes at least a certain number of them.
+This example shows conditional matching requirements. The script checks if a document contains both “Men’s Clothing” and “Men’s Shoes” categories. If this combination exists, only two terms need to match. Otherwise, three terms must match. This creates different qualification thresholds based on document content.
 
-To achieve this result, use a `terms_set` query with `minimum_should_match_script`. To make the query request more configurable, you can define `min_actors_to_see` as a script parameter.
-
-To ensure that the parameter `min_actors_to_see` doesn’t exceed the number of favorite actors, you can use `num_terms` to get the number of actors in the list and `Math.min` to get the lesser of the two.
-
-```painless
-Math.min(params['num_terms'], params['min_actors_to_see'])
-```
-
-The following request finds seats to performances with at least two of the three specified actors.
-
-```console
-GET seats/_search
+```json
+GET kibana_sample_data_ecommerce/_search
 {
   "query": {
     "terms_set": {
-      "actors": {
+      "category.keyword": {
         "terms": [
-          "smith",
-          "earns",
-          "black"
+          "Men's Clothing",
+          "Men's Shoes", 
+          "Men's Accessories",
+          "Women's Clothing"
         ],
         "minimum_should_match_script": {
-          "source": "Math.min(params['num_terms'], params['min_actors_to_see'])",
-          "params": {
-            "min_actors_to_see": 2
-          }
+          "source": """
+            boolean hasMensClothing = false;
+            boolean hasMensShoes = false;
+            
+            for (def category : doc['category.keyword']) {
+              if (category.equals("Men's Clothing")) {
+                hasMensClothing = true;
+              }
+
+              if (category.equals("Men's Shoes")) {
+                hasMensShoes = true;
+              }
+            }
+            
+            if (hasMensClothing && hasMensShoes) {
+              return 2;
+            }
+            
+            return 3;
+          """
         }
       }
     }
   }
 }
 ```
-% TEST[setup:seats]
-

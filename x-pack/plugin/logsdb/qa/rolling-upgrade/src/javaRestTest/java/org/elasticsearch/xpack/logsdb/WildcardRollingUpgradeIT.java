@@ -7,12 +7,10 @@
 
 package org.elasticsearch.xpack.logsdb;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.Mapper;
 
-import java.util.Arrays;
+import java.util.Map;
 
 public class WildcardRollingUpgradeIT extends AbstractStringWithIgnoreAboveRollingUpgradeTestCase {
 
@@ -59,16 +57,19 @@ public class WildcardRollingUpgradeIT extends AbstractStringWithIgnoreAboveRolli
             }
         }""";
 
-    public WildcardRollingUpgradeIT(String template, String testScenario, Mapper.IgnoreAbove ignoreAbove) {
-        super(DATA_STREAM_NAME_PREFIX + "." + testScenario, template, ignoreAbove);
-    }
-
-    @ParametersFactory
-    public static Iterable<Object[]> data() {
-        return Arrays.asList(
-            new Object[][] {
-                { TEMPLATE, "basic", new Mapper.IgnoreAbove(null, IndexMode.LOGSDB) },
-                { TEMPLATE_WITH_IGNORE_ABOVE, "with-ignore-above", new Mapper.IgnoreAbove(50, IndexMode.LOGSDB) } }
+    @Override
+    protected Map<String, TemplateConfigWithIgnoreAbove> getTemplatesWithIgnoreAbove() {
+        var basicTemplate = new TemplateConfigWithIgnoreAbove(
+            DATA_STREAM_NAME_PREFIX + ".basic",
+            TEMPLATE,
+            new Mapper.IgnoreAbove(null, IndexMode.LOGSDB)
         );
+        var templateWithIgnoreAbove = new TemplateConfigWithIgnoreAbove(
+            DATA_STREAM_NAME_PREFIX + ".with-ignore-above",
+            TEMPLATE_WITH_IGNORE_ABOVE,
+            new Mapper.IgnoreAbove(50, IndexMode.LOGSDB)
+        );
+
+        return Map.of(basicTemplate.dataStreamName(), basicTemplate, templateWithIgnoreAbove.dataStreamName(), templateWithIgnoreAbove);
     }
 }

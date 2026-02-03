@@ -754,6 +754,7 @@ public class Security extends Plugin
             return createComponents(
                 services.client(),
                 services.threadPool(),
+                services.bigArrays(),
                 services.clusterService(),
                 services.featureService(),
                 services.resourceWatcherService(),
@@ -776,6 +777,7 @@ public class Security extends Plugin
     Collection<Object> createComponents(
         Client client,
         ThreadPool threadPool,
+        BigArrays bigArrays,
         ClusterService clusterService,
         FeatureService featureService,
         ResourceWatcherService resourceWatcherService,
@@ -840,7 +842,8 @@ public class Security extends Plugin
             securityContext.get(),
             systemIndices.getMainIndexManager(),
             systemIndices.getTokenIndexManager(),
-            clusterService
+            clusterService,
+            bigArrays.bytesRefRecycler()
         );
         this.tokenService.set(tokenService);
         components.add(tokenService);
@@ -2465,7 +2468,7 @@ public class Security extends Plugin
         future.actionGet();
     }
 
-    public Map<String, String> getAuthContextForSlowLog() {
+    public Map<String, String> getAuthContextForLogging() {
         if (this.securityContext.get() != null && this.securityContext.get().getAuthentication() != null) {
             Authentication authentication = this.securityContext.get().getAuthentication();
             Map<String, String> authContext;

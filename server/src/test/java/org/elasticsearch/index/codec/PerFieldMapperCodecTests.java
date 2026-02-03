@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -113,7 +114,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     public void testUseBloomFilterWithTimestampFieldEnabled_noTimeSeriesMode() throws IOException {
         PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, false, false);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(false));
-        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(Lucene103PostingsFormat.class));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(ES812PostingsFormat.class));
     }
 
     public void testUseBloomFilterWithTimestampFieldEnabled_disableBloomFilter() throws IOException {
@@ -151,6 +152,21 @@ public class PerFieldMapperCodecTests extends ESTestCase {
 
         perFieldMapperCodec = createFormatSupplier(false, true, IndexMode.TIME_SERIES, MAPPING_1);
         assertThat(perFieldMapperCodec.getPostingsFormatForField("gauge"), instanceOf(ES812PostingsFormat.class));
+    }
+
+    public void testUseEs812PostingsFormatForIdField() throws IOException {
+        int numIterations = randomIntBetween(2, 64);
+        for (int i = 0; i < numIterations; i++) {
+            var indexMode = randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB, IndexMode.TIME_SERIES);
+            String mapping = randomFrom(MAPPING_1, MAPPING_2, MAPPING_3);
+            PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(randomBoolean(), randomBoolean(), indexMode, mapping);
+            var result = perFieldMapperCodec.getPostingsFormatForField("_id");
+            if (result instanceof ES87BloomFilterPostingsFormat es87BloomFilterPostingsFormat) {
+                Function<String, PostingsFormat> postingsFormats = es87BloomFilterPostingsFormat.getPostingsFormats();
+                result = postingsFormats.apply("_id");
+            }
+            assertThat(result, instanceOf(ES812PostingsFormat.class));
+        }
     }
 
     public void testUseES87TSDBEncodingForTimestampField() throws IOException {

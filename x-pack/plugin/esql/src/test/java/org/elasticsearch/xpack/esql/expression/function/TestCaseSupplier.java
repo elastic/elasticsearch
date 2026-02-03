@@ -688,6 +688,14 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return vector;
     }
 
+    public static List<Float> randomDenseVector(int dimension) {
+        List<Float> vector = new ArrayList<>();
+        for (int i = 0; i < dimension; i++) {
+            vector.add(randomFloatBetween(-1.0f, +1.0f, true));
+        }
+        return vector;
+    }
+
     /**
      * Generate positive test cases for a unary function operating on an {@link DataType#BOOLEAN}.
      */
@@ -942,6 +950,16 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<String> warnings
     ) {
         unary(suppliers, expectedEvaluatorToString, histogramCases(), expectedType, v -> expectedValue.apply((BytesRef) v), warnings);
+    }
+
+    public static void forUnaryTDigest(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<TDigestHolder, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unary(suppliers, expectedEvaluatorToString, tdigestCases(), expectedType, v -> expectedValue.apply((TDigestHolder) v), warnings);
     }
 
     private static void unaryNumeric(

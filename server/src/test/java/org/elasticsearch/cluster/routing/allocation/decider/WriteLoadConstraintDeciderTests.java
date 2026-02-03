@@ -41,9 +41,11 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 
 public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
@@ -323,6 +325,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                     .filter(ignored -> randomBoolean()) // some write-loads are missing altogether
                     .collect(Collectors.toMap(ShardRouting::shardId, ignored -> 0.0d))  // the rest are zero
             )
+            .nodeIdsWriteLoadHotspotting(Set.of(overloadedNode.getId()))
             .build();
 
         final var clusterSettings = createBuiltInClusterSettings(settings);
@@ -348,8 +351,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             movedShards.addAll(routingNode.shardsWithState(ShardRoutingState.INITIALIZING).collect(Collectors.toSet()));
         }
         movedShards.forEach(shardRouting -> {
-            routingAllocation.routingNodes().startShard(shardRouting, new RoutingChangesObserver() {
-            }, randomNonNegativeLong());
+            routingAllocation.routingNodes().startShard(shardRouting, new RoutingChangesObserver() {}, randomNonNegativeLong());
             clusterInfoSimulator.simulateShardStarted(shardRouting);
         });
 
@@ -367,6 +369,88 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         );
         assertEquals(1, routingAllocation.routingNodes().node(overloadedNode.getId()).numberOfOwningShards());
         assertEquals(3, routingAllocation.routingNodes().node(otherNode.getId()).numberOfOwningShards());
+    }
+
+    public void testWriteLoadDeciderShouldNotPreferAllocationDuringHotspot() {
+        final var indexName = randomIdentifier();
+        final int numThreads = randomIntBetween(1, 10);
+        final float highUtilizationThreshold = randomFloatBetween(0.5f, 0.9f, true);
+        final long highLatencyThreshold = randomLongBetween(1000, 10000);
+        final var settings = Settings.builder()
+            .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
+                WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
+            )
+            .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_THRESHOLD_SETTING.getKey(), highUtilizationThreshold)
+            .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING.getKey(),
+                TimeValue.timeValueMillis(highLatencyThreshold)
+            )
+            .build();
+
+        final var state = ClusterStateCreationUtils.state(2, new String[] { indexName }, 4);
+        final var overloadedNode = randomFrom(state.nodes().getAllNodes());
+        final var otherNode = state.nodes().stream().filter(node -> node != overloadedNode).findFirst().orElseThrow();
+        final var clusterInfo = ClusterInfo.builder()
+            .nodeUsageStatsForThreadPools(
+                Map.of(
+                    overloadedNode.getId(),
+                    new NodeUsageStatsForThreadPools(
+                        overloadedNode.getId(),
+                        Map.of(
+                            ThreadPool.Names.WRITE,
+                            new ThreadPoolUsageStats(
+                                numThreads,
+                                randomFloatBetween(0.0f, highUtilizationThreshold - .0001f, false),
+                                randomLongBetween(0, highLatencyThreshold - 1)
+                            )
+                        )
+                    ),
+                    otherNode.getId(),
+                    new NodeUsageStatsForThreadPools(
+                        otherNode.getId(),
+                        Map.of(
+                            ThreadPool.Names.WRITE,
+                            new ThreadPoolUsageStats(
+                                numThreads,
+                                randomFloatBetween(0.0f, highUtilizationThreshold - .0001f, false),
+                                randomLongBetween(0, highLatencyThreshold - 1)
+                            )
+                        )
+                    )
+                )
+            )
+            .nodeIdsWriteLoadHotspotting(Set.of(overloadedNode.getId()))
+            .build();
+
+        final var writeLoadConstraintDecider = createWriteLoadConstraintDecider(settings);
+        final var routingAllocation = new RoutingAllocation(
+            new AllocationDeciders(List.of(writeLoadConstraintDecider)),
+            state.getRoutingNodes().mutableCopy(),
+            state,
+            clusterInfo,
+            SnapshotShardSizeInfo.EMPTY,
+            randomLong()
+        );
+        routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
+
+        var overloadedRoutingNode = routingAllocation.routingNodes().node(overloadedNode.getId());
+        var shardRouting = routingAllocation.routingNodes()
+            .node(otherNode.getId())
+            .shardsWithState(ShardRoutingState.STARTED)
+            .findFirst()
+            .orElseThrow();
+        Decision decision = writeLoadConstraintDecider.canAllocate(shardRouting, overloadedRoutingNode, routingAllocation);
+        assertEquals(decision.type(), Decision.NOT_PREFERRED.type());
+        assertThat(
+            decision.getExplanation(),
+            equalTo(
+                "Node ["
+                    + overloadedNode.getId()
+                    + "] is currently hotspotting or in a waiting "
+                    + "period, and does not prefer shards moved onto it"
+            )
+        );
     }
 
     /**
@@ -469,6 +553,9 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         nodeIdToNodeUsageStatsForThreadPools.put(queuingBelowThresholdDiscoveryNode4.getId(), nodeThreadPoolStatsWithQueuingBelowThreshold);
         nodeIdToNodeUsageStatsForThreadPools.put(queuingAboveThresholdDiscoveryNode5.getId(), nodeThreadPoolStatsWithQueuingAboveThreshold);
 
+        // create a set of hotspots
+        var nodeIdsWriteLoadHotspotting = Set.of(queuingAboveThresholdDiscoveryNode5.getId());
+
         // Create a map of usage per shard.
         var shardIdToWriteLoadEstimate = new HashMap<ShardId, Double>();
         shardIdToWriteLoadEstimate.put(testShardId1, 0.5);
@@ -483,6 +570,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         ClusterInfo clusterInfo = ClusterInfo.builder()
             .nodeUsageStatsForThreadPools(nodeIdToNodeUsageStatsForThreadPools)
             .shardWriteLoads(shardIdToWriteLoadEstimate)
+            .nodeIdsWriteLoadHotspotting(nodeIdsWriteLoadHotspotting)
             .build();
 
         /**

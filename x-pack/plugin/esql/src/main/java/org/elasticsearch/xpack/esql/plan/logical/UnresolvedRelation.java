@@ -12,6 +12,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -27,7 +28,7 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
 
     private final IndexPattern indexPattern;
     private final boolean frozen;
-    private final List<Attribute> metadataFields;
+    private final List<NamedExpression> metadataFields;
     /*
      * Expected indexMode based on the declaration - used later for verification
      * at resolution time.
@@ -45,7 +46,7 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
         Source source,
         IndexPattern indexPattern,
         boolean frozen,
-        List<Attribute> metadataFields,
+        List<NamedExpression> metadataFields,
         String unresolvedMessage,
         SourceCommand sourceCommand
     ) {
@@ -56,7 +57,7 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
         Source source,
         IndexPattern indexPattern,
         boolean frozen,
-        List<Attribute> metadataFields,
+        List<NamedExpression> metadataFields,
         IndexMode indexMode,
         String unresolvedMessage,
         @Nullable String commandName
@@ -74,7 +75,7 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
         Source source,
         IndexPattern table,
         boolean frozen,
-        List<Attribute> metadataFields,
+        List<NamedExpression> metadataFields,
         IndexMode indexMode,
         String unresolvedMessage
     ) {
@@ -133,7 +134,7 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
         return Collections.emptyList();
     }
 
-    public List<Attribute> metadataFields() {
+    public List<NamedExpression> metadataFields() {
         return metadataFields;
     }
 

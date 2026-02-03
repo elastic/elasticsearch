@@ -99,6 +99,8 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
     "cluster.desired_nodes/10_basic/Test update desired nodes with node_version generates a warning",
     "node_version warning is removed in 9.0"
   )
+  task.skipTest("tsdb/05_dimension_and_metric_in_non_tsdb_index/can't shadow dimensions", "Dimensions can be shadowed in non tsdb indices")
+  task.skipTest("tsdb/05_dimension_and_metric_in_non_tsdb_index/can't shadow metrics", "Metrics can be shadowed in non tsdb indices")
   task.skipTest("tsdb/20_mapping/nested fields", "nested field support in tsdb indices is now supported")
   task.skipTest("logsdb/10_settings/routing path allowed in logs mode with routing on sort fields", "Unknown feature routing.logsb_route_on_sort_fields")
   task.skipTest("indices.create/21_synthetic_source_stored/index param - field ordering", "Synthetic source keep arrays now stores leaf arrays natively")

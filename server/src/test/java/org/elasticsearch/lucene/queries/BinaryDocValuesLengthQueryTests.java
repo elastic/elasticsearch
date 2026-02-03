@@ -93,7 +93,7 @@ public class BinaryDocValuesLengthQueryTests extends ESTestCase {
                     for (var val : valuesForDoc) {
                         field.add(val);
                     }
-                    var countField = NumericDocValuesField.indexedField("field.counts", valuesForDoc.size());
+                    var countField = NumericDocValuesField.indexedField("field.counts", field.count());
                     document.add(field);
                     document.add(countField);
                     writer.addDocument(document);

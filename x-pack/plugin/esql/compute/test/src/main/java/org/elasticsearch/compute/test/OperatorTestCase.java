@@ -7,19 +7,15 @@
 
 package org.elasticsearch.compute.test;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArray;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -27,7 +23,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
@@ -36,18 +31,15 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.BreakerTestUtil;
-import org.elasticsearch.threadpool.FixedExecutorBuilder;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Supplier;
-import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.in;
 
 /**
  * Base tests for {@link Operator}s that are not {@link SourceOperator} or {@link SinkOperator}.
@@ -282,71 +274,36 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         }
     }
 
-    protected final List<Page> drive(Operator operator, Iterator<Page> input, DriverContext driverContext) {
-        return drive(List.of(operator), input, driverContext);
+    /**
+     * @deprecated use {@link TestDriverRunner}
+     */
+    @Deprecated
+    protected final List<Page> drive(Operator operator, Iterator<Page> input, DriverContext context) {
+        return new TestDriverRunner().run(operator, input, context);
     }
 
-    protected final List<Page> drive(List<Operator> operators, Iterator<Page> input, DriverContext driverContext) {
-        List<Page> results = new ArrayList<>();
-        boolean success = false;
-        try (
-            Driver d = TestDriverFactory.create(
-                driverContext,
-                new CannedSourceOperator(input),
-                operators,
-                new TestResultPageSinkOperator(results::add)
-            )
-        ) {
-            runDriver(d);
-            success = true;
-        } finally {
-            if (success == false) {
-                Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks)));
-            }
-        }
-        return results;
+    /**
+     * @deprecated use {@link TestDriverRunner}
+     */
+    @Deprecated
+    protected final List<Page> drive(List<Operator> operators, Iterator<Page> input, DriverContext context) {
+        return new TestDriverRunner().run(operators, input, context);
     }
 
+    /**
+     * @deprecated use {@link TestDriverRunner}
+     */
+    @Deprecated
     public static void runDriver(Driver driver) {
-        runDriver(List.of(driver));
+        new TestDriverRunner().run(driver);
     }
 
+    /**
+     * @deprecated use {@link TestDriverRunner}
+     */
+    @Deprecated
     public static void runDriver(List<Driver> drivers) {
-        drivers = new ArrayList<>(drivers);
-        int dummyDrivers = between(0, 10);
-        for (int i = 0; i < dummyDrivers; i++) {
-            drivers.add(
-                TestDriverFactory.create(
-                    new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null),
-                    new SequenceLongBlockSourceOperator(
-                        TestBlockFactory.getNonBreakingInstance(),
-                        LongStream.range(0, between(1, 100)),
-                        between(1, 100)
-                    ),
-                    List.of(),
-                    new PageConsumerOperator(Page::releaseBlocks)
-                )
-            );
-        }
-        Randomness.shuffle(drivers);
-        int numThreads = between(1, 16);
-        ThreadPool threadPool = new TestThreadPool(
-            getTestClass().getSimpleName(),
-            new FixedExecutorBuilder(Settings.EMPTY, "esql", numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
-        );
-        var driverRunner = new DriverRunner(threadPool.getThreadContext()) {
-            @Override
-            protected void start(Driver driver, ActionListener<Void> driverListener) {
-                Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 10000), driverListener);
-            }
-        };
-        PlainActionFuture<Void> future = new PlainActionFuture<>();
-        try {
-            driverRunner.runToCompletion(drivers, future);
-            future.actionGet(TimeValue.timeValueSeconds(30));
-        } finally {
-            terminate(threadPool);
-        }
+        new TestDriverRunner().run(drivers);
     }
 
     public static void assertDriverContext(DriverContext driverContext) {

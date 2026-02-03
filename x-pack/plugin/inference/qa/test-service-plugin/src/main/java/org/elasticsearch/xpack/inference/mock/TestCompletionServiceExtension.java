@@ -42,6 +42,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 public class TestCompletionServiceExtension implements InferenceServiceExtension {
     @Override
@@ -106,8 +107,12 @@ public class TestCompletionServiceExtension implements InferenceServiceExtension
             TimeValue timeout,
             ActionListener<InferenceServiceResults> listener
         ) {
+            if (Objects.equals(((TestTaskSettings) model.getTaskSettings()).shouldFailValidation(), Boolean.TRUE)) {
+                listener.onFailure(new RuntimeException("validation call intentionally failed based on task settings"));
+                return;
+            }
             switch (model.getConfigurations().getTaskType()) {
-                case COMPLETION -> listener.onResponse(makeChatCompletionResults(input));
+                case COMPLETION -> listener.onResponse(makeChatCompletionResults(input, taskSettings));
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
@@ -165,10 +170,22 @@ public class TestCompletionServiceExtension implements InferenceServiceExtension
             );
         }
 
-        private InferenceServiceResults makeChatCompletionResults(List<String> inputs) {
+        private InferenceServiceResults makeChatCompletionResults(List<String> inputs, Map<String, Object> taskSettings) {
             List<ChatCompletionResults.Result> results = new ArrayList<>();
+
             for (String text : inputs) {
-                results.add(new ChatCompletionResults.Result(text.toUpperCase(Locale.ROOT)));
+                String result = text.toUpperCase(Locale.ROOT);
+
+                // Prepend temperature if present in task_settings
+                if (taskSettings != null && taskSettings.containsKey("temperature")) {
+                    Object tempValue = taskSettings.get("temperature");
+                    if (tempValue instanceof Number) {
+                        int temperature = ((Number) tempValue).intValue();
+                        result = "temperature:" + temperature + " " + result;
+                    }
+                }
+
+                results.add(new ChatCompletionResults.Result(result));
             }
 
             return new ChatCompletionResults(results);

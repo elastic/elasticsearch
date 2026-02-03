@@ -76,11 +76,15 @@ public class MistralEmbeddingsModel extends MistralModel {
         ChunkingSettings chunkingSettings,
         DefaultSecretSettings secrets
     ) {
-        super(
+        this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, EmptyTaskSettings.INSTANCE, chunkingSettings),
             new ModelSecrets(secrets)
         );
-        setPropertiesFromServiceSettings(serviceSettings);
+    }
+
+    public MistralEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets);
+        setPropertiesFromServiceSettings((MistralEmbeddingsServiceSettings) modelConfigurations.getServiceSettings());
     }
 
     @Override

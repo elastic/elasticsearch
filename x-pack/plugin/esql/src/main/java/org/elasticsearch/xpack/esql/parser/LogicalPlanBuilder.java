@@ -111,7 +111,6 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
-import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
@@ -1417,29 +1416,24 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source source = source(ctx);
 
         Attribute diversifyField = visitQualifiedName(ctx.diversifyField);
-        Expression queryVector = visitMMRQueryVector(ctx.mmrOptionalQueryVector());
         Expression limitValue = expression(ctx.limitValue);
+        Expression queryVector = visitMMRQueryVector(ctx.queryVector);
         MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
 
         return input -> new MMR(source, input, diversifyField, limitValue, queryVector, options);
     }
 
-    private Expression visitMMRQueryVector(EsqlBaseParser.MmrOptionalQueryVectorContext ctx) {
+    private Expression visitMMRQueryVector(EsqlBaseParser.MmrQueryVectorParamsContext ctx) {
         if (ctx == null || ctx.isEmpty()) {
             return null;
         }
 
-        var queryVectorParams = ctx.mmrQueryVectorParams();
-        if (queryVectorParams == null || queryVectorParams.isEmpty()) {
-            return null;
-        }
-
-        if (queryVectorParams.getChildCount() == 1) {
-            if (queryVectorParams.getChild(0) instanceof Expression asExpression) {
+        if (ctx.getChildCount() == 1) {
+            if (ctx.getChild(0) instanceof Expression asExpression) {
                 return asExpression;
-            } else if (queryVectorParams instanceof EsqlBaseParser.MmrQueryVectorParameterContext
-                || queryVectorParams instanceof EsqlBaseParser.MmrQueryVectorExpressionContext) {
-                    return expression(queryVectorParams.getChild(0));
+            } else if (ctx instanceof EsqlBaseParser.MmrQueryVectorParameterContext
+                || ctx instanceof EsqlBaseParser.MmrQueryVectorExpressionContext) {
+                    return expression(ctx.getChild(0));
                 }
         }
 

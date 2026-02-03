@@ -984,6 +984,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             BlockLoader.Block tryReadAHead(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset) throws IOException {
                 if (ords instanceof BaseDenseNumericValues denseOrds) {
                     if (entry.termsDictEntry.termsDictSize == 1) {
+                        int lastDoc = docs.get(docs.count() - 1);
+                        denseOrds.advanceExact(lastDoc);
                         return factory.constantBytes(BytesRef.deepCopyOf(lookupOrd(0)), docs.count() - offset);
                     }
                     if (valuesSorted == false) {

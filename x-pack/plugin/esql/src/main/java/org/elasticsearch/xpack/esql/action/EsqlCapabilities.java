@@ -1719,6 +1719,10 @@ public class EsqlCapabilities {
         HISTOGRAM_RELEASE_VERSION,
 
         /**
+         * Support for running the Count aggregation on t-digest and exponential histogram types
+         */
+        COUNT_OF_HISTOGRAM_TYPES,
+        /**
          * Fix for <a href="https://github.com/elastic/elasticsearch/issues/140670">140670</a>,
          * this allows for type conversion functions with no further computation to be
          * evaluated inside default wrapping _over_time functions.
@@ -2027,6 +2031,11 @@ public class EsqlCapabilities {
          * Support query approximation.
          */
         APPROXIMATION(Build.current().isSnapshot()),
+
+        /**
+         * Create a ScoreOperator only when shard contexts are available
+         */
+        FIX_SCORE_OPERATOR_PLANNING,
 
         /**
          * Periodically emit partial aggregation results when the number of groups exceeds the threshold.

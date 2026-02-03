@@ -167,12 +167,12 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
         if (this == obj) {
             return true;
         }
-        if ((obj instanceof VectorData other) == false) {
-            return false;
+        if (obj instanceof VectorData other) {
+            return Arrays.equals(floatVector, other.floatVector)
+                && Arrays.equals(byteVector, other.byteVector)
+                && Objects.equals(stringVector, other.stringVector);
         }
-        return Arrays.equals(floatVector, other.floatVector)
-            && Arrays.equals(byteVector, other.byteVector)
-            && Objects.equals(stringVector, other.stringVector);
+        return false;
     }
 
     public int hashCode() {
@@ -261,7 +261,7 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
         byte[] base64Bytes = tryParseBase64(encoded);
 
         if (hexBytes == null && base64Bytes == null) {
-            throw invalidEncodedVector();
+            throw new IllegalArgumentException("failed to parse field [query_vector]: [query_vector] must be a valid base64 or hex string");
         }
 
         // Try base64 if it matches expected dimensions for the element type
@@ -296,18 +296,10 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
 
     private static boolean matchesExpectedBase64Length(int length, ElementType elementType, int dims) {
         return switch (elementType) {
-            case BYTE, BIT -> length == getNumBytesForElementType(elementType, dims);
+            case BYTE -> length == dims;
+            case BIT -> length == dims / Byte.SIZE;
             case FLOAT -> length == dims * Float.BYTES;
             case BFLOAT16 -> length == dims * Float.BYTES || length == dims * BFloat16.BYTES;
-        };
-    }
-
-    private static int getNumBytesForElementType(ElementType elementType, int dims) {
-        return switch (elementType) {
-            case BYTE -> dims;
-            case FLOAT -> dims * Float.BYTES;
-            case BFLOAT16 -> dims * BFloat16.BYTES;
-            case BIT -> dims / Byte.SIZE;
         };
     }
 
@@ -322,10 +314,6 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
     private static VectorData decodeBase64BFloat16Vector(byte[] base64Bytes, int dims) {
         // Prefer bfloat16 if it matches exactly, otherwise float
         return base64Bytes.length == dims * BFloat16.BYTES ? decodeBFloat16Vector(base64Bytes) : decodeFloatVector(base64Bytes);
-    }
-
-    private static IllegalArgumentException invalidEncodedVector() {
-        return new IllegalArgumentException("failed to parse field [query_vector]: [query_vector] must be a valid base64 or hex string");
     }
 
     private static IllegalArgumentException invalidBase64Length(int length, ElementType elementType) {

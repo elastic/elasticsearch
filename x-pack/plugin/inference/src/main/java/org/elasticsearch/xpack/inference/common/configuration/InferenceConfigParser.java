@@ -7,12 +7,10 @@
 
 package org.elasticsearch.xpack.inference.common.configuration;
 
-import org.elasticsearch.common.Strings;
-
-import org.elasticsearch.common.ValidationException;
-
 import software.amazon.awssdk.utils.ImmutableMap;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;

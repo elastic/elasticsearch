@@ -13,12 +13,14 @@ import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceUsageContext;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
-import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import org.elasticsearch.xpack.inference.telemetry.TraceContextHandler;
 
@@ -29,17 +31,17 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 
-public class ElasticInferenceServiceDenseTextEmbeddingsRequest extends ElasticInferenceServiceRequest {
+public class ElasticInferenceServiceDenseEmbeddingsRequest extends ElasticInferenceServiceRequest {
 
     private final URI uri;
-    private final ElasticInferenceServiceDenseTextEmbeddingsModel model;
-    private final List<String> inputs;
+    private final ElasticInferenceServiceDenseEmbeddingsModel model;
+    private final List<InferenceStringGroup> inputs;
     private final TraceContextHandler traceContextHandler;
     private final InputType inputType;
 
-    public ElasticInferenceServiceDenseTextEmbeddingsRequest(
-        ElasticInferenceServiceDenseTextEmbeddingsModel model,
-        List<String> inputs,
+    public ElasticInferenceServiceDenseEmbeddingsRequest(
+        ElasticInferenceServiceDenseEmbeddingsModel model,
+        List<InferenceStringGroup> inputs,
         TraceContext traceContext,
         ElasticInferenceServiceRequestMetadata metadata,
         InputType inputType,
@@ -57,14 +59,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsRequest extends ElasticIn
     public HttpRequestBase createHttpRequestBase() {
         var httpPost = new HttpPost(uri);
         var usageContext = ElasticInferenceServiceUsageContext.fromInputType(inputType);
-        var requestEntity = Strings.toString(
-            new ElasticInferenceServiceDenseTextEmbeddingsRequestEntity(
-                inputs,
-                model.getServiceSettings().modelId(),
-                usageContext,
-                model.getServiceSettings().dimensions()
-            )
-        );
+        var requestEntity = Strings.toString(new ElasticInferenceServiceDenseEmbeddingsRequestEntity(inputs, model, usageContext));
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(requestEntity.getBytes(StandardCharsets.UTF_8));
         httpPost.setEntity(byteEntity);
@@ -98,5 +93,9 @@ public class ElasticInferenceServiceDenseTextEmbeddingsRequest extends ElasticIn
     @Override
     public boolean[] getTruncationInfo() {
         return null;
+    }
+
+    public TaskType getTaskType() {
+        return model.getTaskType();
     }
 }

@@ -8,19 +8,25 @@
 package org.elasticsearch.xpack.inference.services.elastic.request;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.inference.InferenceStringGroup;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceUsageContext;
+import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 
-public record ElasticInferenceServiceDenseTextEmbeddingsRequestEntity(
-    List<String> inputs,
-    String modelId,
-    @Nullable ElasticInferenceServiceUsageContext usageContext,
-    @Nullable Integer dimensions
+import static org.elasticsearch.inference.InferenceStringGroup.toStringList;
+
+public record ElasticInferenceServiceDenseEmbeddingsRequestEntity(
+    List<InferenceStringGroup> inputs,
+    ElasticInferenceServiceDenseEmbeddingsModel model,
+    @Nullable ElasticInferenceServiceUsageContext usageContext
 ) implements ToXContentObject {
 
     private static final String INPUT_FIELD = "input";
@@ -28,23 +34,18 @@ public record ElasticInferenceServiceDenseTextEmbeddingsRequestEntity(
     private static final String USAGE_CONTEXT = "usage_context";
     private static final String DIMENSIONS = "dimensions";
 
-    public ElasticInferenceServiceDenseTextEmbeddingsRequestEntity {
+    public ElasticInferenceServiceDenseEmbeddingsRequestEntity {
         Objects.requireNonNull(inputs);
-        Objects.requireNonNull(modelId);
+        Objects.requireNonNull(model);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.startArray(INPUT_FIELD);
 
-        for (String input : inputs) {
-            builder.value(input);
-        }
+        writeInputs(builder);
 
-        builder.endArray();
-
-        builder.field(MODEL_FIELD, modelId);
+        builder.field(MODEL_FIELD, model.getServiceSettings().modelId());
 
         // optional field
         if (Objects.nonNull(usageContext) && usageContext != ElasticInferenceServiceUsageContext.UNSPECIFIED) {
@@ -52,6 +53,7 @@ public record ElasticInferenceServiceDenseTextEmbeddingsRequestEntity(
         }
 
         // optional field
+        var dimensions = model.getServiceSettings().dimensions();
         if (Objects.nonNull(dimensions)) {
             builder.field(DIMENSIONS, dimensions);
         }
@@ -61,4 +63,17 @@ public record ElasticInferenceServiceDenseTextEmbeddingsRequestEntity(
         return builder;
     }
 
+    private void writeInputs(XContentBuilder builder) throws IOException {
+        switch (model.getConfigurations().getTaskType()) {
+            case EMBEDDING -> builder.field(INPUT_FIELD, inputs);
+            case TEXT_EMBEDDING -> builder.field(INPUT_FIELD, toStringList(inputs));
+            default -> throw new IllegalArgumentException(
+                Strings.format(
+                    "Invalid task type [%s]. Must be one of %s",
+                    model.getConfigurations().getTaskType(),
+                    EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.EMBEDDING)
+                )
+            );
+        }
+    }
 }

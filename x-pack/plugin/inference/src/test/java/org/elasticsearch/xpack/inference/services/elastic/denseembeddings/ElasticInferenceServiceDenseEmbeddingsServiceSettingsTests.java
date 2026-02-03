@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.elastic.densetextembeddings;
+package org.elasticsearch.xpack.inference.services.elastic.denseembeddings;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
@@ -32,22 +32,22 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializationTestCase<
-    ElasticInferenceServiceDenseTextEmbeddingsServiceSettings> {
+public class ElasticInferenceServiceDenseEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializationTestCase<
+    ElasticInferenceServiceDenseEmbeddingsServiceSettings> {
 
     @Override
-    protected Writeable.Reader<ElasticInferenceServiceDenseTextEmbeddingsServiceSettings> instanceReader() {
-        return ElasticInferenceServiceDenseTextEmbeddingsServiceSettings::new;
+    protected Writeable.Reader<ElasticInferenceServiceDenseEmbeddingsServiceSettings> instanceReader() {
+        return ElasticInferenceServiceDenseEmbeddingsServiceSettings::new;
     }
 
     @Override
-    protected ElasticInferenceServiceDenseTextEmbeddingsServiceSettings createTestInstance() {
+    protected ElasticInferenceServiceDenseEmbeddingsServiceSettings createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected ElasticInferenceServiceDenseTextEmbeddingsServiceSettings mutateInstance(
-        ElasticInferenceServiceDenseTextEmbeddingsServiceSettings instance
+    protected ElasticInferenceServiceDenseEmbeddingsServiceSettings mutateInstance(
+        ElasticInferenceServiceDenseEmbeddingsServiceSettings instance
     ) throws IOException {
         var modelId = instance.modelId();
         var similarity = instance.similarity();
@@ -61,7 +61,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(modelId, similarity, dimensions, maxInputTokens);
+        return new ElasticInferenceServiceDenseEmbeddingsServiceSettings(modelId, similarity, dimensions, maxInputTokens);
     }
 
     public void testFromMap_Request_WithAllSettings() {
@@ -71,7 +71,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
         var maxInputTokens = 512;
         var maxBatchSize = randomIntBetween(1, ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE_UPPER_BOUND);
 
-        var serviceSettings = ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.fromMap(
+        var serviceSettings = ElasticInferenceServiceDenseEmbeddingsServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
                     ServiceFields.MODEL_ID,
@@ -113,7 +113,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
                 new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))
             )
         );
-        var serviceSettings = ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.PERSISTENT);
+        var serviceSettings = ElasticInferenceServiceDenseEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.PERSISTENT);
 
         assertThat(map, is(Map.of(RateLimitSettings.FIELD_NAME, Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))));
         assertThat(serviceSettings.modelId(), is(modelId));
@@ -145,7 +145,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
         );
         var exception = expectThrows(
             ValidationException.class,
-            () -> ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST)
+            () -> ElasticInferenceServiceDenseEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST)
         );
 
         assertThat(map, is(Map.of(RateLimitSettings.FIELD_NAME, Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))));
@@ -173,7 +173,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
                 maxInputTokens
             )
         );
-        var serviceSettings = ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST);
+        var serviceSettings = ElasticInferenceServiceDenseEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST);
 
         assertThat(map, anEmptyMap());
         assertThat(serviceSettings.modelId(), is(modelId));
@@ -189,12 +189,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
         var dimensions = 1024;
         var maxInputTokens = 256;
 
-        var serviceSettings = new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
-            modelId,
-            similarity,
-            dimensions,
-            maxInputTokens
-        );
+        var serviceSettings = new ElasticInferenceServiceDenseEmbeddingsServiceSettings(modelId, similarity, dimensions, maxInputTokens);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
@@ -209,7 +204,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
     public void testToXContent_WritesOnlyNonNullFields() throws IOException {
         var modelId = "my-dense-model";
 
-        var serviceSettings = new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
+        var serviceSettings = new ElasticInferenceServiceDenseEmbeddingsServiceSettings(
             modelId,
             null, // similarity
             null, // dimensions
@@ -227,7 +222,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
     public void testToXContentFragmentOfExposedFields() throws IOException {
         var modelId = "my-dense-model";
 
-        var serviceSettings = new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(modelId, SimilarityMeasure.COSINE, 512, 128);
+        var serviceSettings = new ElasticInferenceServiceDenseEmbeddingsServiceSettings(modelId, SimilarityMeasure.COSINE, 512, 128);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         builder.startObject();
@@ -235,7 +230,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
         builder.endObject();
         String xContentResult = Strings.toString(builder);
 
-        // Only model_id and rate_limit should be in exposed fields
         assertThat(
             xContentResult,
             is(
@@ -253,18 +247,18 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
         );
     }
 
-    public static ElasticInferenceServiceDenseTextEmbeddingsServiceSettings createRandom() {
+    public static ElasticInferenceServiceDenseEmbeddingsServiceSettings createRandom() {
         var modelId = randomAlphaOfLength(10);
         var similarity = SimilarityMeasure.COSINE;
         var dimensions = randomBoolean() ? randomIntBetween(1, 1024) : null;
         var maxInputTokens = randomBoolean() ? randomIntBetween(128, 256) : null;
 
-        return new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(modelId, similarity, dimensions, maxInputTokens);
+        return new ElasticInferenceServiceDenseEmbeddingsServiceSettings(modelId, similarity, dimensions, maxInputTokens);
     }
 
     @Override
-    protected ElasticInferenceServiceDenseTextEmbeddingsServiceSettings mutateInstanceForVersion(
-        ElasticInferenceServiceDenseTextEmbeddingsServiceSettings instance,
+    protected ElasticInferenceServiceDenseEmbeddingsServiceSettings mutateInstanceForVersion(
+        ElasticInferenceServiceDenseEmbeddingsServiceSettings instance,
         TransportVersion version
     ) {
         return instance;

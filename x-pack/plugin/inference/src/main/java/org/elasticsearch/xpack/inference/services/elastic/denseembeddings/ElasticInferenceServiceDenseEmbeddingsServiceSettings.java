@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.elastic.densetextembeddings;
+package org.elasticsearch.xpack.inference.services.elastic.denseembeddings;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
@@ -36,7 +36,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractReq
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 
-public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends FilteredXContentObject
+public class ElasticInferenceServiceDenseEmbeddingsServiceSettings extends FilteredXContentObject
     implements
         ServiceSettings,
         ElasticInferenceServiceRateLimitServiceSettings {
@@ -57,7 +57,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
     private final Integer maxInputTokens;
     private final RateLimitSettings rateLimitSettings;
 
-    public static ElasticInferenceServiceDenseTextEmbeddingsServiceSettings fromMap(
+    public static ElasticInferenceServiceDenseEmbeddingsServiceSettings fromMap(
         Map<String, Object> map,
         ConfigurationParseContext context
     ) {
@@ -81,10 +81,10 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
             throw validationException;
         }
 
-        return new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(modelId, similarity, dims, maxInputTokens);
+        return new ElasticInferenceServiceDenseEmbeddingsServiceSettings(modelId, similarity, dims, maxInputTokens);
     }
 
-    public ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
+    public ElasticInferenceServiceDenseEmbeddingsServiceSettings(
         String modelId,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
@@ -97,7 +97,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
         this.rateLimitSettings = RateLimitSettings.DISABLED_INSTANCE;
     }
 
-    public ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(StreamInput in) throws IOException {
+    public ElasticInferenceServiceDenseEmbeddingsServiceSettings(StreamInput in) throws IOException {
         this.modelId = in.readString();
         this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
         this.dimensions = in.readOptionalVInt();
@@ -204,7 +204,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        ElasticInferenceServiceDenseTextEmbeddingsServiceSettings that = (ElasticInferenceServiceDenseTextEmbeddingsServiceSettings) o;
+        ElasticInferenceServiceDenseEmbeddingsServiceSettings that = (ElasticInferenceServiceDenseEmbeddingsServiceSettings) o;
         return Objects.equals(modelId, that.modelId)
             && similarity == that.similarity
             && Objects.equals(dimensions, that.dimensions)

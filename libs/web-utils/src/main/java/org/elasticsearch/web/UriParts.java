@@ -16,6 +16,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class UriParts {
@@ -31,41 +32,47 @@ public class UriParts {
     private static final String USERNAME = "username";
     private static final String PASSWORD = "password";
 
-    private static final Map<String, Class<?>> URI_PARTS_TYPES = Map.ofEntries(
-        Map.entry(DOMAIN, String.class),
-        Map.entry(FRAGMENT, String.class),
-        Map.entry(PATH, String.class),
-        Map.entry(PORT, Integer.class),
-        Map.entry(QUERY, String.class),
-        Map.entry(SCHEME, String.class),
-        Map.entry(USER_INFO, String.class),
-        Map.entry(EXTENSION, String.class),
-        Map.entry(USERNAME, String.class),
-        Map.entry(PASSWORD, String.class)
-    );
+    private static final LinkedHashMap<String, Class<?>> URI_PARTS_TYPES;
 
-    public static Map<String, Class<?>> getUriPartsTypes() {
+    static {
+        URI_PARTS_TYPES = new LinkedHashMap<>();
+        URI_PARTS_TYPES.putLast(DOMAIN, String.class);
+        URI_PARTS_TYPES.putLast(FRAGMENT, String.class);
+        URI_PARTS_TYPES.putLast(PATH, String.class);
+        URI_PARTS_TYPES.putLast(PORT, Integer.class);
+        URI_PARTS_TYPES.putLast(QUERY, String.class);
+        URI_PARTS_TYPES.putLast(SCHEME, String.class);
+        URI_PARTS_TYPES.putLast(EXTENSION, String.class);
+        URI_PARTS_TYPES.putLast(USER_INFO, String.class);
+        URI_PARTS_TYPES.putLast(USERNAME, String.class);
+        URI_PARTS_TYPES.putLast(PASSWORD, String.class);
+    }
+
+    public static LinkedHashMap<String, Class<?>> getUriPartsTypes() {
         return URI_PARTS_TYPES;
     }
 
     public static Map<String, Object> parse(String uriString) {
+        final var uriParts = new UriPartsMapCollector();
+        parse(uriString, uriParts);
+        return uriParts;
+    }
+
+    @SuppressForbidden(reason = "URL.getPath is used only if URI.getPath is unavailable")
+    public static void parse(final String uriString, final UriPartsCollector uriPartsCollector) {
         URI uri = null;
-        URL url = null;
+        URL fallbackUrl = null;
         try {
             uri = new URI(uriString);
         } catch (URISyntaxException e) {
             try {
-                url = new URL(uriString);
+                // noinspection deprecation
+                fallbackUrl = new URL(uriString);
             } catch (MalformedURLException e2) {
                 throw new IllegalArgumentException("unable to parse URI [" + uriString + "]");
             }
         }
-        return getUriParts(uri, url);
-    }
 
-    @SuppressForbidden(reason = "URL.getPath is used only if URI.getPath is unavailable")
-    private static Map<String, Object> getUriParts(URI uri, URL fallbackUrl) {
-        var uriParts = new HashMap<String, Object>();
         String domain;
         String fragment;
         String path;
@@ -95,12 +102,12 @@ public class UriParts {
             throw new IllegalArgumentException("at least one argument must be non-null");
         }
 
-        uriParts.put(DOMAIN, domain);
+        uriPartsCollector.domain(domain);
         if (fragment != null) {
-            uriParts.put(FRAGMENT, fragment);
+            uriPartsCollector.fragment(fragment);
         }
         if (path != null) {
-            uriParts.put(PATH, path);
+            uriPartsCollector.path(path);
             // To avoid any issues with extracting the extension from a path that contains a dot, we explicitly extract the extension
             // from the last segment in the path.
             var lastSegmentIndex = path.lastIndexOf('/');
@@ -109,26 +116,125 @@ public class UriParts {
                 int periodIndex = lastSegment.lastIndexOf('.');
                 if (periodIndex >= 0) {
                     // Don't include the dot in the extension field.
-                    uriParts.put(EXTENSION, lastSegment.substring(periodIndex + 1));
+                    uriPartsCollector.extension(lastSegment.substring(periodIndex + 1));
                 }
             }
         }
         if (port != -1) {
-            uriParts.put(PORT, port);
+            uriPartsCollector.port(port);
         }
         if (query != null) {
-            uriParts.put(QUERY, query);
+            uriPartsCollector.query(query);
         }
-        uriParts.put(SCHEME, scheme);
+        uriPartsCollector.scheme(scheme);
         if (userInfo != null) {
-            uriParts.put(USER_INFO, userInfo);
+            uriPartsCollector.userInfo(userInfo);
             if (userInfo.contains(":")) {
                 int colonIndex = userInfo.indexOf(':');
-                uriParts.put(USERNAME, userInfo.substring(0, colonIndex));
-                uriParts.put(PASSWORD, colonIndex < userInfo.length() ? userInfo.substring(colonIndex + 1) : "");
+                uriPartsCollector.username(userInfo.substring(0, colonIndex));
+                uriPartsCollector.password(colonIndex < userInfo.length() ? userInfo.substring(colonIndex + 1) : "");
+            }
+        }
+    }
+
+    /**
+     * A dedicated collector for URI parts. Implementation can be specific to the use case, for example, it can avoid map instance
+     * allocation and primitive value boxing by writing directly to the collecting data structure.
+     */
+    public interface UriPartsCollector {
+        void domain(String domain);
+
+        void fragment(String fragment);
+
+        void path(String path);
+
+        void extension(String extension);
+
+        void port(int port);
+
+        void query(String query);
+
+        void scheme(String scheme);
+
+        void userInfo(String userInfo);
+
+        void username(String username);
+
+        void password(String password);
+    }
+
+    /**
+     * A default implementation of {@link UriPartsCollector} that writes to a {@link Map}.
+     */
+    public static final class UriPartsMapCollector extends HashMap<String, Object> implements UriPartsCollector {
+        @Override
+        public void domain(String domain) {
+            if (domain != null) {
+                put(DOMAIN, domain);
             }
         }
 
-        return uriParts;
+        @Override
+        public void fragment(String fragment) {
+            if (fragment != null) {
+                put(FRAGMENT, fragment);
+            }
+        }
+
+        @Override
+        public void path(String path) {
+            if (path != null) {
+                put(PATH, path);
+            }
+        }
+
+        @Override
+        public void extension(String extension) {
+            if (extension != null) {
+                put(EXTENSION, extension);
+            }
+        }
+
+        @Override
+        public void port(int port) {
+            if (port >= 0) {
+                put(PORT, port);
+            }
+        }
+
+        @Override
+        public void query(String query) {
+            if (query != null) {
+                put(QUERY, query);
+            }
+        }
+
+        @Override
+        public void scheme(String scheme) {
+            if (scheme != null) {
+                put(SCHEME, scheme);
+            }
+        }
+
+        @Override
+        public void userInfo(String userInfo) {
+            if (userInfo != null) {
+                put(USER_INFO, userInfo);
+            }
+        }
+
+        @Override
+        public void username(String username) {
+            if (username != null) {
+                put(USERNAME, username);
+            }
+        }
+
+        @Override
+        public void password(String password) {
+            if (password != null) {
+                put(PASSWORD, password);
+            }
+        }
     }
 }

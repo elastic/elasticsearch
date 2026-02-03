@@ -48,34 +48,16 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
     @Override
     public IngestDocument execute(IngestDocument document) throws Exception {
         final String fqdn = document.getFieldValue(field, String.class, ignoreMissing);
-        final Map<String, String> info = RegisteredDomain.getRegisteredDomainInfo(fqdn);
-        if (info == null) {
-            if (ignoreMissing) {
-                return document;
-            } else {
-                throw new IllegalArgumentException("unable to set domain information for document");
-            }
-        }
         String fieldPrefix = targetField;
         if (fieldPrefix.isEmpty() == false) {
             fieldPrefix += ".";
         }
-
-        String domain = info.get(RegisteredDomain.DOMAIN);
-        if (domain != null) {
-            document.setFieldValue(fieldPrefix + RegisteredDomain.DOMAIN, domain);
-        }
-        String registeredDomain = info.get(RegisteredDomain.REGISTERED_DOMAIN);
-        if (registeredDomain != null) {
-            document.setFieldValue(fieldPrefix + RegisteredDomain.REGISTERED_DOMAIN, registeredDomain);
-        }
-        String eTLD = info.get(RegisteredDomain.ETLD);
-        if (eTLD != null) {
-            document.setFieldValue(fieldPrefix + RegisteredDomain.ETLD, eTLD);
-        }
-        String subdomain = info.get(RegisteredDomain.SUBDOMAIN);
-        if (subdomain != null) {
-            document.setFieldValue(fieldPrefix + RegisteredDomain.SUBDOMAIN, subdomain);
+        boolean infoFound = RegisteredDomain.parseRegisteredDomainInfo(
+            fqdn,
+            new IngestDocumentRegisteredDomainInfoCollector(document, fieldPrefix)
+        );
+        if (infoFound == false && ignoreMissing == false) {
+            throw new IllegalArgumentException("unable to set domain information for document");
         }
         return document;
     }
@@ -102,6 +84,36 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "ignore_missing", true);
 
             return new RegisteredDomainProcessor(tag, description, field, targetField, ignoreMissing);
+        }
+    }
+
+    private static class IngestDocumentRegisteredDomainInfoCollector implements RegisteredDomain.RegisteredDomainInfoCollector {
+        private final IngestDocument document;
+        private final String fieldPrefix;
+
+        IngestDocumentRegisteredDomainInfoCollector(IngestDocument document, String fieldPrefix) {
+            this.document = document;
+            this.fieldPrefix = fieldPrefix;
+        }
+
+        @Override
+        public void domain(String domain) {
+            document.setFieldValue(fieldPrefix + RegisteredDomain.DOMAIN, domain);
+        }
+
+        @Override
+        public void registeredDomain(String registeredDomain) {
+            document.setFieldValue(fieldPrefix + RegisteredDomain.REGISTERED_DOMAIN, registeredDomain);
+        }
+
+        @Override
+        public void topLevelDomain(String topLevelDomain) {
+            document.setFieldValue(fieldPrefix + RegisteredDomain.ETLD, topLevelDomain);
+        }
+
+        @Override
+        public void subdomain(String subdomain) {
+            document.setFieldValue(fieldPrefix + RegisteredDomain.SUBDOMAIN, subdomain);
         }
     }
 }

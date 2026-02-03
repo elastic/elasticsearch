@@ -16,11 +16,10 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
- * Tests documenting the current mutability characteristics of Map objects returned by Source.fromBytes()
- * and Source.fromMap()
- *
+ * Tests {@link Source#withMutations(Consumer)}. Other source mutability tests are welcomed.
  */
 public class SourceMutabilityTests extends ESTestCase {
 

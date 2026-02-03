@@ -36,7 +36,7 @@ final class PageToBatchPageOperator extends SinkOperator {
 
     PageToBatchPageOperator(SinkOperator delegate) {
         this.delegate = delegate;
-        logger.debug("[PageToBatchPageOperator] Created with delegate: {}", delegate.getClass().getSimpleName());
+        // logger.debug("[PageToBatchPageOperator] Created with delegate: {}", delegate.getClass().getSimpleName());
     }
 
     /**
@@ -49,17 +49,17 @@ final class PageToBatchPageOperator extends SinkOperator {
     @Override
     public boolean needsInput() {
         boolean result = delegate.needsInput();
-        logger.trace("[PageToBatchPageOperator] needsInput() = {}, hasBufferedPage={}", result, bufferedPage != null);
+        // logger.trace("[PageToBatchPageOperator] needsInput() = {}, hasBufferedPage={}", result, bufferedPage != null);
         return result;
     }
 
     @Override
     protected void doAddInput(Page page) {
-        logger.trace(
-            "[PageToBatchPageOperator] doAddInput called: pagePositions={}, hasExistingBuffer={}",
-            page.getPositionCount(),
-            bufferedPage != null
-        );
+        // logger.trace(
+        // "[PageToBatchPageOperator] doAddInput called: pagePositions={}, hasExistingBuffer={}",
+        // page.getPositionCount(),
+        // bufferedPage != null
+        // );
 
         if (page instanceof BatchPage) {
             throw new IllegalArgumentException("PageToBatchPageOperator received a BatchPage - this should not happen");
@@ -76,14 +76,14 @@ final class PageToBatchPageOperator extends SinkOperator {
 
         // If we have a buffered page, send it now (with isLastPageInBatch=false)
         if (bufferedPage != null) {
-            logger.trace("[PageToBatchPageOperator] Sending previously buffered page before buffering new one");
+            // logger.trace("[PageToBatchPageOperator] Sending previously buffered page before buffering new one");
             sendBufferedPage(false);
         }
 
         // Buffer the new page
         bufferedPage = page;
         bufferedBatchId = batchId;
-        logger.trace("[PageToBatchPageOperator] Buffered new page for batchId={}", batchId);
+        // logger.trace("[PageToBatchPageOperator] Buffered new page for batchId={}", batchId);
     }
 
     /**
@@ -104,7 +104,7 @@ final class PageToBatchPageOperator extends SinkOperator {
         delegate.addInput(batchPage);
 
         if (isLastPageInBatch) {
-            logger.debug("[PageToBatchPageOperator] Sent last page in batch {} with isLastPageInBatch=true", bufferedBatchId);
+            // logger.debug("[PageToBatchPageOperator] Sent last page in batch {} with isLastPageInBatch=true", bufferedBatchId);
         }
     }
 
@@ -115,16 +115,16 @@ final class PageToBatchPageOperator extends SinkOperator {
      */
     void flushBatch() {
         long batchId = batchContext != null ? batchContext.getBatchId() : bufferedBatchId;
-        logger.debug(
-            "[PageToBatchPageOperator] flushBatch called: batchId={}, hasBufferedPage={}, flushedInFinish={}",
-            batchId,
-            bufferedPage != null,
-            flushedInFinish
-        );
+        // logger.debug(
+        // "[PageToBatchPageOperator] flushBatch called: batchId={}, hasBufferedPage={}, flushedInFinish={}",
+        // batchId,
+        // bufferedPage != null,
+        // flushedInFinish
+        // );
 
         if (flushedInFinish) {
             // Already flushed in finish(), just reset state
-            logger.debug("[PageToBatchPageOperator] Already flushed in finish(), skipping duplicate flush");
+            // logger.debug("[PageToBatchPageOperator] Already flushed in finish(), skipping duplicate flush");
             flushedInFinish = false;
             bufferedBatchId = BatchContext.UNDEFINED_BATCH_ID;
             nextPageIndexInBatch = 0;
@@ -136,10 +136,10 @@ final class PageToBatchPageOperator extends SinkOperator {
             sendBufferedPage(true);
         } else {
             // No pages were produced - send empty marker page
-            logger.debug("[PageToBatchPageOperator] Sending empty marker for batch {}", batchId);
+            // logger.debug("[PageToBatchPageOperator] Sending empty marker for batch {}", batchId);
             BatchPage marker = BatchPage.createMarker(batchId, nextPageIndexInBatch);
             delegate.addInput(marker);
-            logger.debug("[PageToBatchPageOperator] Empty marker sent for batch {}", batchId);
+            // logger.debug("[PageToBatchPageOperator] Empty marker sent for batch {}", batchId);
         }
         bufferedBatchId = BatchContext.UNDEFINED_BATCH_ID;
         nextPageIndexInBatch = 0;
@@ -147,9 +147,9 @@ final class PageToBatchPageOperator extends SinkOperator {
 
     @Override
     public void finish() {
-        logger.debug("[PageToBatchPageOperator] finish() called, hasBufferedPage={}", bufferedPage != null);
+        // logger.debug("[PageToBatchPageOperator] finish() called, hasBufferedPage={}", bufferedPage != null);
         if (bufferedPage != null) {
-            logger.debug("[PageToBatchPageOperator] Flushing buffered page in finish()");
+            // logger.debug("[PageToBatchPageOperator] Flushing buffered page in finish()");
             sendBufferedPage(true);
             flushedInFinish = true;
         }
@@ -159,13 +159,13 @@ final class PageToBatchPageOperator extends SinkOperator {
     @Override
     public boolean isFinished() {
         boolean result = delegate.isFinished();
-        logger.trace("[PageToBatchPageOperator] isFinished() = {}, hasBufferedPage={}", result, bufferedPage != null);
+        // logger.trace("[PageToBatchPageOperator] isFinished() = {}, hasBufferedPage={}", result, bufferedPage != null);
         return result;
     }
 
     @Override
     public void close() {
-        logger.debug("[PageToBatchPageOperator] close() called, hasBufferedPage={}", bufferedPage != null);
+        // logger.debug("[PageToBatchPageOperator] close() called, hasBufferedPage={}", bufferedPage != null);
         // Release any buffered page on close
         if (bufferedPage != null) {
             logger.warn("[PageToBatchPageOperator] Releasing buffered page on close - this page was never flushed!");
@@ -173,6 +173,6 @@ final class PageToBatchPageOperator extends SinkOperator {
             bufferedPage = null;
         }
         delegate.close();
-        logger.debug("[PageToBatchPageOperator] close() completed");
+        // logger.debug("[PageToBatchPageOperator] close() completed");
     }
 }

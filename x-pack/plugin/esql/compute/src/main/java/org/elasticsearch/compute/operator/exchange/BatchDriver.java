@@ -139,30 +139,30 @@ public final class BatchDriver extends Driver {
 
     @Override
     protected void onNoPagesMoved() {
-        logger.trace(
-            "[BatchDriver] onNoPagesMoved called: state={}, activeOperators={}, hasSinkBuffer={}",
-            batchContext.getState(),
-            activeOperators.size(),
-            wrappedSink != null
-        );
+        // logger.trace(
+        // "[BatchDriver] onNoPagesMoved called: state={}, activeOperators={}, hasSinkBuffer={}",
+        // batchContext.getState(),
+        // activeOperators.size(),
+        // wrappedSink != null
+        // );
 
         // Only complete batch when in DRAINING state
         if (batchContext.getState() != BatchContext.BatchState.DRAINING) {
-            logger.trace("[BatchDriver] Not in DRAINING state, returning early");
+            // logger.trace("[BatchDriver] Not in DRAINING state, returning early");
             return;
         }
 
         // Check if any operator can still produce data
         for (Operator operator : activeOperators) {
             if (operator.canProduceMoreDataWithoutExtraInput()) {
-                logger.trace("[BatchDriver] Operator {} can produce more data - waiting", operator);
+                // logger.trace("[BatchDriver] Operator {} can produce more data - waiting", operator);
                 return;
             }
         }
 
         // Pipeline is drained - complete the batch
         if (activeOperators.isEmpty()) {
-            logger.debug("[BatchDriver] activeOperators is empty, completing batch");
+            // logger.debug("[BatchDriver] activeOperators is empty, completing batch");
             completeBatch("driver finished");
             return;
         }
@@ -171,20 +171,20 @@ public final class BatchDriver extends Driver {
         if (sourceOp instanceof SourceOperator source) {
             boolean isFinished = source.isFinished();
             boolean isBlocked = source.isBlocked().listener().isDone() == false;
-            logger.trace("[BatchDriver] Source state: isFinished={}, isBlocked={}", isFinished, isBlocked);
+            // logger.trace("[BatchDriver] Source state: isFinished={}, isBlocked={}", isFinished, isBlocked);
             if (isFinished || isBlocked) {
                 completeBatch("source blocked/finished");
             } else {
                 completeBatch("pipeline drained, normal completion");
             }
         } else {
-            logger.debug("[BatchDriver] First operator is not a SourceOperator: {}", sourceOp.getClass().getSimpleName());
+            // logger.debug("[BatchDriver] First operator is not a SourceOperator: {}", sourceOp.getClass().getSimpleName());
         }
     }
 
     private void completeBatch(String reason) {
         long batchId = batchContext.getBatchId();
-        logger.debug("[BatchDriver] Completing batch {} ({})", batchId, reason);
+        // logger.debug("[BatchDriver] Completing batch {} ({})", batchId, reason);
 
         // Flush the sink buffer
         wrappedSink.flushBatch();
@@ -195,7 +195,7 @@ public final class BatchDriver extends Driver {
         // Notify listeners
         batchDoneNotifier.notifyBatchDone(batchId);
 
-        logger.debug("[BatchDriver] Batch {} complete, state is now {}", batchId, batchContext.getState());
+        // logger.debug("[BatchDriver] Batch {} complete, state is now {}", batchId, batchContext.getState());
     }
 
     Page unwrapBatchPage(BatchPage batchPage) {

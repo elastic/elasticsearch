@@ -188,7 +188,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
                 planningEndNanos = System.nanoTime();
                 // Store the lookup plan from the response (if profiling is enabled)
                 lookupPlan = response.planString();
-                logger.debug("Client setup complete, connecting to server sink");
+                // logger.debug("Client setup complete, connecting to server sink");
                 // Connect to server's sink to receive results and send BatchExchangeStatusRequest
                 // This starts the server's driver which processes the batches
                 client.connectToServerSink();
@@ -232,7 +232,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
     }
 
     private void handleBatchExchangeSuccess() {
-        logger.debug("Batch exchange completed successfully");
+        // logger.debug("Batch exchange completed successfully");
     }
 
     private void handleBatchExchangeFailure(Exception e) {
@@ -265,7 +265,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
 
         totalInputRows += page.getPositionCount();
         long batchId = batchIdGenerator.incrementAndGet();
-        logger.trace("addInput: batchId={}, positions={}", batchId, page.getPositionCount());
+        // logger.trace("addInput: batchId={}, positions={}", batchId, page.getPositionCount());
 
         // Send page synchronously - the exchange buffer holds pages until server fetches them
         // Note: BatchPage constructor calls incRef() on blocks, so we need to release the batchPage on failure
@@ -274,7 +274,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
             Block[] inputBlocks = applyMatchFieldsMapping(page);
             batchPage = new BatchPage(new Page(inputBlocks), batchId, 0, true);
             client.sendPage(batchPage);
-            logger.trace("addInput: sent batchId={} to exchange buffer", batchId);
+            // logger.trace("addInput: sent batchId={} to exchange buffer", batchId);
         } catch (RuntimeException e) {
             logger.error("addInput: failed to send batchId={}: {}", batchId, e.getMessage());
             // Release the batchPage if it was created (it has incRef'd the blocks)
@@ -421,16 +421,16 @@ public class StreamingLookupFromIndexOperator implements Operator {
                         }
                     }
                 }
-                logger.trace(
-                    "getOutput: pollPage returned null, activeBatches={}, pageCacheSize={}, pageCacheDone={}",
-                    activeBatches.size(),
-                    client.pageCacheSize(),
-                    client.isPageCacheDone()
-                );
+                // logger.trace(
+                // "getOutput: pollPage returned null, activeBatches={}, pageCacheSize={}, pageCacheDone={}",
+                // activeBatches.size(),
+                // client.pageCacheSize(),
+                // client.isPageCacheDone()
+                // );
                 return null;
             }
 
-            logger.trace("getOutput: received result for batch {}, isLast={}", resultPage.batchId(), resultPage.isLastPageInBatch());
+            // logger.trace("getOutput: received result for batch {}, isLast={}", resultPage.batchId(), resultPage.isLastPageInBatch());
 
             // Result pages were created on the server-side driver, so we need to allow
             // releasing them on this (client-side) driver thread
@@ -473,7 +473,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
     private void completeBatch(BatchState batch, Iterator<?> it) {
         if (batch != null) {
             if (client != null) {
-                logger.debug("completeBatch: batchId={}", batch.batchId);
+                // logger.debug("completeBatch: batchId={}", batch.batchId);
                 client.markBatchCompleted(batch.batchId);
             }
             Releasables.closeExpectNoException(batch.join);
@@ -488,7 +488,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
      */
     private void cleanupBatchResources() {
         for (BatchState batch : activeBatches.values()) {
-            logger.debug("cleanupBatchResources: cleaning batch batchId={}", batch.batchId);
+            // logger.debug("cleanupBatchResources: cleaning batch batchId={}", batch.batchId);
             Releasables.closeExpectNoException(batch.join);
         }
         activeBatches.clear();
@@ -496,11 +496,11 @@ public class StreamingLookupFromIndexOperator implements Operator {
 
     @Override
     public void finish() {
-        logger.debug("finish() called, activeBatches={}", activeBatches.size());
+        // logger.debug("finish() called, activeBatches={}", activeBatches.size());
         finished = true;
         if (client != null && clientFinishCalled == false) {
             clientFinishCalled = true;
-            logger.debug("Calling client.finish()");
+            // logger.debug("Calling client.finish()");
             client.finish();
         }
     }
@@ -515,20 +515,20 @@ public class StreamingLookupFromIndexOperator implements Operator {
             return false;
         }
         if (activeBatches.isEmpty() == false) {
-            logger.trace("isFinished: false (activeBatches not empty), size={}", activeBatches.size());
+            // logger.trace("isFinished: false (activeBatches not empty), size={}", activeBatches.size());
             return false;
         }
         // If no batches were ever sent, we're done immediately
         if (batchIdGenerator.get() == 0) {
-            logger.debug("isFinished: true (no batches sent)");
+            // logger.debug("isFinished: true (no batches sent)");
             return true;
         }
         // Must wait for server's batch exchange status response to confirm success/failure
         if (client != null && client.isFinished() == false) {
-            logger.debug("isFinished: false (client not finished, waiting for server response)");
+            // logger.debug("isFinished: false (client not finished, waiting for server response)");
             return false;
         }
-        logger.debug("isFinished: true");
+        // logger.debug("isFinished: true");
         return true;
     }
 
@@ -575,7 +575,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
             // If page cache is done but we have batches without markers, wait for server response
             // to know if the server succeeded or failed before deciding what to do
             if (client.isPageCacheDone()) {
-                logger.debug("isBlocked: pageCacheDone but missing markers, waiting for server response");
+                // logger.debug("isBlocked: pageCacheDone but missing markers, waiting for server response");
                 return client.waitForServerResponse();
             }
 
@@ -585,18 +585,18 @@ public class StreamingLookupFromIndexOperator implements Operator {
             // - isPageCacheDone() == true (no more pages expected)
             IsBlockedResult waitResult = client.waitUntilPageReady();
             if (waitResult.listener().isDone() == false) {
-                logger.trace(
-                    "isBlocked: waiting for page, activeBatches={}, pageCacheSize={}, pageCacheDone={}",
-                    activeBatches.size(),
-                    client.pageCacheSize(),
-                    client.isPageCacheDone()
-                );
+                // logger.trace(
+                // "isBlocked: waiting for page, activeBatches={}, pageCacheSize={}, pageCacheDone={}",
+                // activeBatches.size(),
+                // client.pageCacheSize(),
+                // client.isPageCacheDone()
+                // );
                 return waitResult;
             }
             // waitUntilPageReady() returned done - pages are ready or cache is done
             // If cache is done but no pages ready, we need to wait for server response
             if (client.hasReadyPages() == false && client.isPageCacheDone()) {
-                logger.debug("isBlocked: no ready pages and pageCacheDone, waiting for server response");
+                // logger.debug("isBlocked: no ready pages and pageCacheDone, waiting for server response");
                 return client.waitForServerResponse();
             }
         }
@@ -605,7 +605,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
         // This ensures we don't complete until we know if the server succeeded or failed
         if (finished && activeBatches.isEmpty() && client != null) {
             if (client.isFinished() == false) {
-                logger.debug("isBlocked: waiting for server response");
+                // logger.debug("isBlocked: waiting for server response");
                 return client.waitForServerResponse();
             }
         }
@@ -615,7 +615,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
 
     @Override
     public void close() {
-        logger.debug("close() called");
+        // logger.debug("close() called");
         processEndNanos = System.nanoTime();
         closed = true;
 
@@ -634,7 +634,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
                     clientReadyListener.addListener(waitFuture);
                     waitFuture.actionGet(TimeValue.timeValueSeconds(30));
                 } catch (Exception e) {
-                    logger.debug("Timeout waiting for server setup during close", e);
+                    // logger.debug("Timeout waiting for server setup during close", e);
                 }
             }
             try {

@@ -115,13 +115,13 @@ public class BatchSortedExchangeSource implements Closeable {
         int pageIndex = batchPage.pageIndexInBatch();
         boolean isLast = batchPage.isLastPageInBatch();
 
-        logger.trace(
-            "[BatchSortedExchangeSource] Received page: batchId={}, pageIndex={}, isLast={}, positions={}",
-            batchId,
-            pageIndex,
-            isLast,
-            batchPage.getPositionCount()
-        );
+        // logger.trace(
+        // "[BatchSortedExchangeSource] Received page: batchId={}, pageIndex={}, isLast={}, positions={}",
+        // batchId,
+        // pageIndex,
+        // isLast,
+        // batchPage.getPositionCount()
+        // );
 
         // Get or create batch state
         BatchState state = activeBatches.computeIfAbsent(batchId, k -> new BatchState());
@@ -141,12 +141,12 @@ public class BatchSortedExchangeSource implements Closeable {
             flushBufferedPages(state);
         } else if (pageIndex > state.nextExpectedIndex) {
             // Page arrived out of order - buffer it
-            logger.trace(
-                "[BatchSortedExchangeSource] Buffering out-of-order page: batchId={}, pageIndex={}, expected={}",
-                batchId,
-                pageIndex,
-                state.nextExpectedIndex
-            );
+            // logger.trace(
+            // "[BatchSortedExchangeSource] Buffering out-of-order page: batchId={}, pageIndex={}, expected={}",
+            // batchId,
+            // pageIndex,
+            // state.nextExpectedIndex
+            // );
             state.bufferedPages.put(pageIndex, batchPage);
         } else {
             // Page index is less than expected - this shouldn't happen (duplicate or invalid)
@@ -163,7 +163,7 @@ public class BatchSortedExchangeSource implements Closeable {
 
         // Clean up completed batches
         if (state.isComplete()) {
-            logger.debug("[BatchSortedExchangeSource] Batch {} complete, removing state", batchId);
+            // logger.debug("[BatchSortedExchangeSource] Batch {} complete, removing state", batchId);
             activeBatches.remove(batchId);
         }
     }
@@ -178,11 +178,11 @@ public class BatchSortedExchangeSource implements Closeable {
                 BatchPage bufferedPage = state.bufferedPages.remove(nextKey);
                 outputQueue.add(bufferedPage);
                 state.nextExpectedIndex++;
-                logger.trace(
-                    "[BatchSortedExchangeSource] Flushed buffered page: batchId={}, pageIndex={}",
-                    bufferedPage.batchId(),
-                    bufferedPage.pageIndexInBatch()
-                );
+                // logger.trace(
+                // "[BatchSortedExchangeSource] Flushed buffered page: batchId={}, pageIndex={}",
+                // bufferedPage.batchId(),
+                // bufferedPage.pageIndexInBatch()
+                // );
             } else {
                 // Gap in sequence - wait for missing page
                 break;

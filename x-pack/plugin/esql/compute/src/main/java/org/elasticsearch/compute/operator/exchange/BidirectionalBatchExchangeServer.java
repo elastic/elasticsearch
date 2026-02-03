@@ -98,12 +98,12 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
     ) throws Exception {
         super(sessionId, exchangeService, executor, maxBufferSize, transportService, task, settings);
         this.clientNode = clientNode;
-        logger.debug(
-            "[LookupJoinServer] Created BidirectionalBatchExchangeServer: clientToServerId={}, serverToClientId={}, maxBufferSize={}",
-            clientToServerId,
-            serverToClientId,
-            maxBufferSize
-        );
+        // logger.debug(
+        // "[LookupJoinServer] Created BidirectionalBatchExchangeServer: clientToServerId={}, serverToClientId={}, maxBufferSize={}",
+        // clientToServerId,
+        // serverToClientId,
+        // maxBufferSize
+        // );
         initialize();
     }
 
@@ -145,23 +145,23 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
      * Called automatically from the constructor.
      */
     private void initialize() {
-        logger.debug("[LookupJoinServer] Initializing BidirectionalBatchExchangeServer");
+        // logger.debug("[LookupJoinServer] Initializing BidirectionalBatchExchangeServer");
         // Create source handler for client-to-server direction
         clientToServerSourceHandler = new ExchangeSourceHandler(maxBufferSize, executor);
         exchangeService.addExchangeSourceHandler(clientToServerId, clientToServerSourceHandler);
         clientToServerSource = new ExchangeSourceOperator(clientToServerSourceHandler.createExchangeSource());
-        logger.debug("[LookupJoinServer] Created client-to-server source handler: exchangeId={}", clientToServerId);
+        // logger.debug("[LookupJoinServer] Created client-to-server source handler: exchangeId={}", clientToServerId);
 
         // Create sink handler for server-to-client direction
         serverToClientSinkHandler = exchangeService.createSinkHandler(serverToClientId, maxBufferSize);
         serverToClientSink = serverToClientSinkHandler.createExchangeSink(() -> {});
-        logger.debug("[LookupJoinServer] Created server-to-client sink handler: exchangeId={}", serverToClientId);
+        // logger.debug("[LookupJoinServer] Created server-to-client sink handler: exchangeId={}", serverToClientId);
 
         // Register this server with ExchangeService so it can receive BatchExchangeStatusRequest messages
         // The handler is registered once in ExchangeService.registerTransportHandler() and routes to servers
         exchangeService.registerBatchExchangeServer(serverToClientId, this);
-        logger.debug("[LookupJoinServer] Registered with ExchangeService for exchangeId={}", serverToClientId);
-        logger.debug("[LookupJoinServer] BidirectionalBatchExchangeServer initialized successfully");
+        // logger.debug("[LookupJoinServer] Registered with ExchangeService for exchangeId={}", serverToClientId);
+        // logger.debug("[LookupJoinServer] BidirectionalBatchExchangeServer initialized successfully");
     }
 
     /**
@@ -193,7 +193,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
             try {
                 channel.sendResponse(new BatchExchangeStatusResponse(false, new IllegalStateException("Server is closing")));
             } catch (Exception e) {
-                logger.debug("[LookupJoinServer] Failed to send failure response (server closing)", e);
+                // logger.debug("[LookupJoinServer] Failed to send failure response (server closing)", e);
             }
             return;
         }
@@ -201,10 +201,10 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         // Store the listener to send response when batch processing completes
         // This MUST be done before starting processing to ensure we can always reply on error
         batchExchangeStatusListener = new ChannelActionListener<>(channel);
-        logger.debug(
-            "[LookupJoinServer] BatchExchangeStatusRequest received for exchangeId={}, stored listener (processing will start now)",
-            exchangeId
-        );
+        // logger.debug(
+        // "[LookupJoinServer] BatchExchangeStatusRequest received for exchangeId={}, stored listener (processing will start now)",
+        // exchangeId
+        // );
 
         // Start the driver now that client is ready and we have the response channel
         // If an error occurs during startup, ensure we reply
@@ -253,11 +253,11 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         // Mark driver as started before actually starting it
         driverStarted = true;
 
-        logger.debug("[LookupJoinServer] Client is ready, starting driver for exchangeId={}", serverToClientId);
+        // logger.debug("[LookupJoinServer] Client is ready, starting driver for exchangeId={}", serverToClientId);
         // driverFuture was already created in startBatchProcessing(), reuse it
         // The driver completion listener will handle both success and failure cases and reply
         Driver.start(threadContext, executor, batchDriver, 1000, createDriverCompletionListener());
-        logger.debug("[LookupJoinServer] Server driver started");
+        // logger.debug("[LookupJoinServer] Server driver started");
     }
 
     /**
@@ -268,9 +268,10 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
      */
     private ActionListener<Void> createDriverCompletionListener() {
         return ActionListener.wrap(ignored -> {
-            logger.debug("[LookupJoinServer] Driver completion listener onResponse called (success) for exchangeId={}", serverToClientId);
+            // logger.debug("[LookupJoinServer] Driver completion listener onResponse called (success) for exchangeId={}",
+            // serverToClientId);
             driverFuture.onResponse(null);
-            logger.debug("[LookupJoinServer] Batch processing completed successfully for exchangeId={}", serverToClientId);
+            // logger.debug("[LookupJoinServer] Batch processing completed successfully for exchangeId={}", serverToClientId);
             // Close server resources BEFORE sending response to client
             // This ensures DirectoryReader etc. are closed before client proceeds with cleanup
             Exception closeException = null;
@@ -287,16 +288,16 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
                 sendBatchExchangeStatusResponse(true, null);
             }
         }, failure -> {
-            logger.debug(
-                "[LookupJoinServer] Driver completion listener onFailure called for exchangeId={}, failure={}",
-                serverToClientId,
-                failure != null ? failure.getMessage() : "unknown"
-            );
-            logger.debug(
-                "[LookupJoinServer] Batch processing completed with failure for exchangeId={}, failure={}",
-                serverToClientId,
-                failure != null ? failure.getMessage() : "unknown"
-            );
+            // logger.debug(
+            // "[LookupJoinServer] Driver completion listener onFailure called for exchangeId={}, failure={}",
+            // serverToClientId,
+            // failure != null ? failure.getMessage() : "unknown"
+            // );
+            // logger.debug(
+            // "[LookupJoinServer] Batch processing completed with failure for exchangeId={}, failure={}",
+            // serverToClientId,
+            // failure != null ? failure.getMessage() : "unknown"
+            // );
             // Complete the future first so close() won't throw
             driverFuture.onFailure(failure);
             // Close server resources BEFORE sending response
@@ -336,11 +337,11 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
     private void sendBatchExchangeStatusResponse(boolean success, Exception failure) {
         ActionListener<BatchExchangeStatusResponse> listener = batchExchangeStatusListener;
         if (listener != null) {
-            logger.debug(
-                "[LookupJoinServer] Sending batch exchange status {} response for exchangeId={}",
-                success ? "success" : "failure",
-                serverToClientId
-            );
+            // logger.debug(
+            // "[LookupJoinServer] Sending batch exchange status {} response for exchangeId={}",
+            // success ? "success" : "failure",
+            // serverToClientId
+            // );
             try {
                 listener.onResponse(new BatchExchangeStatusResponse(success, failure));
                 // Clear the listener after sending response to prevent duplicate replies
@@ -413,7 +414,8 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         TimeValue statusInterval,
         Releasable releasable
     ) {
-        logger.debug("[LookupJoinServer] Starting batch processing: sessionId={}, operators={}", sessionId, intermediateOperators.size());
+        // logger.debug("[LookupJoinServer] Starting batch processing: sessionId={}, operators={}", sessionId,
+        // intermediateOperators.size());
 
         long startTime = System.currentTimeMillis();
         long startNanos = System.nanoTime();
@@ -427,20 +429,13 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
 
         // Connect to the client's sink handler for client-to-server exchange
         // This should be called after the client has created its sink handler
-        logger.debug(
-            "[LookupJoinServer] Connecting to client sink handler via transport for client-to-server exchange, exchangeId={}",
-            clientToServerId
-        );
-        connectRemoteSink(
-            clientNode,
-            clientToServerId,
-            clientToServerSourceHandler,
-            ActionListener.wrap(
-                nullValue -> logger.debug("[LookupJoinServer] Client-to-server exchange sink connection completed successfully"),
-                failure -> logger.error("[LookupJoinServer] Client-to-server exchange sink connection failed", failure)
-            ),
-            "client sink handler"
-        );
+        // logger.debug(
+        // "[LookupJoinServer] Connecting to client sink handler via transport for client-to-server exchange, exchangeId={}",
+        // clientToServerId
+        // );
+        connectRemoteSink(clientNode, clientToServerId, clientToServerSourceHandler, ActionListener.wrap(nullValue -> {
+            // logger.debug("[LookupJoinServer] Client-to-server exchange sink connection completed successfully");
+        }, failure -> logger.error("[LookupJoinServer] Client-to-server exchange sink connection failed", failure)), "client sink handler");
         // Create sink operator that writes to server-to-client exchange
         serverToClientSinkOperator = new ExchangeSinkOperator(serverToClientSink);
         ExchangeSinkOperator baseSinkOperator = serverToClientSinkOperator;
@@ -452,10 +447,10 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         // Store the releasable - server.close() will close it after driver finishes
         // Driver does NOT close the releasable - everything is handled in server.close()
         this.releasableRef.set(releasable);
-        logger.debug(
-            "[LookupJoinServer] Stored releasable in releasableRef for cleanup: releasable={}",
-            releasable != null ? releasable.getClass().getSimpleName() : "null"
-        );
+        // logger.debug(
+        // "[LookupJoinServer] Stored releasable in releasableRef for cleanup: releasable={}",
+        // releasable != null ? releasable.getClass().getSimpleName() : "null"
+        // );
 
         // Create BatchDriver with wrapped sink that converts Pages to BatchPages
         // BatchDriver will set itself on the PageToBatchPageOperator wrapper
@@ -475,16 +470,16 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
             statusInterval,
             () -> {
                 // No-op - server.close() will handle all cleanup
-                logger.debug("[LookupJoinServer] Driver finished, releasable will be closed by server.close()");
+                // logger.debug("[LookupJoinServer] Driver finished, releasable will be closed by server.close()");
             }
         );
-        logger.debug("[LookupJoinServer] BatchDriver created");
+        // logger.debug("[LookupJoinServer] BatchDriver created");
 
         // Set up batch done callback listener
         // Note: The batch marker (last page with isLastPageInBatch=true) is now sent by
         // PageToBatchPageOperator.flushBatch() which is called by BatchDriver.completeBatch()
         // before this callback is invoked. This callback is just for logging/monitoring.
-        logger.debug("[LookupJoinServer] Registering batch done callback listener");
+        // logger.debug("[LookupJoinServer] Registering batch done callback listener");
         ActionListener<Long> batchDoneListener = new ActionListener<Long>() {
             @Override
             public void onResponse(Long batchId) {}
@@ -499,16 +494,16 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
             }
         };
         batchDriver.onBatchDone().addListener(batchDoneListener);
-        logger.debug("[LookupJoinServer] Batch done callback listener registered successfully");
+        // logger.debug("[LookupJoinServer] Batch done callback listener registered successfully");
 
         // Store thread context for later driver startup
         this.threadContext = threadContext;
 
         // Handler was already registered in initialize(), no need to register again
-        logger.debug(
-            "[LookupJoinServer] Driver prepared, will start when BatchExchangeStatusRequest is received for exchangeId={}",
-            serverToClientId
-        );
+        // logger.debug(
+        // "[LookupJoinServer] Driver prepared, will start when BatchExchangeStatusRequest is received for exchangeId={}",
+        // serverToClientId
+        // );
 
         // Mark driver as prepared (but not started yet)
         driverPrepared = true;
@@ -543,11 +538,11 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
                 }
             }
         }, CLIENT_READY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-        logger.debug(
-            "[LookupJoinServer] Scheduled client ready timeout: {}s for exchangeId={}",
-            CLIENT_READY_TIMEOUT_SECONDS,
-            serverToClientId
-        );
+        // logger.debug(
+        // "[LookupJoinServer] Scheduled client ready timeout: {}s for exchangeId={}",
+        // CLIENT_READY_TIMEOUT_SECONDS,
+        // serverToClientId
+        // );
     }
 
     /**
@@ -566,7 +561,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         // Complete the driverFuture if it exists and hasn't completed yet
         // This allows close() to proceed without throwing IllegalStateException
         if (driverFuture != null && driverFuture.isDone() == false) {
-            logger.debug("[LookupJoinServer] Force closing - completing driver future");
+            // logger.debug("[LookupJoinServer] Force closing - completing driver future");
             driverFuture.onFailure(new IllegalStateException("Server force closed during ExchangeService shutdown"));
         }
         close();
@@ -576,12 +571,12 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
     public void close() {
         // Prevent recursive close if server is part of a releasable that includes itself
         if (closing) {
-            logger.debug("[LookupJoinServer] Already closing, skipping recursive close");
+            // logger.debug("[LookupJoinServer] Already closing, skipping recursive close");
             return;
         }
         closing = true;
 
-        logger.debug("[LookupJoinServer] Closing BidirectionalBatchExchangeServer");
+        // logger.debug("[LookupJoinServer] Closing BidirectionalBatchExchangeServer");
 
         // Cancel the client ready timeout if it's still pending
         if (clientReadyTimeoutFuture != null) {
@@ -607,9 +602,9 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         Releasable releasable = releasableRef.getAndSet(null);
         if (releasable != null) {
             try {
-                logger.debug("[LookupJoinServer] Closing releasable resources (shardContext, localBreaker, etc.)");
+                // logger.debug("[LookupJoinServer] Closing releasable resources (shardContext, localBreaker, etc.)");
                 releasable.close();
-                logger.debug("[LookupJoinServer] Releasable resources closed successfully");
+                // logger.debug("[LookupJoinServer] Releasable resources closed successfully");
             } catch (Exception e) {
                 logger.warn("[LookupJoinServer] Exception closing releasable", e);
             }
@@ -620,18 +615,18 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         // Don't need to close batchDriver - when driver finishes, it already closes its operators
         // and the releasable passed to it. The driver itself doesn't need explicit closing.
         if (serverToClientSink != null && serverToClientSink.isFinished() == false) {
-            logger.debug("[LookupJoinServer] Finishing server-to-client sink");
+            // logger.debug("[LookupJoinServer] Finishing server-to-client sink");
             serverToClientSink.finish();
         }
         if (clientToServerSource != null) {
-            logger.debug("[LookupJoinServer] Closing client-to-server source");
+            // logger.debug("[LookupJoinServer] Closing client-to-server source");
             clientToServerSource.close();
         }
         if (clientToServerSourceHandler != null) {
             // Drain any pages remaining in the source handler's buffer before removing.
             // When server fails, pages that were transferred from client but not yet consumed
             // would leak if we don't drain them here.
-            logger.debug("[LookupJoinServer] Draining client-to-server source handler buffer and removing handler");
+            // logger.debug("[LookupJoinServer] Draining client-to-server source handler buffer and removing handler");
             clientToServerSourceHandler.finishEarly(true, ActionListener.noop());
             exchangeService.removeExchangeSourceHandler(clientToServerId);
         }
@@ -639,15 +634,15 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
             // Don't call finishSinkHandler() immediately - the client may still be reading pages.
             // Wait for the sink handler to be actually finished (all pages consumed) before cleaning up.
             serverToClientSinkHandler.addCompletionListener(ActionListener.wrap(v -> {
-                logger.debug("[LookupJoinServer] Sink handler completed, finishing it");
+                // logger.debug("[LookupJoinServer] Sink handler completed, finishing it");
                 exchangeService.finishSinkHandler(serverToClientId, null);
             }, e -> {
-                logger.debug("[LookupJoinServer] Sink handler completed with error, finishing it: {}", e.getMessage());
+                // logger.debug("[LookupJoinServer] Sink handler completed with error, finishing it: {}", e.getMessage());
                 exchangeService.finishSinkHandler(serverToClientId, e);
             }));
         }
         // Unregister this server from ExchangeService
         exchangeService.unregisterBatchExchangeServer(serverToClientId);
-        logger.debug("[LookupJoinServer] BidirectionalBatchExchangeServer closed");
+        // logger.debug("[LookupJoinServer] BidirectionalBatchExchangeServer closed");
     }
 }

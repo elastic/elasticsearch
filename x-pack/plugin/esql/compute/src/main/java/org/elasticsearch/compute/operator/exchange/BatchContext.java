@@ -82,7 +82,7 @@ public final class BatchContext {
                 "Cannot start batch " + newBatchId + ": current state is " + state + " (expected NOT_STARTED or IDLE)"
             );
         }
-        logger.debug("[BatchContext] {} -> ACTIVE (batch {})", state, newBatchId);
+        // logger.debug("[BatchContext] {} -> ACTIVE (batch {})", state, newBatchId);
         this.batchId = newBatchId;
         this.state = BatchState.ACTIVE;
     }
@@ -95,7 +95,7 @@ public final class BatchContext {
         if (state != BatchState.ACTIVE) {
             throw new IllegalStateException("Cannot start draining: current state is " + state + " (expected ACTIVE)");
         }
-        logger.debug("[BatchContext] ACTIVE -> DRAINING (batch {})", batchId);
+        // logger.debug("[BatchContext] ACTIVE -> DRAINING (batch {})", batchId);
         this.state = BatchState.DRAINING;
     }
 
@@ -107,7 +107,7 @@ public final class BatchContext {
         if (state != BatchState.DRAINING) {
             throw new IllegalStateException("Cannot end batch: current state is " + state + " (expected DRAINING)");
         }
-        logger.debug("[BatchContext] DRAINING -> IDLE (batch {} complete)", batchId);
+        // logger.debug("[BatchContext] DRAINING -> IDLE (batch {} complete)", batchId);
         this.batchId = UNDEFINED_BATCH_ID;
         this.state = BatchState.IDLE;
     }

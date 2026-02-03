@@ -846,12 +846,12 @@ public class LocalExecutionPlanner {
                     Transport.Connection connection = service.getTransportService().getConnection(node);
                     TransportVersion nodeVersion = connection.getTransportVersion();
                     if (nodeVersion.supports(ESQL_STREAMING_LOOKUP_JOIN) == false) {
-                        logger.debug(
-                            "Using non-streaming lookup operator: node [{}] has transport version [{}] which does not support [{}]",
-                            node.getId(),
-                            nodeVersion,
-                            ESQL_STREAMING_LOOKUP_JOIN
-                        );
+                        // logger.debug(
+                        // "Using non-streaming lookup operator: node [{}] has transport version [{}] which does not support [{}]",
+                        // node.getId(),
+                        // nodeVersion,
+                        // ESQL_STREAMING_LOOKUP_JOIN
+                        // );
                         return false;
                     }
                 }
@@ -859,7 +859,7 @@ public class LocalExecutionPlanner {
             return true;
         } catch (Exception e) {
             // If we can't determine the version, fall back to non-streaming for safety
-            logger.debug("Failed to determine target node version for lookup, using non-streaming operator", e);
+            // logger.debug("Failed to determine target node version for lookup, using non-streaming operator", e);
             return false;
         }
     }
@@ -1222,7 +1222,7 @@ public class LocalExecutionPlanner {
             try {
                 for (DriverFactory df : driverFactories) {
                     for (int i = 0; i < df.driverParallelism.instanceCount; i++) {
-                        logger.trace("building {} {}", i, df);
+                        // logger.trace("building {} {}", i, df);
                         drivers.add(df.driverSupplier.apply(sessionId));
                     }
                 }

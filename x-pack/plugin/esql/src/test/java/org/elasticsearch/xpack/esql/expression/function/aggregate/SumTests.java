@@ -112,16 +112,15 @@ public class SumTests extends AbstractAggregationTestCase {
         return new TestCaseSupplier(fieldSupplier.name(), List.of(fieldSupplier.type()), () -> {
             var fieldTypedData = fieldSupplier.get();
 
-            Object expected;
-            String expectedWarning = null;
-
             DataType type = fieldTypedData.type().widenSmallNumeric();
-            try {
+            var data = fieldTypedData.multiRowData();
+            Object expected = null;
+            if (data.isEmpty() == false) {
                 expected = switch (type) {
-                    case INTEGER -> fieldTypedData.multiRowData().stream().mapToLong(v -> (int) v).sum();
-                    case LONG -> fieldTypedData.multiRowData().stream().mapToLong(v -> (long) v).reduce(0L, Math::addExact);
+                    case INTEGER -> data.stream().mapToLong(v -> (int) v).sum();
+                    case LONG -> data.stream().mapToLong(v -> (long) v).reduce(0L, Math::addExact);
                     case DOUBLE -> {
-                        var value = fieldTypedData.multiRowData().stream().mapToDouble(v -> (double) v).sum();
+                        var value = data.stream().mapToDouble(v -> (double) v).sum();
 
                         if (Double.isInfinite(value) || Double.isNaN(value)) {
                             yield null;
@@ -129,38 +128,23 @@ public class SumTests extends AbstractAggregationTestCase {
 
                         yield value;
                     }
-                    case AGGREGATE_METRIC_DOUBLE -> fieldTypedData.multiRowData()
-                        .stream()
+                    case AGGREGATE_METRIC_DOUBLE -> data.stream()
                         .mapToDouble(v -> ((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) v).sum())
                         .sum();
-                    case EXPONENTIAL_HISTOGRAM -> fieldTypedData.multiRowData()
-                        .stream()
-                        .mapToDouble(obj -> ((ExponentialHistogram) obj).sum())
-                        .sum();
-                    case TDIGEST -> fieldTypedData.multiRowData().stream().mapToDouble(obj -> ((TDigestHolder) obj).getSum()).sum();
+                    case EXPONENTIAL_HISTOGRAM -> data.stream().mapToDouble(obj -> ((ExponentialHistogram) obj).sum()).sum();
+                    case TDIGEST -> data.stream().mapToDouble(obj -> ((TDigestHolder) obj).getSum()).sum();
                     default -> throw new IllegalStateException("Unexpected value: " + fieldTypedData.type());
                 };
-            } catch (ArithmeticException e) {
-                expected = null;
-                throw new UnsupportedOperationException("Unsupported exception in test for type " + type + ": " + e);
             }
 
             var returnType = type.isWholeNumber() == false || type == UNSIGNED_LONG ? DataType.DOUBLE : DataType.LONG;
 
-            var testCase = new TestCaseSupplier.TestCase(
+            return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
                 standardAggregatorName("Sum", fieldSupplier.type()),
                 returnType,
                 equalTo(expected)
             );
-
-            if (expectedWarning != null) {
-                testCase = testCase.withWarning(
-                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
-                ).withWarning("Line 1:1: " + expectedWarning);
-            }
-
-            return testCase;
         });
     }
 }

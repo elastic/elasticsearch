@@ -26,8 +26,12 @@ public final class CancellableBulkScorer extends BulkScorer {
     // slow down boolean queries
     private static final int INITIAL_INTERVAL = 1 << 12;
 
-    // No point in having intervals that are larger than 1M
-    private static final int MAX_INTERVAL = 1 << 20;
+    // Lowered from 1 << 20 (1M) to 1 << 14 (~ 16K) to ensure cancellation checks happen
+    // more frequently for slow-scoring queries
+    private static final int MAX_INTERVAL = 1 << 14;
+
+    // Maximum time in nanoseconds between cancellation checks (1 second).
+    private static final long MAX_TIME_BETWEEN_CHECKS_NANOS = 1_000_000_000L;
 
     private final BulkScorer scorer;
     private final Runnable checkCancelled;
@@ -40,11 +44,19 @@ public final class CancellableBulkScorer extends BulkScorer {
     @Override
     public int score(LeafCollector collector, Bits acceptDocs, int min, int max) throws IOException {
         int interval = INITIAL_INTERVAL;
+        long lastCheckTime = System.nanoTime();
+
         while (min < max) {
             checkCancelled.run();
+            lastCheckTime = System.nanoTime();
+
             final int newMax = (int) Math.min((long) min + interval, max);
             min = scorer.score(collector, acceptDocs, min, newMax);
-            interval = Math.min(interval << 1, MAX_INTERVAL);
+
+            long elapsed = System.nanoTime() - lastCheckTime;
+            if (elapsed < MAX_TIME_BETWEEN_CHECKS_NANOS) {
+                interval = Math.min(interval << 1, MAX_INTERVAL);
+            }
         }
         checkCancelled.run();
         return min;
@@ -55,4 +67,8 @@ public final class CancellableBulkScorer extends BulkScorer {
         return scorer.cost();
     }
 
+    // exposed for testing
+    static int getMaxInterval() {
+        return MAX_INTERVAL;
+    }
 }

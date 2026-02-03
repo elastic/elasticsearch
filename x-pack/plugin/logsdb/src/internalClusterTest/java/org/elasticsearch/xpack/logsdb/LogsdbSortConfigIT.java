@@ -317,8 +317,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
             doc("{\"@timestamp\":\"2025-01-01T13:00:09\",\"test_id\": \"%id%\"}"),
             doc("{\"@timestamp\":\"2025-01-01T13:00:10\",\"test_id\": \"%id%\"}"),
             doc("{\"@timestamp\":\"2025-01-01T13:00:11\",\"test_id\": \"%id%\"}"),
-            doc("{\"@timestamp\":\"2025-01-01T13:00:12\",\"test_id\": \"%id%\"}"),
-        };
+            doc("{\"@timestamp\":\"2025-01-01T13:00:12\",\"test_id\": \"%id%\"}"), };
 
         createDataStream(dataStreamName, mapping, s -> s.put("index.mapping.use_doc_values_skipper", "true"));
 
@@ -364,8 +363,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
             doc("{\"@timestamp\":\"2025-01-01T13:00:09\",\"host.name\":\"foo\",\"test_id\": \"%id%\"}"),
             doc("{\"@timestamp\":\"2025-01-01T13:00:10\",\"host.name\":\"foo\",\"test_id\": \"%id%\"}"),
             doc("{\"@timestamp\":\"2025-01-01T13:00:11\",\"host.name\":\"foo\",\"test_id\": \"%id%\"}"),
-            doc("{\"@timestamp\":\"2025-01-01T13:00:12\",\"host.name\":\"foo\",\"test_id\": \"%id%\"}"),
-        };
+            doc("{\"@timestamp\":\"2025-01-01T13:00:12\",\"host.name\":\"foo\",\"test_id\": \"%id%\"}"), };
 
         createDataStream(dataStreamName, mapping, s -> s.put("index.mapping.use_doc_values_skipper", "true"));
 
@@ -411,8 +409,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
             doc("{\"@timestamp\":\"2025-01-01T13:00:09\",\"host.name\":\"foo\",\"test_id\": \"%id%\"}"),
             doc("{\"@timestamp\":\"2025-01-01T13:00:10\",\"host.name\":\"foo\",\"test_id\": \"%id%\"}"),
             doc("{\"@timestamp\":\"2025-01-01T13:00:11\",\"host.name\":\"bar\",\"test_id\": \"%id%\"}"),
-            doc("{\"@timestamp\":\"2025-01-01T13:00:12\",\"host.name\":\"foo\",\"test_id\": \"%id%\"}"),
-        };
+            doc("{\"@timestamp\":\"2025-01-01T13:00:12\",\"host.name\":\"foo\",\"test_id\": \"%id%\"}"), };
 
         createDataStream(dataStreamName, mapping, s -> s.put("index.mapping.use_doc_values_skipper", "true"));
 
@@ -536,9 +533,9 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
 
             // build a Sort somehow that uses the right ComparatorSource?
             MappedFieldType timestampField = shard.mapperService().fieldType("@timestamp");
-            SortField sf = timestampField.fielddataBuilder(FieldDataContext.noRuntimeFields("test", "test")).build(
-                new IndexFieldDataCache.None(), new NoneCircuitBreakerService()
-            ).sortField(null, MultiValueMode.MAX, null, false);
+            SortField sf = timestampField.fielddataBuilder(FieldDataContext.noRuntimeFields("test", "test"))
+                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
+                .sortField(null, MultiValueMode.MAX, null, false);
             if (sf.getComparatorSource() instanceof LongValuesComparatorSource lv) {
                 lv.setMatchTailQuery();
             }

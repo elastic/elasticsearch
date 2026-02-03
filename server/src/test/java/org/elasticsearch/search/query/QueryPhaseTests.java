@@ -15,7 +15,6 @@ import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
-import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -43,7 +42,6 @@ import org.apache.lucene.search.FilterCollector;
 import org.apache.lucene.search.FilterLeafCollector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Pruning;
@@ -52,7 +50,6 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
@@ -102,7 +99,6 @@ import org.elasticsearch.test.TestSearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -1064,74 +1060,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
             context.searcher().addQueryCancellation(task::ensureNotCancelled);
             expectThrows(TaskCancelledException.class, context::rewrittenQuery);
         }
-    }
-
-    public void testRewriteToMatchTailQuery() throws IOException {
-        // expected case
-        assertTailQuery(
-            new Sort(LongField.newSortField("foo", true, SortedNumericSelector.Type.MIN)),
-            new Sort(LongField.newSortField("foo", false, SortedNumericSelector.Type.MIN)),
-            true);
-
-        // not reversed
-        assertTailQuery(
-            new Sort(LongField.newSortField("bar", true, SortedNumericSelector.Type.MIN)),
-            new Sort(LongField.newSortField("bar", true, SortedNumericSelector.Type.MIN)),
-            false);
-
-        // search sort has multiple sort fields
-        assertTailQuery(
-            new Sort(LongField.newSortField("foo", true, SortedNumericSelector.Type.MAX), SortField.FIELD_DOC),
-            new Sort(LongField.newSortField("bar", false, SortedNumericSelector.Type.MIN)),
-            false
-        );
-
-        // no search sort
-        assertTailQuery(
-            null,
-            new Sort(LongField.newSortField("bar", true, SortedNumericSelector.Type.MIN)),
-            false);
-
-        // no search or index sort
-        assertTailQuery(null, null, false);
-
-        // no index sort
-        assertTailQuery(new Sort(new SortField("foo", SortField.Type.LONG)), null, false);
-    }
-
-    private void assertTailQuery(Sort searchSort, Sort indexSort, boolean expectsTailQuery) throws IOException {
-
-        Directory directory = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig();
-        if (indexSort != null) {
-            iwc.setIndexSort(indexSort);
-        }
-        RandomIndexWriter w = new RandomIndexWriter(random(), directory, iwc);
-        for (int i = 0; i < 100; i++) {
-            Document doc = new Document();
-            doc.add(new LongField("foo", i, Store.NO));
-            w.addDocument(doc);
-        }
-        w.close();
-        IndexReader reader = DirectoryReader.open(directory);
-
-        String expectedQuery = expectsTailQuery ?
-            "MatchTailDocsQuery{size=10}" :
-            "*:*";
-
-        try (TestSearchContext context = createContext(newContextSearcher(reader), new MatchAllDocsQuery())) {
-            if (searchSort != null) {
-                DocValueFormat[] formats = new DocValueFormat[searchSort.getSort().length];
-                Arrays.fill(formats, DocValueFormat.RAW);
-                context.sort(new SortAndFormats(searchSort, formats));
-            }
-            context.setSize(10);
-
-            assertThat(context.rewrittenQuery().toString(), is(expectedQuery));
-        }
-
-        reader.close();
-        directory.close();
     }
 
     public void testRank() throws IOException {

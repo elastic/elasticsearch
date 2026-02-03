@@ -2950,8 +2950,7 @@ public class IndexShardTests extends IndexShardTestCase {
         MappedFieldType foo = shard.mapperService().fieldType("foo");
         IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(
             shard.indexSettings.getNodeSettings(),
-            new IndexFieldDataCache.Listener() {
-            }
+            new IndexFieldDataCache.Listener() {}
         );
         IndexFieldDataService indexFieldDataService = new IndexFieldDataService(
             shard.indexSettings,

@@ -27,39 +27,6 @@
 #define SQR7U_STRIDE_BYTES_LEN 16 // Must be a power of 2
 #endif
 
-#ifdef __linux__
-    #include <sys/auxv.h>
-    #include <asm/hwcap.h>
-#endif
-
-#ifdef __APPLE__
-#include <TargetConditionals.h>
-#endif
-
-EXPORT int vec_caps() {
-#ifdef __APPLE__
-    #ifdef TARGET_OS_OSX
-        // All M series Apple silicon support Neon instructions; no SVE support as for now (M4)
-        return 1;
-    #else
-        #error "Unsupported Apple platform"
-    #endif
-#elif __linux__
-    int hwcap = getauxval(AT_HWCAP);
-    int neon = (hwcap & HWCAP_ASIMD) != 0;
-    // https://docs.kernel.org/arch/arm64/sve.html
-    int sve = (hwcap & HWCAP_SVE) != 0;
-    int hwcap2 = getauxval(AT_HWCAP2);
-    int sve2 = (hwcap2 & HWCAP2_SVE2) != 0;
-    if (neon && sve) {
-        return 2;
-    }
-    return neon;
-#else
-    #error "Unsupported aarch64 platform"
-#endif
-}
-
 static inline int32_t dot7u_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
     // We have contention in the instruction pipeline on the accumulation
     // registers if we use too few.

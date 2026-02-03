@@ -11,6 +11,8 @@ package org.elasticsearch.gradle.internal;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.OutputDirectory;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.internal.file.Chmod;
 
@@ -41,6 +43,7 @@ public class EmptyDirTask extends DefaultTask {
     }
 
     @OutputDirectory
+    @PathSensitive(PathSensitivity.RELATIVE)
     public File getDir() {
         return dir;
     }

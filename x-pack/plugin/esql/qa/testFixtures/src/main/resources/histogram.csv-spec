@@ -245,16 +245,16 @@ Case return value test (Standard Mode)
 required_capability: histogram_release_version
 required_capability: case_support_for_summary_fields
 
-FROM tdigest_standard_index
+FROM histogram_standard_index
  | WHERE STARTS_WITH(instance, "hand-rolled") 
  | EVAL result = CASE(instance == "hand-rolled-empty", caseTestPlaceholder, responseTime)
  | KEEP result
 ;
 ignoreOrder:true
 
-result:tdigest
-"{""centroids"":[3, 5],""counts"":[8, 32]}"
-"{""min"": 0.1, ""max"": 0.5, ""sum"": 16.4, ""centroids"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}"
+result:histogram
+"{""values"":[3, 5],""counts"":[8, 32]}"
+"{""values"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}"
 ;
 
 // -------------------------------------------------------------------------------
@@ -264,7 +264,7 @@ required_capability: histogram_release_version
 required_capability: ts_command_v0
 required_capability: count_of_histogram_types
 
-TS tdigest_timeseries_index 
+TS histogram_timeseries_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
  | WHERE TRANGE(to_datetime("2025-09-25T00:30:00Z"), to_datetime("2025-09-25T01:00:00Z"))
  | STATS min = MIN(to_tdigest(responseTime)), 
@@ -301,7 +301,7 @@ required_capability: histogram_release_version
 required_capability: ts_command_v0
 required_capability: count_of_histogram_types
 
-TS tdigest_timeseries_index 
+TS histogram_timeseries_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
  | WHERE TRANGE(to_datetime("2025-09-25T00:30:00Z"), to_datetime("2025-09-25T01:00:00Z"))
  | STATS min = MIN(to_tdigest(responseTime)), 
@@ -339,7 +339,7 @@ required_capability: histogram_release_version
 required_capability: ts_command_v0
 required_capability: count_of_histogram_types
 
-TS tdigest_timeseries_index 
+TS histogram_timeseries_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
  | WHERE TRANGE(to_datetime("2025-09-25T00:30:00Z"), to_datetime("2025-09-25T01:00:00Z"))
  | STATS min = MIN(to_tdigest(responseTime)), 
@@ -374,7 +374,7 @@ Group Aggs By Date_Trunc and Instance (standard mode)
 required_capability: histogram_release_version
 required_capability: count_of_histogram_types
 
-FROM tdigest_standard_index 
+FROM histogram_standard_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
  | WHERE TRANGE(to_datetime("2025-09-25T00:30:00Z"), to_datetime("2025-09-25T01:00:00Z"))
  | STATS min = MIN(to_tdigest(responseTime)), 
@@ -410,7 +410,7 @@ Group Aggs By Bucket and Instance (standard mode)
 required_capability: histogram_release_version
 required_capability: count_of_histogram_types
 
-FROM tdigest_standard_index 
+FROM histogram_standard_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
  | WHERE TRANGE(to_datetime("2025-09-25T00:30:00Z"), to_datetime("2025-09-25T01:00:00Z"))
  | STATS min = MIN(to_tdigest(responseTime)), 

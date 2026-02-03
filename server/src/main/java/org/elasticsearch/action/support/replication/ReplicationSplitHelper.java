@@ -11,6 +11,7 @@ package org.elasticsearch.action.support.replication;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -43,6 +44,7 @@ public class ReplicationSplitHelper<
     ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
     Response extends ReplicationResponse> {
 
+    public static TransportVersion STALE_REQUEST_EXCEPTION_VERSION = TransportVersion.fromName("stale_request_exception");
     private final Logger logger;
     private final ClusterService clusterService;
     private final TimeValue initialRetryBackoffBound;

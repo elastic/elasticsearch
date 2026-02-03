@@ -78,6 +78,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.action.support.replication.ReplicationSplitHelper.STALE_REQUEST_EXCEPTION_VERSION;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
@@ -2043,7 +2044,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             185,
             NO_MATCHING_PROJECT_EXCEPTION_VERSION
         ),
-        STALE_REQUEST_EXCEPTION(StaleRequestException.class, StaleRequestException::new, 186, TransportVersion.minimumCompatible());
+        STALE_REQUEST_EXCEPTION(StaleRequestException.class, StaleRequestException::new, 186, STALE_REQUEST_EXCEPTION_VERSION);
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

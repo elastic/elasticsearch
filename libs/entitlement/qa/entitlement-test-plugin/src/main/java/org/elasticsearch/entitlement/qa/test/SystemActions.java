@@ -55,11 +55,6 @@ class SystemActions {
     private static final Thread NO_OP_SHUTDOWN_HOOK = new Thread(() -> {}, "Shutdown hook for testing");
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    static void runtimeAddShutdownHook() {
-        Runtime.getRuntime().addShutdownHook(NO_OP_SHUTDOWN_HOOK);
-    }
-
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
     static void runtimeRemoveShutdownHook() {
         Runtime.getRuntime().removeShutdownHook(NO_OP_SHUTDOWN_HOOK);
     }

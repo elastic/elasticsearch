@@ -184,8 +184,6 @@ class HardcodedEntitlements {
             )
         );
 
-        // conditionally add FIPS entitlements if FIPS only functionality is enforced
-        if (Booleans.parseBoolean(System.getProperty("org.bouncycastle.fips.approved_only"), false)) {
             // if custom trust store is set, grant read access to its location, otherwise use the default JDK trust store
             String trustStore = System.getProperty("javax.net.ssl.trustStore");
             Path trustStorePath = trustStore != null
@@ -207,11 +205,20 @@ class HardcodedEntitlements {
                     // read to lib dir is required for checksum validation
                     List.of(
                         new FilesEntitlement(List.of(FilesEntitlement.FileData.ofBaseDirPath(LIB, READ))),
-                        new ManageThreadsEntitlement()
+                        new ManageThreadsEntitlement(),
+                        new LoadNativeLibrariesEntitlement()
+                    )
+                ),
+                new Scope(
+                    "bc.rng.jent",
+                    // read to lib dir is required for checksum validation
+                    List.of(
+                        new FilesEntitlement(List.of(FilesEntitlement.FileData.ofBaseDirPath(LIB, READ))),
+                        new ManageThreadsEntitlement(),
+                        new LoadNativeLibrariesEntitlement()
                     )
                 )
             );
-        }
         return serverScopes;
     }
 

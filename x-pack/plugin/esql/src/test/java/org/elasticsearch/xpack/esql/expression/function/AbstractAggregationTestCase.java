@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
@@ -506,8 +507,17 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         assertThat(expression.dataType(), equalTo(testCase.expectedType()));
         expression = resolveSurrogates(expression);
 
-        // As expressions may be composed of multiple functions, we need to fold nulls bottom-up
+        // Fold nulls
         expression = expression.transformUp(e -> new FoldNull().rule(e, unboundLogicalOptimizerContext()));
+        assertThat(expression.dataType(), equalTo(testCase.expectedType()));
+
+        // Replace null aggs
+        expression = expression.transformUp(AggregateFunction.class,agg -> {
+            if (ReplaceStatsFilteredOrNullAggWithEval.shouldReplace(agg)) {
+                return Literal.of(agg, ReplaceStatsFilteredOrNullAggWithEval.mapNullToValue(agg));
+            }
+            return agg;
+        });
         assertThat(expression.dataType(), equalTo(testCase.expectedType()));
 
         Expression.TypeResolution resolution = expression.typeResolved();

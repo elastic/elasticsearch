@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.elastic.request;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -72,7 +73,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestEntityTests exte
     public void testSerialization_NonStreaming_ForCompletion() throws IOException {
         // Test non-streaming case (used for COMPLETION task type)
         var unifiedChatInput = new UnifiedChatInput(List.of("What is 2+2?"), ROLE, false);
-        var model = ElasticInferenceServiceCompletionModelTests.createModel("http://eis-gateway.com", "my-model-id");
+        var model = ElasticInferenceServiceCompletionModelTests.createModel("http://eis-gateway.com", "my-model-id", TaskType.COMPLETION);
         var entity = new ElasticInferenceServiceUnifiedChatCompletionRequestEntity(unifiedChatInput, model.getServiceSettings().modelId());
 
         XContentBuilder builder = JsonXContent.contentBuilder();
@@ -98,7 +99,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestEntityTests exte
     public void testSerialization_MultipleInputs_NonStreaming() throws IOException {
         // Test multiple inputs converted to messages (used for COMPLETION task type)
         var unifiedChatInput = new UnifiedChatInput(List.of("What is 2+2?", "What is the capital of France?"), ROLE, false);
-        var model = ElasticInferenceServiceCompletionModelTests.createModel("http://eis-gateway.com", "my-model-id");
+        var model = ElasticInferenceServiceCompletionModelTests.createModel("http://eis-gateway.com", "my-model-id", TaskType.COMPLETION);
         var entity = new ElasticInferenceServiceUnifiedChatCompletionRequestEntity(unifiedChatInput, model.getServiceSettings().modelId());
 
         XContentBuilder builder = JsonXContent.contentBuilder();
@@ -127,7 +128,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestEntityTests exte
 
     public void testSerialization_EmptyInput_NonStreaming() throws IOException {
         var unifiedChatInput = new UnifiedChatInput(List.of(""), ROLE, false);
-        var model = ElasticInferenceServiceCompletionModelTests.createModel("http://eis-gateway.com", "my-model-id");
+        var model = ElasticInferenceServiceCompletionModelTests.createModel("http://eis-gateway.com", "my-model-id", TaskType.COMPLETION);
         var entity = new ElasticInferenceServiceUnifiedChatCompletionRequestEntity(unifiedChatInput, model.getServiceSettings().modelId());
 
         XContentBuilder builder = JsonXContent.contentBuilder();
@@ -153,7 +154,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestEntityTests exte
     public void testSerialization_AlwaysSetsNToOne_NonStreaming() throws IOException {
         // Verify n is always 1 regardless of number of inputs
         var unifiedChatInput = new UnifiedChatInput(List.of("input1", "input2", "input3"), ROLE, false);
-        var model = ElasticInferenceServiceCompletionModelTests.createModel("http://eis-gateway.com", "my-model-id");
+        var model = ElasticInferenceServiceCompletionModelTests.createModel("http://eis-gateway.com", "my-model-id", TaskType.COMPLETION);
         var entity = new ElasticInferenceServiceUnifiedChatCompletionRequestEntity(unifiedChatInput, model.getServiceSettings().modelId());
 
         XContentBuilder builder = JsonXContent.contentBuilder();
@@ -187,7 +188,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestEntityTests exte
     public void testSerialization_AllMessagesHaveUserRole_NonStreaming() throws IOException {
         // Verify all messages have "user" role when converting from simple inputs
         var unifiedChatInput = new UnifiedChatInput(List.of("first", "second", "third"), ROLE, false);
-        var model = ElasticInferenceServiceCompletionModelTests.createModel("http://eis-gateway.com", "test-model");
+        var model = ElasticInferenceServiceCompletionModelTests.createModel("http://eis-gateway.com", "test-model", TaskType.COMPLETION);
         var entity = new ElasticInferenceServiceUnifiedChatCompletionRequestEntity(unifiedChatInput, model.getServiceSettings().modelId());
 
         XContentBuilder builder = JsonXContent.contentBuilder();

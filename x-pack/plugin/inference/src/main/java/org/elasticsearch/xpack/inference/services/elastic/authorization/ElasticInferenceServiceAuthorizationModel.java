@@ -21,8 +21,8 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
-import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
@@ -166,18 +166,18 @@ public class ElasticInferenceServiceAuthorizationModel {
         return Objects.requireNonNullElse(configuration.chunkingSettings(), new HashMap<>());
     }
 
-    private static ElasticInferenceServiceDenseTextEmbeddingsModel createDenseTextEmbeddingsModel(
+    private static ElasticInferenceServiceDenseEmbeddingsModel createDenseTextEmbeddingsModel(
         ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint,
         ElasticInferenceServiceComponents components
     ) {
         var config = getConfigurationOrEmpty(authorizedEndpoint);
         validateConfigurationForTextEmbedding(config);
 
-        return new ElasticInferenceServiceDenseTextEmbeddingsModel(
+        return new ElasticInferenceServiceDenseEmbeddingsModel(
             authorizedEndpoint.id(),
             TaskType.TEXT_EMBEDDING,
             ElasticInferenceService.NAME,
-            new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
+            new ElasticInferenceServiceDenseEmbeddingsServiceSettings(
                 authorizedEndpoint.modelName(),
                 getSimilarityMeasure(config),
                 config.dimensions(),
@@ -218,7 +218,7 @@ public class ElasticInferenceServiceAuthorizationModel {
     }
 
     private static Set<String> getSupportedElementTypes() {
-        return Set.of(ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.SUPPORTED_ELEMENT_TYPE.toString().toLowerCase(Locale.ROOT));
+        return Set.of(ElasticInferenceServiceDenseEmbeddingsServiceSettings.SUPPORTED_ELEMENT_TYPE.toString().toLowerCase(Locale.ROOT));
     }
 
     private static void validateFieldPresent(String field, Object fieldValue, TaskType taskType) {

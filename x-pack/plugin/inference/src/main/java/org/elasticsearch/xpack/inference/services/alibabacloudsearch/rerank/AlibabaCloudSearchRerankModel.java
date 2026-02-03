@@ -56,10 +56,14 @@ public class AlibabaCloudSearchRerankModel extends AlibabaCloudSearchModel {
         AlibabaCloudSearchRerankTaskSettings taskSettings,
         @Nullable DefaultSecretSettings secretSettings
     ) {
+        this(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secretSettings));
+    }
+
+    public AlibabaCloudSearchRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
         super(
-            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings),
-            new ModelSecrets(secretSettings),
-            serviceSettings.getCommonSettings()
+            modelConfigurations,
+            modelSecrets,
+            ((AlibabaCloudSearchRerankServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings()
         );
     }
 

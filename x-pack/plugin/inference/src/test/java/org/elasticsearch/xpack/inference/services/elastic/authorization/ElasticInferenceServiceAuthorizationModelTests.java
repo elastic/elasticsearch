@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.EIS_CHAT_PATH;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.EIS_MULTIMODAL_EMBED_PATH;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.EIS_SPARSE_PATH;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.EIS_TEXT_EMBED_PATH;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.createTaskTypeObject;
@@ -647,7 +648,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     idDenseMultimodal,
                     nameDenseMultimodal,
-                    createTaskTypeObject(EIS_TEXT_EMBED_PATH, TaskType.EMBEDDING.toString()),
+                    createTaskTypeObject(EIS_MULTIMODAL_EMBED_PATH, TaskType.EMBEDDING.toString()),
                     "ga",
                     null,
                     "",

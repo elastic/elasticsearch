@@ -186,7 +186,7 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
             // Position 3: null
             blockBuilder2.appendNull();
 
-            var runner = new TestDriverRunner().builder(driverContext()).input(blockBuilder1.build(), blockBuilder1.build());
+            var runner = new TestDriverRunner().builder(driverContext()).input(blockBuilder1.build(), blockBuilder2.build());
 
             try {
                 // Create a simple factory with multiple input evaluators

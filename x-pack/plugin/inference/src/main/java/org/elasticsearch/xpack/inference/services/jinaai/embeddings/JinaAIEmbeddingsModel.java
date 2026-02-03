@@ -61,9 +61,8 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
         );
     }
 
-    // should only be used for testing
     JinaAIEmbeddingsModel(
-        String modelId,
+        String inferenceId,
         BaseJinaAIEmbeddingsServiceSettings serviceSettings,
         JinaAIEmbeddingsTaskSettings taskSettings,
         ChunkingSettings chunkingSettings,
@@ -72,11 +71,27 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
         TaskType taskType
     ) {
         super(
-            new ModelConfigurations(modelId, taskType, JinaAIService.NAME, serviceSettings, taskSettings, chunkingSettings),
+            new ModelConfigurations(inferenceId, taskType, JinaAIService.NAME, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secretSettings),
             secretSettings,
             serviceSettings.getCommonSettings(),
             Objects.requireNonNullElse(ServiceUtils.createOptionalUri(uri), buildUri("JinaAI", DEFAULT_URI_BUILDER::build))
+        );
+    }
+
+    /**
+     * Constructor for creating {@link JinaAIEmbeddingsModel} instances
+     * from {@link ModelConfigurations} and {@link ModelSecrets}.
+     * @param config a model configurations object
+     * @param secrets a model secrets object
+     */
+    public JinaAIEmbeddingsModel(ModelConfigurations config, ModelSecrets secrets) {
+        super(
+            config,
+            secrets,
+            (DefaultSecretSettings) secrets.getSecretSettings(),
+            ((BaseJinaAIEmbeddingsServiceSettings) config.getServiceSettings()).getCommonSettings(),
+            buildUri("JinaAI", DEFAULT_URI_BUILDER::build)
         );
     }
 

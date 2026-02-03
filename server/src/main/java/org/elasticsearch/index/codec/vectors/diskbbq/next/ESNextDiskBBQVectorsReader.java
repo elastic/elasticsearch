@@ -213,6 +213,10 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
     @Override
     public Preconditioner getPreconditioner(FieldInfo fieldInfo) throws IOException {
         final FieldEntry fieldEntry = fields.get(fieldInfo.number);
+        // only seems possible in tests
+        if (fieldEntry == null) {
+            return null;
+        }
         long preconditionerOffset = ((NextFieldEntry) fieldEntry).preconditionerOffset();
         long preconditionerLength = ((NextFieldEntry) fieldEntry).preconditionerLength();
         if (preconditionerLength > 0) {
@@ -676,7 +680,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
             this.acceptDocs = acceptDocs;
             centroid = new float[fieldInfo.getVectorDimension()];
             quantizedVectorByteSize = quantEncoding.getDocPackedLength(fieldInfo.getVectorDimension());
-            quantizedByteLength = quantizedVectorByteSize + (Float.BYTES * 3) + Short.BYTES;
+            quantizedByteLength = quantizedVectorByteSize + (Float.BYTES * 3) + Integer.BYTES;
             osqVectorsScorer = ESVectorUtil.getESNextOSQVectorsScorer(
                 indexInput,
                 quantEncoding.queryBits(),
@@ -716,7 +720,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
             indexInput.readFloats(correctionsLower, 0, BULK_SIZE);
             indexInput.readFloats(correctionsUpper, 0, BULK_SIZE);
             for (int j = 0; j < BULK_SIZE; j++) {
-                correctionsSum[j] = Short.toUnsignedInt(indexInput.readShort());
+                correctionsSum[j] = indexInput.readInt();
             }
             indexInput.readFloats(correctionsAdd, 0, BULK_SIZE);
             // Now apply corrections
@@ -823,7 +827,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
                     queryQuantizer.quantizeQueryIfNecessary();
                     float qcDist = osqVectorsScorer.quantizeScore(queryQuantizer.getQuantizedTarget());
                     indexInput.readFloats(correctiveValues, 0, 3);
-                    final int quantizedComponentSum = Short.toUnsignedInt(indexInput.readShort());
+                    final int quantizedComponentSum = indexInput.readInt();
                     float score = osqVectorsScorer.score(
                         queryQuantizer.getQueryCorrections().lowerInterval(),
                         queryQuantizer.getQueryCorrections().upperInterval(),

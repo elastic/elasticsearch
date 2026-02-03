@@ -178,7 +178,28 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
      * and over again.
      */
     public String sourceText() {
-        return configuration == null ? Source.EMPTY.text() : configuration.query();
+        return sourceText(null);
+    }
+
+    /**
+     * Returns the query text for the given view name, or the main query if viewName is null.
+     * This is used during Source deserialization to look up the correct query string
+     * based on where the Source originated from.
+     */
+    public String sourceText(String viewName) {
+        if (configuration == null) {
+            return Source.EMPTY.text();
+        }
+        if (viewName == null) {
+            return configuration.query();
+        }
+        String viewQuery = configuration.viewQueries().get(viewName);
+        if (viewQuery == null) {
+            // Fallback to main query if view not found - this shouldn't happen in practice
+            // but provides graceful degradation
+            return configuration.query();
+        }
+        return viewQuery;
     }
 
     static void throwOnNullOptionalRead(Class<?> type) throws IOException {

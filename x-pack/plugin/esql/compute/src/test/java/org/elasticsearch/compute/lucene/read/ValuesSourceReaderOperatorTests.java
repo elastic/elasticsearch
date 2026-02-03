@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.lucene.read;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.FieldType;
@@ -104,6 +106,8 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -119,6 +123,7 @@ import static org.hamcrest.Matchers.sameInstance;
  * lucene to merge. It intentionally tries to create many files to make sure
  * that {@link ValuesSourceReaderOperator} works with it.
  */
+@Repeat(iterations = 10)
 @LuceneTestCase.SuppressFileSystems(value = "HandleLimitFS")
 public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     private static final String[] PREFIX = new String[] { "a", "b", "c" };
@@ -700,11 +705,11 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     interface CheckReaders {
-        void check(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readersBuilt);
+        void check(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readersBuilt);
     }
 
     interface CheckReadersWithName {
-        void check(String name, boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readersBuilt);
+        void check(String name, boolean reuseBlockLoaders, int pageCount, int segmentCount, Map<?, ?> readersBuilt);
     }
 
     record FieldCase(ValuesSourceReaderOperator.FieldInfo info, CheckResults checkResults, CheckReadersWithName checkReaders) {
@@ -717,8 +722,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 ft,
                 elementType,
                 checkResults,
-                (name, forcedRowByRow, pageCount, segmentCount, readersBuilt) -> checkReaders.check(
-                    forcedRowByRow,
+                (name, reuseBlockLoaders, pageCount, segmentCount, readersBuilt) -> checkReaders.check(
+                    reuseBlockLoaders,
                     pageCount,
                     segmentCount,
                     readersBuilt
@@ -754,6 +759,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
         );
         // Build one operator for each field, so we get a unique map to assert on
+        boolean reuseBlockLoaders = randomBoolean();
         List<Operator> operators = cases.stream()
             .map(
                 i -> new ValuesSourceReaderOperator.Factory(
@@ -766,7 +772,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                             STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                         )
                     ),
-                    randomBoolean(),
+                    reuseBlockLoaders,
                     0
                 ).get(driverContext)
             )
@@ -780,7 +786,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             assertThat(status.pagesReceived(), equalTo(input.size()));
             assertThat(status.pagesEmitted(), equalTo(input.size()));
             FieldCase fc = cases.get(i);
-            fc.checkReaders.check(fc.info.name(), allInOnePage, input.size(), reader.leaves().size(), status.readersBuilt());
+            fc.checkReaders.check(fc.info.name(), reuseBlockLoaders, input.size(), reader.leaves().size(), status.readersBuilt());
         }
     }
 
@@ -1227,207 +1233,177 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     class StatusChecks {
-        static void longsFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            docValues("long", "Longs", forcedRowByRow, pageCount, segmentCount, readers);
+        static void longsFromDocValues(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            docValues("long", "Longs", reuseColumnLoaders, pageCount, segmentCount, readers);
         }
 
-        static void longsFromSource(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            source("source_long", "Longs", forcedRowByRow, pageCount, segmentCount, readers);
+        static void longsFromSource(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            source("source_long", "Longs", reuseColumnLoaders, pageCount, segmentCount, readers);
         }
 
-        static void intsFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            docValues("int", "Ints", forcedRowByRow, pageCount, segmentCount, readers);
+        static void intsFromDocValues(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            docValues("int", "Ints", reuseColumnLoaders, pageCount, segmentCount, readers);
         }
 
-        static void intsFromSource(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            source("source_int", "Ints", forcedRowByRow, pageCount, segmentCount, readers);
+        static void intsFromSource(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            source("source_int", "Ints", reuseColumnLoaders, pageCount, segmentCount, readers);
         }
 
-        static void shortsFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            docValues("short", "Ints", forcedRowByRow, pageCount, segmentCount, readers);
+        static void shortsFromDocValues(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            docValues("short", "Ints", reuseColumnLoaders, pageCount, segmentCount, readers);
         }
 
-        static void bytesFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            docValues("byte", "Ints", forcedRowByRow, pageCount, segmentCount, readers);
+        static void bytesFromDocValues(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            docValues("byte", "Ints", reuseColumnLoaders, pageCount, segmentCount, readers);
         }
 
-        static void doublesFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            docValues("double", "Doubles", forcedRowByRow, pageCount, segmentCount, readers);
+        static void doublesFromDocValues(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            docValues("double", "Doubles", reuseColumnLoaders, pageCount, segmentCount, readers);
         }
 
-        static void boolFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            docValues("bool", "Booleans", forcedRowByRow, pageCount, segmentCount, readers);
+        static void boolFromDocValues(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            docValues("bool", "Booleans", reuseColumnLoaders, pageCount, segmentCount, readers);
         }
 
-        static void keywordsFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            docValues("kwd", "Ordinals", forcedRowByRow, pageCount, segmentCount, readers);
+        static void keywordsFromDocValues(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            docValues("kwd", "Ordinals", reuseColumnLoaders, pageCount, segmentCount, readers);
         }
 
-        static void keywordsFromStored(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            stored("stored_kwd", "Bytes", forcedRowByRow, pageCount, segmentCount, readers);
+        static void keywordsFromStored(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            stored("stored_kwd", "Bytes", reuseColumnLoaders, pageCount, segmentCount, readers);
         }
 
-        static void keywordsFromSource(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            source("source_kwd", "Bytes", forcedRowByRow, pageCount, segmentCount, readers);
+        static void keywordsFromSource(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            source("source_kwd", "Bytes", reuseColumnLoaders, pageCount, segmentCount, readers);
         }
 
-        static void textFromSource(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            source("source_text", "Bytes", forcedRowByRow, pageCount, segmentCount, readers);
+        static void textFromSource(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            source("source_text", "Bytes", reuseColumnLoaders, pageCount, segmentCount, readers);
         }
 
-        static void longTextFromSource(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            source("long_source_text", "Bytes", forcedRowByRow, pageCount, segmentCount, readers);
+        static void longTextFromSource(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            source("long_source_text", "Bytes", reuseColumnLoaders, pageCount, segmentCount, readers);
         }
 
-        static void textFromStored(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            stored("stored_text", "Bytes", forcedRowByRow, pageCount, segmentCount, readers);
+        static void textFromStored(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            stored("stored_text", "Bytes", reuseColumnLoaders, pageCount, segmentCount, readers);
         }
 
-        static void mvLongsFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            mvDocValues("mv_long", "Longs", forcedRowByRow, pageCount, segmentCount, readers);
+        static void mvLongsFromDocValues(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            mvDocValues("mv_long", "Longs", reuseColumnLoaders, pageCount, segmentCount, readers);
         }
 
-        static void mvLongsFromSource(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            source("mv_source_long", "Longs", forcedRowByRow, pageCount, segmentCount, readers);
+        static void mvLongsFromSource(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            source("mv_source_long", "Longs", reuseColumnLoaders, pageCount, segmentCount, readers);
         }
 
-        static void mvIntsFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            mvDocValues("mv_int", "Ints", forcedRowByRow, pageCount, segmentCount, readers);
+        static void mvIntsFromDocValues(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            mvDocValues("mv_int", "Ints", reuseColumnLoaders, pageCount, segmentCount, readers);
         }
 
-        static void mvIntsFromSource(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            source("mv_source_int", "Ints", forcedRowByRow, pageCount, segmentCount, readers);
+        static void mvIntsFromSource(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            source("mv_source_int", "Ints", reuseColumnLoaders, pageCount, segmentCount, readers);
         }
 
-        static void mvShortsFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            mvDocValues("mv_short", "Ints", forcedRowByRow, pageCount, segmentCount, readers);
+        static void mvShortsFromDocValues(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            mvDocValues("mv_short", "Ints", reuseColumnLoaders, pageCount, segmentCount, readers);
         }
 
-        static void mvBytesFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            mvDocValues("mv_byte", "Ints", forcedRowByRow, pageCount, segmentCount, readers);
+        static void mvBytesFromDocValues(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            mvDocValues("mv_byte", "Ints", reuseColumnLoaders, pageCount, segmentCount, readers);
         }
 
-        static void mvDoublesFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            mvDocValues("mv_double", "Doubles", forcedRowByRow, pageCount, segmentCount, readers);
+        static void mvDoublesFromDocValues(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            mvDocValues("mv_double", "Doubles", reuseColumnLoaders, pageCount, segmentCount, readers);
         }
 
-        static void mvBoolFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            mvDocValues("mv_bool", "Booleans", forcedRowByRow, pageCount, segmentCount, readers);
+        static void mvBoolFromDocValues(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            mvDocValues("mv_bool", "Booleans", reuseColumnLoaders, pageCount, segmentCount, readers);
         }
 
-        static void mvKeywordsFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            mvDocValues("mv_kwd", "Ordinals", forcedRowByRow, pageCount, segmentCount, readers);
+        static void mvKeywordsFromDocValues(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            mvDocValues("mv_kwd", "Ordinals", reuseColumnLoaders, pageCount, segmentCount, readers);
         }
 
-        static void mvKeywordsFromStored(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            stored("mv_stored_kwd", "Bytes", forcedRowByRow, pageCount, segmentCount, readers);
+        static void mvKeywordsFromStored(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            stored("mv_stored_kwd", "Bytes", reuseColumnLoaders, pageCount, segmentCount, readers);
         }
 
-        static void mvKeywordsFromSource(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            source("mv_source_kwd", "Bytes", forcedRowByRow, pageCount, segmentCount, readers);
+        static void mvKeywordsFromSource(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            source("mv_source_kwd", "Bytes", reuseColumnLoaders, pageCount, segmentCount, readers);
         }
 
-        static void mvTextFromStored(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            stored("mv_stored_text", "Bytes", forcedRowByRow, pageCount, segmentCount, readers);
+        static void mvTextFromStored(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            stored("mv_stored_text", "Bytes", reuseColumnLoaders, pageCount, segmentCount, readers);
         }
 
-        static void mvTextFromSource(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            source("mv_source_text", "Bytes", forcedRowByRow, pageCount, segmentCount, readers);
+        static void mvTextFromSource(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            source("mv_source_text", "Bytes", reuseColumnLoaders, pageCount, segmentCount, readers);
         }
 
-        static void textWithDelegate(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            if (forcedRowByRow) {
-                assertMap(
-                    readers,
-                    matchesMap().entry("text_with_delegate:row_stride:Delegating[to=kwd, impl=BytesRefsFromOrds.Singleton]", segmentCount)
-                );
-            } else {
-                assertMap(
-                    readers,
-                    matchesMap().entry(
-                        "text_with_delegate:column_at_a_time:Delegating[to=kwd, impl=BytesRefsFromOrds.Singleton]",
-                        lessThanOrEqualTo(pageCount)
-                    )
-                );
-            }
+        static void textWithDelegate(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            assertMap(
+                readers,
+                matchesMap().entry(
+                    "text_with_delegate:column_at_a_time:Delegating[to=kwd, impl=BytesRefsFromOrds.Singleton]",
+                    countMatcher(reuseColumnLoaders, pageCount, segmentCount, 0)
+                )
+            );
         }
 
-        static void mvTextWithDelegate(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            if (forcedRowByRow) {
-                assertMap(
-                    readers,
-                    matchesMap().entry(
-                        "mv_text_with_delegate:row_stride:Delegating[to=mv_kwd, impl=BytesRefsFromOrds.SortedSet]",
-                        equalTo(segmentCount)
-                    )
-                );
-            } else {
-                assertMap(
-                    readers,
-                    matchesMap().entry(
-                        "mv_text_with_delegate:column_at_a_time:Delegating[to=mv_kwd, impl=BytesRefsFromOrds.SortedSet]",
-                        lessThanOrEqualTo(pageCount)
-                    )
-                );
-            }
+        static void mvTextWithDelegate(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            assertMap(
+                readers,
+                matchesMap().entry(
+                    "mv_text_with_delegate:column_at_a_time:Delegating[to=mv_kwd, impl=BytesRefsFromOrds.SortedSet]",
+                    countMatcher(reuseColumnLoaders, pageCount, segmentCount, 0)
+                )
+            );
         }
 
-        static void constantNullTextWithDelegate(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            if (forcedRowByRow) {
-                assertMap(
-                    readers,
-                    matchesMap().entry(
-                        "missing_text_with_delegate:row_stride:Delegating[to=missing_kwd, impl=constant_nulls]",
-                        segmentCount
-                    )
-                );
-            } else {
-                assertMap(
-                    readers,
-                    matchesMap().entry(
-                        "missing_text_with_delegate:column_at_a_time:Delegating[to=missing_kwd, impl=constant_nulls]",
-                        lessThanOrEqualTo(pageCount)
-                    )
-                );
-            }
+        static void constantNullTextWithDelegate(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            assertMap(
+                readers,
+                matchesMap().entry(
+                    "missing_text_with_delegate:column_at_a_time:Delegating[to=missing_kwd, impl=constant_nulls]",
+                    countMatcher(reuseColumnLoaders, pageCount, segmentCount, 0)
+                )
+            );
         }
 
         private static void docValues(
             String name,
             String type,
-            boolean forcedRowByRow,
+            boolean reuseColumnLoaders,
             int pageCount,
             int segmentCount,
             Map<?, ?> readers
         ) {
-            if (forcedRowByRow) {
-                assertMap(readers, matchesMap().entry(name + ":row_stride:" + singleName(type), lessThanOrEqualTo(segmentCount)));
-            } else {
-                assertMap(readers, matchesMap().entry(name + ":column_at_a_time:" + singleName(type), lessThanOrEqualTo(pageCount)));
-            }
+            assertMap(
+                readers,
+                matchesMap().entry(
+                    name + ":column_at_a_time:" + singleName(type),
+                    countMatcher(reuseColumnLoaders, pageCount, segmentCount, 0)
+                )
+            );
         }
 
         private static void mvDocValues(
             String name,
             String type,
-            boolean forcedRowByRow,
+            boolean reuseColumnLoaders,
             int pageCount,
             int segmentCount,
             Map<?, ?> readers
         ) {
-            if (forcedRowByRow) {
-                Integer singletons = (Integer) readers.remove(name + ":row_stride:" + singleName(type));
-                if (singletons != null) {
-                    segmentCount -= singletons;
-                }
-                assertMap(readers, matchesMap().entry(name + ":row_stride:" + multiName(type), segmentCount));
-            } else {
-                Integer singletons = (Integer) readers.remove(name + ":column_at_a_time:" + singleName(type));
-                if (singletons != null) {
-                    pageCount -= singletons;
-                }
-                assertMap(readers, matchesMap().entry(name + ":column_at_a_time:" + multiName(type), lessThanOrEqualTo(pageCount)));
-            }
+            Integer singletons = (Integer) readers.remove(name + ":column_at_a_time:" + singleName(type));
+            assertMap(
+                readers,
+                matchesMap().entry(
+                    name + ":column_at_a_time:" + multiName(type),
+                    countMatcher(reuseColumnLoaders, pageCount, segmentCount, singletons == null ? 0 : singletons)
+                )
+            );
         }
 
         static String singleName(String type) {
@@ -1444,60 +1420,86 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             };
         }
 
-        static void id(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            stored("_id", "Id", forcedRowByRow, pageCount, segmentCount, readers);
+        static void id(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            stored("_id", "Id", reuseColumnLoaders, pageCount, segmentCount, readers);
         }
 
-        private static void source(String name, String type, boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            Matcher<Integer> count;
-            if (forcedRowByRow) {
-                count = equalTo(segmentCount);
-            } else {
-                count = lessThanOrEqualTo(pageCount);
-                Integer columnAttempts = (Integer) readers.remove(name + ":column_at_a_time:null");
-                assertThat(columnAttempts, not(nullValue()));
-            }
+        private static void source(
+            String name,
+            String type,
+            boolean reuseColumnLoaders,
+            int pageCount,
+            int segmentCount,
+            Map<?, ?> readers
+        ) {
+            Integer columnAttempts = (Integer) readers.remove(name + ":column_at_a_time:null");
+            assertThat(columnAttempts, not(nullValue()));
 
             Integer sequentialCount = (Integer) readers.remove("stored_fields[requires_source:true, fields:0, sequential: true]");
             Integer nonSequentialCount = (Integer) readers.remove("stored_fields[requires_source:true, fields:0, sequential: false]");
             int totalReaders = (sequentialCount == null ? 0 : sequentialCount) + (nonSequentialCount == null ? 0 : nonSequentialCount);
-            assertThat(totalReaders, count);
+            assertThat(totalReaders, countMatcher(reuseColumnLoaders, pageCount, segmentCount, 0));
 
-            assertMap(readers, matchesMap().entry(name + ":row_stride:BlockSourceReader." + type, count));
+            assertMap(
+                readers,
+                matchesMap().entry(
+                    name + ":row_stride:BlockSourceReader." + type,
+                    countMatcher(reuseColumnLoaders, pageCount, segmentCount, 0)
+                )
+            );
         }
 
-        private static void stored(String name, String type, boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            Matcher<Integer> count;
-            if (forcedRowByRow) {
-                count = equalTo(segmentCount);
-            } else {
-                count = lessThanOrEqualTo(pageCount);
-                Integer columnAttempts = (Integer) readers.remove(name + ":column_at_a_time:null");
-                assertThat(columnAttempts, not(nullValue()));
+        private static Matcher<Integer> countMatcher(boolean reuseColumnLoaders, int pageCount, int segmentCount, int alreadyCounted) {
+            if (pageCount == 1 || reuseColumnLoaders) {
+                return equalTo(segmentCount - alreadyCounted);
             }
+            return allOf(
+                lessThanOrEqualTo(pageCount * segmentCount - alreadyCounted),
+                greaterThanOrEqualTo(pageCount - alreadyCounted),
+                greaterThanOrEqualTo(segmentCount - alreadyCounted)
+            );
+        }
+
+        private static void stored(
+            String name,
+            String type,
+            boolean reuseColumnLoaders,
+            int pageCount,
+            int segmentCount,
+            Map<?, ?> readers
+        ) {
+            Integer columnAttempts = (Integer) readers.remove(name + ":column_at_a_time:null");
+            assertThat(columnAttempts, not(nullValue()));
 
             Integer sequentialCount = (Integer) readers.remove("stored_fields[requires_source:false, fields:1, sequential: true]");
             Integer nonSequentialCount = (Integer) readers.remove("stored_fields[requires_source:false, fields:1, sequential: false]");
             int totalReaders = (sequentialCount == null ? 0 : sequentialCount) + (nonSequentialCount == null ? 0 : nonSequentialCount);
-            assertThat(totalReaders, count);
+            assertThat(totalReaders, countMatcher(reuseColumnLoaders, pageCount, segmentCount, 0));
 
-            assertMap(readers, matchesMap().entry(name + ":row_stride:BlockStoredFieldsReader." + type, count));
+            assertMap(
+                readers,
+                matchesMap().entry(
+                    name + ":row_stride:BlockStoredFieldsReader." + type,
+                    countMatcher(reuseColumnLoaders, pageCount, segmentCount, 0)
+                )
+            );
         }
 
-        static void constantBytes(String name, boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            if (forcedRowByRow) {
-                assertMap(readers, matchesMap().entry(name + ":row_stride:constant[[66 6f 6f]]", segmentCount));
-            } else {
-                assertMap(readers, matchesMap().entry(name + ":column_at_a_time:constant[[66 6f 6f]]", lessThanOrEqualTo(pageCount)));
-            }
+        static void constantBytes(String name, boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            assertMap(
+                readers,
+                matchesMap().entry(
+                    name + ":column_at_a_time:constant[[66 6f 6f]]",
+                    countMatcher(reuseColumnLoaders, pageCount, segmentCount, 0)
+                )
+            );
         }
 
-        static void constantNulls(String name, boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            if (forcedRowByRow) {
-                assertMap(readers, matchesMap().entry(name + ":row_stride:constant_nulls", segmentCount));
-            } else {
-                assertMap(readers, matchesMap().entry(name + ":column_at_a_time:constant_nulls", lessThanOrEqualTo(pageCount)));
-            }
+        static void constantNulls(String name, boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            assertMap(
+                readers,
+                matchesMap().entry(name + ":column_at_a_time:constant_nulls", countMatcher(reuseColumnLoaders, pageCount, segmentCount, 0))
+            );
         }
     }
 

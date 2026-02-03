@@ -53,7 +53,7 @@ class ValuesReaderDocs implements BlockLoader.Docs {
         return docs.docs().getInt(i);
     }
 
-    private class Mapped extends ValuesReaderDocs {
+    private static class Mapped extends ValuesReaderDocs {
         private final int[] forwards;
 
         private Mapped(DocVector docs, int[] forwards) {

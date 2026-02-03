@@ -38,6 +38,11 @@ import java.util.Map;
  *     spent the past 40 years making them really really good at running tight loops over
  *     arrays of data. So we play along with the CPU and make arrays.
  * </p>
+ * <p>
+ *     Implementers will return non-null from either {@link #columnAtATimeReader} or
+ *     {@link #rowStrideReader}. As of 2026-2-4 many will return non-null from both
+ *     but that's deprecated and will be removed.
+ * </p>
  * <h2>How to implement</h2>
  * <p>
  *     There are a lot of interesting choices hiding in here to make getting those arrays
@@ -250,6 +255,11 @@ public interface BlockLoader {
         void read(int docId, StoredFields storedFields, Builder builder) throws IOException;
     }
 
+    /**
+     * @deprecated we no longer need to implement {@link RowStrideReader} when
+     *             storage prefers column-at-a-time
+     */
+    @Deprecated
     interface AllReader extends ColumnAtATimeReader, RowStrideReader {}
 
     interface StoredFields {
@@ -290,16 +300,17 @@ public interface BlockLoader {
      * Build a column-at-a-time reader. <strong>May</strong> return {@code null}
      * if the underlying storage needs to be loaded row-by-row. Callers should try
      * this first, only falling back to {@link #rowStrideReader} if this returns
-     * {@code null} or if they can't load column-at-a-time themselves.
+     * {@code null}. If this returns null then {@link #rowStrideReader} may not.
      */
     @Nullable
     IOSupplier<ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) throws IOException;
 
     /**
-     * Build a row-by-row reader. Must <strong>never</strong> return {@code null},
-     * evan if the underlying storage prefers to be loaded column-at-a-time. Some
-     * callers simply can't load column-at-a-time so all implementations must support
-     * this method.
+     * Build a row-by-row reader. <strong>May</strong> return {@code null} if the
+     * underlying storage prefers to be loaded column-at-a-time. Callers should try
+     * {@link #columnAtATimeReader} first, only falling back to this if
+     * {@link #columnAtATimeReader} returns null. This may not return null if
+     * {@link #columnAtATimeReader} does.
      */
     RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException;
 

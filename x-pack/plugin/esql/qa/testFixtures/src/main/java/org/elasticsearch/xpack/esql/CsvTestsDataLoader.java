@@ -434,7 +434,7 @@ public class CsvTestsDataLoader {
                     deleteEnrichPolicies(client);
                 }
                 if (indexes) {
-                    deleteIndexes(client, true, true, false, false, true, true, true, true, true);
+                    deleteIndexes(client, true, true, false, false, true, true, true, true, true, true);
                 }
             }
             if (load) {
@@ -445,6 +445,7 @@ public class CsvTestsDataLoader {
                         true,
                         false,
                         false,
+                        true,
                         true,
                         true,
                         true,
@@ -487,6 +488,7 @@ public class CsvTestsDataLoader {
         boolean tDigestFieldSupported,
         boolean histogramFieldSupported,
         boolean bFloat16ElementTypeSupported,
+        boolean tDigestMetricFieldSupported,
         boolean amdAvgMetricSupported
     ) throws IOException {
         Set<TestDataset> testDataSets = new HashSet<>();
@@ -498,6 +500,7 @@ public class CsvTestsDataLoader {
                 && (requiresTimeSeries == false || isTimeSeries(dataset))
                 && (exponentialHistogramFieldSupported || containsExponentialHistogramFields(dataset) == false)
                 && (tDigestFieldSupported || containsTDigestFields(dataset) == false)
+                && (tDigestMetricFieldSupported || containsTDigestMetricFields(dataset) == false)
                 && (histogramFieldSupported || containsHistogramFields(dataset) == false)
                 && (bFloat16ElementTypeSupported || containsBFloat16ElementType(dataset) == false)
                 && (amdAvgMetricSupported || containsAggregateMetricDoubleFields(dataset) == false)) {
@@ -530,6 +533,10 @@ public class CsvTestsDataLoader {
 
     private static boolean containsTDigestFields(TestDataset dataset) throws IOException {
         return containsFieldWithProperties(dataset, Map.of("type", "tdigest"));
+    }
+
+    private static boolean containsTDigestMetricFields(TestDataset dataset) throws IOException {
+        return containsFieldWithProperties(dataset, Map.of("type", "tdigest", "time_series_metric", "histogram"));
     }
 
     private static boolean containsBFloat16ElementType(TestDataset dataset) throws IOException {
@@ -627,6 +634,7 @@ public class CsvTestsDataLoader {
             false,
             false,
             false,
+            false,
             false
         );
     }
@@ -641,6 +649,7 @@ public class CsvTestsDataLoader {
         boolean tDigestFieldSupported,
         boolean histogramFieldSupported,
         boolean bFloat16ElementTypeSupported,
+        boolean tDigestMetricFieldSupported,
         boolean amdAvgMetricSupported
     ) throws IOException {
         loadDataSets(
@@ -653,6 +662,7 @@ public class CsvTestsDataLoader {
             tDigestFieldSupported,
             histogramFieldSupported,
             bFloat16ElementTypeSupported,
+            tDigestMetricFieldSupported,
             amdAvgMetricSupported,
             (restClient, indexName, indexMapping, indexSettings) -> {
                 ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
@@ -673,6 +683,7 @@ public class CsvTestsDataLoader {
         boolean tDigestFieldSupported,
         boolean histogramFieldSupported,
         boolean bFloat16ElementTypeSupported,
+        boolean tDigestMetricFieldSupported,
         boolean amdAvgMetricSupported,
         IndexCreator indexCreator
     ) throws IOException {
@@ -689,6 +700,7 @@ public class CsvTestsDataLoader {
             tDigestFieldSupported,
             histogramFieldSupported,
             bFloat16ElementTypeSupported,
+            tDigestMetricFieldSupported,
             amdAvgMetricSupported
         )) {
             load(client, dataset, logger, indexCreator);
@@ -743,6 +755,7 @@ public class CsvTestsDataLoader {
         boolean tDigestFieldSupported,
         boolean histogramFieldSupported,
         boolean bFloat16ElementTypeSupported,
+        boolean tDigestMetricFieldSupported,
         boolean amdAvgMetricSupported
     ) throws IOException {
         Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
@@ -756,6 +769,7 @@ public class CsvTestsDataLoader {
             tDigestFieldSupported,
             histogramFieldSupported,
             bFloat16ElementTypeSupported,
+            tDigestMetricFieldSupported,
             amdAvgMetricSupported
         )) {
             deleteIndex(client, dataset.indexName(), logger);

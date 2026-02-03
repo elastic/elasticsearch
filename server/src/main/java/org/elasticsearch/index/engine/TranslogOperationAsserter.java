@@ -24,8 +24,7 @@ import java.io.IOException;
  * in the same generation are either identical or equivalent when synthetic sources are used.
  */
 public abstract class TranslogOperationAsserter {
-    public static final TranslogOperationAsserter DEFAULT = new TranslogOperationAsserter() {
-    };
+    public static final TranslogOperationAsserter DEFAULT = new TranslogOperationAsserter() {};
 
     private TranslogOperationAsserter() {
 
@@ -82,8 +81,7 @@ public abstract class TranslogOperationAsserter {
                 op.seqNo(),
                 op.seqNo(),
                 true,
-                false,
-                engineConfig.getIndexSettings().getIndexVersionCreated()
+                false
             );
         } else {
             return new LuceneChangesSnapshot(
@@ -94,8 +92,7 @@ public abstract class TranslogOperationAsserter {
                 op.seqNo(),
                 true,
                 false,
-                false,
-                engineConfig.getIndexSettings().getIndexVersionCreated()
+                false
             );
         }
     }

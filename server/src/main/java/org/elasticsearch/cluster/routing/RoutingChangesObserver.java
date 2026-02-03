@@ -14,8 +14,7 @@ package org.elasticsearch.cluster.routing;
  */
 public interface RoutingChangesObserver {
 
-    RoutingChangesObserver NOOP = new RoutingChangesObserver() {
-    };
+    RoutingChangesObserver NOOP = new RoutingChangesObserver() {};
 
     /**
      * Called when unassigned shard is initialized. Does not include initializing relocation target shards.

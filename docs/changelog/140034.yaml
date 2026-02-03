@@ -1,5 +1,0 @@
-pr: 140034
-summary: Fix extent reading when missing
-area: ES|QL
-type: bug
-issues: []

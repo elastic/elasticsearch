@@ -183,22 +183,9 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         }
         var fieldType = (DenseVectorFieldMapper.DenseVectorFieldType) context.getFieldType(fieldName);
         if (fieldType.needsRescore(oversample)) {
-            // var q = new BoolQueryBuilder();
-            // q.filter(new KnnScoreDocQueryBuilder(scoreDocs, fieldName, queryVector, vectorSimilarity, filterQueries, null, k));
-            // QueryBuilder exactKnnQuery = new ExactKnnQueryBuilder(queryVector, fieldName, vectorSimilarity);
-            // q.must(exactKnnQuery);
-            // if (false == filterQueries.isEmpty()) {
-            // for (QueryBuilder filter : this.filterQueries) {
-            // // filter can be both over parents or nested docs, so add them as should clauses to a filter
-            // BoolQueryBuilder adjustedFilter = new BoolQueryBuilder().should(filter)
-            // .should(new ToChildBlockJoinQueryBuilder(filter));
-            // q.filter(adjustedFilter);
-            // }
-            // }
-            // return q.toQuery(context);
             int localK = k == null ? scoreDocs.length : k;
             var similarityFunction = fieldType.getSimilarity()
-                .vectorSimilarityFunction(context.indexVersionCreated(), DenseVectorFieldMapper.ElementType.FLOAT);
+                .vectorSimilarityFunction(context.indexVersionCreated(), fieldType.getElementType());
             var rescoreK = scoreDocs.length;
             return RescoreKnnVectorQuery.fromInnerQuery(
                 fieldName,

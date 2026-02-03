@@ -114,10 +114,20 @@ public class NvidiaEmbeddingsModel extends NvidiaModel {
         ChunkingSettings chunkingSettings,
         SecretSettings secrets
     ) {
-        super(
+        this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secrets)
         );
+    }
+
+    /**
+     * Constructor for creating an {@link NvidiaEmbeddingsModel} from model configurations and secrets.
+     *
+     * @param modelConfigurations the configurations for the model
+     * @param modelSecrets the secret settings for the model
+     */
+    public NvidiaEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets);
     }
 
     @Override

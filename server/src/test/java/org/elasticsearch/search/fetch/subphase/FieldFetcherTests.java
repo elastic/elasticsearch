@@ -1700,7 +1700,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             null,
             null,
             emptyMap(),
-            0,
+            null,
             MapperMetrics.NOOP,
             SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );

@@ -229,7 +229,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             () -> true,
             null,
             emptyMap(),
-            0,
+            null,
             MapperMetrics.NOOP,
             SearchExecutionContextHelper.SHARD_SEARCH_STATS
         ) {

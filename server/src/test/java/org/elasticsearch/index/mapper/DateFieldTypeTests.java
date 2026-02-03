@@ -656,7 +656,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             () -> true,
             null,
             Collections.emptyMap(),
-            0,
+            null,
             MapperMetrics.NOOP,
             SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );

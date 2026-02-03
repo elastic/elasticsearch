@@ -160,7 +160,7 @@ public class QueryParserHelperBenchmark {
             () -> true,
             null,
             Collections.emptyMap(),
-            0,
+            null,
             MapperMetrics.NOOP,
             new ShardSearchStats(new SearchStatsSettings(new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)))
         );

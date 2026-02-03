@@ -191,7 +191,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                 () -> true,
                 null,
                 emptyMap(),
-                0,
+                null,
                 MapperMetrics.NOOP,
                 SearchExecutionContextHelper.SHARD_SEARCH_STATS
             );
@@ -250,7 +250,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             () -> true,
             null,
             emptyMap(),
-            0,
+            null,
             MapperMetrics.NOOP,
             SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );

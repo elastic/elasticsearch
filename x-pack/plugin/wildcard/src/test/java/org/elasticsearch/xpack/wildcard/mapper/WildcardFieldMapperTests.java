@@ -1109,7 +1109,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             () -> true,
             null,
             emptyMap(),
-            0,
+            null,
             MapperMetrics.NOOP,
             SearchExecutionContextHelper.SHARD_SEARCH_STATS
         ) {

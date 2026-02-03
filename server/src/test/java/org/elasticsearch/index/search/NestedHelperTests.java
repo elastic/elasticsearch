@@ -92,7 +92,7 @@ public class NestedHelperTests extends MapperServiceTestCase {
             () -> true,
             null,
             emptyMap(),
-            0,
+            null,
             MapperMetrics.NOOP,
             SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );

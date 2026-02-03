@@ -54,7 +54,7 @@ public class SearchExecutionContextHelper {
             () -> true,
             null,
             Collections.emptyMap(),
-            0,
+            null,
             MapperMetrics.NOOP,
             SHARD_SEARCH_STATS
         );

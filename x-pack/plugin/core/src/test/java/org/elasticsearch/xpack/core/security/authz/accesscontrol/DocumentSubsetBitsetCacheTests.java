@@ -606,7 +606,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 () -> true,
                 null,
                 Map.of(),
-                0,
+                null,
                 MapperMetrics.NOOP,
                 SearchExecutionContextHelper.SHARD_SEARCH_STATS
             );

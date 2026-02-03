@@ -112,7 +112,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             () -> true,
             null,
             Map.of(),
-            0,
+            null,
             MapperMetrics.NOOP,
             SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
@@ -273,7 +273,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             () -> true,
             null,
             Map.of(),
-            0,
+            null,
             MapperMetrics.NOOP,
             SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );

@@ -50,7 +50,7 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             () -> true,
             null,
             emptyMap(),
-            0,
+            null,
             MapperMetrics.NOOP,
             SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
@@ -93,7 +93,7 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             () -> true,
             null,
             emptyMap(),
-            0,
+            null,
             MapperMetrics.NOOP,
             SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
@@ -138,7 +138,7 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             () -> true,
             null,
             emptyMap(),
-            0,
+            null,
             MapperMetrics.NOOP,
             SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );

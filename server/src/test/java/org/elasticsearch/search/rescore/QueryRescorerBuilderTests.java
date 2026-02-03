@@ -160,7 +160,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             () -> true,
             null,
             emptyMap(),
-            0,
+            null,
             MapperMetrics.NOOP,
             SearchExecutionContextHelper.SHARD_SEARCH_STATS
         ) {
@@ -225,7 +225,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             () -> true,
             null,
             emptyMap(),
-            0,
+            null,
             MapperMetrics.NOOP,
             SearchExecutionContextHelper.SHARD_SEARCH_STATS
         ) {

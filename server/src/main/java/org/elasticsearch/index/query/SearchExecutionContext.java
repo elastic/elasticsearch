@@ -709,6 +709,12 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return rewriteToNamedQueries;
     }
 
+    /**
+     * Returns the {@link ShardSearchStats} associated with this context, if available.
+     *
+     * @return the shard-level search statistics, or {@code null} if none are set
+     */
+    @Nullable
     public ShardSearchStats shardSearchStats() {
         return shardSearchStats;
     }

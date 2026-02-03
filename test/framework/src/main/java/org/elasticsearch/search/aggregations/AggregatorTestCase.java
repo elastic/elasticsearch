@@ -421,7 +421,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             () -> true,
             valuesSourceRegistry,
             emptyMap(),
-            0,
+            null,
             MapperMetrics.NOOP,
             SearchExecutionContextHelper.SHARD_SEARCH_STATS
         ) {

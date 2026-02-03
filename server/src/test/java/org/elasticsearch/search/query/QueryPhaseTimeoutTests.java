@@ -457,7 +457,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
             () -> true,
             null,
             Collections.emptyMap(),
-            0,
+            null,
             MapperMetrics.NOOP,
             SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );

@@ -69,6 +69,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchIndexNameMatcher;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
+import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.GlobalCheckpointSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -236,7 +237,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 similarityService,
                 mapperRegistry,
                 // we parse all percolator queries as they would be parsed on shard 0
-                () -> newSearchExecutionContext(0, 0, null, System::currentTimeMillis, null, emptyMap()),
+                () -> newSearchExecutionContext(0, 0, null, System::currentTimeMillis, null, emptyMap(), null, null),
                 idFieldMapper,
                 scriptService,
                 bitsetFilterCache::getBitSetProducer,
@@ -754,19 +755,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexSearcher searcher,
         LongSupplier nowInMillis,
         String clusterAlias,
-        Map<String, Object> runtimeMappings
-    ) {
-        return newSearchExecutionContext(shardId, shardRequestIndex, searcher, nowInMillis, clusterAlias, runtimeMappings, null);
-    }
-
-    public SearchExecutionContext newSearchExecutionContext(
-        int shardId,
-        int shardRequestIndex,
-        IndexSearcher searcher,
-        LongSupplier nowInMillis,
-        String clusterAlias,
         Map<String, Object> runtimeMappings,
-        Integer requestSize
+        Integer requestSize,
+        ShardSearchStats shardSearchStats
     ) {
         final SearchIndexNameMatcher indexNameMatcher = new SearchIndexNameMatcher(
             index().getName(),
@@ -775,7 +766,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             expressionResolver
         );
         var mapperService = mapperService();
-        var indexShard = getShard(shardId);
         return new SearchExecutionContext(
             shardId,
             shardRequestIndex,
@@ -798,7 +788,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             runtimeMappings,
             requestSize,
             mapperMetrics,
-            indexShard.shardSearchStats()
+            shardSearchStats
         );
     }
 

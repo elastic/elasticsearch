@@ -2,5 +2,5 @@ area: Mapping
 issues:
  - 140882
 pr: 141549
-summary: Fix shadowing ts param in non ts mappings
+summary: Allow shadowing time series metrics and dimension in non time series indexing
 type: bug

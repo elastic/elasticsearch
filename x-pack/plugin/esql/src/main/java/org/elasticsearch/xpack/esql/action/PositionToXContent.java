@@ -234,7 +234,7 @@ public abstract class PositionToXContent {
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
                     BytesRef val = ((BytesRefBlock) block).getBytesRef(valueIndex, scratch);
-                    return builder.rawValue(new ByteArrayInputStream(val.bytes,val.offset, val.length), builder.contentType());
+                    return builder.rawValue(val.utf8ToString());
                 }
             };
             case DENSE_VECTOR -> new PositionToXContent(block) {

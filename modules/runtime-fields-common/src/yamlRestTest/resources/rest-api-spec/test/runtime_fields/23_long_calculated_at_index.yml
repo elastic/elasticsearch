@@ -17,6 +17,11 @@ setup:
                 type: double
               node:
                 type: keyword
+              random_long:
+                type: long
+                script:
+                  source: |
+                    emit(new Random().nextLong());
               voltage_times_ten:
                 type: long
                 script:
@@ -90,18 +95,54 @@ setup:
           sort: timestamp
           fields:
             - voltage_times_ten
-            - voltage_times_ten_no_dv
             - temperature_digits
   - match: {hits.total.value: 6}
   - match: {hits.hits.0.fields.voltage_times_ten: [40] }
-  - match: {hits.hits.0.fields.temperature_digits: [2, 0, 2] }
+  - match: {hits.hits.0.fields.temperature_digits: [0, 2, 2] }
   - match: {hits.hits.0.fields.voltage_times_ten: [40] }
-  - match: {hits.hits.0.fields.voltage_times_ten_no_dv: [40] }
   - match: {hits.hits.1.fields.voltage_times_ten: [42] }
   - match: {hits.hits.2.fields.voltage_times_ten: [56] }
   - match: {hits.hits.3.fields.voltage_times_ten: [51] }
   - match: {hits.hits.4.fields.voltage_times_ten: [58] }
   - match: {hits.hits.5.fields.voltage_times_ten: [52] }
+
+---
+"script runs at index time":
+  - do:
+      search:
+        index: sensor
+        body:
+          sort: timestamp
+          fields:
+            - random_long
+  - match: {hits.total.value: 6}
+  - set: { hits.hits.0.fields.random_long.0: random_value }
+
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            match:
+              random_long: $random_value
+          aggs:
+            random_value:
+              terms:
+                field: random_long
+  - match: {hits.total.value: 1}
+  - match: {aggregations.random_value.buckets.0.key: $random_value}
+  - match: {aggregations.random_value.buckets.0.doc_count: 1}
+
+---
+"fetch fields no doc_values":
+  - do:
+      catch: bad_request
+      search:
+        index: sensor
+        body:
+          sort: timestamp
+          fields:
+            - voltage_times_ten_no_dv
 
 ---
 "docvalue_fields":

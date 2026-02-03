@@ -28,7 +28,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SimpleVectorTileFormatter;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -54,6 +53,7 @@ import org.elasticsearch.script.field.GeoPointDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.TimeSeriesValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldDistanceFeatureQuery;
@@ -432,8 +432,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             if (scriptValues == null) {
                 return super.valueFetcher(context, format);
             }
-            Function<List<GeoPoint>, List<Object>> formatter = getFormatter(format != null ? format : GeometryFormatterFactory.GEOJSON);
-            return FieldValues.valueListFetcher(scriptValues, formatter, context);
+            return new DocValueFetcher(
+                docValueFormat(format, null),
+                context.getForField(this, FielddataOperation.SEARCH),
+                StoredFieldsSpec.NO_REQUIREMENTS
+            );
         }
 
         @Override

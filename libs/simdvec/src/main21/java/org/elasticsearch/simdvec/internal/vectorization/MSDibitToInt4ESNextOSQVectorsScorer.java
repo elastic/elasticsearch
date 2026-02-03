@@ -398,20 +398,7 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
             }
         }
         if (limit < bulkSize) {
-            // missing vectors to score
-            maxScore = scoreTailIndividually(
-                queryAdditionalCorrection,
-                similarityFunction,
-                centroidDp,
-                scores,
-                bulkSize,
-                limit,
-                offset,
-                ay,
-                ly,
-                y1,
-                maxScore
-            );
+            // TODO
         }
         in.seek(offset + 16L * bulkSize);
         return maxScore;
@@ -533,13 +520,13 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
             lx = (lx - ax) * TWO_BIT_SCALE;
 
             int targetComponentSum = memorySegment.get(
-                ValueLayout.JAVA_SHORT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
-                offset + 8L * bulkSize + (long) j * Short.BYTES
-            ) & 0xffff;
+                ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
+                offset + 8L * bulkSize + (long) j * Integer.BYTES
+            );
 
             float additionalCorrection = memorySegment.get(
                 ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
-                offset + 10L * bulkSize + (long) j * Float.BYTES
+                offset + 12L * bulkSize + (long) j * Float.BYTES
             );
 
             float qcDist = scores[j];

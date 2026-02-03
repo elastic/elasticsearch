@@ -638,13 +638,13 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
             ) - ax;
 
             int targetComponentSum = memorySegment.get(
-                ValueLayout.JAVA_SHORT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
-                offset + 8L * bulkSize + (long) j * Short.BYTES
-            ) & 0xffff;
+                ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
+                offset + 8L * bulkSize + (long) j * Integer.BYTES
+            );
 
             float additionalCorrection = memorySegment.get(
                 ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
-                offset + 10L * bulkSize + (long) j * Float.BYTES
+                offset + 12L * bulkSize + (long) j * Float.BYTES
             );
 
             float qcDist = scores[j];

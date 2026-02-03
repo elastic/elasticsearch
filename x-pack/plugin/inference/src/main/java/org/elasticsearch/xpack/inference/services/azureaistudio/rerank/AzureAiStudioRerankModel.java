@@ -43,10 +43,14 @@ public class AzureAiStudioRerankModel extends AzureAiStudioModel {
         AzureAiStudioRerankTaskSettings taskSettings,
         DefaultSecretSettings secrets
     ) {
-        super(
+        this(
             new ModelConfigurations(inferenceEntityId, TaskType.RERANK, AzureAiStudioService.NAME, serviceSettings, taskSettings),
             new ModelSecrets(secrets)
         );
+    }
+
+    public AzureAiStudioRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets);
     }
 
     public AzureAiStudioRerankModel(

@@ -170,9 +170,15 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     return currentSchema;
                 }
 
+                @Override
+                public void clearCommandHistory() {
+                    previousCommands = new ArrayList<>();
+                    previousResult = null;
+                }
+
                 boolean continueExecuting;
                 List<Column> currentSchema;
-                final List<CommandGenerator.CommandDescription> previousCommands = new ArrayList<>();
+                List<CommandGenerator.CommandDescription> previousCommands = new ArrayList<>();
                 QueryExecuted previousResult;
             };
             try {
@@ -290,7 +296,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     private List<String> availableIndices() throws IOException {
-        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false, requiresTimeSeries(), false, false, false, false).stream()
+        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false, requiresTimeSeries(), false, false, false, false, false)
+            .stream()
             .filter(x -> x.requiresInferenceEndpoint() == false)
             .map(x -> x.indexName())
             .toList();

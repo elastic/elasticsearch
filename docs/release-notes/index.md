@@ -20,6 +20,99 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
+## 9.2.5 [elasticsearch-9.2.5-release-notes]
+```{applies_to}
+stack: ga 9.2.5
+```
+
+### Features and enhancements [elasticsearch-9.2.5-features-enhancements]
+
+ES|QL:
+* `BlockSourceReader` should always apply source filtering [#136438](https://github.com/elastic/elasticsearch/pull/136438)
+
+IdentityProvider:
+* Support `LimitedRole` in idp role resolution [#140536](https://github.com/elastic/elasticsearch/pull/140536)
+
+Inference:
+* Add `max_batch_size` setting to EIS dense and sparse service settings [#141185](https://github.com/elastic/elasticsearch/pull/141185)
+
+Snapshot/Restore:
+* Retry bulk-delete items in GCS [#138951](https://github.com/elastic/elasticsearch/pull/138951) (issue: [#138364](https://github.com/elastic/elasticsearch/issues/138364))
+
+
+### Fixes [elasticsearch-9.2.5-fixes]
+
+Allocation:
+* Handle deleted source index in allocation deciders [#140699](https://github.com/elastic/elasticsearch/pull/140699) (issue: [#140630](https://github.com/elastic/elasticsearch/issues/140630))
+
+EQL:
+* Fix `_index` on missing events in CCS [#140886](https://github.com/elastic/elasticsearch/pull/140886)
+
+ES|QL:
+* Fix folding of case() function with date period and time duration [#141157](https://github.com/elastic/elasticsearch/pull/141157)
+* Use sub keyword block loader with `ignore_above` for text fields [#140622](https://github.com/elastic/elasticsearch/pull/140622)
+
+ILM:
+* Remove ILM-stopped-check before the cluster update in `migrateToDataTiersRouting` [#140892](https://github.com/elastic/elasticsearch/pull/140892) (issue: [#140885](https://github.com/elastic/elasticsearch/issues/140885))
+
+Inference:
+* [Inference API] Include rerank in supported tasks for IBM watsonx integration [#140331](https://github.com/elastic/elasticsearch/pull/140331) (issue: [#140328](https://github.com/elastic/elasticsearch/issues/140328))
+
+Machine Learning:
+* Disallow `max_number_of_allocations` > 1 for low priority model deployments [#140163](https://github.com/elastic/elasticsearch/pull/140163) (issue: [#111227](https://github.com/elastic/elasticsearch/issues/111227))
+
+Packaging:
+* Fix stderr leak in Docker ES process detection [#140701](https://github.com/elastic/elasticsearch/pull/140701)
+
+Reindex:
+* Disable `_delete_by_query` and `_update_by_query` for CCS/stateful [#140301](https://github.com/elastic/elasticsearch/pull/140301)
+
+Search:
+* Fix date fields sort formatting with missing values [#135899](https://github.com/elastic/elasticsearch/pull/135899) (issue: [#81960](https://github.com/elastic/elasticsearch/issues/81960))
+
+Snapshot/Restore:
+* Fix race condition in `CancellableRateLimitedFluxIterator` [#141323](https://github.com/elastic/elasticsearch/pull/141323)
+
+## 9.1.10 [elasticsearch-9.1.10-release-notes]
+
+### Features and enhancements [elasticsearch-9.1.10-features-enhancements]
+
+Authorization:
+* [Axonius] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` [#140046](https://github.com/elastic/elasticsearch/pull/140046)
+
+Infra/Core:
+* Upgrade lz4 dependency to 1.10.1 [#139221](https://github.com/elastic/elasticsearch/pull/139221)
+
+Security:
+* Upgrade Netty to 4.1.130.Final [#139669](https://github.com/elastic/elasticsearch/pull/139669)
+
+
+### Fixes [elasticsearch-9.1.10-fixes]
+
+Data streams:
+* Bug fix: the filter of a data stream alias is not always properly removed [#139679](https://github.com/elastic/elasticsearch/pull/139679)
+* Making sure that failure store document converter does not hang on unexpected exceptions [#139712](https://github.com/elastic/elasticsearch/pull/139712) (issue: [#139707](https://github.com/elastic/elasticsearch/issues/139707))
+
+ES|QL:
+* ESQL: Fix multi-value constant propagation after `STATS` [#139442](https://github.com/elastic/elasticsearch/pull/139442) (issue: [#135926](https://github.com/elastic/elasticsearch/issues/135926))
+
+Inference:
+* [Inference API] Fix auth exception listener not called bug [#139966](https://github.com/elastic/elasticsearch/pull/139966)
+
+Infra/Core:
+* Skip frozen nodes on disk watermark check [#140118](https://github.com/elastic/elasticsearch/pull/140118)
+
+Infra/Node Lifecycle:
+* Ensure initial state discovery does not block indefinitely on startup [#139467](https://github.com/elastic/elasticsearch/pull/139467)
+
+Recovery:
+* Revert "Attempt to clean up index before remote transfer" [#139569](https://github.com/elastic/elasticsearch/pull/139569)
+
+Transform:
+* Reduce task match load [#139857](https://github.com/elastic/elasticsearch/pull/139857) (issue: [#139252](https://github.com/elastic/elasticsearch/issues/139252))
+
+
+
 ## 9.2.4 [elasticsearch-9.2.4-release-notes]
 
 ### Features and enhancements [elasticsearch-9.2.4-features-enhancements]
@@ -70,43 +163,57 @@ Snapshot/Restore:
 Transform:
 * Reduce task match load [#139857](https://github.com/elastic/elasticsearch/pull/139857) (issue: [#139252](https://github.com/elastic/elasticsearch/issues/139252))
 
-## 9.1.10 [elasticsearch-9.1.10-release-notes]
 
-### Features and enhancements [elasticsearch-9.1.10-features-enhancements]
+## 9.1.9 [elasticsearch-9.1.9-release-notes]
 
-Authorization:
-* [Axonius] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` [#140046](https://github.com/elastic/elasticsearch/pull/140046)
-
+### Features and enhancements [elasticsearch-9.1.9-features-enhancements]
 Infra/Core:
-* Upgrade lz4 dependency to 1.10.1 [#139221](https://github.com/elastic/elasticsearch/pull/139221)
+* Bump lz4 dependency [#138806](https://github.com/elastic/elasticsearch/pull/138806)
+Infra/Logging:
+* Upgrade ECS logging layout [#138854](https://github.com/elastic/elasticsearch/pull/138854)
+
+Ingest Node:
+* Upgrading tika to 3.2.3 [#139267](https://github.com/elastic/elasticsearch/pull/139267)
 
 Security:
-* Upgrade Netty to 4.1.130.Final [#139669](https://github.com/elastic/elasticsearch/pull/139669)
+* Improve security migration resilience by handling version conflicts [#137558](https://github.com/elastic/elasticsearch/pull/137558)
 
 
-### Fixes [elasticsearch-9.1.10-fixes]
+### Fixes [elasticsearch-9.1.9-fixes]
 
-Data streams:
-* Bug fix: the filter of a data stream alias is not always properly removed [#139679](https://github.com/elastic/elasticsearch/pull/139679)
-* Making sure that failure store document converter does not hang on unexpected exceptions [#139712](https://github.com/elastic/elasticsearch/pull/139712) (issue: [#139707](https://github.com/elastic/elasticsearch/issues/139707))
+CCS:
+* Fix: Correctly pickup MRT value for `msearch`'s search requests [#138583](https://github.com/elastic/elasticsearch/pull/138583)
+
+Cluster Coordination:
+* Avoid stack overflow in `IndicesClusterStateService` `applyClusterState` [#132536](https://github.com/elastic/elasticsearch/pull/132536)
+
+Downsampling:
+* Fix multi fields in downsampling [#138869](https://github.com/elastic/elasticsearch/pull/138869)
 
 ES|QL:
-* ESQL: Fix multi-value constant propagation after `STATS` [#139442](https://github.com/elastic/elasticsearch/pull/139442) (issue: [#135926](https://github.com/elastic/elasticsearch/issues/135926))
+* Fixes esql class cast bug in STATS at planning level [#137511](https://github.com/elastic/elasticsearch/pull/137511) (issues: [#133992](https://github.com/elastic/elasticsearch/issues/133992), [#136598](https://github.com/elastic/elasticsearch/issues/136598))
+* [ES|QL] Compare query builders using identity [#139080](https://github.com/elastic/elasticsearch/pull/139080)
 
 Inference:
-* [Inference API] Fix auth exception listener not called bug [#139966](https://github.com/elastic/elasticsearch/pull/139966)
+* [Inference API] Use dimensions field in JinaAI `text_embedding` requests [#139413](https://github.com/elastic/elasticsearch/pull/139413)
 
 Infra/Core:
-* Skip frozen nodes on disk watermark check [#140118](https://github.com/elastic/elasticsearch/pull/140118)
+* GET /_migration/deprecations doesn't check disk watermarks against correct settings values [#138115](https://github.com/elastic/elasticsearch/pull/138115) (issue: [#137005](https://github.com/elastic/elasticsearch/issues/137005))
 
-Infra/Node Lifecycle:
-* Ensure initial state discovery does not block indefinitely on startup [#139467](https://github.com/elastic/elasticsearch/pull/139467)
+Ingest Node:
+* Handle individual doc parsing failure in bulk request with pipeline [#138624](https://github.com/elastic/elasticsearch/pull/138624) (issue: [#138445](https://github.com/elastic/elasticsearch/issues/138445))
+Machine Learning:
+* Correctly handle empty inputs in `chunkedInfer()` [#138632](https://github.com/elastic/elasticsearch/pull/138632)
 
-Recovery:
-* Revert "Attempt to clean up index before remote transfer" [#139569](https://github.com/elastic/elasticsearch/pull/139569)
+Search:
+* Added logic for individual shard failure handling for `CompoundRetrieverBuilder` and fixed how partial search results flag is passed through to `CompoundRetrieverBuilder` [#136732](https://github.com/elastic/elasticsearch/pull/136732)
 
-Transform:
-* Reduce task match load [#139857](https://github.com/elastic/elasticsearch/pull/139857) (issue: [#139252](https://github.com/elastic/elasticsearch/issues/139252))
+Security:
+* More reliable trigger for security index migration [#139028](https://github.com/elastic/elasticsearch/pull/139028)
+
+Stats:
+* Improving performance of stats APIs when the number of shards is very large [#138126](https://github.com/elastic/elasticsearch/pull/138126) (issue: [#97222](https://github.com/elastic/elasticsearch/issues/97222))
+
 
 ## 9.2.3 [elasticsearch-9.2.3-release-notes]
 
@@ -168,58 +275,6 @@ Stats:
 
 Vector Search:
 * Disallow index types updates to bbq_disk, revert [#139061](https://github.com/elastic/elasticsearch/pull/139061)
-
-
-
-## 9.1.9 [elasticsearch-9.1.9-release-notes]
-
-### Features and enhancements [elasticsearch-9.1.9-features-enhancements]
-Infra/Core:
-* Bump lz4 dependency [#138806](https://github.com/elastic/elasticsearch/pull/138806)
-Infra/Logging:
-* Upgrade ECS logging layout [#138854](https://github.com/elastic/elasticsearch/pull/138854)
-
-Ingest Node:
-* Upgrading tika to 3.2.3 [#139267](https://github.com/elastic/elasticsearch/pull/139267)
-
-Security:
-* Improve security migration resilience by handling version conflicts [#137558](https://github.com/elastic/elasticsearch/pull/137558)
-
-
-### Fixes [elasticsearch-9.1.9-fixes]
-
-CCS:
-* Fix: Correctly pickup MRT value for `msearch`'s search requests [#138583](https://github.com/elastic/elasticsearch/pull/138583)
-
-Cluster Coordination:
-* Avoid stack overflow in `IndicesClusterStateService` `applyClusterState` [#132536](https://github.com/elastic/elasticsearch/pull/132536)
-
-Downsampling:
-* Fix multi fields in downsampling [#138869](https://github.com/elastic/elasticsearch/pull/138869)
-
-ES|QL:
-* Fixes esql class cast bug in STATS at planning level [#137511](https://github.com/elastic/elasticsearch/pull/137511) (issues: [#133992](https://github.com/elastic/elasticsearch/issues/133992), [#136598](https://github.com/elastic/elasticsearch/issues/136598))
-* [ES|QL] Compare query builders using identity [#139080](https://github.com/elastic/elasticsearch/pull/139080)
-
-Inference:
-* [Inference API] Use dimensions field in JinaAI `text_embedding` requests [#139413](https://github.com/elastic/elasticsearch/pull/139413)
-
-Infra/Core:
-* GET /_migration/deprecations doesn't check disk watermarks against correct settings values [#138115](https://github.com/elastic/elasticsearch/pull/138115) (issue: [#137005](https://github.com/elastic/elasticsearch/issues/137005))
-
-Ingest Node:
-* Handle individual doc parsing failure in bulk request with pipeline [#138624](https://github.com/elastic/elasticsearch/pull/138624) (issue: [#138445](https://github.com/elastic/elasticsearch/issues/138445))
-Machine Learning:
-* Correctly handle empty inputs in `chunkedInfer()` [#138632](https://github.com/elastic/elasticsearch/pull/138632)
-
-Search:
-* Added logic for individual shard failure handling for `CompoundRetrieverBuilder` and fixed how partial search results flag is passed through to `CompoundRetrieverBuilder` [#136732](https://github.com/elastic/elasticsearch/pull/136732)
-
-Security:
-* More reliable trigger for security index migration [#139028](https://github.com/elastic/elasticsearch/pull/139028)
-
-Stats:
-* Improving performance of stats APIs when the number of shards is very large [#138126](https://github.com/elastic/elasticsearch/pull/138126) (issue: [#97222](https://github.com/elastic/elasticsearch/issues/97222))
 
 
 ## 9.2.2 [elasticsearch-9.2.2-release-notes]

@@ -87,11 +87,7 @@ public class PerFieldFormatSupplier {
         this.defaultPostingsFormat = getDefaultPostingsFormat(mapperService);
         this.knnVectorsFormat = getDefaultKnnVectorsFormat(mapperService, threadPool);
         this.syntheticIdPostingsFormat = new TSDBSyntheticIdPostingsFormat();
-        this.idBloomFilterDocValuesFormat = new ES94BloomFilterDocValuesFormat(
-            bigArrays,
-            ES94BloomFilterDocValuesFormat.DEFAULT_BLOOM_FILTER_SIZE,
-            IdFieldMapper.NAME
-        );
+        this.idBloomFilterDocValuesFormat = new ES94BloomFilterDocValuesFormat(bigArrays, IdFieldMapper.NAME);
     }
 
     private static PostingsFormat getDefaultPostingsFormat(final MapperService mapperService) {
@@ -150,7 +146,7 @@ public class PerFieldFormatSupplier {
                 return completionPostingsFormat;
             }
             if (mapper instanceof IdFieldMapper
-                && IndexVersions.ID_FIELD_USE_ES812_POSTINGS_FORMAT.onOrAfter(mapperService.getIndexSettings().getIndexVersionCreated())) {
+                && mapperService.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.ID_FIELD_USE_ES812_POSTINGS_FORMAT)) {
                 // The default posting format doesn't handle randomly generated IDs well during merging. Several cases have been reported
                 // where a single merge thread uses disproportionate jvm heap memory just for Lucene103BlockTreeTermsWriter.TermsWriter.
                 return es812PostingsFormat;

@@ -22,6 +22,11 @@ It includes detailed steps, tooling, and resources to help you transition to sup
 ### Features and enhancements [connectors-9.3.0-features-enhancements]
 * Added a new GitLab connector to sync Projects, Issues, Epics, Merge Requests, Releases, and README files. [#3770](https://github.com/elastic/connectors/pull/3770) [#11093](https://github.com/elastic/search-team/issues/11093)
 
+## 9.2.5 [connectors-9.2.5-release-notes]
+
+### Fixes [connectors-9.2.5-fixes]
+* Fixed a serialization error in the PostgreSQL connector when handling `INET`, `CIDR`, `UUID`, and geometric types. [#3900](https://github.com/elastic/connectors/pull/3900), [#3879](https://github.com/elastic/connectors/issues/3879)
+
 ## 9.2.4 [connectors-9.2.4-release-notes]
 There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
 

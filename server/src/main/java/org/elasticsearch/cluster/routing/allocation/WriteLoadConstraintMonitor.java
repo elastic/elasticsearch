@@ -17,10 +17,10 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
@@ -36,6 +36,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * Monitors the node-level write thread pool usage across the cluster and initiates a rebalancing round (via
@@ -59,23 +60,23 @@ public class WriteLoadConstraintMonitor {
     private final DoubleHistogram hotspotDurationHistogram;
 
     protected WriteLoadConstraintMonitor(
-        ClusterSettings clusterSettings,
+        WriteLoadConstraintSettings writeLoadConstraintSettings,
         LongSupplier currentTimeMillisSupplier,
         Supplier<ClusterState> clusterStateSupplier,
         RerouteService rerouteService
     ) {
         // default of NOOP for tests
-        this(clusterSettings, currentTimeMillisSupplier, clusterStateSupplier, rerouteService, MeterRegistry.NOOP);
+        this(writeLoadConstraintSettings, currentTimeMillisSupplier, clusterStateSupplier, rerouteService, MeterRegistry.NOOP);
     }
 
     public WriteLoadConstraintMonitor(
-        ClusterSettings clusterSettings,
+        WriteLoadConstraintSettings writeLoadConstraintSettings,
         LongSupplier currentTimeMillisSupplier,
         Supplier<ClusterState> clusterStateSupplier,
         RerouteService rerouteService,
         MeterRegistry meterRegistry
     ) {
-        this.writeLoadConstraintSettings = new WriteLoadConstraintSettings(clusterSettings);
+        this.writeLoadConstraintSettings = writeLoadConstraintSettings;
         this.clusterStateSupplier = clusterStateSupplier;
         this.currentTimeMillisSupplier = currentTimeMillisSupplier;
         this.rerouteService = rerouteService;
@@ -147,7 +148,7 @@ public class WriteLoadConstraintMonitor {
         if (haveWriteNodesBelowQueueLatencyThreshold == false) {
             logger.debug("""
                 Nodes [{}] are above the queue latency threshold, but there are no write nodes below the threshold. \
-                Cannot rebalance shards.""", nodeSummary(writeNodeIdsExceedingQueueLatencyThreshold));
+                Cannot rebalance shards.""", nodeSummary(writeNodeIdsExceedingQueueLatencyThreshold, state));
             return;
         }
 
@@ -165,12 +166,12 @@ public class WriteLoadConstraintMonitor {
                         Nodes [{}] are hot-spotting, of {} total ingest nodes. Reroute for hot-spotting {}. \
                         Previously hot-spotting nodes are [{}]. The write thread pool queue latency threshold is [{}]. Triggering reroute.
                         """,
-                    nodeSummary(writeNodeIdsExceedingQueueLatencyThreshold),
+                    nodeSummary(writeNodeIdsExceedingQueueLatencyThreshold, state),
                     totalIngestNodes,
                     lastRerouteTimeMillis == 0
                         ? "has never previously been called"
                         : "was last called [" + TimeValue.timeValueMillis(timeSinceLastRerouteMillis) + "] ago",
-                    nodeSummary(lastHotspotNodes),
+                    nodeSummary(lastHotspotNodes, state),
                     writeLoadConstraintSettings.getQueueLatencyThreshold()
                 );
             }
@@ -232,11 +233,21 @@ public class WriteLoadConstraintMonitor {
         }
     }
 
-    private static String nodeSummary(Set<String> nodeIds) {
+    private static String nodeSummary(Set<String> nodeIds, ClusterState state) {
+        final var nodes = state.nodes();
         if (nodeIds.isEmpty() == false && nodeIds.size() <= MAX_NODE_IDS_IN_MESSAGE) {
-            return "[" + String.join(", ", nodeIds) + "]";
+            return nodeIds.stream().map(nodeId -> nodeShortDescription(nodeId, nodes)).collect(Collectors.joining(", "));
         } else {
             return nodeIds.size() + " nodes";
         }
+    }
+
+    /**
+     * @return "{nodeId}/{nodeName}" if available, or just "{nodeId}" otherwise
+     */
+    private static String nodeShortDescription(String nodeId, DiscoveryNodes nodes) {
+        final var discoveryNode = nodes.get(nodeId);
+        // It's possible a node might have left the cluster since the ClusterInfo was published
+        return discoveryNode != null ? discoveryNode.getShortNodeDescription() : nodeId;
     }
 }

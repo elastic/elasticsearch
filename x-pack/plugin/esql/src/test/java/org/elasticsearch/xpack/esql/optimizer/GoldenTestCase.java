@@ -391,8 +391,8 @@ public abstract class GoldenTestCase extends ESTestCase {
     }
 
     private static String normalizeNameIds(String plan) {
-        var idMap = new IdMap<Integer>();
-        return normalizeHelper(plan, IDENTIFIER_PATTERN, s -> "#" + idMap.getId(Integer.parseInt(s)));
+        var idMap = new IdMap();
+        return normalizeHelper(plan, IDENTIFIER_PATTERN, s -> "#" + idMap.getId(s));
     }
 
     /**
@@ -400,7 +400,7 @@ public abstract class GoldenTestCase extends ESTestCase {
      * Replaces them with $$firstSegment$runningInt so golden output is stable across runs.
      */
     private static String normalizeSyntheticNames(String plan) {
-        var idMap = new IdMap<String>();
+        var idMap = new IdMap();
         return normalizeHelper(plan, SYNTHETIC_PATTERN, s -> "$$" + s + "$" + idMap.getId(s));
     }
 
@@ -421,11 +421,11 @@ public abstract class GoldenTestCase extends ESTestCase {
     private static final Pattern SYNTHETIC_PATTERN = Pattern.compile("\\$\\$([^$\\s]+)(\\$\\d+)+(?=[{#])");
     private static final Pattern IDENTIFIER_PATTERN = Pattern.compile("#(\\d+)");
 
-    private static class IdMap<K> {
-        private final Map<K, Integer> map = new HashMap<>();
+    private static class IdMap {
+        private final Map<String, Integer> map = new HashMap<>();
         private int counter = 0;
 
-        public int getId(K key) {
+        public int getId(String key) {
             return map.computeIfAbsent(key, k -> counter++);
         }
     }

@@ -19,7 +19,6 @@ module org.elasticsearch.entitlement {
 
     requires static org.elasticsearch.entitlement.bridge;
     requires jdk.jlink;
-    requires jdk.internal.vm.ci;
     requires jdk.jdi;
     requires java.compiler;
     requires java.desktop; // At runtime, this will be in java.base

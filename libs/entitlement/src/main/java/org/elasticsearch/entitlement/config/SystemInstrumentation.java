@@ -106,6 +106,8 @@ public class SystemInstrumentation implements InstrumentationConfig {
             .enforce(Policies::changeJvmGlobalState)
             .elseThrowNotEntitled();
 
+        // TODO: We can probably remove these since these classes aren't even visible
+
         // builder.on(JVMCIServiceLocator.class)
         // .callingStatic(JVMCIServiceLocator::getProviders, new TypeToken<Class<?>>() {})
         // .enforce(Policies::changeJvmGlobalState)

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.rules;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.rules.function.Call0;
 import org.elasticsearch.entitlement.rules.function.Call1;
@@ -502,6 +503,7 @@ public class ClassMethodBuilder<T> {
         return new MethodRuleBuilder.MethodRuleBuilder5<>(registry, clazz, methodKey);
     }
 
+    @SuppressForbidden(reason = "relies on reflection")
     private static MethodKey resolveMethodReference(Class<?> clazz, Object ref, Class<?>... args) {
         try {
             Method writeReplace = ref.getClass().getDeclaredMethod("writeReplace");
@@ -539,6 +541,7 @@ public class ClassMethodBuilder<T> {
         }
     }
 
+    @SuppressForbidden(reason = "relies on reflection")
     private static Class<?> resolveDeclaringClass(Class<?> clazz, String methodName, Class<?>... args) throws NoSuchMethodException {
         if ("<init>".equals(methodName)) {
             return clazz;

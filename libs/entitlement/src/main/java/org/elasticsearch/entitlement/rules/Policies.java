@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.rules;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.rules.function.Call1;
 import org.elasticsearch.entitlement.rules.function.Call2;
 import org.elasticsearch.entitlement.rules.function.CheckMethod;
@@ -72,6 +73,7 @@ public class Policies {
         return (callingClass, policyChecker) -> policyChecker.checkFileDescriptorWrite(callingClass);
     }
 
+    @SuppressForbidden(reason = "Instrumenting JDK File-based APIs")
     public static CheckMethod fileRead(File file) {
         return (callingClass, policyChecker) -> policyChecker.checkFileRead(callingClass, file);
     }
@@ -91,10 +93,12 @@ public class Policies {
         };
     }
 
+    @SuppressForbidden(reason = "Instrumenting JDK File-based APIs")
     public static CheckMethod fileWithZipMode(File file, int mode) {
         return (callingClass, policyChecker) -> policyChecker.checkFileWithZipMode(callingClass, file, mode);
     }
 
+    @SuppressForbidden(reason = "Instrumenting JDK File-based APIs")
     public static CheckMethod fileWrite(File file) {
         return (callingClass, policyChecker) -> policyChecker.checkFileWrite(callingClass, file);
     }

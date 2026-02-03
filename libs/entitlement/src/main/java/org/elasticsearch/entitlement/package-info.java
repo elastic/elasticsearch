@@ -75,9 +75,9 @@
 ///
 /// [org.elasticsearch.entitlement.initialization.EntitlementInitialization] builds the set of methods to instrument using
 /// [org.elasticsearch.entitlement.bridge.registry.InstrumentationRegistry].
-/// [org.elasticsearch.entitlement.bridge.registry.InstrumentationRegistry] is the interface that contains the definition of all the check methods;
-/// it needs to be accessible by both this project and the code injected by the agent, therefore is located in a small, self-contained
-/// library ({@see the {@code bridge} subproject}).
+/// [org.elasticsearch.entitlement.bridge.registry.InstrumentationRegistry] is the interface that contains the definition of all the check
+/// methods; it needs to be accessible by both this project and the code injected by the agent, therefore is located in a small,
+/// self-contained library ({@see the {@code bridge} subproject}).
 ///
 /// ### How that works across different Java versions
 ///

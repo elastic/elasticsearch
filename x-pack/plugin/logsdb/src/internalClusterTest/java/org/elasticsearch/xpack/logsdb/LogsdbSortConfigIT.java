@@ -530,7 +530,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
         assertThat(indexService.numberOfShards(), equalTo(1));
         IndexShard shard = indexService.getShard(0);
         try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-            
+
             MappedFieldType timestampField = shard.mapperService().fieldType("@timestamp");
             SortField sf = timestampField.fielddataBuilder(FieldDataContext.noRuntimeFields("test", "test"))
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())

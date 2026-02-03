@@ -1,5 +1,0 @@
-pr: 139106
-summary: Let terms queries rewrite to a filter on `constant_keyword` fields
-area: Aggregations
-type: enhancement
-issues: []

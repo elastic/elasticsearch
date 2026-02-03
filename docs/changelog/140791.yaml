@@ -1,6 +1,0 @@
-pr: 140791
-summary: Fix readiness edge case on startup
-area: Infra/Node Lifecycle
-type: bug
-issues:
- - 136955

@@ -181,6 +181,9 @@ class TopHitsAggregator extends MetricsAggregator {
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         Collectors collectors = topDocsCollectors.get(owningBucketOrdinal);
         if (collectors == null) {
+//            var empty = buildEmptyAggregation();
+//            empty.decRef(); // no closing from collector
+//            return empty;
             return buildEmptyAggregation();
         }
         TopDocsCollector<?> topDocsCollector = collectors.topDocsCollector;

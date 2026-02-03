@@ -469,6 +469,8 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                             rangeBucket.getAggregations()
                         )
                     );
+                } else {
+                    rangeBucket.getAggregations().close();
                 }
             });
 

@@ -708,8 +708,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     builder.isInSortOrderExecutionRequired(),
                     fieldTypes
                 );
+                List<C> aggregators = new ArrayList<>();
                 try {
-                    List<C> aggregators = new ArrayList<>();
                     if (context.isInSortOrderExecutionRequired()) {
                         C root = createAggregator(builder, context);
                         root.preCollection();
@@ -721,8 +721,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     } else {
                         Supplier<AggregatorCollector> aggregatorSupplier = () -> {
                             try {
-                                Aggregator aggregator = createAggregator(builder, context);
+                                C aggregator = createAggregator(builder, context);
                                 aggregator.preCollection();
+                                aggregators.add(aggregator);
                                 BucketCollector bucketCollector = MultiBucketCollector.wrap(true, List.of(aggregator));
                                 return new AggregatorCollector(new Aggregator[] { aggregator }, bucketCollector);
                             } catch (IOException e) {
@@ -745,6 +746,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     }
                 } finally {
                     Releasables.close(context);
+//                    aggregators.forEach(aggregator -> {
+//                        aggregator.releaseAggregations();
+//                    });
                 }
             }
             if (aggTestConfig.incrementalReduce() && internalAggs.size() > 1) {

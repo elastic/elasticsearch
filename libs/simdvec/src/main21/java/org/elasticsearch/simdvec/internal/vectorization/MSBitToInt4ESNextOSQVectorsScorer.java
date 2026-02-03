@@ -12,14 +12,12 @@ import jdk.incubator.vector.ByteVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.IntVector;
 import jdk.incubator.vector.LongVector;
-import jdk.incubator.vector.ShortVector;
 import jdk.incubator.vector.VectorOperators;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.nativeaccess.NativeAccess;
 
 import java.io.IOException;
 import java.lang.foreign.Arena;
@@ -34,10 +32,6 @@ import static org.elasticsearch.simdvec.internal.Similarities.dotProductI1I4Bulk
 
 /** Panamized scorer for quantized vectors stored as a {@link MemorySegment}. */
 final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVectorsScorer.MemorySegmentScorer {
-
-    // TODO: split Panama and Native implementations
-    private static final boolean NATIVE_SUPPORTED = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
-    private static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
 
     MSBitToInt4ESNextOSQVectorsScorer(IndexInput in, int dimensions, int dataLength, int bulkSize, MemorySegment memorySegment) {
         super(in, dimensions, dataLength, bulkSize, memorySegment);
@@ -459,19 +453,19 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
             var lx = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES_128,
                 memorySegment,
-                offset + 4 * bulkSize + i * Float.BYTES,
+                offset + 4L * bulkSize + i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             ).sub(ax);
-            var targetComponentSums = ShortVector.fromMemorySegment(
-                SHORT_SPECIES_128,
+            var targetComponentSums = IntVector.fromMemorySegment(
+                INT_SPECIES_128,
                 memorySegment,
-                offset + 8 * bulkSize + i * Short.BYTES,
+                offset + 8L * bulkSize + i * Integer.BYTES,
                 ByteOrder.LITTLE_ENDIAN
-            ).convert(VectorOperators.S2I, 0).reinterpretAsInts().and(0xffff).convert(VectorOperators.I2F, 0);
+            ).convert(VectorOperators.I2F, 0);
             var additionalCorrections = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES_128,
                 memorySegment,
-                offset + 10 * bulkSize + i * Float.BYTES,
+                offset + 12L * bulkSize + i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             );
             var qcDist = FloatVector.fromArray(FLOAT_SPECIES_128, scores, i);
@@ -507,7 +501,7 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
                 }
             }
         }
-        in.seek(offset + 14L * bulkSize);
+        in.seek(offset + 16L * bulkSize);
         return maxScore;
     }
 
@@ -532,19 +526,19 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
             var lx = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES_256,
                 memorySegment,
-                offset + 4 * bulkSize + i * Float.BYTES,
+                offset + 4L * bulkSize + i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             ).sub(ax);
-            var targetComponentSums = ShortVector.fromMemorySegment(
-                SHORT_SPECIES_256,
+            var targetComponentSums = IntVector.fromMemorySegment(
+                INT_SPECIES_256,
                 memorySegment,
-                offset + 8 * bulkSize + i * Short.BYTES,
+                offset + 8L * bulkSize + i * Integer.BYTES,
                 ByteOrder.LITTLE_ENDIAN
-            ).convert(VectorOperators.S2I, 0).reinterpretAsInts().and(0xffff).convert(VectorOperators.I2F, 0);
+            ).convert(VectorOperators.I2F, 0);
             var additionalCorrections = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES_256,
                 memorySegment,
-                offset + 10 * bulkSize + i * Float.BYTES,
+                offset + 12L * bulkSize + i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             );
             var qcDist = FloatVector.fromArray(FLOAT_SPECIES_256, scores, i);
@@ -580,7 +574,7 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
                 }
             }
         }
-        in.seek(offset + 14L * bulkSize);
+        in.seek(offset + 16L * bulkSize);
         return maxScore;
     }
 }

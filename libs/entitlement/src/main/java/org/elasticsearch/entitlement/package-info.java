@@ -74,8 +74,8 @@
 /// ### How we identify the methods to instrument
 ///
 /// [org.elasticsearch.entitlement.initialization.EntitlementInitialization] builds the set of methods to instrument using
-/// [org.elasticsearch.entitlement.bridge.registry.InstrumentationRegistry].
-/// [org.elasticsearch.entitlement.bridge.registry.InstrumentationRegistry] is the interface that contains the definition of all the check
+/// [org.elasticsearch.entitlement.bridge.InstrumentationRegistry].
+/// [org.elasticsearch.entitlement.bridge.InstrumentationRegistry] is the interface that contains the definition of all the check
 /// methods; it needs to be accessible by both this project and the code injected by the agent, therefore is located in a small,
 /// self-contained library ({@see the {@code bridge} subproject}).
 ///
@@ -169,7 +169,7 @@
 ///
 /// ## Checks
 ///
-/// The injected prologue calls a `check$` method on [org.elasticsearch.entitlement.bridge.registry.InstrumentationRegistry]; its
+/// The injected prologue calls a `check$` method on [org.elasticsearch.entitlement.bridge.InstrumentationRegistry]; its
 /// implementation (normally on org.elasticsearch.entitlement.runtime.policy.ElasticsearchEntitlementChecker, unless it is a
 /// version-specific method) calls the appropriate methods on [org.elasticsearch.entitlement.runtime.policy.PolicyManager],
 /// forwarding the caller class and a specific set of arguments. These methods all start with check, roughly matching an entitlement type

@@ -10,10 +10,10 @@
 /**
  * Contains classes that need to be used directly from instrumented methods.
  * It's a minimal shim that is patched into the {@code java.base} module so that it is callable from the class library methods instrumented
- * by the agent. The shim retains a {@link org.elasticsearch.entitlement.bridge.registry.InstrumentationRegistry} instance (inside its
- * {@link org.elasticsearch.entitlement.bridge.registry.InstrumentationRegistryHandle} holder) and forwards the entitlement checks to the main library,
+ * by the agent. The shim retains a {@link org.elasticsearch.entitlement.bridge.InstrumentationRegistry} instance (inside its
+ * {@link org.elasticsearch.entitlement.bridge.InstrumentationRegistryHandle} holder) and forwards the entitlement checks to the main library,
  * that exists in the system classloader.
- * {@link org.elasticsearch.entitlement.bridge.registry.InstrumentationRegistry} holds all the entitlements check definitions, one for each instrumented
+ * {@link org.elasticsearch.entitlement.bridge.InstrumentationRegistry} holds all the entitlements check definitions, one for each instrumented
  * method.
  * <p>
  * In order to work across multiple Java versions, this project uses multi-release jars via the {@code mrjar} plugin, which makes it is

@@ -277,7 +277,7 @@ class Elasticsearch {
      * @throws IllegalStateException if entitlements aren't functioning properly.
      */
     static void entitlementSelfTest() {
-        // EntitlementSelfTester.entitlementSelfTest();
+        EntitlementSelfTester.entitlementSelfTest();
     }
 
     private static void logSystemInfo() {

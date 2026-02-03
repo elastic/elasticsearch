@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.bridge.registry;
+package org.elasticsearch.entitlement.bridge;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;

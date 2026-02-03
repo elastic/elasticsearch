@@ -202,8 +202,6 @@ final class SystemJvmOptions {
                 "-Djdk.attach.allowAttachSelf=true",
                 "--patch-module=java.base=" + bridgeJar,
                 "--add-exports=java.base/org.elasticsearch.entitlement.bridge=org.elasticsearch.entitlement,"
-                    + modulesContainingEntitlementInstrumentation,
-                "--add-exports=java.base/org.elasticsearch.entitlement.bridge.registry=org.elasticsearch.entitlement,"
                     + modulesContainingEntitlementInstrumentation
             ),
             internalExports

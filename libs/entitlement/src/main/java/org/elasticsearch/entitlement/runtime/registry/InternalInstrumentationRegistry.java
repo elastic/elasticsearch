@@ -9,7 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.registry;
 
-import org.elasticsearch.entitlement.bridge.registry.InstrumentationRegistry;
+import org.elasticsearch.entitlement.bridge.InstrumentationRegistry;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.rules.EntitlementRule;
 

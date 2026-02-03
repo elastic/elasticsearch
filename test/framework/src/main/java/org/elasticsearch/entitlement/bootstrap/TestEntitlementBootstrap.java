@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.entitlement.config.MainInstrumentationProvider;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
@@ -78,12 +79,14 @@ public class TestEntitlementBootstrap {
     private static void loadAgent(PolicyManager policyManager, PathLookup pathLookup) {
         logger.debug("Loading entitlement agent");
         PolicyCheckerImpl policyChecker = createPolicyChecker(Set.of(), policyManager, pathLookup);
+        InstrumentationRegistryImpl instrumentationRegistry = new InstrumentationRegistryImpl(policyChecker);
         EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(
             pathLookup,
             Set.of(),
             policyChecker,
-            new InstrumentationRegistryImpl(policyChecker)
+            instrumentationRegistry
         );
+        new MainInstrumentationProvider().init(instrumentationRegistry);
         EntitlementBootstrap.loadAgent(EntitlementBootstrap.findAgentJar(), EntitlementInitialization.class.getName());
     }
 

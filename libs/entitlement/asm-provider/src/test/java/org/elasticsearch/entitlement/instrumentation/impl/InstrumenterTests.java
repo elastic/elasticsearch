@@ -11,7 +11,7 @@ package org.elasticsearch.entitlement.instrumentation.impl;
 
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.entitlement.bridge.registry.InstrumentationRegistry;
+import org.elasticsearch.entitlement.bridge.InstrumentationRegistry;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.impl.InstrumenterImpl.ClassFileInfo;
 import org.elasticsearch.entitlement.rules.EntitlementRulesBuilder;
@@ -275,20 +275,21 @@ public class InstrumenterTests extends ESTestCase {
     public void testStaticMethodOverload() throws Exception {
         Method targetMethod1 = TestClassToInstrument.class.getMethod("someStaticMethod", int.class);
         Method targetMethod2 = TestClassToInstrument.class.getMethod("someStaticMethod", int.class, String.class);
-        withInstrumentedClass(builder -> {
-            builder.on(TestClassToInstrument.class)
+        withInstrumentedClass(
+            builder -> builder.on(TestClassToInstrument.class)
                 .callingVoidStatic(TestClassToInstrument::someStaticMethod, Integer.class)
                 .enforce(() -> (clazz, policyChecker) -> checker.checkSomeStaticMethod(clazz, 123))
                 .elseThrowNotEntitled()
                 .callingVoidStatic(TestClassToInstrument::someStaticMethod, Integer.class, String.class)
                 .enforce(() -> (clazz, policyChecker) -> checker.checkSomeStaticMethodOverload(clazz, 123, "abc"))
-                .elseThrowNotEntitled();
-        }, (loader, instrumenter) -> {
-            assertStaticMethodThrows(loader, targetMethod1, 123);
-            assertStaticMethodThrows(loader, targetMethod2, 123, "abc");
-            assertEquals(1, checker.checkSomeStaticMethodIntCallCount);
-            assertEquals(1, checker.checkSomeStaticMethodIntStringCallCount);
-        });
+                .elseThrowNotEntitled(),
+            (loader, instrumenter) -> {
+                assertStaticMethodThrows(loader, targetMethod1, 123);
+                assertStaticMethodThrows(loader, targetMethod2, 123, "abc");
+                assertEquals(1, checker.checkSomeStaticMethodIntCallCount);
+                assertEquals(1, checker.checkSomeStaticMethodIntStringCallCount);
+            }
+        );
     }
 
     public void testInstanceMethodOverload() throws Exception {

@@ -121,7 +121,7 @@ setup:
         rest_total_hits_as_int: true
         body: >
           {
-            "query": { "kql": { "query": "const_keyword_field:*q" } }
+            "query": { "kql": { "query": "const_keyword_field:*Z" } }
           }
 
   - match: { hits.total: 0 }

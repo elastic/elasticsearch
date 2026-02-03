@@ -117,11 +117,7 @@ public final class LoggerImpl implements Logger {
 
     @Override
     public void fatal(LogMessage message) {
-        if (message instanceof Message) {
-            log4jLogger.fatal((Message) message);
-        } else {
-            log4jLogger.fatal(message);
-        }
+        log(Level.FATAL, message);
     }
 
     @Override
@@ -151,11 +147,7 @@ public final class LoggerImpl implements Logger {
 
     @Override
     public void error(LogMessage message) {
-        if (message instanceof Message) {
-            log4jLogger.error((Message) message);
-        } else {
-            log4jLogger.error(message);
-        }
+        log(Level.ERROR, message);
     }
 
     @Override
@@ -185,11 +177,7 @@ public final class LoggerImpl implements Logger {
 
     @Override
     public void warn(LogMessage message) {
-        if (message instanceof Message) {
-            log4jLogger.warn((Message) message);
-        } else {
-            log4jLogger.warn(message);
-        }
+        log(Level.WARN, message);
     }
 
     @Override
@@ -219,11 +207,7 @@ public final class LoggerImpl implements Logger {
 
     @Override
     public void info(LogMessage message) {
-        if (message instanceof Message) {
-            log4jLogger.info((Message) message);
-        } else {
-            log4jLogger.info(message);
-        }
+        log(Level.INFO, message);
     }
 
     @Override
@@ -253,11 +237,7 @@ public final class LoggerImpl implements Logger {
 
     @Override
     public void debug(LogMessage message) {
-        if (message instanceof Message) {
-            log4jLogger.debug((Message) message);
-        } else {
-            log4jLogger.debug(message);
-        }
+        log(Level.DEBUG, message);
     }
 
     @Override
@@ -287,11 +267,7 @@ public final class LoggerImpl implements Logger {
 
     @Override
     public void trace(LogMessage message) {
-        if (message instanceof Message) {
-            log4jLogger.trace((Message) message);
-        } else {
-            log4jLogger.trace(message);
-        }
+        log(Level.TRACE, message);
     }
 
     @Override

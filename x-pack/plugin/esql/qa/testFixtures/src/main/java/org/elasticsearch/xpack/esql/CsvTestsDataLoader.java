@@ -435,7 +435,7 @@ public class CsvTestsDataLoader {
                     deleteEnrichPolicies(client);
                 }
                 if (indexes) {
-                    deleteIndexes(client, true, true, false, false, true, true, true, true);
+                    deleteIndexes(client, true, true, false, false, true, true, true, true, true);
                 }
             }
             if (load) {
@@ -446,6 +446,7 @@ public class CsvTestsDataLoader {
                         true,
                         false,
                         false,
+                        true,
                         true,
                         true,
                         true,
@@ -486,7 +487,8 @@ public class CsvTestsDataLoader {
         boolean exponentialHistogramFieldSupported,
         boolean tDigestFieldSupported,
         boolean histogramFieldSupported,
-        boolean bFloat16ElementTypeSupported
+        boolean bFloat16ElementTypeSupported,
+        boolean tDigestMetricFieldSupported
     ) throws IOException {
         Set<TestDataset> testDataSets = new HashSet<>();
 
@@ -497,6 +499,7 @@ public class CsvTestsDataLoader {
                 && (requiresTimeSeries == false || isTimeSeries(dataset))
                 && (exponentialHistogramFieldSupported || containsExponentialHistogramFields(dataset) == false)
                 && (tDigestFieldSupported || containsTDigestFields(dataset) == false)
+                && (tDigestMetricFieldSupported || containsTDigestMetricFields(dataset) == false)
                 && (histogramFieldSupported || containsHistogramFields(dataset) == false)
                 && (bFloat16ElementTypeSupported || containsBFloat16ElementType(dataset) == false)) {
                 testDataSets.add(dataset);
@@ -528,6 +531,10 @@ public class CsvTestsDataLoader {
 
     private static boolean containsTDigestFields(TestDataset dataset) throws IOException {
         return containsFieldWithProperties(dataset, Map.of("type", "tdigest"));
+    }
+
+    private static boolean containsTDigestMetricFields(TestDataset dataset) throws IOException {
+        return containsFieldWithProperties(dataset, Map.of("type", "tdigest", "time_series_metric", "histogram"));
     }
 
     private static boolean containsBFloat16ElementType(TestDataset dataset) throws IOException {
@@ -586,7 +593,18 @@ public class CsvTestsDataLoader {
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled
     ) throws IOException {
-        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, false, false, false, false, false);
+        loadDataSetIntoEs(
+            client,
+            supportsIndexModeLookup,
+            supportsSourceFieldMapping,
+            inferenceEnabled,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+        );
     }
 
     public static void loadDataSetIntoEs(
@@ -598,7 +616,8 @@ public class CsvTestsDataLoader {
         boolean exponentialHistogramFieldSupported,
         boolean tDigestFieldSupported,
         boolean histogramFieldSupported,
-        boolean bFloat16ElementTypeSupported
+        boolean bFloat16ElementTypeSupported,
+        boolean tDigestMetricFieldSupported
     ) throws IOException {
         loadDataSets(
             client,
@@ -610,6 +629,7 @@ public class CsvTestsDataLoader {
             tDigestFieldSupported,
             histogramFieldSupported,
             bFloat16ElementTypeSupported,
+            tDigestMetricFieldSupported,
             (restClient, indexName, indexMapping, indexSettings) -> {
                 ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
             }
@@ -629,6 +649,7 @@ public class CsvTestsDataLoader {
         boolean tDigestFieldSupported,
         boolean histogramFieldSupported,
         boolean bFloat16ElementTypeSupported,
+        boolean tDigestMetricFieldSupported,
         IndexCreator indexCreator
     ) throws IOException {
         Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
@@ -643,7 +664,8 @@ public class CsvTestsDataLoader {
             exponentialHistogramFieldSupported,
             tDigestFieldSupported,
             histogramFieldSupported,
-            bFloat16ElementTypeSupported
+            bFloat16ElementTypeSupported,
+            tDigestMetricFieldSupported
         )) {
             load(client, dataset, logger, indexCreator);
             loadedDatasets.add(dataset.indexName);
@@ -696,7 +718,8 @@ public class CsvTestsDataLoader {
         boolean exponentialHistogramFieldSupported,
         boolean tDigestFieldSupported,
         boolean histogramFieldSupported,
-        boolean bFloat16ElementTypeSupported
+        boolean bFloat16ElementTypeSupported,
+        boolean tDigestMetricFieldSupported
     ) throws IOException {
         Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
         logger.info("Deleting test datasets");
@@ -708,7 +731,8 @@ public class CsvTestsDataLoader {
             exponentialHistogramFieldSupported,
             tDigestFieldSupported,
             histogramFieldSupported,
-            bFloat16ElementTypeSupported
+            bFloat16ElementTypeSupported,
+            tDigestMetricFieldSupported
         )) {
             deleteIndex(client, dataset.indexName(), logger);
         }

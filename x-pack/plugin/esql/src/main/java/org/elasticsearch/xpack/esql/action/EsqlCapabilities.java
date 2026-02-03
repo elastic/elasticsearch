@@ -1877,7 +1877,13 @@ public class EsqlCapabilities {
         /**
          * Support for PromQL time() function.
          */
-        PROMQL_TIME(PROMQL_COMMAND_V0.isEnabled()),
+        PROMQL_TIME,
+
+        /**
+         * Queries for unmapped fields return no data instead of an error.
+         * Also filters out nulls from results.
+         */
+        PROMQL_UNMAPPED_FIELDS_FILTER_NULLS,
 
         /**
          * KNN function adds support for k and visit_percentage options
@@ -2042,13 +2048,18 @@ public class EsqlCapabilities {
         METADATA_SIZE_FIELD,
 
         /**
+         * Support for configuring T-Digest elasticsearch field as a time series metric.
+         */
+        TDIGEST_TIME_SERIES_METRIC,
+
+        /**
          * Temporary capability until the MMR operator is merged to pass the BWC CI tests
          * Without this, the CSV tests for MMR will try and run (if just using the `mmr` capability)
          * however, without the MMRExec to operator code in place, will fail on the snapshot
          * TODO - remove this once the MMR operator is merged
          */
         TEMP_MMR_EXEC(Build.current().isSnapshot()),
-
+         
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

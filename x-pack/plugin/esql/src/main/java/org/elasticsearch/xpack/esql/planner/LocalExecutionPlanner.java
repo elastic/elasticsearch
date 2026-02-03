@@ -354,6 +354,7 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planCompletion(CompletionExec completion, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(completion.child(), context);
         String inferenceId = BytesRefs.toString(completion.inferenceId().fold(context.foldCtx()));
+        Map<String, Object> taskSettings = completion.taskSettings().toFoldedMap(context.foldCtx());
         Layout outputLayout = source.layout.builder().append(completion.targetField()).build();
         EvalOperator.ExpressionEvaluator.Factory promptEvaluatorFactory = EvalMapper.toEvaluator(
             context.foldCtx(),
@@ -361,7 +362,10 @@ public class LocalExecutionPlanner {
             source.layout
         );
 
-        return source.with(new CompletionOperator.Factory(inferenceService, inferenceId, promptEvaluatorFactory), outputLayout);
+        return source.with(
+            new CompletionOperator.Factory(inferenceService, inferenceId, promptEvaluatorFactory, taskSettings),
+            outputLayout
+        );
     }
 
     private PhysicalOperation planFuseScoreEvalExec(FuseScoreEvalExec fuse, LocalExecutionPlannerContext context) {

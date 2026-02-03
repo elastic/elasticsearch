@@ -177,8 +177,12 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                   "type": "exponential_histogram",
                   "time_series_metric": "histogram"
                 },
-                "metrics.tdigest": {
+                "metrics.legacy": {
                   "type": "histogram",
+                  "time_series_metric": "histogram"
+                },
+                "metrics.tdigest": {
+                  "type": "tdigest",
                   "time_series_metric": "histogram"
                 },
                 "my_labels": {
@@ -233,6 +237,11 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                     .endObject()
 
                     .startObject("metrics.tdigest")
+                    .array("centroids", randomHistogramValues(maxHistogramSize))
+                    .array("counts", randomHistogramValueCounts(maxHistogramSize))
+                    .endObject()
+
+                    .startObject("metrics.legacy")
                     .array("values", randomHistogramValues(maxHistogramSize))
                     .array("counts", randomHistogramValueCounts(maxHistogramSize))
                     .endObject()

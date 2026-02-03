@@ -17,6 +17,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
+import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -131,10 +132,12 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         assertEquals(0, ScriptSortType.STRING.ordinal());
         assertEquals(1, ScriptSortType.NUMBER.ordinal());
         assertEquals(2, ScriptSortType.VERSION.ordinal());
+        assertEquals(3, ScriptSortType.LONG.ordinal());
 
         assertEquals("string", ScriptSortType.STRING.toString());
         assertEquals("number", ScriptSortType.NUMBER.toString());
         assertEquals("version", ScriptSortType.VERSION.toString());
+        assertEquals("long", ScriptSortType.LONG.toString());
 
         assertEquals(ScriptSortType.STRING, ScriptSortType.fromString("string"));
         assertEquals(ScriptSortType.STRING, ScriptSortType.fromString("String"));
@@ -145,6 +148,9 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         assertEquals(ScriptSortType.VERSION, ScriptSortType.fromString("version"));
         assertEquals(ScriptSortType.VERSION, ScriptSortType.fromString("Version"));
         assertEquals(ScriptSortType.VERSION, ScriptSortType.fromString("VERSION"));
+        assertEquals(ScriptSortType.LONG, ScriptSortType.fromString("long"));
+        assertEquals(ScriptSortType.LONG, ScriptSortType.fromString("Long"));
+        assertEquals(ScriptSortType.LONG, ScriptSortType.fromString("LONG"));
     }
 
     public void testScriptSortTypeNull() {
@@ -310,6 +316,10 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.VERSION);
         sortField = sortBuilder.build(createMockSearchExecutionContext()).field();
         assertThat(sortField.getComparatorSource(), instanceOf(BytesRefFieldComparatorSource.class));
+
+        sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.LONG);
+        sortField = sortBuilder.build(createMockSearchExecutionContext()).field();
+        assertThat(sortField.getComparatorSource(), instanceOf(LongValuesComparatorSource.class));
     }
 
     /**

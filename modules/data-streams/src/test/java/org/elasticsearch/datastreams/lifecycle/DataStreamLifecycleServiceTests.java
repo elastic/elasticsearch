@@ -1972,7 +1972,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         ProjectState projectState = projectStateFromProject(builder);
 
         Set<Index> indicesEligible = new HashSet<>(
-            dataStream.getIndicesPastRetention(projectState.metadata()::index, () -> now, schedule, false)
+            dataStream.getIndicesOlderThan(projectState.metadata()::index, () -> now, schedule, false)
         );
         Set<Index> indicesToExclude = new HashSet<>(indicesEligible);
 
@@ -1998,7 +1998,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         builder.put(dataStream);
         ProjectState projectState = projectStateFromProject(builder);
 
-        List<Index> indicesEligible = dataStream.getIndicesPastRetention(projectState.metadata()::index, () -> now, schedule, false);
+        List<Index> indicesEligible = dataStream.getIndicesOlderThan(projectState.metadata()::index, () -> now, schedule, false);
 
         // Exclude only the first half of eligible indices
         Set<Index> indicesToExclude = new HashSet<>();
@@ -2055,7 +2055,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         Set<Index> processedIndices = dataStreamLifecycleService.maybeProcessDlmActions(projectState, dataStream, indicesToExclude);
 
         assertThat(action.actionScheduleChecked, equalTo(true));
-        int eligibleCount = dataStream.getIndicesPastRetention(projectState.metadata()::index, () -> now, schedule, false).size();
+        int eligibleCount = dataStream.getIndicesOlderThan(projectState.metadata()::index, () -> now, schedule, false).size();
         assertThat(step1.completedCheckCount, equalTo(0));
         assertThat(step2.completedCheckCount, equalTo(eligibleCount));
         assertThat(step1.executeCount, equalTo(0));
@@ -2084,7 +2084,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         Set<Index> processedIndices = dataStreamLifecycleService.maybeProcessDlmActions(projectState, dataStream, indicesToExclude);
 
         assertThat(action.actionScheduleChecked, equalTo(true));
-        int eligibleCount = dataStream.getIndicesPastRetention(projectState.metadata()::index, () -> now, schedule, false).size();
+        int eligibleCount = dataStream.getIndicesOlderThan(projectState.metadata()::index, () -> now, schedule, false).size();
         assertThat(step1.completedCheckCount, equalTo(eligibleCount));
         assertThat(step2.completedCheckCount, equalTo(eligibleCount));
         assertThat(step1.executeCount, equalTo(0));
@@ -2111,7 +2111,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         Set<Index> processedIndices = dataStreamLifecycleService.maybeProcessDlmActions(projectState, dataStream, indicesToExclude);
 
         assertThat(action.actionScheduleChecked, equalTo(true));
-        int eligibleCount = dataStream.getIndicesPastRetention(projectState.metadata()::index, () -> now, schedule, false).size();
+        int eligibleCount = dataStream.getIndicesOlderThan(projectState.metadata()::index, () -> now, schedule, false).size();
         assertThat(step1.completedCheckCount, equalTo(eligibleCount));
         assertThat(step2.completedCheckCount, equalTo(eligibleCount));
         assertThat(step1.executeCount, equalTo(eligibleCount));
@@ -2153,7 +2153,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         }
 
         assertThat(action.actionScheduleChecked, equalTo(true));
-        int eligibleCount = dataStream.getIndicesPastRetention(projectState.metadata()::index, () -> now, schedule, false).size();
+        int eligibleCount = dataStream.getIndicesOlderThan(projectState.metadata()::index, () -> now, schedule, false).size();
         assertThat(step1.completedCheckCount, equalTo(eligibleCount));
         assertThat(step2.completedCheckCount, equalTo(eligibleCount));
         assertThat(step1.executeCount, equalTo(eligibleCount));
@@ -2192,7 +2192,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
 
         assertThat(action.actionScheduleChecked, equalTo(true));
         // When appliesToFailureStore is false, only backing indices should be processed
-        List<Index> backingIndicesEligible = dataStream.getIndicesPastRetention(projectState.metadata()::index, () -> now, schedule, false);
+        List<Index> backingIndicesEligible = dataStream.getIndicesOlderThan(projectState.metadata()::index, () -> now, schedule, false);
         assertThat(processedIndices, hasSize(numBackingIndices - 1)); // all but the write index, no failure store indices
         assertThat(processedIndices, hasSize(backingIndicesEligible.size()));
         assertThat(step1.executeCount, equalTo(backingIndicesEligible.size()));
@@ -2228,7 +2228,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
 
         assertThat(action.actionScheduleChecked, equalTo(true));
         // When appliesToFailureStore is true, failure indices should be included
-        List<Index> failureIndicesEligible = dataStream.getIndicesPastRetention(projectState.metadata()::index, () -> now, schedule);
+        List<Index> failureIndicesEligible = dataStream.getIndicesOlderThan(projectState.metadata()::index, () -> now, schedule);
         // all but the write backing index, and write failure index
         assertThat(processedIndices, hasSize(numBackingIndices + numFailureIndices - 2));
         assertThat(step1.executeCount, equalTo(failureIndicesEligible.size()));

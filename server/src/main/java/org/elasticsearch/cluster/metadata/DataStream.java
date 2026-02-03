@@ -1214,34 +1214,34 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     /**
      * Iterate over the backing or failure indices depending on <code>failureStore</code> and return the ones that are managed by the
-     * data stream lifecycle and past the configured retention in their lifecycle.
+     * data stream lifecycle and older than the supplied {@link TimeValue}.
      * NOTE that this specifically does not return the write index of the data stream as usually retention
      * is treated differently for the write index (i.e. they first need to be rolled over)
      */
-    public List<Index> getIndicesPastRetention(
+    public List<Index> getIndicesOlderThan(
         Function<String, IndexMetadata> indexMetadataSupplier,
         LongSupplier nowSupplier,
         TimeValue effectiveRetention,
         boolean failureStore
     ) {
-        return getIndicesPastRetention(indexMetadataSupplier, nowSupplier, effectiveRetention, failureStore == false, failureStore);
+        return getIndicesOlderThan(indexMetadataSupplier, nowSupplier, effectiveRetention, failureStore == false, failureStore);
     }
 
     /**
      * Iterate over all backing indices and return the ones that are managed by the
-     * data stream lifecycle and past the configured retention in their lifecycle.
+     * data stream lifecycle and older than the supplied {@link TimeValue}.
      * NOTE that this specifically does not return the write index of the data stream as usually retention
      * is treated differently for the write index (i.e. they first need to be rolled over)
      */
-    public List<Index> getIndicesPastRetention(
+    public List<Index> getIndicesOlderThan(
         Function<String, IndexMetadata> indexMetadataSupplier,
         LongSupplier nowSupplier,
         TimeValue effectiveRetention
     ) {
-        return getIndicesPastRetention(indexMetadataSupplier, nowSupplier, effectiveRetention, true, true);
+        return getIndicesOlderThan(indexMetadataSupplier, nowSupplier, effectiveRetention, true, true);
     }
 
-    private List<Index> getIndicesPastRetention(
+    private List<Index> getIndicesOlderThan(
         Function<String, IndexMetadata> indexMetadataSupplier,
         LongSupplier nowSupplier,
         TimeValue effectiveRetention,

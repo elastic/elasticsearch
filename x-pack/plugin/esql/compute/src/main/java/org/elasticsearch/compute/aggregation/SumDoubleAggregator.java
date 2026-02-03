@@ -96,7 +96,7 @@ class SumDoubleAggregator {
                     deltaBuilder.appendDouble(i, state.deltas.get(group));
                     seenBuilder.appendBoolean(i, true);
                 } else {
-                    allHaveValued = false;
+                    allHaveValue = false;
                     valuesBuilder.appendDouble(i, 0);
                     deltaBuilder.appendDouble(i, 0);
                     seenBuilder.appendBoolean(i, false);
@@ -104,7 +104,7 @@ class SumDoubleAggregator {
             }
             blocks[offset + 0] = valuesBuilder.build().asBlock();
             blocks[offset + 1] = deltaBuilder.build().asBlock();
-            if (allHaveValued) {
+            if (allHaveValue) {
                 // switch to a constant block to reduce memory usage and allow fast checks
                 blocks[offset + 2] = driverContext.blockFactory().newConstantBooleanBlockWith(true, selected.getPositionCount());
             } else {

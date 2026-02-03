@@ -29,8 +29,8 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 
 public class AlibabaCloudSearchEmbeddingsServiceSettings implements ServiceSettings {
     public static final String NAME = "alibabacloud_search_embeddings_service_settings";
@@ -40,12 +40,17 @@ public class AlibabaCloudSearchEmbeddingsServiceSettings implements ServiceSetti
         var commonServiceSettings = AlibabaCloudSearchServiceSettings.fromMap(map, context);
 
         var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var dims = removeAsType(map, DIMENSIONS, Integer.class);
-        var maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
+        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var maxInputTokens = extractOptionalPositiveInteger(
+            map,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
 
         validationException.throwIfValidationErrorsExist();
 
-        return new AlibabaCloudSearchEmbeddingsServiceSettings(commonServiceSettings, similarity, dims, maxInputTokens);
+        return new AlibabaCloudSearchEmbeddingsServiceSettings(commonServiceSettings, similarity, dimensions, maxInputTokens);
     }
 
     private final AlibabaCloudSearchServiceSettings commonSettings;
@@ -110,16 +115,26 @@ public class AlibabaCloudSearchEmbeddingsServiceSettings implements ServiceSetti
         var commonServiceSettings = commonSettings.updateServiceSettings(serviceSettings, taskType);
 
         var extractedSimilarity = extractSimilarity(serviceSettings, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var extractedDims = removeAsType(serviceSettings, DIMENSIONS, Integer.class);
-        var extractedMaxInputTokens = removeAsType(serviceSettings, MAX_INPUT_TOKENS, Integer.class);
+        var extractedDimensions = extractOptionalPositiveInteger(
+            serviceSettings,
+            DIMENSIONS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedMaxInputTokens = extractOptionalPositiveInteger(
+            serviceSettings,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
 
         validationException.throwIfValidationErrorsExist();
 
         return new AlibabaCloudSearchEmbeddingsServiceSettings(
             commonServiceSettings,
-            extractedSimilarity != null ? extractedSimilarity : similarity,
-            extractedDims != null ? extractedDims : dimensions,
-            extractedMaxInputTokens != null ? extractedMaxInputTokens : maxInputTokens
+            extractedSimilarity != null ? extractedSimilarity : this.similarity,
+            extractedDimensions != null ? extractedDimensions : this.dimensions,
+            extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens
         );
     }
 

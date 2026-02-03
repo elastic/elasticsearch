@@ -94,7 +94,7 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
         );
         var extractedRateLimitSettings = RateLimitSettings.of(
             serviceSettings,
-            rateLimitSettings,
+            this.rateLimitSettings,
             validationException,
             AMAZON_BEDROCK_BASE_NAME,
             ConfigurationParseContext.PERSISTENT
@@ -103,9 +103,9 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
         validationException.throwIfValidationErrorsExist();
 
         return new BaseAmazonBedrockCommonSettings(
-            extractedRegion != null ? extractedRegion : region,
-            extractedModel != null ? extractedModel : model,
-            extractedProvider != null ? extractedProvider : provider,
+            extractedRegion != null ? extractedRegion : this.region,
+            extractedModel != null ? extractedModel : this.model,
+            extractedProvider != null ? extractedProvider : this.provider,
             extractedRateLimitSettings
         );
     }

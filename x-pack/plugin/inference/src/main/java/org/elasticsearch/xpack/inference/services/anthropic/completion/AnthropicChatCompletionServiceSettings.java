@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
 /**
@@ -56,10 +57,7 @@ public class AnthropicChatCompletionServiceSettings extends FilteredXContentObje
             context
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
+        validationException.throwIfValidationErrorsExist();
         return new AnthropicChatCompletionServiceSettings(modelId, rateLimitSettings);
     }
 
@@ -89,7 +87,23 @@ public class AnthropicChatCompletionServiceSettings extends FilteredXContentObje
 
     @Override
     public AnthropicChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
-        return fromMap(serviceSettings, ConfigurationParseContext.PERSISTENT);
+        var validationException = new ValidationException();
+
+        var extractedModelId = extractOptionalString(serviceSettings, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            AnthropicService.NAME,
+            ConfigurationParseContext.PERSISTENT
+        );
+
+        validationException.throwIfValidationErrorsExist();
+        return new AnthropicChatCompletionServiceSettings(
+            extractedModelId != null ? extractedModelId : this.modelId,
+            extractedRateLimitSettings
+        );
     }
 
     @Override

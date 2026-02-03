@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.azureaistudio.rerank;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContent;
@@ -36,9 +35,7 @@ public class AzureAiStudioRerankServiceSettings extends AzureAiStudioServiceSett
 
         final var settings = rerankSettingsFromMap(map, validationException, context);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AzureAiStudioRerankServiceSettings(settings);
     }
@@ -54,7 +51,21 @@ public class AzureAiStudioRerankServiceSettings extends AzureAiStudioServiceSett
 
     @Override
     public AzureAiStudioRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
-        return fromMap(serviceSettings, ConfigurationParseContext.PERSISTENT);
+        final var validationException = new ValidationException();
+
+        final var settings = updateRerankServiceSettings(serviceSettings, validationException);
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new AzureAiStudioRerankServiceSettings(settings);
+    }
+
+    private AzureAiStudioRerankServiceSettings.AzureAiStudioRerankCommonFields updateRerankServiceSettings(
+        Map<String, Object> map,
+        ValidationException validationException
+    ) {
+        final var baseSettings = updateBaseServiceSettings(map, validationException);
+        return new AzureAiStudioRerankServiceSettings.AzureAiStudioRerankCommonFields(baseSettings);
     }
 
     private record AzureAiStudioRerankCommonFields(BaseAzureAiStudioCommonFields baseCommonFields) {}
@@ -89,11 +100,6 @@ public class AzureAiStudioRerankServiceSettings extends AzureAiStudioServiceSett
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return ML_INFERENCE_AZURE_AI_STUDIO_RERANK_ADDED;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
     }
 
     @Override

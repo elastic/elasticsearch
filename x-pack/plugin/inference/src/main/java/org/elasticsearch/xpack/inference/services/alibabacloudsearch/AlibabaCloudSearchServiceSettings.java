@@ -45,7 +45,7 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
     public static AlibabaCloudSearchServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         var validationException = new ValidationException();
 
-        var modelId = extractRequiredString(map, SERVICE_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var serviceId = extractRequiredString(map, SERVICE_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var host = extractRequiredString(map, HOST, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var workspaceName = extractRequiredString(map, WORKSPACE_NAME, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var httpSchema = extractOptionalString(map, HTTP_SCHEMA_NAME, ModelConfigurations.SERVICE_SETTINGS, validationException);
@@ -62,7 +62,7 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
 
         validationException.throwIfValidationErrorsExist();
 
-        return new AlibabaCloudSearchServiceSettings(modelId, host, workspaceName, httpSchema, rateLimitSettings);
+        return new AlibabaCloudSearchServiceSettings(serviceId, host, workspaceName, httpSchema, rateLimitSettings);
     }
 
     private static void validateHttpSchema(String httpSchema, ValidationException validationException) {
@@ -111,7 +111,7 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
     public AlibabaCloudSearchServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
         var validationException = new ValidationException();
 
-        var extractedModelId = extractOptionalString(
+        var extractedServiceId = extractOptionalString(
             serviceSettings,
             SERVICE_ID,
             ModelConfigurations.SERVICE_SETTINGS,
@@ -135,7 +135,7 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
 
         var extractedRateLimitSettings = RateLimitSettings.of(
             serviceSettings,
-            rateLimitSettings,
+            this.rateLimitSettings,
             validationException,
             AlibabaCloudSearchService.NAME,
             ConfigurationParseContext.PERSISTENT
@@ -144,10 +144,10 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
         validationException.throwIfValidationErrorsExist();
 
         return new AlibabaCloudSearchServiceSettings(
-            extractedModelId != null ? extractedModelId : serviceId,
-            extractedHost != null ? extractedHost : host,
-            extractedWorkspaceName != null ? extractedWorkspaceName : workspaceName,
-            extractedHttpSchema != null ? extractedHttpSchema : httpSchema,
+            extractedServiceId != null ? extractedServiceId : this.serviceId,
+            extractedHost != null ? extractedHost : this.host,
+            extractedWorkspaceName != null ? extractedWorkspaceName : this.workspaceName,
+            extractedHttpSchema != null ? extractedHttpSchema : this.httpSchema,
             extractedRateLimitSettings
         );
     }

@@ -61,8 +61,13 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
         var baseSettings = AmazonBedrockServiceSettings.fromMap(map, validationException, context);
         var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        var maxTokens = extractOptionalPositiveInteger(map, MAX_INPUT_TOKENS, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var maxInputTokens = extractOptionalPositiveInteger(
+            map,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         var dimensionsSetByUser = extractOptionalBoolean(map, ServiceFields.DIMENSIONS_SET_BY_USER, validationException);
 
@@ -74,7 +79,7 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
                     );
                 }
 
-                if (dims != null) {
+                if (dimensions != null) {
                     validationException.addValidationError(
                         ServiceUtils.invalidSettingError(DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS)
                     );
@@ -93,9 +98,9 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
             baseSettings.region(),
             baseSettings.model(),
             baseSettings.provider(),
-            dims,
+            dimensions,
             dimensionsSetByUser,
-            maxTokens,
+            maxInputTokens,
             similarity,
             baseSettings.rateLimitSettings()
         );
@@ -216,10 +221,11 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
             updatedBaseSettings.region(),
             updatedBaseSettings.model(),
             updatedBaseSettings.provider(),
-            extractedDimensions != null ? extractedDimensions : dimensions,
-            dimensionsSetByUser || extractedDimensions != null,
-            extractedMaxTokens != null ? extractedMaxTokens : maxInputTokens,
-            extractedSimilarity != null ? extractedSimilarity : similarity,
+            extractedDimensions != null ? extractedDimensions : this.dimensions,
+            // Set to true if dimensions were previously set by the user or are newly provided
+            this.dimensionsSetByUser || extractedDimensions != null,
+            extractedMaxTokens != null ? extractedMaxTokens : this.maxInputTokens,
+            extractedSimilarity != null ? extractedSimilarity : this.similarity,
             updatedBaseSettings.rateLimitSettings()
         );
 

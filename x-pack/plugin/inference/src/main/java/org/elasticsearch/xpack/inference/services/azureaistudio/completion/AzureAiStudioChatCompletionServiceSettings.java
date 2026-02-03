@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.azureaistudio.completion;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContent;
@@ -51,7 +50,20 @@ public class AzureAiStudioChatCompletionServiceSettings extends AzureAiStudioSer
 
     @Override
     public AzureAiStudioChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
-        return fromMap(serviceSettings, ConfigurationParseContext.PERSISTENT);
+        var validationException = new ValidationException();
+
+        var settings = updateCompletionServiceSettings(serviceSettings, validationException);
+
+        validationException.throwIfValidationErrorsExist();
+        return new AzureAiStudioChatCompletionServiceSettings(settings);
+    }
+
+    private AzureAiStudioCompletionCommonFields updateCompletionServiceSettings(
+        Map<String, Object> map,
+        ValidationException validationException
+    ) {
+        var baseSettings = updateBaseServiceSettings(map, validationException);
+        return new AzureAiStudioCompletionCommonFields(baseSettings);
     }
 
     private record AzureAiStudioCompletionCommonFields(BaseAzureAiStudioCommonFields baseCommonFields) {}
@@ -86,11 +98,6 @@ public class AzureAiStudioChatCompletionServiceSettings extends AzureAiStudioSer
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.minimumCompatible();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
     }
 
     @Override

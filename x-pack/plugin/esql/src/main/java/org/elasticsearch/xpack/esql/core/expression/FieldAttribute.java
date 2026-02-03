@@ -16,10 +16,11 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -41,6 +42,14 @@ public class FieldAttribute extends TypedAttribute {
      * Implemented as a wrapper around {@link String} to distinguish from the attribute name (which sometimes differs!) at compile time.
      */
     public record FieldName(String string) {};
+
+    private static final EsField TIMESERIES_FIELD = new EsField(
+        MetadataAttribute.TIMESERIES,
+        DataType.KEYWORD,
+        Map.of(),
+        false,
+        EsField.TimeSeriesFieldType.DIMENSION
+    );
 
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
@@ -93,16 +102,19 @@ public class FieldAttribute extends TypedAttribute {
         this.field = field;
     }
 
+    /**
+     * Creates a field attribute that represents the ({@link MetadataAttribute#TIMESERIES}) field
+     * that can be used to get a JSON representation of the time series in the output.
+     *
+     * @param source The source of the attribute.
+     * @return The time series field attribute.
+     */
+    public static FieldAttribute timeSeriesAttribute(Source source) {
+        return new FieldAttribute(source, null, null, MetadataAttribute.TIMESERIES, TIMESERIES_FIELD);
+    }
+
     private static FieldAttribute innerReadFrom(StreamInput in) throws IOException {
-        /*
-         * The funny casting dance with `(StreamInput & PlanStreamInput) in` is required
-         * because we're in esql-core here and the real PlanStreamInput is in
-         * esql-proper. And because NamedWriteableRegistry.Entry needs StreamInput,
-         * not a PlanStreamInput. And we need PlanStreamInput to handle Source
-         * and NameId. This should become a hard cast when we move everything out
-         * of esql-core.
-         */
-        Source source = Source.readFrom((StreamInput & PlanStreamInput) in);
+        Source source = Source.readFrom((PlanStreamInput) in);
         String parentName = ((PlanStreamInput) in).readOptionalCachedString();
         String qualifier = readQualifier((PlanStreamInput) in, in.getTransportVersion());
         String name = ((PlanStreamInput) in).readCachedString();
@@ -114,7 +126,7 @@ public class FieldAttribute extends TypedAttribute {
             in.readOptionalString();
         }
         Nullability nullability = in.readEnum(Nullability.class);
-        NameId nameId = NameId.readFrom((StreamInput & PlanStreamInput) in);
+        NameId nameId = NameId.readFrom((PlanStreamInput) in);
         boolean synthetic = in.readBoolean();
         return new FieldAttribute(source, parentName, qualifier, name, field, nullability, nameId, synthetic);
     }

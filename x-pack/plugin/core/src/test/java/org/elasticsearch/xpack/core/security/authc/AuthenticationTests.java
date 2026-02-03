@@ -856,7 +856,7 @@ public class AuthenticationTests extends ESTestCase {
         assertThat(authenticationV6.encode(), equalTo(headerV6));
 
         // Rewrite for a different version
-        final TransportVersion newVersion = TransportVersionUtils.randomCompatibleVersion(random());
+        final TransportVersion newVersion = TransportVersionUtils.randomCompatibleVersion();
         final Authentication rewrittenAuthentication = authenticationV6.maybeRewriteForOlderVersion(newVersion);
         assertThat(rewrittenAuthentication.getEffectiveSubject().getTransportVersion(), equalTo(newVersion));
         assertThat(rewrittenAuthentication.getEffectiveSubject().getUser(), equalTo(authenticationV6.getEffectiveSubject().getUser()));
@@ -874,7 +874,6 @@ public class AuthenticationTests extends ESTestCase {
     }
 
     public void testMaybeRewriteForOlderVersionWithCrossClusterAccessRewritesAuthenticationInMetadata() throws IOException {
-        randomTransportVersion(Authentication.VERSION_CROSS_CLUSTER_ACCESS);
         final TransportVersion version = randomTransportVersion(Authentication.VERSION_CROSS_CLUSTER_ACCESS);
         final Authentication innerAuthentication = AuthenticationTestHelper.builder().transportVersion(version).build();
         final Authentication authentication = AuthenticationTestHelper.builder()
@@ -883,7 +882,9 @@ public class AuthenticationTests extends ESTestCase {
                 new CrossClusterAccessSubjectInfo(innerAuthentication, RoleDescriptorsIntersection.EMPTY)
             )
             .build();
-        final TransportVersion maybeOldVersion = randomTransportVersion(Authentication.VERSION_CROSS_CLUSTER_ACCESS);
+        final TransportVersion maybeOldVersion = Authentication.VERSION_CROSS_CLUSTER_ACCESS == version
+            ? version
+            : randomTransportVersionBetween(Authentication.VERSION_CROSS_CLUSTER_ACCESS, version);
 
         final Authentication actual = authentication.maybeRewriteForOlderVersion(maybeOldVersion);
 
@@ -902,10 +903,8 @@ public class AuthenticationTests extends ESTestCase {
             )
             .build();
         // pick a version before that of the authentication instance to force a rewrite
-        final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersion.minimumCompatible(),
-            TransportVersionUtils.getPreviousVersion(authentication.getEffectiveSubject().getTransportVersion())
+        final TransportVersion olderVersion = TransportVersionUtils.randomVersionNotSupporting(
+            authentication.getEffectiveSubject().getTransportVersion()
         );
 
         final Map<String, Object> rewrittenMetadata = Authentication.maybeRewriteMetadataForCrossClusterAccessAuthentication(
@@ -945,16 +944,11 @@ public class AuthenticationTests extends ESTestCase {
     }
 
     public void testMaybeRewriteForOlderVersionDoesNotEraseDomainForVersionsAfterDomains() {
-        final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersion.minimumCompatible(),
-            // Don't include CURRENT, so we always have at least one newer version available below
-            TransportVersionUtils.getPreviousVersion()
-        );
-        TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(random(), olderVersion, null);
+        final TransportVersion olderVersion = TransportVersionUtils.randomVersionNotSupporting(TransportVersion.current());
+        TransportVersion transportVersion = TransportVersionUtils.randomVersionSupporting(olderVersion);
         final Authentication authentication = AuthenticationTestHelper.builder()
             .realm() // randomize to test both when realm is null on the original auth and non-null, instead of setting `underDomain`
-            // Use CURRENT to force newer version in case randomVersionBetween above picks olderVersion
+            // Use CURRENT to force newer version in case randomVersionSupporting above picks olderVersion
             .transportVersion(transportVersion.equals(olderVersion) ? TransportVersion.current() : transportVersion)
             .build();
 
@@ -1263,14 +1257,14 @@ public class AuthenticationTests extends ESTestCase {
     public static TransportVersion randomTransportVersionBetween(TransportVersion minVersion, TransportVersion maxVersion) {
         return randomFrom(
             Arrays.stream(AUTHENTICATION_TRANSPORT_VERSIONS)
-                .filter(v -> v.supports(minVersion) && v.before(maxVersion))
+                .filter(v -> v.supports(minVersion) && v.supports(maxVersion) == false)
                 .toArray(TransportVersion[]::new)
         );
     }
 
     public static TransportVersion randomTransportVersionBefore(TransportVersion maxVersion) {
         return randomFrom(
-            Arrays.stream(AUTHENTICATION_TRANSPORT_VERSIONS).filter(v -> v.before(maxVersion)).toArray(TransportVersion[]::new)
+            Arrays.stream(AUTHENTICATION_TRANSPORT_VERSIONS).filter(v -> v.supports(maxVersion) == false).toArray(TransportVersion[]::new)
         );
     }
 

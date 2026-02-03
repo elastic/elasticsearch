@@ -44,4 +44,15 @@ public class XPackUsageResponse extends ActionResponse {
         out.writeNamedWriteableCollection(usages);
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        XPackUsageResponse that = (XPackUsageResponse) o;
+        return Objects.equals(usages, that.usages);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(usages);
+    }
 }

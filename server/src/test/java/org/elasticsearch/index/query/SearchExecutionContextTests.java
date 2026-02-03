@@ -17,7 +17,6 @@ import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
@@ -28,6 +27,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
@@ -659,7 +659,8 @@ public class SearchExecutionContextTests extends ESTestCase {
                     throw new UnsupportedOperationException();
                 },
                 null,
-                namespaceValidator
+                namespaceValidator,
+                null
             )
         );
         when(mapperService.isMultiField(anyString())).then(
@@ -773,7 +774,7 @@ public class SearchExecutionContextTests extends ESTestCase {
     }
 
     private static List<String> collect(String field, SearchExecutionContext searchExecutionContext) throws IOException {
-        return collect(field, searchExecutionContext, new MatchAllDocsQuery());
+        return collect(field, searchExecutionContext, Queries.ALL_DOCS_INSTANCE);
     }
 
     private static List<String> collect(String field, SearchExecutionContext searchExecutionContext, Query query) throws IOException {

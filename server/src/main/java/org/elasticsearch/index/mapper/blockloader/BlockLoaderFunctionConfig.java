@@ -46,9 +46,11 @@ public interface BlockLoaderFunctionConfig {
 
     enum Function {
         AMD_COUNT,
+        AMD_DEFAULT,
         AMD_MAX,
         AMD_MIN,
         AMD_SUM,
+        BYTE_LENGTH,
         MV_MAX,
         MV_MIN,
         LENGTH,

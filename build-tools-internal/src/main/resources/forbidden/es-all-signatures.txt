@@ -70,3 +70,6 @@ org.apache.lucene.util.quantization.OptimizedScalarQuantizer#<init>(org.apache.l
 
 @defaultMessage Use org.elasticsearch.common.lucene.search.Queries#NO_DOCS_INSTANCE instead
 org.apache.lucene.search.MatchNoDocsQuery#<init>()
+
+@defaultMessage Use org.elasticsearch.common.lucene.search.Queries#ALL_DOCS_INSTANCE instead
+org.apache.lucene.search.MatchAllDocsQuery#<init>()

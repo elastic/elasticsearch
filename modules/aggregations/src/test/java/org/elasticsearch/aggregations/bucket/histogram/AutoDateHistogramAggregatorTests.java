@@ -17,7 +17,6 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -103,7 +102,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
         ZonedDateTime.of(2017, 12, 12, 22, 55, 46, 0, ZoneOffset.UTC)
     );
 
-    private static final Query DEFAULT_QUERY = new MatchAllDocsQuery();
+    private static final Query DEFAULT_QUERY = Queries.ALL_DOCS_INSTANCE;
 
     // TODO: remove when moving DateHistogramAggregatorTestCase to aggregations module
     @Override

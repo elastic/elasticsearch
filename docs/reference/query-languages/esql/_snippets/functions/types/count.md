@@ -10,7 +10,9 @@
 | cartesian_shape | long |
 | date | long |
 | date_nanos | long |
+| dense_vector | long |
 | double | long |
+| exponential_histogram | long |
 | geo_point | long |
 | geo_shape | long |
 | geohash | long |
@@ -20,6 +22,7 @@
 | ip | long |
 | keyword | long |
 | long | long |
+| tdigest | long |
 | text | long |
 | unsigned_long | long |
 | version | long |

@@ -22,7 +22,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -52,7 +51,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tdigest.parsing.TDigestParser;
@@ -74,7 +73,6 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * Field Mapper for pre-aggregated histograms.
  */
 public class TDigestFieldMapper extends FieldMapper {
-    public static final FeatureFlag TDIGEST_FIELD_MAPPER = new FeatureFlag("tdigest_field_mapper");
 
     public static final String CENTROIDS_NAME = "centroids";
     public static final String COUNTS_NAME = "counts";
@@ -91,7 +89,7 @@ public class TDigestFieldMapper extends FieldMapper {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
-        private final Parameter<TDigestState.Type> digestType;
+        private final Parameter<TDigestExecutionHint> digestType;
         private final Parameter<Double> compression;
 
         public Builder(String name, boolean ignoreMalformedByDefault) {
@@ -106,8 +104,8 @@ public class TDigestFieldMapper extends FieldMapper {
                 "digest_type",
                 false,
                 m -> toType(m).digestType,
-                TDigestState.Type.HYBRID,
-                TDigestState.Type.class
+                TDigestExecutionHint.DEFAULT,
+                TDigestExecutionHint.class
             );
             this.compression = new Parameter<>(
                 "compression",
@@ -149,7 +147,7 @@ public class TDigestFieldMapper extends FieldMapper {
 
     private final Explicit<Boolean> ignoreMalformed;
     private final boolean ignoreMalformedByDefault;
-    private final TDigestState.Type digestType;
+    private final TDigestExecutionHint digestType;
     private final double compression;
 
     public TDigestFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
@@ -165,7 +163,7 @@ public class TDigestFieldMapper extends FieldMapper {
         return ignoreMalformed.value();
     }
 
-    public TDigestState.Type digestType() {
+    public TDigestExecutionHint digestType() {
         return digestType;
     }
 

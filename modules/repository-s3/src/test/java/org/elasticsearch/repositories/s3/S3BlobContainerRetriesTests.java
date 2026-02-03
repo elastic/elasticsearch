@@ -31,6 +31,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
+import org.elasticsearch.common.blobstore.RetryingInputStream;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -51,7 +52,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
-import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
@@ -60,7 +60,6 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -95,27 +94,28 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.cluster.node.DiscoveryNode.STATELESS_ENABLED_SETTING_NAME;
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
+import static org.elasticsearch.common.io.Streams.readFully;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomFiniteRetryingPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomRetryingPurpose;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.DISABLE_CHUNKED_ENCODING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.ENDPOINT_SETTING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.MAX_CONNECTIONS_SETTING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.MAX_RETRIES_SETTING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.READ_TIMEOUT_SETTING;
 import static org.elasticsearch.repositories.s3.S3ClientSettingsTests.DEFAULT_REGION_UNAVAILABLE;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.matchesRegex;
 
 /**
  * This class tests how a {@link S3BlobContainer} and its underlying AWS S3 client are retrying requests when reading or writing blobs.
@@ -247,7 +247,6 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             "bucket",
             S3Repository.SERVER_SIDE_ENCRYPTION_SETTING.getDefault(Settings.EMPTY),
             bufferSize == null ? S3Repository.BUFFER_SIZE_SETTING.getDefault(Settings.EMPTY) : bufferSize,
-            S3Repository.MAX_COPY_SIZE_BEFORE_MULTIPART.getDefault(Settings.EMPTY),
             S3Repository.CANNED_ACL_SETTING.getDefault(Settings.EMPTY),
             S3Repository.STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
             S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getDefault(Settings.EMPTY) == Boolean.FALSE,
@@ -1454,20 +1453,47 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         assertThat(Streams.readFully(statefulBlobContainer.readBlob(randomPurpose(), blobName)), equalBytes(overwriteValue));
     }
 
-    @Override
-    protected Matcher<Integer> getMaxRetriesMatcher(int maxRetries) {
-        // some attempts make meaningful progress and do not count towards the max retry limit
-        return allOf(greaterThanOrEqualTo(maxRetries), lessThanOrEqualTo(S3RetryingInputStream.MAX_SUPPRESSED_EXCEPTIONS));
-    }
+    public void testContentsChangeWhileStreaming() throws IOException {
+        final S3HttpHandler handler = new S3HttpHandler("bucket", S3ConsistencyModel.randomConsistencyModel());
+        httpServer.createContext("/", handler);
+        // The blob needs to be large enough that it won't be entirely buffered on the first request
+        final int enoughBytesToNotBeEntirelyBuffered = Math.toIntExact(ByteSizeValue.ofMb(30).getBytes());
 
-    @Override
-    protected OperationPurpose randomRetryingPurpose() {
-        return BlobStoreTestUtil.randomRetryingPurpose();
-    }
+        final BlobContainer container = createBlobContainer(1, null, null, null, null, null, null);
 
-    @Override
-    protected OperationPurpose randomFiniteRetryingPurpose() {
-        return BlobStoreTestUtil.randomFiniteRetryingPurpose();
+        final String key = randomIdentifier();
+        byte[] initialValue = randomByteArrayOfLength(enoughBytesToNotBeEntirelyBuffered);
+        container.writeBlob(randomFiniteRetryingPurpose(), key, new BytesArray(initialValue), true);
+
+        BytesReference reference = readFully(container.readBlob(randomRetryingPurpose(), key));
+        assertThat(reference, equalBytes(new BytesArray(initialValue)));
+
+        try (InputStream inputStream = container.readBlob(randomRetryingPurpose(), key)) {
+            // Trigger the first chunk to load
+            int read = inputStream.read();
+            assert read != -1;
+
+            // Restart the server (this triggers a retry)
+            restartHttpServer();
+            httpServer.createContext("/", handler);
+
+            // Update the file
+            byte[] updatedValue = randomByteArrayOfLength(enoughBytesToNotBeEntirelyBuffered);
+            container.writeBlob(randomPurpose(), key, new BytesArray(updatedValue), false);
+
+            // Read the rest of the stream, it should throw because the contents changed
+            String message = assertThrows(NoSuchFileException.class, () -> readFully(inputStream)).getMessage();
+            assertThat(
+                message,
+                matchesRegex(
+                    "Blob object \\["
+                        + container.path().buildAsString()
+                        + key
+                        + "] with ETag \\[\\S+] unavailable on resume: At least one of the pre-conditions you specified did not hold "
+                        + "\\(Service: S3, Status Code: 412, Request ID: test-request-id\\) \\(SDK Attempt Count: 1\\)"
+                )
+            );
+        }
     }
 
     private void assertMetricsForOpeningStream() {
@@ -1548,7 +1574,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     /**
      * Asserts that an InputStream is fully consumed, or aborted, when it is closed
      */
-    private static class AssertingInputStream extends FilterInputStream {
+    private static class AssertingInputStream extends FilterInputStream implements RetryingInputStreamUnwrappable {
 
         private final String blobName;
         private final boolean range;
@@ -1602,6 +1628,11 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 assertThat(in, instanceOf(ByteArrayInputStream.class));
                 assertThat(((ByteArrayInputStream) in).available(), equalTo(0));
             }
+        }
+
+        @Override
+        public RetryingInputStream<?> unwrap() {
+            return in instanceof RetryingInputStream<?> retryingInputStream ? retryingInputStream : null;
         }
     }
 }

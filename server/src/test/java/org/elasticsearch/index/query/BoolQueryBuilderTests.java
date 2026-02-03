@@ -16,6 +16,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -124,7 +125,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
                         }
                     }
                     if (isNegative) {
-                        clauses.add(new BooleanClause(new MatchAllDocsQuery(), BooleanClause.Occur.MUST));
+                        clauses.add(new BooleanClause(Queries.ALL_DOCS_INSTANCE, BooleanClause.Occur.MUST));
                     }
                 }
                 assertThat(booleanQuery.clauses().size(), equalTo(clauses.size()));
@@ -746,7 +747,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         @Override
         protected Query doToQuery(SearchExecutionContext context) {
             prefiltersToQueryNameMap.put(queryName(), context.autoPrefilteringScope().getPrefilters().stream().collect(Collectors.toSet()));
-            return new MatchAllDocsQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
 
         @Override

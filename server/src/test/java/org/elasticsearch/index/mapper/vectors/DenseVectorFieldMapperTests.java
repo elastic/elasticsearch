@@ -24,9 +24,12 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOConsumer;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.CodecService;
@@ -34,6 +37,7 @@ import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -54,7 +58,9 @@ import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matcher;
 import org.junit.AssumptionViolatedException;
@@ -67,10 +73,12 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomNormalizedVector;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
 import static org.hamcrest.Matchers.containsString;
@@ -647,6 +655,9 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 b.field("similarity", "dot_product");
                 b.startObject("index_options");
                 b.field("type", "bbq_disk");
+                if (Build.current().isSnapshot()) {
+                    b.field("bits", 4);
+                }
                 b.endObject();
             }));
 
@@ -654,7 +665,12 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) denseVectorFieldMapper
                 .fieldType()
                 .getIndexOptions();
-            assertEquals(3.0F, indexOptions.rescoreVector.oversample(), 0.0F);
+            if (Build.current().isSnapshot()) {
+                assertEquals(4, indexOptions.bits, 0.0F);
+                assertNull(indexOptions.rescoreVector);
+            } else {
+                assertEquals(3.0F, indexOptions.rescoreVector.oversample(), 0.0F);
+            }
             assertEquals(ES920DiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER, indexOptions.clusterSize);
             assertEquals(DYNAMIC_VISIT_RATIO, indexOptions.defaultVisitPercentage, 0.0);
         }
@@ -679,6 +695,9 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertEquals(2F, indexOptions.rescoreVector.oversample(), 0.0F);
             assertEquals(1000, indexOptions.clusterSize);
             assertEquals(5.0, indexOptions.defaultVisitPercentage, 0.0);
+            if (Build.current().isSnapshot()) {
+                assertEquals(1, indexOptions.bits, 0.0);
+            }
         }
     }
 
@@ -704,12 +723,10 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     public void testRescoreVectorOldIndexVersion() {
         IndexVersion incompatibleVersion = randomFrom(
             IndexVersionUtils.randomVersionBetween(
-                random(),
                 IndexVersionUtils.getLowestReadCompatibleVersion(),
                 IndexVersionUtils.getPreviousVersion(IndexVersions.ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS_BACKPORT_8_X)
             ),
             IndexVersionUtils.randomVersionBetween(
-                random(),
                 IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
                 IndexVersionUtils.getPreviousVersion(IndexVersions.ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS)
             )
@@ -735,12 +752,10 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     public void testRescoreZeroVectorOldIndexVersion() {
         IndexVersion incompatibleVersion = randomFrom(
             IndexVersionUtils.randomVersionBetween(
-                random(),
                 IndexVersionUtils.getLowestReadCompatibleVersion(),
                 IndexVersionUtils.getPreviousVersion(IndexVersions.RESCORE_PARAMS_ALLOW_ZERO_TO_QUANTIZED_VECTORS_BACKPORT_8_X)
             ),
             IndexVersionUtils.randomVersionBetween(
-                random(),
                 IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
                 IndexVersionUtils.getPreviousVersion(IndexVersions.RESCORE_PARAMS_ALLOW_ZERO_TO_QUANTIZED_VECTORS)
             )
@@ -1420,7 +1435,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         final int dims = randomIntBetween(64, 2048);
         VectorSimilarity similarity = VectorSimilarity.COSINE;
         DocumentMapper mapper = createDocumentMapper(
-            IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersions.NEW_SPARSE_VECTOR),
+            IndexVersionUtils.randomVersionBetween(IndexVersions.V_8_0_0, IndexVersions.NEW_SPARSE_VECTOR),
             fieldMapping(b -> b.field("type", "dense_vector").field("dims", dims).field("index", true).field("similarity", similarity))
         );
         float[] vector = new float[dims];
@@ -1512,7 +1527,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             VectorSimilarityFunction.COSINE,
             VectorSimilarity.COSINE.vectorSimilarityFunction(
                 IndexVersionUtils.randomVersionBetween(
-                    random(),
                     IndexVersions.V_8_0_0,
                     IndexVersionUtils.getPreviousVersion(DenseVectorFieldMapper.NORMALIZE_COSINE)
                 ),
@@ -1522,7 +1536,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         assertEquals(
             VectorSimilarityFunction.DOT_PRODUCT,
             VectorSimilarity.COSINE.vectorSimilarityFunction(
-                IndexVersionUtils.randomVersionBetween(random(), DenseVectorFieldMapper.NORMALIZE_COSINE, IndexVersion.current()),
+                IndexVersionUtils.randomVersionBetween(DenseVectorFieldMapper.NORMALIZE_COSINE, IndexVersion.current()),
                 ElementType.FLOAT
             )
         );
@@ -1905,7 +1919,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             }
             b.endObject();
         }));
-        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
+        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
         Codec codec = codecService.codec("default");
         KnnVectorsFormat knnVectorsFormat;
         if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG) {
@@ -1922,8 +1936,9 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             + (setM ? m : DEFAULT_MAX_CONN)
             + ", beamWidth="
             + (setEfConstruction ? efConstruction : DEFAULT_BEAM_WIDTH)
-            + ", flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat"
-            + ", format=Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=DefaultFlatVectorScorer())))";
+            + ", flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
+            + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
+            + "ES93FlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer()))))";
         assertEquals(expectedString, knnVectorsFormat.toString());
     }
 
@@ -1943,7 +1958,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 }
                 b.endObject();
             }));
-            CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
+            CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
             Codec codec = codecService.codec("default");
             KnnVectorsFormat knnVectorsFormat;
             if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG) {
@@ -1965,12 +1980,14 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 + ", compressed="
                 + quantizedFlatFormat.equals("int4_flat")
                 + ", flatVectorScorer=ESQuantizedFlatVectorsScorer("
-                + "delegate=ScalarQuantizedVectorScorer(nonQuantizedDelegate=DefaultFlatVectorScorer())"
+                + "delegate=ScalarQuantizedVectorScorer(nonQuantizedDelegate="
+                + "ES93FlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer()))"
                 + ", factory="
                 + (factory != null ? factory : "null")
                 + "), "
-                + "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat"
-                + ", format=Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=DefaultFlatVectorScorer())))";
+                + "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
+                + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
+                + "ES93FlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer()))))";
             assertThat(knnVectorsFormat, hasToString(expectedString));
         }
     }
@@ -1994,7 +2011,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             }
             b.endObject();
         }));
-        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
+        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
         Codec codec = codecService.codec("default");
         KnnVectorsFormat knnVectorsFormat;
         if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG) {
@@ -2012,15 +2029,17 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             + m
             + ", beamWidth="
             + efConstruction
-            + ", confidenceInterval="
+            + ", flatVectorFormat=ES93ScalarQuantizedVectorsFormat(name=ES93ScalarQuantizedVectorsFormat, confidenceInterval="
             + (setConfidenceInterval ? confidenceInterval : null)
             + ", bits=7, compressed=false, "
             + "flatVectorScorer=ESQuantizedFlatVectorsScorer(delegate="
-            + "ScalarQuantizedVectorScorer(nonQuantizedDelegate=DefaultFlatVectorScorer()), "
+            + "ScalarQuantizedVectorScorer(nonQuantizedDelegate="
+            + "ES93FlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())), "
             + "factory="
             + (factory != null ? factory : "null")
-            + "), flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat"
-            + ", format=Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=DefaultFlatVectorScorer())))";
+            + "), rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
+            + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
+            + "ES93FlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())))))";
         assertThat(knnVectorsFormat, hasToString(expectedString));
     }
 
@@ -2039,7 +2058,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             b.field("ef_construction", efConstruction);
             b.endObject();
         }));
-        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
+        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
         Codec codec = codecService.codec("default");
         KnnVectorsFormat knnVectorsFormat;
         if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG) {
@@ -2098,7 +2117,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             }
             b.endObject();
         }));
-        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
+        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
         Codec codec = codecService.codec("default");
         KnnVectorsFormat knnVectorsFormat;
         if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG) {
@@ -2116,13 +2135,15 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             + m
             + ", beamWidth="
             + efConstruction
-            + ", confidenceInterval="
+            + ", flatVectorFormat=ES93ScalarQuantizedVectorsFormat(name=ES93ScalarQuantizedVectorsFormat, confidenceInterval="
             + (setConfidenceInterval ? confidenceInterval : 0.0f)
             + ", bits=4, compressed=true, flatVectorScorer=ESQuantizedFlatVectorsScorer(delegate="
-            + "ScalarQuantizedVectorScorer(nonQuantizedDelegate=DefaultFlatVectorScorer()), factory="
+            + "ScalarQuantizedVectorScorer(nonQuantizedDelegate="
+            + "ES93FlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())), factory="
             + (factory != null ? factory : "null")
-            + "), flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat"
-            + ", format=Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=DefaultFlatVectorScorer())))";
+            + "), rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
+            + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
+            + "ES93FlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())))))";
         assertThat(knnVectorsFormat, hasToString(expectedString));
     }
 
@@ -2139,6 +2160,48 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 b.endObject();
             })));
             assertThat(e.getMessage(), containsString("only supports even dimensions"));
+        }
+    }
+
+    public void testPushingDownExecutorAndThreads() {
+        TestDenseVectorIndexOptions testIndexOptions = new TestDenseVectorIndexOptions(
+            new DenseVectorFieldMapper.HnswIndexOptions(16, 200)
+        );
+        var mapper = new DenseVectorFieldMapper.Builder("field", IndexVersion.current(), true, List.of()).indexOptions(testIndexOptions)
+            .dimensions(128)
+            .elementType(ElementType.FLOAT)
+            .build(MapperBuilderContext.root(false, false));
+        final IndexSettings enabled = IndexSettingsModule.newIndexSettings(
+            "foo",
+            Settings.builder().put(IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING.getKey(), true).build()
+        );
+        final IndexSettings disabled = IndexSettingsModule.newIndexSettings(
+            "foo",
+            Settings.builder().put(IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING.getKey(), false).build()
+        );
+        // enabled with null tp
+        mapper.getKnnVectorsFormatForField(new ES93HnswVectorsFormat(), enabled, null);
+        assertEquals(1, testIndexOptions.passedNumMergeWorkers);
+        assertNull(testIndexOptions.passedMergingExecutorService);
+        // disabled with null tp
+        mapper.getKnnVectorsFormatForField(new ES93HnswVectorsFormat(), disabled, null);
+        assertEquals(1, testIndexOptions.passedNumMergeWorkers);
+        assertNull(testIndexOptions.passedMergingExecutorService);
+        // tiny tp, means we don't have extra threads for merging
+        try (var tp = new TestThreadPool(getTestName(), Settings.builder().put(NODE_PROCESSORS_SETTING.getKey(), 1).build())) {
+            mapper.getKnnVectorsFormatForField(new ES93HnswVectorsFormat(), enabled, tp);
+            assertEquals(1, testIndexOptions.passedNumMergeWorkers);
+            assertNull(testIndexOptions.passedMergingExecutorService);
+
+            mapper.getKnnVectorsFormatForField(new ES93HnswVectorsFormat(), disabled, tp);
+            assertEquals(1, testIndexOptions.passedNumMergeWorkers);
+            assertNull(testIndexOptions.passedMergingExecutorService);
+        }
+        // big tp
+        try (var tp = new TestThreadPool(getTestName(), Settings.builder().put(NODE_PROCESSORS_SETTING.getKey(), 10).build())) {
+            mapper.getKnnVectorsFormatForField(new ES93HnswVectorsFormat(), enabled, tp);
+            assertNotNull(testIndexOptions.passedMergingExecutorService);
+            assertEquals(10, testIndexOptions.passedNumMergeWorkers);
         }
     }
 
@@ -2203,5 +2266,49 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     @Override
     public void testSyntheticSourceKeepArrays() {
         // The mapper expects to parse an array of values by default, it's not compatible with array of arrays.
+    }
+
+    private static class TestDenseVectorIndexOptions extends DenseVectorFieldMapper.DenseVectorIndexOptions {
+
+        private final DenseVectorFieldMapper.DenseVectorIndexOptions inner;
+        private ExecutorService passedMergingExecutorService;
+        private int passedNumMergeWorkers = -1;
+
+        TestDenseVectorIndexOptions(DenseVectorFieldMapper.DenseVectorIndexOptions inner) {
+            super(inner.type);
+            this.inner = inner;
+        }
+
+        @Override
+        KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+            this.passedMergingExecutorService = mergingExecutorService;
+            this.passedNumMergeWorkers = numMergeWorkers;
+            return inner.getVectorsFormat(elementType, mergingExecutorService, numMergeWorkers);
+        }
+
+        @Override
+        public boolean updatableTo(DenseVectorFieldMapper.DenseVectorIndexOptions update) {
+            return inner.updatableTo(update);
+        }
+
+        @Override
+        boolean doEquals(DenseVectorFieldMapper.DenseVectorIndexOptions other) {
+            return inner.equals(other);
+        }
+
+        @Override
+        int doHashCode() {
+            return inner.hashCode();
+        }
+
+        @Override
+        public boolean isFlat() {
+            return inner.isFlat();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return inner.toXContent(builder, params);
+        }
     }
 }

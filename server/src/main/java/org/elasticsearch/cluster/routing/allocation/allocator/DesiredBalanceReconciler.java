@@ -321,7 +321,9 @@ public class DesiredBalanceReconciler {
                             }
                             final var decision = allocation.deciders().canAllocate(shard, routingNode, allocation);
                             switch (decision.type()) {
-                                case YES -> {
+                                // if balancer decided to allocate shard on a not-preferred node, then it's OK,
+                                // there is no better place, and we treat NO_PREFERRED as YES
+                                case YES, NOT_PREFERRED -> {
                                     logger.debug("Assigning shard [{}] to {} [{}]", shard, nodeIdsIterator.source, nodeId);
                                     long shardSize = getExpectedShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation);
                                     routingNodes.initializeShard(shard, nodeId, null, shardSize, allocation.changes());
@@ -509,8 +511,6 @@ public class DesiredBalanceReconciler {
                     final var canRemainDecision = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
                     if (canRemainDecision.type() != Decision.Type.NO && canRemainDecision.type() != Decision.Type.NOT_PREFERRED) {
                         // If movement is throttled, a future reconciliation round will see a resolution. For now, leave it alone.
-                        // Reconciliation treats canRemain NOT_PREFERRED answers as YES because the DesiredBalance computation already
-                        // decided how to handle the situation.
                         continue;
                     }
 
@@ -532,6 +532,14 @@ public class DesiredBalanceReconciler {
                         iterator.dePrioritizeNode(shardRouting.currentNodeId());
                         moveOrdering.recordAllocation(shardRouting.currentNodeId());
                         movedUndesiredShard = true;
+                    } else {
+                        logger.trace(
+                            "Cannot move shard [{}][{}] away from {}, and cannot remain because of [{}]",
+                            shardRouting.index(),
+                            shardRouting.shardId(),
+                            shardRouting.currentNodeId(),
+                            canRemainDecision
+                        );
                     }
                 } finally {
                     if (movedUndesiredShard) {

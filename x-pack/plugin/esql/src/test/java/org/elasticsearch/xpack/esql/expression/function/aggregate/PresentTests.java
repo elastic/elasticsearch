@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
@@ -47,6 +46,7 @@ public class PresentTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.aggregateMetricDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE),
             MultiRowTestCaseSupplier.dateCases(1, 1000),
             MultiRowTestCaseSupplier.dateNanosCases(1, 1000),
+            MultiRowTestCaseSupplier.denseVectorCases(1, 1000),
             MultiRowTestCaseSupplier.booleanCases(1, 1000),
             MultiRowTestCaseSupplier.ipCases(1, 1000),
             MultiRowTestCaseSupplier.versionCases(1, 1000),
@@ -59,7 +59,8 @@ public class PresentTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
             MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100),
-            MultiRowTestCaseSupplier.tdigestCases(1, 100)
+            MultiRowTestCaseSupplier.tdigestCases(1, 100),
+            MultiRowTestCaseSupplier.histogramCases(1, 100)
         ).flatMap(List::stream).map(PresentTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         // No rows
@@ -71,6 +72,7 @@ public class PresentTests extends AbstractAggregationTestCase {
             DataType.DATE_NANOS,
             DataType.DATETIME,
             DataType.DATE_NANOS,
+            DataType.DENSE_VECTOR,
             DataType.DOUBLE,
             DataType.GEO_POINT,
             DataType.GEO_SHAPE,
@@ -81,11 +83,9 @@ public class PresentTests extends AbstractAggregationTestCase {
             DataType.TEXT,
             DataType.UNSIGNED_LONG,
             DataType.VERSION,
-            DataType.EXPONENTIAL_HISTOGRAM
+            DataType.EXPONENTIAL_HISTOGRAM,
+            DataType.TDIGEST
         );
-        if (EsqlCorePlugin.T_DIGEST_ESQL_SUPPORT.isEnabled()) {
-            types = Stream.concat(types.stream(), Stream.of(DataType.TDIGEST)).toList();
-        }
         for (var dataType : types) {
             suppliers.add(
                 new TestCaseSupplier(
@@ -110,7 +110,7 @@ public class PresentTests extends AbstractAggregationTestCase {
         return new Present(source, args.getFirst());
     }
 
-    private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
+    static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
         return new TestCaseSupplier(fieldSupplier.name(), List.of(fieldSupplier.type()), () -> {
             TestCaseSupplier.TypedData fieldTypedData = fieldSupplier.get();
             boolean present = fieldTypedData.multiRowData().stream().anyMatch(Objects::nonNull);

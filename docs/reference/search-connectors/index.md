@@ -23,12 +23,18 @@ Each connector extracts the original files, records, or objects; and transforms 
 
 These connectors are written in Python and the source code is available in the [`elastic/connectors`](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources) repo.
 
+## Setup modes [setup-modes]
+
+You can set up content connectors in two ways. The availability of each setup mode is indicated on the interface of your {{kib}} **Content connectors** page. 
+
+| | **[Self-managed](self-managed-connectors.md)** | **Elastic managed** |
+|---|---|---|
+| **Infrastructure** | You deploy the connector service | Elastic hosts it for you |
+| **Availability** | Any Elastic environment | {{ecloud}} only ({{ech}}/Serverless), for {{product.observability}} and [{{product.security}}](docs-content://solutions/security/get-started/content-connectors.md) |
+| **Can send data to** | Any {{es}} instance | Deployment or project the connector is deployed within only |
+| **Customization** | Supported | Not supported |
+
 ## Available connectors
-
-
-::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
-::::
 
 This table provides an overview of our available connectors, their current support status, and the features they support.
 

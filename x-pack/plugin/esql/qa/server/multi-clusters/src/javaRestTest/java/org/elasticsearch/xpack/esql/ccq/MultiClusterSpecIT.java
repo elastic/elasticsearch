@@ -61,6 +61,8 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.UNMAPPED_FIELDS;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_NO_BRANCHING;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -75,8 +77,8 @@ import static org.mockito.Mockito.when;
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class MultiClusterSpecIT extends EsqlSpecTestCase {
 
-    static ElasticsearchCluster remoteCluster = Clusters.remoteCluster();
-    static ElasticsearchCluster localCluster = Clusters.localCluster(remoteCluster);
+    static ElasticsearchCluster remoteCluster = Clusters.remoteCluster(LOGGING_CLUSTER_SETTINGS);
+    static ElasticsearchCluster localCluster = Clusters.localCluster(remoteCluster, LOGGING_CLUSTER_SETTINGS);
 
     @ClassRule
     public static TestRule clusterRule = RuleChain.outerRule(remoteCluster).around(localCluster);
@@ -190,6 +192,10 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                 hasCapabilities(adminClient(), List.of(ENABLE_FORK_FOR_REMOTE_INDICES_V2.capabilityName()))
             );
         }
+
+        // MultiCluster CCS does not yet support VIEWS, due to rewriting FROM name to FROM *:name
+        assumeFalse("VIEWS not yet supported in CCS", testCase.requiredCapabilities.contains(VIEWS_WITH_NO_BRANCHING.capabilityName()));
+        assumeFalse("VIEWS not yet supported in CCS", testCase.requiredCapabilities.contains(VIEWS_WITH_BRANCHING.capabilityName()));
     }
 
     private TestFeatureService remoteFeaturesService() throws IOException {
@@ -324,6 +330,11 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         String query = testCase.query;
         // If true, we're using *:index, otherwise we're using *:index,index
         boolean onlyRemotes = canUseRemoteIndicesOnly() && randomBoolean();
+        // Check if query contains enrich source indices - these are loaded into both clusters,
+        // so we should use onlyRemotes=true to avoid duplicates
+        if (onlyRemotes == false && EsqlTestUtils.queryContainsIndices(query, Set.copyOf(ENRICH_SOURCE_INDICES))) {
+            onlyRemotes = true;
+        }
         testCase.query = EsqlTestUtils.addRemoteIndices(testCase.query, LOOKUP_INDICES, onlyRemotes);
 
         int offset = testCase.query.length() - query.length();
@@ -385,6 +396,13 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         return false;
     }
 
+    protected boolean supportsViews() {
+        // MultiCluster CCS does not yet support VIEWS, due to rewriting FROM name to FROM *:name
+        // In particular, we do not want to load views definitions, because that messes with `FROM *` queries
+        // See, for example, "lookup-join/EnrichLookupStatsBug"
+        return false;
+    }
+
     @Override
     protected boolean supportsExponentialHistograms() {
         try {
@@ -404,10 +422,23 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     @Override
     protected boolean supportsTDigestField() {
         try {
-            return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_SUPPORT_V4.capabilityName()))
+            return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW.capabilityName()))
                 && RestEsqlTestCase.hasCapabilities(
                     remoteClusterClient(),
-                    List.of(EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_SUPPORT_V4.capabilityName())
+                    List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW.capabilityName())
+                );
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    protected boolean supportsHistogramDataType() {
+        try {
+            return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION.capabilityName()))
+                && RestEsqlTestCase.hasCapabilities(
+                    remoteClusterClient(),
+                    List.of(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION.capabilityName())
                 );
         } catch (IOException e) {
             throw new RuntimeException(e);

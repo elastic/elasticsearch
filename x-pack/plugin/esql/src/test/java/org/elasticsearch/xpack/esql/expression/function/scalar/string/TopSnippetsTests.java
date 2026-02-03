@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.xpack.core.common.chunks.MemoryIndexChunkScorer;
+import org.elasticsearch.xpack.core.common.chunks.ScoredChunk;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -32,6 +33,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.string.TopSnippets.DEFAULT_NUM_SNIPPETS;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.string.TopSnippets.DEFAULT_WORD_SIZE;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.util.ChunkUtils.chunkText;
@@ -60,13 +62,14 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedDataWithDefaultChecks(
-            true,
-            List.of(
-                createTestCaseSupplier("TopSnippets with defaults", DataType.KEYWORD, DataType.KEYWORD),
-                createTestCaseSupplier("TopSnippets with defaults text input", DataType.TEXT, DataType.KEYWORD)
-            )
-        );
+        return parameterSuppliersFromTypedData(testCaseSuppliers());
+    }
+
+    private static List<TestCaseSupplier> testCaseSuppliers() {
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        suppliers.add(createTestCaseSupplier("TopSnippets with defaults", DataType.KEYWORD, DataType.KEYWORD));
+        suppliers.add(createTestCaseSupplier("TopSnippets with defaults text input", DataType.TEXT, DataType.KEYWORD));
+        return addFunctionNamedParams(suppliers);
     }
 
     private static TestCaseSupplier createTestCaseSupplier(String description, DataType fieldDataType, DataType queryDataType) {
@@ -79,7 +82,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
             MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
             List<String> scoredChunks = scorer.scoreChunks(chunks, query, DEFAULT_NUM_SNIPPETS, false)
                 .stream()
-                .map(MemoryIndexChunkScorer.ScoredChunk::content)
+                .map(ScoredChunk::content)
                 .toList();
 
             Object expectedResult;
@@ -105,6 +108,56 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
         });
     }
 
+    /**
+     * Adds function named parameters to all the test case suppliers provided
+     */
+    private static List<TestCaseSupplier> addFunctionNamedParams(List<TestCaseSupplier> suppliers) {
+        List<TestCaseSupplier> result = new ArrayList<>(suppliers);
+        for (TestCaseSupplier supplier : suppliers) {
+            List<DataType> dataTypes = new ArrayList<>(supplier.types());
+            dataTypes.add(UNSUPPORTED);
+            result.add(new TestCaseSupplier(supplier.name() + ", with options", dataTypes, () -> {
+                String text = randomWordsBetween(25, 50);
+                String query = randomFrom("park", "nature", "trail");
+                int numSnippets = 3;
+                int numWords = 25;
+                ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(numWords, 0);
+
+                List<String> chunks = chunkText(text, chunkingSettings);
+                MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
+                List<String> scoredChunks = scorer.scoreChunks(chunks, query, numSnippets, false)
+                    .stream()
+                    .map(ScoredChunk::content)
+                    .toList();
+
+                Object expectedResult;
+                if (scoredChunks.isEmpty()) {
+                    expectedResult = null;
+                } else if (scoredChunks.size() == 1) {
+                    expectedResult = new BytesRef(scoredChunks.get(0).trim());
+                } else {
+                    expectedResult = scoredChunks.stream().map(s -> new BytesRef(s.trim())).toList();
+                }
+
+                List<TestCaseSupplier.TypedData> values = List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(text), supplier.types().get(0), "field"),
+                    new TestCaseSupplier.TypedData(new BytesRef(query), DataType.KEYWORD, "query"),
+                    new TestCaseSupplier.TypedData(createOptions(numSnippets, numWords), UNSUPPORTED, "options").forceLiteral()
+                );
+
+                return new TestCaseSupplier.TestCase(
+                    values,
+                    "TopSnippetsBytesRefEvaluator[str=Attribute[channel=0], query=Attribute[channel=1], "
+                        + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":25,\"sentence_overlap\":0}, "
+                        + "scorer=MemoryIndexChunkScorer, numSnippets=3]",
+                    DataType.KEYWORD,
+                    equalTo(expectedResult)
+                );
+            }));
+        }
+        return result;
+    }
+
     private static MapExpression createOptions(Integer numSnippets, Integer numWords) {
         List<Expression> optionsMap = new ArrayList<>();
 
@@ -125,6 +178,16 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
     protected Expression build(Source source, List<Expression> args) {
         Expression options = args.size() < 3 ? null : args.get(2);
         return new TopSnippets(source, args.get(0), args.get(1), options);
+    }
+
+    @Override
+    public void testFold() {
+        Expression expression = buildFieldExpression(testCase);
+        // Skip testFold if the expression is not foldable (e.g., when options contains MapExpression)
+        if (expression.foldable() == false) {
+            return;
+        }
+        super.testFold();
     }
 
     public void testDefaultOptions() {
@@ -173,7 +236,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
             query,
             effectiveNumSnippets,
             false
-        ).stream().map(MemoryIndexChunkScorer.ScoredChunk::content).limit(effectiveNumSnippets).toList();
+        ).stream().map(ScoredChunk::content).limit(effectiveNumSnippets).toList();
 
         List<String> result = process(PARAGRAPH_INPUT, query, effectiveNumSnippets, effectiveNumWords);
         assertThat(result.size(), equalTo(expectedNumChunksReturned));

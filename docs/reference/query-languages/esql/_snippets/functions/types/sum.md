@@ -9,4 +9,5 @@
 | exponential_histogram | double |
 | integer | long |
 | long | long |
+| tdigest | double |
 

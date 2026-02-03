@@ -73,6 +73,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.UnsupportedEsFieldTests;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -81,6 +82,9 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Iterator;
@@ -100,6 +104,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateNanosToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.parseDateRange;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIP;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToSpatial;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToVersion;
@@ -164,6 +169,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             id,
             isRunning,
             async,
+            ZoneOffset.UTC,
             startTimeMillis,
             expirationTimeMillis,
             createExecutionInfo()
@@ -172,7 +178,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
 
     EsqlExecutionInfo createExecutionInfo() {
         EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(true);
-        executionInfo.overallTook(new TimeValue(5000));
+        TimeSpanMarkerTestUtil.setTimespan(executionInfo.queryProfile().total(), 5000);
         executionInfo.swapCluster(
             "",
             (k, v) -> new EsqlExecutionInfo.Cluster(
@@ -214,7 +220,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 || t == DataType.DATE_PERIOD
                 || t == DataType.TIME_DURATION
                 || t == DataType.AGGREGATE_METRIC_DOUBLE
-                || t == DataType.TSID_DATA_TYPE,
+                || t == DataType.TSID_DATA_TYPE
+                || t == DataType.DATE_RANGE,
             () -> randomFrom(DataType.types())
         ).widenSmallNumeric();
         return new ColumnInfoImpl(randomAlphaOfLength(10), type.esType(), randomOriginalTypes());
@@ -320,7 +327,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     );
                     expBuilder.append(histo);
                 }
-                case TDIGEST -> ((TDigestBlockBuilder) builder).append(EsqlTestUtils.randomTDigest());
+                case TDIGEST -> ((TDigestBlockBuilder) builder).appendTDigest(EsqlTestUtils.randomTDigest());
                 case HISTOGRAM -> ((BytesRefBlock.Builder) builder).appendBytesRef(EsqlTestUtils.randomHistogram());
                 default -> throw new UnsupportedOperationException("unsupported data type [" + c + "]");
             }
@@ -344,6 +351,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         EsqlQueryResponse.Profile profile = instance.profile();
         boolean columnar = instance.columnar();
         boolean isAsync = instance.isAsync();
+        ZoneId zoneId = instance.zoneId();
         EsqlExecutionInfo executionInfo = instance.getExecutionInfo();
         switch (allNull ? between(0, 4) : between(0, 5)) {
             case 0 -> {
@@ -371,7 +379,19 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             }
             default -> throw new IllegalArgumentException();
         }
-        return new EsqlQueryResponse(columns, pages, documentsFound, valuesLoaded, profile, columnar, isAsync, 0L, 0L, executionInfo);
+        return new EsqlQueryResponse(
+            columns,
+            pages,
+            documentsFound,
+            valuesLoaded,
+            profile,
+            columnar,
+            isAsync,
+            zoneId,
+            0L,
+            0L,
+            executionInfo
+        );
     }
 
     private List<Page> deepCopyOfPages(EsqlQueryResponse response) {
@@ -445,7 +465,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             List<List<Object>> values,
             EsqlExecutionInfo executionInfo
         ) {
-            executionInfo.overallTook(new TimeValue(took));
+            TimeSpanMarkerTestUtil.setTimespan(executionInfo.queryProfile().total(), took);
             this.response = new EsqlQueryResponse(
                 columns,
                 List.of(valuesToPage(TestBlockFactory.getNonBreakingInstance(), columns, values)),
@@ -456,6 +476,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 asyncExecutionId,
                 isRunning != null,
                 isAsync(asyncExecutionId, isRunning),
+                ZoneOffset.UTC,
                 0L,
                 0L,
                 executionInfo
@@ -518,12 +539,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             if (clusterInfoMap.isEmpty()) {
                 return createEsqlExecutionInfo(true);
             } else {
-                return new EsqlExecutionInfo(
-                    clusterInfoMap,
-                    Predicates.always(),
-                    EsqlExecutionInfo.IncludeExecutionMetadata.CCS_ONLY,
-                    null
-                );
+                return new EsqlExecutionInfo(clusterInfoMap, Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.CCS_ONLY);
             }
         }
 
@@ -755,6 +771,59 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         }
     }
 
+    public void testSimpleXContentColumnarWithTimezone() {
+        ZoneId zoneId = ZoneId.of("Europe/Madrid");
+        ZonedDateTime estDate = ZonedDateTime.of(2022, 1, 1, 0, 0, 0, 0, zoneId);
+        ZonedDateTime cestDate = ZonedDateTime.of(2022, 6, 1, 0, 0, 0, 0, zoneId);
+        try (
+            EsqlQueryResponse response = new EsqlQueryResponse(
+                List.of(new ColumnInfoImpl("foo", "date", null), new ColumnInfoImpl("bar", "date_nanos", null)),
+                List.of(
+                    new Page(
+                        blockFactory.newLongArrayVector(new long[] { DateUtils.asMillis(estDate), DateUtils.asMillis(cestDate) }, 2)
+                            .asBlock(),
+                        blockFactory.newLongArrayVector(new long[] { DateUtils.asNanos(estDate), DateUtils.asNanos(cestDate) }, 2).asBlock()
+                    )
+                ),
+                3,
+                100,
+                null,
+                true,
+                false,
+                zoneId,
+                0L,
+                0L,
+                null
+            )
+        ) {
+            assertThat(Strings.toString(wrapAsToXContent(response), true, false), equalTo("""
+                {
+                  "documents_found" : 3,
+                  "values_loaded" : 100,
+                  "columns" : [
+                    {
+                      "name" : "foo",
+                      "type" : "date"
+                    },
+                    {
+                      "name" : "bar",
+                      "type" : "date_nanos"
+                    }
+                  ],
+                  "values" : [
+                    [
+                      "2022-01-01T00:00:00.000+01:00",
+                      "2022-06-01T00:00:00.000+02:00"
+                    ],
+                    [
+                      "2022-01-01T00:00:00.000+01:00",
+                      "2022-06-01T00:00:00.000+02:00"
+                    ]
+                  ]
+                }"""));
+        }
+    }
+
     public void testSimpleXContentRows() {
         try (EsqlQueryResponse response = simple(false)) {
             assertThat(Strings.toString(wrapAsToXContent(response), true, false), equalTo("""
@@ -804,6 +873,59 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         }
     }
 
+    public void testSimpleXContentRowsWithTimezone() {
+        ZoneId zoneId = ZoneId.of("Europe/Madrid");
+        ZonedDateTime estDate = ZonedDateTime.of(2022, 1, 1, 0, 0, 0, 0, zoneId);
+        ZonedDateTime cestDate = ZonedDateTime.of(2022, 6, 1, 0, 0, 0, 0, zoneId);
+        try (
+            EsqlQueryResponse response = new EsqlQueryResponse(
+                List.of(new ColumnInfoImpl("foo", "date", null), new ColumnInfoImpl("bar", "date_nanos", null)),
+                List.of(
+                    new Page(
+                        blockFactory.newLongArrayVector(new long[] { DateUtils.asMillis(estDate), DateUtils.asMillis(cestDate) }, 2)
+                            .asBlock(),
+                        blockFactory.newLongArrayVector(new long[] { DateUtils.asNanos(estDate), DateUtils.asNanos(cestDate) }, 2).asBlock()
+                    )
+                ),
+                3,
+                100,
+                null,
+                false,
+                false,
+                zoneId,
+                0L,
+                0L,
+                null
+            )
+        ) {
+            assertThat(Strings.toString(wrapAsToXContent(response), true, false), equalTo("""
+                {
+                  "documents_found" : 3,
+                  "values_loaded" : 100,
+                  "columns" : [
+                    {
+                      "name" : "foo",
+                      "type" : "date"
+                    },
+                    {
+                      "name" : "bar",
+                      "type" : "date_nanos"
+                    }
+                  ],
+                  "values" : [
+                    [
+                      "2022-01-01T00:00:00.000+01:00",
+                      "2022-01-01T00:00:00.000+01:00"
+                    ],
+                    [
+                      "2022-06-01T00:00:00.000+02:00",
+                      "2022-06-01T00:00:00.000+02:00"
+                    ]
+                  ]
+                }"""));
+        }
+    }
+
     public void testBasicXContentIdAndRunning() {
         try (
             EsqlQueryResponse response = new EsqlQueryResponse(
@@ -816,6 +938,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 "id-123",
                 true,
                 true,
+                randomZone(),
                 0L,
                 0L,
                 null
@@ -857,6 +980,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 null,
                 false,
                 false,
+                randomZone(),
                 0L,
                 0L,
                 null
@@ -900,6 +1024,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 null,
                 false,
                 false,
+                randomZone(),
                 0L,
                 0L,
                 null
@@ -964,6 +1089,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     null,
                     false,
                     false,
+                    randomZone(),
                     0L,
                     0L,
                     null
@@ -1023,6 +1149,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             null,
             columnar,
             async,
+            randomZone(),
             0L,
             0L,
             null
@@ -1058,6 +1185,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 ),
                 false,
                 false,
+                randomZone(),
                 0L,
                 0L,
                 null
@@ -1139,7 +1267,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         var longBlk2 = blockFactory.newLongArrayVector(new long[] { 300L, 400L, 500L }, 3).asBlock();
         var columnInfo = List.of(new ColumnInfoImpl("foo", "integer", null), new ColumnInfoImpl("bar", "long", null));
         var pages = List.of(new Page(intBlk1, longBlk1), new Page(intBlk2, longBlk2));
-        try (var response = new EsqlQueryResponse(columnInfo, pages, 0, 0, null, false, null, false, false, 0L, 0L, null)) {
+        try (var response = new EsqlQueryResponse(columnInfo, pages, 0, 0, null, false, null, false, false, randomZone(), 0L, 0L, null)) {
             assertThat(columnValues(response.column(0)), contains(10, 20, 30, 40, 50));
             assertThat(columnValues(response.column(1)), contains(100L, 200L, 300L, 400L, 500L));
             expectThrows(IllegalArgumentException.class, () -> response.column(-1));
@@ -1151,7 +1279,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         var intBlk1 = blockFactory.newIntArrayVector(new int[] { 10 }, 1).asBlock();
         var columnInfo = List.of(new ColumnInfoImpl("foo", "integer", null));
         var pages = List.of(new Page(intBlk1));
-        try (var response = new EsqlQueryResponse(columnInfo, pages, 0, 0, null, false, null, false, false, 0L, 0L, null)) {
+        try (var response = new EsqlQueryResponse(columnInfo, pages, 0, 0, null, false, null, false, false, randomZone(), 0L, 0L, null)) {
             expectThrows(IllegalArgumentException.class, () -> response.column(-1));
             expectThrows(IllegalArgumentException.class, () -> response.column(1));
         }
@@ -1170,7 +1298,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         }
         var columnInfo = List.of(new ColumnInfoImpl("foo", "integer", null));
         var pages = List.of(new Page(blk1), new Page(blk2), new Page(blk3));
-        try (var response = new EsqlQueryResponse(columnInfo, pages, 0, 0, null, false, null, false, false, 0L, 0L, null)) {
+        try (var response = new EsqlQueryResponse(columnInfo, pages, 0, 0, null, false, null, false, false, randomZone(), 0L, 0L, null)) {
             assertThat(columnValues(response.column(0)), contains(10, null, 30, null, null, 60, null, 80, 90, null));
             expectThrows(IllegalArgumentException.class, () -> response.column(-1));
             expectThrows(IllegalArgumentException.class, () -> response.column(2));
@@ -1190,10 +1318,81 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         }
         var columnInfo = List.of(new ColumnInfoImpl("foo", "integer", null));
         var pages = List.of(new Page(blk1), new Page(blk2), new Page(blk3));
-        try (var response = new EsqlQueryResponse(columnInfo, pages, 0, 0, null, false, null, false, false, 0L, 0L, null)) {
+        try (var response = new EsqlQueryResponse(columnInfo, pages, 0, 0, null, false, null, false, false, randomZone(), 0L, 0L, null)) {
             assertThat(columnValues(response.column(0)), contains(List.of(10, 20), null, List.of(40, 50), null, 70, 80, null));
             expectThrows(IllegalArgumentException.class, () -> response.column(-1));
             expectThrows(IllegalArgumentException.class, () -> response.column(2));
+        }
+    }
+
+    public void testDatesWithTimezone() {
+        LongBlock blk11, blk12, blk21, blk22;
+        try (
+            var bb11 = blockFactory.newLongBlockBuilder(2);
+            var bb12 = blockFactory.newLongBlockBuilder(4);
+            var bb21 = blockFactory.newLongBlockBuilder(2);
+            var bb22 = blockFactory.newLongBlockBuilder(4)
+        ) {
+            blk11 = bb11.appendLong(dateTimeToLong("2007-12-03T10:15:30+01:00")).appendNull().build();
+            blk12 = bb12.beginPositionEntry()
+                .appendLong(dateTimeToLong("2007-12-03T10:15:30Z"))
+                .appendLong(dateTimeToLong("2007-12-03T10:15:30+01:00"))
+                .endPositionEntry()
+                .build();
+            blk21 = bb21.appendLong(dateNanosToLong("2007-12-03T10:15:30.123456789+01:00")).appendNull().build();
+            blk22 = bb22.beginPositionEntry()
+                .appendLong(dateNanosToLong("2007-12-03T10:15:30.1234Z"))
+                .appendLong(dateNanosToLong("2007-12-03T10:15:30+01:00"))
+                .endPositionEntry()
+                .build();
+        }
+        var columnInfo = List.of(new ColumnInfoImpl("foo", "date", null), new ColumnInfoImpl("bar", "date_nanos", null));
+        var pages = List.of(new Page(blk11, blk21), new Page(blk12, blk22));
+        try (
+            var response = new EsqlQueryResponse(
+                columnInfo,
+                pages,
+                0,
+                0,
+                null,
+                false,
+                null,
+                false,
+                false,
+                ZoneId.of("Europe/Paris"),
+                0L,
+                0L,
+                null
+            )
+        ) {
+            assertThat(
+                columnValues(response.column(0)),
+                contains("2007-12-03T10:15:30.000+01:00", null, List.of("2007-12-03T11:15:30.000+01:00", "2007-12-03T10:15:30.000+01:00"))
+            );
+            assertThat(
+                columnValues(response.column(1)),
+                contains(
+                    "2007-12-03T10:15:30.123456789+01:00",
+                    null,
+                    List.of("2007-12-03T11:15:30.1234+01:00", "2007-12-03T10:15:30.000+01:00")
+                )
+            );
+
+            var rowValues = getValuesList(response.rows());
+            var valValues = getValuesList(response.values());
+            // Ensure they're identical
+            for (int i = 0; i < rowValues.size(); i++) {
+                assertThat(rowValues.get(i), equalTo(valValues.get(i)));
+            }
+            assertThat(rowValues.get(0), contains("2007-12-03T10:15:30.000+01:00", "2007-12-03T10:15:30.123456789+01:00"));
+            assertThat(rowValues.get(1), contains(null, null));
+            assertThat(
+                rowValues.get(2),
+                contains(
+                    List.of("2007-12-03T11:15:30.000+01:00", "2007-12-03T10:15:30.000+01:00"),
+                    List.of("2007-12-03T11:15:30.1234+01:00", "2007-12-03T10:15:30.000+01:00")
+                )
+            );
         }
     }
 
@@ -1203,7 +1402,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             List<ColumnInfoImpl> columns = randomList(numColumns, numColumns, this::randomColumnInfo);
             int noPages = randomIntBetween(1, 20);
             List<Page> pages = randomList(noPages, noPages, () -> randomPage(columns));
-            try (var resp = new EsqlQueryResponse(columns, pages, 0, 0, null, false, "", false, false, 0L, 0L, null)) {
+            try (var resp = new EsqlQueryResponse(columns, pages, 0, 0, null, false, "", false, false, ZoneOffset.UTC, 0L, 0L, null)) {
                 var rowValues = getValuesList(resp.rows());
                 var valValues = getValuesList(resp.values());
                 for (int i = 0; i < rowValues.size(); i++) {
@@ -1328,6 +1527,12 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             expHistoBuilder.append(parsed);
                         }
                     }
+                    case DATE_RANGE -> {
+                        BlockLoader.LongRangeBuilder b = (BlockLoader.LongRangeBuilder) builder;
+                        var ll = parseDateRange(value.toString(), ZoneOffset.UTC);
+                        b.from().appendLong(ll.from());
+                        b.to().appendLong(ll.to());
+                    }
                     case TDIGEST -> {
                         TDigestBlockBuilder tDigestBlockBuilder = (TDigestBlockBuilder) builder;
                         String json = Types.forciblyCast(value);
@@ -1347,7 +1552,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             if (parsed == null) {
                                 tDigestBlockBuilder.appendNull();
                             } else {
-                                tDigestBlockBuilder.append(parsed);
+                                tDigestBlockBuilder.appendTDigest(parsed);
                             }
                         } catch (UnsupportedOperationException | IOException e) {
                             fail("Unable to parse TDigestBlockBuilder: " + e.getMessage());

@@ -20,11 +20,10 @@ import org.elasticsearch.datageneration.MappingGenerator;
 import org.elasticsearch.datageneration.Template;
 import org.elasticsearch.datageneration.TemplateGenerator;
 import org.elasticsearch.datageneration.datasource.ASCIIStringsHandler;
-import org.elasticsearch.datageneration.datasource.DataSourceHandler;
-import org.elasticsearch.datageneration.datasource.DataSourceRequest;
-import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.datageneration.datasource.DefaultMappingParametersHandler;
 import org.elasticsearch.datageneration.datasource.MultifieldAddonHandler;
+import org.elasticsearch.datageneration.fields.PredefinedField;
+import org.elasticsearch.datageneration.fields.leaf.FlattenedFieldDataGenerator;
 import org.elasticsearch.datageneration.matchers.MatchResult;
 import org.elasticsearch.datageneration.matchers.Matcher;
 import org.elasticsearch.index.IndexSettings;
@@ -38,11 +37,9 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -72,18 +69,17 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
         var specification = DataGeneratorSpecification.builder()
             .withMaxObjectDepth(2)
             .withMaxFieldCountPerLevel(6)
-            .withDataSourceHandlers(List.of(new DataSourceHandler() {
-                @Override
-                public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
-                    return new DataSourceResponse.FieldTypeGenerator(() -> {
-                        var options = Arrays.stream(FieldType.values())
-                            .filter(ft -> ft != FieldType.PASSTHROUGH)
-                            .map(FieldType::toString)
-                            .collect(Collectors.toSet());
-                        return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(ESTestCase.randomFrom(options));
-                    });
-                }
-            }, new DefaultMappingParametersHandler() {
+            .withPredefinedFields(
+                List.of(
+                    new PredefinedField.WithGeneratorProvider(
+                        "flattened",
+                        FieldType.FLATTENED,
+                        Map.of("type", "flattened"),
+                        FlattenedFieldDataGenerator::new
+                    )
+                )
+            )
+            .withDataSourceHandlers(List.of(new DefaultMappingParametersHandler() {
                 @Override
                 protected Object extendedDocValuesParams() {
                     if (oldClusterHasFeature("mapper.keyword.store_high_cardinality_in_binary_doc_values")) {
@@ -103,35 +99,53 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
         mappingGenerator = new MappingGenerator(specification);
     }
 
-    private void testIndexing(String indexName, Settings.Builder settings) throws IOException {
+    private TestIndexConfig createIndex(String indexName, Settings.Builder settings) throws IOException {
         var template = templateGenerator.generate();
         TestIndexConfig indexConfig = new TestIndexConfig(indexName, template, settings, mappingGenerator.generate(template));
 
         @SuppressWarnings("unchecked")
         Map<String, Object> mappingRaw = (Map<String, Object>) indexConfig.mapping.raw().get("_doc");
         String mappingStr = Strings.toString(XContentFactory.jsonBuilder().map(mappingRaw));
-        logger.info(indexName + " mappings: " + mappingStr);
+        logger.info(() -> indexName + " mappings: " + mappingStr);
         createIndex(indexName, settings.build(), mappingStr);
 
+        return indexConfig;
+    }
+
+    private void indexAndQueryDocuments(TestIndexConfig indexConfig) throws IOException {
         indexDocuments(indexConfig);
         testQueryAll(indexConfig);
         testEsqlSource(indexConfig);
+    }
+
+    @Override
+    public String getEnsureGreenTimeout() {
+        return "2m";
+    }
+
+    private void testIndexing(String indexNameBase, Settings.Builder settings) throws IOException {
+        TestIndexConfig[] indexConfigs = new TestIndexConfig[NUM_INDICES];
+
+        for (int i = 0; i < NUM_INDICES; i++) {
+            indexConfigs[i] = createIndex(indexNameBase + i, settings);
+            indexAndQueryDocuments(indexConfigs[i]);
+        }
 
         int numNodes = Integer.parseInt(System.getProperty("tests.num_nodes", "3"));
         for (int i = 0; i < numNodes; i++) {
+            flush(indexNameBase + "*", true);
             upgradeNode(i);
-            indexDocuments(indexConfig);
-            testQueryAll(indexConfig);
-            testEsqlSource(indexConfig);
+            ensureGreen(indexNameBase + "*");
+            for (int j = 0; j < NUM_INDICES; j++) {
+                indexAndQueryDocuments(indexConfigs[j]);
+            }
         }
     }
 
     public void testIndexingStandardSource() throws IOException {
         Settings.Builder builder = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "stored");
         String indexNameBase = "test-index-standard-";
-        for (int i = 0; i < NUM_INDICES; i++) {
-            testIndexing(indexNameBase + i, builder);
-        }
+        testIndexing(indexNameBase, builder);
     }
 
     public void testIndexingSyntheticSource() throws IOException {
@@ -140,9 +154,7 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
             builder.put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.getKey(), "arrays");
         }
         String indexNameBase = "test-index-synthetic-";
-        for (int i = 0; i < NUM_INDICES; i++) {
-            testIndexing(indexNameBase + i, builder);
-        }
+        testIndexing(indexNameBase, builder);
     }
 
     private void indexDocuments(TestIndexConfig indexConfig) throws IOException {

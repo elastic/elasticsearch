@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -31,7 +32,7 @@ import static java.util.Collections.emptyList;
 /**
  * Similar to {@link Min}, but it is used to calculate the minimum value over a time series of values from the given field.
  */
-public class MinOverTime extends TimeSeriesAggregateFunction implements OptionalArgument {
+public class MinOverTime extends TimeSeriesAggregateFunction implements OptionalArgument, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "MinOverTime",
@@ -64,7 +65,8 @@ public class MinOverTime extends TimeSeriesAggregateFunction implements Optional
                 "unsigned_long",
                 "version",
                 "exponential_histogram",
-                "tdigest" }
+                "tdigest" },
+            description = "the metric field to calculate the value for"
         ) Expression field,
         @Param(
             name = "window",

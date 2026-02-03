@@ -1,5 +1,0 @@
-pr: 138632
-summary: Correctly handle empty inputs in `chunkedInfer()`
-area: Machine Learning
-type: bug
-issues: []

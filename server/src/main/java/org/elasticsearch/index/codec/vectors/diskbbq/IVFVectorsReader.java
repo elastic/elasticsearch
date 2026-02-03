@@ -45,6 +45,7 @@ import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILA
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.CENTROID_EXTENSION;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.CLUSTER_EXTENSION;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO;
+import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.IVF_META_EXTENSION;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO;
 
 /**
@@ -52,7 +53,7 @@ import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsF
  */
 public abstract class IVFVectorsReader extends KnnVectorsReader {
 
-    private final IndexInput ivfCentroids, ivfClusters;
+    protected final IndexInput ivfCentroids, ivfClusters;
     private final SegmentReadState state;
     private final FieldInfos fieldInfos;
     protected final IntObjectHashMap<FieldEntry> fields;
@@ -64,14 +65,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         this.fieldInfos = state.fieldInfos;
         this.fields = new IntObjectHashMap<>();
         this.genericReaders = new GenericFlatVectorReaders();
-        String meta = IndexFileNames.segmentFileName(
-            state.segmentInfo.name,
-            state.segmentSuffix,
-            ES920DiskBBQVectorsFormat.IVF_META_EXTENSION
-        );
+        String meta = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, IVF_META_EXTENSION);
 
         int versionMeta = -1;
-        boolean success = false;
         try (ChecksumIndexInput ivfMeta = state.directory.openChecksumInput(meta)) {
             Throwable priorE = null;
             try {
@@ -91,11 +87,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             }
             ivfCentroids = openDataInput(state, versionMeta, CENTROID_EXTENSION, ES920DiskBBQVectorsFormat.NAME, state.context);
             ivfClusters = openDataInput(state, versionMeta, CLUSTER_EXTENSION, ES920DiskBBQVectorsFormat.NAME, state.context);
-            success = true;
-        } finally {
-            if (success == false) {
-                IOUtils.closeWhileHandlingException(this);
-            }
+        } catch (Throwable t) {
+            IOUtils.closeWhileHandlingException(this);
+            throw t;
         }
     }
 
@@ -111,7 +105,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         float visitRatio
     ) throws IOException;
 
-    private static IndexInput openDataInput(
+    protected static IndexInput openDataInput(
         SegmentReadState state,
         int versionMeta,
         String fileExtension,
@@ -120,7 +114,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     ) throws IOException {
         final String fileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, fileExtension);
         final IndexInput in = state.directory.openInput(fileName, context);
-        boolean success = false;
         try {
             final int versionVectorData = CodecUtil.checkIndexHeader(
                 in,
@@ -137,12 +130,10 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 );
             }
             CodecUtil.retrieveChecksum(in);
-            success = true;
             return in;
-        } finally {
-            if (success == false) {
-                IOUtils.closeWhileHandlingException(in);
-            }
+        } catch (Throwable t) {
+            IOUtils.closeWhileHandlingException(in);
+            throw t;
         }
     }
 
@@ -331,11 +322,10 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         // filtering? E.g. keep exploring until we hit an expected number of parent documents vs. child vectors?
         while (centroidPrefetchingIterator.hasNext()
             && (maxVectorVisited > expectedDocs || knnCollector.minCompetitiveSimilarity() == Float.NEGATIVE_INFINITY)) {
-            // todo do we actually need to know the score???
-            CentroidOffsetAndLength offsetAndLength = centroidPrefetchingIterator.nextPostingListOffsetAndLength();
+            PostingMetadata postingMetadata = centroidPrefetchingIterator.nextPosting();
             // todo do we need direct access to the raw centroid???, this is used for quantizing, maybe hydrating and quantizing
             // is enough?
-            expectedDocs += scorer.resetPostingsScorer(offsetAndLength.offset());
+            expectedDocs += scorer.resetPostingsScorer(postingMetadata);
             actualDocs += scorer.visit(knnCollector);
             if (knnCollector.getSearchStrategy() != null) {
                 knnCollector.getSearchStrategy().nextVectorsBlock();
@@ -347,8 +337,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             int filteredVectors = (int) Math.ceil(numVectors * percentFiltered);
             float expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, expectedDocs / 2f);
             while (centroidPrefetchingIterator.hasNext() && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
-                CentroidOffsetAndLength offsetAndLength = centroidPrefetchingIterator.nextPostingListOffsetAndLength();
-                scorer.resetPostingsScorer(offsetAndLength.offset());
+                PostingMetadata postingMetadata = centroidPrefetchingIterator.nextPosting();
+                scorer.resetPostingsScorer(postingMetadata);
                 actualDocs += scorer.visit(knnCollector);
                 if (knnCollector.getSearchStrategy() != null) {
                     knnCollector.getSearchStrategy().nextVectorsBlock();
@@ -402,6 +392,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         protected final long postingListLength;
         protected final float[] globalCentroid;
         protected final float globalCentroidDp;
+        protected final int bulkSize;
 
         protected FieldEntry(
             String rawVectorFormatName,
@@ -414,7 +405,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             long postingListOffset,
             long postingListLength,
             float[] globalCentroid,
-            float globalCentroidDp
+            float globalCentroidDp,
+            int bulkSize
         ) {
             this.rawVectorFormatName = rawVectorFormatName;
             this.useDirectIOReads = useDirectIOReads;
@@ -427,6 +419,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             this.postingListLength = postingListLength;
             this.globalCentroid = globalCentroid;
             this.globalCentroidDp = globalCentroidDp;
+            this.bulkSize = bulkSize;
         }
 
         @Override
@@ -462,22 +455,18 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         public IndexInput postingListSlice(IndexInput postingListFile) throws IOException {
             return postingListFile.slice("postingLists", postingListOffset, postingListLength);
         }
+
+        public int getBulkSize() {
+            return bulkSize;
+        }
     }
 
     public abstract PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput postingsLists, float[] target, Bits needsScoring)
         throws IOException;
 
-    public record CentroidOffsetAndLength(long offset, long length) {}
-
-    public interface CentroidIterator {
-        boolean hasNext();
-
-        CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException;
-    }
-
     public interface PostingVisitor {
         /** returns the number of documents in the posting list */
-        int resetPostingsScorer(long offset) throws IOException;
+        int resetPostingsScorer(PostingMetadata metadata) throws IOException;
 
         /** returns the number of scored documents */
         int visit(KnnCollector collector) throws IOException;

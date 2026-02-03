@@ -2,5 +2,5 @@
 
 **Description**
 
-Extracts the `x` coordinate from the supplied point. If the points is of type `geo_point` this is equivalent to extracting the `longitude` value.
+Extracts the `x` coordinate from the supplied point. If the point is of type `geo_point` this is equivalent to extracting the `longitude` value.
 

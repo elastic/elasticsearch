@@ -21,6 +21,7 @@ import java.util.Set;
 public final class SearchUsage {
 
     public final String RETRIEVERS_NAME = "retrievers";
+    public final String SECTION_NAME = "section";
 
     private final Set<String> queries = new HashSet<>();
     private final Set<String> rescorers = new HashSet<>();
@@ -40,6 +41,15 @@ public final class SearchUsage {
      */
     public void trackSectionUsage(String section) {
         sections.add(section);
+    }
+
+    /**
+     * Track the usage of the provided search section with extra
+     * parameters specific to the section
+     */
+    public void trackSectionUsage(String section, String extra) {
+        sections.add(section);
+        extendedUsage.track(SECTION_NAME, section, extra);
     }
 
     /**

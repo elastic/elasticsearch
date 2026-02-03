@@ -46,7 +46,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
 public final class Case extends EsqlScalarFunction {
@@ -64,6 +63,7 @@ public final class Case extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = {
+            "aggregate_metric_double",
             "boolean",
             "cartesian_point",
             "cartesian_shape",
@@ -76,10 +76,12 @@ public final class Case extends EsqlScalarFunction {
             "geohash",
             "geotile",
             "geohex",
+            "histogram",
             "integer",
             "ip",
             "keyword",
             "long",
+            "tdigest",
             "unsigned_long",
             "version",
             "exponential_histogram" },
@@ -109,6 +111,7 @@ public final class Case extends EsqlScalarFunction {
         @Param(
             name = "trueValue",
             type = {
+                "aggregate_metric_double",
                 "boolean",
                 "cartesian_point",
                 "cartesian_shape",
@@ -121,10 +124,12 @@ public final class Case extends EsqlScalarFunction {
                 "geohash",
                 "geotile",
                 "geohex",
+                "histogram",
                 "integer",
                 "ip",
                 "keyword",
                 "long",
+                "tdigest",
                 "text",
                 "unsigned_long",
                 "version",
@@ -211,15 +216,15 @@ public final class Case extends EsqlScalarFunction {
             dataType = value.dataType().noText();
             return TypeResolutions.isType(
                 value,
-                t -> t != AGGREGATE_METRIC_DOUBLE,
+                t -> t != DataType.DATE_RANGE,
                 sourceText(),
                 TypeResolutions.ParamOrdinal.fromIndex(position),
-                originalWasNull ? NULL.typeName() : "any but aggregate_metric_double"
+                originalWasNull ? NULL.typeName() : "any but date_range"
             );
         }
         return TypeResolutions.isType(
             value,
-            t -> t.noText() == dataType && t != AGGREGATE_METRIC_DOUBLE,
+            t -> t.noText() == dataType && t != DataType.DATE_RANGE,
             sourceText(),
             TypeResolutions.ParamOrdinal.fromIndex(position),
             dataType.typeName()
@@ -265,6 +270,22 @@ public final class Case extends EsqlScalarFunction {
             }
         }
         return elseValue.foldable();
+    }
+
+    @Override
+    public Object fold(FoldContext ctx) {
+        DataType type = dataType();
+        if (type == DataType.DATE_PERIOD || type == DataType.TIME_DURATION) {
+            // These can't be managed by evaluators, we have to fold them manually.
+            // TODO manage warnings for MV condition (evaluators take care of that, here we don't have the components)
+            for (Condition condition : conditions) {
+                if (Boolean.TRUE.equals(condition.condition.fold(ctx))) {
+                    return condition.value.fold(ctx);
+                }
+            }
+            return elseValue.fold(ctx);
+        }
+        return super.fold(ctx);
     }
 
     /**
@@ -361,12 +382,7 @@ public final class Case extends EsqlScalarFunction {
                  * Rather than go into depth about this in the warning message,
                  * we just say "false".
                  */
-                Warnings.createWarningsTreatedAsFalse(
-                    driverContext.warningsMode(),
-                    conditionSource.source().getLineNumber(),
-                    conditionSource.source().getColumnNumber(),
-                    conditionSource.text()
-                ),
+                Warnings.createWarningsTreatedAsFalse(driverContext.warningsMode(), conditionSource),
                 condition.get(driverContext),
                 value.get(driverContext)
             );

@@ -27,7 +27,7 @@ import java.util.List;
 public class PercentileOverTime extends TimeSeriesAggregateFunction {
     @FunctionInfo(
         returnType = "double",
-        description = "Calculates the percentile over time of a numeric field.",
+        description = "Calculates the percentile over time of a field.",
         type = FunctionType.TIME_SERIES_AGGREGATE,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
         preview = true,
@@ -36,11 +36,15 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction {
     public PercentileOverTime(
         Source source,
         @Param(
-            name = "number",
+            name = "field",
             type = { "double", "integer", "long", "exponential_histogram", "tdigest" },
-            description = "Expression that outputs values to calculate the percentile of."
+            description = "the metric field to calculate the value for"
         ) Expression field,
-        @Param(name = "percentile", type = { "double", "integer", "long" }) Expression percentile
+        @Param(
+            name = "percentile",
+            type = { "double", "integer", "long" },
+            description = "the percentile value to compute (between 0 and 100)"
+        ) Expression percentile
     ) {
         this(source, field, Literal.TRUE, NO_WINDOW, percentile);
     }

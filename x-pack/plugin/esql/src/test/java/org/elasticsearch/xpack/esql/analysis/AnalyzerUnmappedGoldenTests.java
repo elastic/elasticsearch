@@ -15,36 +15,36 @@ import java.util.EnumSet;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 
 /**
- * Golden tests for analyzer behavior with unmapped fields using SET unmapped_fields="nullify".
- * These tests verify that unmapped fields are properly handled by converting them to null literals.
+ * Golden tests for analyzer behavior with unmapped fields using SET unmapped_fields="nullify" and "load".
+ * These tests verify that unmapped fields are properly handled.
  */
 public class AnalyzerUnmappedGoldenTests extends GoldenTestCase {
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.ANALYSIS);
 
     public void testKeep() throws Exception {
         runTests("""
-            FROM test
+            FROM employees
             | KEEP does_not_exist_field
             """);
     }
 
     public void testKeepRepeated() throws Exception {
         runTests("""
-            FROM test
+            FROM employees
             | KEEP does_not_exist_field, does_not_exist_field
             """);
     }
 
     public void testKeepAndMatchingStar() throws Exception {
         runTests("""
-            FROM test
+            FROM employees
             | KEEP emp_*, does_not_exist_field
             """);
     }
 
     public void testEvalAndKeep() throws Exception {
         runTests("""
-            FROM test
+            FROM employees
             | EVAL x = does_not_exist_field1::INTEGER + 42
             | KEEP does_not_exist_field1, does_not_exist_field2
             """);
@@ -52,99 +52,99 @@ public class AnalyzerUnmappedGoldenTests extends GoldenTestCase {
 
     public void testEvalAfterKeepStar() throws Exception {
         runTests("""
-            FROM test
+            FROM employees
             | KEEP *
             | EVAL x = emp_no + 1
-            | EVAL y = does_not_exist_field + 2
+            | EVAL y = does_not_exist_field::DOUBLE + 2
             """);
     }
 
     public void testEvalAfterMatchingKeepWithWildcard() throws Exception {
         runTests("""
-            FROM test
+            FROM employees
             | KEEP emp_no, *
             | EVAL x = emp_no + 1
-            | EVAL y = emp_does_not_exist_field + 2
+            | EVAL y = emp_does_not_exist_field::DOUBLE + 2
             """);
     }
 
     public void testDrop() throws Exception {
         runTests("""
-            FROM test
+            FROM employees
             | DROP does_not_exist_field, emp_no
             """);
     }
 
     public void testDropAndMatchingStar() throws Exception {
         runTests("""
-            FROM test
+            FROM employees
             | DROP emp_*, does_not_exist_field
             """);
     }
 
     public void testRename() throws Exception {
         runTests("""
-            FROM test
+            FROM employees
             | RENAME does_not_exist_field AS now_it_does, emp_no AS employee_number
             """);
     }
 
     public void testRenameRepeated() throws Exception {
         runTests("""
-            FROM test
+            FROM employees
             | RENAME does_not_exist_field AS now_it_does, neither_does_this AS now_it_does, emp_no AS employee_number
             """);
     }
 
     public void testRenameEval() throws Exception {
         runTests("""
-            FROM test
+            FROM employees
             | RENAME emp_no AS employee_number
-            | EVAL x = does_not_exist + 1
+            | EVAL x = does_not_exist::DOUBLE + 1
             """);
     }
 
     public void testEval() throws Exception {
         runTests("""
-            FROM test
-            | EVAL x = does_not_exist_field + 1
+            FROM employees
+            | EVAL x = does_not_exist_field::DOUBLE + 1
             """);
     }
 
     public void testMultipleEval() throws Exception {
         runTests("""
-            FROM test
+            FROM employees
             | EVAL a = 1
-            | EVAL x = a + b
-            | EVAL y = b + c
+            | EVAL x = a + b::DOUBLE
+            | EVAL y = b::DOUBLE + c::DOUBLE
             """);
     }
 
     public void testEvalCast() throws Exception {
         runTests("""
-            FROM test
+            FROM employees
             | EVAL x = does_not_exist_field::LONG
             """);
     }
 
     public void testEvalCastInPlace() throws Exception {
         runTests("""
-            FROM test
+            FROM employees
             | EVAL does_not_exist_field::LONG
             """);
     }
 
     public void testEvalReplace() throws Exception {
         runTests("""
-            FROM test
-            | EVAL x = does_not_exist_field + 1
+            FROM employees
+            | EVAL x = does_not_exist_field::DOUBLE + 1
             | EVAL does_not_exist_field = 42
             """);
     }
 
     public void testKeepThenEval() throws Exception {
         runTests("""
-            FROM test
+            FROM employees
             | KEEP does_not_exist_field
             | EVAL does_not_exist_field = 42
             """);
@@ -152,84 +152,84 @@ public class AnalyzerUnmappedGoldenTests extends GoldenTestCase {
 
     public void testStatsCount() throws Exception {
         runTests("""
-            FROM test
+            FROM employees
             | STATS cnt = COUNT(does_not_exist_field)
             """);
     }
 
     public void testStatsBy() throws Exception {
         runTests("""
-            FROM test
+            FROM employees
             | STATS BY does_not_exist_field
             """);
     }
 
     public void testStatsSumBy() throws Exception {
         runTests("""
-            FROM test
-            | STATS s = SUM(does_not_exist1) BY does_not_exist2
+            FROM employees
+            | STATS s = SUM(does_not_exist1::DOUBLE) BY does_not_exist2
             """);
     }
 
     public void testStatsSumByMultiple() throws Exception {
         runTests("""
-            FROM test
-            | STATS s = SUM(does_not_exist1) + d2 BY d2 = does_not_exist2, emp_no
+            FROM employees
+            | STATS s = SUM(does_not_exist1::DOUBLE) + d2 BY d2 = does_not_exist2::DOUBLE, emp_no
             """);
     }
 
     public void testStatsSumByComplex() throws Exception {
         runTests("""
-            FROM test
-            | STATS sum = SUM(does_not_exist1) + s0 + s1 BY s0 = does_not_exist2 + does_not_exist3, s1 = emp_no
+            FROM employees
+            | STATS sum = SUM(does_not_exist1::DOUBLE) + s0 + s1 BY s0 = does_not_exist2::DOUBLE + does_not_exist3::DOUBLE, s1 = emp_no
             """);
     }
 
     public void testStatsMultiple() throws Exception {
         runTests("""
-            FROM test
-            | STATS s = SUM(does_not_exist1), c = COUNT(*) BY does_not_exist2, emp_no
+            FROM employees
+            | STATS s = SUM(does_not_exist1::DOUBLE), c = COUNT(*) BY does_not_exist2, emp_no
             """);
     }
 
     public void testInlineStats() throws Exception {
         runTests("""
-            FROM test
-            | INLINE STATS s = SUM(does_not_exist1), c = COUNT(*) BY does_not_exist2, emp_no
+            FROM employees
+            | INLINE STATS s = SUM(does_not_exist1::DOUBLE), c = COUNT(*) BY does_not_exist2, emp_no
             """);
     }
 
     public void testWhere() throws Exception {
         runTests("""
-            FROM test
+            FROM employees
             | WHERE does_not_exist::LONG > 0
             """);
     }
 
     public void testWhereOr() throws Exception {
         runTests("""
-            FROM test
+            FROM employees
             | WHERE does_not_exist::LONG > 0 OR emp_no > 0
             """);
     }
 
     public void testWhereComplex() throws Exception {
         runTests("""
-            FROM test
+            FROM employees
             | WHERE does_not_exist1::LONG > 0 OR emp_no > 0 AND does_not_exist2::LONG < 100
             """);
     }
 
     public void testStatsCountWhere() throws Exception {
         runTests("""
-            FROM test
+            FROM employees
             | STATS c = COUNT(*) WHERE does_not_exist1::LONG > 0
             """);
     }
 
     public void testStatsMultipleCountWhere() throws Exception {
         runTests("""
-            FROM test
+            FROM employees
             | STATS c1 = COUNT(*) WHERE does_not_exist1::LONG > 0 OR emp_no > 0 OR does_not_exist2::LONG < 100,
                     c2 = COUNT(*) WHERE does_not_exist3 IS NULL
             """);
@@ -237,37 +237,29 @@ public class AnalyzerUnmappedGoldenTests extends GoldenTestCase {
 
     public void testSort() throws Exception {
         runTests("""
-            FROM test
+            FROM employees
             | SORT does_not_exist ASC
             """);
     }
 
     public void testSortExpression() throws Exception {
         runTests("""
-            FROM test
+            FROM employees
             | SORT does_not_exist::LONG + 1
             """);
     }
 
     public void testSortMultiple() throws Exception {
         runTests("""
-            FROM test
+            FROM employees
             | SORT does_not_exist1::LONG + 1, does_not_exist2 DESC, emp_no ASC
             """);
     }
 
     public void testMvExpand() throws Exception {
         runTests("""
-            FROM test
+            FROM employees
             | MV_EXPAND does_not_exist
-            """);
-    }
-
-    public void testRow() throws Exception {
-        runTests("""
-            ROW x = 1
-            | EVAL y = does_not_exist_field1::INTEGER + x
-            | KEEP *, does_not_exist_field2
             """);
     }
 

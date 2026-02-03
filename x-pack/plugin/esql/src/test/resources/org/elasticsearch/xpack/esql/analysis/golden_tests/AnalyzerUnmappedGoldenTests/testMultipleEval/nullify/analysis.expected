@@ -1,0 +1,5 @@
+Limit[1000[INTEGER],false,false]
+\_Eval[[TODOUBLE(b{r}#0) + TODOUBLE(c{r}#1) AS y#2]]
+  \_Eval[[a{r}#3 + TODOUBLE(b{r}#0) AS x#4]]
+    \_Eval[[1[INTEGER] AS a#3, null[NULL] AS b#0, null[NULL] AS c#1]]
+      \_EsRelation[employees][avg_worked_seconds{f}#5, birth_date{f}#6, emp_no{f}#7, first_name{f}#8, gender{f}#9, height{f}#10, height.float{f}#11, height.half_float{f}#12, height.scaled_float{f}#13, hire_date{f}#14, is_rehired{f}#15, job_positions{f}#16, languages{f}#17, languages.byte{f}#18, languages.long{f}#19, languages.short{f}#20, last_name{f}#21, salary{f}#22, salary_change{f}#23, salary_change.int{f}#24, salary_change.keyword{f}#25, salary_change.long{f}#26, still_hired{f}#27]

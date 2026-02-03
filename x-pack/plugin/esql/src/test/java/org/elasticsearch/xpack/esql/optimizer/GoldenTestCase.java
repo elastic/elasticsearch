@@ -68,6 +68,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomMinimumVersion;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 
 /** See GoldenTestsReadme.md for more information about these tests. */
@@ -200,24 +201,25 @@ public abstract class GoldenTestCase extends ESTestCase {
         }
 
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
-            LogicalPlan parsedStatement = EsqlParser.INSTANCE.parseQuery(esqlQuery);
+            var statement = EsqlParser.INSTANCE.createStatement(esqlQuery);
+            var parsedPlan = statement.plan();
             Files.createDirectories(PathUtils.get(basePath.toString(), testName));
             Files.writeString(PathUtils.get(basePath.toString(), testName, "query.esql"), esqlQuery);
             var analyzer = new Analyzer(
                 new AnalyzerContext(
                     EsqlTestUtils.TEST_CFG,
                     new EsqlFunctionRegistry(),
-                    CsvTests.loadIndexResolution(CsvTests.testDatasets(parsedStatement)),
+                    CsvTests.loadIndexResolution(CsvTests.testDatasets(parsedPlan)),
                     defaultLookupResolution(),
                     new EnrichResolution(),
                     InferenceResolution.EMPTY,
                     transportVersion,
-                    UnmappedResolution.FAIL
+                    statement.setting(UNMAPPED_FIELDS)
                 ),
                 TEST_VERIFIER
             );
             List<Tuple<Stage, TestResult>> result = new ArrayList<>();
-            var analyzed = analyzer.analyze(parsedStatement);
+            var analyzed = analyzer.analyze(parsedPlan);
             if (stages.contains(Stage.ANALYSIS)) {
                 result.add(Tuple.tuple(Stage.ANALYSIS, verifyOrWrite(analyzed, Stage.ANALYSIS)));
             }
@@ -381,6 +383,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         if (output.toString().contains("extra")) {
             throw new IllegalStateException("Extra output files should not be created automatically:" + output);
         }
+        Files.createDirectories(output.getParent());
         Files.writeString(output, toCanonicalString(plan), StandardCharsets.UTF_8);
         return Test.TestResult.CREATED;
     }

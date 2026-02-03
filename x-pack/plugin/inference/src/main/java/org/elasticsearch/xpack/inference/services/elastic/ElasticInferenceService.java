@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
@@ -404,7 +403,9 @@ public class ElasticInferenceService extends SenderService {
         Map<String, Object> config,
         Map<String, Object> secrets
     ) {
-        throw new UnsupportedOperationException(Strings.format("[%s] requires an unparsed model", NAME));
+        // Once the inference api logic is switched to using the UnparsedModel variants of methods, this method can simply throw
+        // an exception. Then once all services use the UnparsedModel we can remove this method entirely.
+        return parsePersistedConfigWithSecrets(new UnparsedModel(inferenceEntityId, taskType, NAME, config, secrets));
     }
 
     @Override
@@ -420,16 +421,9 @@ public class ElasticInferenceService extends SenderService {
 
     @Override
     public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        // Not by EIS endpoints so removing to avoid potential validation issues
-        removeFromMap(config, ModelConfigurations.TASK_SETTINGS);
-
-        ChunkingSettings chunkingSettings = null;
-        if (TaskType.SPARSE_EMBEDDING.equals(taskType) || TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
-        }
-
-        return createModelFromPersistent(inferenceEntityId, taskType, serviceSettingsMap, chunkingSettings, null);
+        // Once the inference api logic is switched to using the UnparsedModel variants of methods, this method can simply throw
+        // an exception. Then once all services use the UnparsedModel we can remove this method entirely.
+        return parsePersistedConfigWithSecrets(inferenceEntityId, taskType, config, new HashMap<>());
     }
 
     @Override

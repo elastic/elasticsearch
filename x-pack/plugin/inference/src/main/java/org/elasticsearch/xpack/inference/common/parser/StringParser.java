@@ -11,6 +11,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.common.parser.ObjectParserUtils.pathToKey;
+
 public class StringParser {
 
     public static List<String> extractStringList(Map<String, Object> map, String key, String root) {
@@ -28,8 +30,8 @@ public class StringParser {
             } else {
                 throw new IllegalArgumentException(
                     String.format(
-                        "Expected all items in list for key [%s] to be of type String but item [%s] at index [%d] is of type [%s]",
-                        key,
+                        "Expected all items in list for field [%s] to be of type String but item [%s] at index [%d] is of type [%s]",
+                        pathToKey(root, key),
                         item,
                         i,
                         item.getClass().getSimpleName()

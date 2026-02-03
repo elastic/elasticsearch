@@ -68,7 +68,7 @@ public final class EndpointMetadataParser {
      * Parse {@link EndpointMetadata.Heuristics} from a map with the same structure as the JSON produced by
      * {@link EndpointMetadata.Heuristics#toXContent}. Returns {@link EndpointMetadata.Heuristics#EMPTY} if the map is null or empty.
      */
-    public static EndpointMetadata.Heuristics heuristicsFromMap(@Nullable Map<String, Object> map, String root) {
+    static EndpointMetadata.Heuristics heuristicsFromMap(@Nullable Map<String, Object> map, String root) {
         if (map == null || map.isEmpty()) {
             return EndpointMetadata.Heuristics.EMPTY;
         }
@@ -84,11 +84,11 @@ public final class EndpointMetadataParser {
      * Parse {@link EndpointMetadata.Internal} from a map with the same structure as the JSON produced by
      * {@link EndpointMetadata.Internal#toXContent}. Returns {@link EndpointMetadata.Internal#EMPTY} if the map is null or empty.
      */
-    public static EndpointMetadata.Internal internalFromMap(@Nullable Map<String, Object> map, String root) {
+    static EndpointMetadata.Internal internalFromMap(@Nullable Map<String, Object> map, String root) {
         if (map == null || map.isEmpty()) {
             return EndpointMetadata.Internal.EMPTY;
         }
-        var fingerprint = ServiceUtils.removeAsType(map, FINGERPRINT, String.class);
+        var fingerprint = ObjectParserUtils.removeAsType(map, FINGERPRINT, root, String.class);
         var version = extractNumber(map, VERSION, root);
         return new EndpointMetadata.Internal(fingerprint, version == null ? null : version.longValue());
     }
@@ -97,8 +97,7 @@ public final class EndpointMetadataParser {
      * Parse {@link EndpointMetadata.Display} from a map with the same structure as the JSON produced by
      * {@link EndpointMetadata.Display#toXContent}. Returns null if the map is null or empty.
      */
-    @Nullable
-    public static EndpointMetadata.Display displayFromMap(@Nullable Map<String, Object> map, String root) {
+    static EndpointMetadata.Display displayFromMap(@Nullable Map<String, Object> map, String root) {
         if (map == null || map.isEmpty()) {
             return EndpointMetadata.Display.EMPTY;
         }

@@ -287,6 +287,18 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
 
     private static final String RELEASE_DATE_STRING = "2024-05-01";
     private static final String END_OF_LIFE_DATE_STRING = "2024-05-02";
+    private static final String RAINBOW_SPRINKLES_KIBANA_CONNECTOR_NAME = "Rainbow Sprinkles Elastic";
+    private static final String RAINBOW_SPRINKLES_FINGERPRINT = "fingerprint123";
+    private static final String GP_LLM_V2_CHAT_COMPLETION_KIBANA_CONNECTOR_NAME = "Gp Llm V2 Chat Completion";
+    private static final String GP_LLM_V2_CHAT_COMPLETION_FINGERPRINT = "fingerprint234";
+    private static final String GP_LLM_V2_COMPLETION_KIBANA_CONNECTOR_NAME = "Gp Llm V2 Completion";
+    private static final String GP_LLM_V2_COMPLETION_FINGERPRINT = "fingerprint345";
+    private static final String ELSER_V2_KIBANA_CONNECTOR_NAME = "Elser 2 Elastic";
+    private static final String ELSER_V2_FINGERPRINT = "fingerprint789";
+    private static final String JINA_EMBED_V3_KIBANA_CONNECTOR_NAME = "Jina Embeddings V3";
+    private static final String JINA_EMBED_V3_FINGERPRINT = "fingerprint456";
+    private static final String RERANK_V1_KIBANA_CONNECTOR_NAME = "Jina Reranker V2";
+    private static final String RERANK_V1_FINGERPRINT = "fingerprint567";
     private static final LocalDate RELEASE_DATE_PARSED = LocalDate.parse(RELEASE_DATE_STRING);
     private static final LocalDate END_OF_LIFE_DATE_PARSED = LocalDate.parse(END_OF_LIFE_DATE_STRING);
 
@@ -315,8 +327,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             new SentenceBoundaryChunkingSettings(250, 1),
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of("english"), StatusHeuristic.fromString("preview"), RELEASE_DATE_PARSED, null),
-                new EndpointMetadata.Internal("fingerprint789", ENDPOINT_VERSION),
-                new EndpointMetadata.Display("Elser 2 Elastic")
+                new EndpointMetadata.Internal(ELSER_V2_FINGERPRINT, ENDPOINT_VERSION),
+                new EndpointMetadata.Display(ELSER_V2_KIBANA_CONNECTOR_NAME)
             )
         );
     }
@@ -336,8 +348,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 null,
                 Map.of("strategy", "sentence", "max_chunk_size", 250, "sentence_overlap", 1)
             ),
-            "Elser 2 Elastic",
-            "fingerprint789"
+            ELSER_V2_KIBANA_CONNECTOR_NAME,
+            ELSER_V2_FINGERPRINT
         );
     }
 
@@ -387,8 +399,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             RELEASE_DATE_STRING,
             END_OF_LIFE_DATE_STRING,
             null,
-            "Rainbow Sprinkles Elastic",
-            "fingerprint123"
+            RAINBOW_SPRINKLES_KIBANA_CONNECTOR_NAME,
+            RAINBOW_SPRINKLES_FINGERPRINT
         );
     }
 
@@ -401,8 +413,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of("multilingual"), StatusHeuristic.fromString("ga"), RELEASE_DATE_PARSED, null),
-                new EndpointMetadata.Internal("fingerprint234", ENDPOINT_VERSION),
-                new EndpointMetadata.Display("Gp Llm V2 Chat Completion")
+                new EndpointMetadata.Internal(GP_LLM_V2_CHAT_COMPLETION_FINGERPRINT, ENDPOINT_VERSION),
+                new EndpointMetadata.Display(GP_LLM_V2_CHAT_COMPLETION_KIBANA_CONNECTOR_NAME)
             )
         );
     }
@@ -416,8 +428,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of("multilingual"), StatusHeuristic.fromString("ga"), RELEASE_DATE_PARSED, null),
-                new EndpointMetadata.Internal("fingerprint345", ENDPOINT_VERSION),
-                new EndpointMetadata.Display("Gp Llm V2 Completion")
+                new EndpointMetadata.Internal(GP_LLM_V2_COMPLETION_FINGERPRINT, ENDPOINT_VERSION),
+                new EndpointMetadata.Display(GP_LLM_V2_COMPLETION_KIBANA_CONNECTOR_NAME)
             )
         );
     }
@@ -432,8 +444,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             RELEASE_DATE_STRING,
             null,
             null,
-            "Gp Llm V2 Chat Completion",
-            "fingerprint234"
+            GP_LLM_V2_CHAT_COMPLETION_KIBANA_CONNECTOR_NAME,
+            GP_LLM_V2_CHAT_COMPLETION_FINGERPRINT
         );
     }
 
@@ -447,8 +459,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             RELEASE_DATE_STRING,
             null,
             null,
-            "Gp Llm V2 Completion",
-            "fingerprint345"
+            GP_LLM_V2_COMPLETION_KIBANA_CONNECTOR_NAME,
+            GP_LLM_V2_COMPLETION_FINGERPRINT
         );
     }
 
@@ -466,8 +478,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                     RELEASE_DATE_PARSED,
                     END_OF_LIFE_DATE_PARSED
                 ),
-                new EndpointMetadata.Internal("fingerprint123", ENDPOINT_VERSION),
-                new EndpointMetadata.Display("Rainbow Sprinkles Elastic")
+                new EndpointMetadata.Internal(RAINBOW_SPRINKLES_FINGERPRINT, ENDPOINT_VERSION),
+                new EndpointMetadata.Display(RAINBOW_SPRINKLES_KIBANA_CONNECTOR_NAME)
             )
         );
     }
@@ -517,8 +529,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 "float",
                 Map.of("strategy", "word", "max_chunk_size", 500, "overlap", 2)
             ),
-            "Jina Embeddings V3",
-            "fingerprint456"
+            JINA_EMBED_V3_KIBANA_CONNECTOR_NAME,
+            JINA_EMBED_V3_FINGERPRINT
         );
     }
 
@@ -537,8 +549,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                     RELEASE_DATE_PARSED,
                     null
                 ),
-                new EndpointMetadata.Internal("fingerprint456", ENDPOINT_VERSION),
-                new EndpointMetadata.Display("Jina Embeddings V3")
+                new EndpointMetadata.Internal(JINA_EMBED_V3_FINGERPRINT, ENDPOINT_VERSION),
+                new EndpointMetadata.Display(JINA_EMBED_V3_KIBANA_CONNECTOR_NAME)
             )
         );
     }
@@ -553,8 +565,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             RELEASE_DATE_STRING,
             null,
             null,
-            "Jina Reranker V2",
-            "fingerprint567"
+            RERANK_V1_KIBANA_CONNECTOR_NAME,
+            RERANK_V1_FINGERPRINT
         );
     }
 
@@ -567,8 +579,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of(), StatusHeuristic.fromString("preview"), RELEASE_DATE_PARSED, null),
-                new EndpointMetadata.Internal("fingerprint567", ENDPOINT_VERSION),
-                new EndpointMetadata.Display("Jina Reranker V2")
+                new EndpointMetadata.Internal(RERANK_V1_FINGERPRINT, ENDPOINT_VERSION),
+                new EndpointMetadata.Display(RERANK_V1_KIBANA_CONNECTOR_NAME)
             )
         );
     }

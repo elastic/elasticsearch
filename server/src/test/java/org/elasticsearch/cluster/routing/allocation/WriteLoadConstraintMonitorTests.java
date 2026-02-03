@@ -545,7 +545,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
 
         final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
         final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
-            testStateUpdated.clusterSettings,
+            new WriteLoadConstraintSettings(testStateUpdated.clusterSettings),
             currentTimeMillis::get,
             () -> mismatchedClusterState,
             testStateUpdated.mockRerouteService,
@@ -627,7 +627,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
 
         final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
         final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
-            testState.clusterSettings,
+            new WriteLoadConstraintSettings(testState.clusterSettings),
             currentTimeMillis::get,
             () -> clusterStateRef.get(),
             testState.mockRerouteService,

@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -184,7 +183,7 @@ public class WriteLoadConstraintMonitor {
                     lastRerouteTimeMillis == 0
                         ? "has never previously been called"
                         : "was last called [" + TimeValue.timeValueMillis(timeSinceLastRerouteMillis) + "] ago",
-                    nodeSummary(lastHotspotNodes, state),
+                    nodeSummary(lastHotspotNodes),
                     writeLoadConstraintSettings.getQueueLatencyThreshold()
                 );
             }
@@ -279,7 +278,6 @@ public class WriteLoadConstraintMonitor {
     }
 
     private static String nodeSummary(Set<NodeIdName> nodeIdNames) {
-        final var nodes = state.nodes();
         if (nodeIdNames.isEmpty() == false && nodeIdNames.size() <= MAX_NODE_IDS_IN_MESSAGE) {
             return nodeIdNames.stream().map(nodeIdName -> nodeIdName.shortDescription()).collect(Collectors.joining(", "));
         } else {

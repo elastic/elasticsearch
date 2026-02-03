@@ -91,7 +91,7 @@ public class ReplicationSplitHelper<
                             latestSplitSummary.asInt()
                         );
                     }
-                    throw new StaleRequestException("Request stale due to concurrent reshard operation, retry after sometime");
+                    throw new StaleRequestException(primaryRequest.index());
                 }
                 return true;
             }

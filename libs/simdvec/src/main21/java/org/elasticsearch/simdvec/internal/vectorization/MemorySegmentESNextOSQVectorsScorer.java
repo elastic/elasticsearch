@@ -16,6 +16,7 @@ import jdk.incubator.vector.VectorSpecies;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 
 import java.io.IOException;
@@ -102,6 +103,10 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
 
     abstract static sealed class MemorySegmentScorer permits MSBitToInt4ESNextOSQVectorsScorer, MSDibitToInt4ESNextOSQVectorsScorer,
         MSInt4SymmetricESNextOSQVectorsScorer {
+
+        // TODO: split Panama and Native implementations
+        static final boolean NATIVE_SUPPORTED = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
+        static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
 
         static final float ONE_BIT_SCALE = ESNextOSQVectorsScorer.BIT_SCALES[0];
         static final float FOUR_BIT_SCALE = ESNextOSQVectorsScorer.BIT_SCALES[3];

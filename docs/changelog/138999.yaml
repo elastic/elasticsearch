@@ -1,5 +1,0 @@
-pr: 138999
-summary: Allow `semantic_text` fields to use optional GPU indexing for HNSW and int8_hnsw
-area: Vector Search
-type: enhancement
-issues: []

@@ -255,10 +255,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
     public final void testNullIntermediateFinal() {
         var runner = new TestDriverRunner().builder(driverContext());
         runner.input(nullIntermediateState(runner.blockFactory()));
-        List<Page> results = runner.run(
-            simpleWithMode(AggregatorMode.INTERMEDIATE),
-            simpleWithMode(AggregatorMode.FINAL)
-        );
+        List<Page> results = runner.run(simpleWithMode(AggregatorMode.INTERMEDIATE), simpleWithMode(AggregatorMode.FINAL));
         assertThat(results, hasSize(1));
         assertOutputFromEmpty(results.get(0).getBlock(0));
     }

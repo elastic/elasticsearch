@@ -12,16 +12,13 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
-import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
-import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.hamcrest.Matcher;
 
 import java.util.Iterator;
 import java.util.List;
 
-import static org.elasticsearch.compute.test.BlockTestUtils.deepCopyOf;
 import static org.elasticsearch.compute.test.BlockTestUtils.valuesAtPositions;
 import static org.elasticsearch.compute.test.RandomBlock.randomBlock;
 import static org.hamcrest.Matchers.equalTo;

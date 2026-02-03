@@ -1,5 +1,0 @@
-pr: 140301
-summary: Disable `_delete_by_query` and `_update_by_query` for CCS/stateful
-area: Reindex
-type: bug
-issues: []

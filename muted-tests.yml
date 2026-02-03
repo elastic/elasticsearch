@@ -350,6 +350,9 @@ tests:
 - class: org.elasticsearch.compute.operator.topn.TopNOomRaceTests
   method: testRace {repeats = 85}
   issue: https://github.com/elastic/elasticsearch/issues/141752
+- class: org.elasticsearch.compute.operator.topn.TopNOomRaceTests
+  method: testRace {repeats = 50}
+  issue: https://github.com/elastic/elasticsearch/issues/141773
 
 # Examples:
 #

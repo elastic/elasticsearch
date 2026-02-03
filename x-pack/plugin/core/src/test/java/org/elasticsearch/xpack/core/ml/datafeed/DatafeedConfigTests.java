@@ -80,6 +80,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<DatafeedConfig> {
 
@@ -1107,12 +1108,12 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
         DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider);
 
         // Should return the same instance when CPS is disabled
-        assertThat(result, equalTo(datafeed));
+        assertThat(result, sameInstance(datafeed));
     }
 
     public void testWithCrossProjectModeIfEnabled_GivenCrossProjectEnabledAndNotAlreadySet() {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
-        builder.setIndices(Collections.singletonList("index1"));
+        builder.setIndices(List.of("index1"));
         // Explicitly set IndicesOptions without CPS enabled
         builder.setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN);
         DatafeedConfig datafeed = builder.build();
@@ -1131,7 +1132,7 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
 
     public void testWithCrossProjectModeIfEnabled_GivenCrossProjectEnabledAndAlreadySet() {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
-        builder.setIndices(Collections.singletonList("index1"));
+        builder.setIndices(List.of("index1"));
         // Set IndicesOptions with CPS already enabled
         IndicesOptions cpsEnabledOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN)
             .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
@@ -1147,7 +1148,7 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
         DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider);
 
         // Should return the same instance when CPS is already enabled (optimization)
-        assertThat(result, equalTo(datafeed));
+        assertThat(result, sameInstance(datafeed));
     }
 
     public void testWithCrossProjectModeIfEnabled_GivenCrossProjectModeDeciderThrowsException() {
@@ -1167,7 +1168,7 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
     public void testWithCrossProjectModeIfEnabled_PreservesAllDatafeedProperties() {
         // Create a datafeed with various properties set
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
-        builder.setIndices(Arrays.asList("index1", "index2"));
+        builder.setIndices(List.of("index1", "index2"));
         builder.setQueryDelay(TimeValue.timeValueSeconds(30));
         builder.setFrequency(TimeValue.timeValueMinutes(5));
         builder.setScrollSize(2000);
@@ -1196,7 +1197,7 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
         // Test with project-qualified index patterns (e.g., "project:index")
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
         // Mix of regular and project-qualified indices
-        builder.setIndices(Arrays.asList("local-index", "project1:remote-index", "project2:logs-*"));
+        builder.setIndices(List.of("local-index", "project1:remote-index", "project2:logs-*"));
         builder.setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
         DatafeedConfig datafeed = builder.build();
 
@@ -1216,7 +1217,7 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
     public void testWithCrossProjectModeIfEnabled_WithWildcardIndices() {
         // Test with wildcard patterns
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
-        builder.setIndices(Arrays.asList("logs-*", "metrics-*", "*-archive"));
+        builder.setIndices(List.of("logs-*", "metrics-*", "*-archive"));
         builder.setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
         DatafeedConfig datafeed = builder.build();
 

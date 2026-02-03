@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.densetextembeddings;
 
-import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -27,23 +26,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsModelTests {
             EmptySecretSettings.INSTANCE,
             ElasticInferenceServiceComponents.of(url),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS
-        );
-    }
-
-    public static ElasticInferenceServiceDenseTextEmbeddingsModel createModel(
-        String url,
-        ElasticInferenceServiceDenseTextEmbeddingsServiceSettings serviceSettings,
-        ChunkingSettings chunkingSettings
-    ) {
-        return new ElasticInferenceServiceDenseTextEmbeddingsModel(
-            "id",
-            TaskType.TEXT_EMBEDDING,
-            "elastic",
-            serviceSettings,
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
-            ElasticInferenceServiceComponents.of(url),
-            chunkingSettings
         );
     }
 }

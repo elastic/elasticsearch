@@ -238,7 +238,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         try (CountingStreamOutput out = new CountingStreamOutput()) {
             out.setTransportVersion(TransportVersion.current());
             ref.writeTo(out);
-            return out.size();
+            return out.position();
         } catch (IOException exc) {
             throw new UncheckedIOException(exc);
         }

@@ -1,0 +1,5 @@
+FROM airports
+| RENAME abbrev AS code
+| LOOKUP JOIN airports_mp ON abbrev == code
+| WHERE abbrev IS NOT NULL
+| DROP code

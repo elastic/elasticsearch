@@ -198,7 +198,7 @@ public class WriteLoadConstraintMonitor {
             );
             lastRerouteTimeMillis = currentTimeMillisSupplier.getAsLong();
 
-            recordHotspotStartTimes(state, newHotspotNodes, currentTimeMillis);
+            recordHotspotStartTimes(newHotspotNodes, currentTimeMillis);
         } else {
             logger.debug(
                 "Not calling reroute because we called reroute [{}] ago and there are no new hot spots",
@@ -207,7 +207,7 @@ public class WriteLoadConstraintMonitor {
         }
     }
 
-    private void recordHotspotStartTimes(ClusterState state, Set<NodeIdName> newHotspotNodes, long startTimestamp) {
+    private void recordHotspotStartTimes(Set<NodeIdName> newHotspotNodes, long startTimestamp) {
         if (newHotspotNodes.size() > 0) {
             Map<NodeIdName, Long> hotspotNodeStartTimesUpdate = new HashMap<>(hotspotNodeStartTimes);
             for (NodeIdName nodeIdName : newHotspotNodes) {
@@ -218,7 +218,7 @@ public class WriteLoadConstraintMonitor {
         hotspotNodesCount.set(hotspotNodeStartTimes.size());
     }
 
-    private Set<NodeIdName> recordHotspotDurations(ClusterState state, Set<NodeIdName> currentHotspotNodes, long hotspotEndTime) {
+    private Set<NodeIdName> recordHotspotDurations(ClusterState state, Set<NodeIdName> currentHotspotNodes, long hotspotEndTimeMs) {
         // reset hotspotNodeStartTimes if the term has changed
         if (state.term() != hotspotNodeStartTimesLastTerm || state.nodes().isLocalNodeElectedMaster() == false) {
             hotspotNodeStartTimesLastTerm = state.term();
@@ -231,11 +231,11 @@ public class WriteLoadConstraintMonitor {
             Map<NodeIdName, Long> hotspotNodeStartTimesUpdate = new HashMap<>(hotspotNodeStartTimes);
             for (NodeIdName nodeIdName : staleHotspotNodes) {
                 assert hotspotNodeStartTimesUpdate.containsKey(nodeIdName) : "Map should contain key from its own subset";
-                long hotspotStartTime = hotspotNodeStartTimesUpdate.remove(nodeIdName);
-                long hotspotDuration = hotspotEndTime - hotspotStartTime;
-                assert hotspotDuration >= 0 : "hotspot duration should always be non-negative";
+                long hotspotStartTimeMs = hotspotNodeStartTimesUpdate.remove(nodeIdName);
+                long hotspotDurationMs = hotspotEndTimeMs - hotspotStartTimeMs;
+                assert hotspotDurationMs >= 0 : "hotspot duration should always be non-negative";
                 hotspotDurationHistogram.record(
-                    hotspotDuration / 1000.0,
+                    hotspotDurationMs / 1000.0,
                     Map.of("es_node_id", nodeIdName.nodeId(), "es_node_name", nodeIdName.nodeName())
                 );
             }

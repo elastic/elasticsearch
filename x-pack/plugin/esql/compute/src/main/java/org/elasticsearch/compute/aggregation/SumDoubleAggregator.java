@@ -83,7 +83,7 @@ class SumDoubleAggregator {
         DriverContext driverContext
     ) {
         assert blocks.length >= offset + 3;
-        boolean allHaveValued = true;
+        boolean allHaveValue = true;
         try (
             var valuesBuilder = driverContext.blockFactory().newDoubleVectorFixedBuilder(selected.getPositionCount());
             var deltaBuilder = driverContext.blockFactory().newDoubleVectorFixedBuilder(selected.getPositionCount());

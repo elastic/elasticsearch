@@ -24,6 +24,7 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -41,7 +42,7 @@ public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompl
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new CompletionOperator.Factory(mockedInferenceService(), SIMPLE_INFERENCE_ID, evaluatorFactory(inputChannel));
+        return new CompletionOperator.Factory(mockedInferenceService(), SIMPLE_INFERENCE_ID, evaluatorFactory(inputChannel), Map.of());
     }
 
     @Override
@@ -112,7 +113,8 @@ public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompl
         Operator.OperatorFactory factory = new CompletionOperator.Factory(
             failingService,
             SIMPLE_INFERENCE_ID,
-            evaluatorFactory(inputChannel)
+            evaluatorFactory(inputChannel),
+            Map.of()
         );
 
         DriverContext driverContext = driverContext();

@@ -660,7 +660,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         private float boost = DEFAULT_BOOST;
         private InnerHitBuilder innerHitBuilder;
         private RescoreVectorBuilder rescoreVectorBuilder;
-        private boolean optimizedRescoring = false;
+        private boolean optimizedRescoring = true;
 
         public Builder addFilterQueries(List<QueryBuilder> filterQueries) {
             Objects.requireNonNull(filterQueries);

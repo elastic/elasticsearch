@@ -23,8 +23,6 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
@@ -779,27 +777,47 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
             client().performRequest(new Request("POST", "/" + DFS_KNN_RESCORE_INDEX_NAME + "/_refresh"));
         }
         Request searchRequest = new Request("POST", "/" + DFS_KNN_RESCORE_INDEX_NAME + "/_search");
-        searchRequest.setJsonEntity("""
-            {
-              "knn": {
-                "field": "vector",
-                "query_vector": [0, 0, 0],
-                "k": 10,
-                "num_candidates": 30,
-                "rescore_vector": {
-                  "oversample": 2.0
+        if (false == isUpgradedCluster()) {
+            searchRequest.setJsonEntity("""
+                {
+                  "knn": {
+                    "field": "vector",
+                    "query_vector": [1, 0, 0],
+                    "k": 3,
+                    "num_candidates": 30,
+                    "rescore_vector": {
+                      "oversample": 2.0
+                    }
+                  }
                 }
-              }
-            }
-            """);
+                """);
+        } else {
+            searchRequest.setJsonEntity("""
+                {
+                  "knn": {
+                    "field": "vector",
+                    "query_vector": [1, 0, 0],
+                    "k": 3,
+                    "num_candidates": 30,
+                    "rescore_vector": {
+                      "oversample": 2.0
+                    },
+                    "optimized_rescoring": true
+                  }
+                }
+                """);
+        }
 
         Map<String, Object> response = search(searchRequest);
 
         List<Map<String, Object>> hits = extractValue(response, "hits.hits");
         assertThat(hits, notNullValue());
-        assertThat(hits.size(), greaterThanOrEqualTo(1));
-        assertThat(hits.size(), lessThanOrEqualTo(10));
-        assertThat(hits.getFirst().get("_id"), equalTo("0"));
+        if (isUpgradedCluster()) {
+            assertThat(hits.size(), equalTo(6));
+        } else {
+            assertThat(hits.size(), equalTo(3));
+        }
+        assertThat(hits.getFirst().get("_id"), equalTo("1"));
     }
 
     private void index64DimVectors(String indexName) throws Exception {

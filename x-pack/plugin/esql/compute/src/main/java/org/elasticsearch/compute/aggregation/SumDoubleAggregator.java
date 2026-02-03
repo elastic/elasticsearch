@@ -95,11 +95,11 @@ class SumDoubleAggregator {
                     valuesBuilder.appendDouble(i, state.values.get(group));
                     deltaBuilder.appendDouble(i, state.deltas.get(group));
                     seenBuilder.appendBoolean(i, true);
-                    allHaveValued = false;
                 } else {
                     valuesBuilder.appendDouble(i, 0);
                     deltaBuilder.appendDouble(i, 0);
                     seenBuilder.appendBoolean(i, false);
+                    allHaveValued = false;
                 }
             }
             blocks[offset + 0] = valuesBuilder.build().asBlock();

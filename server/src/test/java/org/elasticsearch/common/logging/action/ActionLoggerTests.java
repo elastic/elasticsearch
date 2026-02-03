@@ -43,6 +43,7 @@ public class ActionLoggerTests extends ESTestCase {
     public void setup() {
         clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         producer = mock(ActionLoggerProducer.class);
+        when(producer.loggerName()).thenReturn(loggerName);
         writer = mock(ActionLogWriter.class);
         ActionLoggingFieldsProvider fieldProvider = mock(ActionLoggingFieldsProvider.class);
         loggingFields = mock(ActionLoggingFields.class);

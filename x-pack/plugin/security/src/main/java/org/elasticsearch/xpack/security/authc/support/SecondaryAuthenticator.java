@@ -119,7 +119,7 @@ public class SecondaryAuthenticator {
             return;
         }
 
-        final Map<String, String> additionalHeaders = extractAdditionalSecondaryAuthHeaders(threadContext);
+        final Map<String, String> additionalHeaders = mapAdditionalSecondaryAuthHeaders(threadContext);
 
         final Supplier<ThreadContext.StoredContext> originalContext = threadContext.newRestorableContext(false);
         final ActionListener<Authentication> authenticationListener = new ContextPreservingActionListener<>(
@@ -161,7 +161,7 @@ public class SecondaryAuthenticator {
      * @param threadContext the thread context to extract headers from
      * @return a map of header names to values for additional secondary auth headers, empty if none found
      */
-    private Map<String, String> extractAdditionalSecondaryAuthHeaders(ThreadContext threadContext) {
+    private Map<String, String> mapAdditionalSecondaryAuthHeaders(ThreadContext threadContext) {
         final String secondaryXClientAuthHeader = threadContext.getHeader(SECONDARY_X_CLIENT_AUTH_HEADER_NAME);
         if (Strings.hasText(secondaryXClientAuthHeader)) {
             logger.trace(

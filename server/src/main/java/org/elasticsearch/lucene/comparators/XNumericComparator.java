@@ -530,7 +530,6 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
 
         @Override
         protected void doUpdateCompetitiveIterator() {
-            if (skipper.minDocID(0) > -1 && (skipper.maxValue(0) < minValueAsLong || skipper.minValue(0) > maxValueAsLong)) {}
             competitiveIterator.update(new XSkipBlockRangeIterator(skipper, minValueAsLong, maxValueAsLong));
         }
     }

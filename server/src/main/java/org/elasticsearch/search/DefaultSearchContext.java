@@ -38,6 +38,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -779,25 +780,28 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public Query rewrittenQuery() {
         Query query = super.rewrittenQuery();
-        if (this.searchAfter() == null
-            && query instanceof MatchAllDocsQuery
-            && size() > 0
-            && rewriteToMatchTail()) {
-            return this.rewriteQuery = new MatchTailTimestampSortedDocsQuery(size());
-        }
+        maybeRewriteToMatchTail();
         return query;
     }
 
-    private boolean rewriteToMatchTail() {
+    private void maybeRewriteToMatchTail() {
+        if (rewriteQuery instanceof MatchAllDocsQuery == false || this.searchAfter() != null || this.size == 0) {
+            return;
+        }
         if (indexService.getIndexSettings().getIndexSortConfig().containsDescendingTimestampSort() == false) {
-            return false;
+            return;
         }
         SortAndFormats sort = sort();
         if (sort == null) {
-            return false;
+            return;
         }
         SortField primarySort = sort.sort.getSort()[0];
-        return primarySort.getReverse() == false && Objects.equals(primarySort.getField(), "@timestamp");
+        if (primarySort.getReverse() || Objects.equals(primarySort.getField(), "@timestamp") == false) {
+            return;
+        }
+        if (primarySort.getComparatorSource() instanceof LongValuesComparatorSource source) {
+            source.setMatchTailQuery();
+        }
     }
 
     @Override

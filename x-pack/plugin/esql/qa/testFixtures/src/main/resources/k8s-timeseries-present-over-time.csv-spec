@@ -313,7 +313,7 @@ is_present:double | step:datetime            | cluster:keyword
 
 present_over_time_of_aggregate_metric_double
 required_capability: ts_command_v0
-required_capability: aggregate_metric_double_avg_as_default_metric
+required_capability: aggregate_metric_double_v0
 TS k8s-downsampled | STATS is_present = max(present_over_time(network.eth0.tx)) BY cluster, time_bucket = tbucket(10 minute) | SORT time_bucket, cluster | LIMIT 10;
 
 is_present:boolean | cluster:keyword | time_bucket:datetime
@@ -330,7 +330,7 @@ true      | staging         | 2024-05-09T23:50:00.000Z
 
 present_over_time_of_aggregate_metric_double_promql
 required_capability: promql_command_v0
-required_capability: aggregate_metric_double_avg_as_default_metric
+required_capability: aggregate_metric_double_v0
 
 PROMQL index=k8s-downsampled step=10m is_present=(max by (cluster) (present_over_time(network.eth0.tx[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -519,7 +519,7 @@ is_present:double | step:datetime            | cluster:keyword
 
 present_over_time_older_than_10d
 required_capability: ts_command_v0
-required_capability: aggregate_metric_double_avg_as_default_metric
+required_capability: aggregate_metric_double_v0
 TS k8s-downsampled | WHERE cluster == "qa" AND @timestamp < now() - 10 day | STATS is_present = max(present_over_time(network.eth0.rx)) BY pod, time_bucket = tbucket(10 minute) | SORT time_bucket, pod | LIMIT 5;
 
 is_present:boolean | pod:keyword | time_bucket:datetime

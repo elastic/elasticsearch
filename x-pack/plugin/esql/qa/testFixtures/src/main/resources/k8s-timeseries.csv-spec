@@ -1289,7 +1289,7 @@ min:double | max:double | std_dev:double | pod:keyword
 
 Case statement for Aggregate Metric Double (Standard Mode)
 required_capability: case_support_for_summary_fields
-required_capability: aggregate_metric_double_avg_as_default_metric
+required_capability: aggregate_metric_double_v0
 
 FROM k8s-downsampled
 | EVAL result = CASE(network.eth0.up, network.eth0.tx, network.eth0.rx)
@@ -1330,7 +1330,7 @@ false                   | {"min":138.0\,"max":669.0\,"sum":5211.0\,"value_count"
 
 Case statement for Aggregate Metric Double (TS Mode)
 required_capability: case_support_for_summary_fields
-required_capability: aggregate_metric_double_avg_as_default_metric
+required_capability: aggregate_metric_double_v0
 
 TS k8s-downsampled
 | EVAL result = CASE(network.eth0.up, network.eth0.tx, network.eth0.rx)

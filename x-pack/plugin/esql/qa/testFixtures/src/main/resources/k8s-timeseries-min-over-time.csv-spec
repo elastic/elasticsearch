@@ -509,7 +509,7 @@ pod:double | step:datetime            | cluster:keyword
 
 min_over_time_of_aggregate_metric_double
 required_capability: ts_command_v0
-required_capability: aggregate_metric_double_avg_as_default_metric
+required_capability: aggregate_metric_double_v0
 TS k8s-downsampled | STATS tx = sum(min_over_time(network.eth0.tx)) BY time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket | LIMIT 10;
 
 tx:double | time_bucket:datetime
@@ -520,7 +520,7 @@ tx:double | time_bucket:datetime
 
 min_over_time_of_aggregate_metric_double_promql
 required_capability: promql_command_v0
-required_capability: aggregate_metric_double_avg_as_default_metric
+required_capability: aggregate_metric_double_v0
 
 PROMQL index=k8s-downsampled step=10m tx=(sum(min_over_time(network.eth0.tx[10m])))
 | SORT step | LIMIT 10;
@@ -533,7 +533,7 @@ tx:double | step:datetime
 
 min_over_time_of_aggregate_metric_double_grouping
 required_capability: ts_command_v0
-required_capability: aggregate_metric_double_avg_as_default_metric
+required_capability: aggregate_metric_double_v0
 TS k8s-downsampled | STATS tx = sum(min_over_time(network.eth0.tx)) BY cluster, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, cluster | LIMIT 10;
 
 tx:double | cluster:keyword | time_bucket:datetime
@@ -550,7 +550,7 @@ tx:double | cluster:keyword | time_bucket:datetime
 
 min_over_time_of_aggregate_metric_double_grouping_promql
 required_capability: promql_command_v0
-required_capability: aggregate_metric_double_avg_as_default_metric
+required_capability: aggregate_metric_double_v0
 
 PROMQL index=k8s-downsampled step=10m tx=(sum by (cluster) (min_over_time(network.eth0.tx[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -603,7 +603,7 @@ tx:double | step:datetime            | cluster:keyword
 
 min_over_time_older_than_10h
 required_capability: ts_command_v0
-required_capability: aggregate_metric_double_avg_as_default_metric
+required_capability: aggregate_metric_double_v0
 TS k8s-downsampled | WHERE cluster == "qa" AND @timestamp < now() - 10 day | STATS cost = avg(min_over_time(network.eth0.rx)) BY pod, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, pod | LIMIT 5;
 
 cost:double | pod:keyword | time_bucket:datetime
@@ -759,7 +759,7 @@ events:double | step:datetime            | pod:keyword
 
 min_over_time_aggregate_metric_double_implicit_casting
 required_capability: ts_command_v0
-required_capability: aggregate_metric_double_avg_as_default_metric
+required_capability: aggregate_metric_double_v0
 TS k8s* | STATS bytes = sum(min_over_time(network.eth0.rx)) by time_bucket = bucket(@timestamp, 10minute) | SORT bytes, time_bucket | LIMIT 10 ;
 
 bytes:double | time_bucket:datetime
@@ -794,7 +794,7 @@ bytes:double | step:datetime            | pod:keyword
 
 min_over_time_aggregate_metric_double_implicit_casting_grouping
 required_capability: ts_command_v0
-required_capability: aggregate_metric_double_avg_as_default_metric
+required_capability: aggregate_metric_double_v0
 TS k8s* | STATS bytes = sum(min_over_time(network.eth0.rx)) by pod, time_bucket = bucket(@timestamp, 10minute) | SORT bytes, pod, time_bucket | LIMIT 10 ;
 
 bytes:double | pod:keyword | time_bucket:datetime

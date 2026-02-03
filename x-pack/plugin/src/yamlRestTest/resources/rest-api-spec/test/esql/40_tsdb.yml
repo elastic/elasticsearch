@@ -865,7 +865,7 @@ error on rename timestamp:
   - match: { error.reason: '/(verification_exception:\ )?Found\ 1\ problem\nline\ 3:13:\ \[rate\(k8s.pod.network.tx\)\]\ requires\ the\ \[@timestamp\]\ field,\ which\ was\ either\ not\ present\ in\ the\ source\ index,\ or\ has\ been\ dropped\ or\ renamed/' }
 
 ---
-Stats with partial submetrics aggregate metric double using default metric:
+Stats with partial submetrics for aggregate metric double with average as default:
   - requires:
       test_runner_features: [capabilities]
       capabilities:

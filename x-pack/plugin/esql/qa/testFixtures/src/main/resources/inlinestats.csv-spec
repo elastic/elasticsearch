@@ -4149,7 +4149,7 @@ from employees
 
 inlineStatsOnAggregateMetricDouble
 required_capability: inline_stats
-required_capability: aggregate_metric_double_avg_as_default_metric
+required_capability: aggregate_metric_double_v0
 required_capability: dense_vector_agg_metric_double_if_version
 FROM k8s-downsampled
 | INLINE STATS tx_max = MAX(network.eth0.tx) BY pod

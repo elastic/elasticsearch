@@ -34,7 +34,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
-import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
+import org.elasticsearch.entitlement.bridge.NotEntitledException;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.entitlement.runtime.policy.PolicyUtils;

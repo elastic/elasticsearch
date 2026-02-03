@@ -11,7 +11,7 @@ package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
+import org.elasticsearch.entitlement.bridge.NotEntitledException;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager.ModuleEntitlements;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;

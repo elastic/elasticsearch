@@ -9,12 +9,12 @@
 
 package org.elasticsearch.entitlement.runtime.registry;
 
+import org.elasticsearch.entitlement.bridge.NotEntitledException;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.rules.EntitlementHandler;
 import org.elasticsearch.entitlement.rules.EntitlementRule;
 import org.elasticsearch.entitlement.rules.function.CheckMethod;
 import org.elasticsearch.entitlement.rules.function.VarargCall;
-import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.entitlement.runtime.policy.PolicyChecker;
 
 import java.util.Collections;

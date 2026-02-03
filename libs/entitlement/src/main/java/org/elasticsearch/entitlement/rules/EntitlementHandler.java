@@ -9,7 +9,7 @@
 
 package org.elasticsearch.entitlement.rules;
 
-import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
+import org.elasticsearch.entitlement.bridge.NotEntitledException;
 
 import java.util.function.Function;
 

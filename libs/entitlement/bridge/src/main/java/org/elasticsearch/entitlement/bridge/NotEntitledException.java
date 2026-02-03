@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.runtime.api;
+package org.elasticsearch.entitlement.bridge;
 
 import java.security.AccessControlException;
 

@@ -9,7 +9,7 @@
 
 package org.elasticsearch.common.ssl;
 
-import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
+import org.elasticsearch.entitlement.bridge.NotEntitledException;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;

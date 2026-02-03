@@ -10,6 +10,7 @@
 module org.elasticsearch.sslconfig {
     requires org.elasticsearch.base;
     requires org.elasticsearch.entitlement;
+    requires org.elasticsearch.entitlement.bridge;
 
     exports org.elasticsearch.common.ssl;
 }

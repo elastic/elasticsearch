@@ -23,7 +23,7 @@ dependencies {
   compileOnly project(':libs:core') // For @SuppressForbidden
   compileOnly project(':libs:logging')
   compileOnly project(":libs:x-content") // for parsing policy files
-  compileOnly project(':libs:entitlement:bridge')
+  api project(':libs:entitlement:bridge')
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'entitlement'
   }

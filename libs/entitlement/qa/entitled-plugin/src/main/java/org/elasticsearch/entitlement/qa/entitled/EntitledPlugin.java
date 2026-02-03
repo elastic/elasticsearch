@@ -9,7 +9,7 @@
 
 package org.elasticsearch.entitlement.qa.entitled;
 
-import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
+import org.elasticsearch.entitlement.bridge.NotEntitledException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.ExtensiblePlugin;

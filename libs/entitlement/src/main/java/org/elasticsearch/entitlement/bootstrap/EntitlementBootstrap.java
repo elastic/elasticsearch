@@ -45,7 +45,7 @@ public class EntitlementBootstrap {
     /**
      * Main entry point that activates entitlement checking. Once this method returns,
      * calls to methods protected by entitlements from classes without a valid
-     * policy will throw {@link org.elasticsearch.entitlement.runtime.api.NotEntitledException}.
+     * policy will throw {@link org.elasticsearch.entitlement.bridge.NotEntitledException}.
      *
      * @param serverPolicyPatch            additional entitlements to patch the embedded server layer policy
      * @param pluginPolicies               maps each plugin name to the corresponding {@link Policy}

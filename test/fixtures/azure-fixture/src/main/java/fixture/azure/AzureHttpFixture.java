@@ -156,7 +156,7 @@ public class AzureHttpFixture extends ExternalResource {
             host = "localhost";
         } else {
             host = addr.getHostString();
-            if (host.contains(":") && !host.startsWith("[")) {
+            if (host.contains(":") && false == host.startsWith("[")) {
                 // ipv6 formatting
                 host = "[" + host + "]";
             }

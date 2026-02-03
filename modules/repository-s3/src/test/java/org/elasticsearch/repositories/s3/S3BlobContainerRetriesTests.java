@@ -204,7 +204,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
         final InetSocketAddress address = httpServer.getAddress();
         String host = address.getHostString();
-        if (host.contains(":") && !host.startsWith("[")) {
+        if (host.contains(":") && false == host.startsWith("[")) {
             // ipv6 format
             host = "[" + host + "]";
         }

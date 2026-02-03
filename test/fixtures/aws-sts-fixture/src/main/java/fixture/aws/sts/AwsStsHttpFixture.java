@@ -45,7 +45,7 @@ public class AwsStsHttpFixture extends ExternalResource {
 
     public String getAddress() {
         String host = server.getAddress().getHostString();
-        if (host.contains(":") && !host.startsWith("[")) {
+        if (host.contains(":") && false == host.startsWith("[")) {
             // ipv6 formatting
             host = "[" + host + "]";
         }

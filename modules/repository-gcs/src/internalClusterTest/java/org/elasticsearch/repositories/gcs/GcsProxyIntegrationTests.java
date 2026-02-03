@@ -98,7 +98,7 @@ public class GcsProxyIntegrationTests extends ESBlobStoreRepositoryIntegTestCase
             TestUtils.createServiceAccount(random())
         );
         String host = upstreamServer.getAddress().getHostString();
-        if (host.contains(":") && !host.startsWith("[")) {
+        if (host.contains(":") && false == host.startsWith("[")) {
             // ipv6 format
             host = "[" + host + "]";
         }

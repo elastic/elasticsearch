@@ -91,7 +91,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
             listenAddress = InetAddress.getLoopbackAddress();
         }
         String host = NetworkAddress.format(listenAddress);
-        if (host.contains(":") && !host.startsWith("[")) {
+        if (host.contains(":") && false = host.startsWith("[")) {
             // ipv6 format
             host = "[" + host + "]";
         }
@@ -293,7 +293,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         }
 
         String address = NetworkAddress.format(listenAddress);
-        if (address.contains(":") && !address.startsWith("[")) {
+        if (address.contains(":") && false == address.startsWith("[")) {
             // ipv6 format
             address = "[" + address + "]";
         }

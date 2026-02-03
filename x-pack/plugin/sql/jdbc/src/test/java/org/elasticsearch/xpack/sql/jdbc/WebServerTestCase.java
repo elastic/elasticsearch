@@ -58,7 +58,7 @@ public abstract class WebServerTestCase extends ESTestCase {
 
     String webServerAddress() {
         String host = webServer.getHostName();
-        if (host.contains(":") && !host.startsWith("[")) {
+        if (host.contains(":") && false == host.startsWith("[")) {
             // ipv6 format
             host = "[" + host + "]";
         }

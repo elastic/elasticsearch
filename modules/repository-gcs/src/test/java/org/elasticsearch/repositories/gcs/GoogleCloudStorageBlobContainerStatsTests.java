@@ -280,7 +280,7 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
     protected String getEndpointForServer(final HttpServer server) {
         final InetSocketAddress address = server.getAddress();
         String host = address.getHostString();
-        if (host.contains(":") && !host.startsWith("[")) {
+        if (host.contains(":") && false == host.startsWith("[")) {
             // ipv6 format
             host = "[" + host + "]";
         }

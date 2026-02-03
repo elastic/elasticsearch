@@ -69,11 +69,16 @@ can't shadow dimensions:
             index:
               number_of_shards: 2
               mode: time_series
+              # we use a different routing dimension to ensure that we test the shadowing logic
+              routing_path: [routing_dim]
           mappings:
             properties:
               "@timestamp":
                 type: date
               dim:
+                type: keyword
+                time_series_dimension: true
+              routing_dim:
                 type: keyword
                 time_series_dimension: true
               deep:
@@ -131,10 +136,14 @@ can't shadow metrics:
             index:
               number_of_shards: 2
               mode: time_series
+              routing_path: [dim]
           mappings:
             properties:
               "@timestamp":
                 type: date
+              dim:
+                type: keyword
+                time_series_dimension: true
               metric:
                 type: long
                 time_series_metric: gauge

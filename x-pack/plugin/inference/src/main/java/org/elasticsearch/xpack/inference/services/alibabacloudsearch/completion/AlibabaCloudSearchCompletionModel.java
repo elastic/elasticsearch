@@ -56,10 +56,14 @@ public class AlibabaCloudSearchCompletionModel extends AlibabaCloudSearchModel {
         AlibabaCloudSearchCompletionTaskSettings taskSettings,
         @Nullable DefaultSecretSettings secretSettings
     ) {
+        this(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secretSettings));
+    }
+
+    public AlibabaCloudSearchCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
         super(
-            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings),
-            new ModelSecrets(secretSettings),
-            serviceSettings.getCommonSettings()
+            modelConfigurations,
+            modelSecrets,
+            ((AlibabaCloudSearchCompletionServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings()
         );
     }
 

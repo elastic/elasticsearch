@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.core.transform.TransformNamedXContentProvider;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointNodeAction;
+import org.elasticsearch.xpack.core.transform.action.GetCheckpointWithFanoutAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformNodeStatsAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
@@ -78,6 +79,7 @@ import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.transform.action.TransportDeleteTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportGetCheckpointAction;
 import org.elasticsearch.xpack.transform.action.TransportGetCheckpointNodeAction;
+import org.elasticsearch.xpack.transform.action.TransportGetCheckpointWithFanoutAction;
 import org.elasticsearch.xpack.transform.action.TransportGetTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportGetTransformNodeStatsAction;
 import org.elasticsearch.xpack.transform.action.TransportGetTransformStatsAction;
@@ -92,9 +94,7 @@ import org.elasticsearch.xpack.transform.action.TransportStopTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportUpdateTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportUpgradeTransformsAction;
 import org.elasticsearch.xpack.transform.action.TransportValidateTransformAction;
-import org.elasticsearch.xpack.transform.checkpoint.GetTransformCrossProjectHeadersAction;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
-import org.elasticsearch.xpack.transform.checkpoint.TransportGetTransformCrossProjectHeadersAction;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
@@ -276,7 +276,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new ActionHandler(ValidateTransformAction.INSTANCE, TransportValidateTransformAction.class),
             new ActionHandler(GetCheckpointAction.INSTANCE, TransportGetCheckpointAction.class),
             new ActionHandler(GetCheckpointNodeAction.INSTANCE, TransportGetCheckpointNodeAction.class),
-            new ActionHandler(GetTransformCrossProjectHeadersAction.INSTANCE, TransportGetTransformCrossProjectHeadersAction.class),
+            new ActionHandler(GetCheckpointWithFanoutAction.INSTANCE, TransportGetCheckpointWithFanoutAction.class),
 
             // usage and info
             new ActionHandler(XPackUsageFeatureAction.TRANSFORM, TransformUsageTransportAction.class),

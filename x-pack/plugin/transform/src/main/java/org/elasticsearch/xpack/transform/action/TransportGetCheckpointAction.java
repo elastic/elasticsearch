@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardsGroup;
@@ -30,6 +31,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -102,12 +104,20 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
         String[] concreteIndices = this.indexNameExpressionResolver.concreteIndexNames(clusterState, request);
         Map<String, Set<ShardId>> nodesAndShards = resolveIndicesToPrimaryShards(clusterState, concreteIndices);
         if (nodesAndShards.isEmpty()) {
-            listener.onResponse(new Response(Collections.emptyMap()));
+            listener.onResponse(new Response(Collections.emptyMap(), request.getResolvedIndexExpressions()));
             return;
         }
 
         if (request.getQuery() == null) {  // If there is no query, then there is no point in filtering
-            getCheckpointsFromNodes(clusterState, task, nodesAndShards, new OriginalIndices(request), request.getTimeout(), listener);
+            getCheckpointsFromNodes(
+                clusterState,
+                task,
+                nodesAndShards,
+                new OriginalIndices(request),
+                request.getTimeout(),
+                request.getResolvedIndexExpressions(),
+                listener
+            );
             return;
         }
 
@@ -134,6 +144,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
                     filteredNodesAndShards,
                     new OriginalIndices(request),
                     request.getTimeout(),
+                    request.getResolvedIndexExpressions(),
                     listener
                 );
             }, e -> {
@@ -142,7 +153,15 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
                 logger.atTrace()
                     .withThrowable(e)
                     .log("search_shards API failed for cluster [{}], request was [{}]", request.getCluster(), searchShardsRequest);
-                getCheckpointsFromNodes(clusterState, task, nodesAndShards, new OriginalIndices(request), request.getTimeout(), listener);
+                getCheckpointsFromNodes(
+                    clusterState,
+                    task,
+                    nodesAndShards,
+                    new OriginalIndices(request),
+                    request.getTimeout(),
+                    request.getResolvedIndexExpressions(),
+                    listener
+                );
             })
         );
     }
@@ -209,10 +228,11 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
         Map<String, Set<ShardId>> nodesAndShards,
         OriginalIndices originalIndices,
         TimeValue timeout,
+        @Nullable ResolvedIndexExpressions resolvedIndexExpressions,
         ActionListener<Response> listener
     ) {
         if (nodesAndShards.isEmpty()) {
-            listener.onResponse(new Response(Map.of()));
+            listener.onResponse(new Response(Map.of(), resolvedIndexExpressions));
             return;
         }
 
@@ -220,7 +240,10 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
 
         GroupedActionListener<GetCheckpointNodeAction.Response> groupedListener = new GroupedActionListener<>(
             nodesAndShards.size(),
-            ActionListener.wrap(responses -> listener.onResponse(mergeNodeResponses(responses)), listener::onFailure)
+            ActionListener.wrap(
+                responses -> listener.onResponse(mergeNodeResponses(responses, resolvedIndexExpressions)),
+                listener::onFailure
+            )
         );
 
         for (Entry<String, Set<ShardId>> oneNodeAndItsShards : nodesAndShards.entrySet()) {
@@ -278,7 +301,10 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
         }
     }
 
-    private static Response mergeNodeResponses(Collection<GetCheckpointNodeAction.Response> responses) {
+    private static Response mergeNodeResponses(
+        Collection<GetCheckpointNodeAction.Response> responses,
+        @Nullable ResolvedIndexExpressions resolvedIndexExpressions
+    ) {
         // the final list should be ordered by key
         Map<String, long[]> checkpointsByIndexReduced = new TreeMap<>();
 
@@ -296,6 +322,6 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
             });
         }
 
-        return new Response(checkpointsByIndexReduced);
+        return new Response(checkpointsByIndexReduced, resolvedIndexExpressions);
     }
 }

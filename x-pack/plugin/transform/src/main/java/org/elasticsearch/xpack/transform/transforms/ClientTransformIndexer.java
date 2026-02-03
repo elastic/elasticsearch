@@ -66,7 +66,6 @@ import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.transform.TransformExtension;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
-import org.elasticsearch.xpack.transform.checkpoint.CrossProjectHeadersHelper;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 import org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil;
@@ -299,20 +298,13 @@ class ClientTransformIndexer extends TransformIndexer {
 
     @Override
     void doGetInitialProgress(SearchRequest request, ActionListener<SearchResponse> responseListener) {
-        CrossProjectHeadersHelper.executeWithCrossProjectHeaders(
+        ClientHelper.executeWithHeadersAsync(
+            transformConfig.getHeaders(),
+            ClientHelper.TRANSFORM_ORIGIN,
             client,
-            transformConfig,
-            ActionListener.wrap(
-                r -> ClientHelper.executeWithHeadersAsync(
-                    transformConfig.getHeaders(),
-                    ClientHelper.TRANSFORM_ORIGIN,
-                    client,
-                    TransportSearchAction.TYPE,
-                    request,
-                    responseListener
-                ),
-                responseListener::onFailure
-            )
+            TransportSearchAction.TYPE,
+            request,
+            responseListener
         );
     }
 
@@ -344,16 +336,6 @@ class ClientTransformIndexer extends TransformIndexer {
             new ValidateTransformAction.Request(transformConfig, false, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT),
             listener
         );
-    }
-
-    @Override
-    void prepareCrossProjectSearch(ActionListener<Void> listener) {
-        // TODO would be conditional IRL
-        // Need to call resolve index API (in addition?)
-        CrossProjectHeadersHelper.executeWithCrossProjectHeaders(client, transformConfig, ActionListener.wrap(r -> {
-            logger.info("[{}] prepared cross-project search.", getJobId());
-            listener.onResponse(null);
-        }, listener::onFailure));
     }
 
     /**
@@ -626,11 +608,7 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     void doSearch(Tuple<String, SearchRequest> namedSearchRequest, ActionListener<SearchResponse> listener) {
-        CrossProjectHeadersHelper.executeWithCrossProjectHeaders(
-            client,
-            transformConfig,
-            ActionListener.wrap(v -> doSearchInternal(namedSearchRequest, listener), listener::onFailure)
-        );
+        doSearchInternal(namedSearchRequest, listener);
     }
 
     private void doSearchInternal(Tuple<String, SearchRequest> namedSearchRequest, ActionListener<SearchResponse> listener) {

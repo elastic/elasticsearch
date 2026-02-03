@@ -201,11 +201,7 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
      * Example: {@code sum by (unknown_label) (metric)} is equivalent to {@code sum(metric)} in PromQL.
      */
     private static LogicalPlan filterNulls(PromqlCommand promqlCommand, LogicalPlan plan) {
-        return new Filter(
-            promqlCommand.source(),
-            plan,
-            new IsNotNull(plan.output().getFirst().source(), plan.output().getFirst())
-        );
+        return new Filter(promqlCommand.source(), plan, new IsNotNull(plan.output().getFirst().source(), plan.output().getFirst()));
     }
 
     private static FieldAttribute getTimeSeriesGrouping(List<Attribute> groupings) {

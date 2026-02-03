@@ -635,3 +635,102 @@ instance-2       | 2025-09-25T00:31:00.000Z | false           | true
 instance-2       | 2025-09-25T00:32:00.000Z | true            | false
 instance-2       | 2025-09-25T00:33:00.000Z | true            | false
 ;
+
+// -------------------------------------------------------------------------------
+
+Count ungrouped (standard mode)
+required_capability: count_of_histogram_types
+
+FROM exp_histo_sample 
+ | WHERE NOT STARTS_WITH(instance, "dummy")
+ | STATS cnt = Count(responseTime)
+ | KEEP cnt
+;
+
+cnt:long 
+15471
+;
+
+// -------------------------------------------------------------------------------
+
+Count grouped (standard mode)
+required_capability: count_of_histogram_types
+
+FROM exp_histo_sample 
+ | WHERE NOT STARTS_WITH(instance, "dummy")
+ | STATS cnt = Count(responseTime) BY instance
+ | KEEP instance, cnt
+;
+ignoreOrder:true
+
+instance:keyword |cnt:long 
+instance-0       | 8841
+instance-1       | 3250
+instance-2       | 3380
+;
+
+// -------------------------------------------------------------------------------
+
+Count ungrouped (time series  mode)
+required_capability: count_of_histogram_types
+required_capability: ts_command_v0
+
+TS exp_histo_sample 
+ | WHERE NOT STARTS_WITH(instance, "dummy")
+ | STATS cnt = Count(responseTime)
+ | KEEP cnt
+;
+
+cnt:long 
+15471
+;
+
+// -------------------------------------------------------------------------------
+
+Count grouped (time series mode)
+required_capability: count_of_histogram_types
+required_capability: ts_command_v0
+
+TS exp_histo_sample 
+ | WHERE NOT STARTS_WITH(instance, "dummy")
+ | STATS cnt = Count(responseTime) BY instance
+ | KEEP instance, cnt
+;
+ignoreOrder:true
+
+instance:keyword |cnt:long 
+instance-0       | 8841
+instance-1       | 3250
+instance-2       | 3380
+;
+
+// -------------------------------------------------------------------------------
+
+Count no matching rows (standard mode)
+required_capability: count_of_histogram_types
+
+FROM exp_histo_sample 
+ | WHERE instance == "does-not-exist"
+ | STATS cnt = Count(responseTime)
+ | KEEP cnt
+;
+
+cnt:long 
+0
+;
+
+// -------------------------------------------------------------------------------
+
+Count no matching rows (time series mode)
+required_capability: ts_command_v0
+required_capability: count_of_histogram_types
+
+TS exp_histo_sample 
+ | WHERE instance == "does-not-exist"
+ | STATS cnt = Count(responseTime)
+ | KEEP cnt
+;
+
+cnt:long 
+0
+;

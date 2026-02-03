@@ -126,6 +126,7 @@ public class DateRangeFieldMapperTests extends RangeFieldMapperTests {
             iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 TestBlock block = (TestBlock) loader.columnAtATimeReader(reader.leaves().get(0))
+                    .get()
                     .read(TestBlock.factory(), new BlockLoader.Docs() {
                         @Override
                         public int count() {

@@ -301,6 +301,45 @@ s:long | bar:null
 0      | null
 ;
 
+statsGroupAliasShadowingSourceColumnNoFilter
+required_capability: optional_fields_nullify_skip_group_aliases
+
+SET unmapped_fields="nullify"\;
+FROM languages
+| STATS c = COUNT(*) BY language_code = does_not_exist
+;
+
+c:long         |language_code:null
+4              |null
+;
+
+statsGroupAliasShadowingSourceColumnWithFilter
+required_capability: optional_fields_nullify_skip_group_aliases
+
+SET unmapped_fields="nullify"\;
+FROM languages
+| WHERE language_code == 1
+| STATS c = COUNT(*) BY language_code = does_not_exist, language_name
+;
+
+c:long         |language_code:null |language_name :keyword
+1              |null               |English
+;
+
+statsGroupAliasShadowingSourceColumnWithFilterAndAggExpression
+required_capability: optional_fields_nullify_skip_group_aliases
+
+SET unmapped_fields="nullify"\;
+FROM languages
+| WHERE language_code == 1
+| STATS c = COUNT(*) + COALESCE(language_code, 0)
+        BY language_code = does_not_exist1::INTEGER + does_not_exist2::INTEGER + language_code, language_name
+;
+
+c:long         |language_code:integer |language_name :keyword
+1              |null                  |English
+;
+
 inlinestatsSum
 required_capability: optional_fields_nullify_tech_preview
 SET unmapped_fields="nullify"\;

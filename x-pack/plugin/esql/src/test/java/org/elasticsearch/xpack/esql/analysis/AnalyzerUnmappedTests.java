@@ -358,6 +358,53 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
     /*
      * Limit[1000[INTEGER],false,false]
+     * \_Eval[[emp_does_not_exist_field{r}#23 + 2[INTEGER] AS y#9]]
+     *   \_Eval[[emp_no{f}#11 + 1[INTEGER] AS x#6]]
+     *     \_Project[[emp_no{f}#11, emp_does_not_exist_field{r}#23]]
+     *       \_Eval[[null[NULL] AS emp_does_not_exist_field#23]]
+     *         \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     */
+    public void testEvalAfterMatchingKeepWithFieldWildcard() {
+        var plan = analyzeStatement(setUnmappedNullify("""
+            FROM test
+            | KEEP emp_*
+            | EVAL x = emp_no + 1
+            | EVAL y = emp_does_not_exist_field + 2
+            """));
+
+        // Top implicit limit 1000
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
+
+        // Eval for y = emp_does_not_exist_field + 2
+        var evalY = as(limit.child(), Eval.class);
+        assertThat(evalY.fields(), hasSize(1));
+        assertThat(evalY.fields().get(0).name(), is("y"));
+
+        // The child is Eval for x = emp_no + 1
+        var evalX = as(evalY.child(), Eval.class);
+        assertThat(evalX.fields(), hasSize(1));
+        assertThat(evalX.fields().get(0).name(), is("x"));
+
+        // The child is Project with emp_no and emp_does_not_exist_field
+        var esqlProject = as(evalX.child(), Project.class);
+        assertThat(Expressions.names(esqlProject.output()), is(List.of("emp_no", "emp_does_not_exist_field")));
+
+        // The child is Eval introducing emp_does_not_exist_field as null
+        var evalNull = as(esqlProject.child(), Eval.class);
+        assertThat(evalNull.fields(), hasSize(1));
+        var alias = as(evalNull.fields().get(0), Alias.class);
+        assertThat(alias.name(), is("emp_does_not_exist_field"));
+        var lit = as(alias.child(), Literal.class);
+        assertThat(lit.dataType(), is(DataType.NULL));
+
+        // The child is EsRelation
+        var relation = as(evalNull.child(), EsRelation.class);
+        assertThat(relation.indexPattern(), is("test"));
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
      * \_Project[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15, languages{f}#9,
      *      last_name{f}#10, long_noidx{f}#16, salary{f}#11]]
      *   \_Eval[[null[NULL] AS does_not_exist_field#17, null[NULL] AS neither_this#18]]
@@ -475,6 +522,19 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             """;
 
         var failure = "3:12: Unknown column [does_not_exist_field]";
+        verificationFailure(setUnmappedNullify(query), failure);
+        verificationFailure(setUnmappedLoad(query), failure);
+    }
+
+    public void testFailFilterAfterDrop() {
+        var query = """
+            FROM test
+            | WHERE emp_no > 1000
+            | DROP emp_no
+            | WHERE emp_no < 2000
+            """;
+
+        var failure = "line 4:9: Unknown column [emp_no]";
         verificationFailure(setUnmappedNullify(query), failure);
         verificationFailure(setUnmappedLoad(query), failure);
     }
@@ -1014,9 +1074,9 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
     /*
      * Limit[1000[INTEGER],false,false]
-     * \_Aggregate[[does_not_exist2{r}#24 AS d2#5, emp_no{f}#13],[SUM(does_not_exist1{r}#25,true[BOOLEAN],PT0S[TIME_DURATION],
-     *      compensated[KEYWORD]) + d2{r}#5 AS s#10, d2{r}#5, emp_no{f}#13]]
-     *   \_Eval[[null[NULL] AS does_not_exist2#24, null[NULL] AS does_not_exist1#25, null[NULL] AS d2#26]]
+     * \_Aggregate[[does_not_exist2{r}#24 AS d2#5, emp_no{f}#13],
+     *      [SUM(does_not_exist1{r}#25,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) + d2{r}#5 AS s#10, d2{r}#5, emp_no{f}#13]]
+     *   \_Eval[[null[NULL] AS does_not_exist2#24, null[NULL] AS does_not_exist1#25]]
      *     \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
      */
     public void testStatsAggAndAliasedGroup() {
@@ -1043,16 +1103,13 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(Expressions.name(alias.child()), is("SUM(does_not_exist1) + d2"));
 
         var eval = as(agg.child(), Eval.class);
-        assertThat(eval.fields(), hasSize(3));
+        assertThat(eval.fields(), hasSize(2));
         var alias2 = as(eval.fields().get(0), Alias.class);
         assertThat(alias2.name(), is("does_not_exist2"));
         assertThat(as(alias2.child(), Literal.class).dataType(), is(DataType.NULL));
         var alias1 = as(eval.fields().get(1), Alias.class);
         assertThat(alias1.name(), is("does_not_exist1"));
         assertThat(as(alias1.child(), Literal.class).dataType(), is(DataType.NULL));
-        var alias0 = as(eval.fields().get(2), Alias.class);
-        assertThat(alias0.name(), is("d2"));
-        assertThat(as(alias0.child(), Literal.class).dataType(), is(DataType.NULL));
 
         var relation = as(eval.child(), EsRelation.class);
         assertThat(relation.indexPattern(), is("test"));
@@ -1060,10 +1117,103 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
     /*
      * Limit[1000[INTEGER],false,false]
-     * \_Aggregate[[does_not_exist2{r}#29 + does_not_exist3{r}#30 AS s0#6, emp_no{f}#18 AS s1#9],[SUM(does_not_exist1{r}#31,true[B
-     * OOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) + s0{r}#6 + s1{r}#9 AS sum#14, s0{r}#6, s1{r}#9]]
-     *   \_Eval[[null[NULL] AS does_not_exist2#29, null[NULL] AS does_not_exist3#30, null[NULL] AS does_not_exist1#31,
-     *          null[NULL] AS s0#32]]
+     * \_Aggregate[[does_not_exist{r}#14 AS language_code#6, language_name{f}#13],
+     *      [COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#9, language_code{r}#6, language_name{f}#13]]
+     *   \_Filter[language_code{f}#12 == 1[INTEGER]]
+     *     \_Eval[[null[NULL] AS does_not_exist#14]]
+     *       \_EsRelation[languages][language_code{f}#12, language_name{f}#13]
+     */
+    public void testStatsAggAndAliasedShadowingGroup() {
+        var plan = analyzeStatement(setUnmappedNullify("""
+            FROM languages
+            | WHERE language_code == 1
+            | STATS c = COUNT(*) BY language_code = does_not_exist, language_name
+            """));
+
+        assertThat(Expressions.names(plan.output()), is(List.of("c", "language_code", "language_name")));
+
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
+
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.groupings(), hasSize(2));
+        var group_language_code = as(agg.groupings().getFirst(), Alias.class);
+        assertThat(group_language_code.name(), is("language_code"));
+        assertThat(Expressions.name(group_language_code.child()), is("does_not_exist"));
+        assertThat(Expressions.name(agg.groupings().get(1)), is("language_name"));
+
+        assertThat(agg.aggregates(), hasSize(3)); // includes grouping keys
+        var alias = as(agg.aggregates().get(0), Alias.class);
+        assertThat(alias.name(), is("c"));
+        assertThat(Expressions.name(alias.child()), is("COUNT(*)"));
+        var agg_language_code = as(agg.aggregates().get(1), ReferenceAttribute.class);
+        assertThat(agg_language_code.id(), is(group_language_code.id()));
+
+        var filter = as(agg.child(), Filter.class);
+        var eval = as(filter.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        var alias0 = as(eval.fields().getFirst(), Alias.class);
+        assertThat(alias0.name(), is("does_not_exist"));
+        assertThat(as(alias0.child(), Literal.class).dataType(), is(DataType.NULL));
+
+        var relation = as(eval.child(), EsRelation.class);
+        assertThat(relation.indexPattern(), is("languages"));
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[TOINTEGER(does_not_exist1{r}#18) + TOINTEGER(does_not_exist2{r}#19) + language_code{f}#15 AS language_code#8,
+     *      language_name{f}#16],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) + language_code{r}#8 AS c#12, language_code{r}#8,
+     *      language_name{f}#16]]
+     *   \_Filter[language_code{f}#15 == 1[INTEGER]]
+     *     \_Eval[[null[NULL] AS does_not_exist1#18, null[NULL] AS does_not_exist2#19]]
+     *       \_EsRelation[languages][language_code{f}#15, language_name{f}#16]
+     */
+    public void testStatsAggAndAliasedShadowingGroupOverExpression() {
+        var plan = analyzeStatement(setUnmappedNullify("""
+            FROM languages
+            | WHERE language_code == 1
+            | STATS c = COUNT(*) + language_code
+                    BY language_code = does_not_exist1::INTEGER + does_not_exist2::INTEGER + language_code, language_name
+            """));
+
+        assertThat(Expressions.names(plan.output()), is(List.of("c", "language_code", "language_name")));
+
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
+
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.groupings(), hasSize(2));
+        var groupAlias = as(agg.groupings().getFirst(), Alias.class);
+        assertThat(groupAlias.name(), is("language_code"));
+        assertThat(Expressions.name(groupAlias.child()), is("does_not_exist1::INTEGER + does_not_exist2::INTEGER + language_code"));
+        assertThat(Expressions.name(agg.groupings().get(1)), is("language_name"));
+
+        assertThat(agg.aggregates(), hasSize(3)); // includes grouping keys
+        var alias = as(agg.aggregates().getFirst(), Alias.class);
+        assertThat(alias.name(), is("c"));
+        assertThat(Expressions.name(alias.child()), is("COUNT(*) + language_code"));
+
+        var filter = as(agg.child(), Filter.class);
+        var eval = as(filter.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(2));
+        var alias0 = as(eval.fields().get(0), Alias.class);
+        assertThat(alias0.name(), is("does_not_exist1"));
+        assertThat(as(alias0.child(), Literal.class).dataType(), is(DataType.NULL));
+        var alias1 = as(eval.fields().get(1), Alias.class);
+        assertThat(alias1.name(), is("does_not_exist2"));
+        assertThat(as(alias1.child(), Literal.class).dataType(), is(DataType.NULL));
+
+        var relation = as(eval.child(), EsRelation.class);
+        assertThat(relation.indexPattern(), is("languages"));
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[does_not_exist2{r}#30 + does_not_exist3{r}#31 AS s0#6, emp_no{f}#18 AS s1#9],
+     *      [SUM(does_not_exist1{r}#32,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) + s0{r}#6 + s1{r}#9 AS sum#14, s0{r}#6,
+     *      s1{r}#9]]
+     *   \_Eval[[null[NULL] AS does_not_exist2#30, null[NULL] AS does_not_exist3#31, null[NULL] AS does_not_exist1#32]]
      *     \_EsRelation[test][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
      */
     public void testStatsAggAndAliasedGroupWithExpression() {
@@ -1087,8 +1237,8 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(Expressions.name(alias.child()), is("SUM(does_not_exist1) + s0 + s1"));
 
         var eval = as(agg.child(), Eval.class);
-        assertThat(eval.fields(), hasSize(4));
-        assertThat(Expressions.names(eval.fields()), is(List.of("does_not_exist2", "does_not_exist3", "does_not_exist1", "s0")));
+        assertThat(eval.fields(), hasSize(3));
+        assertThat(Expressions.names(eval.fields()), is(List.of("does_not_exist2", "does_not_exist3", "does_not_exist1")));
         eval.fields().forEach(a -> assertThat(as(as(a, Alias.class).child(), Literal.class).dataType(), is(DataType.NULL)));
 
         var relation = as(eval.child(), EsRelation.class);
@@ -1905,6 +2055,8 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
         // Left branch: EsRelation[test] with Project + Eval nulls
         var leftProject = as(union.children().get(0), Project.class);
+        var leftProject_does_not_exist2 = as(leftProject.output().get(14), ReferenceAttribute.class);
+        assertThat(leftProject_does_not_exist2.name(), is("does_not_exist2"));
         var leftEval = as(leftProject.child(), Eval.class);
         assertThat(Expressions.names(leftEval.fields()), is(List.of("$$does_not_exist2$converted_to$long")));
         var leftEvalEval = as(leftEval.child(), Eval.class);
@@ -1917,12 +2069,19 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         var leftDne1 = as(leftEvalEval.fields().get(2), Alias.class);
         assertThat(leftDne1.name(), is("does_not_exist1"));
         assertThat(as(leftDne1.child(), Literal.class).dataType(), is(DataType.NULL));
+        var leftDne2 = as(leftEvalEval.fields().get(3), Alias.class);
+        assertThat(leftDne2.name(), is("does_not_exist2"));
+        assertThat(as(leftDne2.child(), Literal.class).dataType(), is(DataType.NULL));
+        assertThat(leftDne2.id(), is(leftProject_does_not_exist2.id())); // same IDs within the branch
 
         var leftRel = as(leftEvalEval.child(), EsRelation.class);
         assertThat(leftRel.indexPattern(), is("test"));
 
         // Right branch: Project + Eval many nulls, Subquery -> Filter -> Eval -> EsRelation[languages]
         var rightProject = as(union.children().get(1), Project.class);
+        var rightProject_does_not_exist2 = as(rightProject.output().get(14), ReferenceAttribute.class);
+        assertThat(rightProject_does_not_exist2.name(), is("does_not_exist2"));
+        assertThat(rightProject_does_not_exist2.id(), not(leftProject_does_not_exist2.id())); // different IDs between branches
         var rightEval = as(rightProject.child(), Eval.class);
         assertThat(Expressions.names(rightEval.fields()), is(List.of("$$does_not_exist2$converted_to$long")));
         var rightEvalEval = as(rightEval.child(), Eval.class);
@@ -1953,6 +2112,8 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
         var rightSubEval = as(rightSubFilter.child(), Eval.class);
         assertThat(Expressions.names(rightSubEval.fields()), is(List.of("does_not_exist1", "does_not_exist2")));
+        var rightSubEval_does_not_exist2 = as(rightSubEval.fields().get(1), Alias.class);
+        assertThat(rightSubEval_does_not_exist2.id(), is(rightProject_does_not_exist2.id())); // same IDs within the branch
 
         var rightRel = as(rightSubEval.child(), EsRelation.class);
         assertThat(rightRel.indexPattern(), is("languages"));
@@ -2152,7 +2313,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
         var plan = analyzeStatement(setUnmappedNullify("""
             FROM employees,
-                (FROM employees | STATS c = count(*))
+                (FROM employees | STATS c = COUNT(*))
             | SORT does_not_exist
             """));
 
@@ -2508,16 +2669,16 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
     /*
      * Limit[1000[INTEGER],false,false]
-     * \_MvExpand[languageCode{r}#24,languageCode{r}#197]
-     *   \_Project[[count(*){r}#18, emp_no{r}#131 AS empNo#21, language_code{r}#141 AS languageCode#24, does_not_exist2{r}#196]]
-     *     \_Aggregate[[emp_no{r}#131, language_code{r}#141, does_not_exist2{r}#196],
-     *          [COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*)#18, emp_no{r}#131, language_code{r}#141,
-     *          does_not_exist2{r}#196]]
+     * \_MvExpand[languageCode{r}#24,languageCode{r}#196]
+     *   \_Project[[COUNT(*){r}#18, emp_no{r}#131 AS empNo#21, language_code{r}#141 AS languageCode#24, does_not_exist2{r}#195]]
+     *     \_Aggregate[[emp_no{r}#131, language_code{r}#141, does_not_exist2{r}#195],
+     *          [COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS COUNT(*)#18, emp_no{r}#131, language_code{r}#141,
+     *          does_not_exist2{r}#195]]
      *       \_Filter[emp_no{r}#92 > 10000[INTEGER] OR $$does_not_exist1$converted_to$long{r$}#150 < 10[INTEGER]]
-     *         \_UnionAll[[_meta_field{r}#179, emp_no{r}#180, first_name{r}#181, gender{r}#182, hire_date{r}#183, job{r}#184,
-     *              job.raw{r}#185, languages{r}#186, last_name{r}#187, long_noidx{r}#188, salary{r}#189, language_code{r}#190,
-     *              languageName{r}#191, max(@timestamp){r}#192, language_name{r}#193, does_not_exist1{r}#194,
-     *              $$does_not_exist1$converted_to$long{r$}#195, does_not_exist2{r}#196]]
+     *         \_UnionAll[[_meta_field{r}#178, emp_no{r}#179, first_name{r}#180, gender{r}#181, hire_date{r}#182, job{r}#183,
+     *              job.raw{r}#184, languages{r}#185, last_name{r}#186, long_noidx{r}#187, salary{r}#188, language_code{r}#189,
+     *              languageName{r}#190, max(@timestamp){r}#191, language_name{r}#192, does_not_exist1{r}#193,
+     *              $$does_not_exist1$converted_to$long{r$}#194, does_not_exist2{r}#195]]
      *           |_Project[[_meta_field{f}#34, emp_no{f}#28, first_name{f}#29, gender{f}#30, hire_date{f}#35, job{f}#36, job.raw{f}#37,
      *                  languages{f}#31, last_name{f}#32, long_noidx{f}#38, salary{f}#33, language_code{r}#58, languageName{r}#59,
      *                  max(@timestamp){r}#60, language_name{r}#61, does_not_exist1{r}#106, $$does_not_exist1$converted_to$long{r$}#146,
@@ -2544,8 +2705,8 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      *           |_Project[[_meta_field{r}#75, emp_no{r}#76, first_name{r}#77, gender{r}#78, hire_date{r}#79, job{r}#80, job.raw{r}#81,
      *                  languages{r}#82, last_name{r}#83, long_noidx{r}#84, salary{r}#85, language_code{r}#86, languageName{r}#87,
      *                  max(@timestamp){r}#8, language_name{r}#88, does_not_exist1{r}#129, $$does_not_exist1$converted_to$long{r$}#148,
-     *                  does_not_exist2{r}#178]]
-     *           | \_Eval[[null[NULL] AS does_not_exist2#178]]
+     *                  does_not_exist2{r}#177]]
+     *           | \_Eval[[null[NULL] AS does_not_exist2#177]]
      *           |   \_Project[[_meta_field{r}#75, emp_no{r}#76, first_name{r}#77, gender{r}#78, hire_date{r}#79, job{r}#80, job.raw{r}#81,
      *                      languages{r}#82, last_name{r}#83, long_noidx{r}#84, salary{r}#85, language_code{r}#86, languageName{r}#87,
      *                      max(@timestamp){r}#8, language_name{r}#88, does_not_exist1{r}#129, $$does_not_exist1$converted_to$long{r$}#148]]
@@ -2565,17 +2726,16 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      *           |                   \_EsRelation[sample_data][@timestamp{f}#41, client_ip{f}#42, event_duration{f..]
      *           \_Project[[_meta_field{f}#51, emp_no{f}#45, first_name{f}#46, gender{f}#47, hire_date{f}#52, job{f}#53, job.raw{f}#54,
      *                  languages{f}#48, last_name{f}#49, long_noidx{f}#55, salary{f}#50, language_code{r}#12, languageName{r}#89,
-     *                  max(@timestamp){r}#90, language_name{f}#57, does_not_exist1{r}#110, $$does_not_exist1$converted_to$long{r$}#149,
-     *                  does_not_exist2{r}#155]]
-     *             \_Eval[[TOLONG(does_not_exist1{r}#110) AS $$does_not_exist1$converted_to$long#149]]
+     *                  max(@timestamp){r}#90, language_name{f}#57, does_not_exist1{r}#109, $$does_not_exist1$converted_to$long{r$}#149,
+     *                  does_not_exist2{r}#154]]
+     *             \_Eval[[TOLONG(does_not_exist1{r}#109) AS $$does_not_exist1$converted_to$long#149]]
      *               \_Eval[[null[KEYWORD] AS languageName#89, null[DATETIME] AS max(@timestamp)#90]]
      *                 \_Subquery[]
      *                   \_LookupJoin[LEFT,[language_code{r}#12],[language_code{f}#56],false,null]
      *                     |_Eval[[languages{f}#48 AS language_code#12, null[NULL] AS does_not_exist1#109,
      *                          null[NULL] AS does_not_exist2#154]]
      *                     | \_EsRelation[test][_meta_field{f}#51, emp_no{f}#45, first_name{f}#46, ..]
-     *                     \_Eval[[null[NULL] AS does_not_exist1#110, null[NULL] AS does_not_exist2#155]]
-     *                       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#56, language_name{f}#57]
+     *                     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#56, language_name{f}#57]
      */
     public void testSubquerysMixAndLookupJoinNullify() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -2591,13 +2751,13 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 | EVAL language_code = languages
                 | LOOKUP JOIN languages_lookup ON language_code)
             | WHERE emp_no > 10000 OR does_not_exist1::LONG < 10
-            | STATS count(*) BY emp_no, language_code, does_not_exist2
+            | STATS COUNT(*) BY emp_no, language_code, does_not_exist2
             | RENAME emp_no AS empNo, language_code AS languageCode
             | MV_EXPAND languageCode
             """));
 
         // TODO: golden testing
-        assertThat(Expressions.names(plan.output()), is(List.of("count(*)", "empNo", "languageCode", "does_not_exist2")));
+        assertThat(Expressions.names(plan.output()), is(List.of("COUNT(*)", "empNo", "languageCode", "does_not_exist2")));
     }
 
     // same tree as above, except for the source nodes
@@ -2615,13 +2775,13 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 | EVAL language_code = languages
                 | LOOKUP JOIN languages_lookup ON language_code)
             | WHERE emp_no > 10000 OR does_not_exist1::LONG < 10
-            | STATS count(*) BY emp_no, language_code, does_not_exist2
+            | STATS COUNT(*) BY emp_no, language_code, does_not_exist2
             | RENAME emp_no AS empNo, language_code AS languageCode
             | MV_EXPAND languageCode
             """));
 
         // TODO: golden testing
-        assertThat(Expressions.names(plan.output()), is(List.of("count(*)", "empNo", "languageCode", "does_not_exist2")));
+        assertThat(Expressions.names(plan.output()), is(List.of("COUNT(*)", "empNo", "languageCode", "does_not_exist2")));
 
         List<EsRelation> esRelations = plan.collect(EsRelation.class);
         assertThat(
@@ -3307,7 +3467,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         verificationFailure(setUnmappedNullify("""
             TS k8s
             | RENAME @timestamp AS newTs
-            | STATS max(rate(network.total_cost))  BY tbucket = bucket(newTs, 1hour)
+            | STATS max(rate(network.total_cost)) BY tbucket = BUCKET(newTs, 1hour)
             """), "3:13: [rate(network.total_cost)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX);
 
         verificationFailure(setUnmappedNullify("""

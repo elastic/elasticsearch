@@ -24,11 +24,14 @@ public class PlanTelemetryManager {
     private final LongCounter featuresCounterAll;
     private final LongCounter functionsCounter;
     private final LongCounter functionsCounterAll;
+    private final LongCounter settingsCounter;
+    private final LongCounter settingsCounterAll;
     private final LongCounter linkedProjectsHistogram;
 
     public static String ESQL_PREFIX = "es.esql.";
     public static String FEATURES_PREFIX = "commands.";
     public static String FUNCTIONS_PREFIX = "functions.";
+    public static String SETTINGS_PREFIX = "settings.";
 
     /**
      * Number of times a command is used.
@@ -53,6 +56,19 @@ public class PlanTelemetryManager {
      * If a query uses a command N times, this will still be incremented by one only
      */
     public static final String FUNCTION_METRICS = ESQL_PREFIX + FUNCTIONS_PREFIX + "queries.total";
+
+    /**
+     * Number of times a setting is used.
+     * If the setting is used N times in a single query, this counter will be incremented by N
+     */
+    public static final String SETTING_METRICS_ALL = ESQL_PREFIX + SETTINGS_PREFIX + "usages.total";
+
+    /**
+     * Queries that use a setting.
+     * If a query uses a setting N times, this will still be incremented by one only
+     */
+    public static final String SETTING_METRICS = ESQL_PREFIX + SETTINGS_PREFIX + "queries.total";
+
     public static final String FEATURE_NAME = "feature_name";
 
     /**
@@ -73,6 +89,12 @@ public class PlanTelemetryManager {
             "unit"
         );
         functionsCounterAll = meterRegistry.registerLongCounter(FUNCTION_METRICS_ALL, "ESQL functions, total usage", "unit");
+        settingsCounter = meterRegistry.registerLongCounter(
+            SETTING_METRICS,
+            "ESQL settings, total number of queries that use them",
+            "unit"
+        );
+        settingsCounterAll = meterRegistry.registerLongCounter(SETTING_METRICS_ALL, "ESQL settings, total usage", "unit");
         linkedProjectsHistogram = meterRegistry.registerLongCounter(
             ESQL_PREFIX + "linked_projects.histogram",
             "Histogram of linked projects per esql query",
@@ -86,6 +108,7 @@ public class PlanTelemetryManager {
     public void publish(PlanTelemetry metrics, boolean success) {
         metrics.commands().forEach((key, value) -> incCommand(key, value, success));
         metrics.functions().forEach((key, value) -> incFunction(key, value, success));
+        metrics.settings().forEach((key, value) -> incSetting(key, value, success));
         linkedProjectsHistogram.incrementBy(1, Map.of("es_linked_projects_count", metrics.linkedProjectsCount()));
     }
 
@@ -97,5 +120,10 @@ public class PlanTelemetryManager {
     private void incFunction(String name, int count, boolean success) {
         this.functionsCounter.incrementBy(1, Map.ofEntries(Map.entry(FEATURE_NAME, name), Map.entry(SUCCESS, success)));
         this.functionsCounterAll.incrementBy(count, Map.ofEntries(Map.entry(FEATURE_NAME, name), Map.entry(SUCCESS, success)));
+    }
+
+    private void incSetting(String name, int count, boolean success) {
+        this.settingsCounter.incrementBy(1, Map.ofEntries(Map.entry(FEATURE_NAME, name), Map.entry(SUCCESS, success)));
+        this.settingsCounterAll.incrementBy(count, Map.ofEntries(Map.entry(FEATURE_NAME, name), Map.entry(SUCCESS, success)));
     }
 }

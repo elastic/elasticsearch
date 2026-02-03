@@ -9,8 +9,10 @@
 
 package org.elasticsearch.common.logging.internal;
 
+import org.apache.logging.log4j.message.Message;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.LogMessage;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.ArgumentCaptor;
@@ -99,6 +101,36 @@ public class LoggerImplMappingTests extends ESTestCase {
         verify(log4jLogger).trace(msgSupplierCaptor.capture(), exceptionCaptor.capture());
 
         assertArguments();
+    }
+
+    public void testLogMessageMethods() {
+        LogMessage logMessage = Mockito.mock(LogMessage.class);
+        esLogger.fatal(logMessage);
+        verify(log4jLogger).fatal(logMessage);
+        esLogger.error(logMessage);
+        verify(log4jLogger).error(logMessage);
+        esLogger.warn(logMessage);
+        verify(log4jLogger).warn(logMessage);
+        esLogger.info(logMessage);
+        verify(log4jLogger).info(logMessage);
+        esLogger.debug(logMessage);
+        verify(log4jLogger).debug(logMessage);
+        esLogger.trace(logMessage);
+        verify(log4jLogger).trace(logMessage);
+
+        Message message = Mockito.mock(Message.class, Mockito.withSettings().extraInterfaces(LogMessage.class));
+        esLogger.fatal((LogMessage) message);
+        verify(log4jLogger).fatal(message);
+        esLogger.error((LogMessage) message);
+        verify(log4jLogger).error(message);
+        esLogger.warn((LogMessage) message);
+        verify(log4jLogger).warn(message);
+        esLogger.info((LogMessage) message);
+        verify(log4jLogger).info(message);
+        esLogger.debug((LogMessage) message);
+        verify(log4jLogger).debug(message);
+        esLogger.trace((LogMessage) message);
+        verify(log4jLogger).trace(message);
     }
 
     public void testLogMethodsDelegationAndLevelMapping() {

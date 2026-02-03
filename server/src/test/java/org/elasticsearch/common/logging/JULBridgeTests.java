@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.MockLog.LoggingExpectation;
@@ -28,6 +29,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.instanceOf;
 
+@SuppressForbidden(reason = "Allowed to use java.util.logging in JULBridgeTests")
 public class JULBridgeTests extends ESTestCase {
 
     private static final java.util.logging.Logger logger = java.util.logging.Logger.getLogger("");

@@ -861,7 +861,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues() && (ignoreAbove.valuesPotentiallyIgnored() == false || isSyntheticSourceEnabled)) {
-                return new FlattenedDocValuesBlockLoader(name(), ignoreAbove, usesBinaryDocValues);
+                return new RootFlattenedDocValuesBlockLoader(name(), ignoreAbove, usesBinaryDocValues);
             }
 
             SourceValueFetcher fetcher = new SourceValueFetcher(

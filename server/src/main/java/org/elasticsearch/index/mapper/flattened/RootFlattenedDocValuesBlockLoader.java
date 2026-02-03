@@ -31,13 +31,13 @@ import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KEYE
  * Block loader for {@link FlattenedFieldMapper.RootFlattenedFieldType} that loads values from doc values, falling back to stored fields
  * when necessary to load ignored values.
  */
-final class FlattenedDocValuesBlockLoader implements BlockLoader {
+final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
     private final Mapper.IgnoreAbove ignoreAbove;
 
     private final BlockFlattenedDocValuesSyntheticFieldLoader fieldLoader;
     private final List<Map.Entry<String, SourceLoader.SyntheticFieldLoader.StoredFieldLoader>> storedFieldLoaders;
 
-    FlattenedDocValuesBlockLoader(String name, Mapper.IgnoreAbove ignoreAbove, boolean usesBinaryDocValues) {
+    RootFlattenedDocValuesBlockLoader(String name, Mapper.IgnoreAbove ignoreAbove, boolean usesBinaryDocValues) {
         this.ignoreAbove = ignoreAbove;
         this.fieldLoader = new BlockFlattenedDocValuesSyntheticFieldLoader(
             name,

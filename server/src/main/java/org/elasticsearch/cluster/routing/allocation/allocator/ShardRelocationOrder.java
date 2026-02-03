@@ -1,0 +1,93 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.cluster.routing.allocation.allocator;
+
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.settings.ClusterSettings;
+
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.Objects;
+
+/**
+ * Defines the order in which shards on a node are chosen for relocation
+ */
+public interface ShardRelocationOrder {
+
+    Iterator<ShardRouting> forNecessaryMoves(RoutingAllocation allocation, String nodeId);
+
+    Iterator<ShardRouting> forBalancing(RoutingAllocation allocation, String nodeId);
+
+    /**
+     * Shard ordering for a given node
+     */
+    interface Ordering {
+        Iterator<ShardRouting> order(RoutingAllocation allocation, String nodeId);
+    }
+
+    /**
+     * A factory method to create a ShardRelocationOrder
+     */
+    interface Factory {
+        ShardRelocationOrder create(ClusterSettings clusterSettings);
+    }
+
+    class DefaultFactory implements Factory {
+        @Override
+        public ShardRelocationOrder create(ClusterSettings clusterSettings) {
+            return new DefaultOrder();
+        }
+    }
+
+    class DefaultOrder implements ShardRelocationOrder {
+        /**
+         * Node's shards are ordered from data stream write indices, to regular indices and lastly to data stream read indices.
+         */
+        @Override
+        public Iterator<ShardRouting> forNecessaryMoves(RoutingAllocation allocation, String nodeId) {
+            var shards = allocation.routingNodes().node(nodeId).copyShards();
+            var comparator = createShardsComparator(allocation);
+            Arrays.sort(shards, comparator);
+            return Iterators.forArray(shards);
+        }
+
+        /**
+         * Node's shards are ordered from data stream read indices, to regular indices and lastly to data stream write indices.
+         */
+        @Override
+        public Iterator<ShardRouting> forBalancing(RoutingAllocation allocation, String nodeId) {
+            var shards = allocation.routingNodes().node(nodeId).copyShards();
+            var comparator = createShardsComparator(allocation).reversed();
+            Arrays.sort(shards, comparator);
+            return Iterators.forArray(shards);
+        }
+
+        /**
+         * Prioritizes write indices of data streams, and deprioritizes data stream read indices, relative to regular indices.
+         */
+        private static Comparator<ShardRouting> createShardsComparator(RoutingAllocation allocation) {
+            return Comparator.comparing(shard -> {
+                final ProjectMetadata project = allocation.metadata().projectFor(shard.index());
+                var index = project.getIndicesLookup().get(shard.getIndexName());
+                if (index != null && index.getParentDataStream() != null) {
+                    // prioritize write indices of the data stream
+                    return Objects.equals(index.getParentDataStream().getWriteIndex(), shard.index()) ? 0 : 2;
+                } else {
+                    // regular index
+                    return 1;
+                }
+            });
+        }
+    };
+}

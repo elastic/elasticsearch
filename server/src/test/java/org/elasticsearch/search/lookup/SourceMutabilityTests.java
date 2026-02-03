@@ -34,7 +34,7 @@ public class SourceMutabilityTests extends ESTestCase {
         Source s3 = s2.withMutations(map -> map.remove("key"));
         assertNull(s3.source().get("key"));
         assertTrue(s3.source().isEmpty());
-        //note that the returned map does not have to be mutable
+        // note that the returned map does not have to be mutable
         assertMapIsImmutable(s3.source());
     }
 

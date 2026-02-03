@@ -19,7 +19,6 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
 
-import java.util.HashMap;
 import java.util.Map;
 
 public final class FetchSourcePhase implements FetchSubPhase {

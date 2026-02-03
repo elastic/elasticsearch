@@ -1336,14 +1336,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
-     * Prints the current cluster state as debug logging.
+     * Logs the current cluster state, and pending cluster state updates, at INFO-level.
      */
     public void logClusterState() {
-        logger.debug(
-            "cluster state:\n{}\n{}",
-            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState(),
-            getClusterPendingTasks()
-        );
+        var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        logger.info("cluster state:\n{}\n{}", clusterService.state(), clusterService.getMasterService().pendingTasks());
     }
 
     protected void ensureClusterSizeConsistency() {

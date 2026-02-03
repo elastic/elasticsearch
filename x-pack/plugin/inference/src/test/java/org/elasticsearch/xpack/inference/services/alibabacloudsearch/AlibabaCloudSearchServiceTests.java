@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
@@ -25,7 +26,9 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankingInferenceService;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -43,15 +46,23 @@ import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.action.AlibabaCloudSearchActionVisitor;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionModelTests;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionTaskSettingsTests;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsTaskSettingsTests;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.request.AlibabaCloudSearchUtils;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.rerank.AlibabaCloudSearchRerankModel;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseModel;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseModelTests;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseTaskSettingsTests;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests;
 import org.junit.After;
 import org.junit.Before;
@@ -78,6 +89,11 @@ import static org.mockito.Mockito.mock;
 
 public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+    private static final String INFERENCE_ENTITY_ID_VALUE = "some_inference_id";
+    private static final String HOST_VALUE = "host";
+    private static final String WORKSPACE_NAME_VALUE = "default";
+    private static final String API_KEY_VALUE = "secret";
+    private static final String SERVICE_ID_VALUE = "service_id";
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
 
@@ -105,19 +121,23 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
                 assertThat(model, instanceOf(AlibabaCloudSearchEmbeddingsModel.class));
 
                 var embeddingsModel = (AlibabaCloudSearchEmbeddingsModel) model;
-                assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("service_id"));
-                assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getHost(), is("host"));
-                assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getWorkspaceName(), is("default"));
-                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+                assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is(SERVICE_ID_VALUE));
+                assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getHost(), is(HOST_VALUE));
+                assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getWorkspaceName(), is(WORKSPACE_NAME_VALUE));
+                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             }, e -> fail("Model parsing should have succeeded " + e.getMessage()));
 
             service.parseRequestConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap("service_id", "host", "default"),
+                    AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap(
+                        SERVICE_ID_VALUE,
+                        HOST_VALUE,
+                        WORKSPACE_NAME_VALUE
+                    ),
                     AlibabaCloudSearchEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
-                    getSecretSettingsMap("secret")
+                    getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 modelVerificationListener
             );
@@ -136,21 +156,25 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
                 assertThat(model, instanceOf(AlibabaCloudSearchEmbeddingsModel.class));
 
                 var embeddingsModel = (AlibabaCloudSearchEmbeddingsModel) model;
-                assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("service_id"));
-                assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getHost(), is("host"));
-                assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getWorkspaceName(), is("default"));
+                assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is(SERVICE_ID_VALUE));
+                assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getHost(), is(HOST_VALUE));
+                assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getWorkspaceName(), is(WORKSPACE_NAME_VALUE));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             }, e -> fail("Model parsing should have succeeded " + e.getMessage()));
 
             service.parseRequestConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap("service_id", "host", "default"),
+                    AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap(
+                        SERVICE_ID_VALUE,
+                        HOST_VALUE,
+                        WORKSPACE_NAME_VALUE
+                    ),
                     AlibabaCloudSearchEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
                     createRandomChunkingSettingsMap(),
-                    getSecretSettingsMap("secret")
+                    getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 modelVerificationListener
             );
@@ -169,20 +193,24 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
                 assertThat(model, instanceOf(AlibabaCloudSearchEmbeddingsModel.class));
 
                 var embeddingsModel = (AlibabaCloudSearchEmbeddingsModel) model;
-                assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("service_id"));
-                assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getHost(), is("host"));
-                assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getWorkspaceName(), is("default"));
+                assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is(SERVICE_ID_VALUE));
+                assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getHost(), is(HOST_VALUE));
+                assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getWorkspaceName(), is(WORKSPACE_NAME_VALUE));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             }, e -> fail("Model parsing should have succeeded " + e.getMessage()));
 
             service.parseRequestConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap("service_id", "host", "default"),
+                    AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap(
+                        SERVICE_ID_VALUE,
+                        HOST_VALUE,
+                        WORKSPACE_NAME_VALUE
+                    ),
                     AlibabaCloudSearchEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
-                    getSecretSettingsMap("secret")
+                    getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 modelVerificationListener
             );
@@ -201,7 +229,11 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getPersistedConfigMap(
-                    AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap("service_id", "host", "default"),
+                    AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap(
+                        SERVICE_ID_VALUE,
+                        HOST_VALUE,
+                        WORKSPACE_NAME_VALUE
+                    ),
                     AlibabaCloudSearchEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
                     createRandomChunkingSettingsMap()
                 ).config()
@@ -209,9 +241,9 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
 
             assertThat(model, instanceOf(AlibabaCloudSearchEmbeddingsModel.class));
             var embeddingsModel = (AlibabaCloudSearchEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("service_id"));
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getHost(), is("host"));
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getWorkspaceName(), is("default"));
+            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is(SERVICE_ID_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getHost(), is(HOST_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getWorkspaceName(), is(WORKSPACE_NAME_VALUE));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
         }
     }
@@ -228,16 +260,20 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getPersistedConfigMap(
-                    AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap("service_id", "host", "default"),
+                    AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap(
+                        SERVICE_ID_VALUE,
+                        HOST_VALUE,
+                        WORKSPACE_NAME_VALUE
+                    ),
                     AlibabaCloudSearchEmbeddingsTaskSettingsTests.getTaskSettingsMap(null)
                 ).config()
             );
 
             assertThat(model, instanceOf(AlibabaCloudSearchEmbeddingsModel.class));
             var embeddingsModel = (AlibabaCloudSearchEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("service_id"));
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getHost(), is("host"));
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getWorkspaceName(), is("default"));
+            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is(SERVICE_ID_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getHost(), is(HOST_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getWorkspaceName(), is(WORKSPACE_NAME_VALUE));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
         }
     }
@@ -251,10 +287,10 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
             )
         ) {
             var persistedConfig = getPersistedConfigMap(
-                AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap("service_id", "host", "default"),
+                AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap(SERVICE_ID_VALUE, HOST_VALUE, WORKSPACE_NAME_VALUE),
                 AlibabaCloudSearchEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
                 createRandomChunkingSettingsMap(),
-                getSecretSettingsMap("secret")
+                getSecretSettingsMap(API_KEY_VALUE)
             );
             var model = service.parsePersistedConfigWithSecrets(
                 "id",
@@ -265,11 +301,11 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
 
             assertThat(model, instanceOf(AlibabaCloudSearchEmbeddingsModel.class));
             var embeddingsModel = (AlibabaCloudSearchEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("service_id"));
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getHost(), is("host"));
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getWorkspaceName(), is("default"));
+            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is(SERVICE_ID_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getHost(), is(HOST_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getWorkspaceName(), is(WORKSPACE_NAME_VALUE));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
@@ -282,10 +318,10 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
             )
         ) {
             var persistedConfig = getPersistedConfigMap(
-                AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap("service_id", "host", "default"),
+                AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap(SERVICE_ID_VALUE, HOST_VALUE, WORKSPACE_NAME_VALUE),
                 AlibabaCloudSearchEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
                 createRandomChunkingSettingsMap(),
-                getSecretSettingsMap("secret")
+                getSecretSettingsMap(API_KEY_VALUE)
             );
             var model = service.parsePersistedConfigWithSecrets(
                 "id",
@@ -296,11 +332,11 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
 
             assertThat(model, instanceOf(AlibabaCloudSearchEmbeddingsModel.class));
             var embeddingsModel = (AlibabaCloudSearchEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("service_id"));
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getHost(), is("host"));
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getWorkspaceName(), is("default"));
+            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is(SERVICE_ID_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getHost(), is(HOST_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getWorkspaceName(), is(WORKSPACE_NAME_VALUE));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
@@ -344,15 +380,15 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
     public void testInfer_ThrowsValidationErrorForInvalidInputType_TextEmbedding() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         Map<String, Object> serviceSettingsMap = new HashMap<>();
-        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.SERVICE_ID, "service_id");
-        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.HOST, "host");
-        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.WORKSPACE_NAME, "default");
+        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.SERVICE_ID, SERVICE_ID_VALUE);
+        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.HOST, HOST_VALUE);
+        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.WORKSPACE_NAME, WORKSPACE_NAME_VALUE);
         serviceSettingsMap.put(ServiceFields.DIMENSIONS, 1536);
 
         Map<String, Object> taskSettingsMap = new HashMap<>();
 
         Map<String, Object> secretSettingsMap = new HashMap<>();
-        secretSettingsMap.put("api_key", "secret");
+        secretSettingsMap.put("api_key", API_KEY_VALUE);
 
         var model = AlibabaCloudSearchEmbeddingsModelTests.createModel(
             "service",
@@ -388,15 +424,15 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
     public void testInfer_ThrowsValidationExceptionForInvalidInputType_SparseEmbedding() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         Map<String, Object> serviceSettingsMap = new HashMap<>();
-        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.SERVICE_ID, "service_id");
-        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.HOST, "host");
-        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.WORKSPACE_NAME, "default");
+        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.SERVICE_ID, SERVICE_ID_VALUE);
+        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.HOST, HOST_VALUE);
+        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.WORKSPACE_NAME, WORKSPACE_NAME_VALUE);
         serviceSettingsMap.put(ServiceFields.DIMENSIONS, 1536);
 
         Map<String, Object> taskSettingsMap = new HashMap<>();
 
         Map<String, Object> secretSettingsMap = new HashMap<>();
-        secretSettingsMap.put("api_key", "secret");
+        secretSettingsMap.put("api_key", API_KEY_VALUE);
 
         var model = AlibabaCloudSearchEmbeddingsModelTests.createModel(
             "service",
@@ -432,15 +468,15 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
     public void testInfer_ThrowsValidationErrorForInvalidRerankParams() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         Map<String, Object> serviceSettingsMap = new HashMap<>();
-        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.SERVICE_ID, "service_id");
-        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.HOST, "host");
-        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.WORKSPACE_NAME, "default");
+        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.SERVICE_ID, SERVICE_ID_VALUE);
+        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.HOST, HOST_VALUE);
+        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.WORKSPACE_NAME, WORKSPACE_NAME_VALUE);
         serviceSettingsMap.put(ServiceFields.DIMENSIONS, 1536);
 
         Map<String, Object> taskSettingsMap = new HashMap<>();
 
         Map<String, Object> secretSettingsMap = new HashMap<>();
-        secretSettingsMap.put("api_key", "secret");
+        secretSettingsMap.put("api_key", API_KEY_VALUE);
 
         var model = AlibabaCloudSearchEmbeddingsModelTests.createModel(
             "service",
@@ -637,16 +673,16 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
 
     private AlibabaCloudSearchModel createModelForTaskType(TaskType taskType, ChunkingSettings chunkingSettings) {
         Map<String, Object> serviceSettingsMap = new HashMap<>();
-        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.SERVICE_ID, "service_id");
-        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.HOST, "host");
-        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.WORKSPACE_NAME, "default");
+        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.SERVICE_ID, SERVICE_ID_VALUE);
+        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.HOST, HOST_VALUE);
+        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.WORKSPACE_NAME, WORKSPACE_NAME_VALUE);
         serviceSettingsMap.put(ServiceFields.DIMENSIONS, 1536);
 
         Map<String, Object> taskSettingsMap = new HashMap<>();
 
         Map<String, Object> secretSettingsMap = new HashMap<>();
 
-        secretSettingsMap.put("api_key", "secret");
+        secretSettingsMap.put("api_key", API_KEY_VALUE);
         return switch (taskType) {
             case TEXT_EMBEDDING -> createEmbeddingsModel(serviceSettingsMap, taskSettingsMap, chunkingSettings, secretSettingsMap);
             case SPARSE_EMBEDDING -> createSparseEmbeddingsModel(serviceSettingsMap, taskSettingsMap, chunkingSettings, secretSettingsMap);
@@ -747,5 +783,98 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
     @Override
     protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
         assertThat(rerankingInferenceService.rerankerWindowSize("any model"), is(5500));
+    }
+
+    public void testBuildModelFromConfigAndSecrets_TextEmbedding() throws IOException {
+        var model = createTestModel(TaskType.TEXT_EMBEDDING);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_SparseEmbedding() throws IOException {
+        var model = createTestModel(TaskType.SPARSE_EMBEDDING);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_Completion() throws IOException {
+        var model = createTestModel(TaskType.COMPLETION);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_Rerank() throws IOException {
+        var model = createTestModel(TaskType.RERANK);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_UnsupportedTaskType() throws IOException {
+        var modelConfigurations = new ModelConfigurations(
+            INFERENCE_ENTITY_ID_VALUE,
+            TaskType.CHAT_COMPLETION,
+            AlibabaCloudSearchService.NAME,
+            mock(ServiceSettings.class)
+        );
+        try (var inferenceService = createInferenceService()) {
+            var thrownException = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> inferenceService.buildModelFromConfigAndSecrets(modelConfigurations, mock(ModelSecrets.class))
+            );
+            assertThat(
+                thrownException.getMessage(),
+                is(
+                    Strings.format(
+                        """
+                            Failed to parse stored model [%s] for [%s] service, error: [The [%s] service does not support task type [%s]]. \
+                            Please delete and add the service again""",
+                        INFERENCE_ENTITY_ID_VALUE,
+                        AlibabaCloudSearchService.NAME,
+                        AlibabaCloudSearchService.NAME,
+                        TaskType.CHAT_COMPLETION
+                    )
+                )
+
+            );
+        }
+    }
+
+    private Model createTestModel(TaskType taskType) {
+        return switch (taskType) {
+            case TEXT_EMBEDDING -> AlibabaCloudSearchEmbeddingsModelTests.createModel(
+                INFERENCE_ENTITY_ID_VALUE,
+                taskType,
+                AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap(SERVICE_ID_VALUE, HOST_VALUE, WORKSPACE_NAME_VALUE),
+                AlibabaCloudSearchEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
+                getSecretSettingsMap(API_KEY_VALUE)
+            );
+            case SPARSE_EMBEDDING -> AlibabaCloudSearchSparseModelTests.createModel(
+                INFERENCE_ENTITY_ID_VALUE,
+                taskType,
+                AlibabaCloudSearchSparseServiceSettingsTests.getServiceSettingsMap(SERVICE_ID_VALUE, HOST_VALUE, WORKSPACE_NAME_VALUE),
+                AlibabaCloudSearchSparseTaskSettingsTests.getTaskSettingsMap(null, null),
+                getSecretSettingsMap(API_KEY_VALUE)
+            );
+            case COMPLETION -> AlibabaCloudSearchCompletionModelTests.createModel(
+                INFERENCE_ENTITY_ID_VALUE,
+                taskType,
+                AlibabaCloudSearchCompletionServiceSettingsTests.getServiceSettingsMap(SERVICE_ID_VALUE, HOST_VALUE, WORKSPACE_NAME_VALUE),
+                AlibabaCloudSearchCompletionTaskSettingsTests.getTaskSettingsMap(null),
+                getSecretSettingsMap(API_KEY_VALUE)
+            );
+            case RERANK -> new AlibabaCloudSearchRerankModel(
+                INFERENCE_ENTITY_ID_VALUE,
+                TaskType.RERANK,
+                AlibabaCloudSearchService.NAME,
+                AlibabaCloudSearchServiceSettingsTests.getServiceSettingsMap(SERVICE_ID_VALUE, HOST_VALUE, WORKSPACE_NAME_VALUE),
+                Map.of(),
+                getSecretSettingsMap(API_KEY_VALUE),
+                ConfigurationParseContext.PERSISTENT
+            );
+            default -> throw new IllegalArgumentException("Unsupported task type: " + taskType);
+        };
+    }
+
+    private void validateModelBuilding(Model model) throws IOException {
+        try (var inferenceService = createInferenceService()) {
+            var resultModel = inferenceService.buildModelFromConfigAndSecrets(model.getConfigurations(), model.getSecrets());
+            assertThat(resultModel, is(model));
+        }
     }
 }

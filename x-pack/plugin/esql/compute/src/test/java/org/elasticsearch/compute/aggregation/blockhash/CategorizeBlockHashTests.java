@@ -513,6 +513,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                         new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1))
                     ),
                     16 * 1024,
+                    Integer.MAX_VALUE,
+                    1.0,
                     analysisRegistry
                 ).get(driverContext)
             ),
@@ -532,6 +534,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                         new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1))
                     ),
                     16 * 1024,
+                    Integer.MAX_VALUE,
+                    1.0,
                     analysisRegistry
                 ).get(driverContext)
             ),
@@ -553,6 +557,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                         new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(3, 4))
                     ),
                     16 * 1024,
+                    randomIntBetween(1, 1000),
+                    randomDoubleBetween(0.1, 1.0, true),
                     analysisRegistry
                 ).get(driverContext)
             ),

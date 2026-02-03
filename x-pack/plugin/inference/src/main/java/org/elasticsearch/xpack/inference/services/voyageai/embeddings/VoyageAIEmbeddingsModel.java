@@ -93,6 +93,16 @@ public class VoyageAIEmbeddingsModel extends VoyageAIModel {
         );
     }
 
+    public VoyageAIEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(
+            modelConfigurations,
+            modelSecrets,
+            (DefaultSecretSettings) modelSecrets.getSecretSettings(),
+            ((VoyageAIEmbeddingsServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings(),
+            buildUri(VoyageAIService.NAME, VoyageAIEmbeddingsModel::buildRequestUri)
+        );
+    }
+
     private VoyageAIEmbeddingsModel(VoyageAIEmbeddingsModel model, VoyageAIEmbeddingsTaskSettings taskSettings) {
         super(model, taskSettings);
     }

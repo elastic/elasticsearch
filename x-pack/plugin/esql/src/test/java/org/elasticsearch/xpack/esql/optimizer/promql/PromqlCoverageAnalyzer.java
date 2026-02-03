@@ -211,8 +211,6 @@ public class PromqlCoverageAnalyzer implements Closeable {
     }
 
     private void writeErrorGroupStats(List<QueryResult> results) {
-        writeLine("| Error Group | Total | Dashboards | Only error | Example Query |");
-        writeLine("|-------------|------:|-----------:|-----------:|---------------|");
         Map<String, Integer> countByGroup = results.stream()
             .flatMap(q -> q.errorGroups().stream())
             .filter(Objects::nonNull)
@@ -235,28 +233,34 @@ public class PromqlCoverageAnalyzer implements Closeable {
             .stream()
             .filter(e -> e.getValue().size() == 1)
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        long totalDashboards = results.stream().map(QueryResult::dashboardId).distinct().count();
 
-        countByGroup.entrySet()
-            .stream()
-            .sorted((e1, e2) -> Long.compare(e2.getValue(), e1.getValue()))
-            .forEach(
-                entry -> writeLine(
-                    String.format(
-                        Locale.ROOT,
-                        "| %s | %d | %d | %d | `%s` |",
-                        entry.getKey(),
-                        entry.getValue(),
-                        distinctErrorGroupsByDashboard.entrySet().stream().filter(e -> e.getValue().contains(entry.getKey())).count(),
-                        onlyErrorGroupByDashboard.entrySet().stream().filter(e -> e.getValue().contains(entry.getKey())).count(),
-                        // get shortest example query
-                        queriesByErrorGroup.get(entry.getKey())
-                            .stream()
-                            .min(Comparator.comparingInt(String::length))
-                            .orElse("")
-                            .replace("|", "\\|")
-                    )
+        writeLine("| Error Group | Total | Dashboards | Only error | Example Query |");
+        writeLine("|-------------|------:|-----------:|-----------:|---------------|");
+        countByGroup.entrySet().stream().sorted((e1, e2) -> Long.compare(e2.getValue(), e1.getValue())).forEach(entry -> {
+            String errorGroup = entry.getKey();
+            int groupCountTotal = entry.getValue();
+            long dashboardCount = distinctErrorGroupsByDashboard.entrySet().stream().filter(e -> e.getValue().contains(errorGroup)).count();
+            long onlyErrorCount = onlyErrorGroupByDashboard.entrySet().stream().filter(e -> e.getValue().contains(errorGroup)).count();
+            String shortestQueryForGroup = queriesByErrorGroup.get(errorGroup)
+                .stream()
+                .min(Comparator.comparingInt(String::length))
+                .orElse("");
+            writeLine(
+                String.format(
+                    Locale.ROOT,
+                    "| %s | %.2f%% (%d) | %.2f%% (%d) | %.2f%% (%d) | `%s` |",
+                    errorGroup,
+                    groupCountTotal * 100.0 / results.size(),
+                    groupCountTotal,
+                    dashboardCount * 100.0 / totalDashboards,
+                    dashboardCount,
+                    onlyErrorCount * 100.0 / totalDashboards,
+                    onlyErrorCount,
+                    shortestQueryForGroup.replace("|", "\\|")
                 )
             );
+        });
 
         writeLine("");
     }

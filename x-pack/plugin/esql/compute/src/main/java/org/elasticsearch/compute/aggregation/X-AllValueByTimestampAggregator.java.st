@@ -169,7 +169,7 @@ public class $Prefix$$Occurrence$$Type$ByTimestampAggregator {
                 // Both observations have null timestamps. No work is needed.
                 return;
             }
-            if ((current.v1Seen() == false && timestampPresent) || timestamp $if(First)$<$else$>$endif$ current.v1()) {
+            if (timestampPresent && (current.v1Seen() == false || timestamp $if(First)$<$else$>$endif$ current.v1())) {
                 overrideState(current, timestampPresent, timestamp, values, 0);
             }
         } else {

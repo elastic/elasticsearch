@@ -118,8 +118,7 @@ public class ThrottlingAllocationDeciderTests extends ESAllocationTestCase {
             false // Turn off isSimulating
         );
 
-        final RoutingChangesObserver NOOP = new RoutingChangesObserver() {
-        };
+        final RoutingChangesObserver NOOP = new RoutingChangesObserver() {};
         Settings settings = Settings.builder()
             .put("cluster.routing.allocation.unthrottle_replica_assignment_in_simulation", randomBoolean() ? true : false)
             .put("cluster.routing.allocation.node_concurrent_recoveries", 1)
@@ -194,8 +193,7 @@ public class ThrottlingAllocationDeciderTests extends ESAllocationTestCase {
             true // Turn on isSimulating
         );
 
-        final RoutingChangesObserver NOOP = new RoutingChangesObserver() {
-        };
+        final RoutingChangesObserver NOOP = new RoutingChangesObserver() {};
         Settings settings = Settings.builder()
             .put("cluster.routing.allocation.unthrottle_replica_assignment_in_simulation", true)
             .put("cluster.routing.allocation.node_concurrent_recoveries", 1)

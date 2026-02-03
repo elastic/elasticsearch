@@ -13,6 +13,7 @@ module org.elasticsearch.entitlement.qa.entitled {
     requires org.elasticsearch.base; // SuppressForbidden
     requires org.elasticsearch.logging;
     requires java.logging;
+    requires org.elasticsearch.entitlement.bridge;
 
     exports org.elasticsearch.entitlement.qa.entitled; // Must be unqualified so non-modular IT tests can call us
 }

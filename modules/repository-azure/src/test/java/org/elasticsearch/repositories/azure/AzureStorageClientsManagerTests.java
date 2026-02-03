@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.ProjectSecrets;
-import org.elasticsearch.common.settings.SecureClusterStateSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -142,7 +141,7 @@ public class AzureStorageClientsManagerTests extends ESTestCase {
             ClusterState.builder(clusterService.state())
                 .putProjectMetadata(
                     ProjectMetadata.builder(projectId)
-                        .putCustom(ProjectSecrets.TYPE, new ProjectSecrets(new SecureClusterStateSettings(mockSecureSettings)))
+                        .putCustom(ProjectSecrets.TYPE, new ProjectSecrets(mockSecureSettings.toSecureClusterStateSettings()))
                 )
                 .build()
         );
@@ -357,7 +356,7 @@ public class AzureStorageClientsManagerTests extends ESTestCase {
                 randomByteArrayOfLength(between(18, 20))
             );
         }
-        final var secureClusterStateSettings = new SecureClusterStateSettings(mockSecureSettings);
+        final var secureClusterStateSettings = mockSecureSettings.toSecureClusterStateSettings();
 
         synchronized (this) {
             final ClusterState initialState = clusterService.state();

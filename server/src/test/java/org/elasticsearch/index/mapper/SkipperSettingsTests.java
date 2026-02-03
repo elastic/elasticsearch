@@ -52,7 +52,6 @@ public class SkipperSettingsTests extends ESTestCase {
             }
             {
                 IndexVersion nonSkipperVersion = IndexVersionUtils.randomPreviousCompatibleVersion(
-                    random(),
                     IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT
                 );
                 IndexSettings indexSettings = settings(nonSkipperVersion, b -> {
@@ -71,7 +70,6 @@ public class SkipperSettingsTests extends ESTestCase {
             }
             {
                 IndexVersion nonSkipperVersion = IndexVersionUtils.randomPreviousCompatibleVersion(
-                    random(),
                     IndexVersions.STATELESS_SKIPPERS_ENABLED_FOR_TSDB
                 );
                 IndexSettings indexSettings = settings(nonSkipperVersion, b -> {

@@ -27,9 +27,16 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
         int rows = 1000;
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        for (DataType valueType : List.of(DataType.INTEGER, DataType.LONG, DataType.DOUBLE, DataType.KEYWORD, DataType.TEXT)) {
+        List<DataType> types = new ArrayList<>(List.of(DataType.INTEGER, DataType.LONG, DataType.DOUBLE, DataType.KEYWORD, DataType.TEXT));
+
+        if (isNullable) {
+            types.add(DataType.IP);
+            types.add(DataType.BOOLEAN);
+        }
+
+        for (DataType valueType : types) {
             for (TestCaseSupplier.TypedDataSupplier valueSupplier : unlimitedSuppliers(valueType, rows, rows)) {
-                for (DataType sortType : List.of(DataType.DATETIME, DataType.DATE_NANOS)) {
+                for (DataType sortType : List.of(DataType.LONG, DataType.DATETIME, DataType.DATE_NANOS)) {
                     for (TestCaseSupplier.TypedDataSupplier sortSupplier : unlimitedSuppliers(sortType, rows, rows)) {
                         suppliers.add(makeSupplier(valueSupplier, sortSupplier, isFirst, isNullable));
                     }
@@ -70,7 +77,9 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
 
                 return new TestCaseSupplier.TestCase(
                     List.of(values, sorts),
-                    (isNullable ? "All" : "") + standardAggregatorName(first ? "First" : "Last", values.type()) + "ByTimestamp",
+                    (isNullable ? "All" : "")
+                        + standardAggregatorNameAllBytesTheSame(first ? "First" : "Last", values.type())
+                        + "ByTimestamp",
                     values.type(),
                     anyOf(() -> Iterators.map(expected.iterator(), Matchers::equalTo))
                 );

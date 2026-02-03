@@ -23,7 +23,6 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -74,6 +73,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
@@ -111,7 +111,6 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
-import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
@@ -373,21 +372,18 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
         IndexPattern table = new IndexPattern(source, visitIndexPattern(indexPatternsCtx));
         List<Subquery> subqueries = visitSubqueriesInFromCommand(subqueriesCtx);
-        Map<String, Attribute> metadataMap = new LinkedHashMap<>();
+        Map<String, NamedExpression> metadataMap = new LinkedHashMap<>();
         if (ctx.metadata() != null) {
             for (var c : ctx.metadata().UNQUOTED_SOURCE()) {
                 String id = c.getText();
                 Source src = source(c);
-                if (MetadataAttribute.isSupported(id) == false) {
-                    throw new ParsingException(src, "unsupported metadata field [" + id + "]");
-                }
-                Attribute a = metadataMap.put(id, MetadataAttribute.create(src, id));
+                NamedExpression a = metadataMap.put(id, MetadataAttribute.create(src, id));
                 if (a != null) {
                     throw new ParsingException(src, "metadata field [" + id + "] already declared [" + a.source().source() + "]");
                 }
             }
         }
-        List<Attribute> metadataFields = List.of(metadataMap.values().toArray(Attribute[]::new));
+        List<NamedExpression> metadataFields = List.of(metadataMap.values().toArray(NamedExpression[]::new));
         UnresolvedRelation unresolvedRelation = new UnresolvedRelation(source, table, false, metadataFields, null, command);
         if (subqueries.isEmpty()) {
             return unresolvedRelation;
@@ -695,7 +691,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue);
     }
 
-    private static Tuple<Mode, String> parsePolicyName(EsqlBaseParser.EnrichPolicyNameContext ctx) {
+    private Tuple<Mode, String> parsePolicyName(EsqlBaseParser.EnrichPolicyNameContext ctx) {
         String stringValue;
         if (ctx.ENRICH_POLICY_NAME() != null) {
             stringValue = ctx.ENRICH_POLICY_NAME().getText();
@@ -1096,7 +1092,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(source, "RERANK command is disabled in settings.");
         }
 
-        List<Alias> rerankFields = visitRerankFields(ctx.rerankFields());
+        List<Alias> rerankFields = visitFields(ctx.rerankFields);
         Expression queryText = expression(ctx.queryText);
         Attribute scoreAttribute = visitQualifiedName(ctx.targetField, new UnresolvedAttribute(source, MetadataAttribute.SCORE));
         if (scoreAttribute.qualifier() != null) {
@@ -1196,7 +1192,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(
                 inferenceId.source(),
                 "Option [{}] must be a valid string, found [{}]",
-                Completion.INFERENCE_ID_OPTION_NAME,
+                InferencePlan.INFERENCE_ID_OPTION_NAME,
                 inferenceId.source().text()
             );
         }
@@ -1220,14 +1216,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public LogicalPlan visitPromqlCommand(EsqlBaseParser.PromqlCommandContext ctx) {
         Source source = source(ctx);
-
-        // Check if PromQL functionality is enabled
-        if (PromqlFeatures.isEnabled() == false) {
-            throw new ParsingException(
-                source,
-                "PROMQL command is not available. Requires snapshot build with capability [promql_vX] enabled"
-            );
-        }
 
         PromqlParams params = parsePromqlParams(ctx, source);
         UnresolvedRelation unresolvedRelation = new UnresolvedRelation(
@@ -1422,6 +1410,34 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         } else {
             return new IndexPattern(source(ctx), visitPromqlIndexPattern(ctx.promqlIndexPattern()));
         }
+    }
+
+    public PlanFactory visitMmrCommand(EsqlBaseParser.MmrCommandContext ctx) {
+        Source source = source(ctx);
+
+        Attribute diversifyField = visitQualifiedName(ctx.diversifyField);
+        Expression limitValue = expression(ctx.limitValue);
+        Expression queryVector = visitMMRQueryVector(ctx.queryVector);
+        MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
+
+        return input -> new MMR(source, input, diversifyField, limitValue, queryVector, options);
+    }
+
+    private Expression visitMMRQueryVector(EsqlBaseParser.MmrQueryVectorParamsContext ctx) {
+        if (ctx == null || ctx.isEmpty()) {
+            return null;
+        }
+
+        if (ctx.getChildCount() == 1) {
+            if (ctx.getChild(0) instanceof Expression asExpression) {
+                return asExpression;
+            } else if (ctx instanceof EsqlBaseParser.MmrQueryVectorParameterContext
+                || ctx instanceof EsqlBaseParser.MmrQueryVectorExpressionContext) {
+                    return expression(ctx.getChild(0));
+                }
+        }
+
+        throw new ParsingException(source(ctx), "Invalid parameter value for query vector [{}]", ctx.getText());
     }
 
     /**

@@ -557,7 +557,7 @@ public class ShardStateActionTests extends ESTestCase {
         final Exception failure = randomBoolean() ? null : getSimulatedFailure();
         final boolean markAsStale = randomBoolean();
 
-        final TransportVersion version = randomFrom(randomCompatibleVersion(random()));
+        final TransportVersion version = randomFrom(randomCompatibleVersion());
         final FailedShardEntry failedShardEntry = new FailedShardEntry(shardId, allocationId, primaryTerm, message, failure, markAsStale);
         try (StreamInput in = serialize(failedShardEntry, version).streamInput()) {
             in.setTransportVersion(version);
@@ -584,7 +584,7 @@ public class ShardStateActionTests extends ESTestCase {
         final long primaryTerm = randomIntBetween(0, 100);
         final String message = randomRealisticUnicodeOfCodepointLengthBetween(10, 100);
 
-        final TransportVersion version = randomFrom(randomCompatibleVersion(random()));
+        final TransportVersion version = randomFrom(randomCompatibleVersion());
         final ShardLongFieldRange timestampRange = ShardLongFieldRangeWireTests.randomRange();
         final ShardLongFieldRange eventIngestedRange = ShardLongFieldRangeWireTests.randomRange();
         var startedShardEntry = new StartedShardEntry(shardId, allocationId, primaryTerm, message, timestampRange, eventIngestedRange);

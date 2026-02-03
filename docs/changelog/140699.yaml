@@ -1,0 +1,6 @@
+pr: 140699
+summary: Handle deleted source index in allocation deciders
+area: Allocation
+type: bug
+issues:
+  - 140630

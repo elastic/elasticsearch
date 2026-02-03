@@ -45,7 +45,9 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             false,
             false,
-            new Mapper.IgnoreAbove(ignoreAbove)
+            new Mapper.IgnoreAbove(ignoreAbove),
+            true,
+            null
         );
     }
 
@@ -72,7 +74,9 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             false,
             false,
-            IGNORE_ABOVE
+            IGNORE_ABOVE,
+            true,
+            null
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("field", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
@@ -85,7 +89,9 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             false,
             false,
-            IGNORE_ABOVE
+            IGNORE_ABOVE,
+            true,
+            null
         );
         assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, new BytesRef("field"))), ft.existsQuery(null));
 
@@ -95,7 +101,9 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             false,
             false,
-            IGNORE_ABOVE
+            IGNORE_ABOVE,
+            true,
+            null
         );
         assertEquals(new FieldExistsQuery("field"), withDv.existsQuery(null));
     }

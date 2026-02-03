@@ -12,9 +12,12 @@ package org.elasticsearch.reservedstate;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -37,6 +40,14 @@ public interface ReservedStateHandler<T> {
      * Reserved-state handlers create master-node requests but never actually send them to the master node so the timeouts are not relevant.
      */
     TimeValue RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT = TimeValue.THIRTY_SECONDS;
+
+    /**
+     * Utility method exposing the reserved state settings file path given an {@link Environment}.
+     */
+    static Path reservedStateSettingsPath(Environment environment) {
+        Path configDir = environment.configDir().toAbsolutePath();
+        return configDir.resolve(FileSettingsService.OPERATOR_DIRECTORY).resolve(FileSettingsService.SETTINGS_FILE_NAME);
+    }
 
     /**
      * Unique identifier for the handler.
@@ -113,4 +124,5 @@ public interface ReservedStateHandler<T> {
      * @throws IOException
      */
     T fromXContent(XContentParser parser) throws IOException;
+
 }

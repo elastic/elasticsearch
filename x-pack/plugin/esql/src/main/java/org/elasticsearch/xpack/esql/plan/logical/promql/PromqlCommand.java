@@ -26,8 +26,11 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 
@@ -244,7 +247,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
     }
 
     @Override
-    public String nodeString() {
+    public String nodeString(NodeStringFormat format) {
         StringBuilder sb = new StringBuilder();
         sb.append(nodeName());
         sb.append(" start=[").append(start);
@@ -282,11 +285,15 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
 
         // Validate entire plan
         Holder<List<String>> groupingAttributes = new Holder<>();
+        Holder<Boolean> root = new Holder<>(true);
         p.forEachDown(lp -> {
             switch (lp) {
                 case Selector s -> {
                     if (s.labelMatchers().nameLabel() != null && s.labelMatchers().nameLabel().matcher().isRegex()) {
                         failures.add(fail(s, "regex label selectors on __name__ are not supported at this time [{}]", s.sourceText()));
+                    }
+                    if (s.series() == null) {
+                        failures.add(fail(s, "__name__ label selector is required at this time [{}]", s.sourceText()));
                     }
                     if (s.evaluation() != null) {
                         if (s.evaluation().offset().value() != null && s.evaluation().offsetDuration().isZero() == false) {
@@ -311,7 +318,13 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                                 )
                             );
                         }
+                        if (asa.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT) {
+                            failures.add(fail(asa, "'without' grouping is not supported at this time [{}]", asa.sourceText()));
+                        }
                     }
+                }
+                case ScalarFunction scalarFunction -> {
+                    // ok
                 }
                 case VectorBinaryOperator binaryOperator -> {
                     binaryOperator.children().forEach(child -> {
@@ -321,10 +334,34 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                             );
                         }
                     });
-                    if ((binaryOperator instanceof VectorBinaryArithmetic) == false) {
+                    if (binaryOperator.match() != VectorMatch.NONE) {
                         failures.add(
-                            fail(lp, "{} queries are not supported at this time [{}]", lp.getClass().getSimpleName(), lp.sourceText())
+                            fail(
+                                lp,
+                                "{} queries with group modifiers are not supported at this time [{}]",
+                                lp.getClass().getSimpleName(),
+                                lp.sourceText()
+                            )
                         );
+                    }
+                    if (binaryOperator instanceof VectorBinaryComparison comp) {
+                        if (root.get() == false) {
+                            failures.add(
+                                fail(lp, "comparison operators are only supported at the top-level at this time [{}]", lp.sourceText())
+                            );
+                        }
+                        if (comp.right() instanceof LiteralSelector == false) {
+                            failures.add(
+                                fail(
+                                    lp,
+                                    "comparison operators with non-literal right-hand side are not supported at this time [{}]",
+                                    lp.sourceText()
+                                )
+                            );
+                        }
+                    }
+                    if (binaryOperator instanceof VectorBinarySet) {
+                        failures.add(fail(lp, "set operators are not supported at this time [{}]", lp.sourceText()));
                     }
                 }
                 case PlaceholderRelation placeholderRelation -> {
@@ -334,6 +371,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                     fail(lp, "{} queries are not supported at this time [{}]", lp.getClass().getSimpleName(), lp.sourceText())
                 );
             }
+            root.set(false);
         });
     }
 }

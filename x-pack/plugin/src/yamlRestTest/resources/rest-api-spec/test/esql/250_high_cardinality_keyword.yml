@@ -1,8 +1,5 @@
 ---
 setup:
-  - skip:
-      awaits_fix: https://github.com/elastic/elasticsearch/issues/140639
-      reason:     Fails release tests
   - requires:
       cluster_features: ["mapper.keyword.high_cardinality_length_function_fuse_to_load"]
       reason: "testing binary doc values search"

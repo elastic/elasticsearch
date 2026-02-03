@@ -379,7 +379,13 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     matchesMap().entry("test:row_stride:BytesRefsFromOrds.Singleton", 1)
                 )
             ),
-            sig -> {}
+            sig -> assertMap(
+                sig,
+                matchesList().item("LuceneSourceOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("ProjectOperator")
+                    .item("ExchangeSinkOperator")
+            )
         );
     }
 
@@ -418,7 +424,13 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     )
                     : List.of(matchesMap().entry("test:row_stride:BytesRefsFromOrds.Singleton", 1))
             ),
-            sig -> {}
+            sig -> assertMap(
+                sig,
+                matchesList().item("LuceneTopNSourceOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("ProjectOperator")
+                    .item("ExchangeSinkOperator")
+            )
         );
     }
 
@@ -446,7 +458,16 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     matchesMap().entry("test:row_stride:BytesRefsFromOrds.Singleton", 1)
                 )
             ),
-            sig -> {}
+            sig -> assertMap(
+                sig,
+                matchesList().item("LuceneSourceOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("EvalOperator")
+                    .item("TopNOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("ProjectOperator")
+                    .item("ExchangeSinkOperator")
+            )
         );
     }
 
@@ -768,6 +789,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     .entry("dependency_resolution", matchesMap().extraOk())
                     .entry("analysis", matchesMap().extraOk())
                     .entry("query", matchesMap().extraOk())
+                    .entry("field_caps_calls", instanceOf(Integer.class))
                     .entry("minimumTransportVersion", instanceOf(Integer.class))
             ),
             columnMatcher,

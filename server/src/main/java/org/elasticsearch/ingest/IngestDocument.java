@@ -1283,7 +1283,7 @@ public final class IngestDocument {
     }
 
     // Unconditionally deprecate the _type field once V7 BWC support is removed
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
     public enum Metadata {
         INDEX(IndexFieldMapper.NAME),
         TYPE("_type"),

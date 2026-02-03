@@ -40,6 +40,7 @@
       },
       "timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Controls the time to wait for the stats"
       },
       "allow_no_match": {

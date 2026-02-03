@@ -71,6 +71,7 @@ UNRECOGNIZED=48
 'group_left'=23
 'group_right'=24
 'bool'=25
+'offset'=26
 '@'=27
 'start()'=28
 'end()'=29

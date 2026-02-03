@@ -5,16 +5,18 @@
  * 2.0.
  */
 
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 dependencies {
-  yamlRestTestImplementation project(':x-pack:plugin:core')
-  yamlRestTestImplementation project(path: xpackModule('watcher'))
+  yamlRestTestImplementation project(':x-pack:qa:third-party')
+
+  clusterModules project(xpackModule('watcher'))
+  clusterModules project(xpackModule('ilm'))
 }
 
 restResources {
   restApi {
-    include 'watcher'
+    include '_common', 'cluster', 'indices', 'search', 'watcher'
   }
 }
 
@@ -22,15 +24,6 @@ String slackUrl = System.getenv('slack_url')
 
 if (!slackUrl) {
   tasks.named("yamlRestTest").configure { enabled = false }
-} else {
-  testClusters.matching { it.name == "yamlRestTest" }.configureEach {
-    testDistribution = 'DEFAULT'
-    setting 'xpack.security.enabled', 'false'
-    setting 'xpack.ml.enabled', 'false'
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
-    keystore 'xpack.notification.slack.account.test_account.secure_url', slackUrl
-  }
 }
 
 if (buildParams.inFipsJvm){

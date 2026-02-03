@@ -6,29 +6,13 @@
  */
 import org.elasticsearch.gradle.transform.UnzipTransform
 import com.google.protobuf.gradle.GenerateProtoTask
-
-buildscript {
-  repositories {
-    maven { url = "https://jitpack.io" }
-  }
-  dependencies {
-    classpath('com.github.google:protobuf-gradle-plugin:PR786-SNAPSHOT') {
-      changing = false
-    }
-  }
-}
-
 plugins {
   id 'elasticsearch.internal-es-plugin'
   id 'elasticsearch.internal-yaml-rest-test'
   id 'elasticsearch.internal-java-rest-test'
   id 'elasticsearch.internal-cluster-test'
-  // We rely on a snapshot including a fix for 9.1 compatibility.
-  // See https://github.com/google/protobuf-gradle-plugin/pull/786
-  //  id('com.google.protobuf') version '0.9.5'
+  id('com.google.protobuf') version '0.9.6'
 }
-
-apply plugin:"com.google.protobuf"
 
 esplugin {
   name = 'x-pack-otel-data'
@@ -78,9 +62,9 @@ dependencies {
   clusterModules project(xpackModule('analytics'))
   clusterModules project(xpackModule('ilm'))
   clusterModules project(xpackModule('mapper-aggregate-metric'))
-  clusterModules project(xpackModule('mapper-exponential-histogram'))
   clusterModules project(xpackModule('mapper-constant-keyword'))
   clusterModules project(xpackModule('mapper-counted-keyword'))
+  clusterModules project(xpackModule('mapper-exponential-histogram'))
   clusterModules project(xpackModule('stack'))
   clusterModules project(xpackModule('wildcard'))
   clusterModules project(xpackModule('mapper-version'))

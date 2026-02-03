@@ -18,6 +18,7 @@ import org.hamcrest.Matcher;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ToStringErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
@@ -28,12 +29,12 @@ public class ToStringErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new ToString(source, args.get(0));
+        return new ToString(source, args.get(0), TEST_CFG);
     }
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        String supportTypeNames = ToString.supportedTypesNames(new ToString(Source.EMPTY, Literal.NULL).supportedTypes());
+        String supportTypeNames = ToString.supportedTypesNames(new ToString(Source.EMPTY, Literal.NULL, TEST_CFG).supportedTypes());
         return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> supportTypeNames));
     }
 

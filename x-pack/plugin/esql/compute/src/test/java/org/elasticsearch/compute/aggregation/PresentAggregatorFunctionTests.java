@@ -11,7 +11,9 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
 
 import java.util.List;
@@ -46,5 +48,32 @@ public class PresentAggregatorFunctionTests extends AggregatorFunctionTestCase {
     protected void assertOutputFromEmpty(Block b) {
         assertThat(b.getPositionCount(), equalTo(1));
         assertThat(valuesAtPositions(b, 0, 1), equalTo(List.of(List.of(false))));
+    }
+
+    public void testWithNonNullAndConstantNullPages() {
+        Aggregator.Factory aggregatorFactory = aggregatorFunction().aggregatorFactory(AggregatorMode.SINGLE, List.of(0));
+
+        AggregationOperator.AggregationOperatorFactory operatorFactory = new AggregationOperator.AggregationOperatorFactory(
+            List.of(aggregatorFactory),
+            AggregatorMode.SINGLE
+        );
+
+        List<Page> input = CannedSourceOperator.collectPages(
+            new SequenceLongBlockSourceOperator(driverContext().blockFactory(), LongStream.range(0, 100).map(l -> randomLong()))
+        );
+
+        try (Page page = new Page(blockFactory().newConstantNullBlock(10))) {
+            // randomly add the null page before or after the non-null page
+            input.add(randomFrom(0, 1), page);
+
+            List<Page> results = drive(operatorFactory.get(driverContext()), input.iterator(), driverContext());
+
+            assertThat(results.size(), equalTo(1));
+            var firstPage = results.get(0);
+            assertThat(firstPage.getPositionCount(), equalTo(1));
+            var block = firstPage.getBlock(0);
+            assertThat(block.getPositionCount(), equalTo(1));
+            assertThat(valuesAtPositions(block, 0, 1), equalTo(List.of(List.of(true))));
+        }
     }
 }

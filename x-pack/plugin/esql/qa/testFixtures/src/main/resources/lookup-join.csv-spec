@@ -318,6 +318,7 @@ emp_no:integer | language_code:integer
 
 nonUniqueRightKeyFromRow
 required_capability: join_lookup_v12
+required_capability: conditional_block_loader_for_text_fields
 
 ROW language_code = 2
 | LOOKUP JOIN languages_lookup_non_unique_key ON language_code
@@ -326,7 +327,7 @@ ROW language_code = 2
 
 ignoreOrder:true
 language_code:integer | country:text       | language_name:keyword
-2                     | [Germany, Austria] | German
+2                     | [Austria, Germany] | German
 2                     | Switzerland        | German
 2                     | null               | German
 ;

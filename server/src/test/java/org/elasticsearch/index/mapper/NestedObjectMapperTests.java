@@ -1041,7 +1041,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
     public void testReorderParent() throws IOException {
 
-        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
+        IndexVersion version = IndexVersionUtils.randomCompatibleVersion();
 
         DocumentMapper docMapper = createDocumentMapper(
             version,
@@ -2018,7 +2018,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         // defaults previous to IndexVersions.NESTED_PATH_LIMIT
         {
-            var version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.NESTED_PATH_LIMIT);
+            var version = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.NESTED_PATH_LIMIT);
             var mapperService = createMapperService(version, Settings.builder().build(), mapping(b -> {}));
             assertThat(
                 MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.get(mapperService.getIndexSettings().getSettings()),

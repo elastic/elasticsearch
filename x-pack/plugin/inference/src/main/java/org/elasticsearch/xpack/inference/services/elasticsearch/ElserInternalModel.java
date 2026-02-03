@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 
 public class ElserInternalModel extends ElasticsearchInternalModel {
@@ -23,15 +25,21 @@ public class ElserInternalModel extends ElasticsearchInternalModel {
         ElserMlNodeTaskSettings taskSettings,
         ChunkingSettings chunkingSettings
     ) {
-        super(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings);
-        if (chunkingSettings != null && chunkingSettings.maxChunkSize() != null) {
-            if (chunkingSettings.maxChunkSize() > ELSER_MAX_WINDOW_SIZE) throw new IllegalArgumentException(
-                "ELSER based models do not support chunk sizes larger than "
-                    + ELSER_MAX_WINDOW_SIZE
-                    + ". Requested chunk size: "
-                    + chunkingSettings.maxChunkSize()
+        this(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings));
+    }
+
+    public ElserInternalModel(ModelConfigurations modelConfigurations) {
+        super(modelConfigurations);
+        var chunkingSettings = modelConfigurations.getChunkingSettings();
+
+        if (chunkingSettings != null && chunkingSettings.maxChunkSize() != null && chunkingSettings.maxChunkSize() > ELSER_MAX_WINDOW_SIZE)
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "ELSER based models do not support chunk sizes larger than %d. Requested chunk size: %d",
+                    ELSER_MAX_WINDOW_SIZE,
+                    chunkingSettings.maxChunkSize()
+                )
             );
-        }
     }
 
     @Override

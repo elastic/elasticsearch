@@ -256,7 +256,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block
      */
     private DriverContext driverContext() {
         BlockFactory blockFactory = blockFactory();
-        return new DriverContext(blockFactory.bigArrays(), blockFactory);
+        return new DriverContext(blockFactory.bigArrays(), blockFactory, null);
     }
 
     // Returns the initial block index, ignoring the score block if scoring is enabled

@@ -36,6 +36,7 @@ import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.common.notifications.Level;
@@ -146,7 +147,8 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                     mock(TransformCheckpointService.class),
                     auditor,
                     new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
-                    mock(TransformNode.class)
+                    mock(TransformNode.class),
+                    mock(CrossProjectModeDecider.class)
                 ),
                 checkpointProvider,
                 initialState,

@@ -71,7 +71,7 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
     public void testCategorize_withDriver() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        DriverContext driverContext = new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
+        DriverContext driverContext = new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays), null);
         boolean withNull = randomBoolean();
         boolean withMultivalues = randomBoolean();
         BlockHash.CategorizeDef categorizeDef = new BlockHash.CategorizeDef(
@@ -151,6 +151,8 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
                     AggregatorMode.INITIAL,
                     List.of(new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(0))),
                     16 * 1024,
+                    Integer.MAX_VALUE,
+                    1.0,
                     analysisRegistry
                 ).get(driverContext)
             ),
@@ -167,6 +169,8 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
                     AggregatorMode.INITIAL,
                     List.of(new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(0))),
                     16 * 1024,
+                    Integer.MAX_VALUE,
+                    1.0,
                     analysisRegistry
                 ).get(driverContext)
             ),
@@ -185,6 +189,8 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
                     AggregatorMode.FINAL,
                     List.of(new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(2))),
                     16 * 1024,
+                    Integer.MAX_VALUE,
+                    1.0,
                     analysisRegistry
                 ).get(driverContext)
             ),

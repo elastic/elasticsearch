@@ -54,7 +54,7 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetAliasesAction extends BaseRestHandler {
 
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT) // remove the BWC support for the deprecated ?local parameter
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // remove the BWC support for the deprecated ?local parameter
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestGetAliasesAction.class);
 
     @Override
@@ -170,7 +170,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
     }
 
     @Override
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT) // remove the BWC support for the deprecated ?local parameter
+    @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE) // remove the BWC support for the deprecated ?local parameter
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         // The TransportGetAliasesAction was improved do the same post processing as is happening here.
         // We can't remove this logic yet to support mixed clusters. We should be able to remove this logic here

@@ -40,7 +40,7 @@ public class DoubleCounterAdapter extends AbstractInstrument<DoubleCounter> impl
     @Override
     public void incrementBy(double inc, Map<String, Object> attributes) {
         assert inc >= 0;
-        getInstrument().add(inc, OtelHelper.fromMap(attributes));
+        getInstrument().add(inc, OtelHelper.fromMap(getName(), attributes));
     }
 
     private static class Builder extends AbstractInstrument.Builder<DoubleCounter> {

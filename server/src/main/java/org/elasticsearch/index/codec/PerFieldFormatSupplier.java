@@ -19,6 +19,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
+import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
@@ -77,6 +78,7 @@ public class PerFieldFormatSupplier {
 
     private final PostingsFormat defaultPostingsFormat;
     private final TSDBSyntheticIdPostingsFormat syntheticIdPostingsFormat;
+    private final ES94BloomFilterDocValuesFormat idBloomFilterDocValuesFormat;
 
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
         this.mapperService = mapperService;
@@ -85,6 +87,7 @@ public class PerFieldFormatSupplier {
         this.defaultPostingsFormat = getDefaultPostingsFormat(mapperService);
         this.knnVectorsFormat = getDefaultKnnVectorsFormat(mapperService, threadPool);
         this.syntheticIdPostingsFormat = new TSDBSyntheticIdPostingsFormat();
+        this.idBloomFilterDocValuesFormat = new ES94BloomFilterDocValuesFormat(bigArrays, IdFieldMapper.NAME);
     }
 
     private static PostingsFormat getDefaultPostingsFormat(final MapperService mapperService) {
@@ -142,6 +145,12 @@ public class PerFieldFormatSupplier {
             if (mapper instanceof CompletionFieldMapper) {
                 return completionPostingsFormat;
             }
+            if (mapper instanceof IdFieldMapper
+                && IndexVersions.ID_FIELD_USE_ES812_POSTINGS_FORMAT.onOrAfter(mapperService.getIndexSettings().getIndexVersionCreated())) {
+                // The default posting format doesn't handle randomly generated IDs well during merging. Several cases have been reported
+                // where a single merge thread uses disproportionate jvm heap memory just for Lucene103BlockTreeTermsWriter.TermsWriter.
+                return es812PostingsFormat;
+            }
         }
 
         return defaultPostingsFormat;
@@ -183,11 +192,16 @@ public class PerFieldFormatSupplier {
     }
 
     public DocValuesFormat getDocValuesFormatForField(String field) {
+        if (useTSDBSyntheticId(field)) {
+            return idBloomFilterDocValuesFormat;
+        }
+
         if (useTSDBDocValuesFormat(field)) {
             return (mapperService != null && mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeBlockSize())
                 ? tsdbDocValuesFormatLargeNumericBlock
                 : tsdbDocValuesFormat;
         }
+
         return docValuesFormat;
     }
 
@@ -215,14 +229,6 @@ public class PerFieldFormatSupplier {
             return false;
         }
         return EXCLUDE_MAPPER_TYPES.contains(getMapperType(fieldName));
-    }
-
-    private boolean isTimeSeriesModeIndex() {
-        return mapperService != null && IndexMode.TIME_SERIES == mapperService.getIndexSettings().getMode();
-    }
-
-    private boolean isLogsModeIndex() {
-        return mapperService != null && IndexMode.LOGSDB == mapperService.getIndexSettings().getMode();
     }
 
     String getMapperType(final String field) {

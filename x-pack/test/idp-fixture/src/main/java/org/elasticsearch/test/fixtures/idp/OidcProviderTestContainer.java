@@ -8,11 +8,14 @@
 package org.elasticsearch.test.fixtures.idp;
 
 import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTestContainer;
+import org.elasticsearch.test.fixtures.testcontainers.PullOrBuildImage;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 import org.testcontainers.images.builder.Transferable;
 
 public final class OidcProviderTestContainer extends DockerEnvironmentAwareTestContainer {
+
+    private static final String DOCKER_BASE_IMAGE = "docker.elastic.co/elasticsearch-dev/oidc-fixture:1.0";
 
     private static final int PORT = 8080;
     private static final int SSL_PORT = 8443;
@@ -26,11 +29,14 @@ public final class OidcProviderTestContainer extends DockerEnvironmentAwareTestC
 
     public OidcProviderTestContainer(Network network) {
         super(
-            new ImageFromDockerfile("es-oidc-provider-fixture").withFileFromClasspath("oidc/setup.sh", "/oidc/setup.sh")
-                .withFileFromClasspath("oidc/testnode.jks", "/oidc/testnode.jks")
-                // we cannot make use of docker file builder
-                // as it does not support multi-stage builds
-                .withFileFromClasspath("Dockerfile", "oidc/Dockerfile")
+            new PullOrBuildImage(
+                DOCKER_BASE_IMAGE,
+                new ImageFromDockerfile("localhost/es-oidc-provider-fixture").withFileFromClasspath("setup.sh", "/oidc/setup.sh")
+                    // we cannot make use of docker file builder
+                    // as it does not support multi-stage builds
+                    .withFileFromClasspath("testnode.jks", "/oidc/testnode.jks")
+                    .withFileFromClasspath("Dockerfile", "/oidc/Dockerfile")
+            )
         );
         withNetworkAliases("oidc-provider");
         withNetwork(network);

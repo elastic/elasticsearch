@@ -8,9 +8,7 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -20,7 +18,6 @@ import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
-import org.hamcrest.Matchers;
 import org.junit.ClassRule;
 import org.junit.Rule;
 
@@ -28,6 +25,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsqlSync;
 
@@ -55,7 +53,7 @@ public class TSDBRestEsqlIT extends ESRestTestCase {
             settings.put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true);
         }
         String mapping = CsvTestsDataLoader.readTextFile(TSDBRestEsqlIT.class.getResource("/tsdb-k8s-mapping.json"));
-        createIndex("k8s", settings.build(), mapping);
+        assertTrue("Failed to create index [k8s]", createIndex("k8s", settings.build(), mapping).isAcknowledged());
 
         Request bulk = new Request("POST", "/k8s/_bulk");
         bulk.addParameter("refresh", "true");
@@ -65,8 +63,7 @@ public class TSDBRestEsqlIT extends ESRestTestCase {
             StandardCharsets.UTF_8
         );
         bulk.setJsonEntity(bulkBody);
-        Response response = client().performRequest(bulk);
-        assertThat(EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8), Matchers.containsString("\"errors\":false"));
+        assertIndexedDocuments(entityAsMap(client().performRequest(bulk)));
 
         RestEsqlTestCase.RequestObjectBuilder builder = RestEsqlTestCase.requestObjectBuilder()
             .query("FROM k8s | KEEP k8s.pod.name, @timestamp | SORT @timestamp, k8s.pod.name");
@@ -104,5 +101,20 @@ public class TSDBRestEsqlIT extends ESRestTestCase {
 
         assertEquals("2021-04-29T17:29:22.470Z", values.get(4).get(1));
         assertEquals("rat", values.get(7).get(0));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertIndexedDocuments(Map<String, Object> response) {
+        if (Objects.equals(response.get("errors"), true)) {
+            List<Map<?, Map<?, ?>>> items = (List<Map<?, Map<?, ?>>>) response.get("items");
+            for (Map<?, Map<?, ?>> item : items) {
+                for (Map<?, ?> docResponse : item.values()) {
+                    Map<?, ?> error = (Map<?, ?>) docResponse.get("error");
+                    if (error != null) {
+                        fail("Failed to index documents: " + error.get("reason"));
+                    }
+                }
+            }
+        }
     }
 }

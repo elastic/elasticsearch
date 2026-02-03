@@ -18,7 +18,6 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -98,7 +97,7 @@ public class TopNOomRaceTests extends ESTestCase {
         List<Driver> drivers = new ArrayList<>();
         for (int d = 0; d < driverCount; d++) {
             MockBlockFactory blockFactory = new MockBlockFactory(breaker, bigArrays);
-            DriverContext driverContext = new DriverContext(bigArrays, blockFactory);
+            DriverContext driverContext = new DriverContext(bigArrays, blockFactory, null);
             contexts.add(driverContext);
 
             SourceOperator source = new AbstractBlockSourceOperator(blockFactory, 1024) {
@@ -112,7 +111,7 @@ public class TopNOomRaceTests extends ESTestCase {
                 @Override
                 protected Page createPage(int positionOffset, int length) {
                     lastEnd = positionOffset + length;
-                    Block ints = IntVector.range(positionOffset, lastEnd, blockFactory).asBlock();
+                    Block ints = blockFactory.newIntRangeVector(positionOffset, lastEnd).asBlock();
                     Block[] blocks = new Block[repeats];
                     blocks[0] = ints;
                     for (int b = 1; b < repeats; b++) {

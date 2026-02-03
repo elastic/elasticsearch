@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class VersionRangeTests extends AbstractClientYamlTestFragmentParserTestCase {
 
     public void testParseVersionNoLowerBound() {
-        Version version = VersionUtils.randomVersion(random());
+        Version version = VersionUtils.randomVersion();
         String versionRangeString = Strings.format(" - %s", version);
 
         var versionRange = VersionRange.parseVersionRanges(versionRangeString);
@@ -43,7 +43,7 @@ public class VersionRangeTests extends AbstractClientYamlTestFragmentParserTestC
     }
 
     public void testParseVersionNoUpperBound() {
-        Version version = VersionUtils.randomVersion(random());
+        Version version = VersionUtils.randomVersion();
         String versionRangeString = Strings.format("%s - ", version);
 
         var versionRange = VersionRange.parseVersionRanges(versionRangeString);

@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.TDigestBlockBuilder;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
@@ -127,6 +128,7 @@ public class AddGarbageRowsSourceOperator extends SourceOperator {
                 case EXPONENTIAL_HISTOGRAM -> ((ExponentialHistogramBlockBuilder) newBlocks[b]).append(
                     BlockTestUtils.randomExponentialHistogram()
                 );
+                case TDIGEST -> ((TDigestBlockBuilder) newBlocks[b]).appendTDigest(BlockTestUtils.randomTDigest());
                 default -> throw new UnsupportedOperationException("Unsupported type: " + block.elementType());
             }
         }

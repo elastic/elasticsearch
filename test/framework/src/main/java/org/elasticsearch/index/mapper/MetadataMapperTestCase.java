@@ -109,7 +109,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
 
     public final void testUnsupportedParametersAreRejected() throws IOException {
         assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
-        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
+        IndexVersion version = IndexVersionUtils.randomCompatibleVersion();
         assumeTrue("Metadata field " + fieldName() + " is not supported on version " + version, isSupportedOn(version));
         MapperService mapperService = createMapperService(version, mapping(xContentBuilder -> {}));
         String mappingAsString = "{\n"
@@ -133,7 +133,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
 
     public final void testFixedMetaFieldsAreNotConfigurable() throws IOException {
         assumeFalse("Metadata field " + fieldName() + " is configurable", isConfigurable());
-        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
+        IndexVersion version = IndexVersionUtils.randomCompatibleVersion();
         assumeTrue("Metadata field " + fieldName() + " is not supported on version " + version, isSupportedOn(version));
         MapperService mapperService = createMapperService(version, mapping(xContentBuilder -> {}));
         String mappingAsString = "{\n" + "    \"_doc\" : {\n" + "      \"" + fieldName() + "\" : {\n" + "      }\n" + "    }\n" + "}";

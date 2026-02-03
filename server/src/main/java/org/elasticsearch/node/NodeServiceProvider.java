@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPoolsCollector;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.network.NetworkModule;
@@ -89,6 +90,7 @@ class NodeServiceProvider {
     ClusterInfoService newClusterInfoService(
         PluginsService pluginsService,
         Settings settings,
+        WriteLoadConstraintSettings writeLoadConstraintSettings,
         ClusterService clusterService,
         ThreadPool threadPool,
         NodeClient client
@@ -99,6 +101,7 @@ class NodeServiceProvider {
         );
         final InternalClusterInfoService service = new InternalClusterInfoService(
             settings,
+            writeLoadConstraintSettings,
             clusterService,
             threadPool,
             client,

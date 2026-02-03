@@ -109,7 +109,7 @@ public class InferenceFunctionEvaluator {
             }
         }, CircuitBreaker.REQUEST).withCircuitBreaking();
 
-        DriverContext driverContext = new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
+        DriverContext driverContext = new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays), null);
 
         // Create the inference operator for the specific function type using the provider
         try {

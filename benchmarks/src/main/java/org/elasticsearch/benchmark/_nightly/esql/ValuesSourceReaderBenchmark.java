@@ -307,7 +307,7 @@ public class ValuesSourceReaderBenchmark {
     @OperationsPerInvocation(INDEX_SIZE)
     public void benchmark() {
         ValuesSourceReaderOperator op = new ValuesSourceReaderOperator(
-            new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory),
+            new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null),
             ByteSizeValue.ofMb(1).getBytes(),
             fields(name),
             new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths) -> {

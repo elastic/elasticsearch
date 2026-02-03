@@ -4,6 +4,8 @@
 
 | condition | trueValue | elseValue | result |
 | --- | --- | --- | --- |
+| boolean | aggregate_metric_double | aggregate_metric_double | aggregate_metric_double |
+| boolean | aggregate_metric_double | | aggregate_metric_double |
 | boolean | boolean | boolean | boolean |
 | boolean | boolean | | boolean |
 | boolean | cartesian_point | cartesian_point | cartesian_point |
@@ -30,6 +32,8 @@
 | boolean | geohex | | geohex |
 | boolean | geotile | geotile | geotile |
 | boolean | geotile | | geotile |
+| boolean | histogram | histogram | histogram |
+| boolean | histogram | | histogram |
 | boolean | integer | integer | integer |
 | boolean | integer | | integer |
 | boolean | ip | ip | ip |
@@ -39,6 +43,8 @@
 | boolean | keyword | | keyword |
 | boolean | long | long | long |
 | boolean | long | | long |
+| boolean | tdigest | tdigest | tdigest |
+| boolean | tdigest | | tdigest |
 | boolean | text | keyword | keyword |
 | boolean | text | text | keyword |
 | boolean | text | | keyword |

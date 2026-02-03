@@ -45,7 +45,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
  */
 public final class BulkRequestParser {
 
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
     // Remove deprecation logger when its usages in checkBulkActionIsProperlyClosed are removed
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(BulkRequestParser.class);
 
@@ -566,7 +566,7 @@ public final class BulkRequestParser {
 
     }
 
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT) // Remove lenient parsing in V8 BWC mode
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // Remove lenient parsing in V8 BWC mode
     private void checkBulkActionIsProperlyClosed(XContentParser parser, int line) throws IOException {
         XContentParser.Token token;
         try {

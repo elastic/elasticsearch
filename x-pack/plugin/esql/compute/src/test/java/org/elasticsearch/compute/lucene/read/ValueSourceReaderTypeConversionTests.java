@@ -1526,7 +1526,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         for (int i = 0; i < dummyDrivers; i++) {
             drivers.add(
                 TestDriverFactory.create(
-                    new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance()),
+                    new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null),
                     new SequenceLongBlockSourceOperator(
                         TestBlockFactory.getNonBreakingInstance(),
                         LongStream.range(0, between(1, 100)),

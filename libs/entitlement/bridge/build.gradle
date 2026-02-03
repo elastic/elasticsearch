@@ -8,3 +8,7 @@
  */
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
+
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
+}

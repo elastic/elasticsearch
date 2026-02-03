@@ -41,6 +41,32 @@ public abstract class ES93BinaryQuantizedVectorsScorer {
         int targetOrd
     ) throws IOException;
 
+    public void scoreBulk(
+        byte[] q,
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryQuantizedComponentSum,
+        float queryAdditionalCorrection,
+        VectorSimilarityFunction similarityFunction,
+        float centroidDp,
+        int[] nodes,
+        float[] scores,
+        int bulkSize
+    ) throws IOException {
+        for (var i = 0; i < bulkSize; i++) {
+            scores[i] = score(
+                q,
+                queryLowerInterval,
+                queryUpperInterval,
+                queryQuantizedComponentSum,
+                queryAdditionalCorrection,
+                similarityFunction,
+                centroidDp,
+                nodes[i]
+            );
+        }
+    }
+
     protected static float quantizedScore(
         int dims,
         VectorSimilarityFunction similarityFunction,

@@ -74,4 +74,73 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
             indexQuantizedComponentSum
         );
     }
+
+    @Override
+    public void scoreBulk(
+        byte[] q,
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryQuantizedComponentSum,
+        float queryAdditionalCorrection,
+        VectorSimilarityFunction similarityFunction,
+        float centroidDp,
+        int[] nodes,
+        float[] scores,
+        int bulkSize
+    ) throws IOException {
+        var segment = msai.segmentSliceOrNull(0, slice.length());
+        if (segment == null) {
+            // Try to score individually, delegating it to our parent implementation (which is looping)
+            super.scoreBulk(
+                q,
+                queryLowerInterval,
+                queryUpperInterval,
+                queryQuantizedComponentSum,
+                queryAdditionalCorrection,
+                similarityFunction,
+                centroidDp,
+                nodes,
+                scores,
+                bulkSize
+            );
+            return;
+        }
+
+        Similarities.dotProductI1I4BulkWithOffsets(
+            segment,
+            MemorySegment.ofArray(q),
+            numBytes,
+            byteSize,
+            MemorySegment.ofArray(nodes),
+            bulkSize,
+            MemorySegment.ofArray(scores)
+        );
+
+        // TODO: native/vectorize this code too
+        for (int i = 0; i < bulkSize; i++) {
+            var offset = ((long) nodes[i] * byteSize);
+
+            var indexLowerInterval = segment.get(ValueLayout.JAVA_FLOAT_UNALIGNED, offset + numBytes);
+            var indexUpperInterval = segment.get(ValueLayout.JAVA_FLOAT_UNALIGNED, offset + numBytes + Float.BYTES);
+            var indexAdditionalCorrection = segment.get(ValueLayout.JAVA_FLOAT_UNALIGNED, offset + numBytes + 2 * Float.BYTES);
+            var indexQuantizedComponentSum = Short.toUnsignedInt(
+                segment.get(ValueLayout.JAVA_SHORT_UNALIGNED, offset + numBytes + 3 * Float.BYTES)
+            );
+
+            scores[i] = quantizedScore(
+                dimensions,
+                similarityFunction,
+                centroidDp,
+                scores[i],
+                queryLowerInterval,
+                queryUpperInterval,
+                queryAdditionalCorrection,
+                queryQuantizedComponentSum,
+                indexLowerInterval,
+                indexUpperInterval,
+                indexAdditionalCorrection,
+                indexQuantizedComponentSum
+            );
+        }
+    }
 }

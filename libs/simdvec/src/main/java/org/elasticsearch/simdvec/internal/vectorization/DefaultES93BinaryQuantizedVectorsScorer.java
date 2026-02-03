@@ -19,7 +19,7 @@ import java.nio.ByteBuffer;
 
 class DefaultES93BinaryQuantizedVectorsScorer extends ES93BinaryQuantizedVectorsScorer {
 
-    private final IndexInput slice;
+    protected final IndexInput slice;
     private int lastOrd = -1;
 
     float[] correctiveValues;

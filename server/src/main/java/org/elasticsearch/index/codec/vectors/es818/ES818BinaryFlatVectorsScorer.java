@@ -197,6 +197,25 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
         }
 
         @Override
+        public void bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
+            if (queryCorrections == null) {
+                throw new IllegalStateException("bulkScore() called before setScoringOrdinal()");
+            }
+            scorer.scoreBulk(
+                quantizedQuery,
+                queryCorrections.lowerInterval(),
+                queryCorrections.upperInterval(),
+                queryCorrections.quantizedComponentSum(),
+                queryCorrections.additionalCorrection(),
+                similarityFunction,
+                targetVectors.getCentroidDP(),
+                nodes,
+                scores,
+                numNodes
+            );
+        }
+
+        @Override
         public void setScoringOrdinal(int i) throws IOException {
             if (i == currentOrdinal) {
                 return;

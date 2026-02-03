@@ -325,7 +325,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
                 assertThat(loader, instanceOf(IpScriptBlockDocValuesReader.IpScriptBlockLoader.class));
 
                 // ignored source doesn't support column at a time loading:
-                var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst());
+                var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst()).get();
                 assertThat(columnAtATimeLoader, instanceOf(IpScriptBlockDocValuesReader.class));
 
                 var rowStrideReader = loader.rowStrideReader(reader.leaves().getFirst());

@@ -1720,7 +1720,9 @@ public class Security extends Plugin
                             },
                             null,
                             // Don't use runtime mappings in the security query
-                            emptyMap()
+                            emptyMap(),
+                            null,
+                            null
                         ),
                         dlsBitsetCache.get(),
                         securityContext.get(),

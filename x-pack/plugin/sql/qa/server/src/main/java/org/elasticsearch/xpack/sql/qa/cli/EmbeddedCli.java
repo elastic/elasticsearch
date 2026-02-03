@@ -77,8 +77,7 @@ public class EmbeddedCli implements Closeable {
             new ExternalTerminal("test", "xterm-256color", cliIn, cliOut, StandardCharsets.UTF_8),
             false
         );
-        cli = new Cli(cliTerminal) {
-        };
+        cli = new Cli(cliTerminal) {};
         out = new BufferedWriter(new OutputStreamWriter(outgoing, StandardCharsets.UTF_8));
         in = new BufferedReader(new InputStreamReader(incoming, StandardCharsets.UTF_8));
 

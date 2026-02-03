@@ -828,7 +828,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
 
         @Override
-        public NumericDocValues toLengthReader() {
+        public NumericDocValues toLengthValues() {
             DenseBinaryDocValues binaryDocValues = this;
             return new NumericDocValues() {
                 @Override
@@ -940,7 +940,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
 
         @Override
-        public NumericDocValues toLengthReader() {
+        public NumericDocValues toLengthValues() {
             SparseBinaryDocValues binaryDocValues = this;
             return new NumericDocValues() {
                 @Override

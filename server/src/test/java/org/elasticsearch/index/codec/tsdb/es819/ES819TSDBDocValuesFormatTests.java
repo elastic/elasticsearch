@@ -896,7 +896,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         }
     }
 
-    public void testOptionalLengthReaderDenseToLengthReader() throws Exception {
+    public void testOptionalLengthReaderDenseToLengthValues() throws Exception {
         final String timestampField = "@timestamp";
         final String binaryFixedField = "binary_variable";
         final String binaryVariableField = "binary_fixed";
@@ -935,8 +935,8 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                     var binaryFixedDV = getDenseBinaryValues(leaf.reader(), binaryFixedField);
                     var binaryVariableDV = getDenseBinaryValues(leaf.reader(), binaryVariableField);
 
-                    NumericDocValues fixedLengthReader = binaryFixedDV.toLengthReader();
-                    NumericDocValues variableLengthReader = binaryVariableDV.toLengthReader();
+                    NumericDocValues fixedLengthReader = binaryFixedDV.toLengthValues();
+                    NumericDocValues variableLengthReader = binaryVariableDV.toLengthValues();
 
                     int maxDoc = leaf.reader().maxDoc();
                     for (int i = 0; i < maxDoc; i++) {
@@ -951,7 +951,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         }
     }
 
-    public void testOptionalLengthReaderSparseToLengthReader() throws Exception {
+    public void testOptionalLengthReaderSparseToLengthValues() throws Exception {
         final String timestampField = "@timestamp";
         final String binaryFixedField = "binary_variable";
         final String binaryVariableField = "binary_fixed";
@@ -995,8 +995,8 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                     var binaryFixedDV = getSparseBinaryValues(leaf.reader(), binaryFixedField);
                     var binaryVariableDV = getSparseBinaryValues(leaf.reader(), binaryVariableField);
 
-                    NumericDocValues fixedLengthReader = binaryFixedDV.toLengthReader();
-                    NumericDocValues variableLengthReader = binaryVariableDV.toLengthReader();
+                    NumericDocValues fixedLengthReader = binaryFixedDV.toLengthValues();
+                    NumericDocValues variableLengthReader = binaryVariableDV.toLengthValues();
 
                     int maxDoc = leaf.reader().maxDoc();
                     for (int i = 0; i < maxDoc; i++) {

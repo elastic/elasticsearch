@@ -33,7 +33,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 
-public class BinaryDocValuesLengthQuery extends Query {
+final class BinaryDocValuesLengthQuery extends Query {
 
     final String fieldName;
     final int length;
@@ -62,7 +62,7 @@ public class BinaryDocValuesLengthQuery extends Query {
                 assert countsSkipper != null : "no skipper for counts field [" + countsFieldName + "]";
                 final TwoPhaseIterator iterator;
                 if (countsSkipper.maxValue() == 1 && values instanceof BlockLoader.OptionalLengthReader direct) {
-                    NumericDocValues lengthReader = direct.toLengthReader();
+                    NumericDocValues lengthReader = direct.toLengthValues();
                     assert lengthReader != null;
                     iterator = new TwoPhaseIterator(lengthReader) {
                         @Override

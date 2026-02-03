@@ -242,7 +242,7 @@ public interface BlockLoader {
         @Nullable
         BlockLoader.Block tryReadLength(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException;
 
-        NumericDocValues toLengthReader();
+        NumericDocValues toLengthValues();
     }
 
     interface RowStrideReader extends Reader {

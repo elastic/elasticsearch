@@ -2607,7 +2607,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (oversampleValue == 0 && allowsZeroRescore(indexVersion) == false) {
                 throw new IllegalArgumentException("oversample must be greater than 1");
             }
-            if (oversampleValue <= 1 && oversampleValue != 0) {
+            if (oversampleValue < 1 && oversampleValue != 0) {
                 throw new IllegalArgumentException("oversample must be greater than 1 or exactly 0");
             } else if (oversampleValue > 10) {
                 throw new IllegalArgumentException("oversample must be less than or equal to 10");

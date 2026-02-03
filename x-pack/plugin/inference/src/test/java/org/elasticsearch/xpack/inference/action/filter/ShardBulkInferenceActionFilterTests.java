@@ -36,10 +36,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
@@ -1145,7 +1145,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                     // The timeout error could be wrapped in an InferenceException
                     // Check the status code or the cause chain for timeout indication
                     boolean isTimeout = failure.getStatus() == RestStatus.REQUEST_TIMEOUT
-                        || (failure.getCause() != null && failure.getCause().getCause() instanceof ElasticsearchStatusException ese
+                        || (failure.getCause() != null
+                            && failure.getCause().getCause() instanceof ElasticsearchStatusException ese
                             && ese.status() == RestStatus.REQUEST_TIMEOUT);
                     assertTrue("Expected timeout but got status " + failure.getStatus() + ": " + failure.getMessage(), isTimeout);
                 }

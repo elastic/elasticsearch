@@ -146,9 +146,7 @@ public class RestBulkAction extends BaseRestHandler {
             String waitForActiveShards = request.param("wait_for_active_shards");
             TimeValue timeout = request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT);
             String inferenceTimeoutParam = request.param("inference_timeout");
-            TimeValue inferenceTimeout = inferenceTimeoutParam != null
-                ? request.paramAsTime("inference_timeout", null)
-                : null;
+            TimeValue inferenceTimeout = inferenceTimeoutParam != null ? request.paramAsTime("inference_timeout", null) : null;
             String refresh = request.param("refresh");
             return new ChunkHandler(
                 allowExplicitIndex,

@@ -1093,7 +1093,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
         final AsyncSearchResponse runningResponse = getAsyncSearch(responseId, false);
         try {
-            // Test that a response object is not fleshed out with hits and aggs when partial results are disabled
+            // Test that a response object with no partial results will not be fleshed out with hits and aggs
             assertTrue(runningResponse.isRunning());
             assertTrue(runningResponse.isPartial());
             assertThat(runningResponse.getSearchResponse().getHits().getHits().length, equalTo(0));
@@ -1105,7 +1105,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         SearchListenerPlugin.allowLocalQueryPhase();
         final AsyncSearchResponse localQueryDoneNoPartialResponse = getAsyncSearch(responseId, true);
         try {
-            // Test that a response object is not fleshed out with hits and aggs when partial results are disabled
+            // Test that a response object for a partial response will be fleshed out with the partial response if requested
             assertTrue(localQueryDoneNoPartialResponse.isRunning());
             assertTrue(localQueryDoneNoPartialResponse.isPartial());
             assertThat(localQueryDoneNoPartialResponse.getSearchResponse().getHits().getHits().length, equalTo(10));
@@ -1116,7 +1116,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
         final AsyncSearchResponse localQueryDoneWithPartialResponse = getAsyncSearch(responseId, false);
         try {
-            // Test that a response object for a partial response will be fleshed out with the partial response if requested
+            // Test that a response object is not fleshed out with hits and aggs when partial results are disabled
             assertTrue(localQueryDoneWithPartialResponse.isRunning());
             assertTrue(localQueryDoneWithPartialResponse.isPartial());
             assertThat(localQueryDoneWithPartialResponse.getSearchResponse().getHits().getHits().length, equalTo(0));
@@ -1127,7 +1127,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
         SearchListenerPlugin.allowRemoteQueryPhase();
         waitForSearchTasksToFinish();
-        final AsyncSearchResponse finishedResponse = getAsyncSearch(responseId, true);
+        final AsyncSearchResponse finishedResponse = getAsyncSearch(responseId, randomBoolean());
         try {
             assertFalse(finishedResponse.isPartial());
             assertFalse(finishedResponse.isRunning());
@@ -1164,16 +1164,6 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertThat(remoteClusterSearchInfo.getTook().millis(), greaterThan(0L));
         } finally {
             finishedResponse.decRef();
-        }
-
-        final AsyncSearchResponse finishedCompleteEvenWhenWeDontWantPartialResponse = getAsyncSearch(responseId, true);
-        try {
-            assertFalse(finishedCompleteEvenWhenWeDontWantPartialResponse.isPartial());
-            assertFalse(finishedCompleteEvenWhenWeDontWantPartialResponse.isRunning());
-            assertThat(finishedCompleteEvenWhenWeDontWantPartialResponse.getSearchResponse().getHits().getHits().length, equalTo(10));
-            assertThat(finishedCompleteEvenWhenWeDontWantPartialResponse.getSearchResponse().getAggregations(), notNullValue());
-        } finally {
-            finishedCompleteEvenWhenWeDontWantPartialResponse.decRef();
         }
 
         // check that the async_search/status response includes the same cluster details

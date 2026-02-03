@@ -6,7 +6,7 @@
   - match:
       $body: |
         /  #ip                          heap.percent        ram.percent     cpu         load_1m                load_5m                load_15m                node.role                   master          name
-        ^  ([0-9a-f:.%]+  \s+  \d+            \s+  \d*         \s+ (-)?\d* \s+ ((-)?\d*(\.\d+)?)? \s+ ((-)?\d*(\.\d+)?)?\s+  ((-)?\d*(\.\d+)?)? \s+  (-|[cdfhilmrstvwIS]{1,11}) \s+ [-*x]     \s+   .*     \n)+  $/
+        ^  ([0-9a-fA-F.:]+  \s+  \d+            \s+  \d*         \s+ (-)?\d* \s+ ((-)?\d*(\.\d+)?)? \s+ ((-)?\d*(\.\d+)?)?\s+  ((-)?\d*(\.\d+)?)? \s+  (-|[cdfhilmrstvwIS]{1,11}) \s+ [-*x]     \s+   .*     \n)+  $/
 
   - do:
       cat.nodes:
@@ -15,7 +15,7 @@
   - match:
       $body: |
         /^  ip                     \s+  heap\.percent   \s+  ram\.percent \s+ cpu      \s+ load_1m            \s+ load_5m            \s+ load_15m            \s+ node\.role                 \s+  master   \s+   name  \n
-           ([0-9a-f:.%]+  \s+  \d+             \s+  \d*          \s+ (-)?\d*  \s+ ((-)?\d*(\.\d+)?)? \s+ ((-)?\d*(\.\d+)?)? \s+ ((-)?\d*(\.\d+)?)?  \s+ (-|[cdfhilmrstvwIS]{1,11}) \s+  [-*x]    \s+   .*    \n)+  $/
+           ([0-9a-fA-F.:]+  \s+  \d+             \s+  \d*          \s+ (-)?\d*  \s+ ((-)?\d*(\.\d+)?)? \s+ ((-)?\d*(\.\d+)?)? \s+ ((-)?\d*(\.\d+)?)?  \s+ (-|[cdfhilmrstvwIS]{1,11}) \s+  [-*x]    \s+   .*    \n)+  $/
 
   - do:
       cat.nodes:
@@ -55,7 +55,7 @@
 
   - match:
       $body: |
-               /^      http \n ([0-9a-f:.%]+:\d{1,5}\n)+  $/
+               /^      http \n (\[?[0-9a-fA-F.:]+\]?:\d{1,5}\n)+  $/
 
 ---
 "Test cat nodes output for all fields with available_processors":

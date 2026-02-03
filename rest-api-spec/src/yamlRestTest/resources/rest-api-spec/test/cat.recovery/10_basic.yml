@@ -30,8 +30,8 @@
                 (?:\d+ms|\d+(?:\.\d+)?s)    \s+                 # time in ms or seconds
                 (empty_store|existing_store|peer|snapshot|local_shards) \s+ # source type
                 (init|index|verify_index|translog|finalize|done) \s+ # stage
-                [0-9a-f:.%]+    \s+                                 # source_host
-                [0-9a-f:.%]+    \s+                                 # target_host
+                [-\w.%:/]+  \s+                                 # source_host
+                [-\w.%:/]+  \s+                                 # target_host
                 [-\w./]+    \s+                                 # repository
                 [-\w./]+    \s+                                 # snapshot
                 \d+         \s+                                 # files
@@ -118,8 +118,8 @@
           (?:\d+ms|\d+(?:\.\d+)?s)    \s+                 # time in ms or seconds
           existing_store \s+                              # source type (always existing_store for closed indices)
           done        \s+                                 # stage
-          [0-9a-f:.%]+    \s+                                 # source_host
-          [0-9a-f:.%]+    \s+                                 # target_host
+          [-\w.%:/]+  \s+                                 # source_host
+          [-\w.%:/]+  \s+                                 # target_host
           [-\w./]+    \s+                                 # repository
           [-\w./]+    \s+                                 # snapshot
           \d+         \s+                                 # files

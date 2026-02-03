@@ -479,7 +479,6 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         return plan.output().getFirst().toAttribute();
     }
 
-
     /**
      * Checks if the plan already contains an aggregation stage.
      */

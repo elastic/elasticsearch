@@ -22,6 +22,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.simdvec.BufferedIndexInputWrapper;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -47,6 +48,13 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
         this.directoryType = directoryType;
         this.indexBits = indexBits;
         this.similarityFunction = similarityFunction;
+    }
+
+    static IndexInput optionalWrap(IndexInput in) {
+        if (randomBoolean()) {
+            in = BufferedIndexInputWrapper.wrap("wrapped", in, 1 << 16);
+        }
+        return in;
     }
 
     public void testQuantizeScore() throws Exception {
@@ -80,15 +88,17 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                 // Work on a slice that has just the right number of bytes to make the test fail with an
                 // index-out-of-bounds in case the implementation reads more than the allowed number of
                 // padding bytes.
-                IndexInput slice = in.slice("test", 0, (long) length * numVectors);
+                var slice = in.slice("test", 0, (long) length * numVectors);
                 var defaultScorer = defaultProvider().newESNextOSQVectorsScorer(slice, queryBits, indexBits, dimensions, length, BULK_SIZE);
-                var panamaScorer = maybePanamaProvider().newESNextOSQVectorsScorer(in, queryBits, indexBits, dimensions, length, BULK_SIZE)
+                var in1 = optionalWrap(in);
+                var panamaScorer = maybePanamaProvider().newESNextOSQVectorsScorer(in1, queryBits, indexBits, dimensions, length, BULK_SIZE)
             ) {
                 for (int i = 0; i < numVectors; i++) {
                     assertEquals(defaultScorer.quantizeScore(query), panamaScorer.quantizeScore(query));
-                    assertEquals(in.getFilePointer(), slice.getFilePointer());
+                    assertEquals(in1.getFilePointer(), slice.getFilePointer());
                 }
                 assertEquals((long) length * numVectors, slice.getFilePointer());
+                assertEquals((long) length * numVectors, in1.getFilePointer());
             }
         }
     }

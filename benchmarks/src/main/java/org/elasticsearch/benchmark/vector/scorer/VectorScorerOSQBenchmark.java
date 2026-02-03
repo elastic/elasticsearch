@@ -43,6 +43,7 @@ import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -197,29 +198,18 @@ public class VectorScorerOSQBenchmark {
         directory = switch (directoryType) {
             case MMAP -> new MMapDirectory(createTempDirectory("vectorDataMmap"));
             case NIO -> new NIOFSDirectory(createTempDirectory("vectorDataNFIOS"));
-            case SNAP -> newSearchableSnapshotDirectory(createTempDirectory("vectorDataSNAP"), dataAsBytes(random));
+            case SNAP -> newSearchableSnapshotDirectory(
+                createTempDirectory("vectorDataSNAP"),
+                generateData(random, new ByteArrayOutputStream())
+            );
         };
 
         if (directoryType != DirectoryType.SNAP) {
             try (IndexOutput output = directory.createOutput("vectors", IOContext.DEFAULT)) {
-                byte[] correctionBytes = new byte[16 * bulkSize];
-                for (int i = 0; i < numVectors; i += bulkSize) {
-                    for (int j = 0; j < bulkSize; j++) {
-                        output.writeBytes(binaryVectors[i + j], 0, binaryVectors[i + j].length);
-                    }
-                    random.nextBytes(correctionBytes);
-                    output.writeBytes(correctionBytes, 0, correctionBytes.length);
-                }
+                generateData(random, new IndexOutputOutputStream(output));
             }
         } else {
-            RecoveryState recoveryState = createRecoveryState(false);
-            final PlainActionFuture<Void> f = new PlainActionFuture<>();
-            final boolean loaded = ((SearchableSnapshotDirectory) directory).loadSnapshot(recoveryState, () -> false, f);
-            try {
-                f.get();
-            } catch (Exception e) {
-                throw new AssertionError(e);
-            }
+            loadSnapshot();
         }
 
         input = directory.openInput("vectors", IOContext.DEFAULT);
@@ -274,17 +264,16 @@ public class VectorScorerOSQBenchmark {
         return tempDir;
     }
 
-    byte[] dataAsBytes(Random random) {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        byte[] correctionBytes = new byte[14 * bulkSize];
+    <T extends OutputStream> T generateData(Random random, T out) throws IOException {
+        byte[] correctionBytes = new byte[16 * bulkSize];
         for (int i = 0; i < numVectors; i += bulkSize) {
             for (int j = 0; j < bulkSize; j++) {
-                baos.write(binaryVectors[i + j], 0, binaryVectors[i + j].length);
+                out.write(binaryVectors[i + j], 0, binaryVectors[i + j].length);
             }
             random.nextBytes(correctionBytes);
-            baos.writeBytes(correctionBytes);
+            out.write(correctionBytes);
         }
-        return baos.toByteArray();
+        return out;
     }
 
     @TearDown
@@ -375,9 +364,10 @@ public class VectorScorerOSQBenchmark {
             .build();
     }
 
-    Directory newSearchableSnapshotDirectory(Path path, byte[] data) throws IOException {
+    Directory newSearchableSnapshotDirectory(Path path, ByteArrayOutputStream out) throws IOException {
         final String blobName = "blob-1";
-        final byte[] input = data;
+        final byte[] input = out.toByteArray();
+        ;
         final BlobContainer blobContainer = singleBlobContainer(blobName, input);
 
         final String checksum = "0";
@@ -427,6 +417,17 @@ public class VectorScorerOSQBenchmark {
             sharedBlobCacheService
         );
         return searchableSnapshotDirectory;
+    }
+
+    void loadSnapshot() {
+        RecoveryState recoveryState = createRecoveryState(false);
+        final PlainActionFuture<Void> f = new PlainActionFuture<>();
+        final boolean loaded = ((SearchableSnapshotDirectory) directory).loadSnapshot(recoveryState, () -> false, f);
+        try {
+            f.get();
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
     }
 
     static NodeEnvironment newNodeEnvironment(Settings settings, Path path) throws IOException {

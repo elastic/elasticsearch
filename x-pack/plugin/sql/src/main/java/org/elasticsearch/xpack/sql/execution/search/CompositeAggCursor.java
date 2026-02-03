@@ -20,6 +20,7 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.ql.util.StringUtils;
@@ -180,6 +181,10 @@ public class CompositeAggCursor implements Cursor {
         // retry
         if (couldProducePartialPages && shouldRetryDueToEmptyPage(response)) {
             updateCompositeAfterKey(response, source);
+            // Refresh the PIT ID with the new value returned in the response
+            if (response.pointInTimeId() != null) {
+                source.pointInTimeBuilder(new PointInTimeBuilder(response.pointInTimeId()));
+            }
             retry.run();
             return;
         }
@@ -195,6 +200,10 @@ public class CompositeAggCursor implements Cursor {
         if (rowSet.remainingData() == 0) {
             closePointInTime(client, response.pointInTimeId(), listener.map(r -> Page.last(rowSet)));
         } else {
+            // Refresh the PIT ID with the new value returned in the response
+            if (response.pointInTimeId() != null) {
+                source.pointInTimeBuilder(new PointInTimeBuilder(response.pointInTimeId()));
+            }
             listener.onResponse(new Page(rowSet, makeCursor.apply(source, rowSet)));
         }
     }

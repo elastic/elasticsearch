@@ -15,6 +15,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.ql.util.StringUtils;
@@ -159,6 +160,10 @@ public class SearchHitCursor implements Cursor {
             closePointInTime(client, response.pointInTimeId(), listener.delegateFailureAndWrap((l, r) -> l.onResponse(Page.last(rowSet))));
         } else {
             updateSearchAfter(response.getHits().getHits(), source);
+            // Refresh the PIT ID with the new value returned in the response
+            if (response.pointInTimeId() != null) {
+                source.pointInTimeBuilder(new PointInTimeBuilder(response.pointInTimeId()));
+            }
 
             SearchHitCursor nextCursor = new SearchHitCursor(
                 source,

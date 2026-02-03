@@ -1877,7 +1877,12 @@ public class EsqlCapabilities {
         /**
          * Support for PromQL time() function.
          */
-        PROMQL_TIME(PROMQL_COMMAND_V0.isEnabled()),
+        PROMQL_TIME,
+
+        /**
+         * PromQL scalar() function support.
+         */
+        PROMQL_SCALAR,
 
         /**
          * KNN function adds support for k and visit_percentage options

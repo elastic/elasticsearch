@@ -520,3 +520,70 @@ bytes:double | step:datetime            | cluster:keyword
 931.0        | 2024-05-10T00:00:00.000Z | prod
 972.0        | 2024-05-10T00:00:00.000Z | qa
 ;
+
+scalar_single_element
+required_capability: promql_command_v0
+required_capability: promql_scalar
+PROMQL index=k8s step=1h result=(scalar(vector(42)));
+
+result:double | step:datetime
+42.0          | 2024-05-10T00:00:00.000Z
+;
+
+scalar_with_pi
+required_capability: promql_command_v0
+required_capability: promql_scalar
+PROMQL index=k8s step=1h result=(scalar(vector(pi())));
+
+result:double         | step:datetime
+3.141592653589793     | 2024-05-10T00:00:00.000Z
+;
+
+scalar_sum_global
+required_capability: promql_command_v0
+required_capability: promql_scalar
+PROMQL index=k8s step=1h result=(scalar(sum(network.bytes_in)));
+
+result:double | step:datetime
+4852.0        | 2024-05-10T00:00:00.000Z
+;
+
+scalar_sum_by_cluster_null
+required_capability: promql_command_v0
+required_capability: promql_scalar
+// produces 3 results, scalar returns null
+PROMQL index=k8s step=1h result=(scalar(sum by (cluster) (network.bytes_in)));
+
+result:double | step:datetime
+null        | 2024-05-10T00:00:00.000Z
+;
+
+scalar_sum_by_cluster_counter_null
+required_capability: promql_command_v0
+required_capability: promql_scalar
+// counter field produces 3 results, scalar returns null
+PROMQL index=k8s step=1h result=(scalar(sum by (cluster) (network.total_bytes_in)));
+
+result:double | step:datetime
+null        | 2024-05-10T00:00:00.000Z
+;
+
+scalar_sum_by_cluster_counter_one
+required_capability: promql_command_v0
+required_capability: promql_scalar
+// counter field produces exactly 1 result
+PROMQL index=k8s step=1h result=(scalar(sum by (cluster) (network.total_bytes_in{cluster="prod"})));
+
+result:double | step:datetime
+21193.0      | 2024-05-10T00:00:00.000Z
+;
+
+scalar_sum_by_cluster_one
+required_capability: promql_command_v0
+required_capability: promql_scalar
+// produces exactly 1 result
+PROMQL index=k8s step=1h result=(scalar(sum by (cluster) (network.bytes_in{cluster="prod"})));
+
+result:double | step:datetime
+2517.0        | 2024-05-10T00:00:00.000Z
+;

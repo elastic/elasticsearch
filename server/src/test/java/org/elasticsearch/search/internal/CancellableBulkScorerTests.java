@@ -95,10 +95,7 @@ public class CancellableBulkScorerTests extends ESTestCase {
         };
 
         CancellableBulkScorer cancellableBulkScorer = new CancellableBulkScorer(scorer, checkCancelled);
-        expectThrows(
-            TaskCancelledException.class,
-            () -> cancellableBulkScorer.score(createNoOpCollector(), null, 0, totalDocs)
-        );
+        expectThrows(TaskCancelledException.class, () -> cancellableBulkScorer.score(createNoOpCollector(), null, 0, totalDocs));
 
         assertThat(
             "Should stop within MAX_INTERVAL of cancellation point",
@@ -152,19 +149,12 @@ public class CancellableBulkScorerTests extends ESTestCase {
         };
 
         CancellableBulkScorer cancellableBulkScorer = new CancellableBulkScorer(scorer, checkCancelled);
-        expectThrows(
-            TaskCancelledException.class,
-            () -> cancellableBulkScorer.score(createNoOpCollector(), null, 0, totalDocs)
-        );
+        expectThrows(TaskCancelledException.class, () -> cancellableBulkScorer.score(createNoOpCollector(), null, 0, totalDocs));
 
         long responseTimeNanos = cancellationDetectedTime.get() - cancellationRequestTime.get();
         long responseTimeMs = responseTimeNanos / 1_000_000;
 
-        assertThat(
-            "Cancellation should be detected within 2 seconds, was " + responseTimeMs + "ms",
-            responseTimeMs,
-            lessThan(2000L)
-        );
+        assertThat("Cancellation should be detected within 2 seconds, was " + responseTimeMs + "ms", responseTimeMs, lessThan(2000L));
     }
 
     /**
@@ -194,18 +184,20 @@ public class CancellableBulkScorerTests extends ESTestCase {
 
         for (int i = 1; i < intervals.size() - 1; i++) {
             assertTrue(
-                "Intervals should grow: intervals[" + i + "]=" + intervals.get(i)
-                    + " should be >= intervals[" + (i-1) + "]=" + intervals.get(i-1),
+                "Intervals should grow: intervals["
+                    + i
+                    + "]="
+                    + intervals.get(i)
+                    + " should be >= intervals["
+                    + (i - 1)
+                    + "]="
+                    + intervals.get(i - 1),
                 intervals.get(i) >= intervals.get(i - 1)
             );
         }
 
         for (int interval : intervals) {
-            assertThat(
-                "No interval should exceed MAX_INTERVAL",
-                interval,
-                lessThanOrEqualTo(CancellableBulkScorer.getMaxInterval())
-            );
+            assertThat("No interval should exceed MAX_INTERVAL", interval, lessThanOrEqualTo(CancellableBulkScorer.getMaxInterval()));
         }
     }
 

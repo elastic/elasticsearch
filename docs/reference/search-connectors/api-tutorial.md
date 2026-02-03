@@ -44,7 +44,7 @@ docker run -p 9200:9200 -d --name elasticsearch \
   -e "xpack.security.enabled=false" \
   -e "xpack.security.http.ssl.enabled=false" \
   -e "xpack.license.self_generated.type=trial" \
-  docker.elastic.co/elasticsearch/elasticsearch:9.2.3
+  docker.elastic.co/elasticsearch/elasticsearch:9.3.0
 ```
 
 ::::{warning}

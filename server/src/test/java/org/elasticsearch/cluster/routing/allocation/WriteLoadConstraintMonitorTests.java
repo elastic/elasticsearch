@@ -69,7 +69,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
     public void testRerouteIsCalledWhenAHotSpotIsDetected() {
         final TestState testState = createRandomTestStateThatWillTriggerReroute();
         final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
-            testState.clusterSettings,
+            new WriteLoadConstraintSettings(testState.clusterSettings),
             testState.currentTimeSupplier,
             () -> testState.clusterState,
             testState.mockRerouteService
@@ -86,7 +86,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
     public void testRerouteIsNotCalledWhenStateIsNotRecovered() {
         final TestState testState = createRandomTestStateThatWillTriggerReroute();
         final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
-            testState.clusterSettings,
+            new WriteLoadConstraintSettings(testState.clusterSettings),
             testState.currentTimeSupplier,
             () -> ClusterState.builder(testState.clusterState)
                 .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK).build())
@@ -117,13 +117,15 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
     public void testRerouteIsNotCalledWhenDeciderIsNotEnabled() {
         final TestState testState = createRandomTestStateThatWillTriggerReroute();
         final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
-            createClusterSettings(
-                randomValueOtherThan(
-                    WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED,
-                    () -> randomFrom(WriteLoadConstraintSettings.WriteLoadDeciderStatus.values())
-                ),
-                testState.latencyThresholdMillis,
-                testState.highUtilizationThresholdPercent
+            new WriteLoadConstraintSettings(
+                createClusterSettings(
+                    randomValueOtherThan(
+                        WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED,
+                        () -> randomFrom(WriteLoadConstraintSettings.WriteLoadDeciderStatus.values())
+                    ),
+                    testState.latencyThresholdMillis,
+                    testState.highUtilizationThresholdPercent
+                )
             ),
             testState.currentTimeSupplier,
             () -> testState.clusterState,
@@ -153,7 +155,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
     public void testRerouteIsNotCalledWhenNoNodesAreHotSpotting() {
         final TestState testState = createRandomTestStateThatWillTriggerReroute();
         final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
-            testState.clusterSettings,
+            new WriteLoadConstraintSettings(testState.clusterSettings),
             testState.currentTimeSupplier,
             () -> testState.clusterState,
             testState.mockRerouteService
@@ -195,7 +197,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             numberOfIndexNodes
         );
         final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
-            testState.clusterSettings,
+            new WriteLoadConstraintSettings(testState.clusterSettings),
             testState.currentTimeSupplier,
             () -> testState.clusterState,
             testState.mockRerouteService
@@ -238,7 +240,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         final AtomicLong currentTimeMillis = new AtomicLong(nowMillis);
 
         final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
-            testState.clusterSettings,
+            new WriteLoadConstraintSettings(testState.clusterSettings),
             currentTimeMillis::get,
             () -> testState.clusterState,
             testState.mockRerouteService
@@ -285,7 +287,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         assertThat(minimumInterval, greaterThan(TimeValue.ZERO));
 
         final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
-            testState.clusterSettings,
+            new WriteLoadConstraintSettings(testState.clusterSettings),
             currentTimeMillis::get,
             () -> testState.clusterState,
             testState.mockRerouteService
@@ -342,7 +344,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
 
         final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
         final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
-            testState.clusterSettings,
+            new WriteLoadConstraintSettings(testState.clusterSettings),
             testState.currentTimeSupplier,
             () -> clusterState,
             testState.mockRerouteService,
@@ -360,7 +362,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
 
         final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
         final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
-            testState.clusterSettings,
+            new WriteLoadConstraintSettings(testState.clusterSettings),
             testState.currentTimeSupplier,
             () -> clusterState,
             testState.mockRerouteService,
@@ -385,7 +387,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
 
         final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
         final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
-            testState.clusterSettings,
+            new WriteLoadConstraintSettings(testState.clusterSettings),
             currentTimeMillis::get,
             clusterStateRef::get,
             testState.mockRerouteService,
@@ -442,7 +444,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
 
         final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
         final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
-            testState.clusterSettings,
+            new WriteLoadConstraintSettings(testState.clusterSettings),
             currentTimeMillis::get,
             () -> clusterState,
             testState.mockRerouteService,
@@ -568,7 +570,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
 
         final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
         final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
-            testState.clusterSettings,
+            new WriteLoadConstraintSettings(testState.clusterSettings),
             currentTimeMillis::get,
             () -> clusterStateRef.get(),
             testState.mockRerouteService,

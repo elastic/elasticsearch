@@ -18,10 +18,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
@@ -67,23 +67,23 @@ public class WriteLoadConstraintMonitor {
     private final LongGauge hotspotNodeFlagGauge; // nodes hotspotting have 1 written, with the name/id
 
     protected WriteLoadConstraintMonitor(
-        ClusterSettings clusterSettings,
+        WriteLoadConstraintSettings writeLoadConstraintSettings,
         LongSupplier currentTimeMillisSupplier,
         Supplier<ClusterState> clusterStateSupplier,
         RerouteService rerouteService
     ) {
         // default of NOOP for tests
-        this(clusterSettings, currentTimeMillisSupplier, clusterStateSupplier, rerouteService, MeterRegistry.NOOP);
+        this(writeLoadConstraintSettings, currentTimeMillisSupplier, clusterStateSupplier, rerouteService, MeterRegistry.NOOP);
     }
 
     public WriteLoadConstraintMonitor(
-        ClusterSettings clusterSettings,
+        WriteLoadConstraintSettings writeLoadConstraintSettings,
         LongSupplier currentTimeMillisSupplier,
         Supplier<ClusterState> clusterStateSupplier,
         RerouteService rerouteService,
         MeterRegistry meterRegistry
     ) {
-        this.writeLoadConstraintSettings = new WriteLoadConstraintSettings(clusterSettings);
+        this.writeLoadConstraintSettings = writeLoadConstraintSettings;
         this.clusterStateSupplier = clusterStateSupplier;
         this.currentTimeMillisSupplier = currentTimeMillisSupplier;
         this.rerouteService = rerouteService;
@@ -184,7 +184,7 @@ public class WriteLoadConstraintMonitor {
                     lastRerouteTimeMillis == 0
                         ? "has never previously been called"
                         : "was last called [" + TimeValue.timeValueMillis(timeSinceLastRerouteMillis) + "] ago",
-                    nodeSummary(lastHotspotNodes),
+                    nodeSummary(lastHotspotNodes, state),
                     writeLoadConstraintSettings.getQueueLatencyThreshold()
                 );
             }
@@ -272,14 +272,16 @@ public class WriteLoadConstraintMonitor {
         public static NodeIdName nodeIdName(DiscoveryNode node) {
             return new NodeIdName(node.getId(), node.getName());
         }
+
+        public String shortDescription() {
+            return nodeId + "/" + nodeName;
+        }
     }
 
     private static String nodeSummary(Set<NodeIdName> nodeIdNames) {
+        final var nodes = state.nodes();
         if (nodeIdNames.isEmpty() == false && nodeIdNames.size() <= MAX_NODE_IDS_IN_MESSAGE) {
-            List<String> nodeLabels = nodeIdNames.stream()
-                .map(nodeIdName -> Strings.format("{%s} ({%s})", nodeIdName.nodeName(), nodeIdName.nodeId()))
-                .collect(Collectors.toList());
-            return "[" + String.join(", ", nodeLabels) + "]";
+            return nodeIdNames.stream().map(nodeIdName -> nodeIdName.shortDescription()).collect(Collectors.joining(", "));
         } else {
             return nodeIdNames.size() + " nodes";
         }

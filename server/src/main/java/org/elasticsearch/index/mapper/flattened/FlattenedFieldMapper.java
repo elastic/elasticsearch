@@ -333,6 +333,24 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
+        protected Query wildcardQuery(
+            String value,
+            MultiTermQuery.RewriteMethod method,
+            boolean caseInsensitive,
+            boolean shouldNormalize,
+            SearchExecutionContext context
+        ) {
+            // this permits querying flattened field.keyed.subfield with wildcard query
+            return super.wildcardQuery(
+                FlattenedFieldParser.createKeyedValue(key, value),
+                method,
+                caseInsensitive,
+                shouldNormalize,
+                context
+            );
+        }
+
+        @Override
         public String typeName() {
             return CONTENT_TYPE;
         }

@@ -40,8 +40,7 @@ public class SecondaryAuthenticator {
 
     /**
      * Header name for secondary client authentication credentials.
-     * Used by authenticators that require additional headers beyond the Authorization header,
-     * such as X-Client-Authentication.
+     * Used by authenticators that require additional [@code X-Client-Authentication} header along with the Authorization header.
      */
     public static final String SECONDARY_X_CLIENT_AUTH_HEADER_NAME = "es-secondary-x-client-authentication";
 

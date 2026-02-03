@@ -278,7 +278,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                             // If there is no local node-reduce physical optimization, there's nothing to verify!
                             case DISABLED -> {
                                 var foo = localOptimize(reductionPlan.dataNodePlan(), conf);
-                                var bar = verifyOrWrite(foo, outputPath(dualFileOutput.dataNodeOutput()));
+                                var bar = verifyOrWrite(foo, expectedOutputPath(dualFileOutput.dataNodeOutput()));
                                 result.add(Tuple.tuple(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION, bar));
                             }
                             case ENABLED -> {
@@ -323,8 +323,8 @@ public abstract class GoldenTestCase extends ESTestCase {
             String nodeReduceName,
             String dataNodeName
         ) throws IOException {
-            var reduceResult = verifyOrWrite(plan.nodeReducePlan(), outputPath(nodeReduceName));
-            var dataResult = verifyOrWrite(plan.dataNodePlan(), outputPath(dataNodeName));
+            var reduceResult = verifyOrWrite(plan.nodeReducePlan(), expectedOutputPath(nodeReduceName));
+            var dataResult = verifyOrWrite(plan.dataNodePlan(), expectedOutputPath(dataNodeName));
             var result = new ArrayList<Tuple<Stage, TestResult>>();
             if (reduceResult == TestResult.FAILURE || dataResult == TestResult.FAILURE) {
                 result.add(Tuple.tuple(stage, TestResult.FAILURE));
@@ -343,7 +343,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         }
 
         private <T extends QueryPlan<T>> TestResult verifyOrWrite(T plan, Stage stage) throws IOException {
-            return verifyOrWrite(plan, stageOutputPath(stage));
+            return verifyOrWrite(plan, expectedOutputPath(stage));
         }
 
         private <T extends QueryPlan<T>> TestResult verifyOrWrite(T plan, Path outputFile) throws IOException {
@@ -360,11 +360,11 @@ public abstract class GoldenTestCase extends ESTestCase {
             }
         }
 
-        private Path stageOutputPath(Stage stage) {
-            return stageOutputPath(((SingleFileOutput) stage.fileOutput).output());
+        private Path expectedOutputPath(Stage stage) {
+            return expectedOutputPath(((SingleFileOutput) stage.fileOutput).output());
         }
 
-        private Path stageOutputPath(String stageName) {
+        private Path expectedOutputPath(String stageName) {
             return outputPath(stageName + ".expected");
         }
 

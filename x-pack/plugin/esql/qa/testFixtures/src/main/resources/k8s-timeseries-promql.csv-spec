@@ -520,3 +520,78 @@ bytes:double | step:datetime            | cluster:keyword
 931.0        | 2024-05-10T00:00:00.000Z | prod
 972.0        | 2024-05-10T00:00:00.000Z | qa
 ;
+
+unmapped_metric_instant_vector
+required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
+PROMQL index=k8s step=1h result=(unmapped.metric) | SORT result;
+
+result:double | step:datetime | _timeseries:keyword
+;
+
+unmapped_label
+required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
+PROMQL index=k8s step=1h result=(network.cost{unmapped.label="value"}) | SORT result;
+
+result:double | step:datetime | _timeseries:keyword
+;
+
+unmapped_metric_cross_series
+required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
+PROMQL index=k8s step=1h result=(sum by (cluster) (unmapped.metric)) | SORT result;
+
+result:double | step:datetime | cluster:keyword
+;
+
+cross_series_grouping_on_unmapped_label
+required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
+PROMQL index=k8s step=1h result=(sum by (unmapped.label) (network.cost)) | SORT result;
+
+result:double | step:datetime
+61.0          | 2024-05-10T00:00:00.000Z
+;
+
+// equivalent to above but without grouping
+cross_series_no_grouping
+required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
+PROMQL index=k8s step=1h result=(sum (network.cost)) | SORT result;
+
+result:double | step:datetime
+61.0          | 2024-05-10T00:00:00.000Z
+;
+
+
+cross_series_grouping_on_mapped_and_unmapped_label
+required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
+PROMQL index=k8s step=1h result=(sum by (cluster, unmapped.label) (network.cost)) | SORT result;
+
+result:double | step:datetime            | cluster:keyword
+15.875        | 2024-05-10T00:00:00.000Z | staging
+18.625        | 2024-05-10T00:00:00.000Z | prod
+26.5          | 2024-05-10T00:00:00.000Z | qa
+;
+
+// equivalent to above but grouping only on mapped label
+cross_series_grouping_on_mapped_label
+required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
+PROMQL index=k8s step=1h result=(sum by (cluster) (network.cost)) | SORT result;
+
+result:double | step:datetime            | cluster:keyword
+15.875        | 2024-05-10T00:00:00.000Z | staging
+18.625        | 2024-05-10T00:00:00.000Z | prod
+26.5          | 2024-05-10T00:00:00.000Z | qa
+;
+
+unmapped_metric_within_series
+required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
+PROMQL index=k8s step=1h result=(rate(unmapped.metric[1h])) | SORT result;
+
+result:double | step:datetime | _timeseries:keyword
+;

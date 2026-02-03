@@ -652,14 +652,16 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 createTaskTypeObject(EIS_TEXT_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
                 status,
                 null,
-                "",
+                RELEASE_DATE_STRING,
                 "",
                 new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(
                     randomFrom(SimilarityMeasure.values()).toString(),
                     randomInt(),
                     DenseVectorFieldMapper.ElementType.FLOAT.toString(),
                     null
-                )
+                ),
+                "Text Embedding Connector",
+                fingerprintPrefix + randomAlphaOfLength(5)
             );
             case EMBEDDING -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                 id,
@@ -675,7 +677,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                     DenseVectorFieldMapper.ElementType.FLOAT.toString(),
                     null
                 ),
-                "Text Embedding Connector",
+                "Embedding Connector",
                 fingerprintPrefix + randomAlphaOfLength(5)
             );
             case RERANK -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(

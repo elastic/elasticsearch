@@ -3619,13 +3619,13 @@ public class VerifierTests extends ESTestCase {
         assertThat(error("""
             FROM test
             | EVAL dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector
-            | MMR dense_embedding LIMIT 10
+            | MMR ON dense_embedding LIMIT 10
             """), containsString("MMR can only be used on a limited number of rows. Consider adding a LIMIT before MMR."));
 
         assertThat(error("""
             FROM (FROM test METADATA _index, _id, _score | EVAL dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector),
                  (FROM test METADATA _index, _id, _score | LIMIT 10)
-            | MMR dense_embedding LIMIT 10
+            | MMR ON dense_embedding LIMIT 10
             """), containsString("MMR can only be used on a limited number of rows. Consider adding a LIMIT before MMR."));
     }
 

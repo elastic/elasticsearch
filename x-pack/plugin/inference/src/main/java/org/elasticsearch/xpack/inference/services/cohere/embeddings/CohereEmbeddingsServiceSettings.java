@@ -32,23 +32,32 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
 
+/**
+ * Settings for the Cohere embeddings service.
+ * This class encapsulates the configuration settings required to use Cohere models for generating embeddings.
+ */
 public class CohereEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings {
     public static final String NAME = "cohere_embeddings_service_settings";
 
+    /**
+     * Creates {@link CohereEmbeddingsServiceSettings} from a map of settings.
+     * @param map the map to parse
+     * @param context the context in which the parsing is done
+     * @return the created {@link CohereEmbeddingsServiceSettings}
+     * @throws ValidationException If there are validation errors in the provided settings.
+     */
     public static CohereEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
         var commonServiceSettings = CohereServiceSettings.fromMap(map, context);
 
-        CohereEmbeddingType embeddingTypes = parseEmbeddingType(map, context, validationException);
+        var embeddingType = parseEmbeddingType(map, context, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
-        return new CohereEmbeddingsServiceSettings(commonServiceSettings, embeddingTypes);
+        return new CohereEmbeddingsServiceSettings(commonServiceSettings, embeddingType);
     }
 
-    static CohereEmbeddingType parseEmbeddingType(
+    private static CohereEmbeddingType parseEmbeddingType(
         Map<String, Object> map,
         ConfigurationParseContext context,
         ValidationException validationException
@@ -146,7 +155,24 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
 
     @Override
     public CohereEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
-        return fromMap(serviceSettings, ConfigurationParseContext.PERSISTENT);
+        var validationException = new ValidationException();
+        var commonServiceSettings = CohereServiceSettings.fromMap(serviceSettings, ConfigurationParseContext.PERSISTENT);
+
+        var extractedEmbeddingType = extractOptionalEnum(
+            serviceSettings,
+            ServiceFields.EMBEDDING_TYPE,
+            ModelConfigurations.SERVICE_SETTINGS,
+            CohereEmbeddingType::fromString,
+            EnumSet.allOf(CohereEmbeddingType.class),
+            validationException
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new CohereEmbeddingsServiceSettings(
+            commonServiceSettings,
+            extractedEmbeddingType != null ? extractedEmbeddingType : this.embeddingType
+        );
     }
 
     public CohereEmbeddingType getEmbeddingType() {

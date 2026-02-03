@@ -10,6 +10,7 @@
 package org.elasticsearch.search.lookup;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -23,58 +24,177 @@ import java.util.Map;
  */
 public class SourceMutabilityTests extends ESTestCase {
 
-    public void testFromBytes() {
-
-        Source s1 = Source.fromBytes(null);
-        assertTrue("Should be empty", s1.source().isEmpty());
-        assertMapIsImmutable(s1.source());
-
-        Source s2 = Source.fromBytes(new BytesArray(""));
-        assertTrue("Should be empty", s2.source().isEmpty());
-        assertMapIsImmutable(s2.source());
-
-        // empty map returns a mutable map?!
-        Source s3 = Source.fromBytes(new BytesArray("{}"));
-        assertTrue("Should be empty", s3.source().isEmpty());
-        assertMapIsMutable("fromBytes('{}')", s3.source());
-
-        Source s4 = Source.fromBytes(new BytesArray("{\"field\":\"value\"}"));
-        assertFalse("Should not be empty", s4.source().isEmpty());
-        assertMapIsMutable("fromBytes(non-empty)", s4.source());
-
-        // unrelated issue...empty map still returns mutable map even with trailing content...
-        // no parse exception?!?!?!
-        Source s5 = Source.fromBytes(new BytesArray("{}trailing-content-is-ignored{\"field\":\"value\"}"));
-        assertTrue("Should be empty", s5.source().isEmpty());
-        assertMapIsMutable("fromBytes('{}')", s5.source());
-
-    }
-
-    public void testFromMap() {
+    public void testFromEmpty() {
         Source s1 = Source.fromMap(null, XContentType.JSON);
         assertTrue("Should be empty", s1.source().isEmpty());
         assertMapIsImmutable(s1.source());
+        Source s2 = s1.withMutations(map -> map.put("key", "value"));
+        assertEquals("value", s2.source().get("key"));
 
-        Source s2 = Source.fromMap(Map.of(), XContentType.JSON);
-        assertTrue("Should be empty", s2.source().isEmpty());
-        assertMapIsImmutable(s2.source());
-
-        // mutable map can be converted to immutable
-        Source s3 = Source.fromMap(new LinkedHashMap<>(), XContentType.JSON);
-        assertTrue("Should be empty", s3.source().isEmpty());
+        Source s3 = s2.withMutations(map -> map.remove("key"));
+        assertNull(s3.source().get("key"));
+        assertTrue(s3.source().isEmpty());
+        //note that the returned map does not have to be mutable
         assertMapIsImmutable(s3.source());
+    }
 
-        // immutable map remains immutable
-        Source s4 = Source.fromMap(Map.of("field", "value"), XContentType.JSON);
-        assertFalse("Should not be empty", s4.source().isEmpty());
-        assertMapIsImmutable(s4.source());
+    public void testWithMutationsFromImmutableMap() {
+        Source original = Source.fromMap(Map.of("field1", "value1"), XContentType.JSON);
+        assertMapIsImmutable(original.source());
 
+        Source modified = original.withMutations(map -> map.put("field2", "value2"));
+
+        assertEquals(1, original.source().size());
+        assertEquals("value1", original.source().get("field1"));
+        assertNull(original.source().get("field2"));
+
+        assertEquals(2, modified.source().size());
+        assertEquals("value1", modified.source().get("field1"));
+        assertEquals("value2", modified.source().get("field2"));
+    }
+
+    public void testWithMutationsFromMutableMap() {
         Map<String, Object> mutableMap = new LinkedHashMap<>();
-        mutableMap.put("field", "value");
-        Source source5 = Source.fromMap(mutableMap, XContentType.JSON);
-        assertFalse("Should not be empty", source5.source().isEmpty());
-        assertMapIsMutable("fromMap(LinkedHashMap with data)", source5.source());
+        mutableMap.put("field1", "value1");
+        Source original = Source.fromMap(mutableMap, XContentType.JSON);
+        assertMapIsMutable("fromMap(LinkedHashMap)", original.source());
 
+        Source modified = original.withMutations(map -> map.put("field2", "value2"));
+
+        assertEquals(1, original.source().size());
+        assertEquals("value1", original.source().get("field1"));
+
+        assertEquals(2, modified.source().size());
+        assertEquals("value1", modified.source().get("field1"));
+        assertEquals("value2", modified.source().get("field2"));
+    }
+
+    public void testWithMutationsFromBytes() {
+        Source original = Source.fromBytes(new BytesArray("{\"field1\":\"value1\"}"));
+        assertMapIsMutable("fromBytes", original.source());
+
+        Source modified = original.withMutations(map -> map.put("field2", "value2"));
+
+        assertEquals(1, original.source().size());
+        assertEquals("value1", original.source().get("field1"));
+
+        assertEquals(2, modified.source().size());
+        assertEquals("value1", modified.source().get("field1"));
+        assertEquals("value2", modified.source().get("field2"));
+    }
+
+    public void testWithMutationsRemoveField() {
+        Source original = Source.fromMap(Map.of("field1", "value1", "field2", "value2"), XContentType.JSON);
+
+        Source modified = original.withMutations(map -> map.remove("field1"));
+
+        // Original should be unchanged
+        assertEquals(2, original.source().size());
+        assertEquals("value1", original.source().get("field1"));
+
+        // Modified should only have field2
+        assertEquals(1, modified.source().size());
+        assertNull(modified.source().get("field1"));
+        assertEquals("value2", modified.source().get("field2"));
+    }
+
+    public void testWithMutationsUpdateField() {
+        Source original = Source.fromMap(Map.of("field1", "value1"), XContentType.JSON);
+
+        Source modified = original.withMutations(map -> map.put("field1", "updated"));
+
+        // Original should be unchanged
+        assertEquals("value1", original.source().get("field1"));
+
+        // Modified should have updated value
+        assertEquals("updated", modified.source().get("field1"));
+    }
+
+    public void testWithMutationsChaining() {
+        Source original = Source.fromMap(Map.of("field1", "value1"), XContentType.JSON);
+
+        Source modified = original.withMutations(map -> map.put("field2", "value2"))
+            .withMutations(map -> map.put("field3", "value3"))
+            .withMutations(map -> map.remove("field1"));
+
+        // Original should be unchanged
+        assertEquals(1, original.source().size());
+        assertEquals("value1", original.source().get("field1"));
+
+        // Modified should reflect all mutations
+        assertEquals(2, modified.source().size());
+        assertNull(modified.source().get("field1"));
+        assertEquals("value2", modified.source().get("field2"));
+        assertEquals("value3", modified.source().get("field3"));
+    }
+
+    public void testWithMutationsPreservesContentType() {
+        Source jsonSource = Source.fromMap(Map.of("field", "value"), XContentType.JSON);
+        Source modifiedJson = jsonSource.withMutations(map -> map.put("new", "field"));
+        assertEquals(XContentType.JSON, modifiedJson.sourceContentType());
+
+        Source smileSource = Source.fromMap(Map.of("field", "value"), XContentType.SMILE);
+        Source modifiedSmile = smileSource.withMutations(map -> map.put("new", "field"));
+        assertEquals(XContentType.SMILE, modifiedSmile.sourceContentType());
+    }
+
+    public void testWithMutationsMultipleOperationsInSingleCall() {
+        Source original = Source.fromMap(Map.of("a", "1", "b", "2"), XContentType.JSON);
+
+        Source modified = original.withMutations(map -> {
+            map.put("c", "3");
+            map.put("d", "4");
+            map.remove("a");
+            map.put("b", "updated");
+        });
+
+        // Original unchanged
+        assertEquals(2, original.source().size());
+        assertEquals("1", original.source().get("a"));
+        assertEquals("2", original.source().get("b"));
+
+        // Modified has all changes
+        assertEquals(3, modified.source().size());
+        assertNull(modified.source().get("a"));
+        assertEquals("updated", modified.source().get("b"));
+        assertEquals("3", modified.source().get("c"));
+        assertEquals("4", modified.source().get("d"));
+    }
+
+    public void testWithMutationsHandlesNullSource() {
+        Source nullSource = new NullReturningSource();
+        assertNull(nullSource.source());
+
+        Source modified = nullSource.withMutations(map -> map.put("field", "value"));
+
+        assertEquals(1, modified.source().size());
+        assertEquals("value", modified.source().get("field"));
+    }
+
+    /**
+     * A bad Source implementation that returns null from source().
+     * This is used to test that withMutations handles null gracefully.
+     */
+    private static class NullReturningSource implements Source {
+        @Override
+        public XContentType sourceContentType() {
+            return XContentType.JSON;
+        }
+
+        @Override
+        public Map<String, Object> source() {
+            return null;
+        }
+
+        @Override
+        public BytesReference internalSourceRef() {
+            return null;
+        }
+
+        @Override
+        public Source filter(SourceFilter sourceFilter) {
+            return this;
+        }
     }
 
     private void assertMapIsImmutable(Map<String, Object> map) {

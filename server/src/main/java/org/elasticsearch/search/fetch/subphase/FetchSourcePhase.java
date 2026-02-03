@@ -99,13 +99,7 @@ public final class FetchSourcePhase implements FetchSubPhase {
                 if (field == null || field.getValues().isEmpty()) {
                     return source;
                 }
-                var newSource = source.source();
-                if (newSource instanceof HashMap == false) {
-                    // the map is not mutable
-                    newSource = new HashMap<>(newSource);
-                }
-                newSource.put(InferenceMetadataFieldsMapper.NAME, field.getValues().get(0));
-                return Source.fromMap(newSource, source.sourceContentType());
+                return source.withMutations(map -> map.put(InferenceMetadataFieldsMapper.NAME, field.getValues().get(0)));
             }
 
             @Override

@@ -467,13 +467,7 @@ public interface SourceLoader {
      * @return a new {@link Source} with the patches applied
      */
     static Source applySyntheticVectors(Source originalSource, List<SyntheticVectorPatch> patches) {
-        Map<String, Object> newMap = originalSource.source();
-        // Make sure we have a mutable map, empty implies `Map.of()`
-        if (newMap.isEmpty()) {
-            newMap = new LinkedHashMap<>();
-        }
-        applyPatches("", newMap, patches);
-        return Source.fromMap(newMap, originalSource.sourceContentType());
+        return originalSource.withMutations(map -> applyPatches("", map, patches));
     }
 
     /**

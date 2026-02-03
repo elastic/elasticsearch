@@ -21,24 +21,18 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
  * A read-only view of a document's source.
  *
  * <p>This interface provides access to source content as either bytes or a parsed map.
- * While a {@code Source} instance represents a stable snapshot of a particular document's
- * data (it won't change which document it refers to), the actual data structures returned
- * may or may not be immutable:
+ * A {@code Source} instance represents a stable snapshot of a particular document's
+ * data.
  *
- * <ul>
- * <li>{@link #internalSourceRef()} returns an immutable {@link BytesReference}</li>
- * <li>{@link #source()} may return either a mutable or immutable map, depending on
- *     how the Source was constructed. Callers must not assume mutability - see method
- *     documentation for details.</li>
- * </ul>
- *
- * @see #source() for important guidance on map mutability
+ * <p>Note: The Map returned by {@link #source()} may or may not be immutable.
+ * Use {@link #withMutations(Consumer)} to modify the Map returned by {@link #source()}.
  */
 public interface Source {
 
@@ -48,16 +42,12 @@ public interface Source {
     XContentType sourceContentType();
 
     /**
-     * A map representation of the source
+     * A map representation of the source.
      *
-     * <p><b>IMPORTANT</b>: The returned map may be immutable. Callers that need
-     * to modify the map MUST create a defensive copy:
-     * <pre>
-     *   Map&lt;String, Object&gt; mutableMap = new LinkedHashMap&lt;&gt;(source.source());
-     * </pre>
+     * <p><b>IMPORTANT</b>: The returned map may be immutable. To modify the source,
+     * use {@link #withMutations(java.util.function.Consumer)} instead.
      *
-     * <p>
-     * Important: This can lose precision on numbers with a decimal point. It
+     * <p>This can lose precision on numbers with a decimal point. It
      * converts numbers like {@code "n": 1234.567} to a {@code double} which
      * only has 52 bits of precision in the mantissa. This will come up most
      * frequently when folks write nanosecond precision dates as a decimal
@@ -74,6 +64,26 @@ public interface Source {
      * Apply a filter to this source, returning a new Source
      */
     Source filter(SourceFilter sourceFilter);
+
+    /**
+     * Returns a new Source with mutations applied to a mutable copy of the map.
+     *
+     * <p>The mutator receives a mutable {@link java.util.LinkedHashMap} copy that can be safely modified.
+     * Use this when you need to add, remove, or update fields.
+     *
+     * <pre>
+     *   Source modified = source.withMutations(map -&gt; map.put("field", "value"));
+     * </pre>
+     *
+     * @param mutator a function that modifies the map
+     * @return a new Source with the mutations applied. There is no guarantee about the mutability of the returned value's source() map.
+     */
+    default Source withMutations(java.util.function.Consumer<Map<String, Object>> mutator) {
+        Map<String, Object> sourceMap = source();
+        Map<String, Object> mutableMap = sourceMap == null ? new java.util.LinkedHashMap<>() : new java.util.LinkedHashMap<>(sourceMap);
+        mutator.accept(mutableMap);
+        return Source.fromMap(mutableMap, sourceContentType());
+    }
 
     /**
      * For the provided path, return its value in the source.

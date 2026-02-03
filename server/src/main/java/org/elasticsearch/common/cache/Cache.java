@@ -341,12 +341,11 @@ public class Cache<K, V> {
 
     /**
      * Block on a CompletableFuture with cancellation support.
-     * Uses CountDownLatch to avoid PlainActionFuture's thread assertions and
-     * CompletableFuture's Throwable swallowing issues.
      *
      * @param future                the future to wait on
      * @param cancellationRegistrar if non-null, accepts a Runnable to be called on cancellation
-     * @return the result of the future
+     * @return  the result of the future
+     * 
      * @throws ExecutionException   if the future completed exceptionally
      * @throws InterruptedException if the thread was interrupted
      * @throws TaskCancelledException if the operation was cancelled

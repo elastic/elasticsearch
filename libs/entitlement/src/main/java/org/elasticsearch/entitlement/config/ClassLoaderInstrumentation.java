@@ -9,8 +9,9 @@
 
 package org.elasticsearch.entitlement.config;
 
-import org.elasticsearch.entitlement.rules.EntitlementRules;
+import org.elasticsearch.entitlement.rules.EntitlementRulesBuilder;
 import org.elasticsearch.entitlement.rules.Policies;
+import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -19,8 +20,10 @@ import java.security.SecureClassLoader;
 
 public class ClassLoaderInstrumentation implements InstrumentationConfig {
     @Override
-    public void init() {
-        EntitlementRules.on(ClassLoader.class)
+    public void init(InternalInstrumentationRegistry registry) {
+        EntitlementRulesBuilder builder = new EntitlementRulesBuilder(registry);
+
+        builder.on(ClassLoader.class)
             .protectedCtor()
             .enforce(Policies::createClassLoader)
             .elseThrowNotEntitled()
@@ -31,7 +34,7 @@ public class ClassLoaderInstrumentation implements InstrumentationConfig {
             .enforce(Policies::createClassLoader)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(URLClassLoader.class)
+        builder.on(URLClassLoader.class)
             .callingStatic(URLClassLoader::new, URL[].class)
             .enforce(Policies::createClassLoader)
             .elseThrowNotEntitled()
@@ -54,7 +57,7 @@ public class ClassLoaderInstrumentation implements InstrumentationConfig {
             .enforce(Policies::createClassLoader)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(SecureClassLoader.class)
+        builder.on(SecureClassLoader.class)
             .protectedCtor()
             .enforce(Policies::createClassLoader)
             .elseThrowNotEntitled()

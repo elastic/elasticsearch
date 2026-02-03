@@ -9,35 +9,32 @@
 
 package org.elasticsearch.entitlement.rules;
 
-import java.util.ArrayList;
+import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
+
 import java.util.List;
 import java.util.function.Consumer;
 
-public class EntitlementRules {
-    private static final List<EntitlementRule> RULES = new ArrayList<>();
+public class EntitlementRulesBuilder {
+    private final InternalInstrumentationRegistry registry;
+
+    public EntitlementRulesBuilder(InternalInstrumentationRegistry registry) {
+        this.registry = registry;
+    }
 
     @SuppressWarnings("unchecked")
-    public static <T> ClassMethodBuilder<T> on(String className, Class<? extends T> publicType) {
+    public <T> ClassMethodBuilder<T> on(String className, Class<? extends T> publicType) {
         try {
-            return new ClassMethodBuilder<>((Class<T>) Class.forName(className));
+            return new ClassMethodBuilder<>(registry, (Class<T>) Class.forName(className));
         } catch (ClassNotFoundException e) {
             throw new IllegalArgumentException("Class not found: " + className, e);
         }
     }
 
-    public static <T> ClassMethodBuilder<T> on(Class<? extends T> clazz) {
-        return new ClassMethodBuilder<>(clazz);
+    public <T> ClassMethodBuilder<T> on(Class<? extends T> clazz) {
+        return new ClassMethodBuilder<>(registry, clazz);
     }
 
-    public static <T> void on(List<? extends Class<? extends T>> classes, Consumer<ClassMethodBuilder<T>> builderConsumer) {
+    public <T> void on(List<? extends Class<? extends T>> classes, Consumer<ClassMethodBuilder<T>> builderConsumer) {
         classes.forEach(clazz -> builderConsumer.accept(on(clazz)));
-    }
-
-    public static List<EntitlementRule> getRules() {
-        return RULES;
-    }
-
-    public static void registerRule(EntitlementRule rule) {
-        RULES.add(rule);
     }
 }

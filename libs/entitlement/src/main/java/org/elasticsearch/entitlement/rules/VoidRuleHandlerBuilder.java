@@ -13,29 +13,37 @@ import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.rules.function.CheckMethod;
 import org.elasticsearch.entitlement.rules.function.VarargCall;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
+import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 
 import java.util.function.Function;
 
 public class VoidRuleHandlerBuilder<T> {
+    protected final InternalInstrumentationRegistry registry;
     protected final Class<? extends T> clazz;
     protected final MethodKey methodKey;
     protected final VarargCall<CheckMethod> checkMethod;
 
-    public VoidRuleHandlerBuilder(Class<? extends T> clazz, MethodKey methodKey, VarargCall<CheckMethod> checkMethod) {
+    public VoidRuleHandlerBuilder(
+        InternalInstrumentationRegistry registry,
+        Class<? extends T> clazz,
+        MethodKey methodKey,
+        VarargCall<CheckMethod> checkMethod
+    ) {
+        this.registry = registry;
         this.clazz = clazz;
         this.methodKey = methodKey;
         this.checkMethod = checkMethod;
     }
 
     public ClassMethodBuilder<T> elseThrowNotEntitled() {
-        EntitlementRules.registerRule(new EntitlementRule(methodKey, checkMethod, new EntitlementHandler.NotEntitledEntitlementHandler()));
-        return new ClassMethodBuilder<>(clazz);
+        registry.registerRule(new EntitlementRule(methodKey, checkMethod, new EntitlementHandler.NotEntitledEntitlementHandler()));
+        return new ClassMethodBuilder<>(registry, clazz);
     }
 
     public ClassMethodBuilder<T> elseThrow(Function<NotEntitledException, ? extends Exception> exceptionSupplier) {
-        EntitlementRules.registerRule(
+        registry.registerRule(
             new EntitlementRule(methodKey, checkMethod, new EntitlementHandler.ExceptionEntitlementHandler(exceptionSupplier))
         );
-        return new ClassMethodBuilder<>(clazz);
+        return new ClassMethodBuilder<>(registry, clazz);
     }
 }

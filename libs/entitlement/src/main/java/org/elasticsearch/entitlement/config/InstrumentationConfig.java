@@ -9,6 +9,8 @@
 
 package org.elasticsearch.entitlement.config;
 
+import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
+
 public interface InstrumentationConfig {
-    void init();
+    void init(InternalInstrumentationRegistry registry);
 }

@@ -13,9 +13,10 @@ import jdk.nio.Channels;
 import sun.net.www.protocol.file.FileURLConnection;
 import sun.net.www.protocol.jar.JarURLConnection;
 
-import org.elasticsearch.entitlement.rules.EntitlementRules;
+import org.elasticsearch.entitlement.rules.EntitlementRulesBuilder;
 import org.elasticsearch.entitlement.rules.Policies;
 import org.elasticsearch.entitlement.rules.TypeToken;
+import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 
 import java.io.File;
 import java.io.FileDescriptor;
@@ -60,8 +61,10 @@ import java.util.zip.ZipFile;
 
 public class FileInstrumentation implements InstrumentationConfig {
     @Override
-    public void init() {
-        EntitlementRules.on(File.class)
+    public void init(InternalInstrumentationRegistry registry) {
+        EntitlementRulesBuilder builder = new EntitlementRulesBuilder(registry);
+
+        builder.on(File.class)
             .calling(File::canExecute)
             .enforce(Policies::fileRead)
             .elseThrowNotEntitled()
@@ -159,7 +162,7 @@ public class FileInstrumentation implements InstrumentationConfig {
             })
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(Files.class)
+        builder.on(Files.class)
             .callingStatic(Files::createDirectory, Path.class, FileAttribute[].class)
             .enforce(Policies::fileWrite)
             .elseThrowNotEntitled()
@@ -409,12 +412,12 @@ public class FileInstrumentation implements InstrumentationConfig {
             .enforce(Policies::fileRead)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(jdk.nio.Channels.class)
+        builder.on(jdk.nio.Channels.class)
             .callingStatic(jdk.nio.Channels::readWriteSelectableChannel, FileDescriptor.class, Channels.SelectableChannelCloser.class)
             .enforce(Policies::fileDescriptorWrite)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(FileChannel.class)
+        builder.on(FileChannel.class)
             .protectedCtor()
             .enforce(Policies::changeFilesHandling)
             .elseThrowNotEntitled()
@@ -430,7 +433,7 @@ public class FileInstrumentation implements InstrumentationConfig {
             .enforce(Policies::fileReadOrWrite)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(AsynchronousFileChannel.class)
+        builder.on(AsynchronousFileChannel.class)
             .protectedCtor()
             .enforce(Policies::changeFilesHandling)
             .elseThrowNotEntitled()
@@ -447,7 +450,7 @@ public class FileInstrumentation implements InstrumentationConfig {
             .enforce(Policies::fileReadOrWrite)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(RandomAccessFile.class)
+        builder.on(RandomAccessFile.class)
             .callingStatic(RandomAccessFile::new, File.class, String.class)
             .enforce((file, mode) -> mode.equals("r") ? Policies.fileRead(file) : Policies.fileWrite(file))
             .elseThrowNotEntitled()
@@ -455,7 +458,7 @@ public class FileInstrumentation implements InstrumentationConfig {
             .enforce((path, mode) -> mode.equals("r") ? Policies.fileRead(new File(path)) : Policies.fileWrite(new File(path)))
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(FileInputStream.class)
+        builder.on(FileInputStream.class)
             .callingStatic(FileInputStream::new, String.class)
             .enforce(path -> Policies.fileRead(new File(path)))
             .elseThrowNotEntitled()
@@ -466,7 +469,7 @@ public class FileInstrumentation implements InstrumentationConfig {
             .enforce(Policies::fileDescriptorRead)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(FileOutputStream.class)
+        builder.on(FileOutputStream.class)
             .callingStatic(FileOutputStream::new, String.class)
             .enforce(path -> Policies.fileWrite(new File(path)))
             .elseThrowNotEntitled()
@@ -483,7 +486,7 @@ public class FileInstrumentation implements InstrumentationConfig {
             .enforce(Policies::fileDescriptorWrite)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(FileReader.class)
+        builder.on(FileReader.class)
             .callingStatic(FileReader::new, String.class)
             .enforce(path -> Policies.fileRead(new File(path)))
             .elseThrowNotEntitled()
@@ -500,7 +503,7 @@ public class FileInstrumentation implements InstrumentationConfig {
             .enforce((name) -> Policies.fileRead(new File(name)))
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(FileWriter.class)
+        builder.on(FileWriter.class)
             .callingStatic(FileWriter::new, String.class)
             .enforce(path -> Policies.fileWrite(new File(path)))
             .elseThrowNotEntitled()
@@ -529,7 +532,7 @@ public class FileInstrumentation implements InstrumentationConfig {
             .enforce((name) -> Policies.fileWrite(new File(name)))
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(FileInputStream.class)
+        builder.on(FileInputStream.class)
             .callingStatic(FileInputStream::new, File.class)
             .enforce(Policies::fileRead)
             .elseThrowNotEntitled()
@@ -540,7 +543,7 @@ public class FileInstrumentation implements InstrumentationConfig {
             .enforce(path -> Policies.fileRead(new File(path)))
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(FileOutputStream.class)
+        builder.on(FileOutputStream.class)
             .callingStatic(FileOutputStream::new, File.class)
             .enforce(Policies::fileWrite)
             .elseThrowNotEntitled()
@@ -557,7 +560,7 @@ public class FileInstrumentation implements InstrumentationConfig {
             .enforce(path -> Policies.fileWrite(new File(path)))
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(RandomAccessFile.class)
+        builder.on(RandomAccessFile.class)
             .callingStatic(RandomAccessFile::new, File.class, String.class)
             .enforce((File file, String mode) -> mode.contains("w") ? Policies.fileWrite(file) : Policies.fileRead(file))
             .elseThrowNotEntitled()
@@ -567,7 +570,7 @@ public class FileInstrumentation implements InstrumentationConfig {
             )
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(JarFile.class)
+        builder.on(JarFile.class)
             .callingStatic(JarFile::new, String.class)
             .enforce(path -> Policies.fileRead(new File(path)))
             .elseThrowNotEntitled()
@@ -587,7 +590,7 @@ public class FileInstrumentation implements InstrumentationConfig {
             .enforce(Policies::fileRead)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(ZipFile.class)
+        builder.on(ZipFile.class)
             .callingStatic(ZipFile::new, String.class)
             .enforce(path -> Policies.fileRead(new File(path)))
             .elseThrowNotEntitled()
@@ -607,7 +610,7 @@ public class FileInstrumentation implements InstrumentationConfig {
             .enforce(Policies::fileRead)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(PrintWriter.class)
+        builder.on(PrintWriter.class)
             .callingStatic(PrintWriter::new, File.class)
             .enforce(Policies::fileWrite)
             .elseThrowNotEntitled()
@@ -621,7 +624,7 @@ public class FileInstrumentation implements InstrumentationConfig {
             .enforce((path) -> Policies.fileWrite(new File(path)))
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(Scanner.class)
+        builder.on(Scanner.class)
             .callingStatic(Scanner::new, File.class)
             .enforce(Policies::fileRead)
             .elseThrowNotEntitled()
@@ -632,7 +635,7 @@ public class FileInstrumentation implements InstrumentationConfig {
             .enforce(Policies::fileRead)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(FileHandler.class)
+        builder.on(FileHandler.class)
             .callingStatic(FileHandler::new)
             .enforce(Policies::loggingFileHandler)
             .elseThrowNotEntitled()
@@ -655,12 +658,12 @@ public class FileInstrumentation implements InstrumentationConfig {
             .enforce(Policies::loggingFileHandler)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(BodyPublishers.class)
+        builder.on(BodyPublishers.class)
             .callingStatic(BodyPublishers::ofFile, Path.class)
             .enforce(Policies::fileRead)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(BodyHandlers.class)
+        builder.on(BodyHandlers.class)
             .callingStatic(BodyHandlers::ofFile, Path.class)
             .enforce(Policies::fileWrite)
             .elseThrowNotEntitled()
@@ -671,7 +674,7 @@ public class FileInstrumentation implements InstrumentationConfig {
             .enforce(Policies::fileWrite)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(BodySubscribers.class)
+        builder.on(BodySubscribers.class)
             .callingStatic(BodySubscribers::ofFile, Path.class)
             .enforce(Policies::fileWrite)
             .elseThrowNotEntitled()
@@ -679,9 +682,9 @@ public class FileInstrumentation implements InstrumentationConfig {
             .enforce(Policies::fileWrite)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(FileSystemProvider.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
+        builder.on(FileSystemProvider.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
 
-        EntitlementRules.on(FileURLConnection.class)
+        builder.on(FileURLConnection.class)
             .callingVoid(FileURLConnection::connect)
             .enforce(fuc -> Policies.urlFileRead(fuc.getURL()))
             .elseThrowNotEntitled()
@@ -710,7 +713,7 @@ public class FileInstrumentation implements InstrumentationConfig {
             .enforce(fuc -> Policies.urlFileRead(fuc.getURL()))
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(JarURLConnection.class)
+        builder.on(JarURLConnection.class)
             .callingVoid(JarURLConnection::connect)
             .enforce(Policies::jarURLAccess)
             .elseThrowNotEntitled()

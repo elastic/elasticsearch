@@ -9,9 +9,10 @@
 
 package org.elasticsearch.entitlement.config;
 
-import org.elasticsearch.entitlement.rules.EntitlementRules;
+import org.elasticsearch.entitlement.rules.EntitlementRulesBuilder;
 import org.elasticsearch.entitlement.rules.Policies;
 import org.elasticsearch.entitlement.rules.TypeToken;
+import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 
 import java.nio.file.FileStore;
 import java.nio.file.FileSystems;
@@ -20,13 +21,15 @@ import java.util.stream.StreamSupport;
 
 public class FileStoreInstrumentation implements InstrumentationConfig {
     @Override
-    public void init() {
+    public void init(InternalInstrumentationRegistry registry) {
+        EntitlementRulesBuilder builder = new EntitlementRulesBuilder(registry);
+
         var fileStoreClasses = StreamSupport.stream(FileSystems.getDefault().getFileStores().spliterator(), false)
             .map(FileStore::getClass)
             .distinct()
             .toList();
 
-        EntitlementRules.on(
+        builder.on(
             fileStoreClasses,
             c -> c.calling(FileStore::getFileStoreAttributeView, new TypeToken<Class<? extends FileStoreAttributeView>>() {})
                 .enforce(Policies::getFileAttributeView)

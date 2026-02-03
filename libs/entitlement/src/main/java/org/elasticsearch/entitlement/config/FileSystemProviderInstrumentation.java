@@ -9,8 +9,10 @@
 
 package org.elasticsearch.entitlement.config;
 
+import org.elasticsearch.entitlement.rules.EntitlementRulesBuilder;
 import org.elasticsearch.entitlement.rules.Policies;
 import org.elasticsearch.entitlement.rules.TypeToken;
+import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 
 import java.net.URI;
 import java.nio.file.AccessMode;
@@ -28,18 +30,15 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
-import static org.elasticsearch.entitlement.rules.EntitlementRules.on;
-
 public class FileSystemProviderInstrumentation implements InstrumentationConfig {
     @Override
-    public void init() {
+    public void init(InternalInstrumentationRegistry registry) {
+        EntitlementRulesBuilder builder = new EntitlementRulesBuilder(registry);
+
         var defaultFileSystemProvider = FileSystems.getDefault().provider().getClass();
 
-        on(defaultFileSystemProvider).calling(
-            FileSystemProvider::newFileSystem,
-            TypeToken.of(URI.class),
-            new TypeToken<Map<String, ?>>() {}
-        )
+        builder.on(defaultFileSystemProvider)
+            .calling(FileSystemProvider::newFileSystem, TypeToken.of(URI.class), new TypeToken<Map<String, ?>>() {})
             .enforce(Policies::changeJvmGlobalState)
             .elseThrowNotEntitled()
             .calling(FileSystemProvider::newFileSystem, TypeToken.of(Path.class), new TypeToken<Map<String, ?>>() {})

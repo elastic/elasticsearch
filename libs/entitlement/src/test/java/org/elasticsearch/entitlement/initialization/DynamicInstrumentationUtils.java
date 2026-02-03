@@ -10,24 +10,17 @@
 package org.elasticsearch.entitlement.initialization;
 
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.entitlement.bridge.EntitlementChecker;
-import org.elasticsearch.entitlement.instrumentation.CheckMethod;
-import org.elasticsearch.entitlement.instrumentation.MethodKey;
-import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.ClassVisitor;
-import org.objectweb.asm.MethodVisitor;
-import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.Type;
+import org.elasticsearch.entitlement.config.MainInstrumentationProvider;
+import org.elasticsearch.entitlement.runtime.policy.PolicyChecker;
+import org.elasticsearch.entitlement.runtime.registry.InstrumentationRegistryImpl;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Stream;
 
 import static java.util.Objects.requireNonNull;
+import static org.mockito.Mockito.mock;
 
 public class DynamicInstrumentationUtils {
 
@@ -41,20 +34,27 @@ public class DynamicInstrumentationUtils {
 
         var path = requireNonNull(args.length > 0 ? args[0] : System.getProperty("es.entitlements.dump"), "destination for dump required");
         // TODO - Update this to use EntitlementRegistry
-//        var descriptors = loadInstrumentedMethodDescriptors();
-//        Files.write(
-//            Path.of(path),
-//            () -> descriptors.stream().filter(d -> d.methodDescriptor != null).map(Descriptor::toLine).iterator(),
-//            StandardCharsets.UTF_8
-//        );
+        var descriptors = loadInstrumentedMethodDescriptors();
+        Files.write(Path.of(path), () -> descriptors.stream().map(Descriptor::toLine).iterator(), StandardCharsets.UTF_8);
     }
 
-    record Descriptor(String className, String methodName, List<String> parameterTypes, String methodDescriptor) {
+    static List<Descriptor> loadInstrumentedMethodDescriptors() throws Exception {
+        InstrumentationRegistryImpl instrumentationRegistry = new InstrumentationRegistryImpl(mock(PolicyChecker.class));
+        new MainInstrumentationProvider().init(instrumentationRegistry);
+
+        return instrumentationRegistry.getInstrumentedMethods()
+            .entrySet()
+            .stream()
+            .map(entry -> new Descriptor(entry.getKey().className(), entry.getKey().methodName(), entry.getKey().parameterTypes()))
+            .toList();
+    }
+
+    record Descriptor(String className, String methodName, List<String> parameterTypes) {
 
         private static final String SEPARATOR = "\t";
 
         CharSequence toLine() {
-            return String.join(SEPARATOR, className, methodName, methodDescriptor);
+            return String.join(SEPARATOR, className, methodName, parameterTypes.toString());
         }
 
     }

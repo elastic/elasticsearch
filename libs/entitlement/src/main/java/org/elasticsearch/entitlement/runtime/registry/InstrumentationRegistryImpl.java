@@ -19,7 +19,6 @@ import org.elasticsearch.entitlement.runtime.policy.PolicyChecker;
 
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -29,15 +28,8 @@ public class InstrumentationRegistryImpl implements InternalInstrumentationRegis
     private final Map<String, EntitlementHandler> implementationIdToHandler = new HashMap<>();
     private final Map<String, VarargCall<CheckMethod>> implementationIdToProvider = new HashMap<>();
 
-    public InstrumentationRegistryImpl(PolicyChecker policyChecker, List<EntitlementRule> rules) {
+    public InstrumentationRegistryImpl(PolicyChecker policyChecker) {
         this.policyChecker = policyChecker;
-
-        for (EntitlementRule rule : rules) {
-            String id = UUID.randomUUID().toString();
-            methodToImplementationInfo.put(rule.methodKey(), new InstrumentationInfo(id, rule.handler()));
-            implementationIdToHandler.put(id, rule.handler());
-            implementationIdToProvider.put(id, rule.checkMethod());
-        }
     }
 
     @Override
@@ -58,5 +50,12 @@ public class InstrumentationRegistryImpl implements InternalInstrumentationRegis
     @Override
     public Map<MethodKey, InstrumentationInfo> getInstrumentedMethods() {
         return Collections.unmodifiableMap(methodToImplementationInfo);
+    }
+
+    public void registerRule(EntitlementRule rule) {
+        String id = UUID.randomUUID().toString();
+        methodToImplementationInfo.put(rule.methodKey(), new InstrumentationInfo(id, rule.handler()));
+        implementationIdToHandler.put(id, rule.handler());
+        implementationIdToProvider.put(id, rule.checkMethod());
     }
 }

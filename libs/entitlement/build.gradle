@@ -43,27 +43,36 @@ tasks.withType(CheckForbiddenApisTask).configureEach {
   replaceSignatureFiles 'jdk-signatures'
 }
 
+def exportedPackages = [
+  "jdk.jlink/jdk.tools.jlink.internal",
+  "jdk.internal.vm.ci/jdk.vm.ci.services",
+  "java.base/sun.net.www",
+  "java.base/sun.net.www.protocol.ftp",
+  "java.base/sun.net.www.protocol.file",
+  "java.base/sun.net.www.protocol.jar",
+  "java.base/sun.net.www.protocol.http",
+  "java.base/sun.net.www.protocol.https",
+  "java.base/sun.net.www.protocol.mailto",
+  "java.base/sun.nio.ch",
+  "java.base/jdk.internal.foreign",
+  "java.base/jdk.internal.foreign.abi",
+  "java.base/jdk.internal.foreign.layout",
+  "java.net.http/jdk.internal.net.http",
+  "jdk.jdi/com.sun.tools.jdi"
+]
+
 // invoke using ./gradlew :libs:entitlement:dumpInstrumentedMethods --args="<output file>"
 tasks.register('dumpInstrumentedMethods', JavaExec) {
   classpath = sourceSets.test.runtimeClasspath
   mainClass = 'org.elasticsearch.entitlement.initialization.DynamicInstrumentationUtils'
+  exportedPackages.each { jvmArgs("--add-opens", "${it}=ALL-UNNAMED")}
 }
 
 tasks.named('compileJava') {
   options.release.unset()
-  options.compilerArgs.addAll(["--add-exports", "jdk.jlink/jdk.tools.jlink.internal=org.elasticsearch.entitlement"])
-  options.compilerArgs.addAll(["--add-exports", "jdk.internal.vm.ci/jdk.vm.ci.services=org.elasticsearch.entitlement"])
-  options.compilerArgs.addAll(["--add-exports", "java.base/sun.net.www=org.elasticsearch.entitlement"])
-  options.compilerArgs.addAll(["--add-exports", "java.base/sun.net.www.protocol.ftp=org.elasticsearch.entitlement"])
-  options.compilerArgs.addAll(["--add-exports", "java.base/sun.net.www.protocol.file=org.elasticsearch.entitlement"])
-  options.compilerArgs.addAll(["--add-exports", "java.base/sun.net.www.protocol.jar=org.elasticsearch.entitlement"])
-  options.compilerArgs.addAll(["--add-exports", "java.base/sun.net.www.protocol.http=org.elasticsearch.entitlement"])
-  options.compilerArgs.addAll(["--add-exports", "java.base/sun.net.www.protocol.https=org.elasticsearch.entitlement"])
-  options.compilerArgs.addAll(["--add-exports", "java.base/sun.net.www.protocol.mailto=org.elasticsearch.entitlement"])
-  options.compilerArgs.addAll(["--add-exports", "java.base/sun.nio.ch=org.elasticsearch.entitlement"])
-  options.compilerArgs.addAll(["--add-exports", "java.base/jdk.internal.foreign=org.elasticsearch.entitlement"])
-  options.compilerArgs.addAll(["--add-exports", "java.base/jdk.internal.foreign.abi=org.elasticsearch.entitlement"])
-  options.compilerArgs.addAll(["--add-exports", "java.base/jdk.internal.foreign.layout=org.elasticsearch.entitlement"])
-  options.compilerArgs.addAll(["--add-exports", "java.net.http/jdk.internal.net.http=org.elasticsearch.entitlement"])
-  options.compilerArgs.addAll(["--add-exports", "jdk.jdi/com.sun.tools.jdi=org.elasticsearch.entitlement"])
+  exportedPackages.each { options.compilerArgs.addAll(["--add-exports", "${it}=org.elasticsearch.entitlement"])}
+}
+
+tasks.named('test') {
+  exportedPackages.each { jvmArgs("--add-opens", "${it}=ALL-UNNAMED")}
 }

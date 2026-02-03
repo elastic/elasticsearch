@@ -11,12 +11,10 @@ package org.elasticsearch.entitlement.initialization;
 
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.entitlement.bridge.registry.InstrumentationRegistry;
-import org.elasticsearch.entitlement.rules.EntitlementRules;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.PolicyChecker;
 import org.elasticsearch.entitlement.runtime.policy.PolicyCheckerImpl;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
-import org.elasticsearch.entitlement.runtime.registry.InstrumentationRegistryImpl;
 import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -40,11 +38,10 @@ public class EntitlementInitialization {
     private static final Module ENTITLEMENTS_MODULE = PolicyManager.class.getModule();
 
     public static InitializeArgs initializeArgs;
-    private static InternalInstrumentationRegistry instrumentationRegistry;
     private static AtomicReference<RuntimeException> error = new AtomicReference<>();
 
     public static InternalInstrumentationRegistry instrumentationRegistry() {
-        return instrumentationRegistry;
+        return initializeArgs.instrumentationRegistry;
     }
 
     /**
@@ -75,9 +72,6 @@ public class EntitlementInitialization {
      */
     public static void initialize(Instrumentation inst) {
         try {
-            // the checker _MUST_ be set before _any_ instrumentation is done
-            final PolicyChecker policyChecker = createPolicyChecker(initializeArgs.policyManager());
-            instrumentationRegistry = new InstrumentationRegistryImpl(policyChecker, EntitlementRules.getRules());
             initInstrumentation(inst);
         } catch (Exception e) {
             // exceptions thrown within the agent will be swallowed, so capture it here
@@ -92,13 +86,20 @@ public class EntitlementInitialization {
      *
      * @param pathLookup
      * @param suppressFailureLogPackages
-     * @param policyManager
+     * @param policyChecker
+     * @param instrumentationRegistry
      */
-    public record InitializeArgs(PathLookup pathLookup, Set<Package> suppressFailureLogPackages, PolicyManager policyManager) {
+    public record InitializeArgs(
+        PathLookup pathLookup,
+        Set<Package> suppressFailureLogPackages,
+        PolicyChecker policyChecker,
+        InternalInstrumentationRegistry instrumentationRegistry
+    ) {
         public InitializeArgs {
             requireNonNull(pathLookup);
             requireNonNull(suppressFailureLogPackages);
-            requireNonNull(policyManager);
+            requireNonNull(policyChecker);
+            requireNonNull(instrumentationRegistry);
         }
     }
 
@@ -139,7 +140,7 @@ public class EntitlementInitialization {
             ensureClassesSensitiveToVerificationAreInitialized();
         }
 
-        DynamicInstrumentation.initialize(instrumentation, verifyBytecode, instrumentationRegistry);
+        DynamicInstrumentation.initialize(instrumentation, verifyBytecode, initializeArgs.instrumentationRegistry);
 
     }
 }

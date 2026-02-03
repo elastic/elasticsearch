@@ -12,17 +12,23 @@ package org.elasticsearch.entitlement.rules;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.rules.function.CheckMethod;
 import org.elasticsearch.entitlement.rules.function.VarargCall;
+import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 
 public class RuleHandlerBuilder<T, R> extends VoidRuleHandlerBuilder<T> {
 
-    public RuleHandlerBuilder(Class<? extends T> clazz, MethodKey methodKey, VarargCall<CheckMethod> checkMethod) {
-        super(clazz, methodKey, checkMethod);
+    public RuleHandlerBuilder(
+        InternalInstrumentationRegistry registry,
+        Class<? extends T> clazz,
+        MethodKey methodKey,
+        VarargCall<CheckMethod> checkMethod
+    ) {
+        super(registry, clazz, methodKey, checkMethod);
     }
 
     public ClassMethodBuilder<T> elseReturn(R defaultValue) {
-        EntitlementRules.registerRule(
+        registry.registerRule(
             new EntitlementRule(methodKey, checkMethod, new EntitlementHandler.DefaultValueEntitlementHandler<>(defaultValue))
         );
-        return new ClassMethodBuilder<>(clazz);
+        return new ClassMethodBuilder<>(registry, clazz);
     }
 }

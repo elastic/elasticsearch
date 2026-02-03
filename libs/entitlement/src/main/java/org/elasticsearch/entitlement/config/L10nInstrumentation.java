@@ -9,8 +9,9 @@
 
 package org.elasticsearch.entitlement.config;
 
-import org.elasticsearch.entitlement.rules.EntitlementRules;
+import org.elasticsearch.entitlement.rules.EntitlementRulesBuilder;
 import org.elasticsearch.entitlement.rules.Policies;
+import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 
 import java.nio.charset.spi.CharsetProvider;
 import java.text.spi.BreakIteratorProvider;
@@ -31,44 +32,43 @@ import java.util.spi.TimeZoneNameProvider;
 
 public class L10nInstrumentation implements InstrumentationConfig {
     @Override
-    public void init() {
-        EntitlementRules.on(LogManager.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
+    public void init(InternalInstrumentationRegistry registry) {
+        EntitlementRulesBuilder builder = new EntitlementRulesBuilder(registry);
 
-        EntitlementRules.on(CalendarDataProvider.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
+        builder.on(LogManager.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
 
-        EntitlementRules.on(CalendarNameProvider.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
+        builder.on(CalendarDataProvider.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
 
-        EntitlementRules.on(CurrencyNameProvider.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
+        builder.on(CalendarNameProvider.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
 
-        EntitlementRules.on(LocaleNameProvider.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
+        builder.on(CurrencyNameProvider.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
 
-        EntitlementRules.on(LocaleServiceProvider.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
+        builder.on(LocaleNameProvider.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
 
-        EntitlementRules.on(TimeZoneNameProvider.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
+        builder.on(LocaleServiceProvider.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
 
-        EntitlementRules.on(CharsetProvider.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
+        builder.on(TimeZoneNameProvider.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
 
-        EntitlementRules.on(TimeZone.class)
+        builder.on(CharsetProvider.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
+
+        builder.on(TimeZone.class)
             .callingVoidStatic(TimeZone::setDefault, TimeZone.class)
             .enforce(Policies::changeJvmGlobalState)
             .elseThrowNotEntitled();
 
-        EntitlementRules.on(BreakIteratorProvider.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
+        builder.on(BreakIteratorProvider.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
 
-        EntitlementRules.on(CollatorProvider.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
+        builder.on(CollatorProvider.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
 
-        EntitlementRules.on(DateFormatProvider.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
+        builder.on(DateFormatProvider.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
 
-        EntitlementRules.on(DateFormatSymbolsProvider.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
+        builder.on(DateFormatSymbolsProvider.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
 
-        EntitlementRules.on(DecimalFormatSymbolsProvider.class)
-            .protectedCtor()
-            .enforce(Policies::changeJvmGlobalState)
-            .elseThrowNotEntitled();
+        builder.on(DecimalFormatSymbolsProvider.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
 
-        EntitlementRules.on(NumberFormatProvider.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
+        builder.on(NumberFormatProvider.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
 
-        EntitlementRules.on(Locale.class)
+        builder.on(Locale.class)
             .callingVoidStatic(Locale::setDefault, Locale.Category.class, Locale.class)
             .enforce(Policies::changeJvmGlobalState)
             .elseThrowNotEntitled()

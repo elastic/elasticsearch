@@ -12,47 +12,17 @@ package org.elasticsearch.entitlement.config;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.rules.EntitlementHandler;
 import org.elasticsearch.entitlement.rules.EntitlementRule;
-import org.elasticsearch.entitlement.rules.EntitlementRules;
 import org.elasticsearch.entitlement.rules.Policies;
+import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 
-import java.nio.file.FileSystems;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.stream.StreamSupport;
 
 public class PathInstrumentation implements InstrumentationConfig {
     @Override
-    public void init() {
-        var pathClasses = StreamSupport.stream(FileSystems.getDefault().getRootDirectories().spliterator(), false)
-            .map(Path::getClass)
-            .distinct()
-            .toList();
-
-        // EntitlementRules.on(pathClasses, c -> c.calling(Path::toRealPath, LinkOption[].class).enforce((path, options) -> {
-        // boolean followLinks = true;
-        // for (LinkOption option : options) {
-        // if (option == LinkOption.NOFOLLOW_LINKS) {
-        // followLinks = false;
-        // break;
-        // }
-        // }
-        // return Policies.fileReadWithLinks(path, followLinks);
-        // })
-        // .elseThrowNotEntitled()
-        // .calling(Path::register, TypeToken.of(WatchService.class), new TypeToken<WatchEvent.Kind<?>>() {})
-        // .enforce(Policies::fileRead)
-        // .elseThrowNotEntitled()
-        // .calling(
-        // Path::register,
-        // TypeToken.of(WatchService.class),
-        // new TypeToken<WatchEvent.Kind<?>[]>() {},
-        // TypeToken.of(WatchEvent.Modifier.class)
-        // )
-        // .enforce(Policies::fileRead)
-        // .elseThrowNotEntitled());
-
-        EntitlementRules.registerRule(
+    public void init(InternalInstrumentationRegistry registry) {
+        registry.registerRule(
             new EntitlementRule(new MethodKey("sun/nio/fs/UnixPath", "toRealPath", List.of("java.nio.file.LinkOption[]")), args -> {
                 Path path = (Path) args[0];
                 LinkOption[] options = (LinkOption[]) args[1];
@@ -67,7 +37,7 @@ public class PathInstrumentation implements InstrumentationConfig {
             }, new EntitlementHandler.NotEntitledEntitlementHandler())
         );
 
-        EntitlementRules.registerRule(
+        registry.registerRule(
             new EntitlementRule(
                 new MethodKey("java/nio/file/Path", "register", List.of("java.nio.file.WatchService", "java.nio.file.WatchEvent$Kind[]")),
                 args -> {
@@ -78,7 +48,7 @@ public class PathInstrumentation implements InstrumentationConfig {
             )
         );
 
-        EntitlementRules.registerRule(
+        registry.registerRule(
             new EntitlementRule(
                 new MethodKey(
                     "sun/nio/fs/UnixPath",

@@ -17,23 +17,16 @@ import com.sun.tools.attach.VirtualMachine;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.entitlement.config.ClassLoaderInstrumentation;
-import org.elasticsearch.entitlement.config.FileInstrumentation;
-import org.elasticsearch.entitlement.config.FileStoreInstrumentation;
-import org.elasticsearch.entitlement.config.FileSystemProviderInstrumentation;
-import org.elasticsearch.entitlement.config.InstrumentationConfig;
-import org.elasticsearch.entitlement.config.L10nInstrumentation;
-import org.elasticsearch.entitlement.config.NetworkInstrumentation;
-import org.elasticsearch.entitlement.config.PathInstrumentation;
-import org.elasticsearch.entitlement.config.SecurityInstrumentation;
-import org.elasticsearch.entitlement.config.SelectorProviderInstrumentation;
-import org.elasticsearch.entitlement.config.SystemInstrumentation;
-import org.elasticsearch.entitlement.config.ThreadInstrumentation;
+import org.elasticsearch.entitlement.config.MainInstrumentationProvider;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.PathLookupImpl;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
+import org.elasticsearch.entitlement.runtime.policy.PolicyChecker;
+import org.elasticsearch.entitlement.runtime.policy.PolicyCheckerImpl;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
+import org.elasticsearch.entitlement.runtime.registry.InstrumentationRegistryImpl;
+import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -41,13 +34,13 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
 public class EntitlementBootstrap {
+    public static final Module ENTITLEMENTS_MODULE = PolicyManager.class.getModule();
 
     /**
      * Main entry point that activates entitlement checking. Once this method returns,
@@ -94,20 +87,6 @@ public class EntitlementBootstrap {
             throw new IllegalStateException("initialization data is already set");
         }
 
-        List.of(
-            new ClassLoaderInstrumentation(),
-            new FileInstrumentation(),
-            new FileStoreInstrumentation(),
-            new FileSystemProviderInstrumentation(),
-            new L10nInstrumentation(),
-            new NetworkInstrumentation(),
-            new PathInstrumentation(),
-            new SecurityInstrumentation(),
-            new SelectorProviderInstrumentation(),
-            new SystemInstrumentation(),
-            new ThreadInstrumentation()
-        ).forEach(InstrumentationConfig::init);
-
         PathLookupImpl pathLookup = new PathLookupImpl(
             getUserHome(),
             configDir,
@@ -122,11 +101,16 @@ public class EntitlementBootstrap {
             pidFile,
             settingResolver
         );
+        PolicyManager policyManager = createPolicyManager(pluginPolicies, pathLookup, serverPolicyPatch, scopeResolver, pluginSourcePaths);
+        PolicyChecker policyChecker = createPolicyChecker(suppressFailureLogPackages, policyManager, pathLookup);
+        InternalInstrumentationRegistry instrumentationRegistry = new InstrumentationRegistryImpl(policyChecker);
         EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(
             pathLookup,
             suppressFailureLogPackages,
-            createPolicyManager(pluginPolicies, pathLookup, serverPolicyPatch, scopeResolver, pluginSourcePaths)
+            policyChecker,
+            instrumentationRegistry
         );
+        registerEntitlementRules(instrumentationRegistry);
         exportInitializationToAgent();
         loadAgent(findAgentJar(), EntitlementInitialization.class.getName());
 
@@ -204,6 +188,18 @@ public class EntitlementBootstrap {
             pluginSourcePathsResolver::get,
             pathLookup
         );
+    }
+
+    private static PolicyCheckerImpl createPolicyChecker(
+        Set<Package> suppressFailureLogPackages,
+        PolicyManager policyManager,
+        PathLookup pathLookup
+    ) {
+        return new PolicyCheckerImpl(suppressFailureLogPackages, ENTITLEMENTS_MODULE, policyManager, pathLookup);
+    }
+
+    private static void registerEntitlementRules(InternalInstrumentationRegistry instrumentationRegistry) {
+        new MainInstrumentationProvider().init(instrumentationRegistry);
     }
 
     private static final Logger logger = LogManager.getLogger(EntitlementBootstrap.class);

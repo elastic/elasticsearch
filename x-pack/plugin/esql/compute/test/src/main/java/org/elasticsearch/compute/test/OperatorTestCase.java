@@ -278,14 +278,6 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      * @deprecated use {@link TestDriverRunner}
      */
     @Deprecated
-    protected final List<Page> drive(List<Operator> operators, Iterator<Page> input, DriverContext context) {
-        return new TestDriverRunner().builder(context).input(input).run(operators);
-    }
-
-    /**
-     * @deprecated use {@link TestDriverRunner}
-     */
-    @Deprecated
     public static void runDriver(Driver driver) {
         new TestDriverRunner().run(driver);
     }

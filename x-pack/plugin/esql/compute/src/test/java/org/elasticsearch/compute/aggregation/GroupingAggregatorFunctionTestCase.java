@@ -468,8 +468,8 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
      * Run the aggregation passing only null values.
      */
     private void assertNullOnly(List<Operator> operators, DriverContext driverContext) {
-        BlockFactory blockFactory = driverContext.blockFactory();
-        try (var groupBuilder = blockFactory.newLongBlockBuilder(1)) {
+        var runner = new TestDriverRunner().builder(driverContext);
+        try (var groupBuilder = runner.blockFactory().newLongBlockBuilder(1)) {
             if (randomBoolean()) {
                 groupBuilder.appendLong(1);
             } else {
@@ -478,10 +478,10 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
             Block[] blocks = new Block[1 + inputCount()];
             blocks[0] = groupBuilder.build();
             for (int i = 1; i < blocks.length; i++) {
-                blocks[i] = blockFactory.newConstantNullBlock(1);
+                blocks[i] = runner.blockFactory().newConstantNullBlock(1);
             }
-            List<Page> source = List.of(new Page(blocks));
-            List<Page> results = drive(operators, source.iterator(), driverContext);
+            runner.input(blocks);
+            List<Page> results = runner.run(operators);
 
             assertThat(results, hasSize(1));
             Block resultBlock = results.get(0).getBlock(1);
@@ -546,7 +546,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
             source.add(new Page(groups.asBlock()).appendBlocks(Block.Builder.buildAll(copiedValues)));
         }
 
-        List<Page> results = drive(operators, source.iterator(), driverContext);
+        List<Page> results = new TestDriverRunner().builder(driverContext).input(source).run(operators);
 
         assertThat(results, hasSize(1));
         LongVector groups = results.get(0).<LongBlock>getBlock(0).asVector();

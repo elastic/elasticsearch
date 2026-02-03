@@ -363,6 +363,43 @@ public class AnalyzerUnmappedGoldenTests extends GoldenTestCase {
             """);
     }
 
+    public void testPartiallyMappedField() throws Exception {
+        runTests("""
+            FROM sample_data, partial_mapping_sample_data
+            | KEEP @timestamp, message, unmapped_message
+            """);
+    }
+
+    public void testPartiallyMappedFieldWithStats() throws Exception {
+        runTests("""
+            FROM sample_data, partial_mapping_sample_data
+            | STATS c = COUNT(*) BY unmapped_message
+            """);
+    }
+
+    public void testPartiallyMappedFieldWithEval() throws Exception {
+        runTests("""
+            FROM sample_data, partial_mapping_sample_data
+            | EVAL x = COALESCE(unmapped_message, "missing")
+            | KEEP @timestamp, x
+            """);
+    }
+
+    public void testDifferentTypesAcrossIndices() throws Exception {
+        runTests("""
+            FROM sample_data, sample_data_ts_long
+            | KEEP @timestamp, message
+            """);
+    }
+
+    public void testDifferentTypesWithCast() throws Exception {
+        runTests("""
+            FROM sample_data, sample_data_ts_long
+            | EVAL ts = @timestamp::STRING
+            | KEEP ts, message
+            """);
+    }
+
     @Override
     protected java.util.List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());

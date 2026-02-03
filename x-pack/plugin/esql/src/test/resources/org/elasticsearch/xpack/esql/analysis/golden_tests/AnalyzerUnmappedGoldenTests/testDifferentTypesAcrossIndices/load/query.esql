@@ -1,0 +1,2 @@
+SET unmapped_fields="load"; FROM sample_data, sample_data_ts_long
+| KEEP @timestamp, message

@@ -10,38 +10,25 @@
 package org.elasticsearch.simdvec;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.VectorUtil;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
 
-public class ES93BinaryQuantizedVectorsScorer {
+public abstract class ES93BinaryQuantizedVectorsScorer {
 
     protected static final float FOUR_BIT_SCALE = 1f / ((1 << 4) - 1);
-    private final IndexInput slice;
-    private final int numBytes;
+    protected final int numBytes;
+    protected final int byteSize;
 
-    final byte[] binaryValue;
-    final ByteBuffer byteBuffer;
-    final int byteSize;
-    private int lastOrd = -1;
-    final float[] correctiveValues;
-    int quantizedComponentSum;
-
-    public ES93BinaryQuantizedVectorsScorer(IndexInput slice, int numBytes) {
-        this.slice = slice;
+    public ES93BinaryQuantizedVectorsScorer(int numBytes) {
         this.numBytes = numBytes;
-        this.correctiveValues = new float[3];
         this.byteSize = numBytes + (Float.BYTES * 3) + Short.BYTES;
-        this.byteBuffer = ByteBuffer.allocate(numBytes);
-        this.binaryValue = byteBuffer.array();
     }
 
-    public float score(
+    public abstract float score(
         int dims,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
@@ -51,54 +38,22 @@ public class ES93BinaryQuantizedVectorsScorer {
         float queryAdditionalCorrection,
         int queryQuantizedComponentSum,
         int targetOrd
-    ) throws IOException {
-        var d = values(targetOrd);
+    ) throws IOException;
 
-        return quantizedScore(
-            dims,
-            similarityFunction,
-            centroidDp,
-            q,
-            queryLowerInterval,
-            queryUpperInterval,
-            queryAdditionalCorrection,
-            queryQuantizedComponentSum,
-            d,
-            correctiveValues[0],
-            correctiveValues[1],
-            correctiveValues[2],
-            quantizedComponentSum
-        );
-    }
-
-    private byte[] values(int targetOrd) throws IOException {
-        if (lastOrd == targetOrd) {
-            return binaryValue;
-        }
-        slice.seek((long) targetOrd * byteSize);
-        slice.readBytes(byteBuffer.array(), byteBuffer.arrayOffset(), numBytes);
-        slice.readFloats(correctiveValues, 0, 3);
-        quantizedComponentSum = Short.toUnsignedInt(slice.readShort());
-        lastOrd = targetOrd;
-        return binaryValue;
-    }
-
-    private static float quantizedScore(
+    protected static float quantizedScore(
         int dims,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
-        byte[] q,
+        float qcDist,
         float queryLowerInterval,
         float queryUpperInterval,
         float queryAdditionalCorrection,
         int queryQuantizedComponentSum,
-        byte[] d,
         float indexLowerInterval,
         float indexUpperInterval,
         float indexAdditionalCorrection,
         int indexQuantizedComponentSum
     ) {
-        float qcDist = ESVectorUtil.ipByteBinByte(q, d);
         float x1 = indexQuantizedComponentSum;
         float ax = indexLowerInterval;
         // Here we assume `lx` is simply bit vectors, so the scaling isn't necessary

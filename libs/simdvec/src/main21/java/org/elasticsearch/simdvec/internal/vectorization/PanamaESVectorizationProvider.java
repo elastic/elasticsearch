@@ -95,9 +95,9 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
     @Override
     public ES93BinaryQuantizedVectorsScorer newES93BinaryQuantizedVectorsScorer(IndexInput input, int vectorLengthInBytes)
         throws IOException {
-        // if (input instanceof MemorySegmentAccessInput msai && NATIVE_SUPPORTED && SUPPORTS_HEAP_SEGMENTS) {
-        // // TODO
-        // }
-        return new ES93BinaryQuantizedVectorsScorer(input, vectorLengthInBytes);
+        if (input instanceof MemorySegmentAccessInput msai && NATIVE_SUPPORTED && SUPPORTS_HEAP_SEGMENTS) {
+            return new NativeBinaryQuantizedVectorScorer(input, vectorLengthInBytes, msai);
+        }
+        return new DefaultES93BinaryQuantizedVectorsScorer(input, vectorLengthInBytes);
     }
 }

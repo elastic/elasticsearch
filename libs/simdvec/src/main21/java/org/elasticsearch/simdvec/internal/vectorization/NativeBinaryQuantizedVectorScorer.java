@@ -41,7 +41,8 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
         var offset = ((long) targetOrd * byteSize);
         var segment = msai.segmentSliceOrNull(offset, byteSize);
         if (segment == null) {
-            super.score(
+            // Fallback to the IndexInput-based (on-heap) implementation
+            return super.score(
                 q,
                 queryLowerInterval,
                 queryUpperInterval,

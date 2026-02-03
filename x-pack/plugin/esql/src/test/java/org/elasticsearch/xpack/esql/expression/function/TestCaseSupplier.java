@@ -1736,7 +1736,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         private final List<TypedData> data;
 
         /**
-         * The expected toString output for the evaluator this function invocation should generate
+         * The expected toString output for the evaluator this function invocation should generate.
          */
         private final Matcher<String> evaluatorToString;
         /**

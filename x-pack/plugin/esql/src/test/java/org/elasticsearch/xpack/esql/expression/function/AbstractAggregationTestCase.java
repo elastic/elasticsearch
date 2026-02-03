@@ -124,6 +124,13 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         return newSuppliers;
     }
 
+    /**
+     * Returns true if the aggregation gives the same result given the same inputs. False otherwise.
+     */
+    protected boolean isDeterministic() {
+        return true;
+    }
+
     public void testAggregate() {
         Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
 
@@ -142,7 +149,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
     public void testGroupingAggregate() {
         Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
 
-        resolveExpression(expression, this::aggregateGroupingSingleMode, this::evaluate);
+        executeExpression(expression, this::aggregateGroupingSingleMode);
     }
 
     public void testGroupingAggregateToString() {
@@ -195,8 +202,6 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
     private Object aggregateSingleMode(Expression expression, List<Page> pages) {
         Object result;
         try (var aggregator = aggregator(expression, initialInputChannels(), AggregatorMode.SINGLE)) {
-            // TODO: Restore line on main execution
-            // assertAggregatorToString(aggregator);
             for (Page inputPage : pages) {
                 try (
                     BooleanVector noMasking = driverContext().blockFactory().newConstantBooleanVector(true, inputPage.getPositionCount())
@@ -205,38 +210,34 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                 }
             }
 
-            result = extractResultFromAggregator(aggregator, PlannerUtils.toElementType(testCase.expectedType()));
+            result = extractResultFromAggregator(aggregator, PlannerUtils.toElementType(expression.dataType()));
         }
 
-        // TODO: Restore? Maybe just remove
-        // assertTestCaseResultAndWarnings(result);
         return result;
     }
 
-    private void aggregateGroupingSingleMode(Expression expression) {
-        var pages = rows(testCase.getMultiRowFields());
+    private Object aggregateGroupingSingleMode(Expression expression, List<Page> pages) {
         List<Object> results;
-        try {
-            assumeFalse("Grouping aggregations must receive data to check results", pages.isEmpty());
+        assumeFalse(
+            "Grouping aggregations must receive data to check results",
+            pages.isEmpty() || pages.getFirst().getPositionCount() == 0
+        );
 
-            try (var aggregator = groupingAggregator(expression, initialInputChannels(), AggregatorMode.SINGLE)) {
-                assertAggregatorToString(aggregator);
-                var groupCount = randomIntBetween(1, 1000);
-                for (Page inputPage : pages) {
-                    processPageGrouping(aggregator, inputPage, groupCount);
-                }
+        try (var aggregator = groupingAggregator(expression, initialInputChannels(), AggregatorMode.SINGLE)) {
+            var groupCount = randomIntBetween(1, 1000);
+            for (Page inputPage : pages) {
+                processPageGrouping(aggregator, inputPage, groupCount);
+            }
 
-                results = extractResultsFromAggregator(aggregator, PlannerUtils.toElementType(testCase.expectedType()), groupCount);
-            }
-        } finally {
-            for (var page : pages) {
-                page.releaseBlocks();
-            }
+            results = extractResultsFromAggregator(aggregator, PlannerUtils.toElementType(expression.dataType()), groupCount);
         }
 
-        for (var result : results) {
-            assertTestCaseResultAndWarnings(result);
+        if (isDeterministic()) {
+            assertThat("All groups must have the same result", results.stream().distinct().count(), is(1L));
         }
+
+        assert results.isEmpty() == false;
+        return results.getFirst();
     }
 
     private void aggregateWithIntermediates(Expression expression) {
@@ -292,7 +293,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                 inputPage.releaseBlocks();
             }
 
-            result = extractResultFromAggregator(aggregator, PlannerUtils.toElementType(testCase.expectedType()));
+            result = extractResultFromAggregator(aggregator, PlannerUtils.toElementType(expression.dataType()));
         }
 
         assertTestCaseResultAndWarnings(result);
@@ -341,6 +342,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
 
     private void executeExpression(Expression originalExpression, BiFunction<Expression, List<Page>, Object> executeAggregator) {
         Expression expression = resolveExpression(originalExpression);
+        // Not expected to be evaluated (E.g. type error already checked)
         if (expression == null) {
             return;
         }
@@ -538,8 +540,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             var block = blocks[resultBlockIndex];
 
             // For null blocks, the element type is NULL, so if the provided matcher matches, the type works too
-            // TODO: Restore
-            // assertThat(block.elementType(), is(oneOf(expectedElementType, ElementType.NULL)));
+            assertThat(block.elementType(), is(oneOf(expectedElementType, ElementType.NULL)));
 
             return toJavaObject(blocks[resultBlockIndex], 0);
         } finally {
@@ -562,17 +563,14 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             // For null blocks, the element type is NULL, so if the provided matcher matches, the type works too
             assertThat(block.elementType(), is(oneOf(expectedElementType, ElementType.NULL)));
 
-            return IntStream.range(resultBlockIndex, groupCount)
-                .mapToObj(position -> toJavaObjectUnsignedLongAware(blocks[resultBlockIndex], position))
-                .toList();
+            return IntStream.range(0, groupCount).mapToObj(position -> toJavaObject(blocks[resultBlockIndex], position)).toList();
         } finally {
             Releasables.close(blocks);
         }
     }
 
     private List<Integer> initialInputChannels() {
-        // TODO: Randomize channels
-        // TODO: If surrogated, channels may change
+        // TODO: Randomize channels. If surrogated, channels may change
         return IntStream.range(0, testCase.getMultiRowFields().size()).boxed().toList();
     }
 

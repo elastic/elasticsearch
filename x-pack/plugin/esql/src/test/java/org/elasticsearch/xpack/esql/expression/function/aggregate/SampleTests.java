@@ -123,4 +123,9 @@ public class SampleTests extends AbstractAggregationTestCase {
             }
         };
     }
+
+    @Override
+    public boolean isDeterministic() {
+        return false;
+    }
 }

@@ -13,6 +13,11 @@ If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer t
 It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
 :::
 
+## 9.2.5 [connectors-9.2.5-release-notes]
+
+### Fixes [connectors-9.2.5-fixes]
+* Fixed a serialization error in the PostgreSQL connector when handling `INET`, `CIDR`, `UUID`, and geometric types. [#3900](https://github.com/elastic/connectors/pull/3900), [#3879](https://github.com/elastic/connectors/issues/3879)
+
 ## 9.2.4 [connectors-9.2.4-release-notes]
 There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
 

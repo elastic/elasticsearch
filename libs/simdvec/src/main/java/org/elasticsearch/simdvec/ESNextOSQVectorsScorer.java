@@ -241,7 +241,7 @@ public class ESNextOSQVectorsScorer implements Releasable {
         in.readFloats(lowerIntervals, 0, bulkSize);
         in.readFloats(upperIntervals, 0, bulkSize);
         for (int i = 0; i < bulkSize; i++) {
-            targetComponentSums[i] = Short.toUnsignedInt(in.readShort());
+            targetComponentSums[i] = in.readInt();
         }
         in.readFloats(additionalCorrections, 0, bulkSize);
         float maxScore = Float.NEGATIVE_INFINITY;

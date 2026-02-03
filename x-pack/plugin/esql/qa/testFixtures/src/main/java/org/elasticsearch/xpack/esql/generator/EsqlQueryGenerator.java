@@ -29,10 +29,12 @@ import org.elasticsearch.xpack.esql.generator.command.pipe.StatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.TimeSeriesStatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.WhereGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
+import org.elasticsearch.xpack.esql.generator.command.source.PromQLGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.TimeSeriesGenerator;
 import org.elasticsearch.xpack.esql.parser.ParserUtils;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -58,6 +60,11 @@ public class EsqlQueryGenerator {
      * Commands at the beginning of queries that begin queries on time series indices, eg. TS
      */
     static List<CommandGenerator> TIME_SERIES_SOURCE_COMMANDS = List.of(TimeSeriesGenerator.INSTANCE);
+
+    /**
+     * Commands at the beginning of PromQL queries, eg. PROMQL
+     */
+    static List<CommandGenerator> PROMQL_SOURCE_COMMANDS = List.of(PromQLGenerator.INSTANCE);
 
     /**
      * These are downstream commands, ie. that cannot appear as the first command in a query
@@ -113,6 +120,9 @@ public class EsqlQueryGenerator {
 
         List<Column> currentSchema();
 
+        default void clearCommandHistory() {
+            throw new IllegalArgumentException("Clearing command history is not allowed");
+        }
     }
 
     public static void generatePipeline(
@@ -124,7 +134,20 @@ public class EsqlQueryGenerator {
         QueryExecutor queryExecutor
     ) {
         boolean canGenerateTimeSeries = isTimeSeries;
-        CommandGenerator.CommandDescription desc = commandGenerator.generate(List.of(), List.of(), schema, queryExecutor);
+        CommandGenerator.CommandDescription desc;
+
+        if (commandGenerator instanceof PromQLGenerator promQLGenerator) {
+            // do a dummy query to get available fields first
+            // TODO: modify when METRICS_INFO available https://github.com/elastic/elasticsearch/issues/141413
+            String index = promQLGenerator.generateIndices(schema);
+            var fromDesc = new CommandGenerator.CommandDescription("from", FromGenerator.INSTANCE, "FROM " + index, Map.of());
+            executor.run(FromGenerator.INSTANCE, fromDesc);
+            executor.clearCommandHistory();
+            desc = promQLGenerator.generateWithIndices(List.of(), executor.currentSchema(), schema, queryExecutor, index);
+            canGenerateTimeSeries = false;
+        } else {
+            desc = commandGenerator.generate(List.of(), List.of(), schema, queryExecutor);
+        }
         executor.run(commandGenerator, desc);
         if (executor.continueExecuting() == false) {
             return;

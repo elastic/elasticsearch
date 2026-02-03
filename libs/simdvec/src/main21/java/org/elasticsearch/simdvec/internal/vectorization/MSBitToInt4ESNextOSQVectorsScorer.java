@@ -12,7 +12,6 @@ import jdk.incubator.vector.ByteVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.IntVector;
 import jdk.incubator.vector.LongVector;
-import jdk.incubator.vector.ShortVector;
 import jdk.incubator.vector.VectorOperators;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -474,7 +473,7 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
         float centroidDp,
         float[] scores
     ) throws IOException {
-        MemorySegment seg = getMemorySegment(14L * bulkSize);
+        MemorySegment seg = getMemorySegment(16L * bulkSize);
         int limit = FLOAT_SPECIES_128.loopBound(bulkSize);
         int i = 0;
         float ay = queryLowerInterval;
@@ -483,17 +482,18 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
         float maxScore = Float.NEGATIVE_INFINITY;
         for (; i < limit; i += FLOAT_SPECIES_128.length()) {
             var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES_128, seg, i * Float.BYTES, ByteOrder.LITTLE_ENDIAN);
-            var lx = FloatVector.fromMemorySegment(FLOAT_SPECIES_128, seg, 4 * bulkSize + i * Float.BYTES, ByteOrder.LITTLE_ENDIAN).sub(ax);
-            var targetComponentSums = ShortVector.fromMemorySegment(
-                SHORT_SPECIES_128,
+            var lx = FloatVector.fromMemorySegment(FLOAT_SPECIES_128, seg, 4L * bulkSize + i * Float.BYTES, ByteOrder.LITTLE_ENDIAN)
+                .sub(ax);
+            var targetComponentSums = IntVector.fromMemorySegment(
+                INT_SPECIES_128,
                 seg,
-                8 * bulkSize + i * Short.BYTES,
+                8L * bulkSize + i * Integer.BYTES,
                 ByteOrder.LITTLE_ENDIAN
-            ).convert(VectorOperators.S2I, 0).reinterpretAsInts().and(0xffff).convert(VectorOperators.I2F, 0);
+            ).convert(VectorOperators.I2F, 0);
             var additionalCorrections = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES_128,
                 seg,
-                10 * bulkSize + i * Float.BYTES,
+                12L * bulkSize + i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             );
             var qcDist = FloatVector.fromArray(FLOAT_SPECIES_128, scores, i);
@@ -541,7 +541,7 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
         float centroidDp,
         float[] scores
     ) throws IOException {
-        MemorySegment seg = getMemorySegment(14L * bulkSize);
+        MemorySegment seg = getMemorySegment(16L * bulkSize);
         int limit = FLOAT_SPECIES_256.loopBound(bulkSize);
         int i = 0;
         float ay = queryLowerInterval;
@@ -550,17 +550,18 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
         float maxScore = Float.NEGATIVE_INFINITY;
         for (; i < limit; i += FLOAT_SPECIES_256.length()) {
             var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES_256, seg, i * Float.BYTES, ByteOrder.LITTLE_ENDIAN);
-            var lx = FloatVector.fromMemorySegment(FLOAT_SPECIES_256, seg, 4 * bulkSize + i * Float.BYTES, ByteOrder.LITTLE_ENDIAN).sub(ax);
-            var targetComponentSums = ShortVector.fromMemorySegment(
-                SHORT_SPECIES_256,
+            var lx = FloatVector.fromMemorySegment(FLOAT_SPECIES_256, seg, 4L * bulkSize + i * Float.BYTES, ByteOrder.LITTLE_ENDIAN)
+                .sub(ax);
+            var targetComponentSums = IntVector.fromMemorySegment(
+                INT_SPECIES_256,
                 seg,
-                8 * bulkSize + i * Short.BYTES,
+                8L * bulkSize + i * Integer.BYTES,
                 ByteOrder.LITTLE_ENDIAN
-            ).convert(VectorOperators.S2I, 0).reinterpretAsInts().and(0xffff).convert(VectorOperators.I2F, 0);
+            ).convert(VectorOperators.I2F, 0);
             var additionalCorrections = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES_256,
                 seg,
-                10 * bulkSize + i * Float.BYTES,
+                12L * bulkSize + i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             );
             var qcDist = FloatVector.fromArray(FLOAT_SPECIES_256, scores, i);

@@ -425,6 +425,11 @@ final class PackedValuesBlockHash extends BlockHash {
     }
 
     @Override
+    public int numKeys() {
+        return Math.toIntExact(bytesRefHash.size());
+    }
+
+    @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
         return new SeenGroupIds.Range(0, Math.toIntExact(bytesRefHash.size())).seenGroupIds(bigArrays);
     }

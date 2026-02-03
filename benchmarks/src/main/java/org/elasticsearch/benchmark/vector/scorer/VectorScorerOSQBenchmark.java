@@ -152,6 +152,9 @@ public class VectorScorerOSQBenchmark {
     @Param
     public DirectoryType directoryType;
 
+    @Param
+    public VectorSimilarityFunction similarityFunction;
+
     public int numVectors = ESNextOSQVectorsScorer.BULK_SIZE * 10;
     int numQueries = 10;
 
@@ -200,7 +203,7 @@ public class VectorScorerOSQBenchmark {
 
         if (directoryType != DirectoryType.SNAP) {
             try (IndexOutput output = directory.createOutput("vectors", IOContext.DEFAULT)) {
-                byte[] correctionBytes = new byte[14 * bulkSize];
+                byte[] correctionBytes = new byte[16 * bulkSize];
                 for (int i = 0; i < numVectors; i += bulkSize) {
                     for (int j = 0; j < bulkSize; j++) {
                         output.writeBytes(binaryVectors[i + j], 0, binaryVectors[i + j].length);
@@ -332,7 +335,7 @@ public class VectorScorerOSQBenchmark {
                     result.upperInterval(),
                     result.quantizedComponentSum(),
                     result.additionalCorrection(),
-                    VectorSimilarityFunction.EUCLIDEAN,
+                    similarityFunction,
                     centroidDp,
                     scratchScores
                 );

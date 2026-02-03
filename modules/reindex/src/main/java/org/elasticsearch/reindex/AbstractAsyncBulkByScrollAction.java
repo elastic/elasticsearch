@@ -335,7 +335,10 @@ public abstract class AbstractAsyncBulkByScrollAction<
                 var resumeInfo = mainRequest.getResumeInfo().get();
                 // At this point only worker task can be started, leader task would have split slices into worker tasks
                 assert resumeInfo.getWorker().isPresent() : "Resume info for worker task must have worker resume info";
-                resumeWorker(resumeInfo.getWorker().get());
+                WorkerResumeInfo workerResumeInfo = resumeInfo.getWorker().get();
+                startTime.set(workerResumeInfo.startTime());
+                worker.restoreState(workerResumeInfo.status());
+                scrollSource.resume(workerResumeInfo);
             } else {
                 startTime.set(System.nanoTime());
                 scrollSource.start();
@@ -343,12 +346,6 @@ public abstract class AbstractAsyncBulkByScrollAction<
         } catch (Exception e) {
             finishHim(e);
         }
-    }
-
-    private void resumeWorker(WorkerResumeInfo workerResumeInfo) {
-        startTime.set(workerResumeInfo.startTime());
-        worker.restoreState(workerResumeInfo.status());
-        scrollSource.resume(workerResumeInfo);
     }
 
     void onScrollResponse(ScrollableHitSource.AsyncResponse asyncResponse) {

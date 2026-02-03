@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.flattened;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.Mapper;
@@ -124,13 +125,13 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
     }
 
     @Override
-    public ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
+    public IOSupplier<ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
         // stored fields aren't supported when reading column-at-a-time
         if (ignoreAbove.valuesPotentiallyIgnored()) {
             return null;
         }
 
-        return reader(context);
+        return () -> reader(context);
     }
 
     @Override

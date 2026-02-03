@@ -18,6 +18,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
+import org.elasticsearch.index.query.InterceptedQueryBuilderWrapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.rest.RestStatus;
@@ -471,7 +472,20 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         if (fieldValues.getFirst() instanceof Map<?, ?> mappedValues) {
             var fieldValue = mappedValues.getOrDefault(diversificationField, null);
             if (fieldValue instanceof ResultDiversificationDenseVectorSupplier vectorSupplier) {
-                return vectorSupplier.getDocumentVectorForSearchHit(diversificationField, hit);
+
+                InterceptedQueryBuilderWrapper interceptedWrapper = null;
+                var innerRetriever = this.innerRetrievers.getFirst();
+                var retrieverSource = innerRetriever.source();
+                if (retrieverSource != null && retrieverSource.subSearches().isEmpty() == false) {
+                    for (var entry : retrieverSource.subSearches()) {
+                        if (entry.getQueryBuilder() instanceof InterceptedQueryBuilderWrapper iqbw) {
+                            interceptedWrapper = iqbw;
+                            break;
+                        }
+                    }
+                }
+
+                return vectorSupplier.getDocumentVectorForSearchHit(diversificationField, hit, interceptedWrapper);
             }
         }
 

@@ -9,9 +9,15 @@
 
 package org.elasticsearch.search.diversification;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.InterceptedQueryBuilderWrapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.vectors.VectorData;
 
 public interface ResultDiversificationDenseVectorSupplier {
-    VectorData getDocumentVectorForSearchHit(String diversificationField, SearchHit hit);
+    VectorData getDocumentVectorForSearchHit(
+        String diversificationField,
+        SearchHit hit,
+        @Nullable InterceptedQueryBuilderWrapper queryWrapper
+    );
 }

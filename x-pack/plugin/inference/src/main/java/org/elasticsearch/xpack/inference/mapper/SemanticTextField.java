@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -15,12 +16,15 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.query.InterceptedQueryBuilderWrapper;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.diversification.ResultDiversificationDenseVectorSupplier;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -33,7 +37,9 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.MapXContentParser;
+import org.elasticsearch.xpack.core.common.chunks.MemoryIndexChunkScorer;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.inference.queries.InterceptedInferenceQueryBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,8 +51,10 @@ import java.util.Map;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils.extractContent;
 import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils.getSemanticTextFieldEmbeddingLength;
 import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils.getTextEmbeddingVectorFromChunk;
+import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils.getTopNSimilarVectorChunks;
 
 /**
  * A {@link ToXContentObject} that is used to represent the transformation of the semantic text field's inputs.
@@ -88,9 +96,11 @@ public record SemanticTextField(
     ) {}
 
     @Override
-    public VectorData getDocumentVectorForSearchHit(String diversificationField, SearchHit hit) {
-        // TODO --- need to get the highest scoring chunk - for testing at the moment, only get the first
-
+    public VectorData getDocumentVectorForSearchHit(
+        String diversificationField,
+        SearchHit hit,
+        @Nullable InterceptedQueryBuilderWrapper queryWrapper
+    ) {
         if (this.inference == null || this.inference.chunks() == null) {
             return null;
         }
@@ -111,6 +121,56 @@ public record SemanticTextField(
             return null;
         }
 
+        if (queryWrapper != null && queryWrapper.query() instanceof InterceptedInferenceQueryBuilder<?> iiQb) {
+            switch (iiQb.originalQuery()) {
+                case MatchQueryBuilder mqb -> {
+                    var queryString = mqb.value().toString();
+
+                    var documentTextField = hit.field(diversificationField);
+
+                    List<String> chunkContent = new ArrayList<>(chunks.size());
+                    for (Chunk chunk : chunks) {
+                        var chunkText = extractContent(chunk.startOffset, chunk.endOffset, documentTextField);
+                        chunkContent.add(chunkText == null ? "" : chunkText);
+                    }
+
+                    MemoryIndexChunkScorer chunkScorer = new MemoryIndexChunkScorer();
+                    var scoredChunks = chunkScorer.scoreChunks(chunkContent, queryString, 1, false);
+                    if (scoredChunks.isEmpty()) {
+                        return null;
+                    }
+
+                    return getTextEmbeddingVectorFromChunk(
+                        chunks.get(scoredChunks.getFirst().chunkIndex()),
+                        embeddingLength,
+                        this.contentType(),
+                        elementType
+                    );
+                }
+                case KnnVectorQueryBuilder kqb -> {
+                    var queryVector = kqb.queryVector();
+                    if (queryVector != null) {
+                        var scoredChunks = getTopNSimilarVectorChunks(
+                            1,
+                            chunks,
+                            queryVector,
+                            embeddingLength,
+                            contentType,
+                            elementType,
+                            VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT
+                        );
+
+                        if (scoredChunks.isEmpty() == false) {
+                            return scoredChunks.getFirst().vector();
+                        }
+                    }
+                }
+                default -> {
+                }
+            }
+        }
+
+        // nothing to score - just get the first chunk's vector
         return getTextEmbeddingVectorFromChunk(chunks.getFirst(), embeddingLength, this.contentType(), elementType);
     }
 

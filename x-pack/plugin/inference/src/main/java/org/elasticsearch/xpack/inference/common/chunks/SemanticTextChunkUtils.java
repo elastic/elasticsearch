@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.common.chunks;
 
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -47,6 +48,7 @@ import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -62,10 +64,14 @@ public class SemanticTextChunkUtils {
     public record OffsetAndScore(int index, OffsetSourceFieldMapper.OffsetSource offset, float score) {}
 
     public static String extractContent(OffsetAndScore offsetAndScore, DocumentField docFieldContent) {
+        return extractContent(offsetAndScore.offset().start(), offsetAndScore.offset().end(), docFieldContent);
+    }
+
+    public static String extractContent(int startOffset, int endOffset, DocumentField docFieldContent) {
         String content = null;
         if (docFieldContent != null && docFieldContent.getValues().size() > 0) {
             String fullContent = docFieldContent.getValue().toString();
-            content = fullContent.substring(offsetAndScore.offset().start(), offsetAndScore.offset().end());
+            content = fullContent.substring(startOffset, endOffset);
         }
         return content;
     }
@@ -232,6 +238,57 @@ public class SemanticTextChunkUtils {
                 yield dimensions / Byte.SIZE;
             }
         };
+    }
+
+    public record ScoredChunkVector(VectorData vector, Float score) {}
+
+    public static List<ScoredChunkVector> getTopNSimilarVectorChunks(
+        int maxResults,
+        List<SemanticTextField.Chunk> chunks,
+        VectorData queryVector,
+        int embeddingLength,
+        XContentType contentType,
+        DenseVectorFieldMapper.ElementType elementType,
+        VectorSimilarityFunction similarityFunction
+    ) {
+        boolean isFloat = queryVector.isFloat();
+
+        if (chunks == null || chunks.isEmpty()) {
+            return List.of();
+        }
+
+        List<ScoredChunkVector> chunkScores = new ArrayList<>();
+        for (SemanticTextField.Chunk chunk : chunks) {
+            VectorData vector = getTextEmbeddingVectorFromChunk(chunk, embeddingLength, contentType, elementType);
+            if (vector == null) {
+                continue;
+            }
+
+            float score = isFloat
+                ? similarityFunction.compare(vector.floatVector(), queryVector.floatVector())
+                : similarityFunction.compare(vector.byteVector(), queryVector.byteVector());
+            chunkScores.add(new ScoredChunkVector(vector, score));
+        }
+
+        if (chunkScores.isEmpty()) {
+            return List.of();
+        }
+
+        chunkScores.sort(new Comparator<ScoredChunkVector>() {
+            @Override
+            public int compare(ScoredChunkVector o1, ScoredChunkVector o2) {
+                if (o1.score > o2.score) {
+                    return -1;
+                }
+                if (o1.score < o2.score) {
+                    return 1;
+                }
+                return 0;
+            }
+        });
+
+        int numResults = Math.min(maxResults, chunkScores.size());
+        return chunkScores.subList(0, numResults);
     }
 
     public static VectorData getTextEmbeddingVectorFromChunk(

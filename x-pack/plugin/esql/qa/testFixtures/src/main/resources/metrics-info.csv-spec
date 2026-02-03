@@ -57,3 +57,11 @@ metric_count:long | metric_type:keyword
 3                 | counter
 2                 | gauge
 ;
+
+metricsInfoCountDistinctCounters
+required_capability: metrics_info_command
+TS k8s | METRICS_INFO | WHERE metric_type == "counter" | STATS matching_metrics = COUNT_DISTINCT(metric_name);
+
+matching_metrics:long
+3
+;

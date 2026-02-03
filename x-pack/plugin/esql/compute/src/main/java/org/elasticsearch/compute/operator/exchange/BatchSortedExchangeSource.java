@@ -229,6 +229,42 @@ public class BatchSortedExchangeSource implements Closeable {
     }
 
     /**
+     * Blocks until a page is ready in outputQueue OR delegate is finished.
+     * Unlike {@link #waitForReading()}, this guarantees {@link #hasReadyPages()} == true
+     * when returning NOT_BLOCKED (unless delegate is finished with no more pages).
+     * <p>
+     * This prevents busy-spinning when pages arrive out of order.
+     *
+     * @return NOT_BLOCKED if a page is ready or delegate is finished, otherwise a blocked result
+     */
+    public IsBlockedResult waitUntilReady() {
+        if (outputQueue.isEmpty() == false) {
+            return NOT_BLOCKED;
+        }
+
+        // Keep trying until we have a ready page or delegate is truly finished
+        while (outputQueue.isEmpty()) {
+            IsBlockedResult delegateBlocked = delegate.waitForReading();
+            if (delegateBlocked.listener().isDone() == false) {
+                return delegateBlocked; // Block on delegate
+            }
+
+            // Delegate says ready - try to poll
+            if (pollAndSortFromDelegate() == false) {
+                // No page polled - delegate finished or nothing available
+                if (delegate.isFinished() && hasNoBufferedPages()) {
+                    return NOT_BLOCKED; // Truly finished
+                }
+                // Pages buffered but not ready - need to wait for more
+                // Return delegate's blocked result to wait for more pages
+                return delegate.waitForReading();
+            }
+        }
+
+        return NOT_BLOCKED; // outputQueue has pages
+    }
+
+    /**
      * Returns true if there are pages ready to be output (in correct order).
      * This only counts pages in the output queue, not out-of-order pages
      * buffered internally or pages in the delegate's buffer.

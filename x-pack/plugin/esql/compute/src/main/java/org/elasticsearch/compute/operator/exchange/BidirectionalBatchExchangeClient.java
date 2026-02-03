@@ -168,6 +168,21 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     }
 
     /**
+     * Blocks until a page is ready to be polled OR the exchange is finished.
+     * This guarantees that when NOT_BLOCKED is returned, either:
+     * <ul>
+     *   <li>{@link #hasReadyPages()} == true (pollPage will return a page)</li>
+     *   <li>{@link #isPageCacheDone()} == true (no more pages expected)</li>
+     * </ul>
+     * This prevents busy-spinning when pages arrive out of order in multi-node scenarios.
+     *
+     * @return NOT_BLOCKED if a page is ready or finished, otherwise a blocked result
+     */
+    public IsBlockedResult waitUntilPageReady() {
+        return sortedSource.waitUntilReady();
+    }
+
+    /**
      * Returns true if the sorted source is done (upstream finished and no buffered pages).
      */
     public boolean isPageCacheDone() {

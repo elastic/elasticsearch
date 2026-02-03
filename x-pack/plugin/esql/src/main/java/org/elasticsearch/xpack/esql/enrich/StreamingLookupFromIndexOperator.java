@@ -580,7 +580,10 @@ public class StreamingLookupFromIndexOperator implements Operator {
             }
 
             // No batch has data ready, wait for pages from client
-            IsBlockedResult waitResult = client.waitForPage();
+            // waitUntilPageReady() guarantees that when it returns done, either:
+            // - hasReadyPages() == true (pollPage will return a page)
+            // - isPageCacheDone() == true (no more pages expected)
+            IsBlockedResult waitResult = client.waitUntilPageReady();
             if (waitResult.listener().isDone() == false) {
                 logger.trace(
                     "isBlocked: waiting for page, activeBatches={}, pageCacheSize={}, pageCacheDone={}",
@@ -590,17 +593,11 @@ public class StreamingLookupFromIndexOperator implements Operator {
                 );
                 return waitResult;
             }
-            // waitForPage() returned done - check if data is actually ready.
-            // If not, we need to keep waiting to avoid spinning.
-            if (client.hasReadyPages() == false) {
-                // No data ready - if page cache is done, wait for server response
-                if (client.isPageCacheDone()) {
-                    logger.debug("isBlocked: no ready pages and pageCacheDone, waiting for server response");
-                    return client.waitForServerResponse();
-                }
-                // Otherwise keep waiting on the client (return the waitResult to block on it)
-                logger.trace("isBlocked: waitForPage done but no ready pages, continuing to wait");
-                return waitResult;
+            // waitUntilPageReady() returned done - pages are ready or cache is done
+            // If cache is done but no pages ready, we need to wait for server response
+            if (client.hasReadyPages() == false && client.isPageCacheDone()) {
+                logger.debug("isBlocked: no ready pages and pageCacheDone, waiting for server response");
+                return client.waitForServerResponse();
             }
         }
 

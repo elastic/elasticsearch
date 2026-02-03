@@ -310,6 +310,20 @@ a:double | acos:double
       12 | null
 ;
 
+acosh
+required_capability: acosh_function
+// tag::acosh[]
+ROW a=1.8
+| EVAL acosh=ACOSH(a)
+// end::acosh[]
+;
+
+// tag::acosh-result[]
+a:double | acosh:double
+     1.8 | 1.1929107309930491
+// end::acosh-result[]
+;
+
 sin
 // tag::sin[]
 ROW a=1.8

@@ -1866,19 +1866,23 @@ public class EsqlCapabilities {
         /**
          * Bundle flag for PromQL math functions.
          */
-        PROMQL_MATH_V0(),
+        PROMQL_MATH_V0,
+
+        /**
+         * PromQL acosh function support.
+         */
+        ACOSH_FUNCTION,
 
         /**
          * Initial support for simple binary comparisons in PromQL.
          * Only top-level comparisons are supported where the right-hand side is a scalar.
          */
-        PROMQL_BINARY_COMPARISON_V0(),
+        PROMQL_BINARY_COMPARISON_V0,
 
         /**
          * Support for PromQL time() function.
          */
-        PROMQL_TIME(PROMQL_COMMAND_V0.isEnabled()),
-
+        PROMQL_TIME,
         /**
          * KNN function adds support for k and visit_percentage options
          */

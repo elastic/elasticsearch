@@ -93,6 +93,16 @@ final class FastMath {
     private static final double ATAN_AT10 = Double.longBitsToDouble(0x3f90ad3ae322da11L); // 1.62858201153657823623e-02
 
     // --------------------------------------------------------------------------
+    // CONSTANTS AND TABLES FOR ACOSH
+    // --------------------------------------------------------------------------
+
+    // For values >= 2^28, we use a simplified formula: acosh(x) ~= log(x) + ln(2).
+    // At this magnitude, sqrt(x^2 - 1) ~= x, so the full formula reduces to log(2x).
+    // Using this threshold avoids potential overflow when computing x^2.
+    // https://github.com/golang/go/blob/master/src/math/acosh.go
+    private static final double ACOSH_LARGE = (double) (1L << 28);
+
+    // --------------------------------------------------------------------------
     // CONSTANTS AND TABLES FOR LOG AND LOG1P
     // --------------------------------------------------------------------------
 
@@ -280,5 +290,38 @@ final class FastMath {
         } else { // value < 0.0, or value is NaN
             return Double.NaN;
         }
+    }
+
+    /**
+     * @param value A double value.
+     * @return Inverse hyperbolic cosine of value.
+     */
+    public static double acosh(double value) {
+        // For normal values not close to 1 or +Inf, we use the following formula:
+        // acosh(x)
+        // = log(2x-1/(sqrt(x*x-1)+x)) if x>2
+        // = log(x)+ln2 if x is large
+        //
+        // To avoid bad relative error for small results,
+        // values close to 1.0 are treated aside, with the formula:
+        // acosh(x) = log1p(t+sqrt(2.0*t+t*t)); where t=x-1
+
+        if (Double.isNaN(value) || value < 1.0) {
+            return Double.NaN;
+        }
+        if (value == 1.0) {
+            return 0.0;
+        }
+        if (value >= ACOSH_LARGE) {
+            return StrictMath.log(value) + LOG_2;
+        }
+        if (value > 2.0) {
+            final double xx = value * value;
+            final double s = StrictMath.sqrt(xx - 1.0);
+            return StrictMath.log(2.0 * value - 1.0 / (value + s));
+        }
+
+        final double t = value - 1.0;
+        return StrictMath.log1p(t + StrictMath.sqrt(2.0 * t + t * t));
     }
 }

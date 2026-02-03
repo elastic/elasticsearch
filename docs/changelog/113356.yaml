@@ -1,0 +1,6 @@
+pr: 113356
+summary: Add validation to copy a non-existent field when dynamic mappings are disabled
+area: Mapping
+type: enhancement
+issues:
+  - 112812

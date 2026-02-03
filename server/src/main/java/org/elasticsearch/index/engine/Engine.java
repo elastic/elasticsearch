@@ -1016,6 +1016,15 @@ public abstract class Engine implements Closeable {
         SearcherScope scope,
         SplitShardCountSummary splitShardCountSummary
     ) throws EngineException {
+        return acquireSearcherSupplier(wrapper, scope, splitShardCountSummary, getReferenceManager(scope));
+    }
+
+    protected SearcherSupplier acquireSearcherSupplier(
+        Function<Searcher, Searcher> wrapper,
+        SearcherScope scope,
+        SplitShardCountSummary splitShardCountSummary,
+        ReferenceManager<ElasticsearchDirectoryReader> referenceManager
+    ) throws EngineException {
         /* Acquire order here is store -> manager since we need
          * to make sure that the store is not closed before
          * the searcher is acquired. */
@@ -1024,7 +1033,6 @@ public abstract class Engine implements Closeable {
         }
         Releasable releasable = store::decRef;
         try {
-            ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
             ElasticsearchDirectoryReader acquire = referenceManager.acquire();
             final DirectoryReader maybeWrappedDirectoryReader;
             if (scope == SearcherScope.EXTERNAL) {

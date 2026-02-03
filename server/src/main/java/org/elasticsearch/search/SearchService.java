@@ -160,6 +160,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.search.SearchRequestAttributesExtractor.TIME_RANGE_FILTER_FROM_ATTRIBUTE;
 import static org.elasticsearch.common.Strings.format;
@@ -304,6 +305,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public static final FeatureFlag PIT_RELOCATION_FEATURE_FLAG = new FeatureFlag("pit_relocation_feature");
 
+    public static final Setting<Boolean> PIT_RELOCATION_ENABLED = Setting.boolSetting(
+        "search.pit_relocation_enabled",
+        PIT_RELOCATION_FEATURE_FLAG.isEnabled(),
+        Property.OperatorDynamic,
+        Property.NodeScope
+    );
+
     /**
      * The size of the buffer used for memory accounting.
      * This buffer is used to locally track the memory accummulated during the execution of
@@ -348,6 +356,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private volatile TimeValue defaultSearchTimeout;
 
     private volatile boolean batchQueryPhase;
+
+    private volatile boolean pitRelocationEnabled;
 
     private final int minimumDocsPerSlice;
 
@@ -452,10 +462,26 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(MEMORY_ACCOUNTING_BUFFER_SIZE, newValue -> this.memoryAccountingBufferSize = newValue.getBytes());
         prewarmingMaxPoolFactorThreshold = PREWARMING_THRESHOLD_THREADPOOL_SIZE_FACTOR_POOL_SIZE.get(settings);
+
+        if (PIT_RELOCATION_FEATURE_FLAG.isEnabled()) {
+            pitRelocationEnabled = PIT_RELOCATION_ENABLED.get(settings);
+        } else {
+            pitRelocationEnabled = false;
+        }
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(PIT_RELOCATION_ENABLED, pitRelocationEnabled -> this.pitRelocationEnabled = pitRelocationEnabled);
+    }
+
+    public boolean isPitRelocationEnabled() {
+        return pitRelocationEnabled;
     }
 
     public CircuitBreaker getCircuitBreaker() {
         return circuitBreaker;
+    }
+
+    public BigArrays getBigArrays() {
+        return bigArrays;
     }
 
     private void setEnableSearchWorkerThreads(boolean enableSearchWorkerThreads) {
@@ -701,11 +727,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         assert request.canReturnNullResponseIfMatchNoDocs() == false || request.numberOfShards() > 1
             : "empty responses require more than one shard";
         final IndexShard shard = getShard(request);
+
+        ActionListener<SearchPhaseResult> wrappedListener = releaseCircuitBreakerOnResponse(
+            listener,
+            result -> result instanceof QueryFetchSearchResult qfr ? qfr.fetchResult() : null
+        );
+
         rewriteAndFetchShardRequest(
             shard,
             request,
             wrapListenerForErrorHandling(
-                listener,
+                wrappedListener,
                 request.getChannelVersion(),
                 clusterService.localNode().getId(),
                 request.shardId(),
@@ -860,7 +892,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final ShardSearchContextId contextId = request.readerId();
         if (contextId != null && sessionId.equals(contextId.getSessionId())) {
             final ReaderContext readerContext = activeReaders.get(contextId);
-            if (readerContext != null) {
+            if (readerContext != null && readerContext.isForcedExpired() == false) {
                 return readerContext.indexShard();
             }
         }
@@ -1151,6 +1183,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             freeReaderContext(readerContext.id());
             throw e;
         }
+
         runAsync(getExecutor(readerContext.indexShard()), () -> {
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.FETCH, false);) {
@@ -1180,7 +1213,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // we handle the failure in the failure listener below
                 throw e;
             }
-        }, wrapFailureListener(listener, readerContext, markAsUsed));
+        },
+            wrapFailureListener(
+                releaseCircuitBreakerOnResponse(listener, result -> result.result().fetchResult()),
+                readerContext,
+                markAsUsed
+            )
+        );
     }
 
     public void executeFetchPhase(ShardFetchRequest request, CancellableTask task, ActionListener<FetchSearchResult> listener) {
@@ -1219,7 +1258,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     // we handle the failure in the failure listener below
                     throw e;
                 }
-            }, wrapFailureListener(l, readerContext, markAsUsed));
+            }, wrapFailureListener(releaseCircuitBreakerOnResponse(listener, result -> result), readerContext, markAsUsed));
         }));
     }
 
@@ -1273,7 +1312,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
                 ReaderContext readerContext = null;
                 // don't handle contexts originating from the current SearchService session, they get added as normal temporary contexts
-                if (PIT_RELOCATION_FEATURE_FLAG.isEnabled() && sessionId.equals(contextId.getSessionId()) == false) {
+                if (pitRelocationEnabled && sessionId.equals(contextId.getSessionId()) == false) {
                     readerContext = createAndPutRelocatedPitContext(
                         contextId,
                         indexService,
@@ -1339,7 +1378,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    final ReaderContext createAndPutRelocatedPitContext(
+    public final ReaderContext createAndPutRelocatedPitContext(
         ShardSearchContextId contextId,
         IndexService indexService,
         IndexShard shard,
@@ -1358,14 +1397,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 final SearchOperationListener searchOperationListener = shard.getSearchOperationListener();
                 searchOperationListener.onNewReaderContext(finalReaderContext);
                 readerContext.addOnClose(() -> searchOperationListener.onFreeReaderContext(finalReaderContext));
-                activeReaders.putRelocatedReader(newKey, readerContext);
-                // ensure that if we race against afterIndexRemoved, we remove the context from the active list.
-                // this is important to ensure store can be cleaned up, in particular if the search is a scroll with a long timeout.
-                final Index index = readerContext.indexShard().shardId().getIndex();
-                if (indicesService.hasIndex(index) == false) {
-                    removeReaderContext(readerContext.id());
-                    throw new IndexNotFoundException(index);
-                }
+                putRelocatedReaderContext(newKey, readerContext);
                 readerContext = null;
                 return finalReaderContext;
             } else {
@@ -1374,6 +1406,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         } finally {
             Releasables.close(reader, readerContext);
+        }
+    }
+
+    protected void putRelocatedReaderContext(Long mappingKey, ReaderContext context) {
+        activeReaders.putRelocatedReader(mappingKey, context);
+        final Index index = context.indexShard().shardId().getIndex();
+        if (indicesService.hasIndex(index) == false) {
+            removeReaderContext(context.id());
+            throw new IndexNotFoundException(index);
         }
     }
 
@@ -1401,6 +1442,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 searcherSupplier = null; // transfer ownership to reader context
                 searchOperationListener.onNewReaderContext(readerContext);
                 readerContext.addOnClose(() -> searchOperationListener.onFreeReaderContext(finalReaderContext));
+                logger.debug(
+                    "Opening new reader context [{}] on node [{}]",
+                    readerContext.id(),
+                    clusterService.state().nodes().getLocalNode()
+                );
                 putReaderContext(readerContext);
                 readerContext = null;
                 listener.onResponse(finalReaderContext.id());
@@ -1588,6 +1634,27 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     + "] cluster level setting."
             );
         }
+    }
+
+    /**
+     * Wraps a listener to release circuit breaker bytes from a FetchSearchResult after the response is sent.
+     * The fetchResultExtractor function extracts the FetchSearchResult from the response type.
+     */
+    private <T> ActionListener<T> releaseCircuitBreakerOnResponse(
+        ActionListener<T> listener,
+        Function<T, FetchSearchResult> fetchResultExtractor
+    ) {
+        return ActionListener.wrap(response -> {
+            try {
+                listener.onResponse(response);
+            } finally {
+                // Release bytes after the response handler completes
+                FetchSearchResult fetchResult = fetchResultExtractor.apply(response);
+                if (fetchResult != null) {
+                    fetchResult.releaseCircuitBreakerBytes(circuitBreaker);
+                }
+            }
+        }, listener::onFailure);
     }
 
     private <T> ActionListener<T> wrapFailureListener(ActionListener<T> listener, ReaderContext context, Releasable releasable) {
@@ -1889,6 +1956,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return this.activeReaders.size();
     }
 
+    public long getActivePITContexts() {
+        return this.activeReaders.values().stream().filter(c -> c.singleSession() == false).filter(c -> c.scrollContext() == null).count();
+    }
+
+    public List<ReaderContext> getActivePITContexts(ShardId shardId) {
+        return this.activeReaders.values()
+            .stream()
+            .filter(c -> c.singleSession() == false)
+            .filter(c -> c.scrollContext() == null)
+            .filter(c -> c.indexShard().shardId().equals(shardId))
+            .collect(Collectors.toList());
+    }
+
     /**
      * Returns the number of scroll contexts opened on the node
      */
@@ -1952,7 +2032,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     freeReaderContext(context.id());
                 }
             }
-
         }
 
         @Override

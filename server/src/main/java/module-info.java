@@ -491,7 +491,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.cluster.routing.allocation.shards
         to
             org.elasticsearch.shardhealth,
-            org.elasticsearch.serverless.shardhealth,
+            org.elasticsearch.xpack.stateless.shardhealth,
             org.elasticsearch.serverless.apifiltering;
     exports org.elasticsearch.lucene.spatial;
     exports org.elasticsearch.inference.configuration;

@@ -23,6 +23,7 @@ import org.elasticsearch.core.Releasables;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
@@ -488,6 +489,29 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         } catch (IOException e) {
             assert false : e; // no actual IO happens here
             throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Copies the entire remaining contents of the given {@link InputStream} directly into this output, avoiding the need for any
+     * intermediate buffers.
+     */
+    public void writeAllBytesFrom(InputStream in) throws IOException {
+        while (true) {
+            final var currentBufferPool = this.currentBufferPool;
+            final var maxOffset = this.maxOffset;
+            var currentOffset = this.currentOffset;
+            while (currentOffset < maxOffset) {
+                int readSize = in.read(currentBufferPool, currentOffset, maxOffset - currentOffset);
+                if (readSize == -1) {
+                    this.currentOffset = currentOffset;
+                    return;
+                }
+                currentOffset += readSize;
+            }
+            this.currentOffset = maxOffset;
+            ensureCapacity(1);
+            nextPage();
         }
     }
 

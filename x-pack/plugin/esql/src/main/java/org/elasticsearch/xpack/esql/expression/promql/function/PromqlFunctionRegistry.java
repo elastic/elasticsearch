@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.Clamp;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
@@ -370,7 +371,14 @@ public class PromqlFunctionRegistry {
         ),
         //
         vector("Returns the scalar as a vector with no labels.", "vector(1)"),
-        scalarFunction("pi", (source) -> Literal.fromDouble(source, Math.PI), "Returns the value of pi.", "pi()") };
+        scalarFunction("pi", (source) -> Literal.fromDouble(source, Math.PI), "Returns the value of pi.", "pi()"),
+        scalarFunctionWithStep(
+            "time",
+            (source, step) -> new Div(source, new ToDouble(source, step), Literal.fromDouble(source, 1000.0)),
+            "returns the number of seconds since January 1, 1970 UTC."
+                + " Note that this does not actually return the current time, but the time at which the expression is to be evaluated.",
+            "time()"
+        ) };
 
     public static final PromqlFunctionRegistry INSTANCE = new PromqlFunctionRegistry();
 
@@ -443,9 +451,11 @@ public class PromqlFunctionRegistry {
         }
     }
 
+    public record PromqlContext(Expression timestamp, Expression window, Expression step) {}
+
     @FunctionalInterface
     public interface EsqlFunctionBuilder {
-        Expression build(Source source, Expression target, Expression timestamp, Expression window, List<Expression> extraParams);
+        Expression build(Source source, Expression target, PromqlContext ctx, List<Expression> extraParams);
     }
 
     /**
@@ -535,7 +545,7 @@ public class PromqlFunctionRegistry {
             name,
             FunctionType.WITHIN_SERIES_AGGREGATION,
             Arity.ONE,
-            (source, target, timestamp, window, extraParams) -> builder.build(source, target, window, timestamp),
+            (source, target, ctx, extraParams) -> builder.build(source, target, ctx.window(), ctx.timestamp()),
             description,
             List.of(RANGE_VECTOR),
             List.of(example)
@@ -547,7 +557,7 @@ public class PromqlFunctionRegistry {
             name,
             FunctionType.WITHIN_SERIES_AGGREGATION,
             Arity.ONE,
-            (source, target, timestamp, window, extraParams) -> builder.build(source, target, Literal.TRUE, window),
+            (source, target, ctx, extraParams) -> builder.build(source, target, Literal.TRUE, ctx.window()),
             description,
             List.of(RANGE_VECTOR),
             List.of(example)
@@ -561,18 +571,10 @@ public class PromqlFunctionRegistry {
         List<ParamInfo> params,
         String example
     ) {
-        return new FunctionDefinition(
-            name,
-            FunctionType.WITHIN_SERIES_AGGREGATION,
-            Arity.TWO,
-            (source, target, timestamp, window, extraParams) -> {
-                Expression param = extraParams.getFirst();
-                return builder.build(source, target, Literal.TRUE, window, param);
-            },
-            description,
-            params,
-            List.of(example)
-        );
+        return new FunctionDefinition(name, FunctionType.WITHIN_SERIES_AGGREGATION, Arity.TWO, (source, target, ctx, extraParams) -> {
+            Expression param = extraParams.getFirst();
+            return builder.build(source, target, Literal.TRUE, ctx.window(), param);
+        }, description, params, List.of(example));
     }
 
     private static FunctionDefinition acrossSeriesUnary(String name, AcrossSeriesUnary<?> builder, String description, String example) {
@@ -580,7 +582,7 @@ public class PromqlFunctionRegistry {
             name,
             FunctionType.ACROSS_SERIES_AGGREGATION,
             Arity.ONE,
-            (source, target, timestamp, window, extraParams) -> builder.build(source, target),
+            (source, target, ctx, extraParams) -> builder.build(source, target),
             description,
             List.of(INSTANT_VECTOR),
             List.of(example)
@@ -594,18 +596,10 @@ public class PromqlFunctionRegistry {
         List<ParamInfo> params,
         String example
     ) {
-        return new FunctionDefinition(
-            name,
-            FunctionType.ACROSS_SERIES_AGGREGATION,
-            Arity.TWO,
-            (source, target, timestamp, window, extraParams) -> {
-                Expression param = extraParams.getFirst();
-                return builder.build(source, target, Literal.TRUE, window, param);
-            },
-            description,
-            params,
-            List.of(example)
-        );
+        return new FunctionDefinition(name, FunctionType.ACROSS_SERIES_AGGREGATION, Arity.TWO, (source, target, ctx, extraParams) -> {
+            Expression param = extraParams.getFirst();
+            return builder.build(source, target, Literal.TRUE, ctx.window(), param);
+        }, description, params, List.of(example));
     }
 
     private static FunctionDefinition valueTransformationFunction(
@@ -618,7 +612,7 @@ public class PromqlFunctionRegistry {
             name,
             FunctionType.VALUE_TRANSFORMATION,
             Arity.ONE,
-            (source, target, timestamp, window, extraParams) -> builder.build(source, target),
+            (source, target, ctx, extraParams) -> builder.build(source, target),
             description,
             List.of(INSTANT_VECTOR),
             List.of(example)
@@ -636,7 +630,7 @@ public class PromqlFunctionRegistry {
             name,
             FunctionType.VALUE_TRANSFORMATION,
             Arity.TWO,
-            (source, target, timestamp, window, extraParams) -> builder.build(source, target, extraParams.get(0)),
+            (source, target, ctx, extraParams) -> builder.build(source, target, extraParams.get(0)),
             description,
             params,
             List.of(example)
@@ -654,7 +648,7 @@ public class PromqlFunctionRegistry {
             name,
             FunctionType.VALUE_TRANSFORMATION,
             Arity.fixed(3),
-            (source, target, timestamp, window, extraParams) -> builder.build(source, target, extraParams.get(0), extraParams.get(1)),
+            (source, target, ctx, extraParams) -> builder.build(source, target, extraParams.get(0), extraParams.get(1)),
             description,
             params,
             List.of(example)
@@ -672,11 +666,7 @@ public class PromqlFunctionRegistry {
             name,
             FunctionType.VALUE_TRANSFORMATION,
             Arity.range(1, 2),
-            (source, target, timestamp, window, extraParams) -> builder.build(
-                source,
-                target,
-                extraParams.isEmpty() ? null : extraParams.getFirst()
-            ),
+            (source, target, ctx, extraParams) -> builder.build(source, target, extraParams.isEmpty() ? null : extraParams.getFirst()),
             description,
             params,
             List.of(example)
@@ -688,7 +678,7 @@ public class PromqlFunctionRegistry {
             "vector",
             FunctionType.VECTOR_CONVERSION,
             Arity.ONE,
-            (source, target, timestamp, window, extraParams) -> target,
+            (source, target, ctx, extraParams) -> target,
             description,
             List.of(SCALAR),
             List.of(example)
@@ -700,7 +690,29 @@ public class PromqlFunctionRegistry {
             name,
             FunctionType.SCALAR,
             Arity.NONE,
-            (source, target, timestamp, window, extraParams) -> builder.build(source),
+            (source, target, ctx, extraParams) -> builder.build(source),
+            description,
+            List.of(),
+            List.of(example)
+        );
+    }
+
+    @FunctionalInterface
+    protected interface ScalarFunctionWithStepBuilder {
+        Expression build(Source source, Expression step);
+    }
+
+    private static FunctionDefinition scalarFunctionWithStep(
+        String name,
+        ScalarFunctionWithStepBuilder builder,
+        String description,
+        String example
+    ) {
+        return new FunctionDefinition(
+            name,
+            FunctionType.SCALAR,
+            Arity.NONE,
+            (source, target, ctx, extraParams) -> builder.build(source, ctx.step()),
             description,
             List.of(),
             List.of(example)
@@ -756,9 +768,7 @@ public class PromqlFunctionRegistry {
         "histogram_quantile",
         "histogram_stddev",
         "histogram_stdvar",
-        "histogram_sum",
-        // Scalar functions
-        "time"
+        "histogram_sum"
     );
 
     private String normalize(String name) {
@@ -789,18 +799,11 @@ public class PromqlFunctionRegistry {
         }
     }
 
-    public Expression buildEsqlFunction(
-        String name,
-        Source source,
-        Expression target,
-        Expression timestamp,
-        Expression window,
-        List<Expression> extraParams
-    ) {
+    public Expression buildEsqlFunction(String name, Source source, Expression target, PromqlContext ctx, List<Expression> extraParams) {
         checkFunction(source, name);
         FunctionDefinition metadata = functionMetadata(name);
         try {
-            return metadata.esqlBuilder().build(source, target, timestamp, window, extraParams);
+            return metadata.esqlBuilder().build(source, target, ctx, extraParams);
         } catch (Exception e) {
             throw new ParsingException(source, "Error building ESQL function for [{}]: {}", name, e.getMessage());
         }

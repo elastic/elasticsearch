@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.sql.qa.mixed_node;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.http.HttpHost;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.elasticsearch.client.Request;
@@ -14,13 +16,14 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.NotEqualMessageBuilder;
+import org.elasticsearch.test.TestClustersThreadFilter;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.ql.TestNode;
-import org.elasticsearch.xpack.ql.TestNodes;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,32 +37,32 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.xpack.ql.TestUtils.buildNodeAndVersions;
 import static org.elasticsearch.xpack.ql.TestUtils.readResource;
 import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.INTRODUCING_VERSION_FIELD_TYPE;
 
+@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class SqlSearchIT extends ESRestTestCase {
 
-    private static final String BWC_NODES_VERSION = System.getProperty("tests.bwc_nodes_version");
+    @ClassRule
+    public static ElasticsearchCluster cluster = Clusters.mixedVersionCluster();
 
-    private static final boolean SUPPORTS_VERSION_FIELD_QL_INTRODUCTION = SqlVersion.fromString(BWC_NODES_VERSION)
+    private static final boolean SUPPORTS_VERSION_FIELD_QL_INTRODUCTION = SqlVersion.fromString(Clusters.OLD_CLUSTER_VERSION)
         .onOrAfter(INTRODUCING_VERSION_FIELD_TYPE);
 
     private static final String index = "test_sql_mixed_versions";
     private static int numShards;
     private static int numReplicas = 1;
     private static int numDocs;
-    private static TestNodes nodes;
-    private static List<TestNode> newNodes;
-    private static List<TestNode> bwcNodes;
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     @Before
     public void createIndex() throws IOException {
-        nodes = buildNodeAndVersions(client(), BWC_NODES_VERSION);
-        numShards = nodes.size();
+        numShards = cluster.getNumNodes();
         numDocs = randomIntBetween(numShards, 15);
-        newNodes = new ArrayList<>(nodes.getNewNodes());
-        bwcNodes = new ArrayList<>(nodes.getBWCNodes());
 
         String mappings = readResource(SqlSearchIT.class.getResourceAsStream("/all_field_types.json"));
         createIndex(index, indexSettings(numShards, numReplicas).build(), mappings);
@@ -100,7 +103,7 @@ public class SqlSearchIT extends ESRestTestCase {
             builder.append("\"half_float_field\":\"" + randomFloat + "\"");
             fieldValues.put("half_float_field", Double.valueOf(Float.toString(roundedHalfFloat)));
         });
-        assertAllTypesWithNodes(expectedResponse, bwcNodes);
+        assertAllTypesWithNodes(expectedResponse, Clusters.oldNodeAddresses(cluster));
     }
 
     public void testAllTypesWithRequestToUpgradedNodes() throws Exception {
@@ -128,7 +131,7 @@ public class SqlSearchIT extends ESRestTestCase {
             builder.append("\"half_float_field\":\"" + randomFloat + "\"");
             fieldValues.put("half_float_field", Double.valueOf(Float.toString(roundedHalfFloat)));
         });
-        assertAllTypesWithNodes(expectedResponse, newNodes);
+        assertAllTypesWithNodes(expectedResponse, Clusters.newNodeAddresses(cluster));
     }
 
     @SuppressWarnings("unchecked")
@@ -222,10 +225,8 @@ public class SqlSearchIT extends ESRestTestCase {
         return unmodifiableMap(column);
     }
 
-    private void assertAllTypesWithNodes(Map<String, Object> expectedResponse, List<TestNode> nodesList) throws Exception {
-        try (
-            RestClient client = buildClient(restClientSettings(), nodesList.stream().map(TestNode::publishAddress).toArray(HttpHost[]::new))
-        ) {
+    private void assertAllTypesWithNodes(Map<String, Object> expectedResponse, HttpHost[] hosts) throws Exception {
+        try (RestClient client = buildClient(restClientSettings(), hosts)) {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> columns = (List<Map<String, Object>>) expectedResponse.get("columns");
 

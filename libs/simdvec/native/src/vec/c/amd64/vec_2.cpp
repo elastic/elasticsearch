@@ -43,6 +43,10 @@
 #define STRIDE_BYTES_LEN sizeof(__m512i) // Must be a power of 2
 #endif
 
+#ifndef STRIDE
+#define STRIDE(size, num) STRIDE_BYTES_LEN / size * num
+#endif
+
 // Returns acc + ( p1 * p2 ), for 64-wide int lanes.
 template<int offsetRegs>
 inline __m512i fma8(__m512i acc, const int8_t* p1, const int8_t* p2) {
@@ -140,10 +144,10 @@ static inline void dot7u_inner_bulk(
     const int lines_to_fetch = dims / CACHE_LINE_SIZE + 1;
     int c = 0;
 
-    const int8_t* a0 = safe_mapper_offset<0, mapper>(a, pitch, offsets, count);
-    const int8_t* a1 = safe_mapper_offset<1, mapper>(a, pitch, offsets, count);
-    const int8_t* a2 = safe_mapper_offset<2, mapper>(a, pitch, offsets, count);
-    const int8_t* a3 = safe_mapper_offset<3, mapper>(a, pitch, offsets, count);
+    const int8_t* a0 = safe_mapper_offset<int8_t, 0, mapper>(a, pitch, offsets, count);
+    const int8_t* a1 = safe_mapper_offset<int8_t, 1, mapper>(a, pitch, offsets, count);
+    const int8_t* a2 = safe_mapper_offset<int8_t, 2, mapper>(a, pitch, offsets, count);
+    const int8_t* a3 = safe_mapper_offset<int8_t, 3, mapper>(a, pitch, offsets, count);
 
     // Process a batch of 4 vectors at a time, after instructing the CPU to
     // prefetch the next batch.
@@ -225,7 +229,7 @@ inline __m512i sqr8(__m512i acc, const int8_t* p1, const int8_t* p2) {
     return _mm512_add_epi32(_mm512_madd_epi16(ones, sqr_add), acc);
 }
 
-static inline int32_t sqr7u_inner_avx512(const int8_t *a, const int8_t *b, const int32_t dims) {
+static inline int32_t sqr7u_inner_avx512(const int8_t* a, const int8_t* b, const int32_t dims) {
     constexpr int stride8 = 8 * STRIDE_BYTES_LEN;
     constexpr int stride4 = 4 * STRIDE_BYTES_LEN;
     const int8_t* p1 = a;
@@ -302,7 +306,7 @@ static inline void sqr7u_inner_bulk(
     const int32_t count,
     f32_t* results
 ) {
-    for (size_t c = 0; c < count; c++) {
+    for (int c = 0; c < count; c++) {
         const int8_t* a0 = a + mapper(c, offsets) * pitch;
         results[c] = (f32_t)vec_sqr7u_2(a0, b, dims);
     }
@@ -323,138 +327,6 @@ EXPORT void vec_sqr7u_bulk_offsets_2(
     sqr7u_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 
-// --- single precision floats
-
-// const f32_t *a  pointer to the first float vector
-// const f32_t *b  pointer to the second float vector
-// const int32_t elementCount  the number of floating point elements
-EXPORT f32_t vec_dotf32_2(const f32_t *a, const f32_t *b, const int32_t elementCount) {
-    __m512 sum0 = _mm512_setzero_ps();
-    __m512 sum1 = _mm512_setzero_ps();
-    __m512 sum2 = _mm512_setzero_ps();
-    __m512 sum3 = _mm512_setzero_ps();
-
-    int32_t i = 0;
-    int32_t unrolled_limit = elementCount & ~63UL;
-    // Each __m512 holds 16 floats, so unroll 4x = 64 floats per loop
-    for (; i < unrolled_limit; i += 64) {
-        sum0 = _mm512_fmadd_ps(_mm512_loadu_ps(a + i),      _mm512_loadu_ps(b + i),      sum0);
-        sum1 = _mm512_fmadd_ps(_mm512_loadu_ps(a + i + 16), _mm512_loadu_ps(b + i + 16), sum1);
-        sum2 = _mm512_fmadd_ps(_mm512_loadu_ps(a + i + 32), _mm512_loadu_ps(b + i + 32), sum2);
-        sum3 = _mm512_fmadd_ps(_mm512_loadu_ps(a + i + 48), _mm512_loadu_ps(b + i + 48), sum3);
-    }
-
-    // reduce all partial sums
-    __m512 total_sum = _mm512_add_ps(_mm512_add_ps(sum0, sum1), _mm512_add_ps(sum2, sum3));
-    f32_t result = _mm512_reduce_add_ps(total_sum);
-
-    for (; i < elementCount; ++i) {
-        result += a[i] * b[i];
-    }
-
-    return result;
-}
-
-template <int64_t(*mapper)(int32_t, const int32_t*)>
-static inline void dotf32_inner_bulk(
-    const f32_t *a,
-    const f32_t *b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t *offsets,
-    const int32_t count,
-    f32_t *results
-) {
-    int32_t vec_size = pitch / sizeof(f32_t);
-    for (size_t c = 0; c < count; c++) {
-        const f32_t *a0 = a + mapper(c, offsets) * vec_size;
-        results[c] = vec_dotf32_2(a0, b, dims);
-    }
-}
-
-EXPORT void vec_dotf32_bulk_2(const f32_t *a, const f32_t *b, const int32_t dims, const int32_t count, f32_t *results) {
-    dotf32_inner_bulk<identity_mapper>(a, b, dims, dims * sizeof(f32_t), NULL, count, results);
-}
-
-EXPORT void vec_dotf32_bulk_offsets_2(
-    const f32_t *a,
-    const f32_t *b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t *offsets,
-    const int32_t count,
-    f32_t *results) {
-    dotf32_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
-}
-
-// const f32_t *a  pointer to the first float vector
-// const f32_t *b  pointer to the second float vector
-// const int32_t elementCount  the number of floating point elements
-EXPORT f32_t vec_sqrf32_2(const f32_t *a, const f32_t *b, const int32_t elementCount) {
-    __m512 sum0 = _mm512_setzero_ps();
-    __m512 sum1 = _mm512_setzero_ps();
-    __m512 sum2 = _mm512_setzero_ps();
-    __m512 sum3 = _mm512_setzero_ps();
-
-    int32_t i = 0;
-    int32_t unrolled_limit = elementCount & ~63UL;
-    // Each __m512 holds 16 floats, so unroll 4x = 64 floats per loop
-    for (; i < unrolled_limit; i += 64) {
-        __m512 d0 = _mm512_sub_ps(_mm512_loadu_ps(a + i),      _mm512_loadu_ps(b + i));
-        __m512 d1 = _mm512_sub_ps(_mm512_loadu_ps(a + i + 16), _mm512_loadu_ps(b + i + 16));
-        __m512 d2 = _mm512_sub_ps(_mm512_loadu_ps(a + i + 32), _mm512_loadu_ps(b + i + 32));
-        __m512 d3 = _mm512_sub_ps(_mm512_loadu_ps(a + i + 48), _mm512_loadu_ps(b + i + 48));
-
-        sum0 = _mm512_fmadd_ps(d0, d0, sum0);
-        sum1 = _mm512_fmadd_ps(d1, d1, sum1);
-        sum2 = _mm512_fmadd_ps(d2, d2, sum2);
-        sum3 = _mm512_fmadd_ps(d3, d3, sum3);
-    }
-
-    // reduce all partial sums
-    __m512 total_sum = _mm512_add_ps(_mm512_add_ps(sum0, sum1), _mm512_add_ps(sum2, sum3));
-    f32_t result = _mm512_reduce_add_ps(total_sum);
-
-    for (; i < elementCount; ++i) {
-        f32_t diff = a[i] - b[i];
-        result += diff * diff;
-    }
-
-    return result;
-}
-
-template <int64_t(*mapper)(int32_t, const int32_t*)>
-static inline void sqrf32_inner_bulk(
-    const f32_t *a,
-    const f32_t *b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t *offsets,
-    const int32_t count,
-    f32_t *results
-) {
-    int32_t vec_size = pitch / sizeof(f32_t);
-    for (size_t c = 0; c < count; c++) {
-        const f32_t *a0 = a + mapper(c, offsets) * vec_size;
-        results[c] = vec_sqrf32_2(a0, b, dims);
-    }
-}
-
-EXPORT void vec_sqrf32_bulk_2(const f32_t *a, const f32_t *b, const int32_t dims, const int32_t count, f32_t *results) {
-    sqrf32_inner_bulk<identity_mapper>(a, b, dims, dims * sizeof(f32_t), NULL, count, results);
-}
-
-EXPORT void vec_sqrf32_bulk_offsets_2(
-    const f32_t *a,
-    const f32_t *b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t *offsets,
-    const int32_t count,
-    f32_t *results) {
-    sqrf32_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
-}
-
 static inline __m512i dot_bit_512(const __m512i a, const int8_t* b) {
     const __m512i q0 = _mm512_loadu_si512((const __m512i *)b);
     return _mm512_popcnt_epi64(_mm512_and_si512(q0, a));
@@ -469,9 +341,9 @@ static inline int64_t dot_int1_int4_inner(const int8_t* a, const int8_t* query, 
     __m512i acc2 = _mm512_setzero_si512();
     __m512i acc3 = _mm512_setzero_si512();
 
-    int upperBound = length & ~(sizeof(__m512i) - 1);
-    for (; r < upperBound; r += sizeof(__m512i)) {
-        const __m512i value = _mm512_loadu_si512((const __m512i *)(a + r));
+    int upperBound = length & ~(STRIDE_BYTES_LEN - 1);
+    for (; r < upperBound; r += STRIDE_BYTES_LEN) {
+        const __m512i value = _mm512_loadu_si512((const __m512i*)(a + r));
 
         acc0 = _mm512_add_epi64(acc0, dot_bit_512(value, query + r));
         acc1 = _mm512_add_epi64(acc1, dot_bit_512(value, query + r + length));
@@ -513,16 +385,15 @@ static inline void dot_int1_int4_inner_bulk(
     const int32_t count,
     f32_t* results
 ) {
-    const int blk = length & ~(STRIDE_BYTES_LEN - 1);
     const int lines_to_fetch = length / CACHE_LINE_SIZE + 1;
     int c = 0;
 
-    const int8_t* a0 = safe_mapper_offset<0, mapper>(a, pitch, offsets, count);
-    const int8_t* a1 = safe_mapper_offset<1, mapper>(a, pitch, offsets, count);
-    const int8_t* a2 = safe_mapper_offset<2, mapper>(a, pitch, offsets, count);
-    const int8_t* a3 = safe_mapper_offset<3, mapper>(a, pitch, offsets, count);
+    const int8_t* a0 = safe_mapper_offset<int8_t, 0, mapper>(a, pitch, offsets, count);
+    const int8_t* a1 = safe_mapper_offset<int8_t, 1, mapper>(a, pitch, offsets, count);
+    const int8_t* a2 = safe_mapper_offset<int8_t, 2, mapper>(a, pitch, offsets, count);
+    const int8_t* a3 = safe_mapper_offset<int8_t, 3, mapper>(a, pitch, offsets, count);
 
-    // Process a batch of 2 vectors at a time, after instructing the CPU to
+    // Process a batch of 4 vectors at a time, after instructing the CPU to
     // prefetch the next batch.
     // Prefetching multiple memory locations while computing keeps the CPU
     // execution units busy.

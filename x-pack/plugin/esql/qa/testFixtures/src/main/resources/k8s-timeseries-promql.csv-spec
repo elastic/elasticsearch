@@ -420,3 +420,178 @@ quantile:double | step:datetime            | cluster:keyword
 1.289           | 2024-05-10T00:00:00.000Z | qa
 1.248           | 2024-05-10T00:00:00.000Z | staging
 ;
+
+time_scalar
+required_capability: promql_command_v0
+required_capability: promql_time
+PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(time());
+
+result:double    | step:datetime
+1.7152992E9      | 2024-05-10T00:00:00.000Z
+;
+
+time_in_arithmetic
+required_capability: promql_command_v0
+required_capability: promql_time
+PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(time() - 1715299200);
+
+result:double | step:datetime
+0.0           | 2024-05-10T00:00:00.000Z
+;
+
+time_with_vector
+required_capability: promql_command_v0
+required_capability: promql_time
+PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(vector(1) + time() - time());
+
+result:double | step:datetime
+1.0           | 2024-05-10T00:00:00.000Z
+;
+
+time_multiple_steps
+required_capability: promql_command_v0
+required_capability: promql_time
+PROMQL index=k8s step=1m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:10:00.000Z" result=(time())
+| SORT step
+;
+
+result:double      | step:datetime
+1.7152992E9        | 2024-05-10T00:00:00.000Z
+1.71529926E9       | 2024-05-10T00:01:00.000Z
+1.71529932E9       | 2024-05-10T00:02:00.000Z
+1.71529938E9       | 2024-05-10T00:03:00.000Z
+1.71529944E9       | 2024-05-10T00:04:00.000Z
+1.7152995E9        | 2024-05-10T00:05:00.000Z
+1.71529956E9       | 2024-05-10T00:06:00.000Z
+1.71529962E9       | 2024-05-10T00:07:00.000Z
+1.71529968E9       | 2024-05-10T00:08:00.000Z
+1.71529974E9       | 2024-05-10T00:09:00.000Z
+;
+
+time_minus_aggregated_field
+required_capability: promql_command_v0
+required_capability: promql_time
+PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(time() - sum(avg_over_time(network.cost[1h])));
+
+result:double          | step:datetime
+1.7152991436774597E9   | 2024-05-10T00:00:00.000Z
+;
+
+# AwaitsFix: https://github.com/elastic/elasticsearch/issues/141172
+time_minus_raw_field-Ignore
+required_capability: promql_command_v0
+required_capability: promql_time
+PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(time() - network.cost);
+
+result:double          | step:datetime            | cluster:keyword | pod:keyword
+0.0                    | 2024-05-10T00:00:00.000Z | prod             | one
+;
+
+// used as a reference for comparison filtering tests
+max_bytes_per_cluster
+required_capability: promql_command_v0
+required_capability: promql_binary_comparison_v0
+PROMQL index=k8s step=1h bytes=(max by (cluster) (network.bytes_in))
+| SORT cluster;
+
+bytes:double | step:datetime            | cluster:keyword
+931.0        | 2024-05-10T00:00:00.000Z | prod
+972.0        | 2024-05-10T00:00:00.000Z | qa
+238.0        | 2024-05-10T00:00:00.000Z | staging
+;
+
+comparison_filtering_lt
+required_capability: promql_command_v0
+required_capability: promql_binary_comparison_v0
+PROMQL index=k8s step=1h bytes=(max by (cluster) (network.bytes_in) < 900)
+| SORT cluster;
+
+bytes:double | step:datetime            | cluster:keyword
+238.0        | 2024-05-10T00:00:00.000Z | staging
+;
+
+comparison_filtering_gt
+required_capability: promql_command_v0
+required_capability: promql_binary_comparison_v0
+PROMQL index=k8s step=1h bytes=(max by (cluster) (network.bytes_in) > 900)
+| SORT cluster;
+
+bytes:double | step:datetime            | cluster:keyword
+931.0        | 2024-05-10T00:00:00.000Z | prod
+972.0        | 2024-05-10T00:00:00.000Z | qa
+;
+
+unmapped_metric_instant_vector
+required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
+PROMQL index=k8s step=1h result=(unmapped.metric) | SORT result;
+
+result:double | step:datetime | _timeseries:keyword
+;
+
+unmapped_label
+required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
+PROMQL index=k8s step=1h result=(network.cost{unmapped.label="value"}) | SORT result;
+
+result:double | step:datetime | _timeseries:keyword
+;
+
+unmapped_metric_cross_series
+required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
+PROMQL index=k8s step=1h result=(sum by (cluster) (unmapped.metric)) | SORT result;
+
+result:double | step:datetime | cluster:keyword
+;
+
+cross_series_grouping_on_unmapped_label
+required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
+PROMQL index=k8s step=1h result=(sum by (unmapped.label) (network.cost)) | SORT result;
+
+result:double | step:datetime
+61.0          | 2024-05-10T00:00:00.000Z
+;
+
+// equivalent to above but without grouping
+cross_series_no_grouping
+required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
+PROMQL index=k8s step=1h result=(sum (network.cost)) | SORT result;
+
+result:double | step:datetime
+61.0          | 2024-05-10T00:00:00.000Z
+;
+
+
+cross_series_grouping_on_mapped_and_unmapped_label
+required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
+PROMQL index=k8s step=1h result=(sum by (cluster, unmapped.label) (network.cost)) | SORT result;
+
+result:double | step:datetime            | cluster:keyword
+15.875        | 2024-05-10T00:00:00.000Z | staging
+18.625        | 2024-05-10T00:00:00.000Z | prod
+26.5          | 2024-05-10T00:00:00.000Z | qa
+;
+
+// equivalent to above but grouping only on mapped label
+cross_series_grouping_on_mapped_label
+required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
+PROMQL index=k8s step=1h result=(sum by (cluster) (network.cost)) | SORT result;
+
+result:double | step:datetime            | cluster:keyword
+15.875        | 2024-05-10T00:00:00.000Z | staging
+18.625        | 2024-05-10T00:00:00.000Z | prod
+26.5          | 2024-05-10T00:00:00.000Z | qa
+;
+
+unmapped_metric_within_series
+required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
+PROMQL index=k8s step=1h result=(rate(unmapped.metric[1h])) | SORT result;
+
+result:double | step:datetime | _timeseries:keyword
+;

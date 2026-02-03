@@ -70,7 +70,6 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -95,7 +94,6 @@ import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
-import org.elasticsearch.xpack.esql.inference.XContentRowEncoder;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -323,6 +321,7 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planCompletion(CompletionExec completion, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(completion.child(), context);
         String inferenceId = BytesRefs.toString(completion.inferenceId().fold(context.foldCtx()));
+        Map<String, Object> taskSettings = completion.taskSettings().toFoldedMap(context.foldCtx());
         Layout outputLayout = source.layout.builder().append(completion.targetField()).build();
         EvalOperator.ExpressionEvaluator.Factory promptEvaluatorFactory = EvalMapper.toEvaluator(
             context.foldCtx(),
@@ -330,7 +329,10 @@ public class LocalExecutionPlanner {
             source.layout
         );
 
-        return source.with(new CompletionOperator.Factory(inferenceService, inferenceId, promptEvaluatorFactory), outputLayout);
+        return source.with(
+            new CompletionOperator.Factory(inferenceService, inferenceId, promptEvaluatorFactory, taskSettings),
+            outputLayout
+        );
     }
 
     private PhysicalOperation planFuseScoreEvalExec(FuseScoreEvalExec fuse, LocalExecutionPlannerContext context) {
@@ -342,26 +344,12 @@ public class LocalExecutionPlanner {
 
         if (fuse.fuseConfig() instanceof RrfConfig rrfConfig) {
             return source.with(
-                new RrfScoreEvalOperator.Factory(
-                    discriminatorPosition,
-                    scorePosition,
-                    rrfConfig,
-                    fuse.sourceText(),
-                    fuse.sourceLocation().getLineNumber(),
-                    fuse.sourceLocation().getColumnNumber()
-                ),
+                new RrfScoreEvalOperator.Factory(discriminatorPosition, scorePosition, rrfConfig, fuse.source()),
                 source.layout
             );
         } else if (fuse.fuseConfig() instanceof LinearConfig linearConfig) {
             return source.with(
-                new LinearScoreEvalOperator.Factory(
-                    discriminatorPosition,
-                    scorePosition,
-                    linearConfig,
-                    fuse.sourceText(),
-                    fuse.sourceLocation().getLineNumber(),
-                    fuse.sourceLocation().getColumnNumber()
-                ),
+                new LinearScoreEvalOperator.Factory(discriminatorPosition, scorePosition, linearConfig, fuse.source()),
                 source.layout
             );
         }
@@ -634,28 +622,12 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planRerank(RerankExec rerank, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(rerank.child(), context);
 
-        EvalOperator.ExpressionEvaluator.Factory rowEncoderFactory;
-        if (rerank.rerankFields().size() > 1) {
-            // If there is more than one field used for reranking we are encoded the input in a YAML doc, using field names as key.
-            // The input value will looks like
-            // text_field: foo bar
-            // multivalue_text_field:
-            // - value 1
-            // - value 2
-            // integer_field: 132
-            Map<ColumnInfoImpl, EvalOperator.ExpressionEvaluator.Factory> rerankFieldsEvaluatorSuppliers = Maps
-                .newLinkedHashMapWithExpectedSize(rerank.rerankFields().size());
+        List<EvalOperator.ExpressionEvaluator.Factory> rerankFieldsEvaluators = rerank.rerankFields()
+            .stream()
+            .map(rerankField -> EvalMapper.toEvaluator(context.foldCtx(), rerankField.child(), source.layout))
+            .toList();
 
-            for (var rerankField : rerank.rerankFields()) {
-                rerankFieldsEvaluatorSuppliers.put(
-                    new ColumnInfoImpl(rerankField.name(), rerankField.dataType(), null),
-                    EvalMapper.toEvaluator(context.foldCtx(), rerankField.child(), source.layout)
-                );
-            }
-            rowEncoderFactory = XContentRowEncoder.yamlRowEncoderFactory(configuration.zoneId(), rerankFieldsEvaluatorSuppliers);
-        } else {
-            rowEncoderFactory = EvalMapper.toEvaluator(context.foldCtx(), rerank.rerankFields().get(0).child(), source.layout);
-        }
+        assert rerankFieldsEvaluators.size() > 0 : "rerank expression evaluators must not be empty";
 
         String inferenceId = BytesRefs.toString(rerank.inferenceId().fold(context.foldCtx));
         String queryText = BytesRefs.toString(rerank.queryText().fold(context.foldCtx));
@@ -672,7 +644,7 @@ public class LocalExecutionPlanner {
                 inferenceService,
                 inferenceId,
                 queryText,
-                rowEncoderFactory,
+                rerankFieldsEvaluators,
                 scoreChannel,
                 RerankOperator.DEFAULT_BATCH_SIZE
             ),
@@ -891,19 +863,19 @@ public class LocalExecutionPlanner {
             new FilterOperatorFactory(EvalMapper.toEvaluator(context.foldCtx(), filter.condition(), source.layout, context.shardContexts)),
             source.layout
         );
-        if (PlannerUtils.usesScoring(filter)) {
+        // Add ScoreOperator only on data nodes. Data nodes are able to calculate scores running queries on the resulting docs.
+        if (context.shardContexts.isEmpty() == false && PlannerUtils.usesScoring(filter)) {
             // Add scorer operator to add the filter expression scores to the overall scores
-            int scoreBlock = 0;
-            for (Attribute attribute : filter.output()) {
-                if (MetadataAttribute.SCORE.equals(attribute.name())) {
-                    break;
-                }
-                scoreBlock++;
-            }
-            if (scoreBlock == filter.output().size()) {
-                throw new IllegalStateException("Couldn't find _score attribute in a WHERE clause");
-            }
+            Attribute scoreAttribute = null;
 
+            for (Attribute attribute : filter.output()) {
+                if (attribute instanceof MetadataAttribute && MetadataAttribute.SCORE.equals(attribute.name())) {
+                    scoreAttribute = attribute;
+                }
+            }
+            assert scoreAttribute != null : "Couldn't find _score attribute in a WHERE clause";
+
+            int scoreBlock = filterOperation.layout.get(scoreAttribute.id()).channel();
             filterOperation = filterOperation.with(
                 new ScoreOperator.ScoreOperatorFactory(ScoreMapper.toScorer(filter.condition(), context.shardContexts), scoreBlock),
                 filterOperation.layout
@@ -931,15 +903,7 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planChangePoint(ChangePointExec changePoint, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(changePoint.child(), context);
         Layout layout = source.layout.builder().append(changePoint.targetType()).append(changePoint.targetPvalue()).build();
-        return source.with(
-            new ChangePointOperator.Factory(
-                layout.get(changePoint.value().id()).channel(),
-                changePoint.sourceText(),
-                changePoint.sourceLocation().getLineNumber(),
-                changePoint.sourceLocation().getColumnNumber()
-            ),
-            layout
-        );
+        return source.with(new ChangePointOperator.Factory(layout.get(changePoint.value().id()).channel(), changePoint.source()), layout);
     }
 
     private PhysicalOperation planSample(SampleExec rsx, LocalExecutionPlannerContext context) {

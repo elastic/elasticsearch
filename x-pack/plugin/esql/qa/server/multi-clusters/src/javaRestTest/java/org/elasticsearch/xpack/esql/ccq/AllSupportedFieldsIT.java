@@ -130,6 +130,6 @@ public class AllSupportedFieldsIT extends AllSupportedFieldsTestCase {
         doTestFetchAll(fromAllQuery("*:%mode%*", """
             , _id, _ignored, _index_mode, _score, _source, _version
             | LIMIT 1000
-            """), remoteNodeToInfo(), allNodeToInfo());
+            """), remoteNodeToInfo(), allNodeToInfo(), false);
     }
 }

@@ -33,7 +33,9 @@ import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
+import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
+import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -50,7 +52,7 @@ import static org.elasticsearch.simdvec.ESNextOSQVectorsScorer.BULK_SIZE;
  * Default implementation of {@link IVFVectorsReader}. It scores the posting lists centroids using
  * brute force and then scores the top ones using the posting list.
  */
-public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
+public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements VectorPreconditioner {
 
     public ESNextDiskBBQVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader)
         throws IOException {
@@ -184,6 +186,11 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
     ) throws IOException {
         int bulkSize = input.readInt();
         ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding = ESNextDiskBBQVectorsFormat.QuantEncoding.fromId(input.readInt());
+        long preconditionerLength = input.readLong();
+        long preconditionerOffset = -1;
+        if (preconditionerLength > 0) {
+            preconditionerOffset = input.readLong();
+        }
         return new NextFieldEntry(
             rawVectorFormat,
             useDirectIOReads,
@@ -197,12 +204,35 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             globalCentroid,
             globalCentroidDp,
             quantEncoding,
-            bulkSize
+            bulkSize,
+            preconditionerOffset,
+            preconditionerLength
         );
+    }
+
+    @Override
+    public Preconditioner getPreconditioner(FieldInfo fieldInfo) throws IOException {
+        final FieldEntry fieldEntry = fields.get(fieldInfo.number);
+        // only seems possible in tests
+        if (fieldEntry == null) {
+            return null;
+        }
+        long preconditionerOffset = ((NextFieldEntry) fieldEntry).preconditionerOffset();
+        long preconditionerLength = ((NextFieldEntry) fieldEntry).preconditionerLength();
+        if (preconditionerLength > 0) {
+            IndexInput ivfPreconditionerSlice = ivfCentroids.slice("preconditioner", preconditionerOffset, preconditionerLength);
+            if (ivfPreconditionerSlice != null) {
+                ivfPreconditionerSlice.seek(0);
+                return Preconditioner.read(ivfPreconditionerSlice);
+            }
+        }
+        return null;
     }
 
     static class NextFieldEntry extends FieldEntry {
         private final ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding;
+        protected final long preconditionerOffset;
+        protected final long preconditionerLength;
 
         NextFieldEntry(
             String rawVectorFormat,
@@ -217,7 +247,9 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             float[] globalCentroid,
             float globalCentroidDp,
             ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding,
-            int bulkSize
+            int bulkSize,
+            long preconditionerOffset,
+            long preconditionerLength
         ) {
             super(
                 rawVectorFormat,
@@ -234,10 +266,20 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                 bulkSize
             );
             this.quantEncoding = quantEncoding;
+            this.preconditionerOffset = preconditionerOffset;
+            this.preconditionerLength = preconditionerLength;
         }
 
         public ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding() {
             return quantEncoding;
+        }
+
+        public long preconditionerOffset() {
+            return preconditionerOffset;
+        }
+
+        public long preconditionerLength() {
+            return preconditionerLength;
         }
     }
 
@@ -638,7 +680,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             this.acceptDocs = acceptDocs;
             centroid = new float[fieldInfo.getVectorDimension()];
             quantizedVectorByteSize = quantEncoding.getDocPackedLength(fieldInfo.getVectorDimension());
-            quantizedByteLength = quantizedVectorByteSize + (Float.BYTES * 3) + Short.BYTES;
+            quantizedByteLength = quantizedVectorByteSize + (Float.BYTES * 3) + Integer.BYTES;
             osqVectorsScorer = ESVectorUtil.getESNextOSQVectorsScorer(
                 indexInput,
                 quantEncoding.queryBits(),
@@ -678,7 +720,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             indexInput.readFloats(correctionsLower, 0, BULK_SIZE);
             indexInput.readFloats(correctionsUpper, 0, BULK_SIZE);
             for (int j = 0; j < BULK_SIZE; j++) {
-                correctionsSum[j] = Short.toUnsignedInt(indexInput.readShort());
+                correctionsSum[j] = indexInput.readInt();
             }
             indexInput.readFloats(correctionsAdd, 0, BULK_SIZE);
             // Now apply corrections
@@ -785,7 +827,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                     queryQuantizer.quantizeQueryIfNecessary();
                     float qcDist = osqVectorsScorer.quantizeScore(queryQuantizer.getQuantizedTarget());
                     indexInput.readFloats(correctiveValues, 0, 3);
-                    final int quantizedComponentSum = Short.toUnsignedInt(indexInput.readShort());
+                    final int quantizedComponentSum = indexInput.readInt();
                     float score = osqVectorsScorer.score(
                         queryQuantizer.getQueryCorrections().lowerInterval(),
                         queryQuantizer.getQueryCorrections().upperInterval(),

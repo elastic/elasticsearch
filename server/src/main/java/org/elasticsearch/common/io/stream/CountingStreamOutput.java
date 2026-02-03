@@ -9,6 +9,7 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
@@ -17,88 +18,128 @@ import java.io.IOException;
  * A reusable @link {@link StreamOutput} that just count how many bytes are written.
  */
 public class CountingStreamOutput extends StreamOutput {
-    private long size;
+    private long position;
 
     /** reset the written byes to 0 */
     public void reset() {
-        size = 0L;
-    }
-
-    /** returns how many bytes would have been written  */
-    public long size() {
-        return size;
+        position = 0L;
     }
 
     @Override
     public void writeByte(byte b) {
-        ++size;
+        ++position;
     }
 
     @Override
     public void writeBytes(byte[] b, int offset, int length) {
-        size += length;
+        position += length;
+    }
+
+    @Override
+    public long position() {
+        return position;
+    }
+
+    @Override
+    public void writeShort(short v) throws IOException {
+        position += Short.BYTES;
     }
 
     @Override
     public void writeInt(int i) {
-        size += Integer.BYTES;
+        position += Integer.BYTES;
     }
 
     @Override
-    public void writeIntArray(int[] values) throws IOException {
+    public void writeIntLE(int i) throws IOException {
+        position += Integer.BYTES;
+    }
+
+    @Override
+    public void writeIntArray(int[] values) {
         writeVInt(values.length);
-        size += (long) values.length * Integer.BYTES;
+        position += (long) values.length * Integer.BYTES;
     }
 
     @Override
     public void writeLong(long i) {
-        size += Long.BYTES;
+        position += Long.BYTES;
     }
 
     @Override
-    public void writeLongArray(long[] values) throws IOException {
+    public void writeLongLE(long i) {
+        position += Long.BYTES;
+    }
+
+    @Override
+    public void writeLongArray(long[] values) {
         writeVInt(values.length);
-        size += (long) values.length * Long.BYTES;
+        position += (long) values.length * Long.BYTES;
     }
 
     @Override
     public void writeFloat(float v) {
-        size += Float.BYTES;
+        position += Float.BYTES;
     }
 
     @Override
-    public void writeFloatArray(float[] values) throws IOException {
+    public void writeFloatArray(float[] values) {
         writeVInt(values.length);
-        size += (long) values.length * Float.BYTES;
+        position += (long) values.length * Float.BYTES;
     }
 
     @Override
     public void writeDouble(double v) {
-        size += Double.BYTES;
+        position += Double.BYTES;
     }
 
     @Override
-    public void writeDoubleArray(double[] values) throws IOException {
+    public void writeDoubleArray(double[] values) {
         writeVInt(values.length);
-        size += (long) values.length * Double.BYTES;
+        position += (long) values.length * Double.BYTES;
     }
 
     @Override
-    public void writeString(String str) throws IOException {
-        StreamOutputHelper.writeString(str, this);
+    public void writeVInt(int v) {
+        // set LSB because 0 takes 1 byte
+        position += (38 - Integer.numberOfLeadingZeros(v | 1)) / 7;
     }
 
     @Override
-    public void writeOptionalString(@Nullable String str) throws IOException {
-        size += 1;
+    void writeVLongNoCheck(long v) {
+        // set LSB because 0 takes 1 byte
+        position += (70 - Long.numberOfLeadingZeros(v | 1L)) / 7;
+    }
+
+    @Override
+    public void writeZLong(long i) {
+        writeVLongNoCheck(BitUtil.zigZagEncode(i));
+    }
+
+    @Override
+    public void writeString(String str) {
+        final int charCount = str.length();
+        writeVInt(charCount);
+        position += charCount;
+        for (int i = 0; i < charCount; i++) {
+            final int c = str.charAt(i);
+            if (c > 0x007F) {
+                position += c > 0x07FF ? 2 : 1;
+            }
+        }
+    }
+
+    @Override
+    public void writeOptionalString(@Nullable String str) {
+        position += 1;
         if (str != null) {
             writeString(str);
         }
     }
 
     @Override
-    public void writeGenericString(String value) throws IOException {
-        size += 1;
+    public void writeGenericString(String value) {
+        position += 1;
         writeString(value);
     }
 

@@ -96,9 +96,11 @@ public abstract class StreamOutput extends OutputStream {
         this.version = version;
     }
 
-    public long position() throws IOException {
-        throw new UnsupportedOperationException();
-    }
+    /**
+     * @return the current position of the stream, in bytes. Increases as data is written to the stream. If the stream is seekable then
+     *         the seek operation updates the current {@code position()}.
+     */
+    public abstract long position();
 
     /**
      * Writes a single byte.

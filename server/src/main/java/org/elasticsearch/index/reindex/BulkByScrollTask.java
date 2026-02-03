@@ -43,23 +43,34 @@ import static org.elasticsearch.core.TimeValue.timeValueNanos;
 /**
  * Task storing information about a currently running BulkByScroll request.
  *
- * When the request is not sliced, this task is the only task created, and starts an action to perform search requests.
+ * <p>When the request is not sliced, this task is the only task created, and starts an action to perform search requests.
  *
- * When the request is sliced, this task can either represent a coordinating task (using
+ * <p>When the request is sliced, this task can either represent a coordinating task (using
  * {@link BulkByScrollTask#setWorkerCount(int)}) or a worker task that performs search queries (using
  * {@link BulkByScrollTask#setWorker(float, Integer)}).
  *
- * We don't always know if this task will be a leader or worker task when it's created, because if slices is set to "auto" it may
+ * <p>We don't always know if this task will be a leader or worker task when it's created, because if slices is set to "auto" it may
  * be either depending on the number of shards in the source indices. We figure that out when the request is handled and set it on this
  * class with {@link #setWorkerCount(int)} or {@link #setWorker(float, Integer)}.
  */
 public class BulkByScrollTask extends CancellableTask {
 
+    private final boolean eligibleForRelocationOnShutdown;
     private volatile LeaderBulkByScrollTaskState leaderState;
     private volatile WorkerBulkByScrollTaskState workerState;
+    private volatile boolean relocationRequested = false;
 
-    public BulkByScrollTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
+    public BulkByScrollTask(
+        long id,
+        String type,
+        String action,
+        String description,
+        TaskId parentTaskId,
+        Map<String, String> headers,
+        boolean eligibleForRelocationOnShutdown
+    ) {
         super(id, type, action, description, parentTaskId, headers);
+        this.eligibleForRelocationOnShutdown = eligibleForRelocationOnShutdown;
     }
 
     @Override
@@ -179,6 +190,36 @@ public class BulkByScrollTask extends CancellableTask {
         if (isWorker()) {
             workerState.handleCancel();
         }
+    }
+
+    /**
+     * Returns whether we should attempt to relocate this task to another node when the current node is preparing to shut down.
+     */
+    public boolean isEligibleForRelocationOnShutdown() {
+        return eligibleForRelocationOnShutdown;
+    }
+
+    /**
+     * Marks this task as requiring relocation to another node, e.g. because this node is about to shut down.
+     *
+     * <p>This method is fire-and-forget and does not guarantee that relocation actually happens. (That can depend on various factors, such
+     * as whether a suitable new node is available, and whether the task is able to get to an appropriate point to stop work and trigger the
+     * relocation in time.)
+     *
+     * <p>This should only be called on tasks where {@link #isEligibleForRelocationOnShutdown() returns true}.
+     */
+    public void requestRelocation() {
+        if (eligibleForRelocationOnShutdown == false) {
+            throw new IllegalStateException("Called requestRelocation when eligibleForRelocationOnShutdown is false");
+        }
+        relocationRequested = true;
+    }
+
+    /**
+     * Returns whether this task has been marked as requiring relocation to another node. See {@link #requestRelocation()}.
+     */
+    public boolean isRelocationRequested() {
+        return relocationRequested;
     }
 
     /**

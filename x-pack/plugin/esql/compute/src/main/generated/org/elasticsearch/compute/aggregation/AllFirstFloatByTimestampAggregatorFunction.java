@@ -44,7 +44,7 @@ public final class AllFirstFloatByTimestampAggregatorFunction implements Aggrega
 
   public static AllFirstFloatByTimestampAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels) {
-    return new AllFirstFloatByTimestampAggregatorFunction(driverContext, channels, AllFirstFloatByTimestampAggregator.initSingle());
+    return new AllFirstFloatByTimestampAggregatorFunction(driverContext, channels, AllFirstFloatByTimestampAggregator.initSingle(driverContext));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

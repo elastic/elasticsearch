@@ -145,7 +145,7 @@ public final class MergePositionsOperator implements Operator {
                 selectedPositions.incRef();
             } else if (optimizationState == BlockOptimization.RANGE) {
                 Block inputBlock = inputPage.getBlock(0);
-                selectedPositions = IntVector.range(0, inputBlock.getPositionCount(), blockFactory).asBlock();
+                selectedPositions = blockFactory.newIntRangeVector(0, inputBlock.getPositionCount()).asBlock();
             } else {
                 throw new IllegalStateException("Unknown optimization state: " + optimizationState);
             }

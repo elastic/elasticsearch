@@ -721,9 +721,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             CancellableTask task = context.getTask();
             Consumer<Runnable> cancellationRegistrar = null;
             if (task != null) {
-                cancellationRegistrar = cancellationCallback -> {
-                    task.addListener(cancellationCallback::run);
-                };
+                cancellationRegistrar = cancellationCallback -> { task.addListener(cancellationCallback::run); };
             }
             indicesService.loadIntoContext(request, context, cancellationRegistrar);
         } else {

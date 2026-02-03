@@ -674,9 +674,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
                     BytesReference value = cache.getOrCompute(entity, () -> {
                         fail("Should not call loader");
                         return null;
-                    }, mappingKey, reader, termBytes, callback -> {
-                        waiter2Ready.countDown();
-                    });
+                    }, mappingKey, reader, termBytes, callback -> { waiter2Ready.countDown(); });
                     if (value != null) {
                         threadCompleted.set(true);
                     }

@@ -345,13 +345,13 @@ public class Cache<K, V> {
      * @param future                the future to wait on
      * @param cancellationRegistrar if non-null, accepts a Runnable to be called on cancellation
      * @return  the result of the future
-     * 
+     *
      * @throws ExecutionException   if the future completed exceptionally
      * @throws InterruptedException if the thread was interrupted
      * @throws TaskCancelledException if the operation was cancelled
      */
-    private static <T> T blockOnFuture(CompletableFuture<T> future, Consumer<Runnable> cancellationRegistrar)
-        throws ExecutionException, InterruptedException {
+    private static <T> T blockOnFuture(CompletableFuture<T> future, Consumer<Runnable> cancellationRegistrar) throws ExecutionException,
+        InterruptedException {
         if (future.isDone()) {
             return future.get();
         }

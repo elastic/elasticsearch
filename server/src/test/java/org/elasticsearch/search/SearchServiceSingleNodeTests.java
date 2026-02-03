@@ -147,9 +147,6 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -2917,7 +2914,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         searchRequest.requestCache(true);
 
         long nowInMillis = System.currentTimeMillis();
-        OriginalIndices originalIndices = new OriginalIndices(new String[]{"index"}, IndicesOptions.strictExpandOpenAndForbidClosed());
+        OriginalIndices originalIndices = new OriginalIndices(new String[] { "index" }, IndicesOptions.strictExpandOpenAndForbidClosed());
         ShardSearchRequest request = new ShardSearchRequest(
             originalIndices,
             searchRequest,

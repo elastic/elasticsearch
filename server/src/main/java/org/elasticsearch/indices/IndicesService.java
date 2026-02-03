@@ -1689,11 +1689,8 @@ public class IndicesService extends AbstractLifecycleComponent
      * to have a single load operation that will cause other requests with the same key to wait till its loaded an reuse
      * the same cache.
      */
-    public void loadIntoContext(
-        ShardSearchRequest request,
-        SearchContext context,
-        Consumer<Runnable> cancellationRegistrar
-    ) throws Exception {
+    public void loadIntoContext(ShardSearchRequest request, SearchContext context, Consumer<Runnable> cancellationRegistrar)
+        throws Exception {
         assert IndicesService.canCache(request, context);
         final DirectoryReader directoryReader = context.searcher().getDirectoryReader();
 

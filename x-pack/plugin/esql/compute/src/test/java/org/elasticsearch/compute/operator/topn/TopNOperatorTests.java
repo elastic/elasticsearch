@@ -39,6 +39,7 @@ import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.test.TestBlockBuilder;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TupleAbstractBlockSourceOperator;
 import org.elasticsearch.compute.test.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.RefCounted;
@@ -1150,19 +1151,19 @@ public class TopNOperatorTests extends OperatorTestCase {
         }
 
         List<List<List<Object>>> actualValues = new ArrayList<>();
-        List<Page> results = drive(
-            new TopNOperator(
-                driverContext.blockFactory(),
-                nonBreakingBigArrays().breakerService().getBreaker("request"),
-                topCount,
-                elementTypes,
-                encoders,
-                uniqueOrders.stream().toList(),
-                rows
-            ),
-            List.of(new Page(blocks.toArray(Block[]::new))).iterator(),
-            driverContext
-        );
+        List<Page> results = new TestDriverRunner().builder(driverContext)
+            .input(blocks)
+            .run(
+                new TopNOperator(
+                    driverContext.blockFactory(),
+                    nonBreakingBigArrays().breakerService().getBreaker("request"),
+                    topCount,
+                    elementTypes,
+                    encoders,
+                    uniqueOrders.stream().toList(),
+                    rows
+                )
+            );
         for (Page p : results) {
             readAsRows(actualValues, p);
             p.releaseBlocks();

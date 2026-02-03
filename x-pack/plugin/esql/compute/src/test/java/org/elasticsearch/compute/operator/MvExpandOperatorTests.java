@@ -15,6 +15,7 @@ import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.hamcrest.Matcher;
 
 import java.util.Iterator;
@@ -205,11 +206,9 @@ public class MvExpandOperatorTests extends OperatorTestCase {
     public void testNoopStatus() {
         BlockFactory blockFactory = blockFactory();
         MvExpandOperator op = new MvExpandOperator(0, randomIntBetween(1, 1000));
-        List<Page> result = drive(
-            op,
-            List.of(new Page(blockFactory.newIntVectorBuilder(2).appendInt(1).appendInt(2).build().asBlock())).iterator(),
-            driverContext()
-        );
+        List<Page> result = new TestDriverRunner().builder(driverContext())
+            .input(blockFactory.newIntVectorBuilder(2).appendInt(1).appendInt(2).build().asBlock())
+            .run(op);
         assertThat(result, hasSize(1));
         assertThat(valuesAtPositions(result.get(0).getBlock(0), 0, 2), equalTo(List.of(List.of(1), List.of(2))));
         MvExpandOperator.Status status = op.status();
@@ -222,7 +221,7 @@ public class MvExpandOperatorTests extends OperatorTestCase {
         MvExpandOperator op = new MvExpandOperator(0, randomIntBetween(1, 1));
         BlockFactory blockFactory = blockFactory();
         var builder = blockFactory.newIntBlockBuilder(2).beginPositionEntry().appendInt(1).appendInt(2).endPositionEntry();
-        List<Page> result = drive(op, List.of(new Page(builder.build())).iterator(), driverContext());
+        List<Page> result = new TestDriverRunner().builder(driverContext()).input(builder.build()).run(op);
         assertThat(result, hasSize(1));
         assertThat(valuesAtPositions(result.get(0).getBlock(0), 0, 2), equalTo(List.of(List.of(1), List.of(2))));
         MvExpandOperator.Status status = op.status();
@@ -252,7 +251,9 @@ public class MvExpandOperatorTests extends OperatorTestCase {
             }
         });
         List<Page> origInput = deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
-        List<Page> results = drive(new MvExpandOperator(0, randomIntBetween(1, 1000)), input.iterator(), context);
+        List<Page> results = new TestDriverRunner().builder(context)
+            .input(input)
+            .run(new MvExpandOperator(0, randomIntBetween(1, 1000)));
         assertSimpleOutput(origInput, results);
     }
 }

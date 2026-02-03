@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 import org.hamcrest.Matcher;
@@ -117,7 +118,9 @@ public class EvalOperatorTests extends OperatorTestCase {
     public void testReadFromBlock() {
         DriverContext context = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(context.blockFactory(), 10));
-        List<Page> results = drive(new EvalOperatorFactory(dvrCtx -> new LoadFromPage(0)).get(context), input.iterator(), context);
+        List<Page> results = new TestDriverRunner().builder(context)
+            .input(input)
+            .run(new EvalOperatorFactory(dvrCtx -> new LoadFromPage(0)));
         Set<Long> found = new TreeSet<>();
         for (var page : results) {
             LongBlock lb = page.getBlock(2);

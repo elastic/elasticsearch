@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.esql.inference.InferenceOperatorTestCase;
@@ -118,11 +119,8 @@ public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompl
         );
 
         DriverContext driverContext = driverContext();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1, 100)));
-        Exception actualException = expectThrows(
-            ElasticsearchException.class,
-            () -> drive(factory.get(driverContext), input.iterator(), driverContext)
-        );
+        var runner = new TestDriverRunner().builder(driverContext).input(simpleInput(driverContext.blockFactory(), between(1, 100)));
+        Exception actualException = expectThrows(ElasticsearchException.class, () -> runner.run(factory));
 
         assertThat(actualException.getMessage(), equalTo("Inference service unavailable"));
     }

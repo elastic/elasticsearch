@@ -63,6 +63,7 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -1673,11 +1674,11 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
     private void testSequentialStoredFields(boolean sequential, int docCount) throws IOException {
         initMapping();
-        DriverContext driverContext = driverContext();
-        List<Page> source = CannedSourceOperator.collectPages(simpleInput(driverContext, docCount, docCount, docCount));
+        var runner = new TestDriverRunner().builder(driverContext());
+        List<Page> source = CannedSourceOperator.collectPages(simpleInput(runner.context(), docCount, docCount, docCount));
         assertThat(source, hasSize(1)); // We want one page for simpler assertions, and we want them all in one segment
         assertTrue(source.get(0).<DocBlock>getBlock(0).asVector().singleSegmentNonDecreasing());
-        Operator op = new ValuesSourceReaderOperator.Factory(
+        List<Page> results = runner.input(source).run(new ValuesSourceReaderOperator.Factory(
             ByteSizeValue.ofGb(1),
             List.of(
                 fieldInfo(mapperService.fieldType("key"), ElementType.INT),
@@ -1691,15 +1692,14 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 )
             ),
             0
-        ).get(driverContext);
-        List<Page> results = drive(op, source.iterator(), driverContext);
+        ));
         Checks checks = new Checks(Block.MvOrdering.UNORDERED, Block.MvOrdering.UNORDERED);
         IntVector keys = results.get(0).<IntBlock>getBlock(1).asVector();
         for (int p = 0; p < results.get(0).getPositionCount(); p++) {
             int key = keys.getInt(p);
             checks.strings(results.get(0).getBlock(2), p, key);
         }
-        ValuesSourceReaderOperatorStatus status = (ValuesSourceReaderOperatorStatus) op.status();
+        ValuesSourceReaderOperatorStatus status = (ValuesSourceReaderOperatorStatus) runner.statuses().getFirst();
         assertMap(
             status.readersBuilt(),
             matchesMap().entry("key:column_at_a_time:IntsFromDocValues.Singleton", 1)
@@ -1707,7 +1707,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 .entry("stored_text:row_stride:BlockStoredFieldsReader.Bytes", 1)
                 .entry("stored_fields[requires_source:false, fields:1, sequential: " + sequential + "]", 1)
         );
-        assertDriverContext(driverContext);
+        assertDriverContext(runner.context());
     }
 
     public void testDescriptionOfMany() throws IOException {
@@ -1780,11 +1780,9 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 0
             );
             DriverContext driverContext = driverContext();
-            List<Page> results = drive(
-                readerFactory.get(driverContext),
-                CannedSourceOperator.collectPages(luceneFactory.get(driverContext)).iterator(),
-                driverContext
-            );
+            List<Page> results = new TestDriverRunner().builder(driverContext)
+                .input(CannedSourceOperator.collectPages(luceneFactory.get(driverContext)))
+                .run(readerFactory);
             assertThat(seenShards, equalTo(IntStream.range(0, shardCount).boxed().collect(Collectors.toCollection(TreeSet::new))));
             for (Page p : results) {
                 IntBlock keyBlock = p.getBlock(1);

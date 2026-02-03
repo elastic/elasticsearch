@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.hamcrest.Matcher;
 
 import java.util.List;
@@ -107,7 +108,7 @@ public class ColumnExtractOperatorTests extends OperatorTestCase {
         Block input1 = driverContext.blockFactory().newBytesRefBlockBuilder(1).appendBytesRef(new BytesRef("can_match")).build();
         Block input2 = driverContext.blockFactory().newBytesRefBlockBuilder(1).appendBytesRef(new BytesRef("no_match")).build();
         List<Page> inputPages = List.of(new Page(input1), new Page(input2));
-        List<Page> outputPages = drive(simple().get(driverContext), inputPages.iterator(), driverContext);
+        List<Page> outputPages = new TestDriverRunner().builder(driverContext).input(inputPages).run(simple());
         BytesRefBlock output1 = outputPages.get(0).getBlock(1);
         BytesRefBlock output2 = outputPages.get(1).getBlock(1);
         assertThat(output1.getBytesRef(0, scratch), equalTo(new BytesRef("can_match")));

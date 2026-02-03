@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 import org.hamcrest.Matcher;
@@ -118,11 +119,9 @@ public class FilterOperatorTests extends OperatorTestCase {
         List<Page> input = CannedSourceOperator.collectPages(
             new SequenceBooleanBlockSourceOperator(context.blockFactory(), List.of(true, false, true, false))
         );
-        List<Page> results = drive(
-            new FilterOperator.FilterOperatorFactory(dvrCtx -> new EvalOperatorTests.LoadFromPage(0)).get(context),
-            input.iterator(),
-            context
-        );
+        List<Page> results = new TestDriverRunner().builder(context)
+            .input(input)
+            .run(new FilterOperator.FilterOperatorFactory(dvrCtx -> new EvalOperatorTests.LoadFromPage(0)));
         List<Boolean> found = new ArrayList<>();
         for (var page : results) {
             BooleanVector lb = page.<BooleanBlock>getBlock(0).asVector();

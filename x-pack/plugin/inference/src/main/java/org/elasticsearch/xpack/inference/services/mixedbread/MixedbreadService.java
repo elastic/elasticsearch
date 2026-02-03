@@ -33,11 +33,12 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.mixedbread.action.MixedbreadActionCreator;
-import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankModel;
+import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankModelCreator;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -83,6 +84,18 @@ public class MixedbreadService extends SenderService implements RerankingInferen
      */
     private static final int DEFAULT_RERANKER_INPUT_SIZE_WORDS = 8000;
 
+    private static final Map<TaskType, ModelCreator<? extends MixedbreadModel>> MODEL_CREATORS = Map.of(
+        TaskType.RERANK,
+        new MixedbreadRerankModelCreator()
+    );
+
+    /**
+     * Constructor for creating an {@link MixedbreadService} with specified HTTP request sender factory and service components.
+     *
+     * @param factory the factory to create HTTP request senders
+     * @param serviceComponents the components required for the inference service
+     * @param context the context for the inference service factory
+     */
     public MixedbreadService(
         HttpRequestSender.Factory factory,
         ServiceComponents serviceComponents,
@@ -152,20 +165,40 @@ public class MixedbreadService extends SenderService implements RerankingInferen
         );
     }
 
-    private static MixedbreadModel createModel(
-        String inferenceEntityId,
+    /**
+     * Creates an {@link MixedbreadModel} based on the provided parameters.
+     *
+     * @param inferenceId the unique identifier for the inference entity
+     * @param taskType the type of task this model is designed for
+     * @param serviceSettings the settings for the inference service
+     * @param taskSettings the task-specific settings, if applicable
+     * @param chunkingSettings the settings for chunking, if applicable
+     * @param secretSettings the secret settings for the model, such as API keys or tokens
+     * @param context the context for parsing configuration settings
+     * @return a new instance of {@link MixedbreadModel} based on the provided parameters
+     */
+    protected MixedbreadModel createModel(
+        String inferenceId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
-        @Nullable Map<String, Object> secretSettings,
+        Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
         if (taskType != TaskType.RERANK) {
-            throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
+            throw createInvalidTaskTypeException(inferenceId, NAME, taskType, context);
         }
-
-        return new MixedbreadRerankModel(inferenceEntityId, serviceSettings, taskSettings, secretSettings, context);
+        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceId, taskType, NAME, context).createFromMaps(
+            inferenceId,
+            taskType,
+            NAME,
+            serviceSettings,
+            taskSettings,
+            chunkingSettings,
+            secretSettings,
+            context
+        );
     }
 
     @Override
@@ -189,6 +222,17 @@ public class MixedbreadService extends SenderService implements RerankingInferen
             chunkingSettings,
             secretSettingsMap
         );
+    }
+
+    @Override
+    public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return retrieveModelCreatorFromMapOrThrow(
+            MODEL_CREATORS,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.PERSISTENT
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override

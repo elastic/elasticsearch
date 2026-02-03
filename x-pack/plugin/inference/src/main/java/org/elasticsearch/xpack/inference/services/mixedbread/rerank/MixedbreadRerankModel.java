@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadService;
 import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadUtils;
 import org.elasticsearch.xpack.inference.services.mixedbread.action.MixedbreadActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.Map;
 import java.util.Objects;
@@ -73,7 +74,23 @@ public class MixedbreadRerankModel extends MixedbreadModel {
         );
     }
 
-    private MixedbreadRerankModel(MixedbreadRerankModel model, MixedbreadRerankTaskSettings taskSettings) {
+    /**
+     * Constructor for creating an {@link MixedbreadRerankModel} from model configurations and secrets.
+     *
+     * @param modelConfigurations the configurations for the model
+     * @param modelSecrets the secret settings for the model
+     */
+    public MixedbreadRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(
+            modelConfigurations,
+            modelSecrets,
+            (DefaultSecretSettings) modelSecrets.getSecretSettings(),
+            (RateLimitSettings) modelConfigurations.getServiceSettings(),
+            null
+        );
+    }
+
+    public MixedbreadRerankModel(MixedbreadRerankModel model, MixedbreadRerankTaskSettings taskSettings) {
         super(model, taskSettings);
     }
 

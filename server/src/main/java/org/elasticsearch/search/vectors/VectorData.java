@@ -167,7 +167,7 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
         if (this == obj) {
             return true;
         }
-        if (!(obj instanceof VectorData other)) {
+        if ((obj instanceof VectorData other) == false) {
             return false;
         }
         return Arrays.equals(floatVector, other.floatVector)

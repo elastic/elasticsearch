@@ -77,6 +77,14 @@ setup:
   # [64, 10, -30] - is encoded as '400ae2'
   # hex encoding is not supported for float fields
 
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ knn_query_vector_base64 ]
+      reason: "Float query vectors only support base64"
+
   - do:
       catch: /failed to parse field \[query_vector\]/
       search:

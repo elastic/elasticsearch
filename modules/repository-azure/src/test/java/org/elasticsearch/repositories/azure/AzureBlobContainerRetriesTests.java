@@ -758,9 +758,8 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
     }
 
     @Override
-    protected void addSuccessfulDownloadHeaders(HttpExchange exchange, byte[] blobContents) {
-        exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(blobContents.length));
-        exchange.getResponseHeaders().add("Content-Length", String.valueOf(blobContents.length));
+    protected void addSuccessfulDownloadHeaders(HttpExchange exchange, byte[] blobContents, int contentLength) {
+        exchange.getResponseHeaders().add("Content-Length", String.valueOf(contentLength));
         exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
         exchange.getResponseHeaders().add("ETag", eTagForContents(blobContents));
     }
@@ -787,7 +786,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         if (exchange.getRequestHeaders().containsKey("X-ms-range")) {
             ExceptionsHelper.maybeDieOnAnotherThread(new AssertionError("Shouldn't send a HEAD request for a range"));
         }
-        addSuccessfulDownloadHeaders(exchange, blobContents);
+        addSuccessfulDownloadHeaders(exchange, blobContents, blobContents.length);
         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
     }
 

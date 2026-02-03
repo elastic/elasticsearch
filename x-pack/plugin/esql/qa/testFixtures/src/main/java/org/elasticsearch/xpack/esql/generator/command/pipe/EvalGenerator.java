@@ -55,15 +55,16 @@ public class EvalGenerator implements CommandGenerator {
             }
             cmd.append(" ");
             cmd.append(name);
-            newColumns.remove(unquote(name));
-            newColumns.add(unquote(name));
+            String rawName = unquote(name);
+            newColumns.remove(rawName);
+            newColumns.add(rawName);
             cmd.append(" = ");
             cmd.append(expression);
 
             // there could be collisions in many ways, remove all of them
             usablePrevious.remove(name);
             usablePrevious.remove("`" + name + "`");
-            usablePrevious.remove(unquote(name));
+            usablePrevious.remove(rawName);
         }
         String cmdString = cmd.toString();
         return new CommandDescription(EVAL, this, cmdString, Map.ofEntries(Map.entry(NEW_COLUMNS, newColumns)));
@@ -82,8 +83,6 @@ public class EvalGenerator implements CommandGenerator {
         List<String> expectedColumns = (List<String>) commandDescription.context().get(NEW_COLUMNS);
         List<String> resultColNames = columns.stream().map(Column::name).toList();
         List<String> lastColumns = resultColNames.subList(resultColNames.size() - expectedColumns.size(), resultColNames.size());
-        lastColumns = lastColumns.stream().map(EsqlQueryGenerator::unquote).toList();
-        // expected column names are unquoted already
         if (columns.size() < expectedColumns.size() || lastColumns.equals(expectedColumns) == false) {
             return new ValidationResult(
                 false,

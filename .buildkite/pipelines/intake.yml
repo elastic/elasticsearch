@@ -65,7 +65,7 @@ steps:
         timeout_in_minutes: 300
         matrix:
           setup:
-            BWC_VERSION: ["8.19.11", "9.1.11", "9.2.5", "9.3.0", "9.4.0"]
+            BWC_VERSION: ["8.19.12", "9.2.6", "9.4.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
@@ -108,7 +108,7 @@ steps:
   - trigger: elasticsearch-dra-workflow
     label: Trigger DRA snapshot workflow
     async: true
-    branches: "main 9.* 8.* 7.17"
+    branches: "main 9.* 8.*"
     build:
       branch: "$BUILDKITE_BRANCH"
       commit: "$BUILDKITE_COMMIT"

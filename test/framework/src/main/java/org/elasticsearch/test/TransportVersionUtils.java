@@ -90,9 +90,9 @@ public class TransportVersionUtils {
     public static TransportVersion getNextVersion(TransportVersion version, boolean createIfNecessary) {
         TransportVersion higher = (isPatchVersion(version) ? RELEASED_VERSIONS : NON_PATCH_VERSIONS).higher(version);
         if (higher != null && isPatchVersion(version) && isPatchVersion(higher) == false) {
-            throw new IllegalStateException(
-                "couldn't determine next version as version [" + version + "] is  patch, and is the newest patch"
-            );
+            // The provided version is a patch, and the latest patch for that minor. We don't want to just return the next "higher" version
+            // as it might not be "newer" and may result in incorrect semantics. Instead, we should delegate to "createIfNecessary" here.
+            higher = null;
         }
 
         if (higher == null) {

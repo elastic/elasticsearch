@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.nullValue;
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class MultiClusterTimeSeriesIT extends ESRestTestCase {
 
-    static final List<String> REQUIRED_CAPABILITIES = List.of("ts_command_v0", "rate_fix_resets_multiple_segments");
+    static final List<String> REQUIRED_CAPABILITIES = List.of("ts_command_v0");
 
     static ElasticsearchCluster remoteCluster = Clusters.remoteCluster();
     static ElasticsearchCluster localCluster = Clusters.localCluster(remoteCluster);

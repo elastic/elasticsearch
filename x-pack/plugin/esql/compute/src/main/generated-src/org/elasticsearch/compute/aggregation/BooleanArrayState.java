@@ -96,21 +96,29 @@ final class BooleanArrayState extends AbstractArrayState implements GroupingAggr
         org.elasticsearch.compute.operator.DriverContext driverContext
     ) {
         assert blocks.length >= offset + 2;
+        boolean allHaveValue = true;
         try (
             var valuesBuilder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount());
             var hasValueBuilder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount())
         ) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
-                if (group < size) {
+                if (group < size && hasValue(group)) {
                     valuesBuilder.appendBoolean(i, values.get(group));
+                    hasValueBuilder.appendBoolean(i, true);
                 } else {
+                    allHaveValue = false;
                     valuesBuilder.appendBoolean(i, false);
+                    hasValueBuilder.appendBoolean(i, false);
                 }
-                hasValueBuilder.appendBoolean(i, hasValue(group));
             }
             blocks[offset + 0] = valuesBuilder.build().asBlock();
-            blocks[offset + 1] = hasValueBuilder.build().asBlock();
+            if (allHaveValue) {
+                // switch to a constant block to reduce memory usage and allow fast checks
+                blocks[offset + 1] = driverContext.blockFactory().newConstantBooleanBlockWith(true, selected.getPositionCount());
+            } else {
+                blocks[offset + 1] = hasValueBuilder.build().asBlock();
+            }
         }
     }
 

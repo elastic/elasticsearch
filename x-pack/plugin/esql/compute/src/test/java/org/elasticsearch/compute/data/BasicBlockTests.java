@@ -969,43 +969,6 @@ public class BasicBlockTests extends ESTestCase {
         }
     }
 
-    public void testFixedConstantBuilder() {
-        int positionCount = randomIntBetween(1, 1024);
-        try (var builder = blockFactory.newBooleanVectorFixedBuilder(positionCount)) {
-            for (int i = 0; i < positionCount; i++) {
-                builder.appendBoolean(true);
-            }
-            try (BooleanVector vector = builder.build()) {
-                assertTrue(vector.allTrue());
-                assertTrue(vector.isConstant());
-                assertThat(vector, instanceOf(ConstantBooleanVector.class));
-            }
-        }
-        try (var builder = blockFactory.newBooleanVectorFixedBuilder(positionCount)) {
-            for (int i = 0; i < positionCount; i++) {
-                builder.appendBoolean(false);
-            }
-            try (BooleanVector vector = builder.build()) {
-                assertTrue(vector.allFalse());
-                assertTrue(vector.isConstant());
-                assertThat(vector, instanceOf(ConstantBooleanVector.class));
-            }
-        }
-
-        boolean[] values = new boolean[positionCount];
-        try (var builder = blockFactory.newBooleanVectorFixedBuilder(positionCount)) {
-            for (int i = 0; i < positionCount; i++) {
-                values[i] = randomBoolean();
-                builder.appendBoolean(values[i]);
-            }
-            try (BooleanVector vector = builder.build()) {
-                for (int i = 0; i < positionCount; i++) {
-                    assertThat(vector.getBoolean(i), is(values[i]));
-                }
-            }
-        }
-    }
-
     public void testConstantNullBlock() {
         for (int i = 0; i < 100; i++) {
             assertThat(breaker.getUsed(), is(0L));

@@ -83,6 +83,7 @@ class SumDoubleAggregator {
         DriverContext driverContext
     ) {
         assert blocks.length >= offset + 3;
+        boolean allHaveValued = true;
         try (
             var valuesBuilder = driverContext.blockFactory().newDoubleVectorFixedBuilder(selected.getPositionCount());
             var deltaBuilder = driverContext.blockFactory().newDoubleVectorFixedBuilder(selected.getPositionCount());
@@ -90,18 +91,24 @@ class SumDoubleAggregator {
         ) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
-                if (group < state.values.size()) {
+                if (group < state.values.size() && state.hasValue(group)) {
                     valuesBuilder.appendDouble(i, state.values.get(group));
                     deltaBuilder.appendDouble(i, state.deltas.get(group));
+                    seenBuilder.appendBoolean(i, true);
+                    allHaveValued = false;
                 } else {
                     valuesBuilder.appendDouble(i, 0);
                     deltaBuilder.appendDouble(i, 0);
+                    seenBuilder.appendBoolean(i, false);
                 }
-                seenBuilder.appendBoolean(i, state.hasValue(group));
             }
             blocks[offset + 0] = valuesBuilder.build().asBlock();
             blocks[offset + 1] = deltaBuilder.build().asBlock();
-            blocks[offset + 2] = seenBuilder.build().asBlock();
+            if (allHaveValued) {
+                blocks[offset + 2] = driverContext.blockFactory().newConstantBooleanBlockWith(true, selected.getPositionCount());
+            } else {
+                blocks[offset + 2] = seenBuilder.build().asBlock();
+            }
         }
     }
 

@@ -1,5 +1,0 @@
-pr: 138663
-summary: Support weaker consistency model for S3 MPUs
-area: Snapshot/Restore
-type: bug
-issues: []

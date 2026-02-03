@@ -99,7 +99,8 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
             job.getAnalysisConfig().getSummaryCountFieldName().equals(DatafeedConfig.DOC_COUNT),
             datafeedConfig.getHeaders(),
             datafeedConfig.getIndicesOptions(),
-            datafeedConfig.getRuntimeMappings()
+            datafeedConfig.getRuntimeMappings(),
+            datafeedConfig.getProjectRouting()
         );
         return new RollupDataExtractor(client, dataExtractorContext, timingStatsReporter);
     }

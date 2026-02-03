@@ -40,11 +40,17 @@ public final class DataExtractorUtils {
     }
 
     public static SearchRequestBuilder getSearchRequestBuilderForSummary(Client client, DataExtractorQueryContext context) {
-        return new SearchRequestBuilder(client).setIndices(context.indices)
+        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client).setIndices(context.indices)
             .setIndicesOptions(context.indicesOptions)
             .setSource(getSearchSourceBuilderForSummary(context))
             .setAllowPartialSearchResults(false)
             .setTrackTotalHits(true);
+
+        if (context.projectRouting != null) {
+            searchRequestBuilder.request().setProjectRouting(context.projectRouting);
+        }
+
+        return searchRequestBuilder;
     }
 
     public static SearchSourceBuilder getSearchSourceBuilderForSummary(DataExtractorQueryContext context) {

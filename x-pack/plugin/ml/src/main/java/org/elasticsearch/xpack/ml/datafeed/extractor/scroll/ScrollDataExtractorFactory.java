@@ -79,7 +79,8 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
             end,
             datafeedConfig.getHeaders(),
             datafeedConfig.getIndicesOptions(),
-            datafeedConfig.getRuntimeMappings()
+            datafeedConfig.getRuntimeMappings(),
+            datafeedConfig.getProjectRouting()
         );
         return new ScrollDataExtractor(client, dataExtractorContext, timingStatsReporter);
     }

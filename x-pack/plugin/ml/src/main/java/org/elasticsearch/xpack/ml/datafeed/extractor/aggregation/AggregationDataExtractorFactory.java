@@ -53,7 +53,8 @@ public record AggregationDataExtractorFactory(
             job.getAnalysisConfig().getSummaryCountFieldName().equals(DatafeedConfig.DOC_COUNT),
             datafeedConfig.getHeaders(),
             datafeedConfig.getIndicesOptions(),
-            datafeedConfig.getRuntimeMappings()
+            datafeedConfig.getRuntimeMappings(),
+            datafeedConfig.getProjectRouting()
         );
         return new AggregationDataExtractor(client, dataExtractorContext, timingStatsReporter);
     }

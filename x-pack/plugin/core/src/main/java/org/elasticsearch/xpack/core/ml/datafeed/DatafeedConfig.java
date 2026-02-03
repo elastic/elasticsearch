@@ -116,6 +116,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
     public static final FeatureFlag DATAFEED_CROSS_PROJECT = new FeatureFlag("datafeed_cross_project");
 
+    private static final TransportVersion DATAFEED_PROJECT_ROUTING = TransportVersion.fromName("datafeed_project_routing");
+
     // Accessing `Job.ID` here causes an NPE in tests as a DatafeedConfig parser is referenced in the Job parser
     public static final ParseField JOB_ID = new ParseField("job_id");
     public static final ParseField ID = new ParseField("datafeed_id");
@@ -134,6 +136,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     public static final ParseField DELAYED_DATA_CHECK_CONFIG = new ParseField("delayed_data_check_config");
     public static final ParseField MAX_EMPTY_SEARCHES = new ParseField("max_empty_searches");
     public static final ParseField INDICES_OPTIONS = new ParseField("indices_options");
+    public static final ParseField PROJECT_ROUTING = new ParseField("project_routing");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<Builder, Void> LENIENT_PARSER = createParser(true);
@@ -233,6 +236,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             INDICES_OPTIONS
         );
         parser.declareObject(Builder::setRuntimeMappings, (p, c) -> p.map(), SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD);
+        parser.declareString(Builder::setProjectRouting, PROJECT_ROUTING);
         return parser;
     }
 
@@ -260,6 +264,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     private final Integer maxEmptySearches;
     private final IndicesOptions indicesOptions;
     private final Map<String, Object> runtimeMappings;
+    @Nullable
+    private final String projectRouting;
 
     private DatafeedConfig(
         String id,
@@ -276,7 +282,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         DelayedDataCheckConfig delayedDataCheckConfig,
         Integer maxEmptySearches,
         IndicesOptions indicesOptions,
-        Map<String, Object> runtimeMappings
+        Map<String, Object> runtimeMappings,
+        String projectRouting
     ) {
         this.id = id;
         this.jobId = jobId;
@@ -293,6 +300,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         this.maxEmptySearches = maxEmptySearches;
         this.indicesOptions = ExceptionsHelper.requireNonNull(indicesOptions, INDICES_OPTIONS);
         this.runtimeMappings = Collections.unmodifiableMap(runtimeMappings);
+        this.projectRouting = projectRouting;
     }
 
     public DatafeedConfig(StreamInput in) throws IOException {
@@ -322,6 +330,11 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         maxEmptySearches = in.readOptionalVInt();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         runtimeMappings = in.readGenericMap();
+        if (in.getTransportVersion().supports(DATAFEED_PROJECT_ROUTING)) {
+            this.projectRouting = in.readOptionalString();
+        } else {
+            this.projectRouting = null;
+        }
     }
 
     public static DatafeedConfig withCrossProjectModeIfEnabled(DatafeedConfig datafeed, CrossProjectModeDecider crossProjectModeDecider) {
@@ -580,6 +593,11 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         return runtimeMappings;
     }
 
+    @Nullable
+    public String getProjectRouting() {
+        return projectRouting;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
@@ -611,6 +629,9 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         out.writeOptionalVInt(maxEmptySearches);
         indicesOptions.writeIndicesOptions(out);
         out.writeGenericMap(runtimeMappings);
+        if (out.getTransportVersion().supports(DATAFEED_PROJECT_ROUTING)) {
+            out.writeOptionalString(projectRouting);
+        }
     }
 
     @Override
@@ -678,6 +699,9 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         if (runtimeMappings.isEmpty() == false) {
             builder.field(SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName(), runtimeMappings);
         }
+        if (projectRouting != null) {
+            builder.field(PROJECT_ROUTING.getPreferredName(), projectRouting);
+        }
         builder.endObject();
         return builder;
     }
@@ -738,7 +762,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             && Objects.equals(this.delayedDataCheckConfig, that.delayedDataCheckConfig)
             && Objects.equals(this.maxEmptySearches, that.maxEmptySearches)
             && Objects.equals(this.indicesOptions, that.indicesOptions)
-            && Objects.equals(this.runtimeMappings, that.runtimeMappings);
+            && Objects.equals(this.runtimeMappings, that.runtimeMappings)
+            && Objects.equals(this.projectRouting, that.projectRouting);
     }
 
     @Override
@@ -758,7 +783,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             delayedDataCheckConfig,
             maxEmptySearches,
             indicesOptions,
-            runtimeMappings
+            runtimeMappings,
+            projectRouting
         );
     }
 
@@ -832,6 +858,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         private Integer maxEmptySearches;
         private IndicesOptions indicesOptions;
         private Map<String, Object> runtimeMappings = Collections.emptyMap();
+        private String projectRouting;
 
         public Builder() {}
 
@@ -857,6 +884,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             this.maxEmptySearches = config.getMaxEmptySearches();
             this.indicesOptions = config.indicesOptions;
             this.runtimeMappings = new HashMap<>(config.runtimeMappings);
+            this.projectRouting = config.projectRouting;
         }
 
         public Builder(StreamInput in) throws IOException {
@@ -888,6 +916,9 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 indicesOptions = IndicesOptions.readIndicesOptions(in);
             }
             runtimeMappings = in.readGenericMap();
+            if (in.getTransportVersion().supports(DATAFEED_PROJECT_ROUTING)) {
+                projectRouting = in.readOptionalString();
+            }
         }
 
         @Override
@@ -924,6 +955,9 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 indicesOptions.writeIndicesOptions(out);
             }
             out.writeGenericMap(runtimeMappings);
+            if (out.getTransportVersion().supports(DATAFEED_PROJECT_ROUTING)) {
+                out.writeOptionalString(projectRouting);
+            }
         }
 
         @Override
@@ -945,7 +979,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 && Objects.equals(delayedDataCheckConfig, builder.delayedDataCheckConfig)
                 && Objects.equals(maxEmptySearches, builder.maxEmptySearches)
                 && Objects.equals(indicesOptions, builder.indicesOptions)
-                && Objects.equals(runtimeMappings, builder.runtimeMappings);
+                && Objects.equals(runtimeMappings, builder.runtimeMappings)
+                && Objects.equals(projectRouting, builder.projectRouting);
         }
 
         @Override
@@ -965,7 +1000,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 delayedDataCheckConfig,
                 maxEmptySearches,
                 indicesOptions,
-                runtimeMappings
+                runtimeMappings,
+                projectRouting
             );
         }
 
@@ -1108,6 +1144,15 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             return this;
         }
 
+        public Builder setProjectRouting(String projectRouting) {
+            this.projectRouting = projectRouting;
+            return this;
+        }
+
+        public String getProjectRouting() {
+            return projectRouting;
+        }
+
         public DatafeedConfig build() {
             ExceptionsHelper.requireNonNull(id, ID.getPreferredName());
             ExceptionsHelper.requireNonNull(jobId, JOB_ID.getPreferredName());
@@ -1131,6 +1176,22 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 throw new ElasticsearchStatusException("Cross-project search is not enabled for Datafeeds", RestStatus.FORBIDDEN);
             }
 
+            // Validate project_routing requires CPS feature flag AND CPS mode enabled
+            if (projectRouting != null) {
+                if (DATAFEED_CROSS_PROJECT.isEnabled() == false) {
+                    throw new ElasticsearchStatusException(
+                        "project_routing requires cross-project search feature to be enabled for Datafeeds",
+                        RestStatus.FORBIDDEN
+                    );
+                }
+                if (indicesOptions == null || indicesOptions.resolveCrossProjectIndexExpression() == false) {
+                    throw new ElasticsearchStatusException(
+                        "project_routing requires cross-project search to be enabled in indices_options",
+                        RestStatus.BAD_REQUEST
+                    );
+                }
+            }
+
             return new DatafeedConfig(
                 id,
                 jobId,
@@ -1146,7 +1207,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 delayedDataCheckConfig,
                 maxEmptySearches,
                 indicesOptions,
-                runtimeMappings
+                runtimeMappings,
+                projectRouting
             );
         }
 

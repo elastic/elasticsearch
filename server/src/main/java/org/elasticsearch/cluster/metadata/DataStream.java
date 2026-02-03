@@ -1224,18 +1224,49 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         TimeValue effectiveRetention,
         boolean failureStore
     ) {
-        if (effectiveRetention == null) {
+        return getIndicesPastRetention(indexMetadataSupplier, nowSupplier, effectiveRetention, failureStore == false, failureStore);
+    }
+
+    /**
+     * Iterate over all backing indices and return the ones that are managed by the
+     * data stream lifecycle and past the configured retention in their lifecycle.
+     * NOTE that this specifically does not return the write index of the data stream as usually retention
+     * is treated differently for the write index (i.e. they first need to be rolled over)
+     */
+    public List<Index> getIndicesPastRetention(
+        Function<String, IndexMetadata> indexMetadataSupplier,
+        LongSupplier nowSupplier,
+        TimeValue effectiveRetention
+    ) {
+        return getIndicesPastRetention(indexMetadataSupplier, nowSupplier, effectiveRetention, true, true);
+    }
+
+    private List<Index> getIndicesPastRetention(
+        Function<String, IndexMetadata> indexMetadataSupplier,
+        LongSupplier nowSupplier,
+        TimeValue effectiveRetention,
+        boolean includeBackingIndices,
+        boolean includeFailureStore
+    ) {
+        if (effectiveRetention == null || (includeBackingIndices == false && includeFailureStore == false)) {
             return List.of();
         }
 
-        List<Index> indicesPastRetention = getNonWriteIndicesOlderThan(
-            getDataStreamIndices(failureStore).getIndices(),
+        List<Index> indices = new ArrayList<>();
+        if (includeBackingIndices) {
+            indices.addAll(getDataStreamIndices(false).getIndices());
+        }
+        if (includeFailureStore) {
+            indices.addAll(getDataStreamIndices(true).getIndices());
+        }
+
+        return getNonWriteIndicesOlderThan(
+            indices,
             effectiveRetention,
             indexMetadataSupplier,
             this::isIndexManagedByDataStreamLifecycle,
             nowSupplier
         );
-        return indicesPastRetention;
     }
 
     /**

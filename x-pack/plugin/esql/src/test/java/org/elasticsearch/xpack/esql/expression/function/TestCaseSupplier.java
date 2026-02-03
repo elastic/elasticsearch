@@ -2184,8 +2184,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             assert multiRow == false || data instanceof List : "multiRow data must be a List";
             assert multiRow == false || forceLiteral == false : "multiRow data can't be converted to a literal";
 
-            if (type == DataType.UNSIGNED_LONG && data instanceof BigInteger b) {
-                this.data = NumericUtils.asLongUnsigned(b);
+            if (type == DataType.UNSIGNED_LONG) {
+                this.data = bigIntegersToLong(data);
             } else {
                 this.data = data;
             }
@@ -2376,6 +2376,21 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         public String name() {
             return name;
+        }
+
+        /**
+         * Converts a BigInteger ulong to a long value.
+         * <p>
+         *     If multivalue, converts them all,
+         * </p>
+         */
+        private static Object bigIntegersToLong(Object ulongs) {
+            if (ulongs instanceof BigInteger bi) {
+                return NumericUtils.asLongUnsigned(bi);
+            } else if (ulongs instanceof List<?> list) {
+                return list.stream().map(TypedData::bigIntegersToLong).toList();
+            }
+            return ulongs;
         }
     }
 

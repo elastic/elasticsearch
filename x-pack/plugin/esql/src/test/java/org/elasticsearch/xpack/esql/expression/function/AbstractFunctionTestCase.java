@@ -674,8 +674,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     protected Object toJavaObjectUnsignedLongAware(Block block, int position) {
-        Object result;
-        result = toJavaObject(block, position);
+        Object result = toJavaObject(block, position);
+        return normalizeResultUnsignedLongAware(result);
+    }
+
+    protected Object normalizeResultUnsignedLongAware(Object result) {
         if (result == null || testCase.expectedType() != DataType.UNSIGNED_LONG) {
             return result;
         }
@@ -920,6 +923,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      */
     @SuppressWarnings("unchecked")
     protected final void assertTestCaseResultAndWarnings(Object result) {
+        result = normalizeResultUnsignedLongAware(result);
         if (result instanceof Iterable<?>) {
             var collectionResult = (Iterable<Object>) result;
             assertThat(collectionResult, not(hasItem(Double.NaN)));

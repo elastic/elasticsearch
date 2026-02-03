@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -49,12 +48,12 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.startsWith;
@@ -308,10 +307,6 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         }
 
         Object result = evaluableExpression.fold(FoldContext.small());
-        // Decode unsigned longs into BigIntegers
-        if (testCase.expectedType() == DataType.UNSIGNED_LONG && result != null) {
-            result = NumericUtils.unsignedLongAsBigInteger((Long) result);
-        }
         assertTestCaseResultAndWarnings(result);
     }
 
@@ -536,7 +531,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             // TODO: Restore
             // assertThat(block.elementType(), is(oneOf(expectedElementType, ElementType.NULL)));
 
-            return toJavaObjectUnsignedLongAware(blocks[resultBlockIndex], 0);
+            return toJavaObject(blocks[resultBlockIndex], 0);
         } finally {
             Releasables.close(blocks);
         }
@@ -588,18 +583,15 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
 
         // Run agg surrogates twice
         for (int i = 0; i < 2; i++) {
-            expression = expression.transformUp(
-                AggregateFunction.class,
-                agg -> {
-                    if (agg instanceof SurrogateExpression se) {
-                        var surrogate = se.surrogate();
-                        if (surrogate != null) {
-                            return surrogate;
-                        }
+            expression = expression.transformUp(AggregateFunction.class, agg -> {
+                if (agg instanceof SurrogateExpression se) {
+                    var surrogate = se.surrogate();
+                    if (surrogate != null) {
+                        return surrogate;
                     }
-                    return agg;
                 }
-            );
+                return agg;
+            });
         }
 
         expression = SubstituteSurrogateExpressions.rule(expression);

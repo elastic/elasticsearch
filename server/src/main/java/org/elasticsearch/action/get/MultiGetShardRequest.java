@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.get;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
@@ -22,6 +23,8 @@ import java.util.List;
 import java.util.Objects;
 
 public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardRequest> {
+
+    private static final TransportVersion SPLIT_SHARD_COUNT_SUMMARY = TransportVersion.fromName("multi_get_split_shard_count_summary");
 
     private int shardId;
     private String preference;
@@ -92,7 +95,9 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
         refresh = in.readBoolean();
         realtime = in.readBoolean();
         forceSyntheticSource = in.readBoolean();
-        splitShardCountSummary = new SplitShardCountSummary(in);
+        if (in.getTransportVersion().supports(SPLIT_SHARD_COUNT_SUMMARY)) {
+            this.splitShardCountSummary = new SplitShardCountSummary(in);
+        }
     }
 
     @Override
@@ -109,7 +114,9 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
         out.writeBoolean(refresh);
         out.writeBoolean(realtime);
         out.writeBoolean(forceSyntheticSource);
-        splitShardCountSummary.writeTo(out);
+        if (out.getTransportVersion().supports(SPLIT_SHARD_COUNT_SUMMARY)) {
+            splitShardCountSummary.writeTo(out);
+        }
     }
 
     @Override

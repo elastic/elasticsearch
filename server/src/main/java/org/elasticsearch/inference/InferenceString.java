@@ -33,9 +33,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * This class represents a String which may be raw text, or the String representation of some other data such as an image in base64
  */
 public record InferenceString(DataType dataType, DataFormat dataFormat, String value) implements Writeable, ToXContentObject {
-    private static final String TYPE_FIELD = "type";
-    private static final String FORMAT_FIELD = "format";
-    private static final String VALUE_FIELD = "value";
+    static final String TYPE_FIELD = "type";
+    static final String FORMAT_FIELD = "format";
+    static final String VALUE_FIELD = "value";
 
     /**
      * Describes the type of data represented by an {@link InferenceString}

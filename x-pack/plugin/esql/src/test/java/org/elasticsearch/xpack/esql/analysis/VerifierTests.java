@@ -1197,7 +1197,7 @@ public class VerifierTests extends ESTestCase {
             error("FROM test | STATS count(network.bytes_out)", tsdb),
             equalTo(
                 "1:19: argument of [count(network.bytes_out)] must be"
-                    + " [any type except counter types, tdigest, histogram, exponential_histogram, or date_range],"
+                    + " [any type except counter types, histogram, or date_range],"
                     + " found value [network.bytes_out] type [counter_long]"
             )
         );
@@ -2921,6 +2921,12 @@ public class VerifierTests extends ESTestCase {
             error("FROM test METADATA _index, _score, _id | EVAL _fork = \"fork1\" | FUSE"),
             containsString("FUSE can only be used on a limited number of rows. Consider adding a LIMIT before FUSE.")
         );
+
+        assertThat(error("""
+            FROM (FROM test METADATA _index, _id, _score | EVAL label = "query1"),
+                 (FROM test METADATA _index, _id, _score | EVAL label = "query2" | LIMIT 10)
+            | FUSE GROUP BY label
+            """), containsString("FUSE can only be used on a limited number of rows. Consider adding a LIMIT before FUSE."));
     }
 
     public void testNoMetricInStatsByClause() {
@@ -3605,6 +3611,22 @@ public class VerifierTests extends ESTestCase {
             ),
             equalTo("1:58: MMR lambda value must be a number between 0.0 and 1.0")
         );
+    }
+
+    public void testMMRLimitedInput() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        assertThat(error("""
+            FROM test
+            | EVAL dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector
+            | MMR ON dense_embedding LIMIT 10
+            """), containsString("MMR can only be used on a limited number of rows. Consider adding a LIMIT before MMR."));
+
+        assertThat(error("""
+            FROM (FROM test METADATA _index, _id, _score | EVAL dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector),
+                 (FROM test METADATA _index, _id, _score | LIMIT 10)
+            | MMR ON dense_embedding LIMIT 10
+            """), containsString("MMR can only be used on a limited number of rows. Consider adding a LIMIT before MMR."));
     }
 
     private void query(String query) {

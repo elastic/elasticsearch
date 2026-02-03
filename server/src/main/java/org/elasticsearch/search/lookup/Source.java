@@ -90,7 +90,7 @@ public interface Source {
         if (map == null) {
             map = new LinkedHashMap<>();
         } else if (map instanceof HashMap == false) {
-            //bit of a hack to test for mutability...there aren't great options
+            // bit of a hack to test for mutability...there aren't great options
             map = new LinkedHashMap<>(map);
         }
 

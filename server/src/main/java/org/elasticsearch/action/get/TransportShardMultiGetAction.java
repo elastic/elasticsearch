@@ -28,10 +28,8 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ProjectState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -128,32 +126,6 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         throws IOException {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
-
-        // Check if we need to handle split shard coordination
-        IndexMetadata indexMetadata = indexService.getMetadata();
-        if (MultiGetShardSplitHelper.needsSplitCoordination(request, indexMetadata, shardId.id())) {
-            ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
-            MultiGetShardSplitHelper splitHelper = new MultiGetShardSplitHelper(
-                logger,
-                projectMetadata,
-                // Execute split requests by re-entering through shardOperation which will handle local execution
-                (splitRequest, splitListener) -> {
-                    try {
-                        IndexMetadata splitIndexMetadata = projectMetadata.index(splitRequest.index());
-                        ShardId splitShardId = new ShardId(splitIndexMetadata.getIndex(), splitRequest.shardId());
-                        // Execute locally - the split request should have correct shard routing
-                        // If the shard doesn't exist locally, this will fail and the caller will need to retry
-                        MultiGetShardResponse response = shardOperation(splitRequest, splitShardId);
-                        splitListener.onResponse(response);
-                    } catch (Exception e) {
-                        splitListener.onFailure(e);
-                    }
-                }
-            );
-            splitHelper.coordinateSplitRequest(request, shardId, indexMetadata, listener);
-            return;
-        }
-
         if (indexShard.routingEntry().isPromotableToPrimary() == false) {
             handleMultiGetOnUnpromotableShard(request, indexShard, listener);
             return;
@@ -191,30 +163,6 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
             return threadPool.executor(executorSelector.executorForGet(shardId.getIndexName()));
         } else {
             return super.getExecutor(shardId);
-        }
-    }
-
-    private void asyncShardMultiGetAfterSplit(MultiGetShardRequest request, ShardId shardId, ActionListener<MultiGetShardResponse> listener)
-        throws IOException {
-        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        IndexShard indexShard = indexService.getShard(shardId.id());
-
-        if (indexShard.routingEntry().isPromotableToPrimary() == false) {
-            handleMultiGetOnUnpromotableShard(request, indexShard, listener);
-            return;
-        }
-        assert DiscoveryNode.isStateless(clusterService.getSettings()) == false
-            : "in Stateless a promotable to primary shard should not receive a TransportShardMultiGetAction";
-        if (request.realtime()) {
-            asyncShardMultiGet(request, shardId, listener);
-        } else {
-            indexShard.ensureShardSearchActive(b -> {
-                try {
-                    asyncShardMultiGet(request, shardId, listener);
-                } catch (Exception ex) {
-                    listener.onFailure(ex);
-                }
-            });
         }
     }
 

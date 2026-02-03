@@ -29,6 +29,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -634,7 +635,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             types.add(new MockFieldMapper(new KeywordFieldMapper.KeywordFieldType("dne-" + i)));
         }
 
-        MappingLookup mappingLookup = MappingLookup.fromMappers(Mapping.EMPTY, types, List.of());
+        MappingLookup mappingLookup = MappingLookup.fromMappers(Mapping.EMPTY, types, List.of(), randomFrom(IndexMode.values()));
 
         final Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);

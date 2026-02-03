@@ -40,6 +40,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
@@ -2534,16 +2535,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             String indexModeString = settings.get(IndexSettings.MODE.getKey());
             final IndexMode indexMode = indexModeString != null ? IndexMode.fromString(indexModeString.toLowerCase(Locale.ROOT)) : null;
             final boolean isTsdb = indexMode == IndexMode.TIME_SERIES;
-            boolean useTimeSeriesSyntheticId = false;
-            if (isTsdb
-                && IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG
-                && indexCreatedVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID)) {
-                var setting = settings.get(IndexSettings.USE_SYNTHETIC_ID.getKey());
-                if (setting != null && setting.equalsIgnoreCase(Boolean.TRUE.toString())) {
-                    assert IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG;
-                    useTimeSeriesSyntheticId = true;
-                }
-            }
+            boolean useTimeSeriesSyntheticId = Booleans.parseBoolean(settings.get(IndexSettings.USE_SYNTHETIC_ID.getKey()), false);
             return new IndexMetadata(
                 new Index(index, uuid),
                 version,

@@ -344,6 +344,9 @@ tests:
 - class: org.elasticsearch.xpack.ccr.CcrTimeSeriesDataStreamsIT
   method: testCrossClusterReplicationForTSDB
   issue: https://github.com/elastic/elasticsearch/issues/141737
+- class: org.elasticsearch.upgrades.TSDBSyntheticIdUpgradeIT
+  method: testRollingUpgrade {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/141749
 
 # Examples:
 #

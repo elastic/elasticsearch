@@ -9,6 +9,7 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -70,5 +71,9 @@ public interface ServiceSettings extends ToXContentObject, VersionedNamedWriteab
 
     default ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         return this;
+    }
+
+    default ValidationException validate() {
+        return new ValidationException();
     }
 }

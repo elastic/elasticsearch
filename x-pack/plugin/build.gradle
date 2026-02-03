@@ -165,6 +165,7 @@ tasks.named("yamlRestCompatTestTransform").configure(
     )
     task.skipTest("esql/190_lookup_join/lookup-no-key-only-key", "Requires the fix")
     task.skipTest("ml/data_frame_analytics_crud/Test put config with remote source index", "Error message changed")
+    task.skipTest("esql/40_tsdb/PromQL irate on counter field", "We filter out null values now")
   }
 )
 

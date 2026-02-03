@@ -36,6 +36,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.API_VERSION;
@@ -70,13 +71,11 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1_440);
 
     public static AzureOpenAiEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
         var settings = fromMap(map, validationException, context);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AzureOpenAiEmbeddingsServiceSettings(settings);
     }
@@ -89,8 +88,8 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
         String resourceName = extractRequiredString(map, RESOURCE_NAME, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String deploymentId = extractRequiredString(map, DEPLOYMENT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String apiVersion = extractRequiredString(map, API_VERSION, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer maxTokens = extractOptionalPositiveInteger(
+        Integer dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        Integer maxInputTokens = extractOptionalPositiveInteger(
             map,
             MAX_INPUT_TOKENS,
             ModelConfigurations.SERVICE_SETTINGS,
@@ -114,7 +113,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
                         ServiceUtils.invalidSettingError(ServiceFields.DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
                     );
                 }
-                dimensionsSetByUser = dims != null;
+                dimensionsSetByUser = dimensions != null;
             }
             case PERSISTENT -> {
                 if (dimensionsSetByUser == null) {
@@ -129,9 +128,9 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
             resourceName,
             deploymentId,
             apiVersion,
-            dims,
+            dimensions,
             Boolean.TRUE.equals(dimensionsSetByUser),
-            maxTokens,
+            maxInputTokens,
             similarity,
             rateLimitSettings
         );
@@ -251,7 +250,51 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
 
     @Override
     public AzureOpenAiEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
-        return fromMap(serviceSettings, ConfigurationParseContext.PERSISTENT);
+        var validationException = new ValidationException();
+
+        var settings = updateEmbeddingsServiceSettings(serviceSettings, validationException);
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new AzureOpenAiEmbeddingsServiceSettings(settings);
+    }
+
+    private CommonFields updateEmbeddingsServiceSettings(Map<String, Object> map, ValidationException validationException) {
+        var extractedResourceName = extractOptionalString(map, RESOURCE_NAME, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var extractedDeploymentId = extractOptionalString(map, DEPLOYMENT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var extractedApiVersion = extractOptionalString(map, API_VERSION, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var extractedDimensions = extractOptionalPositiveInteger(
+            map,
+            DIMENSIONS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedMaxInputTokens = extractOptionalPositiveInteger(
+            map,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedSimilarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            map,
+            this.rateLimitSettings,
+            validationException,
+            AzureOpenAiService.NAME,
+            ConfigurationParseContext.PERSISTENT
+        );
+
+        return new CommonFields(
+            extractedResourceName != null ? extractedResourceName : this.resourceName,
+            extractedDeploymentId != null ? extractedDeploymentId : this.deploymentId,
+            extractedApiVersion != null ? extractedApiVersion : this.apiVersion,
+            extractedDimensions != null ? extractedDimensions : this.dimensions,
+            // Set to true if dimensions were previously set by the user or are newly provided
+            dimensionsSetByUser || extractedDimensions != null,
+            extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens,
+            extractedSimilarity != null ? extractedSimilarity : this.similarity,
+            extractedRateLimitSettings
+        );
     }
 
     @Override

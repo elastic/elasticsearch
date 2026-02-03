@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.API_VERSION;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.DEPLOYMENT_ID;
@@ -58,13 +59,11 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(120);
 
     public static AzureOpenAiCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
         var settings = fromMap(map, validationException, context);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AzureOpenAiCompletionServiceSettings(settings);
     }
@@ -134,7 +133,36 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
 
     @Override
     public AzureOpenAiCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
-        return fromMap(serviceSettings, ConfigurationParseContext.PERSISTENT);
+        var validationException = new ValidationException();
+
+        var settings = updateCompletionServiceSettings(serviceSettings, validationException);
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new AzureOpenAiCompletionServiceSettings(settings);
+    }
+
+    private AzureOpenAiCompletionServiceSettings.CommonFields updateCompletionServiceSettings(
+        Map<String, Object> map,
+        ValidationException validationException
+    ) {
+        var extractedResourceName = extractOptionalString(map, RESOURCE_NAME, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var extractedDeploymentId = extractOptionalString(map, DEPLOYMENT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var extractedApiVersion = extractOptionalString(map, API_VERSION, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            map,
+            this.rateLimitSettings,
+            validationException,
+            AzureOpenAiService.NAME,
+            ConfigurationParseContext.PERSISTENT
+        );
+
+        return new AzureOpenAiCompletionServiceSettings.CommonFields(
+            extractedResourceName != null ? extractedResourceName : this.resourceName,
+            extractedDeploymentId != null ? extractedDeploymentId : this.deploymentId,
+            extractedApiVersion != null ? extractedApiVersion : this.apiVersion,
+            extractedRateLimitSettings
+        );
     }
 
     @Override

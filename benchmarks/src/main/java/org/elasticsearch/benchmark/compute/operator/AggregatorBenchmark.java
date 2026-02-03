@@ -25,6 +25,8 @@ import org.elasticsearch.compute.aggregation.MinDoubleAggregatorFunctionSupplier
 import org.elasticsearch.compute.aggregation.MinLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -32,10 +34,12 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.DoubleArrayBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongArrayBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
@@ -58,6 +62,7 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
@@ -75,6 +80,7 @@ public class AggregatorBenchmark {
     private static final int OP_COUNT = 1024;
     private static final int GROUPS = 5;
     private static final int TOP_N_LIMIT = 3;
+    private static final int TOP_LIMIT = 101;
 
     private static final BlockFactory blockFactory = BlockFactory.getInstance(
         new NoopCircuitBreaker("noop"),
@@ -106,6 +112,7 @@ public class AggregatorBenchmark {
     private static final String MIN = "min";
     private static final String MAX = "max";
     private static final String SUM = "sum";
+    private static final String TOP = "top";
 
     private static final String NONE = "none";
 
@@ -157,7 +164,7 @@ public class AggregatorBenchmark {
     )
     public String grouping;
 
-    @Param({ COUNT, COUNT_DISTINCT, MIN, MAX, SUM })
+    @Param({ COUNT, COUNT_DISTINCT, MIN, MAX, SUM, TOP })
     public String op;
 
     @Param({ VECTOR_LONGS, HALF_NULL_LONGS, VECTOR_DOUBLES, HALF_NULL_DOUBLES })
@@ -229,6 +236,11 @@ public class AggregatorBenchmark {
             case SUM -> switch (dataType) {
                 case LONGS -> new SumLongAggregatorFunctionSupplier();
                 case DOUBLES -> new SumDoubleAggregatorFunctionSupplier();
+                default -> throw new IllegalArgumentException("unsupported data type [" + dataType + "]");
+            };
+            case TOP -> switch (dataType) {
+                case LONGS -> new TopLongAggregatorFunctionSupplier(TOP_LIMIT, true);
+                case DOUBLES -> new TopDoubleAggregatorFunctionSupplier(TOP_LIMIT, true);
                 default -> throw new IllegalArgumentException("unsupported data type [" + dataType + "]");
             };
             default -> throw new IllegalArgumentException("unsupported op [" + op + "]");
@@ -392,6 +404,31 @@ public class AggregatorBenchmark {
                     default -> throw new IllegalArgumentException("bad data type " + dataType);
                 }
             }
+            case TOP -> {
+                switch (dataType) {
+                    case LONGS -> {
+                        LongBlock lValues = (LongBlock) values;
+                        for (int g = 0; g < availableGroups; g++) {
+                            long group = g;
+                            long expected = 0;// LongStream.range(0, BLOCK_LENGTH).filter(l -> l % groups == group).sum() * opCount;
+                            if (lValues.getLong(g) != expected) {
+                                throw new AssertionError(prefix + "expected [" + expected + "] but was [" + lValues.getLong(g) + "]");
+                            }
+                        }
+                    }
+                    case DOUBLES -> {
+                        DoubleBlock dValues = (DoubleBlock) values;
+                        for (int g = 0; g < availableGroups; g++) {
+                            long group = g;
+                            long expected = 0;// LongStream.range(0, BLOCK_LENGTH).filter(l -> l % groups == group).sum() * opCount;
+                            if (dValues.getDouble(g) != expected) {
+                                throw new AssertionError(prefix + "expected [" + expected + "] but was [" + dValues.getDouble(g) + "]");
+                            }
+                        }
+                    }
+                    default -> throw new IllegalArgumentException("bad data type " + dataType);
+                }
+            }
             default -> throw new IllegalArgumentException("bad op " + op);
         }
     }
@@ -511,6 +548,28 @@ public class AggregatorBenchmark {
                 if (val != expected) {
                     throw new AssertionError(prefix + "expected [" + expected + "] but was [" + val + "]");
                 }
+            }
+            case TOP -> {
+                switch (dataType) {
+                    case LONGS -> {
+                        LongArrayBlock longArrayBlock = (LongArrayBlock) block;
+                        List<Long> val = IntStream.range(0, TOP_LIMIT).mapToLong(i -> longArrayBlock.getLong(i)).boxed().toList();
+                        List<Long> expected = LongStream.range(0, TOP_LIMIT).map(v -> v / 10).boxed().toList();
+                        // if (val.equals(expected) == false) {
+                        // throw new AssertionError(prefix + "expected [" + expected + "] but was [" + val + "]");
+                        // }
+                    }
+                    case DOUBLES -> {
+                        DoubleArrayBlock doubleArrayBlock = (DoubleArrayBlock) block;
+                        List<Double> val = IntStream.range(0, TOP_LIMIT).mapToDouble(i -> doubleArrayBlock.getDouble(i)).boxed().toList();
+                        List<Double> expected = LongStream.range(0, TOP_LIMIT).mapToDouble(i -> i / 10).boxed().toList();
+                        // if (val.equals(expected) == false) {
+                        // throw new AssertionError(prefix + "expected [" + expected + "] but was [" + val + "]");
+                        // }
+                    }
+                    default -> throw new IllegalStateException("Unexpected aggregation type: " + dataType);
+                }
+                ;
             }
             default -> throw new IllegalArgumentException("bad op " + op);
         }

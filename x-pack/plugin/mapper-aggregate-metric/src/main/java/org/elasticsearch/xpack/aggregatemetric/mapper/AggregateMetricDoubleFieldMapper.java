@@ -17,8 +17,10 @@ import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -49,11 +51,15 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.IntsBlockLoader;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.runtime.DoubleScriptFieldRangeQuery;
+import org.elasticsearch.search.runtime.DoubleScriptFieldTermQuery;
+import org.elasticsearch.search.runtime.DoubleScriptFieldTermsQuery;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.CopyingXContentParser;
@@ -280,6 +286,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
 
     public static final class AggregateMetricDoubleFieldType extends SimpleMappedFieldType {
 
+        private static final Script EMPTY_SCRIPT = new Script("");
         private final EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields;
         private final Metric defaultMetric;
         private final MetricType metricType;
@@ -346,12 +353,29 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             if (value == null) {
                 throw new IllegalArgumentException("Cannot search for null.");
             }
-            return delegateFieldType().termQuery(value, context);
+            return new DoubleScriptFieldTermQuery(
+                EMPTY_SCRIPT,
+                AggregateMetricAverageFieldScript.newLeafFactory(name(), context.lookup()),
+                name(),
+                NumberFieldMapper.NumberType.objectToDouble(value)
+            );
         }
 
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-            return delegateFieldType().termsQuery(values, context);
+            if (values.isEmpty()) {
+                return Queries.ALL_DOCS_INSTANCE;
+            }
+            Set<Long> terms = Sets.newHashSetWithExpectedSize(values.size());
+            for (Object value : values) {
+                terms.add(Double.doubleToLongBits(NumberFieldMapper.NumberType.objectToDouble(value)));
+            }
+            return new DoubleScriptFieldTermsQuery(
+                EMPTY_SCRIPT,
+                AggregateMetricAverageFieldScript.newLeafFactory(name(), context.lookup()),
+                name(),
+                terms
+            );
         }
 
         @Override
@@ -362,7 +386,19 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             boolean includeUpper,
             SearchExecutionContext context
         ) {
-            return delegateFieldType().rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, context);
+            return NumberFieldMapper.NumberType.doubleRangeQuery(
+                lowerTerm,
+                upperTerm,
+                includeLower,
+                includeUpper,
+                (l, u) -> new DoubleScriptFieldRangeQuery(
+                    EMPTY_SCRIPT,
+                    AggregateMetricAverageFieldScript.newLeafFactory(name(), context.lookup()),
+                    name(),
+                    l,
+                    u
+                )
+            );
         }
 
         @Override

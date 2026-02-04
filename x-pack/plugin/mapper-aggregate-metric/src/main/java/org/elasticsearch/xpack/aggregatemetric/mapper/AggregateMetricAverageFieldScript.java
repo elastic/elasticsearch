@@ -20,12 +20,12 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
 
-public class AggregateMetricAverageFieldScript extends DoubleFieldScript {
+class AggregateMetricAverageFieldScript extends DoubleFieldScript {
 
     final DoubleDocValuesField sumDocValuesField;
     final LongDocValuesField countDocValuesField;
 
-    public AggregateMetricAverageFieldScript(String fieldName, SearchLookup lookup, LeafReaderContext ctx) {
+    AggregateMetricAverageFieldScript(String fieldName, SearchLookup lookup, LeafReaderContext ctx) {
         super(fieldName, Map.of(), lookup, OnScriptError.FAIL, ctx);
         try {
             String sumFieldName = AggregateMetricDoubleFieldMapper.subfieldName(fieldName, AggregateMetricDoubleFieldMapper.Metric.sum);
@@ -44,6 +44,10 @@ public class AggregateMetricAverageFieldScript extends DoubleFieldScript {
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);
         }
+    }
+
+    static LeafFactory newLeafFactory(String fieldName, SearchLookup lookup) {
+        return ctx -> new AggregateMetricAverageFieldScript(fieldName, lookup, ctx);
     }
 
     @Override

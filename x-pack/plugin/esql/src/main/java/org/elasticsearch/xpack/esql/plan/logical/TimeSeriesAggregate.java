@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
@@ -233,13 +234,17 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
             }
         });
         if ((timestamp instanceof TypedAttribute) == false || timestamp.dataType().isDate() == false) {
-            failures.add(
-                fail(
-                    timestamp,
-                    "the TS STATS command requires an @timestamp field of type date or date_nanos but it was of type [{}]",
-                    timestamp.dataType().typeName()
-                )
-            );
+            if (timestamp instanceof UnresolvedTimestamp unresolvedTimestamp) {
+                failures.add(fail(unresolvedTimestamp, unresolvedTimestamp.unresolvedMessage()));
+            } else {
+                failures.add(
+                    fail(
+                        timestamp,
+                        "the TS STATS command requires an @timestamp field of type date or date_nanos but it was of type [{}]",
+                        timestamp.dataType().typeName()
+                    )
+                );
+            }
         }
     }
 

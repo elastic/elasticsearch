@@ -1,4 +1,4 @@
-area: "Authorization, ES|QL"
+area: "Authorization"
 issues: []
 pr: 141570
 summary: Update View CRUD Actions to be Index Actions

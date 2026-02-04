@@ -324,6 +324,32 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         }
     }
 
+    /**
+     * Executes an aggregation.
+     * <p>
+     *     Surrogates may return something like `DIV(SUM(MV_MIN(x)), COUNT(x))`. This has 3 layers:
+     * </p>
+     * <ol>
+     *     <li>The optional outer evaluable function, working individually on every input row (DIV)</li>
+     *     <li>The actual aggs, consuming all the input rows (SUM, COUNT)</li>
+     *     <li>The optional inner evaluable function, working on a single agg output row (MV_MIN)</li>
+     * </ol>
+     * <p>
+     *     We resolve them from inside-out, following these steps:
+     * </p>
+     * <ol>
+     *     <li>Resolve the expression: Surrogates, null folding...</li>
+     *     <li>Evaluate the aggs children, which must be non-agg functions</li>
+     *     <li>Evaluate the aggs, calling {@code executeAggregator} for each of them</li>
+     *     <li>Fold the final function, if any</li>
+     * </ol>
+     * <p>
+     *     Depending on the presence or absence of those surrogate structures, we'll just short-circuit wherever required.
+     * </p>
+     * @param originalExpression the expression to execute. Expected to be an aggregation
+     * @param executeAggregator a function that will handle the execution of an aggregation, given the page with the inputs.
+     *                          It allows us to test the execution with different modes (single, grouping, intermediate...)
+     */
     private void executeExpression(Expression originalExpression, BiFunction<Expression, List<Page>, Object> executeAggregator) {
         Expression expression = resolveExpression(originalExpression);
         // Not expected to be evaluated (E.g. type error already checked)
@@ -343,16 +369,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             return;
         }
 
-        // Surrogates may return something like `DIV(SUM(MV_MIN(x)), COUNT(x))`. This has 3 layers:
-        // 1. The optional outer evaluable function, working individually on every input row (DIV)
-        // 2. The actual aggs, consuming all the input rows (SUM, COUNT)
-        // 3. The optional inner evaluable function, working on a single agg output row (MV_MIN)
-        // We'll resolve them from the inside out.
-
-        // assert testCase.getData().size() == originalExpression.children().size()
-        // : "the original agg has some unknown children that doesn't match the test case data";
-
-        // Maps simulating the Layout and pages
+        // Maps with every evaluation result, which will help us simulating the Layout and pages of each step
         Map<Expression, Block> blocksByField = new HashMap<>();
         Map<Expression, Literal> literalsByField = new HashMap<>();
         try {
@@ -381,7 +398,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                 }
             }
 
-            // Resolve agg children, and store their results in the literal/blocks maps
+            // Resolve agg children and store their results in the literal/blocks maps
             Expression expressionWithResolvedAggChildren = expression.transformUp(AggregateFunction.class, agg -> {
                 var newChildren = new ArrayList<Expression>(agg.children().size());
                 for (Expression child : agg.children()) {

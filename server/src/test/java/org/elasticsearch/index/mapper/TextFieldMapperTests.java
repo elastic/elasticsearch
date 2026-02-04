@@ -2200,12 +2200,8 @@ public class TextFieldMapperTests extends MapperTestCase {
                     } else {
                         var columnReader = blockLoader.columnAtATimeReader(ctx);
                         assertNotNull(columnReader);
-                        testBlock = (TestBlock) columnReader.read(
-                            TestBlock.factory(),
-                            TestBlock.docs(IntStream.range(0, numDocs).toArray()),
-                            0,
-                            randomBoolean()
-                        );
+                        testBlock = (TestBlock) columnReader.get()
+                            .read(TestBlock.factory(), TestBlock.docs(IntStream.range(0, numDocs).toArray()), 0, randomBoolean());
                     }
                     for (int i = 0; i < textValues.size(); i++) {
                         Object expected = textValues.get(i);

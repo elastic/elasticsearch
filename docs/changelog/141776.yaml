@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 141627
+pr: 141776
+summary: ESQL fix TO_IP leading_zeros=octal parsing
+type: bug

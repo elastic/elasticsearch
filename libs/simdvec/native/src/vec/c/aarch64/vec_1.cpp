@@ -27,39 +27,6 @@
 #define SQR7U_STRIDE_BYTES_LEN 16 // Must be a power of 2
 #endif
 
-#ifdef __linux__
-    #include <sys/auxv.h>
-    #include <asm/hwcap.h>
-#endif
-
-#ifdef __APPLE__
-#include <TargetConditionals.h>
-#endif
-
-EXPORT int vec_caps() {
-#ifdef __APPLE__
-    #ifdef TARGET_OS_OSX
-        // All M series Apple silicon support Neon instructions; no SVE support as for now (M4)
-        return 1;
-    #else
-        #error "Unsupported Apple platform"
-    #endif
-#elif __linux__
-    int hwcap = getauxval(AT_HWCAP);
-    int neon = (hwcap & HWCAP_ASIMD) != 0;
-    // https://docs.kernel.org/arch/arm64/sve.html
-    int sve = (hwcap & HWCAP_SVE) != 0;
-    int hwcap2 = getauxval(AT_HWCAP2);
-    int sve2 = (hwcap2 & HWCAP2_SVE2) != 0;
-    if (neon && sve) {
-        return 2;
-    }
-    return neon;
-#else
-    #error "Unsupported aarch64 platform"
-#endif
-}
-
 static inline int32_t dot7u_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
     // We have contention in the instruction pipeline on the accumulation
     // registers if we use too few.
@@ -704,6 +671,16 @@ EXPORT int64_t vec_dot_int1_int4(const int8_t* a, const int8_t* query, const int
     return dot_int1_int4_inner(a, query, length);
 }
 
+EXPORT int64_t vec_dot_int2_int4(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length
+) {
+    int64_t lower = dot_int1_int4_inner(a, query, length/2);
+    int64_t upper = dot_int1_int4_inner(a + length/2, query, length/2);
+    return lower + (upper << 1);
+}
+
 template <int64_t(*mapper)(const int32_t, const int32_t*)>
 static inline void dot_int1_int4_inner_bulk(
     const int8_t* a,
@@ -841,4 +818,46 @@ EXPORT void vec_dot_int1_int4_bulk_offsets(
     const int32_t count,
     f32_t* results) {
     dot_int1_int4_inner_bulk<array_mapper>(a, query, length, pitch, offsets, count, results);
+}
+
+
+template <int64_t(*mapper)(const int32_t, const int32_t*)>
+static inline void dot_int2_int4_inner_bulk(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results
+) {
+    int c = 0;
+    const int bit_length = length/2;
+    // TODO: specialised implementation
+    for (; c < count; c++) {
+        const int8_t* a0 = a + mapper(c, offsets) * pitch;
+        int64_t lower = dot_int1_int4_inner(a0, query, bit_length);
+        int64_t upper = dot_int1_int4_inner(a0 + bit_length, query, bit_length);
+        results[c] = (f32_t)(lower + (upper << 1));
+    }
+}
+
+EXPORT void vec_dot_int2_int4_bulk(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t count,
+    f32_t* results) {
+    dot_int2_int4_inner_bulk<identity_mapper>(a, query, length, length, NULL, count, results);
+}
+
+EXPORT void vec_dot_int2_int4_bulk_offsets(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results) {
+    dot_int2_int4_inner_bulk<array_mapper>(a, query, length, pitch, offsets, count, results);
 }

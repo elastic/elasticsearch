@@ -21,11 +21,14 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.compute.operator.Operator.NOT_BLOCKED;
 
@@ -59,32 +62,40 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         void sendSetupRequest(DiscoveryNode serverNode, String clientToServerId, String serverToClientId, ActionListener<String> listener);
     }
 
-    // Per-server state (one per server)
-    private final Map<String, ServerConnection> serverConnections = new HashMap<>();
+    // Worker pool for parallel batch processing
+    private final List<Worker> workers = new ArrayList<>();
+    private final Map<Long, Worker> batchToWorker = new HashMap<>();
+    private final int maxWorkers;
+    private int nextWorkerId = 0;
+    private int lastSelectedWorkerIndex = 0;  // For round-robin tie-breaking
 
-    // Shared state (single instance for all servers)
+    // Supplier for getting server nodes for new workers
+    private final Supplier<DiscoveryNode> serverNodeSupplier;
+
+    // Shared state (single instance for all workers)
     private ExchangeSourceHandler serverToClientSourceHandler;
     private BatchSortedExchangeSource sortedSource; // Wraps ExchangeSource with sorting
 
     private final AtomicReference<Exception> failureRef = new AtomicReference<>();
-    private final Object sendFinishLock = new Object(); // Synchronizes sendPage() and finish() to prevent race
+    private final Object sendFinishLock = new Object(); // Synchronizes finish() with transport callbacks
     private ActionListener<Void> batchExchangeStatusListener; // Listener for batch exchange status completion
     private volatile boolean closed = false; // Track if close() has been called (for idempotency)
     // Track batch counts to ensure all batches complete before closing
-    private final AtomicInteger startedBatchCount = new AtomicInteger(0);
-    private final AtomicInteger completedBatchCount = new AtomicInteger(0);
+    private int startedBatchCount = 0;
+    private int completedBatchCount = 0;
 
-    // Track pending server connections to prevent finishing client-to-server exchanges prematurely
-    // This ensures servers can't finish before all server connections are established
-    private final AtomicInteger pendingServerConnections = new AtomicInteger(0);
+    // Track pending worker connections to prevent finishing client-to-server exchanges prematurely
+    // This ensures workers can't finish before all connections are established
+    private final AtomicInteger pendingWorkerConnections = new AtomicInteger(0);
     private volatile boolean finishRequested = false;
 
-    // Server setup callback - called lazily when first page is sent to a server
+    // Server setup callback - called lazily when first page is sent
     private final ServerSetupCallback serverSetupCallback;
 
     // Callback for when lookup plan is received from server (for profiling)
+    // BiConsumer takes (workerKey, planString) where workerKey is "nodeId:workerN"
     @Nullable
-    private final java.util.function.Consumer<String> lookupPlanConsumer;
+    private final java.util.function.BiConsumer<String, String> lookupPlanConsumer;
 
     /**
      * Create a new BidirectionalBatchExchangeClient.
@@ -97,8 +108,10 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
      * @param task             task for transport-based remote sink
      * @param batchExchangeStatusListener listener that will be called when batch exchange status is received (success or failure)
      * @param settings         settings for exchange configuration
-     * @param serverSetupCallback callback to send setup request when a new server is connected
-     * @param lookupPlanConsumer optional callback to receive lookup plan string from server setup response
+     * @param serverSetupCallback callback to send setup request when a new worker is connected
+     * @param lookupPlanConsumer optional callback to receive (workerKey, planString) from server setup response
+     * @param maxWorkers maximum number of workers (parallel connections) to create
+     * @param serverNodeSupplier supplier for getting server nodes for new workers
      */
     public BidirectionalBatchExchangeClient(
         String sessionId,
@@ -110,10 +123,12 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         ActionListener<Void> batchExchangeStatusListener,
         Settings settings,
         ServerSetupCallback serverSetupCallback,
-        @Nullable java.util.function.Consumer<String> lookupPlanConsumer
+        @Nullable java.util.function.BiConsumer<String, String> lookupPlanConsumer,
+        int maxWorkers,
+        Supplier<DiscoveryNode> serverNodeSupplier
     ) {
-        // Client uses per-server clientToServerIds (in ServerConnection), but base class needs a value.
-        // Pass the base clientToServerId which is used as a prefix for per-server IDs.
+        // Client uses per-worker clientToServerIds, but base class needs a value.
+        // Pass the base clientToServerId which is used as a prefix for per-worker IDs.
         super(
             sessionId,
             buildClientToServerId(sessionId),
@@ -128,10 +143,13 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         this.batchExchangeStatusListener = batchExchangeStatusListener;
         this.serverSetupCallback = serverSetupCallback;
         this.lookupPlanConsumer = lookupPlanConsumer;
+        this.maxWorkers = maxWorkers;
+        this.serverNodeSupplier = serverNodeSupplier;
         logger.debug(
-            "[LookupJoinClient] Created BidirectionalBatchExchangeClient: serverToClientId={}, maxBufferSize={}",
+            "[LookupJoinClient] Created BidirectionalBatchExchangeClient: serverToClientId={}, maxBufferSize={}, maxWorkers={}",
             serverToClientId,
-            maxBufferSize
+            maxBufferSize,
+            maxWorkers
         );
         initialize();
     }
@@ -156,109 +174,160 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     }
 
     /**
-     * Get or create a server connection for the given server node.
-     * If this is the first time connecting to this server, it will:
-     * 1. Create client-to-server sink handler and sink
-     * 2. Send setup request via serverSetupCallback
-     * 3. On setup response, connect to server's sink and send batch exchange status request
+     * Get the least loaded worker, or create a new one if the pool is not full.
+     * Uses least-loaded assignment: picks the worker with the lowest pending batch count.
+     * Uses round-robin starting position to avoid bias when multiple workers have equal load.
+     * Called only from the single-threaded Driver, so no synchronization needed.
      *
-     * @param serverNode the server node to connect to
-     * @return the server connection (may still be initializing)
+     * @return the worker to use for the next batch
      */
-    private ServerConnection getOrCreateServerConnection(DiscoveryNode serverNode) {
-        return serverConnections.computeIfAbsent(serverNode.getId(), nodeId -> {
-            // Increment pending connections to prevent finishing client-to-server exchanges
-            // until this connection is fully established (addRemoteSink called)
-            pendingServerConnections.incrementAndGet();
-            ServerConnection conn = new ServerConnection(serverNode, sessionId);
-            initializeServerConnection(conn);
-            return conn;
-        });
+    private Worker getLeastLoadedWorker() {
+        // If pool not full, create new worker (pending=0, so it will be picked)
+        if (workers.size() < maxWorkers) {
+            return createNewWorker();
+        }
+        // Find worker with lowest pending count, starting from round-robin position
+        int size = workers.size();
+        int startIdx = (lastSelectedWorkerIndex + 1) % size;
+        Worker leastLoaded = workers.get(startIdx);
+        int leastLoadedIdx = startIdx;
+        int minPending = leastLoaded.pendingBatches;
+        for (int i = 1; i < size; i++) {
+            int idx = (startIdx + i) % size;
+            Worker w = workers.get(idx);
+            int pending = w.pendingBatches;
+            if (pending == 0) {
+                lastSelectedWorkerIndex = idx;
+                return w;
+            }
+            if (pending < minPending) {
+                minPending = pending;
+                leastLoaded = w;
+                leastLoadedIdx = idx;
+            }
+        }
+        lastSelectedWorkerIndex = leastLoadedIdx;
+        return leastLoaded;
     }
 
     /**
-     * Initialize a server connection: create sink handler and send setup request.
+     * Create a new worker and add it to the pool.
+     * Called only from the single-threaded Driver via getLeastLoadedWorker().
      */
-    private void initializeServerConnection(ServerConnection conn) {
+    private Worker createNewWorker() {
+        DiscoveryNode serverNode = serverNodeSupplier.get();
+        if (serverNode == null) {
+            throw new IllegalStateException("serverNodeSupplier returned null - no available server nodes");
+        }
+        int workerId = nextWorkerId++;
+        Worker worker = new Worker(workerId, serverNode, sessionId);
+        workers.add(worker);
+        // Increment pending connections to prevent finishing client-to-server exchanges
+        // until this connection is fully established (addRemoteSink called)
+        pendingWorkerConnections.incrementAndGet();
+        initializeWorker(worker);
         logger.debug(
-            "[LookupJoinClient] Initializing server connection for node={}, clientToServerId={}",
-            conn.serverNode.getId(),
-            conn.clientToServerId
+            "[LookupJoinClient] Created new worker: workerId={}, serverNode={}, totalWorkers={}",
+            workerId,
+            serverNode.getId(),
+            workers.size()
+        );
+        return worker;
+    }
+
+    /**
+     * Initialize a worker: create sink handler and send setup request.
+     */
+    private void initializeWorker(Worker worker) {
+        logger.debug(
+            "[LookupJoinClient] Initializing worker: workerId={}, node={}, clientToServerId={}",
+            worker.workerId,
+            worker.serverNode.getId(),
+            worker.clientToServerId
         );
 
-        // Create sink handler for client-to-server direction (per-server)
-        conn.clientToServerSinkHandler = exchangeService.createSinkHandler(conn.clientToServerId, maxBufferSize);
-        conn.clientToServerSink = conn.clientToServerSinkHandler.createExchangeSink(() -> {});
+        // Create or get sink handler for client-to-server direction (per-worker)
+        // Uses getOrCreateSinkHandler to allow pre-registration of the handler (e.g., for test setup coordination)
+        worker.clientToServerSinkHandler = exchangeService.getOrCreateSinkHandler(worker.clientToServerId, maxBufferSize);
+        worker.clientToServerSink = worker.clientToServerSinkHandler.createExchangeSink(() -> {});
 
         // When handler completes (buffer finished), clean up the sink handler
-        conn.clientToServerSinkHandler.addCompletionListener(
-            ActionListener.wrap(v -> exchangeService.finishSinkHandler(conn.clientToServerId, null), e -> {
-                handleFailure("client-to-server exchange for " + conn.serverNode.getId(), e);
-                exchangeService.finishSinkHandler(conn.clientToServerId, e);
+        worker.clientToServerSinkHandler.addCompletionListener(
+            ActionListener.wrap(v -> exchangeService.finishSinkHandler(worker.clientToServerId, null), e -> {
+                handleFailure("client-to-server exchange for worker " + worker.workerId, e);
+                exchangeService.finishSinkHandler(worker.clientToServerId, e);
             })
         );
-        logger.debug("[LookupJoinClient] Created client-to-server sink handler: exchangeId={}", conn.clientToServerId);
+        logger.debug("[LookupJoinClient] Created client-to-server sink handler: exchangeId={}", worker.clientToServerId);
 
         // Send setup request to server via callback
-        serverSetupCallback.sendSetupRequest(conn.serverNode, conn.clientToServerId, serverToClientId, ActionListener.wrap(planString -> {
-            try {
-                logger.debug("[LookupJoinClient] Server setup complete for node={}", conn.serverNode.getId());
-                // Pass lookup plan to consumer if provided
-                if (lookupPlanConsumer != null && planString != null) {
-                    lookupPlanConsumer.accept(planString);
+        serverSetupCallback.sendSetupRequest(
+            worker.serverNode,
+            worker.clientToServerId,
+            worker.serverToClientId,
+            ActionListener.wrap(planString -> {
+                try {
+                    logger.debug("[LookupJoinClient] Server setup complete for worker={}", worker.workerId);
+                    // Pass lookup plan to consumer if provided (with workerKey for tracking)
+                    if (lookupPlanConsumer != null && planString != null) {
+                        String workerKey = worker.serverNode.getId() + ":worker" + worker.workerId;
+                        lookupPlanConsumer.accept(workerKey, planString);
+                    }
+                    // Connect to server's sink and send batch exchange status request
+                    connectToServerSink(worker);
+                    worker.setupReadyListener.onResponse(null);
+                } catch (Exception e) {
+                    logger.error("[LookupJoinClient] Server setup callback failed for worker={}: {}", worker.workerId, e.getMessage());
+                    // Decrement pending connections so finish() can proceed
+                    int remaining = pendingWorkerConnections.decrementAndGet();
+                    logger.debug("[LookupJoinClient] Worker setup callback failed, remaining pending={}", remaining);
+                    if (remaining == 0 && finishRequested) {
+                        synchronized (sendFinishLock) {
+                            doFinish();
+                        }
+                    }
+                    handleFailure("worker setup callback for worker " + worker.workerId, e);
+                    worker.setupReadyListener.onFailure(e);
                 }
-                // Connect to server's sink and send batch exchange status request
-                connectToServerSink(conn);
-                conn.setupReadyListener.onResponse(null);
-            } catch (Exception e) {
-                logger.error("[LookupJoinClient] Server setup callback failed for node={}: {}", conn.serverNode.getId(), e.getMessage());
+            }, e -> {
+                logger.error("[LookupJoinClient] Server setup failed for worker={}: {}", worker.workerId, e.getMessage());
                 // Decrement pending connections so finish() can proceed
-                int remaining = pendingServerConnections.decrementAndGet();
-                logger.debug("[LookupJoinClient] Server setup callback failed, remaining pending={}", remaining);
+                int remaining = pendingWorkerConnections.decrementAndGet();
+                logger.debug("[LookupJoinClient] Worker setup failed, remaining pending={}", remaining);
                 if (remaining == 0 && finishRequested) {
                     synchronized (sendFinishLock) {
                         doFinish();
                     }
                 }
-                handleFailure("server setup callback for " + conn.serverNode.getId(), e);
-                conn.setupReadyListener.onFailure(e);
-            }
-        }, e -> {
-            logger.error("[LookupJoinClient] Server setup failed for node={}: {}", conn.serverNode.getId(), e.getMessage());
-            // Decrement pending connections so finish() can proceed
-            int remaining = pendingServerConnections.decrementAndGet();
-            logger.debug("[LookupJoinClient] Server setup failed, remaining pending={}", remaining);
-            if (remaining == 0 && finishRequested) {
-                synchronized (sendFinishLock) {
-                    doFinish();
-                }
-            }
-            handleFailure("server setup for " + conn.serverNode.getId(), e);
-            conn.setupReadyListener.onFailure(e);
-        }));
+                handleFailure("worker setup for worker " + worker.workerId, e);
+                worker.setupReadyListener.onFailure(e);
+            })
+        );
     }
 
     /**
      * Connect to a server's sink handler for server-to-client exchange.
      * This should be called after the server has created its sink handler.
      */
-    private void connectToServerSink(ServerConnection conn) {
+    private void connectToServerSink(Worker worker) {
         logger.debug(
-            "[LookupJoinClient] Connecting to server sink for node={}, serverToClientId={}",
-            conn.serverNode.getId(),
-            serverToClientId
+            "[LookupJoinClient] Connecting to server sink for worker={}, node={}, serverToClientId={}",
+            worker.workerId,
+            worker.serverNode.getId(),
+            worker.serverToClientId
         );
-        // All servers connect to the shared serverToClientSourceHandler
-        connectRemoteSink(conn.serverNode, serverToClientId, serverToClientSourceHandler, ActionListener.wrap(nullValue -> {
+        // Each worker connects to its own server's sink, all feeding into the shared serverToClientSourceHandler
+        connectRemoteSink(worker.serverNode, worker.serverToClientId, serverToClientSourceHandler, ActionListener.wrap(nullValue -> {
             // Success - no action needed
-        }, failure -> { handleFailure("server-to-client exchange for " + conn.serverNode.getId(), failure); }), "server sink handler");
+        }, failure -> { handleFailure("server-to-client exchange for worker " + worker.workerId, failure); }), "server sink handler");
 
         // Connection is now established (addRemoteSink was called synchronously in connectRemoteSink)
         // Decrement pending connections and check if finish was requested
-        int remaining = pendingServerConnections.decrementAndGet();
+        int remaining = pendingWorkerConnections.decrementAndGet();
         logger.debug(
-            "[LookupJoinClient] Server connection established for node={}, remaining pending={}",
-            conn.serverNode.getId(),
+            "[LookupJoinClient] Worker connection established: workerId={}, node={}, remaining pending={}",
+            worker.workerId,
+            worker.serverNode.getId(),
             remaining
         );
         if (remaining == 0 && finishRequested) {
@@ -270,75 +339,76 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         }
 
         // Send batch exchange status request
-        sendBatchExchangeStatusRequest(conn);
+        sendBatchExchangeStatusRequest(worker);
     }
 
     /**
-     * Send batch exchange status request to a specific server.
+     * Send batch exchange status request to a specific worker's server.
      */
-    private void sendBatchExchangeStatusRequest(ServerConnection conn) {
+    private void sendBatchExchangeStatusRequest(Worker worker) {
         try {
-            Transport.Connection connection = transportService.getConnection(conn.serverNode);
+            Transport.Connection connection = transportService.getConnection(worker.serverNode);
             logger.debug(
-                "[LookupJoinClient] Sending batch exchange status request for node={}, exchangeId={}",
-                conn.serverNode.getId(),
-                serverToClientId
+                "[LookupJoinClient] Sending batch exchange status request for worker={}, node={}, exchangeId={}",
+                worker.workerId,
+                worker.serverNode.getId(),
+                worker.serverToClientId
             );
             ExchangeService.sendBatchExchangeStatusRequest(
                 transportService,
                 connection,
-                serverToClientId,
+                worker.serverToClientId,
                 executor,
                 ActionListener.<BatchExchangeStatusResponse>wrap(response -> {
                     logger.debug(
-                        "[LookupJoinClient] Received batch exchange status response for node={}, success={}",
-                        conn.serverNode.getId(),
+                        "[LookupJoinClient] Received batch exchange status response for worker={}, success={}",
+                        worker.workerId,
                         response.isSuccess()
                     );
                     if (response.isSuccess()) {
-                        logger.debug("[LookupJoinClient] Completing serverResponseListener for node={} (success)", conn.serverNode.getId());
-                        conn.serverResponseListener.onResponse(null);
-                        // Only call global listener if all servers have responded
-                        checkAllServersResponded();
+                        logger.debug("[LookupJoinClient] Completing serverResponseListener for worker={} (success)", worker.workerId);
+                        worker.serverResponseListener.onResponse(null);
+                        // Only call global listener if all workers have responded
+                        checkAllWorkersResponded();
                     } else {
                         Exception failure = response.getFailure();
                         logger.warn(
-                            "[LookupJoinClient] Batch exchange status response indicates failure for node={}: {}",
-                            conn.serverNode.getId(),
+                            "[LookupJoinClient] Batch exchange status response indicates failure for worker={}: {}",
+                            worker.workerId,
                             failure != null ? failure.getMessage() : "unknown"
                         );
-                        handleFailure("batch exchange status response for " + conn.serverNode.getId(), failure);
-                        conn.serverResponseListener.onResponse(null);
+                        handleFailure("batch exchange status response for worker " + worker.workerId, failure);
+                        worker.serverResponseListener.onResponse(null);
                     }
                 }, failure -> {
                     logger.error(
-                        "[LookupJoinClient] Failed to receive batch exchange status response for node={}: {}",
-                        conn.serverNode.getId(),
+                        "[LookupJoinClient] Failed to receive batch exchange status response for worker={}: {}",
+                        worker.workerId,
                         failure.getMessage()
                     );
-                    handleFailure("batch exchange status response (transport error) for " + conn.serverNode.getId(), failure);
-                    conn.serverResponseListener.onResponse(null);
+                    handleFailure("batch exchange status response (transport error) for worker " + worker.workerId, failure);
+                    worker.serverResponseListener.onResponse(null);
                 })
             );
-            conn.requestSent = true;
-            logger.debug("[LookupJoinClient] Batch exchange status request sent for node={}", conn.serverNode.getId());
+            worker.requestSent = true;
+            logger.debug("[LookupJoinClient] Batch exchange status request sent for worker={}", worker.workerId);
         } catch (Exception e) {
-            throw new IllegalStateException("Failed to send batch exchange status request for node [" + conn.serverNode.getId() + "]", e);
+            throw new IllegalStateException("Failed to send batch exchange status request for worker [" + worker.workerId + "]", e);
         }
     }
 
     /**
-     * Check if all servers have responded successfully, and if so, call the global success listener.
+     * Check if all workers have responded successfully, and if so, call the global success listener.
      */
-    private void checkAllServersResponded() {
-        for (ServerConnection conn : serverConnections.values()) {
-            if (conn.serverResponseListener.isDone() == false) {
-                return; // Not all servers have responded yet
+    private void checkAllWorkersResponded() {
+        for (Worker worker : workers) {
+            if (worker.serverResponseListener.isDone() == false) {
+                return; // Not all workers have responded yet
             }
         }
-        // All servers responded - call global success listener if no failure
+        // All workers responded - call global success listener if no failure
         if (failureRef.get() == null && batchExchangeStatusListener != null) {
-            logger.debug("[LookupJoinClient] All servers responded successfully, calling batch exchange status listener");
+            logger.debug("[LookupJoinClient] All workers responded successfully, calling batch exchange status listener");
             try {
                 batchExchangeStatusListener.onResponse(null);
             } catch (Exception e) {
@@ -372,12 +442,12 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     }
 
     /**
-     * Get the number of server connections established.
-     * Used for testing to verify multi-server distribution.
-     * @return the number of distinct servers this client has connected to
+     * Get the number of workers in the pool.
+     * Used for testing to verify parallel worker distribution.
+     * @return the number of workers created
      */
-    public int getServerConnectionCount() {
-        return serverConnections.size();
+    public int getWorkerCount() {
+        return workers.size();
     }
 
     /**
@@ -423,18 +493,18 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     }
 
     /**
-     * Returns true if the client has fully finished - all batches complete AND all server responses were received.
-     * The server responses confirm whether each server succeeded or failed.
-     * If any server failed, hasFailed() will return true and the failure can be retrieved.
+     * Returns true if the client has fully finished - all batches complete AND all worker responses were received.
+     * The worker responses confirm whether each worker's server succeeded or failed.
+     * If any worker failed, hasFailed() will return true and the failure can be retrieved.
      */
     public boolean isFinished() {
-        // Check if all servers have responded
-        if (allServersResponded() == false) {
+        // Check if all workers have responded
+        if (allWorkersResponded() == false) {
             return false;
         }
-        // If all sent batches have been completed and all servers responded, we're done.
-        int started = startedBatchCount.get();
-        int completed = completedBatchCount.get();
+        // If all sent batches have been completed and all workers responded, we're done.
+        int started = startedBatchCount;
+        int completed = completedBatchCount;
         if (started > 0 && completed >= started) {
             return true;
         }
@@ -443,14 +513,14 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     }
 
     /**
-     * Check if all servers have responded.
+     * Check if all workers have responded.
      */
-    private boolean allServersResponded() {
-        if (serverConnections.isEmpty()) {
-            return true; // No servers connected yet - considered done
+    private boolean allWorkersResponded() {
+        if (workers.isEmpty()) {
+            return true; // No workers created yet - considered done
         }
-        for (ServerConnection conn : serverConnections.values()) {
-            if (conn.serverResponseListener.isDone() == false) {
+        for (Worker worker : workers) {
+            if (worker.serverResponseListener.isDone() == false) {
                 return false;
             }
         }
@@ -458,14 +528,14 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     }
 
     /**
-     * Returns an {@link IsBlockedResult} that resolves when all server responses are received.
-     * Use this to block while waiting for all servers' success/failure confirmation.
+     * Returns an {@link IsBlockedResult} that resolves when all worker responses are received.
+     * Use this to block while waiting for all workers' success/failure confirmation.
      */
     public IsBlockedResult waitForServerResponse() {
-        // Find a server that hasn't responded yet
-        for (ServerConnection conn : serverConnections.values()) {
-            if (conn.serverResponseListener.isDone() == false) {
-                return new IsBlockedResult(conn.serverResponseListener, "waiting for server response from " + conn.serverNode.getId());
+        // Find a worker that hasn't responded yet
+        for (Worker worker : workers) {
+            if (worker.serverResponseListener.isDone() == false) {
+                return new IsBlockedResult(worker.serverResponseListener, "waiting for worker response from worker " + worker.workerId);
             }
         }
         return NOT_BLOCKED;
@@ -489,74 +559,95 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     }
 
     /**
-     * Send a BatchPage to a specific server for processing.
-     * The server connection will be lazily initialized if this is the first page sent to this server.
+     * Send a BatchPage for processing.
+     * The worker is selected using least-loaded assignment strategy.
+     * Workers are lazily initialized as needed up to maxWorkers.
      * The batchId should be monotonically increasing for each call.
      * Currently, only single-page batches are supported, so isLastPageInBatch must always be true.
+     * Called only from the single-threaded Driver, so no synchronization needed.
      *
      * @param batchPage the batch page to send
-     * @param serverNode the server node to send the page to
      */
-    public void sendPage(BatchPage batchPage, DiscoveryNode serverNode) {
-        synchronized (sendFinishLock) {
-            checkFailure();
-            // Currently only single-page batches are supported
-            if (batchPage.isLastPageInBatch() == false) {
-                throw new IllegalArgumentException(
-                    "Multi-page batches are not yet supported. Received page for batch "
-                        + batchPage.batchId()
-                        + " with isLastPageInBatch=false (pageIndex="
-                        + batchPage.pageIndexInBatch()
-                        + ")"
-                );
-            }
-            // Get or create the server connection (lazily initializes if needed)
-            ServerConnection conn = getOrCreateServerConnection(serverNode);
-            // Track the number of batches that have been sent
-            startedBatchCount.incrementAndGet();
-            conn.clientToServerSink.addPage(batchPage);
+    public void sendPage(BatchPage batchPage) {
+        checkFailure();
+        // Currently only single-page batches are supported
+        if (batchPage.isLastPageInBatch() == false) {
+            throw new IllegalArgumentException(
+                "Multi-page batches are not yet supported. Received page for batch "
+                    + batchPage.batchId()
+                    + " with isLastPageInBatch=false (pageIndex="
+                    + batchPage.pageIndexInBatch()
+                    + ")"
+            );
         }
+        // Get least loaded worker (creates new if pool not full)
+        Worker worker = getLeastLoadedWorker();
+        // Track pending batches for this worker
+        worker.pendingBatches++;
+        batchToWorker.put(batchPage.batchId(), worker);
+        // Track the number of batches that have been sent
+        startedBatchCount++;
+        worker.clientToServerSink.addPage(batchPage);
+        logger.trace(
+            "[LookupJoinClient] Sent batch {} to worker {}, pending={}",
+            batchPage.batchId(),
+            worker.workerId,
+            worker.pendingBatches
+        );
     }
 
     /**
      * Send a marker page to signal batch completion for an empty batch.
+     * Called only from the single-threaded Driver, so no synchronization needed.
      *
      * @param batchId the batch ID
-     * @param serverNode the server node to send the marker to
      */
-    public void sendBatchMarker(long batchId, DiscoveryNode serverNode) {
-        synchronized (sendFinishLock) {
-            checkFailure();
-            ServerConnection conn = getOrCreateServerConnection(serverNode);
-            BatchPage marker = BatchPage.createMarker(batchId, 0);
-            conn.clientToServerSink.addPage(marker);
-        }
+    public void sendBatchMarker(long batchId) {
+        checkFailure();
+        Worker worker = getLeastLoadedWorker();
+        worker.pendingBatches++;
+        batchToWorker.put(batchId, worker);
+        BatchPage marker = BatchPage.createMarker(batchId, 0);
+        worker.clientToServerSink.addPage(marker);
     }
 
     /**
      * Mark a batch as completed. Called by the consumer when it finishes processing a batch.
-     * @param batchId the completed batch ID (used for logging, not tracked)
+     * This decrements the pending count for the worker that processed the batch.
+     * @param batchId the completed batch ID
      */
     public void markBatchCompleted(long batchId) {
-        completedBatchCount.incrementAndGet();
-        logger.trace("[LookupJoinClient] Batch {} completed, total completed={}", batchId, completedBatchCount.get());
+        completedBatchCount++;
+        Worker worker = batchToWorker.remove(batchId);
+        if (worker != null) {
+            int pending = worker.pendingBatches--;
+            logger.trace(
+                "[LookupJoinClient] Batch {} completed on worker {}, pending={}, total completed={}",
+                batchId,
+                worker.workerId,
+                pending,
+                completedBatchCount
+            );
+        } else {
+            logger.trace("[LookupJoinClient] Batch {} completed (worker not found), total completed={}", batchId, completedBatchCount);
+        }
     }
 
     /**
-     * Finish all client-to-server exchanges (no more batches will be sent to any server).
+     * Finish all client-to-server exchanges (no more batches will be sent to any worker).
      * <p>
-     * If there are pending server connections (setup request sent but connection not yet established),
-     * this method will defer finishing until all connections are established. This prevents servers
+     * If there are pending worker connections (setup request sent but connection not yet established),
+     * this method will defer finishing until all connections are established. This prevents workers
      * from finishing prematurely, which would cause the server-to-client exchange to close before
-     * all server connections are added.
+     * all worker connections are added.
      */
     public void finish() {
         synchronized (sendFinishLock) {
             finishRequested = true;
-            if (pendingServerConnections.get() > 0) {
+            if (pendingWorkerConnections.get() > 0) {
                 // Don't finish yet - wait for all pending connections to be established
                 // The last connection to establish will call doFinish()
-                logger.debug("[LookupJoinClient] Deferring finish, pending server connections={}", pendingServerConnections.get());
+                logger.debug("[LookupJoinClient] Deferring finish, pending worker connections={}", pendingWorkerConnections.get());
                 return;
             }
             doFinish();
@@ -572,14 +663,14 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
      */
     private void doFinish() {
         assert Thread.holdsLock(sendFinishLock) : "doFinish must be called while holding sendFinishLock";
-        for (ServerConnection conn : serverConnections.values()) {
-            if (conn.clientToServerSink != null && conn.clientToServerSink.isFinished() == false && conn.finished == false) {
+        for (Worker worker : workers) {
+            if (worker.clientToServerSink != null && worker.clientToServerSink.isFinished() == false && worker.finished == false) {
                 logger.debug(
-                    "[LookupJoinClient] Finishing client-to-server exchange for node={} (no more batches will be sent)",
-                    conn.serverNode.getId()
+                    "[LookupJoinClient] Finishing client-to-server exchange for worker={} (no more batches will be sent)",
+                    worker.workerId
                 );
-                conn.clientToServerSink.finish();
-                conn.finished = true;
+                worker.clientToServerSink.finish();
+                worker.finished = true;
             }
         }
     }
@@ -662,49 +753,50 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         }
 
         // Drain all sink handler buffers to release any pages
-        for (ServerConnection conn : serverConnections.values()) {
+        for (Worker worker : workers) {
             try {
-                if (conn.clientToServerSinkHandler != null) {
-                    logger.debug("[LookupJoinClient] Draining sink handler buffer for node={}", conn.serverNode.getId());
-                    conn.clientToServerSinkHandler.onFailure(new TaskCancelledException("client closed"));
+                if (worker.clientToServerSinkHandler != null) {
+                    logger.debug("[LookupJoinClient] Draining sink handler buffer for worker={}", worker.workerId);
+                    worker.clientToServerSinkHandler.onFailure(new TaskCancelledException("client closed"));
                 }
             } catch (Exception e) {
-                logger.error("[LookupJoinClient] Error draining sink handler for node={}", conn.serverNode.getId(), e);
+                logger.error("[LookupJoinClient] Error draining sink handler for worker=" + worker.workerId, e);
             }
         }
 
-        // Wait for all server responses - this ensures all servers have finished processing
-        for (ServerConnection conn : serverConnections.values()) {
+        // Wait for all worker responses - this ensures all workers have finished processing
+        for (Worker worker : workers) {
             // First: wait for setup to complete (success or failure) so requestSent has its final value
             try {
-                if (conn.setupReadyListener.isDone() == false) {
-                    logger.debug("[LookupJoinClient] Waiting for setup completion for node={}", conn.serverNode.getId());
+                if (worker.setupReadyListener.isDone() == false) {
+                    logger.debug("[LookupJoinClient] Waiting for setup completion for worker={}", worker.workerId);
                     PlainActionFuture<Void> setupFuture = new PlainActionFuture<>();
-                    conn.setupReadyListener.addListener(setupFuture);
+                    worker.setupReadyListener.addListener(setupFuture);
                     setupFuture.actionGet(TimeValue.timeValueSeconds(30));
                 }
             } catch (Exception e) {
-                logger.warn("[LookupJoinClient] Timeout or exception waiting for setup completion for node={}", conn.serverNode.getId(), e);
+                logger.warn("[LookupJoinClient] Timeout or exception waiting for setup completion for worker=" + worker.workerId, e);
             }
 
             // Then: if request was sent, wait for server response
-            if (conn.requestSent) {
+            if (worker.requestSent) {
                 try {
                     logger.debug(
-                        "[LookupJoinClient] Waiting for server response from node={}, isDone={}",
-                        conn.serverNode.getId(),
-                        conn.serverResponseListener.isDone()
+                        "[LookupJoinClient] Waiting for server response from worker={}, isDone={}",
+                        worker.workerId,
+                        worker.serverResponseListener.isDone()
                     );
-                    if (conn.serverResponseListener.isDone() == false) {
+                    if (worker.serverResponseListener.isDone() == false) {
                         PlainActionFuture<Void> waitFuture = new PlainActionFuture<>();
-                        conn.serverResponseListener.addListener(waitFuture);
+                        worker.serverResponseListener.addListener(waitFuture);
                         waitFuture.actionGet(TimeValue.timeValueSeconds(30));
                     }
-                    logger.debug("[LookupJoinClient] Server response received from node={}", conn.serverNode.getId());
+                    logger.debug("[LookupJoinClient] Server response received from worker={}", worker.workerId);
                 } catch (Exception e) {
                     logger.warn(
-                        "[LookupJoinClient] Timeout or exception waiting for server response from node={} - server may not have finished",
-                        conn.serverNode.getId(),
+                        "[LookupJoinClient] Timeout or exception waiting for server response from worker="
+                            + worker.workerId
+                            + " - server may not have finished",
                         e
                     );
                 }
@@ -712,8 +804,8 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         }
 
         // Log incomplete batches for debugging (but don't wait - we're shutting down)
-        int started = startedBatchCount.get();
-        int completed = completedBatchCount.get();
+        int started = startedBatchCount;
+        int completed = completedBatchCount;
         if (started > 0 && completed < started) {
             logger.warn("[LookupJoinClient] Closing with incomplete batches: started={}, completed={}", started, completed);
         }
@@ -740,24 +832,29 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     }
 
     /**
-     * Holds per-server state for client-to-server exchange.
-     * Each server has its own sink handler and sink for sending pages,
-     * but all servers share the same server-to-client source handler for receiving results.
+     * Represents a worker that can process batches in parallel.
+     * Each worker has its own exchange channel to a server and server-side BatchDriver.
+     * Multiple workers can target the same server node for parallel execution.
      */
-    private static class ServerConnection {
+    private static class Worker {
+        final int workerId;
         final DiscoveryNode serverNode;
         final String clientToServerId;
+        final String serverToClientId;
         ExchangeSinkHandler clientToServerSinkHandler;
         ExchangeSink clientToServerSink;
         final SubscribableListener<Void> serverResponseListener = new SubscribableListener<>();
         final SubscribableListener<Void> setupReadyListener = new SubscribableListener<>();
+        int pendingBatches = 0;
         volatile boolean requestSent = false;
         volatile boolean finished = false;
 
-        ServerConnection(DiscoveryNode serverNode, String sessionId) {
+        Worker(int workerId, DiscoveryNode serverNode, String sessionId) {
+            this.workerId = workerId;
             this.serverNode = serverNode;
-            // Each server gets a unique clientToServerId based on session and node
-            this.clientToServerId = BidirectionalBatchExchangeBase.buildClientToServerId(sessionId) + "/" + serverNode.getId();
+            // Each worker gets unique exchange IDs based on session and worker ID
+            this.clientToServerId = BidirectionalBatchExchangeBase.buildClientToServerId(sessionId) + "/worker" + workerId;
+            this.serverToClientId = BidirectionalBatchExchangeBase.buildServerToClientId(sessionId) + "/worker" + workerId;
         }
     }
 }

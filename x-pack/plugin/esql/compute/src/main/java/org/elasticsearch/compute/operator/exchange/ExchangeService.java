@@ -188,6 +188,17 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     }
 
     /**
+     * Gets an existing {@link ExchangeSinkHandler} for the specified exchange id, or creates one if it doesn't exist.
+     * This is useful when the sink handler may have been pre-registered (e.g., for test setup coordination).
+     */
+    public ExchangeSinkHandler getOrCreateSinkHandler(String exchangeId, int maxBufferSize) {
+        return sinks.computeIfAbsent(
+            exchangeId,
+            id -> new ExchangeSinkHandler(blockFactory, maxBufferSize, threadPool.relativeTimeInMillisSupplier())
+        );
+    }
+
+    /**
      * Removes the exchange sink handler associated with the given exchange id.
      * W will abort the sink handler if the given failure is not null.
      */

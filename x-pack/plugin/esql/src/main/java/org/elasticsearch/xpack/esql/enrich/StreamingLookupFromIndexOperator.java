@@ -26,7 +26,6 @@ import org.elasticsearch.compute.operator.exchange.BatchPage;
 import org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeClient;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.lookup.RightChunkedLeftJoin;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
@@ -38,10 +37,13 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -93,9 +95,9 @@ public class StreamingLookupFromIndexOperator implements Operator {
     private long planningEndNanos = 0;
     private long processEndNanos = 0;
 
-    // Lookup plan from server (for profile output)
-    @Nullable
-    private volatile String lookupPlan = null;
+    // Lookup plans from servers (for profile output)
+    // Maps plan string -> set of worker keys (e.g., "nodeId:worker0") that produced this plan
+    private final Map<String, Set<String>> planToWorkers = new ConcurrentHashMap<>();
 
     /**
      * State for a single batch (one input page).
@@ -179,7 +181,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
                     listener.onResponse(response.planString());
                 }, e -> {
                     planningEndNanos = System.nanoTime();
-                    logger.error("Server setup failed for node={}", serverNode.getId(), e);
+                    logger.error("Server setup failed for node=" + serverNode.getId(), e);
                     failure.set(e);
                     listener.onFailure(e);
                 }));
@@ -195,7 +197,12 @@ public class StreamingLookupFromIndexOperator implements Operator {
                 ActionListener.wrap(v -> handleBatchExchangeSuccess(), this::handleBatchExchangeFailure),
                 lookupService.getSettings(),
                 setupCallback,
-                planString -> lookupPlan = planString  // Consumer for lookup plan from server
+                profile
+                    ? (workerKey, planString) -> planToWorkers.computeIfAbsent(planString, k -> ConcurrentHashMap.newKeySet())
+                        .add(workerKey)
+                    : null,  // Only track plans when profiling
+                maxOutstandingRequests,
+                this::determineServerNode  // Supplier for getting server nodes for workers
             );
 
             // Client is ready immediately - server setup happens lazily when first page is sent
@@ -261,26 +268,19 @@ public class StreamingLookupFromIndexOperator implements Operator {
             return;
         }
 
-        // Determine which server should handle this page
-        DiscoveryNode serverNode = determineServerNode();
-        if (serverNode == null) {
-            page.releaseBlocks();
-            failure.compareAndSet(null, new IllegalStateException("Could not determine server node for lookup"));
-            return;
-        }
-
         totalInputRows += page.getPositionCount();
         long batchId = batchIdGenerator.incrementAndGet();
-        logger.trace("addInput: batchId={}, positions={}, serverNode={}", batchId, page.getPositionCount(), serverNode.getId());
+        logger.trace("addInput: batchId={}, positions={}", batchId, page.getPositionCount());
 
         // Send page synchronously - the exchange buffer holds pages until server fetches them
+        // The client handles worker/server selection internally using least-loaded strategy
         // Note: BatchPage constructor calls incRef() on blocks, so we need to release the batchPage on failure
         BatchPage batchPage = null;
         try {
             Block[] inputBlocks = applyMatchFieldsMapping(page);
             batchPage = new BatchPage(new Page(inputBlocks), batchId, 0, true);
-            client.sendPage(batchPage, serverNode);
-            logger.trace("addInput: sent batchId={} to exchange buffer for node={}", batchId, serverNode.getId());
+            client.sendPage(batchPage);
+            logger.trace("addInput: sent batchId={} to worker", batchId);
         } catch (RuntimeException e) {
             logger.error("addInput: failed to send batchId={}: {}", batchId, e.getMessage());
             // Release the batchPage if it was created (it has incRef'd the blocks)
@@ -662,6 +662,11 @@ public class StreamingLookupFromIndexOperator implements Operator {
         // Calculate process_nanos as time since planning completed until now (or until close() was called)
         long processEnd = (processEndNanos > 0) ? processEndNanos : System.nanoTime();
         long processNanos = (planningEndNanos > 0) ? (processEnd - planningEndNanos) : 0;
+        // Create a defensive copy of planToWorkers
+        Map<String, Set<String>> plansCopy = new HashMap<>();
+        for (Map.Entry<String, Set<String>> entry : planToWorkers.entrySet()) {
+            plansCopy.put(entry.getKey(), new HashSet<>(entry.getValue()));
+        }
         return new StreamingLookupStatus(
             pagesReceived,
             pagesCompleted,
@@ -669,7 +674,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
             totalOutputRows,
             planningNanos,
             processNanos,
-            lookupPlan
+            plansCopy
         );
     }
 
@@ -697,8 +702,8 @@ public class StreamingLookupFromIndexOperator implements Operator {
         private final long rowsEmitted;
         private final long planningNanos;
         private final long processNanos;
-        @Nullable
-        private final String lookupPlan;
+        // Maps plan string -> set of worker keys (e.g., "nodeId:worker0") that produced this plan
+        private final Map<String, Set<String>> planToWorkers;
 
         public StreamingLookupStatus(
             long pagesReceived,
@@ -707,7 +712,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
             long rowsEmitted,
             long planningNanos,
             long processNanos,
-            @Nullable String lookupPlan
+            Map<String, Set<String>> planToWorkers
         ) {
             this.pagesReceived = pagesReceived;
             this.pagesEmitted = pagesEmitted;
@@ -715,7 +720,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
             this.rowsEmitted = rowsEmitted;
             this.planningNanos = planningNanos;
             this.processNanos = processNanos;
-            this.lookupPlan = lookupPlan;
+            this.planToWorkers = planToWorkers == null ? Map.of() : planToWorkers;
         }
 
         public StreamingLookupStatus(StreamInput in) throws IOException {
@@ -726,9 +731,9 @@ public class StreamingLookupFromIndexOperator implements Operator {
             this.planningNanos = in.readVLong();
             this.processNanos = in.readVLong();
             if (in.getTransportVersion().supports(ESQL_LOOKUP_PLAN_STRING)) {
-                this.lookupPlan = in.readOptionalString();
+                this.planToWorkers = in.readMap(i -> new HashSet<>(i.readStringCollectionAsList()));
             } else {
-                this.lookupPlan = null;
+                this.planToWorkers = Map.of();
             }
         }
 
@@ -741,7 +746,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
             out.writeVLong(planningNanos);
             out.writeVLong(processNanos);
             if (out.getTransportVersion().supports(ESQL_LOOKUP_PLAN_STRING)) {
-                out.writeOptionalString(lookupPlan);
+                out.writeMap(planToWorkers, StreamOutput::writeStringCollection);
             }
         }
 
@@ -759,8 +764,15 @@ public class StreamingLookupFromIndexOperator implements Operator {
             builder.field("rows_emitted", rowsEmitted);
             builder.field("planning_nanos", planningNanos);
             builder.field("process_nanos", processNanos);
-            if (lookupPlan != null) {
-                builder.field("lookup_plan", lookupPlan);
+            if (planToWorkers.isEmpty() == false) {
+                builder.startArray("lookup_plans");
+                for (Map.Entry<String, Set<String>> entry : planToWorkers.entrySet()) {
+                    builder.startObject();
+                    builder.array("workers", entry.getValue().toArray(String[]::new));
+                    builder.field("plan", entry.getKey());
+                    builder.endObject();
+                }
+                builder.endArray();
             }
             return builder.endObject();
         }
@@ -789,9 +801,8 @@ public class StreamingLookupFromIndexOperator implements Operator {
             return processNanos;
         }
 
-        @Nullable
-        public String lookupPlan() {
-            return lookupPlan;
+        public Map<String, Set<String>> planToWorkers() {
+            return planToWorkers;
         }
 
         @Override
@@ -810,12 +821,20 @@ public class StreamingLookupFromIndexOperator implements Operator {
                 && rowsEmitted == that.rowsEmitted
                 && planningNanos == that.planningNanos
                 && processNanos == that.processNanos
-                && java.util.Objects.equals(lookupPlan, that.lookupPlan);
+                && java.util.Objects.equals(planToWorkers, that.planToWorkers);
         }
 
         @Override
         public int hashCode() {
-            return java.util.Objects.hash(pagesReceived, pagesEmitted, rowsReceived, rowsEmitted, planningNanos, processNanos, lookupPlan);
+            return java.util.Objects.hash(
+                pagesReceived,
+                pagesEmitted,
+                rowsReceived,
+                rowsEmitted,
+                planningNanos,
+                processNanos,
+                planToWorkers
+            );
         }
 
         @Override
@@ -833,8 +852,8 @@ public class StreamingLookupFromIndexOperator implements Operator {
                 + planningNanos
                 + ", processNanos="
                 + processNanos
-                + ", lookupPlan="
-                + lookupPlan
+                + ", planToWorkers="
+                + planToWorkers
                 + '}';
         }
     }

@@ -325,8 +325,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
 
             // Client sends NO pages - send a marker batch to represent "no data"
             logger.info("[TEST-CLIENT] Sending no pages, sending marker batch");
-            DiscoveryNode serverNode = infra.serverTransportService().getLocalNode();
-            client.sendBatchMarker(0, serverNode);
+            client.sendBatchMarker(0);
 
             // Poll for the response marker from the server
             logger.info("[TEST-CLIENT] Polling for response marker");
@@ -434,9 +433,8 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             // Try to send a page with isLastPageInBatch=false (multi-page batch)
             // This should throw an IllegalArgumentException because only single-page batches are supported
             logger.info("[TEST] About to call sendPage with isLastPageInBatch=false");
-            DiscoveryNode serverNode = infra.serverTransportService().getLocalNode();
             IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> {
-                client.sendPage(new BatchPage(page, 0, 0, false), serverNode);  // isLastPageInBatch=false
+                client.sendPage(new BatchPage(page, 0, 0, false));  // isLastPageInBatch=false
             });
             logger.info("[TEST] Caught expected IllegalArgumentException: {}", error.getMessage());
 
@@ -532,9 +530,10 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
     ) throws Exception {
         logger.info("[TEST-CLIENT] Creating BidirectionalBatchExchangeClient with sessionId={}", sessionId);
         Task mockTask = mock(Task.class);
+        DiscoveryNode serverNode = infra.serverTransportService().getLocalNode();
         // Test callback that immediately succeeds - server is set up manually in tests
-        BidirectionalBatchExchangeClient.ServerSetupCallback testCallback = (serverNode, clientToServerId, serverToClientId, listener) -> {
-            logger.debug("[TEST] ServerSetupCallback called for node={}", serverNode.getId());
+        BidirectionalBatchExchangeClient.ServerSetupCallback testCallback = (node, clientToServerId, serverToClientId, listener) -> {
+            logger.debug("[TEST] ServerSetupCallback called for node={}", node.getId());
             listener.onResponse("test-plan");
         };
         BidirectionalBatchExchangeClient client = new BidirectionalBatchExchangeClient(
@@ -547,7 +546,9 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             batchExchangeStatusListener,
             SINGLE_CLIENT_SETTINGS,
             testCallback,
-            null // lookupPlanConsumer
+            null, // lookupPlanConsumer
+            1, // maxWorkers
+            () -> serverNode // serverNodeSupplier
         );
         logger.info("[TEST-CLIENT] Client initialized successfully");
 
@@ -798,14 +799,31 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
         long timeoutSeconds,
         String sessionId
     ) throws InterruptedException {
+        // Pre-register BOTH directions' sink handlers BEFORE starting the server.
+        // In production, both sides would create their handlers before the other tries to connect.
+        // Here we do it explicitly to avoid race conditions where one side tries to connect
+        // before the other has created the handler.
+
+        // Pre-register client-to-server sink handler (on client's exchange service)
+        // This is the handler that the SERVER fetches from to get pages sent by the client.
+        String clientToServerId = BidirectionalBatchExchangeBase.buildClientToServerId(sessionId) + "/worker0";
+        infra.clientExchangeService().getOrCreateSinkHandler(clientToServerId, 10);
+        logger.info("[TEST] Pre-registered client-to-server sink handler: {}", clientToServerId);
+
+        // Pre-register server-to-client sink handler (on server's exchange service)
+        // This is the handler that the CLIENT fetches from to get result pages from the server.
+        String serverToClientId = BidirectionalBatchExchangeBase.buildServerToClientId(sessionId) + "/worker0";
+        infra.serverExchangeService().getOrCreateSinkHandler(serverToClientId, 10);
+        logger.info("[TEST] Pre-registered server-to-client sink handler: {}", serverToClientId);
+
         // Create latch to synchronize server initialization
         CountDownLatch serverInitializedLatch = new CountDownLatch(1);
 
-        // Start server thread FIRST - it will initialize and create sink handler
+        // Start server thread - it will initialize and connect to the pre-registered sink handlers
         Thread serverThread = createServerThread(infra, threadPool, serverException, timeoutSeconds, serverInitializedLatch, sessionId);
         serverThread.start();
 
-        // Wait for server to initialize (create sink handler) BEFORE client connects
+        // Wait for server to initialize BEFORE client sends pages
         try {
             serverInitializedLatch.await(timeoutSeconds, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
@@ -972,8 +990,9 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
                 EvalOperator addOneOperator = createAddOneOperator(driverContext);
 
                 // Stage 1: Create BidirectionalBatchExchangeServer
-                String clientToServerId = BidirectionalBatchExchangeBase.buildClientToServerId(sessionId);
-                String serverToClientId = BidirectionalBatchExchangeBase.buildServerToClientId(sessionId);
+                // Use worker-specific IDs to match what the client's worker will use (worker0)
+                String clientToServerId = BidirectionalBatchExchangeBase.buildClientToServerId(sessionId) + "/worker0";
+                String serverToClientId = BidirectionalBatchExchangeBase.buildServerToClientId(sessionId) + "/worker0";
                 BidirectionalBatchExchangeServer server = new BidirectionalBatchExchangeServer(
                     sessionId,
                     clientToServerId,
@@ -988,7 +1007,14 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
                 );
 
                 // Stage 2: Start with operators
-                server.startWithOperators(driverContext, threadPool.getThreadContext(), List.of(addOneOperator), "test-cluster", () -> {});
+                server.startWithOperators(
+                    driverContext,
+                    threadPool.getThreadContext(),
+                    List.of(addOneOperator),
+                    "test-cluster",
+                    () -> {},
+                    ActionListener.noop()
+                );
                 logger.info("[TEST-SERVER] Server initialized successfully");
 
                 // Batch processing is already started in the constructor
@@ -1103,7 +1129,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
     ) {
         if (batchPages.isEmpty()) {
             logger.debug("[TEST-CLIENT] Sending empty batch marker for batchId={}", batchId);
-            client.sendBatchMarker(batchId, serverNode);
+            client.sendBatchMarker(batchId);
         } else {
             for (int pageIdx = 0; pageIdx < batchPages.size(); pageIdx++) {
                 Page page = batchPages.get(pageIdx);
@@ -1116,7 +1142,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
                     isLastPageInBatch,
                     page.getPositionCount()
                 );
-                client.sendPage(new BatchPage(page, batchId, pageIdx, isLastPageInBatch), serverNode);
+                client.sendPage(new BatchPage(page, batchId, pageIdx, isLastPageInBatch));
             }
         }
         batchesSent.incrementAndGet();

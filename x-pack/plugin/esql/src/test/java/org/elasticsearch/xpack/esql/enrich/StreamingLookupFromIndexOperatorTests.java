@@ -123,11 +123,16 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.matchesPattern;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 
 @TestLogging(
@@ -149,6 +154,9 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
     private final boolean useMultiNode;
     private int numberOfJoinColumns;
     private EsqlBinaryComparison.BinaryComparisonOperation operation;
+    // Track node IDs for mode verification in assertStatus
+    private String clientNodeId;
+    private final List<String> serverNodeIds = new ArrayList<>();
 
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
@@ -334,7 +342,7 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
                     finalRightPlan,
                     finalJoinOnExpression,
                     exchangeBufferSize,
-                    false // profile
+                    true // profile - enables plan tracking for mode verification
                 );
             }
 
@@ -370,12 +378,17 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
     private static final int NUM_SERVER_NODES = 2;
 
     private LookupFromIndexService lookupService(DriverContext mainContext) {
+        // Clear node tracking from previous test runs
+        clientNodeId = null;
+        serverNodeIds.clear();
+
         if (useMultiNode == false) {
             return lookupServiceSingleNode(mainContext);
         }
         // Create client (coordinator) transport service
         MockTransportService clientTransport = newMockTransportService("client");
         releasables.add(clientTransport);
+        clientNodeId = clientTransport.getLocalNode().getId();
 
         // Create server transport services (data nodes with shard replicas)
         List<MockTransportService> serverTransports = new ArrayList<>();
@@ -383,6 +396,7 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
             MockTransportService serverTransport = newMockTransportService("node_" + i);
             serverTransports.add(serverTransport);
             releasables.add(serverTransport);
+            serverNodeIds.add(serverTransport.getLocalNode().getId());
         }
 
         // Connect all transport services bidirectionally (client <-> servers only, no server-to-server)
@@ -483,6 +497,9 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
         // Create single transport service - this node has the lookup index
         MockTransportService localTransport = newMockTransportService("local");
         releasables.add(localTransport);
+        // In single-node mode, the local node is the server (has the shard)
+        clientNodeId = localTransport.getLocalNode().getId();
+        // serverNodeIds stays empty - indicates local node is the server
 
         // Build cluster state with local node having the shard
         var builtInClusterSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -739,6 +756,31 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
         // Check timing fields
         assertThat(((Number) map.get("planning_nanos")).longValue(), greaterThanOrEqualTo(0L));
         assertThat(((Number) map.get("process_nanos")).longValue(), greaterThanOrEqualTo(0L));
+
+        // Verify mode via lookup_plans (populated because profile=true)
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> lookupPlans = (List<Map<String, Object>>) map.get("lookup_plans");
+        if (lookupPlans != null && lookupPlans.isEmpty() == false) {
+            Set<String> workerNodeIds = new HashSet<>();
+            for (Map<String, Object> planEntry : lookupPlans) {
+                @SuppressWarnings("unchecked")
+                List<String> workers = (List<String>) planEntry.get("workers");
+                for (String workerKey : workers) {
+                    // Extract nodeId from "nodeId:workerN"
+                    String nodeId = workerKey.substring(0, workerKey.lastIndexOf(":worker"));
+                    workerNodeIds.add(nodeId);
+                }
+            }
+
+            if (useMultiNode) {
+                // Multi-node: workers should be on server nodes, NOT on client
+                assertThat("Workers should not be on client node", workerNodeIds, not(hasItem(clientNodeId)));
+                assertThat("Workers should be on server nodes", workerNodeIds, everyItem(isIn(serverNodeIds)));
+            } else {
+                // Single-node: workers should be on local node (which is clientNodeId in this mode)
+                assertThat("Single-node: all workers should be on local node", workerNodeIds, everyItem(equalTo(clientNodeId)));
+            }
+        }
     }
 
     @Override

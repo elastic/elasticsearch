@@ -162,8 +162,9 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         clientToServerSource = new ExchangeSourceOperator(clientToServerSourceHandler.createExchangeSource());
         logger.debug("[LookupJoinServer] Created client-to-server source handler: exchangeId={}", clientToServerId);
 
-        // Create sink handler for server-to-client direction
-        serverToClientSinkHandler = exchangeService.createSinkHandler(serverToClientId, maxBufferSize);
+        // Create or get sink handler for server-to-client direction
+        // Uses getOrCreateSinkHandler to allow pre-registration of the handler (e.g., for test setup coordination)
+        serverToClientSinkHandler = exchangeService.getOrCreateSinkHandler(serverToClientId, maxBufferSize);
         serverToClientSink = serverToClientSinkHandler.createExchangeSink(() -> {});
         logger.debug("[LookupJoinServer] Created server-to-client sink handler: exchangeId={}", serverToClientId);
 

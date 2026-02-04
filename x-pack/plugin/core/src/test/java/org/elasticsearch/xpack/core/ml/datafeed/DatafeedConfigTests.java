@@ -1170,10 +1170,7 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
         builder.setProjectRouting("_alias:prod-*");
         // Don't set CPS mode in indicesOptions - use default
 
-        ElasticsearchStatusException e = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> builder.build()
-        );
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> builder.build());
         assertThat(e.getMessage(), containsString("project_routing requires cross-project search to be enabled in indices_options"));
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
     }
@@ -1188,10 +1185,7 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
         // Explicitly set IndicesOptions without CPS mode
         builder.setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN);
 
-        ElasticsearchStatusException e = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> builder.build()
-        );
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> builder.build());
         assertThat(e.getMessage(), containsString("project_routing requires cross-project search to be enabled in indices_options"));
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
     }

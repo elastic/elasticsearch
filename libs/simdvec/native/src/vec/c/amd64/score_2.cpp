@@ -34,7 +34,7 @@
 static inline __m512 score_inner(
     const f32_t* lowerInterval,
     const f32_t* upperInterval,
-    const int16_t* targetComponentSum,
+    const int32_t* targetComponentSum,
     const f32_t* score,
     const f32_t ay,
     const f32_t ly,
@@ -44,11 +44,7 @@ static inline __m512 score_inner(
 ) {
     __m512 ax = _mm512_loadu_ps(lowerInterval);
     __m512 lx = _mm512_mul_ps(_mm512_sub_ps(_mm512_loadu_ps(upperInterval), ax), _mm512_set1_ps(indexBitScale));
-    __m512 tcs = _mm512_cvtepi32_ps(
-        _mm512_cvtepi16_epi32(
-            _mm256_lddqu_si256((const __m256i*)(targetComponentSum))
-        )
-    );
+    __m512 tcs = _mm512_cvtepi32_ps(_mm512_loadu_si512((const __m512i*)(targetComponentSum)));
 
     __m512 qcDist = _mm512_loadu_ps(score);
 

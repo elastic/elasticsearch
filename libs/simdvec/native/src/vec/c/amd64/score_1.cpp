@@ -26,7 +26,7 @@
 static inline __m256 score_inner(
     const f32_t* lowerInterval,
     const f32_t* upperInterval,
-    const int16_t* targetComponentSum,
+    const int32_t* targetComponentSum,
     const f32_t* score,
     const f32_t ay,
     const f32_t ly,
@@ -36,11 +36,7 @@ static inline __m256 score_inner(
 ) {
     __m256 ax = _mm256_loadu_ps(lowerInterval);
     __m256 lx = _mm256_mul_ps(_mm256_sub_ps(_mm256_loadu_ps(upperInterval), ax), _mm256_set1_ps(indexBitScale));
-    __m256 tcs = _mm256_cvtepi32_ps(
-        _mm256_cvtepi16_epi32(
-            _mm_lddqu_si128((const __m128i*)(targetComponentSum))
-        )
-    );
+    __m256 tcs = _mm256_cvtepi32_ps(_mm256_lddqu_si256((const __m256i*)(targetComponentSum)));
 
     __m256 qcDist = _mm256_loadu_ps(score);
 

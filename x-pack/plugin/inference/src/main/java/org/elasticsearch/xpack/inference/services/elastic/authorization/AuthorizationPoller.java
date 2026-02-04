@@ -16,6 +16,8 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.StrictDynamicMappingException;
+import org.elasticsearch.inference.EndpointMetadata;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -50,6 +52,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
     public static final String TASK_NAME = "eis-authorization-poller";
 
     private static final Logger logger = LogManager.getLogger(AuthorizationPoller.class);
+    private static final List<String> INFERENCE_MAPPING_CHANGES = List.of(EndpointMetadata.METADATA);
 
     private final ServiceComponents serviceComponents;
     private final ModelRegistry modelRegistry;
@@ -343,8 +346,14 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         ActionListener<StoreInferenceEndpointsAction.Response> logResultsListener = ActionListener.wrap(responses -> {
             for (var response : responses.getResults()) {
                 if (response.failed()) {
-                    logger.atWarn()
-                        .withThrowable(response.failureCause())
+                    var logBuilder = logger.atWarn();
+
+                    if (response.failureCause() instanceof StrictDynamicMappingException
+                        && isFailureFromNewFieldInMapping(response.failureCause())) {
+                        logBuilder = logger.atDebug();
+                    }
+
+                    logBuilder.withThrowable(response.failureCause())
                         .log("Failed to store new EIS preconfigured inference endpoint with inference ID [{}]", response.inferenceId());
                 } else {
                     logger.atInfo()
@@ -358,5 +367,9 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
             storeRequest,
             ActionListener.runAfter(logResultsListener, () -> listener.onResponse(null))
         );
+    }
+
+    private static boolean isFailureFromNewFieldInMapping(Exception exception) {
+        return INFERENCE_MAPPING_CHANGES.stream().anyMatch(field -> exception.getCause().getMessage().contains(field));
     }
 }

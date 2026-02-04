@@ -123,7 +123,7 @@ public class AuthorizationTaskExecutorUpgradeIT extends ParameterizedRollingUpgr
     }
 
     @SuppressWarnings("unchecked")
-    private static boolean doesAuthPollingTaskExist() throws IOException {
+    public static boolean doesAuthPollingTaskExist() throws IOException {
         var request = new Request(GET_METHOD, Strings.format("_tasks?pretty&actions=%s*", AuthorizationPoller.TASK_NAME));
         var response = adminClient().performRequest(request);
         assertStatusOkOrCreated(response);

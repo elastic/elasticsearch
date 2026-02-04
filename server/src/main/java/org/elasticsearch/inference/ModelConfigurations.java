@@ -32,12 +32,6 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
     public static final String SERVICE_SETTINGS = "service_settings";
     public static final String TASK_SETTINGS = "task_settings";
     public static final String CHUNKING_SETTINGS = "chunking_settings";
-    /**
-     * Controls whether to exclude the metadata field when serializing the model configurations.
-     * This is useful for excluding the field from the inference response when the metadata is empty. User created endpoints will have
-     * empty metadata.
-     */
-    public static final String INCLUDE_EMPTY_METADATA = "include_empty_metadata";
 
     private static final String NAME = "inference_model";
 
@@ -220,7 +214,10 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
             builder.field(CHUNKING_SETTINGS, chunkingSettings);
         }
 
-        if (params.paramAsBoolean(INCLUDE_EMPTY_METADATA, false) || endpointMetadata.isEmpty() == false) {
+        // If the endpoint metadata is empty it means the instance is the default empty state. This will happen for endpoints other than
+        // EIS ones. By not serializing the empty metadata, we avoid causing a StrictDynamicMappingException while an upgrade is in
+        // progress.
+        if (endpointMetadata.isEmpty() == false) {
             if (includeFilteredFields) {
                 builder.field(EndpointMetadata.METADATA, endpointMetadata);
             } else {

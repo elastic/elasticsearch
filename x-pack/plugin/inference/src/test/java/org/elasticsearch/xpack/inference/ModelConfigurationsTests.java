@@ -182,6 +182,24 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
         }
     }
 
+    public void testToXContentDoesNotIncludeEmptyEndpointMetadata() throws IOException {
+        ModelConfigurations modelConfigurations = new ModelConfigurations(
+            "test_entity_id",
+            TaskType.SPARSE_EMBEDDING,
+            TestSparseInferenceServiceExtension.TestInferenceService.NAME,
+            ElserInternalServiceSettingsTests.createRandom(),
+            ElserMlNodeTaskSettings.DEFAULT,
+            null,
+            EndpointMetadata.EMPTY
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        modelConfigurations.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        String json = Strings.toString(builder);
+
+        assertThat(json, not(containsString(EndpointMetadata.METADATA)));
+    }
+
     public void testToXContentIncludesHiddenFieldsInServiceSettings() throws IOException {
         String hiddenValue = "secret_value";
         ServiceSettings serviceSettings = new TestSparseInferenceServiceExtension.TestServiceSettings("test_model", hiddenValue, false);
@@ -200,6 +218,7 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
         String json = Strings.toString(builder);
 
         // TODO parse the json and verify the hidden field by looking at the map
+        assertFalse(true);
         assertThat(json, containsString(ModelConfigurations.SERVICE_SETTINGS));
         assertThat(json, containsString(HIDDEN_FIELD_KEY));
         assertThat(json, containsString(hiddenValue));

@@ -10,14 +10,19 @@ package org.elasticsearch.xpack.inference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.test.http.MockRequest;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.junit.rules.TestRule;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.EIS_EMPTY_RESPONSE;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.getEisAuthorizationResponseWithMultipleEndpoints;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.getEisElserAuthorizationResponse;
 
 public class MockElasticInferenceServiceAuthorizationServer implements TestRule {
 
@@ -34,6 +39,47 @@ public class MockElasticInferenceServiceAuthorizationServer implements TestRule 
             // This call needs to happen outside the constructor to avoid an error for a this-escape
             enqueueAuthorizeAllModelsResponse();
         }
+    }
+
+    /**
+     * Enqueue empty responses. Use this when the mock should return no preconfigured endpoints (e.g. until mixed cluster state).
+     * @param count the number of empty responses to enqueue
+     */
+    public void enqueueEmptyResponses(int count) {
+        for (int i = 0; i < count; i++) {
+            enqueueEmptyResponse();
+        }
+    }
+
+    /**
+     * Enqueue a single empty response (inference_endpoints: []).
+     */
+    public void enqueueEmptyResponse() {
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EIS_EMPTY_RESPONSE));
+    }
+
+    /**
+     * Enqueue a preconfigured endpoint response that includes EndpointMetadata (e.g. elser-2).
+     * When stored in a mixed cluster this will cause a mapping exception because old nodes lack the metadata field.
+     */
+    public void enqueuePreconfiguredEndpointResponse() {
+        var authResponseBody = getEisElserAuthorizationResponse(getUrl()).responseJson();
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(authResponseBody));
+    }
+
+    /**
+     * Enqueue a preconfigured endpoint response with a callback that is invoked when the webserver receives the request.
+     * This allows tests to know when the auth request was made so they can assertBusy for endpoint persistence.
+     * @param requestReceived set to true when the mock server receives the authorization request
+     */
+    public void enqueuePreconfiguredEndpointResponseWithRequestReceivedCallback(AtomicBoolean requestReceived) {
+        var authResponseBody = getEisElserAuthorizationResponse(getUrl()).responseJson();
+        webServer.enqueue(
+            new MockResponse().setResponseCode(200).setBody((MockRequest request) -> {
+                requestReceived.set(true);
+                return authResponseBody;
+            })
+        );
     }
 
     public void enqueueAuthorizeAllModelsResponse() {

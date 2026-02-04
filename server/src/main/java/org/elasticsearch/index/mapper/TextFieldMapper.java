@@ -81,6 +81,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomB
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.TextDocValuesField;
@@ -100,6 +101,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.IntPredicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
@@ -973,11 +975,14 @@ public final class TextFieldMapper extends FieldMapper {
             }
             failIfNotIndexedNorDocValuesFallback(context);
             if (usesBinaryDocValues) {
-                BooleanQuery.Builder bqBuilder = new BooleanQuery.Builder();
-                for (Object value : values) {
-                    bqBuilder.add(new SlowCustomBinaryDocValuesTermQuery(name(), indexedValueForSearch(value)), BooleanClause.Occur.SHOULD);
-                }
-                return new ConstantScoreQuery(bqBuilder.build());
+                BooleanQuery bq = new BooleanQuery.Builder().add(
+                    new SlowCustomBinaryDocValuesTermInSetQuery(
+                        name(),
+                        values.stream().map(this::indexedValueForSearch).collect(Collectors.toSet())
+                    ),
+                    BooleanClause.Occur.SHOULD
+                ).build();
+                return new ConstantScoreQuery(bq);
             } else {
                 Collection<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
                 return SortedSetDocValuesField.newSlowSetQuery(name(), bytesRefs);

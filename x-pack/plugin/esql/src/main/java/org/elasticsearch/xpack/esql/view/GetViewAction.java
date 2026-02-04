@@ -133,7 +133,7 @@ public class GetViewAction extends ActionType<GetViewAction.Response> {
 
         @Override
         public String toString() {
-            return "GetViewAction.Response" + Arrays.toString(views);
+            return "GetViewAction.Response" + Arrays.toString(Arrays.stream(views).map(View::name).toArray(String[]::new));
         }
     }
 }

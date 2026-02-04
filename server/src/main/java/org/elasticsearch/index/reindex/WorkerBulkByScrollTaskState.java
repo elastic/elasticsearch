@@ -102,9 +102,7 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
      * Restore state from the supplied status, presumably from a previously relocated task
      */
     public void restoreState(BulkByScrollTask.Status status) {
-        if (status == null) {
-            return;
-        }
+        assert status != null : "Cannot restore from null status";
         total.set(status.getTotal());
         updated.set(status.getUpdated());
         created.set(status.getCreated());

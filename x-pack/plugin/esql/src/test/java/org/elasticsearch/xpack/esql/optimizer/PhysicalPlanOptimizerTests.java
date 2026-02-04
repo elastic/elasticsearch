@@ -3373,6 +3373,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             () -> testData.physicalOptimizer().verify(planWithInvalidJoinRightSide, plan.output())
         );
         assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references from right hand side [language_code"));
+        assertWarnings(
+            "No limit defined, adding default limit of [1000]",
+            "Line 3:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
+                + "add another SORT after the LOOKUP JOIN if order is required"
+        );
     }
 
     public void testVerifierOnDuplicateOutputAttributes() {

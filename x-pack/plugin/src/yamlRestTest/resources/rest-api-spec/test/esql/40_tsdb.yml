@@ -924,7 +924,7 @@ PromQL irate on counter field:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [promql_command_v0]
+          capabilities: [promql_command_v0, promql_unmapped_fields_filter_nulls]
       reason: "PromQL support"
   - do:
       esql.query:
@@ -937,7 +937,7 @@ PromQL irate on counter field:
   - match: {columns.1.type: "date"}
   - match: {columns.2.name: "k8s.pod.name"}
   - match: {columns.2.type: "keyword"}
-  - length: {values: 4}
+  - length: {values: 2}
 
 ---
 PromQL increase on counter field:

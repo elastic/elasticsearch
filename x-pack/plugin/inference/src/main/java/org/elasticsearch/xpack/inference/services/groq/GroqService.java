@@ -34,12 +34,14 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.groq.action.GroqActionCreator;
 import org.elasticsearch.xpack.inference.services.groq.completion.GroqChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.groq.completion.GroqChatCompletionModelCreator;
 import org.elasticsearch.xpack.inference.services.groq.request.GroqUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
@@ -64,6 +66,10 @@ public class GroqService extends SenderService {
     static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new OpenAiUnifiedChatCompletionResponseHandler(
         GroqActionCreator.COMPLETION_REQUEST_TYPE,
         OpenAiChatCompletionResponseEntity::fromResponse
+    );
+    private static final Map<TaskType, ModelCreator<? extends GroqModel>> MODEL_CREATORS = Map.of(
+        TaskType.CHAT_COMPLETION,
+        new GroqChatCompletionModelCreator()
     );
 
     public GroqService(
@@ -109,7 +115,7 @@ public class GroqService extends SenderService {
             Map<String, Object> serviceSettingsMap = ServiceUtils.removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
             Map<String, Object> taskSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
-            GroqChatCompletionModel model = createModel(
+            GroqModel model = createModel(
                 inferenceEntityId,
                 taskType,
                 serviceSettingsMap,
@@ -129,7 +135,7 @@ public class GroqService extends SenderService {
     }
 
     @Override
-    public GroqChatCompletionModel parsePersistedConfigWithSecrets(
+    public GroqModel parsePersistedConfigWithSecrets(
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
@@ -150,14 +156,25 @@ public class GroqService extends SenderService {
     }
 
     @Override
-    public GroqChatCompletionModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
+    public GroqModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return retrieveModelCreatorFromMapOrThrow(
+            MODEL_CREATORS,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.PERSISTENT
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
+    }
+
+    @Override
+    public GroqModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = ServiceUtils.removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
         return createModel(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, null, ConfigurationParseContext.PERSISTENT);
     }
 
-    private static GroqChatCompletionModel createModel(
+    private static GroqModel createModel(
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
@@ -165,11 +182,16 @@ public class GroqService extends SenderService {
         Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        if (SUPPORTED_TASK_TYPES.contains(taskType) == false) {
-            throw ServiceUtils.createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
-        }
-
-        return new GroqChatCompletionModel(inferenceEntityId, taskType, NAME, serviceSettings, taskSettings, secretSettings, context);
+        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, context).createFromMaps(
+            inferenceEntityId,
+            taskType,
+            NAME,
+            serviceSettings,
+            taskSettings,
+            null,
+            secretSettings,
+            context
+        );
     }
 
     @Override

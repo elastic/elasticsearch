@@ -293,6 +293,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         private final String rootName;
         private final boolean isDimension;
         private final boolean usesBinaryDocValues;
+        private final String nullValue;
 
         @Override
         public boolean isDimension() {
@@ -306,7 +307,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
             boolean splitQueriesOnWhitespace,
             Map<String, String> meta,
             boolean isDimension,
-            boolean usesBinaryDocValues
+            boolean usesBinaryDocValues,
+            String nullValue
         ) {
             super(
                 rootName + KEYED_FIELD_SUFFIX,
@@ -319,9 +321,16 @@ public final class FlattenedFieldMapper extends FieldMapper {
             this.rootName = rootName;
             this.isDimension = isDimension;
             this.usesBinaryDocValues = usesBinaryDocValues;
+            this.nullValue = nullValue;
         }
 
-        private KeyedFlattenedFieldType(String rootName, String key, RootFlattenedFieldType ref, boolean usesBinaryDocValues) {
+        private KeyedFlattenedFieldType(
+            String rootName,
+            String key,
+            RootFlattenedFieldType ref,
+            boolean usesBinaryDocValues,
+            String nullValue
+        ) {
             this(
                 rootName,
                 ref.indexType(),
@@ -329,7 +338,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 ref.splitQueriesOnWhitespace,
                 ref.meta(),
                 ref.dimensions.contains(key),
-                usesBinaryDocValues
+                usesBinaryDocValues,
+                nullValue
             );
         }
 
@@ -485,6 +495,23 @@ public final class FlattenedFieldMapper extends FieldMapper {
             }
             BytesRef binaryValue = (BytesRef) value;
             return binaryValue.utf8ToString();
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            var fetcher = new SourceValueFetcher(
+                blContext.sourcePaths(rootName + "." + key),
+                nullValue,
+                blContext.indexSettings().getIgnoredSourceFormat()
+            ) {
+                @Override
+                protected Object parseSourceValue(Object value) {
+                    return value.toString();
+                }
+            };
+
+            var sourceBlockLoaderLookup = BlockSourceReader.lookupMatchingAll();
+            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup);
         }
     }
 
@@ -1001,7 +1028,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         @Override
         public MappedFieldType getChildFieldType(String childPath) {
-            return new KeyedFlattenedFieldType(name(), childPath, this, usesBinaryDocValues);
+            return new KeyedFlattenedFieldType(name(), childPath, this, usesBinaryDocValues, nullValue);
         }
 
         public MappedFieldType getKeyedFieldType() {

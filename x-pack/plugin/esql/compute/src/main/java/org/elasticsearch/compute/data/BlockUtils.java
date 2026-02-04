@@ -244,7 +244,9 @@ public final class BlockUtils {
             try (
                 var wrapper = BlockUtils.wrapperFor(blockFactory, ElementType.fromJava(multiValue.iterator().next().getClass()), positions)
             ) {
-                wrapper.accept(multiValue);
+                for (int i = 0; i < positions; i++) {
+                    wrapper.accept(multiValue);
+                }
                 return wrapper.builder().build();
             }
         }

@@ -14,8 +14,8 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 import org.hamcrest.Matcher;
@@ -114,15 +114,9 @@ public class FilterOperatorTests extends OperatorTestCase {
     }
 
     public void testReadFromBlock() {
-        DriverContext context = driverContext();
-        List<Page> input = CannedSourceOperator.collectPages(
-            new SequenceBooleanBlockSourceOperator(context.blockFactory(), List.of(true, false, true, false))
-        );
-        List<Page> results = drive(
-            new FilterOperator.FilterOperatorFactory(dvrCtx -> new EvalOperatorTests.LoadFromPage(0)).get(context),
-            input.iterator(),
-            context
-        );
+        var runner = new TestDriverRunner().builder(driverContext());
+        runner.input(new SequenceBooleanBlockSourceOperator(runner.blockFactory(), List.of(true, false, true, false)));
+        List<Page> results = runner.run(new FilterOperator.FilterOperatorFactory(dvrCtx -> new EvalOperatorTests.LoadFromPage(0)));
         List<Boolean> found = new ArrayList<>();
         for (var page : results) {
             BooleanVector lb = page.<BooleanBlock>getBlock(0).asVector();
@@ -130,6 +124,6 @@ public class FilterOperatorTests extends OperatorTestCase {
         }
         assertThat(found, equalTo(List.of(true, true)));
         results.forEach(Page::releaseBlocks);
-        assertThat(context.breaker().getUsed(), equalTo(0L));
+        assertThat(runner.context().breaker().getUsed(), equalTo(0L));
     }
 }

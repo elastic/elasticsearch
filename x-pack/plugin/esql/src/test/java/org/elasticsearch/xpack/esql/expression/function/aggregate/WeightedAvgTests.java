@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.function.Supplier;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -138,7 +137,9 @@ public class WeightedAvgTests extends AbstractAggregationTestCase {
 
                 DataType mulType = fieldTypedData.type() == DataType.DOUBLE || weightTypedData.type() == DataType.DOUBLE
                     ? DataType.DOUBLE
-                    : (fieldTypedData.type() == DataType.LONG || weightTypedData.type() == DataType.LONG ? DataType.LONG : DataType.INTEGER);
+                    : (fieldTypedData.type() == DataType.LONG || weightTypedData.type() == DataType.LONG
+                        ? DataType.LONG
+                        : DataType.INTEGER);
 
                 // Calculate the results one by one to correctly track overflows and exceptions
                 var validMulResults = new ArrayList<Double>();

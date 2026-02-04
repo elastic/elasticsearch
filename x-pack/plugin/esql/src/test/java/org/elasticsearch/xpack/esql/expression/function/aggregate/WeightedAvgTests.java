@@ -45,8 +45,7 @@ public class WeightedAvgTests extends AbstractAggregationTestCase {
 
         for (var number : numberCases) {
             for (var weight : numberCases) {
-                // TODO: Restore and fix
-                // suppliers.add(makeSupplier(number, weight));
+                suppliers.add(makeSupplier(number, weight));
             }
         }
 
@@ -136,22 +135,58 @@ public class WeightedAvgTests extends AbstractAggregationTestCase {
                 }
 
                 var warnings = new HashSet<String>();
-                var weightedSum = IntStream.range(0, fieldValues.size()).mapToDouble(i -> {
-                    var weightedValue = ((Number) fieldValues.get(i)).doubleValue() * ((Number) weightValues.get(i)).doubleValue();
-                    if (Double.isInfinite(weightedValue)) {
-                        warnings.add("Line 1:1: java.lang.ArithmeticException: not a finite double number: " + weightedValue);
-                        return Double.NaN;
+
+                DataType mulType = fieldTypedData.type() == DataType.DOUBLE || weightTypedData.type() == DataType.DOUBLE
+                    ? DataType.DOUBLE
+                    : (fieldTypedData.type() == DataType.LONG || weightTypedData.type() == DataType.LONG ? DataType.LONG : DataType.INTEGER);
+
+                // Calculate the results one by one to correctly track overflows and exceptions
+                var validMulResults = new ArrayList<Double>();
+                for (int i = 0; i < fieldValues.size(); i++) {
+                    Number fieldNum = (Number) fieldValues.get(i);
+                    Number weightNum = (Number) weightValues.get(i);
+
+                    if (mulType == DataType.INTEGER) {
+                        try {
+                            int result = Math.multiplyExact(fieldNum.intValue(), weightNum.intValue());
+                            validMulResults.add((double) result);
+                        } catch (ArithmeticException e) {
+                            warnings.add("Line 1:1: java.lang.ArithmeticException: integer overflow");
+                        }
+                    } else if (mulType == DataType.LONG) {
+                        try {
+                            long result = Math.multiplyExact(fieldNum.longValue(), weightNum.longValue());
+                            validMulResults.add((double) result);
+                        } catch (ArithmeticException e) {
+                            warnings.add("Line 1:1: java.lang.ArithmeticException: long overflow");
+                        }
+                    } else {
+                        double result = fieldNum.doubleValue() * weightNum.doubleValue();
+                        if (Double.isFinite(result)) {
+                            validMulResults.add(result);
+                        } else {
+                            warnings.add("Line 1:1: java.lang.ArithmeticException: not a finite double number: " + result);
+                        }
                     }
-                    return weightedValue;
-                }).sum();
-                var totalWeights = weightValues.stream().mapToDouble(v -> ((Number) v).doubleValue()).sum();
+                }
 
-                var expected = totalWeights == 0 ? null : weightedSum / totalWeights;
+                // If all Mul operations failed, Sum returns null (no values to aggregate)
+                // Otherwise, Sum returns the sum of valid values
+                Double weightedSum = validMulResults.isEmpty() ? null : validMulResults.stream().mapToDouble(d -> d).sum();
+                double totalWeights = weightValues.stream().mapToDouble(v -> ((Number) v).doubleValue()).sum();
 
-                if (totalWeights == 0.0 && fieldValues.isEmpty() == false) {
-                    warnings.add("Line 1:1: java.lang.ArithmeticException: / by zero");
-                } else if (expected != null && Double.isFinite(expected) == false) {
-                    expected = null;
+                Double expected = null;
+                if (weightedSum != null) {
+                    if (totalWeights == 0.0 && fieldValues.isEmpty() == false) {
+                        warnings.add("Line 1:1: java.lang.ArithmeticException: / by zero");
+                    } else if (totalWeights != 0.0) {
+                        var result = weightedSum / totalWeights;
+                        if (Double.isInfinite(result) || Double.isNaN(result)) {
+                            warnings.add("Line 1:1: java.lang.ArithmeticException: / by zero");
+                        } else {
+                            expected = result;
+                        }
+                    }
                 }
 
                 if (warnings.isEmpty() == false) {

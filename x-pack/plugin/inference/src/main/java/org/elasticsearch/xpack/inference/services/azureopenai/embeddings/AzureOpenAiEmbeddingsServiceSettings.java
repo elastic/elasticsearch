@@ -31,7 +31,6 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
@@ -88,7 +87,12 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
         String resourceName = extractRequiredString(map, RESOURCE_NAME, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String deploymentId = extractRequiredString(map, DEPLOYMENT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String apiVersion = extractRequiredString(map, API_VERSION, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        Integer dimensions = extractOptionalPositiveInteger(
+            map,
+            ServiceFields.DIMENSIONS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
         Integer maxInputTokens = extractOptionalPositiveInteger(
             map,
             MAX_INPUT_TOKENS,
@@ -119,6 +123,11 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
                 if (dimensionsSetByUser == null) {
                     validationException.addValidationError(
                         InferenceUtils.missingSettingErrorMsg(ServiceFields.DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
+                    );
+                } else if (dimensionsSetByUser && dimensions == null) {
+                    // if dimensions were set by the user, they must be present in persistent settings
+                    validationException.addValidationError(
+                        InferenceUtils.missingSettingErrorMsg(ServiceFields.DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS)
                     );
                 }
             }
@@ -265,7 +274,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
         var extractedApiVersion = extractOptionalString(map, API_VERSION, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var extractedDimensions = extractOptionalPositiveInteger(
             map,
-            DIMENSIONS,
+            ServiceFields.DIMENSIONS,
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
@@ -320,7 +329,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
         builder.field(API_VERSION, apiVersion);
 
         if (dimensions != null) {
-            builder.field(DIMENSIONS, dimensions);
+            builder.field(ServiceFields.DIMENSIONS, dimensions);
         }
         if (maxInputTokens != null) {
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);

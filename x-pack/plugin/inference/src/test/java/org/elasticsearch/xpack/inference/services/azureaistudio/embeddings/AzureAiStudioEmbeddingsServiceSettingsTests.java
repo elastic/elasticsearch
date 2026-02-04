@@ -54,7 +54,15 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
     private static final SimilarityMeasure TEST_SIMILARITY_MEASURE = SimilarityMeasure.COSINE;
     private static final SimilarityMeasure INITIAL_SIMILARITY_MEASURE = SimilarityMeasure.DOT_PRODUCT;
 
-    public void testUpdateServiceSettings_AllFields_Success() {
+    public void testUpdateServiceSettings_AllFields_DimensionsSetByUserFalse_Success() {
+        testUpdateServiceSettings_AllFields_Success(false);
+    }
+
+    public void testUpdateServiceSettings_AllFields_DimensionsSetByUserTrue_Success() {
+        testUpdateServiceSettings_AllFields_Success(true);
+    }
+
+    private static void testUpdateServiceSettings_AllFields_Success(boolean dimensionsSetByUser) {
         var settingsMap = createRequestSettingsMap(
             TEST_TARGET,
             TEST_PROVIDER.toString(),
@@ -70,7 +78,7 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
             INITIAL_TEST_PROVIDER,
             INITIAL_TEST_ENDPOINT_TYPE,
             INITIAL_TEST_DIMENSIONS,
-            false,
+            dimensionsSetByUser,
             INITIAL_TEST_MAX_INPUT_TOKENS,
             INITIAL_SIMILARITY_MEASURE,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)

@@ -165,6 +165,16 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             "*can be assigned to node*"
         );
         assertDecisionMatches(
+            "Unassigned shard shouldn't be allocated to hot-spotting node with low utilisation",
+            writeLoadDecider.canAllocate(
+                testHarness.unassignedShardRouting,
+                testHarness.aboveQueueingThresholdWithLowUtilisationNode,
+                testHarness.routingAllocation
+            ),
+            Decision.Type.NOT_PREFERRED,
+            "Node [*] is currently hotspotting or in a waiting period, and does not prefer shards moved onto it"
+        );
+        assertDecisionMatches(
             "Assigning a new shard to a node that has capacity should succeed",
             writeLoadDecider.canAllocate(
                 testHarness.shardRoutingOnNodeExceedingUtilThreshold,
@@ -474,6 +484,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         RoutingNode nearThresholdRoutingNode,
         RoutingNode belowQueuingThresholdRoutingNode,
         RoutingNode aboveQueuingThresholdRoutingNode,
+        RoutingNode aboveQueueingThresholdWithLowUtilisationNode,
         ShardRouting shardRoutingOnNodeExceedingUtilThreshold,
         ShardRouting shardRoutingOnNodeBelowUtilThreshold,
         ShardRouting shardRoutingNoWriteLoad,
@@ -494,10 +505,10 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(
             new String[] { indexName },
             numberOfShards,
-            3
+            4
         );
-        // The number of data nodes the util method above creates is numberOfReplicas+2, and five data nodes are needed for this test.
-        assertEquals(5, clusterState.nodes().size());
+        // The number of data nodes the util method above creates is numberOfReplicas+2, and six data nodes are needed for this test.
+        assertEquals(6, clusterState.nodes().size());
         assertEquals(1, clusterState.metadata().getTotalNumberOfIndices());
 
         /**
@@ -515,6 +526,8 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         var queuingBelowThresholdDiscoveryNode4 = discoveryNodeIterator.next();
         assertTrue(discoveryNodeIterator.hasNext());
         var queuingAboveThresholdDiscoveryNode5 = discoveryNodeIterator.next();
+        assertTrue(discoveryNodeIterator.hasNext());
+        var belowThresholdWithHighQueueLatencyNode6 = discoveryNodeIterator.next();
         assertFalse(discoveryNodeIterator.hasNext());
 
         var indexIterator = clusterState.metadata().indicesAllProjects().iterator();
@@ -554,6 +567,12 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             0.99f,
             15_000
         );
+        var nodeThreadPoolStatsWithLowUtilisationAndHighQueueing = createNodeUsageStatsForThreadPools(
+            belowThresholdDiscoveryNode2,
+            8,
+            0.50f,
+            15_000
+        );
 
         // Create a map of usage per node.
         var nodeIdToNodeUsageStatsForThreadPools = new HashMap<String, NodeUsageStatsForThreadPools>();
@@ -562,9 +581,16 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         nodeIdToNodeUsageStatsForThreadPools.put(nearThresholdDiscoveryNode3.getId(), nodeThreadPoolStatsWithWriteNearThreshold);
         nodeIdToNodeUsageStatsForThreadPools.put(queuingBelowThresholdDiscoveryNode4.getId(), nodeThreadPoolStatsWithQueuingBelowThreshold);
         nodeIdToNodeUsageStatsForThreadPools.put(queuingAboveThresholdDiscoveryNode5.getId(), nodeThreadPoolStatsWithQueuingAboveThreshold);
+        nodeIdToNodeUsageStatsForThreadPools.put(
+            belowThresholdWithHighQueueLatencyNode6.getId(),
+            nodeThreadPoolStatsWithLowUtilisationAndHighQueueing
+        );
 
         // create a set of hotspots
-        var nodeIdsWriteLoadHotspotting = Set.of(queuingAboveThresholdDiscoveryNode5.getId());
+        var nodeIdsWriteLoadHotspotting = Set.of(
+            queuingAboveThresholdDiscoveryNode5.getId(),
+            belowThresholdWithHighQueueLatencyNode6.getId()
+        );
 
         // Create a map of usage per shard.
         var shardIdToWriteLoadEstimate = new HashMap<ShardId, Double>();
@@ -662,6 +688,10 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             queuingAboveThresholdDiscoveryNode5,
             shardRoutingOnNodeAboveQueueThreshold
         );
+        RoutingNode belowUtilisationThresholdButHighQueueLatencyNode = RoutingNodesHelper.routingNode(
+            belowThresholdWithHighQueueLatencyNode6.getId(),
+            belowThresholdWithHighQueueLatencyNode6
+        );
 
         return new TestHarness(
             clusterState,
@@ -671,6 +701,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             nearThresholdRoutingNode,
             belowQueuingThresholdRoutingNode,
             aboveQueuingThresholdRoutingNode,
+            belowUtilisationThresholdButHighQueueLatencyNode,
             shardRoutingOnNodeExceedingUtilThreshold,
             shardRoutingOnNodeBelowUtilThreshold,
             shardRoutingNoWriteLoad,

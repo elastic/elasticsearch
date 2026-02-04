@@ -43,6 +43,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -252,7 +253,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             int[] cluster = assignmentsByCluster[c];
             long offset = postingsOutput.alignFilePointer(Float.BYTES) - fileOffset;
             offsets.add(offset);
-            postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.squareDistance(centroid, centroidClusters.getCentroid(c))));
+            postingsOutput.writeInt(Float.floatToIntBits(ESVectorUtil.squareDistance(centroid, centroidClusters.getCentroid(c))));
             int size = cluster.length;
             // write docIds
             postingsOutput.writeVInt(size);
@@ -326,8 +327,8 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 );
                 if (parentCentroid != null) {
                     float additionalCorrection = vectorSimilarityFunction == VectorSimilarityFunction.EUCLIDEAN
-                        ? VectorUtil.squareDistance(vector, parentCentroid)
-                        : VectorUtil.dotProduct(scratch, parentCentroid);
+                        ? ESVectorUtil.squareDistance(vector, parentCentroid)
+                        : ESVectorUtil.dotProduct(scratch, parentCentroid);
                     result = new OptimizedScalarQuantizer.QuantizationResult(
                         result.lowerInterval(),
                         result.upperInterval(),
@@ -345,8 +346,8 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                     result = quantizer.scalarQuantize(vector, scratch, quantized, quantEncoding.bits(), overspillCentroid);
                     if (overspillParentCentroid != null) {
                         float additionalCorrection = vectorSimilarityFunction == VectorSimilarityFunction.EUCLIDEAN
-                            ? VectorUtil.squareDistance(vector, overspillParentCentroid)
-                            : VectorUtil.dotProduct(scratch, overspillParentCentroid);
+                            ? ESVectorUtil.squareDistance(vector, overspillParentCentroid)
+                            : ESVectorUtil.dotProduct(scratch, overspillParentCentroid);
                         result = new OptimizedScalarQuantizer.QuantizationResult(
                             result.lowerInterval(),
                             result.upperInterval(),
@@ -422,7 +423,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 boolean[] isOverspill = isOverspillByCluster[c];
                 long offset = postingsOutput.alignFilePointer(Float.BYTES) - fileOffset;
                 offsets.add(offset);
-                postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.squareDistance(centroid, centroidClusters.getCentroid(c))));
+                postingsOutput.writeInt(Float.floatToIntBits(ESVectorUtil.squareDistance(centroid, centroidClusters.getCentroid(c))));
                 // write docIds
                 int size = cluster.length;
                 postingsOutput.writeVInt(size);
@@ -936,8 +937,8 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             // note, with a parent centroid, our correction needs to take it into account
             if (currentParentCentroid != null) {
                 float additionalCorrection = similarityFunction == VectorSimilarityFunction.EUCLIDEAN
-                    ? VectorUtil.squareDistance(vector, currentParentCentroid)
-                    : VectorUtil.dotProduct(floatVectorScratch, currentParentCentroid);
+                    ? ESVectorUtil.squareDistance(vector, currentParentCentroid)
+                    : ESVectorUtil.dotProduct(floatVectorScratch, currentParentCentroid);
                 corrections = new OptimizedScalarQuantizer.QuantizationResult(
                     corrections.lowerInterval(),
                     corrections.upperInterval(),

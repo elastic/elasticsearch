@@ -786,7 +786,10 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     private Stream<Batch> allBatchesStreamWithPriority(Priority priority) {
-        return allBatchesStream().filter(batch -> batch.getPriority() == priority);
+        return Stream.concat(
+            Stream.ofNullable(currentlyExecutingBatch).filter(batch -> batch.getPriority() == priority),
+            Stream.ofNullable(queuesByPriority.get(priority)).flatMap(q -> q.queue.stream())
+        );
     }
 
     private void logExecutionTime(TimeValue executionTime, String activity, BatchSummary summary) {

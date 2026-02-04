@@ -33,7 +33,6 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class PercentileTests extends AbstractAggregationTestCase {

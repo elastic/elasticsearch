@@ -29,10 +29,7 @@ public class RemoteWriteProtosTests extends ESTestCase {
      * Tests building a Label message using the builder pattern.
      */
     public void testBuildLabel() {
-        Label label = Label.newBuilder()
-            .setName("__name__")
-            .setValue("http_requests_total")
-            .build();
+        Label label = Label.newBuilder().setName("__name__").setValue("http_requests_total").build();
 
         assertThat(label.getName(), equalTo("__name__"));
         assertThat(label.getValue(), equalTo("http_requests_total"));
@@ -45,10 +42,7 @@ public class RemoteWriteProtosTests extends ESTestCase {
         long timestamp = System.currentTimeMillis();
         double value = 42.5;
 
-        Sample sample = Sample.newBuilder()
-            .setValue(value)
-            .setTimestamp(timestamp)
-            .build();
+        Sample sample = Sample.newBuilder().setValue(value).setTimestamp(timestamp).build();
 
         assertThat(sample.getValue(), closeTo(value, 0.0001));
         assertThat(sample.getTimestamp(), equalTo(timestamp));
@@ -58,25 +52,13 @@ public class RemoteWriteProtosTests extends ESTestCase {
      * Tests building a TimeSeries message with labels and samples.
      */
     public void testBuildTimeSeries() {
-        Label nameLabel = Label.newBuilder()
-            .setName("__name__")
-            .setValue("cpu_usage")
-            .build();
+        Label nameLabel = Label.newBuilder().setName("__name__").setValue("cpu_usage").build();
 
-        Label instanceLabel = Label.newBuilder()
-            .setName("instance")
-            .setValue("localhost:9090")
-            .build();
+        Label instanceLabel = Label.newBuilder().setName("instance").setValue("localhost:9090").build();
 
-        Sample sample1 = Sample.newBuilder()
-            .setValue(0.75)
-            .setTimestamp(1000L)
-            .build();
+        Sample sample1 = Sample.newBuilder().setValue(0.75).setTimestamp(1000L).build();
 
-        Sample sample2 = Sample.newBuilder()
-            .setValue(0.80)
-            .setTimestamp(2000L)
-            .build();
+        Sample sample2 = Sample.newBuilder().setValue(0.80).setTimestamp(2000L).build();
 
         TimeSeries timeSeries = TimeSeries.newBuilder()
             .addLabels(nameLabel)
@@ -107,10 +89,7 @@ public class RemoteWriteProtosTests extends ESTestCase {
             .addSamples(Sample.newBuilder().setValue(2.0).setTimestamp(2000L).build())
             .build();
 
-        WriteRequest writeRequest = WriteRequest.newBuilder()
-            .addTimeseries(timeSeries1)
-            .addTimeseries(timeSeries2)
-            .build();
+        WriteRequest writeRequest = WriteRequest.newBuilder().addTimeseries(timeSeries1).addTimeseries(timeSeries2).build();
 
         assertThat(writeRequest.getTimeseriesCount(), equalTo(2));
         assertThat(writeRequest.getTimeseries(0).getLabels(0).getValue(), equalTo("metric1"));

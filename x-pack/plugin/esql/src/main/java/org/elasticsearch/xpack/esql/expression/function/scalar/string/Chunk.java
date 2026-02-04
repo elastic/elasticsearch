@@ -84,7 +84,8 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
         @Param(
             name = "field",
             type = { "keyword", "text" },
-            description = "The input to chunk. The input can be a single-valued or multi-valued field."
+            description = "The input to chunk. The input can be a single-valued or multi-valued field. In the case of a multi-valued "
+                + "argument, each value is chunked separately."
         ) Expression field,
         @MapParam(
             name = "chunking_settings",

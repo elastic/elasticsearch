@@ -223,10 +223,22 @@ chunkMv
 required_capability: chunk_function_v2
 required_capability: chunk_mv
 
-ROW text = ["Hello world. This is a test.", "Another sentence here."]
-| EVAL chunks = CHUNK(text, {"strategy": "sentence", "max_chunk_size": 20, "sentence_overlap": 0})
+ROW result = CHUNK(
+    [
+        "Hello world. This is a test.",
+        "It was the best of times, it was the worst of times, it was the age of wisdom, it was the age of foolishness, it was the epoch of belief."
+    ],
+    {"strategy": "word", "max_chunk_size": 10, "overlap": 1}
+)
 ;
 
-text:keyword                                                  | chunks:keyword
-["Hello world. This is a test.", "Another sentence here."] | [Hello world. This is a test., Another sentence here.]
+chunkTextWithMultivaluedExpression
+required_capability: chunk_function_v2
+required_capability: chunk_mv
+
+FROM books
+| EVAL chunks = CHUNK(MV_UNION(description, title),  {"strategy": "word", "max_chunk_size": 10, "overlap": 1})
+| SORT book_no
+| LIMIT 3
+| KEEP book_no, title, chunks
 ;

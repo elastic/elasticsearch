@@ -1,5 +1,0 @@
-pr: 137567
-summary: '`TransportGetBasicStatusAction` runs on local'
-area: Distributed
-type: enhancement
-issues: []

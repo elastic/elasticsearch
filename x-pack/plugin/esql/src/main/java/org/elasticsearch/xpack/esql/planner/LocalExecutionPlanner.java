@@ -894,7 +894,11 @@ public class LocalExecutionPlanner {
             MappedFieldType.FieldExtractPreference.NONE
         );
 
-        PhysicalOperation sourceWithMetadata = physicalOperationProviders.fieldExtractPhysicalOperation(metadataExtractExec, dedupedSource);
+        PhysicalOperation sourceWithMetadata = physicalOperationProviders.fieldExtractPhysicalOperation(
+            metadataExtractExec,
+            dedupedSource,
+            context
+        );
 
         int metadataSourceChannel = sourceWithMetadata.layout.get(metadataSourceAttr.id()).channel();
         int indexChannel = sourceWithMetadata.layout.get(indexAttr.id()).channel();

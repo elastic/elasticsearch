@@ -152,6 +152,9 @@ setup:
 
 ---
 "Percentiles aggregation":
+  - requires:
+      cluster_features: [ "search.exponential_histogram_querydsl_percentiles" ]
+      reason: exponential_histogram percentile aggregations was introduced
   - do:
       search:
         index: test_exponential_histogram

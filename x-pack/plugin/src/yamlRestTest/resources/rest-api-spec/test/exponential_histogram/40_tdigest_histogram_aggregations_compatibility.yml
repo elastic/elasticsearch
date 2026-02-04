@@ -171,6 +171,9 @@ setup:
 
 ---
 "Percentiles aggregation over tdigest and exponential_histogram":
+  - requires:
+      cluster_features: [ "search.exponential_histogram_querydsl_percentiles" ]
+      reason: exponential_histogram percentile aggregations was introduced
   - do:
       search:
         index: test-data-stream

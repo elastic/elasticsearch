@@ -28,6 +28,7 @@ import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
@@ -258,7 +259,7 @@ public class LuceneSliceQueueTests extends ESTestCase {
                     int querySize = randomIntBetween(1, 5);
                     List<LuceneSliceQueue.QueryAndTags> queries = new ArrayList<>();
                     for (int i = 0; i < querySize; i++) {
-                        queries.add(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of()));
+                        queries.add(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of()));
                     }
                     shardQueries.add(queries);
 

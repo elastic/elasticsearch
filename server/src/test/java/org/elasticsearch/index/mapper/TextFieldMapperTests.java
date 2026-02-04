@@ -2157,8 +2157,7 @@ public class TextFieldMapperTests extends MapperTestCase {
                 try (DirectoryReader reader = DirectoryReader.open(directory)) {
                     LeafReaderContext ctx = reader.leaves().get(0);
                     BlockLoader blockLoader = mapperService.fieldType("name")
-                        .blockLoader(new DummyBlockLoaderContext.MapperServiceBlockLoaderContext(mapperService) {
-                        });
+                        .blockLoader(new DummyBlockLoaderContext.MapperServiceBlockLoaderContext(mapperService) {});
                     Predicate<Object> exceedIgnoreAbove = v -> {
                         if (v instanceof Collection<?> ls) {
                             return ls.stream().anyMatch(s -> s.toString().length() > ignoreAbove);
@@ -2201,12 +2200,8 @@ public class TextFieldMapperTests extends MapperTestCase {
                     } else {
                         var columnReader = blockLoader.columnAtATimeReader(ctx);
                         assertNotNull(columnReader);
-                        testBlock = (TestBlock) columnReader.read(
-                            TestBlock.factory(),
-                            TestBlock.docs(IntStream.range(0, numDocs).toArray()),
-                            0,
-                            randomBoolean()
-                        );
+                        testBlock = (TestBlock) columnReader.get()
+                            .read(TestBlock.factory(), TestBlock.docs(IntStream.range(0, numDocs).toArray()), 0, randomBoolean());
                     }
                     for (int i = 0; i < textValues.size(); i++) {
                         Object expected = textValues.get(i);

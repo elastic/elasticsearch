@@ -173,7 +173,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     }
 
     @Override
-    public final PhysicalOperation fieldExtractPhysicalOperation(FieldExtractExec fieldExtractExec, PhysicalOperation source) {
+    public final PhysicalOperation fieldExtractPhysicalOperation(
+        FieldExtractExec fieldExtractExec,
+        PhysicalOperation source,
+        LocalExecutionPlannerContext context
+    ) {
         Layout.Builder layout = source.layout.builder();
         var sourceAttr = fieldExtractExec.sourceAttribute();
         int docChannel = source.layout.get(sourceAttr.id()).channel();
@@ -188,8 +192,16 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 s.storedFieldsSequentialProportion()
             )
         );
+        boolean reuseColumnLoaders = fieldExtractExec.attributesToExtract().size() <= context.plannerSettings()
+            .reuseColumnLoadersThreshold();
         return source.with(
-            new ValuesSourceReaderOperator.Factory(plannerSettings.valuesLoadingJumboSize(), fields, readers, docChannel),
+            new ValuesSourceReaderOperator.Factory(
+                plannerSettings.valuesLoadingJumboSize(),
+                fields,
+                readers,
+                reuseColumnLoaders,
+                docChannel
+            ),
             layout.build()
         );
     }

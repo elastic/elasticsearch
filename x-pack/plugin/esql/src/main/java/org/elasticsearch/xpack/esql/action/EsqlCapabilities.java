@@ -1787,6 +1787,11 @@ public class EsqlCapabilities {
         LOOKUP_JOIN_SEMANTIC_FILTER_DEDUP,
 
         /**
+         * Warning when SORT is followed by LOOKUP JOIN which does not preserve order.
+         */
+        LOOKUP_JOIN_SORT_WARNING,
+
+        /**
          * Temporarily forbid the use of an explicit or implicit LIMIT before INLINE STATS.
          */
         FORBID_LIMIT_BEFORE_INLINE_STATS(INLINE_STATS.enabled),
@@ -2051,6 +2056,11 @@ public class EsqlCapabilities {
          * Support for configuring T-Digest elasticsearch field as a time series metric.
          */
         TDIGEST_TIME_SERIES_METRIC,
+
+        /**
+         * Fix bug with TS command where you can't group on aliases (i.e. `by c = cluster`)
+         */
+        TS_COMMAND_GROUP_ON_ALIASES,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

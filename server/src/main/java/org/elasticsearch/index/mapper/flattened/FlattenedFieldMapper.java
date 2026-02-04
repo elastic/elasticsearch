@@ -12,7 +12,6 @@ package org.elasticsearch.index.mapper.flattened;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.OrdinalMap;
@@ -22,6 +21,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -33,6 +33,7 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -41,6 +42,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -48,9 +50,14 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
+import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -76,14 +83,17 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -184,9 +194,15 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         private final IndexMode indexMode;
         private final IndexVersion indexCreatedVersion;
+        private final boolean usesBinaryDocValues;
 
         public static FieldMapper.Parameter<List<String>> dimensionsParam(Function<FieldMapper, List<String>> initializer) {
             return FieldMapper.Parameter.stringArrayParam(TIME_SERIES_DIMENSIONS_ARRAY_PARAM, false, initializer);
+        }
+
+        private static boolean usesBinaryDocValues(IndexSettings indexSettings) {
+            return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.FLATTENED_FIELD_TSDB_CODEC_USE_BINARY_DOC_VALUES)
+                && indexSettings.useTimeSeriesDocValuesFormat();
         }
 
         public Builder(final String name) {
@@ -194,7 +210,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 name,
                 IgnoreAbove.getIgnoreAboveDefaultValue(IndexMode.STANDARD, IndexVersion.current()),
                 IndexMode.STANDARD,
-                IndexVersion.current()
+                IndexVersion.current(),
+                false
             );
         }
 
@@ -203,17 +220,25 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 name,
                 IGNORE_ABOVE_SETTING.get(mappingParserContext.getSettings()),
                 mappingParserContext.getIndexSettings().getMode(),
-                mappingParserContext.indexVersionCreated()
+                mappingParserContext.indexVersionCreated(),
+                usesBinaryDocValues(mappingParserContext.getIndexSettings())
             );
         }
 
-        private Builder(String name, int ignoreAboveDefault, IndexMode indexMode, IndexVersion indexCreatedVersion) {
+        private Builder(
+            String name,
+            int ignoreAboveDefault,
+            IndexMode indexMode,
+            IndexVersion indexCreatedVersion,
+            boolean usesBinaryDocValues
+        ) {
             super(name);
             this.ignoreAboveDefault = ignoreAboveDefault;
             this.indexMode = indexMode;
             this.indexCreatedVersion = indexCreatedVersion;
             this.ignoreAbove = Parameter.ignoreAboveParam(m -> builder(m).ignoreAbove.get(), ignoreAboveDefault);
             this.dimensions.precludesParameters(ignoreAbove);
+            this.usesBinaryDocValues = usesBinaryDocValues;
         }
 
         @Override
@@ -248,7 +273,10 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 splitQueriesOnWhitespace.get(),
                 eagerGlobalOrdinals.get(),
                 dimensions.get(),
-                new IgnoreAbove(ignoreAbove.getValue(), indexMode, indexCreatedVersion)
+                new IgnoreAbove(ignoreAbove.getValue(), indexMode, indexCreatedVersion),
+                usesBinaryDocValues,
+                nullValue.get(),
+                context.isSourceSynthetic()
             );
             return new FlattenedFieldMapper(leafName(), ft, builderParams(this, context), this);
         }
@@ -264,6 +292,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         private final String key;
         private final String rootName;
         private final boolean isDimension;
+        private final boolean usesBinaryDocValues;
 
         @Override
         public boolean isDimension() {
@@ -276,7 +305,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
             String key,
             boolean splitQueriesOnWhitespace,
             Map<String, String> meta,
-            boolean isDimension
+            boolean isDimension,
+            boolean usesBinaryDocValues
         ) {
             super(
                 rootName + KEYED_FIELD_SUFFIX,
@@ -288,10 +318,19 @@ public final class FlattenedFieldMapper extends FieldMapper {
             this.key = key;
             this.rootName = rootName;
             this.isDimension = isDimension;
+            this.usesBinaryDocValues = usesBinaryDocValues;
         }
 
-        private KeyedFlattenedFieldType(String rootName, String key, RootFlattenedFieldType ref) {
-            this(rootName, ref.indexType(), key, ref.splitQueriesOnWhitespace, ref.meta(), ref.dimensions.contains(key));
+        private KeyedFlattenedFieldType(String rootName, String key, RootFlattenedFieldType ref, boolean usesBinaryDocValues) {
+            this(
+                rootName,
+                ref.indexType(),
+                key,
+                ref.splitQueriesOnWhitespace,
+                ref.meta(),
+                ref.dimensions.contains(key),
+                usesBinaryDocValues
+            );
         }
 
         @Override
@@ -421,7 +460,12 @@ public final class FlattenedFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new KeyedFlattenedFieldData.Builder(name(), key, (dv, n) -> new FlattenedDocValuesField(FieldData.toString(dv), n));
+
+            if (usesBinaryDocValues) {
+                return new BinaryKeyedFlattenedFieldData.Builder(name(), key, FlattenedDocValuesField::new);
+            } else {
+                return new KeyedFlattenedFieldData.Builder(name(), key, (dv, n) -> new FlattenedDocValuesField(FieldData.toString(dv), n));
+            }
         }
 
         @Override
@@ -661,6 +705,86 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
     }
 
+    public static final class BinaryKeyedFlattenedFieldData implements IndexFieldData<LeafFieldData> {
+        private final String key;
+        private final BytesBinaryIndexFieldData delegate;
+        private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
+
+        private BinaryKeyedFlattenedFieldData(
+            String key,
+            BytesBinaryIndexFieldData delegate,
+            ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory
+        ) {
+            this.delegate = delegate;
+            this.key = key;
+            this.toScriptFieldFactory = toScriptFieldFactory;
+        }
+
+        public String getKey() {
+            return key;
+        }
+
+        @Override
+        public String getFieldName() {
+            return delegate.getFieldName();
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            return delegate.getValuesSourceType();
+        }
+
+        @Override
+        public SortField sortField(Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested, boolean reverse) {
+            XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
+            return new SortField(getFieldName(), source, reverse);
+        }
+
+        @Override
+        public BucketedSort newBucketedSort(
+            BigArrays bigArrays,
+            Object missingValue,
+            MultiValueMode sortMode,
+            Nested nested,
+            SortOrder sortOrder,
+            DocValueFormat format,
+            int bucketSize,
+            BucketedSort.ExtraData extra
+        ) {
+            throw new IllegalArgumentException("only supported on numeric fields");
+        }
+
+        @Override
+        public LeafFieldData load(LeafReaderContext context) {
+            LeafFieldData fieldData = delegate.load(context);
+            return new BinaryKeyedFlattenedLeafFieldData(key, fieldData, toScriptFieldFactory);
+        }
+
+        @Override
+        public LeafFieldData loadDirect(LeafReaderContext context) throws Exception {
+            LeafFieldData fieldData = delegate.loadDirect(context);
+            return new BinaryKeyedFlattenedLeafFieldData(key, fieldData, toScriptFieldFactory);
+        }
+
+        public static class Builder implements IndexFieldData.Builder {
+            private final String fieldName;
+            private final String key;
+            private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
+
+            Builder(String fieldName, String key, ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory) {
+                this.fieldName = fieldName;
+                this.key = key;
+                this.toScriptFieldFactory = toScriptFieldFactory;
+            }
+
+            @Override
+            public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
+                var delegate = new BytesBinaryIndexFieldData(fieldName, CoreValuesSourceType.KEYWORD, toScriptFieldFactory);
+                return new BinaryKeyedFlattenedFieldData(key, delegate, toScriptFieldFactory);
+            }
+        }
+    }
+
     /**
      * A field type that represents all 'root' values. This field type is used in
      * searches on the flattened field itself, e.g. 'my_flattened: some_value'.
@@ -671,6 +795,9 @@ public final class FlattenedFieldMapper extends FieldMapper {
         private final List<String> dimensions;
         private final boolean isDimension;
         private final IgnoreAbove ignoreAbove;
+        private final boolean usesBinaryDocValues;
+        private final String nullValue;
+        private final boolean isSyntheticSourceEnabled;
 
         RootFlattenedFieldType(
             String name,
@@ -678,9 +805,23 @@ public final class FlattenedFieldMapper extends FieldMapper {
             Map<String, String> meta,
             boolean splitQueriesOnWhitespace,
             boolean eagerGlobalOrdinals,
-            IgnoreAbove ignoreAbove
+            IgnoreAbove ignoreAbove,
+            boolean usesBinaryDocValues,
+            String nullValue,
+            boolean isSyntheticSourceEnabled
         ) {
-            this(name, indexType, meta, splitQueriesOnWhitespace, eagerGlobalOrdinals, Collections.emptyList(), ignoreAbove);
+            this(
+                name,
+                indexType,
+                meta,
+                splitQueriesOnWhitespace,
+                eagerGlobalOrdinals,
+                Collections.emptyList(),
+                ignoreAbove,
+                usesBinaryDocValues,
+                nullValue,
+                isSyntheticSourceEnabled
+            );
         }
 
         RootFlattenedFieldType(
@@ -690,7 +831,10 @@ public final class FlattenedFieldMapper extends FieldMapper {
             boolean splitQueriesOnWhitespace,
             boolean eagerGlobalOrdinals,
             List<String> dimensions,
-            IgnoreAbove ignoreAbove
+            IgnoreAbove ignoreAbove,
+            boolean usesBinaryDocValues,
+            String nullValue,
+            boolean isSyntheticSourceEnabled
         ) {
             super(
                 name,
@@ -704,11 +848,54 @@ public final class FlattenedFieldMapper extends FieldMapper {
             this.dimensions = dimensions;
             this.isDimension = dimensions.isEmpty() == false;
             this.ignoreAbove = ignoreAbove;
+            this.usesBinaryDocValues = usesBinaryDocValues;
+            this.nullValue = nullValue;
+            this.isSyntheticSourceEnabled = isSyntheticSourceEnabled;
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (hasDocValues() && (ignoreAbove.valuesPotentiallyIgnored() == false || isSyntheticSourceEnabled)) {
+                return new RootFlattenedDocValuesBlockLoader(name(), ignoreAbove, usesBinaryDocValues);
+            }
+
+            SourceValueFetcher fetcher = new SourceValueFetcher(
+                blContext.sourcePaths(name()),
+                nullValue,
+                blContext.indexSettings().getIgnoredSourceFormat()
+            ) {
+                @Override
+                @SuppressWarnings("unchecked")
+                protected Object parseSourceValue(Object value) {
+                    try {
+                        return Strings.toString(XContentFactory.jsonBuilder().map((Map<String, Object>) value));
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }
+            };
+
+            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext));
+        }
+
+        private BlockSourceReader.LeafIteratorLookup sourceBlockLoaderLookup(BlockLoaderContext blContext) {
+            if (hasDocValues() && ignoreAbove().valuesPotentiallyIgnored() == false) {
+                if (usesBinaryDocValues) {
+                    return ctx -> Objects.requireNonNullElseGet(ctx.reader().getBinaryDocValues(name()), DocIdSetIterator::empty);
+                } else {
+                    return ctx -> Objects.requireNonNullElseGet(ctx.reader().getSortedSetDocValues(name()), DocIdSetIterator::empty);
+                }
+            }
+            if (hasDocValues() == false && indexType.hasTerms()) {
+                // We only write the field names field if there aren't doc values or norms
+                return BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name());
+            }
+            return BlockSourceReader.lookupMatchingAll();
         }
 
         @Override
@@ -728,11 +915,16 @@ public final class FlattenedFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(
-                name(),
-                CoreValuesSourceType.KEYWORD,
-                (dv, n) -> new FlattenedDocValuesField(FieldData.toString(dv), n)
-            );
+
+            if (usesBinaryDocValues) {
+                return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, FlattenedDocValuesField::new);
+            } else {
+                return new SortedSetOrdinalsIndexFieldData.Builder(
+                    name(),
+                    CoreValuesSourceType.KEYWORD,
+                    (dv, n) -> new FlattenedDocValuesField(FieldData.toString(dv), n)
+                );
+            }
         }
 
         @Override
@@ -809,11 +1001,17 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         @Override
         public MappedFieldType getChildFieldType(String childPath) {
-            return new KeyedFlattenedFieldType(name(), childPath, this);
+            return new KeyedFlattenedFieldType(name(), childPath, this, usesBinaryDocValues);
         }
 
         public MappedFieldType getKeyedFieldType() {
-            return new KeywordFieldMapper.KeywordFieldType(name() + KEYED_FIELD_SUFFIX);
+            return new KeywordFieldMapper.KeywordFieldType(
+                name() + KEYED_FIELD_SUFFIX,
+                true,
+                true,
+                usesBinaryDocValues,
+                Collections.emptyMap()
+            );
         }
 
         @Override
@@ -847,7 +1045,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
             mappedFieldType,
             builder.depthLimit.get(),
             builder.ignoreAbove.get(),
-            builder.nullValue.get()
+            builder.nullValue.get(),
+            builder.usesBinaryDocValues
         );
     }
 
@@ -889,8 +1088,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         try {
             // make sure that we don't expand dots in field names while parsing
             context.path().setWithinLeafObject(true);
-            List<IndexableField> fields = fieldParser.parse(context);
-            context.doc().addAll(fields);
+            fieldParser.parse(context);
         } finally {
             context.path().setWithinLeafObject(false);
         }
@@ -902,18 +1100,25 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), builder.ignoreAboveDefault, builder.indexMode, builder.indexCreatedVersion).init(this);
+        return new Builder(
+            leafName(),
+            builder.ignoreAboveDefault,
+            builder.indexMode,
+            builder.indexCreatedVersion,
+            builder.usesBinaryDocValues
+        ).init(this);
     }
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (fieldType().hasDocValues()) {
             return new SyntheticSourceSupport.Native(
-                () -> new FlattenedSortedSetDocValuesSyntheticFieldLoader(
+                () -> new FlattenedDocValuesSyntheticFieldLoader(
                     fullPath(),
                     fullPath() + KEYED_FIELD_SUFFIX,
                     fieldType().ignoreAbove.valuesPotentiallyIgnored() ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
-                    leafName()
+                    leafName(),
+                    builder.usesBinaryDocValues
                 )
             );
         }

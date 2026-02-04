@@ -221,6 +221,17 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         assertThat(isIndexVisible("data-stream1", null), is(true));
         assertThat(isIndexVisible("data-stream1", "data"), is(true));
         assertThat(isIndexVisible("data-stream1", "failures"), is(true));
+
+        assertFalse(
+            IndexAbstractionResolver.isIndexVisibleUnderConcreteAccess(
+                "data-stream1",
+                null,
+                IndicesOptions.DEFAULT,
+                projectMetadata,
+                indexNameExpressionResolver,
+                false
+            )
+        );
     }
 
     public void testIsNetNewSystemIndexVisible() {
@@ -379,7 +390,7 @@ public class IndexAbstractionResolverTests extends ESTestCase {
     }
 
     private boolean isIndexVisible(String index, String selector, IndicesOptions indicesOptions) {
-        return IndexAbstractionResolver.isIndexVisible(
+        return IndexAbstractionResolver.isIndexVisibleUnderWildcardAccess(
             "*",
             selector,
             index,

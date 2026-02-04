@@ -116,8 +116,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -193,6 +195,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
@@ -2997,6 +3000,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *       \_EsQueryExec[test], query={"term":{"_tier":{"value":"data_hot","boost":0.0}}}
      */
     public void testPushDownMetadataTierInEquality() {
+        assumeTrue("_tier metadata only available in snapshot builds", Build.current().isSnapshot());
         var plan = physicalPlan("""
             from test metadata _tier
             | where _tier == "data_hot"
@@ -3015,6 +3019,58 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /*
+     * LimitExec[1000[INTEGER],...]
+     * \_ExchangeExec[[...],false]
+     *   \_ProjectExec[[...]]
+     *     \_FieldExtractExec[...]<[],[]>
+     *       \_EsQueryExec[test], query={"terms":{"_tier":["data_hot","data_warm"],"boost":0.0}}
+     */
+    public void testPushDownMetadataTierInOperator() {
+        assumeTrue("_tier metadata only available in snapshot builds", Build.current().isSnapshot());
+        var plan = physicalPlan("""
+            from test metadata _tier
+            | where _tier IN ("data_hot", "data_warm")
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var limit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(limit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        var source = source(extract.child());
+
+        var tq = as(source.query(), TermsQueryBuilder.class);
+        assertThat(tq.fieldName(), is("_tier"));
+        assertThat(tq.values(), containsInAnyOrder("data_hot", "data_warm"));
+    }
+
+    /*
+     * LimitExec[1000[INTEGER],...]
+     * \_ExchangeExec[[...],false]
+     *   \_ProjectExec[[...]]
+     *     \_FieldExtractExec[...]<[],[]>
+     *       \_EsQueryExec[test], query={"terms":{"_tier":["data_hot","data_warm"],"boost":0.0}}
+     */
+    public void testPushDownMetadataTierInOrOperator() {
+        assumeTrue("_tier metadata only available in snapshot builds", Build.current().isSnapshot());
+        var plan = physicalPlan("""
+            from test metadata _tier
+            | where _tier == "data_hot" OR _tier == "data_warm"
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var limit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(limit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        var source = source(extract.child());
+
+        var tq = as(source.query(), TermsQueryBuilder.class);
+        assertThat(tq.fieldName(), is("_tier"));
+        assertThat(tq.values(), containsInAnyOrder("data_hot", "data_warm"));
+    }
+
+    /*
      * LimitExec[1000[INTEGER],..]
      * \_ExchangeExec[[...],false]
      *   \_ProjectExec[[...]]
@@ -3022,6 +3078,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *       \_EsQueryExec[test], query={"bool":{"must_not":[{"term":{"_tier":{"value":"data_hot","boost":0.0}}}],"boost":1.0}}
      */
     public void testPushDownMetadataTierInNotEquality() {
+        assumeTrue("_tier metadata only available in snapshot builds", Build.current().isSnapshot());
         var plan = physicalPlan("""
             from test metadata _tier
             | where _tier != "data_hot"
@@ -3044,11 +3101,51 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     /*
      * LimitExec[1000[INTEGER],...]
      * \_ExchangeExec[[...],false]
+     *   \_ProjectExec[[...]]
+     *     \_FieldExtractExec[...]<[],[]>
+     *       \_EsQueryExec[test], query={"bool":{"must":[
+     *       {"bool":{"must_not":[{"term":{"_tier":{"value":"data_hot","boost":0.0}}}],"boost":0.0}},
+     *       {"bool":{"must_not":[{"term":{"_tier":{"value":"data_warm","boost":0.0}}}],"boost":0.0}}
+     *     ],"boost":1.0}}
+     */
+    public void testPushDownMetadataTierInAndNotOperator() {
+        assumeTrue("_tier metadata only available in snapshot builds", Build.current().isSnapshot());
+        var plan = physicalPlan("""
+            from test metadata _tier
+            | where _tier != "data_hot" AND _tier != "data_warm"
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var limit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(limit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        var source = source(extract.child());
+
+        var bq = as(source.query(), BoolQueryBuilder.class);
+        assertThat(bq.must().size(), is(2));
+        var bq1 = as(bq.must().get(0), BoolQueryBuilder.class);
+        assertThat(bq1.mustNot().size(), is(1));
+        var tq1 = as(bq1.mustNot().get(0), TermQueryBuilder.class);
+        assertThat(bq.must().size(), is(2));
+        assertThat(tq1.fieldName(), is("_tier"));
+        assertThat(tq1.value(), is("data_hot"));
+        var bq2 = as(bq.must().get(1), BoolQueryBuilder.class);
+        assertThat(bq2.mustNot().size(), is(1));
+        var tq2 = as(bq2.mustNot().get(0), TermQueryBuilder.class);
+        assertThat(tq2.fieldName(), is("_tier"));
+        assertThat(tq2.value(), is("data_warm"));
+    }
+
+    /*
+     * LimitExec[1000[INTEGER],...]
+     * \_ExchangeExec[[...],false]
      *   \_ProjectExec[[_meta_field{f}#1816, ..., _tier{m}#1808]]
      *     \_FieldExtractExec[_meta_field{f}#1816, ...]<[],[]>
      *       \_EsQueryExec[test], query={"wildcard":{"_tier":{"wildcard":"data_*","boost":0.0}}}
      */
     public void testPushDownMetadataTierInWildcard() {
+        assumeTrue("_tier metadata only available in snapshot builds", Build.current().isSnapshot());
         var plan = physicalPlan("""
             from test metadata _tier
             | where _tier like "data_*"
@@ -3276,6 +3373,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             () -> testData.physicalOptimizer().verify(planWithInvalidJoinRightSide, plan.output())
         );
         assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references from right hand side [language_code"));
+        assertWarnings(
+            "No limit defined, adding default limit of [1000]",
+            "Line 3:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
+                + "add another SORT after the LOOKUP JOIN if order is required"
+        );
     }
 
     public void testVerifierOnDuplicateOutputAttributes() {
@@ -9399,6 +9501,78 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(rangeQuery.to(), equalTo(endRange));
         assertFalse(rangeQuery.includeLower());
         assertTrue(rangeQuery.includeUpper());
+    }
+
+    /**
+     * <pre>{@code
+     * ProjectExec[[c{r}#4, n{r}#6]]
+     * \_LimitExec[3[INTEGER],null]
+     *   \_ExchangeExec[[c{r}#4, n{r}#6],false]
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+     * Project[[c{r}#4, n{r}#6]]
+     * \_Limit[3[INTEGER],false,false]
+     *   \_InlineJoin[LEFT,[n{r}#6],[n{r}#6]]
+     *     |_Eval[[null[NULL] AS n#6]]
+     *     | \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     *     \_Aggregate[[n{r}#6],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#4, n{r}#6]]
+     *       \_StubRelation[[_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, gender{f}#11, hire_date{f}#16, job{f}#17, job.raw{f}#18, la
+     * nguages{f}#12, last_name{f}#13, long_noidx{f}#19, salary{f}#14, n{r}#6]]<>]]
+     * }</pre>
+     */
+    public void testInlineStatsGroupByNullFromEmployees() {
+        assumeTrue("INLINE STATS must be enabled", INLINE_STATS.isEnabled());
+
+        var query = """
+            FROM test
+            | INLINE STATS c = COUNT(*) BY n = null
+            | KEEP c, n
+            | LIMIT 3
+            """;
+        PhysicalPlan plan = physicalPlanNoSerializationCheck(query);
+        PhysicalPlan optimized = physicalOptimizer().optimize(plan);
+
+        // ProjectExec[[c{r}#4, n{r}#6]]
+        var project = as(optimized, ProjectExec.class);
+        assertThat(Expressions.names(project.projections()), contains("c", "n"));
+
+        // LimitExec[3[INTEGER],null]
+        var limit = as(project.child(), LimitExec.class);
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(3));
+
+        // ExchangeExec[[c{r}#4, n{r}#6],false]
+        var exchange = as(limit.child(), ExchangeExec.class);
+        assertThat(exchange.inBetweenAggs(), equalTo(false));
+        assertThat(Expressions.names(exchange.output()), contains("c", "n"));
+
+        // FragmentExec containing the logical plan
+        var fragment = as(exchange.child(), FragmentExec.class);
+        var fragmentPlan = fragment.fragment();
+
+        // Project[[c{r}#4, n{r}#6]]
+        var fragmentProject = as(fragmentPlan, Project.class);
+        assertThat(Expressions.names(fragmentProject.projections()), contains("c", "n"));
+
+        // Limit[3[INTEGER],false,false]
+        var fragmentLimit = as(fragmentProject.child(), Limit.class);
+        assertThat(fragmentLimit.limit().fold(FoldContext.small()), equalTo(3));
+
+        // InlineJoin[LEFT,[n{r}#6],[n{r}#6]]
+        var inlineJoin = as(fragmentLimit.child(), InlineJoin.class);
+        assertThat(Expressions.names(inlineJoin.config().leftFields()), contains("n"));
+        assertThat(Expressions.names(inlineJoin.config().rightFields()), contains("n"));
+
+        // Left branch: Eval[[null[NULL] AS n#6]] -> EsRelation[test]
+        var leftEval = as(inlineJoin.left(), Eval.class);
+        assertThat(Expressions.names(leftEval.fields()), contains("n"));
+        var alias = as(leftEval.fields().get(0), Alias.class);
+        assertThat(alias.child().fold(FoldContext.small()), nullValue());
+        var esRelation = as(leftEval.child(), EsRelation.class);
+
+        // Right branch: Aggregate[[n{r}#6],[COUNT(*) AS c#4, n{r}#6]] -> StubRelation
+        var aggregate = as(inlineJoin.right(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.aggregates()), contains("c", "n"));
+        assertThat(Expressions.names(aggregate.groupings()), contains("n"));
+        var stubRelation = as(aggregate.child(), StubRelation.class);
     }
 
     @Override

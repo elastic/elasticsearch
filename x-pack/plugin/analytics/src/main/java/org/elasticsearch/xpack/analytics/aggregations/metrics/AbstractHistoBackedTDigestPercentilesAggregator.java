@@ -18,10 +18,10 @@ import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.metrics.HistogramUnionState;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -35,7 +35,7 @@ abstract class AbstractHistoBackedTDigestPercentilesAggregator extends NumericMe
     protected final double[] keys;
     protected final ValuesSource valuesSource;
     protected final DocValueFormat formatter;
-    protected ObjectArray<TDigestState> states;
+    protected ObjectArray<HistogramUnionState> states;
     protected final double compression;
     protected final TDigestExecutionHint executionHint;
     protected final boolean keyed;
@@ -75,7 +75,7 @@ abstract class AbstractHistoBackedTDigestPercentilesAggregator extends NumericMe
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                TDigestState state = getExistingOrNewHistogram(bigArrays(), bucket);
+                HistogramUnionState state = getExistingOrNewHistogram(bigArrays(), bucket);
                 if (values.advanceExact(doc)) {
                     final HistogramValue sketch = values.histogram();
                     while (sketch.next()) {
@@ -86,11 +86,11 @@ abstract class AbstractHistoBackedTDigestPercentilesAggregator extends NumericMe
         };
     }
 
-    private TDigestState getExistingOrNewHistogram(final BigArrays bigArrays, long bucket) {
+    private HistogramUnionState getExistingOrNewHistogram(final BigArrays bigArrays, long bucket) {
         states = bigArrays.grow(states, bucket + 1);
-        TDigestState state = states.get(bucket);
+        HistogramUnionState state = states.get(bucket);
         if (state == null) {
-            state = TDigestState.createWithoutCircuitBreaking(compression, executionHint);
+            state = HistogramUnionState.create(HistogramUnionState.NOOP_BREAKER, executionHint, compression);
             states.set(bucket, state);
         }
         return state;
@@ -101,7 +101,7 @@ abstract class AbstractHistoBackedTDigestPercentilesAggregator extends NumericMe
         return PercentilesConfig.indexOfKey(keys, Double.parseDouble(name)) >= 0;
     }
 
-    protected TDigestState getState(long bucketOrd) {
+    protected HistogramUnionState getState(long bucketOrd) {
         if (bucketOrd >= states.size()) {
             return null;
         }

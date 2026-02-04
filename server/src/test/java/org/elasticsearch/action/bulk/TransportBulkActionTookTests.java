@@ -90,9 +90,9 @@ public class TransportBulkActionTookTests extends ESTestCase {
         super.setUp();
         DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("node")
             .version(
-                VersionUtils.randomCompatibleVersion(random(), Version.CURRENT),
+                VersionUtils.randomCompatibleVersion(Version.CURRENT),
                 IndexVersions.MINIMUM_COMPATIBLE,
-                IndexVersionUtils.randomCompatibleVersion(random())
+                IndexVersionUtils.randomCompatibleVersion()
             )
             .build();
         clusterService = createClusterService(threadPool, discoveryNode);

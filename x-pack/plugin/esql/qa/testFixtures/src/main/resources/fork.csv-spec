@@ -963,3 +963,33 @@ emp_no:integer | _fork:keyword
 10001          | fork1
 10002          | fork2
 ;
+
+forkWithOneEmptyBranch
+required_capability: fork_v9
+
+FROM books METADATA _score
+| WHERE author:"Faulkner"
+| EVAL score = round(_score, 2)
+| FORK (SORT score DESC, author | LIMIT 5 | EVAL x = 1 | WHERE x > 100 | KEEP author)
+       (STATS total = COUNT(*))
+| SORT _fork DESC, author
+;
+
+author:text | _fork:keyword | total:long
+null        | fork2         | 18
+;
+
+forkWithAllEmptyBranches
+required_capability: fork_v9
+required_capability: fn_contains
+
+FROM books METADATA _score
+| WHERE author:"Faulkner"
+| EVAL score = round(_score, 2)
+| FORK (SORT score DESC, author | LIMIT 5 | EVAL x = 1 | WHERE x > 100 | KEEP author)
+       (STATS total = COUNT(*) | WHERE CONTAINS(CONCAT("abc", "def"), "ghi"))
+| SORT _fork DESC, author
+;
+
+author:text | _fork:keyword | total:long
+;

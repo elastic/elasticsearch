@@ -20,7 +20,6 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.bloomfilter.BloomFilter;
 import org.elasticsearch.index.codec.bloomfilter.DelegatingBloomFilterFieldsProducer;
-import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.SyntheticIdField;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -48,10 +47,11 @@ public class TSDBSyntheticIdPostingsFormat extends PostingsFormat {
         boolean success = false;
         try {
             var codec = state.segmentInfo.getCodec();
-            BloomFilter bloomFilter = TSDBStoredFieldsFormat.getBloomFilterForId(state);
-
             // Erase the segment suffix (used only for reading postings)
-            docValuesProducer = codec.docValuesFormat().fieldsProducer(new SegmentReadState(state, ""));
+            SegmentReadState segmentReadState = new SegmentReadState(state, "");
+
+            BloomFilter bloomFilter = BloomFilter.getBloomFilterForId(segmentReadState);
+            docValuesProducer = codec.docValuesFormat().fieldsProducer(segmentReadState);
             var fieldsProducer = new TSDBSyntheticIdFieldsProducer(state, docValuesProducer);
             success = true;
             return new DelegatingBloomFilterFieldsProducer(fieldsProducer, bloomFilter);

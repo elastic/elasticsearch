@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,6 +44,8 @@ import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.joining;
+
 /**
  * Holds execution metadata about ES|QL queries for cross-cluster searches in order to display
  * this information in ES|QL JSON responses.
@@ -67,14 +70,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     private static final TransportVersion ESQL_QUERY_PLANNING_DURATION = TransportVersion.fromName("esql_query_planning_duration");
     public static final TransportVersion EXECUTION_METADATA_VERSION = TransportVersion.fromName("esql_execution_metadata");
     public static final TransportVersion EXECUTION_CLUSTER_NAME_VERSION = TransportVersion.fromName("esql_cluster_name");
-
-    // Map key is clusterAlias on the primary querying cluster of a CCS minimize_roundtrips=true query
-    // The Map itself is immutable after construction - all Clusters will be accounted for at the start of the search.
-    // Updates to the Cluster occur with the updateCluster method that given the key to map transforms an
-    // old Cluster Object to a new Cluster Object with the remapping function.
-    public final ConcurrentMap<String, Cluster> clusterInfo;
-    // Is the clusterInfo map initialization in progress? If so, we should not try to serialize it.
-    private transient volatile boolean clusterInfoInitializing;
+    public static final TransportVersion EXECUTION_PROFILE_FORMAT_VERSION = TransportVersion.fromName("esql_profile_format");
 
     public enum IncludeExecutionMetadata {
         ALWAYS,
@@ -85,43 +81,47 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     // whether the user has asked for execution/CCS metadata to be in the JSON response (the overall took will always be present)
     private final IncludeExecutionMetadata includeExecutionMetadata;
 
+    // Map key is clusterAlias on the primary querying cluster of a CCS minimize_roundtrips=true query
+    // The Map itself is immutable after construction - all Clusters will be accounted for at the start of the search.
+    // Updates to the Cluster occur with the updateCluster method that given the key to map transforms an
+    // old Cluster Object to a new Cluster Object with the remapping function.
+    public final ConcurrentMap<String, Cluster> clusterInfo;
+    // Is the clusterInfo map initialization in progress? If so, we should not try to serialize it.
+    private transient volatile boolean clusterInfoInitializing;
+    // Are we doing subplans? No need to serialize this because it is only relevant for the coordinator node.
+    private transient boolean inSubplan = false;
+
     // fields that are not Writeable since they are only needed on the primary CCS coordinator
     private final transient Predicate<String> skipOnFailurePredicate; // Predicate to determine if we should skip a cluster on failure
     private volatile boolean isPartial; // Does this request have partial results?
     private transient volatile boolean isStopped; // Have we received stop command?
 
-    private final transient TimeSpan.Builder relativeStart;
-    private final PlanningProfile planningProfile;
-    private TimeValue overallTook;
-    private transient TimeSpan overallTimeSpan;
-
-    // Are we doing subplans? No need to serialize this because it is only relevant for the coordinator node.
-    private transient boolean inSubplan = false;
+    private final EsqlQueryProfile queryProfile;
 
     /**
      * @param skipOnPlanTimeFailurePredicate Decides whether we should skip the cluster that fails during planning phase.
      * @param includeExecutionMetadata (user defined setting) whether to include the execution/CCS metadata in the HTTP response
      */
     public EsqlExecutionInfo(Predicate<String> skipOnPlanTimeFailurePredicate, IncludeExecutionMetadata includeExecutionMetadata) {
-        this(new ConcurrentHashMap<>(), skipOnPlanTimeFailurePredicate, includeExecutionMetadata, TimeSpan.start());
+        this(new ConcurrentHashMap<>(), skipOnPlanTimeFailurePredicate, includeExecutionMetadata);
     }
 
     EsqlExecutionInfo(
         ConcurrentMap<String, Cluster> clusterInfo,
         Predicate<String> skipOnPlanTimeFailurePredicate,
-        IncludeExecutionMetadata includeExecutionMetadata,
-        TimeSpan.Builder relativeStart
+        IncludeExecutionMetadata includeExecutionMetadata
     ) {
         assert includeExecutionMetadata != null;
         this.clusterInfo = clusterInfo;
         this.skipOnFailurePredicate = skipOnPlanTimeFailurePredicate;
         this.includeExecutionMetadata = includeExecutionMetadata;
-        this.relativeStart = relativeStart;
-        this.planningProfile = new PlanningProfile();
+        this.queryProfile = new EsqlQueryProfile().start();
     }
 
     public EsqlExecutionInfo(StreamInput in) throws IOException {
-        this.overallTook = in.readOptionalTimeValue();
+        if (in.getTransportVersion().supports(EXECUTION_PROFILE_FORMAT_VERSION) == false) {
+            in.readOptionalTimeValue();
+        }
         this.clusterInfo = in.readMapValues(EsqlExecutionInfo.Cluster::new, Cluster::getClusterAlias, ConcurrentHashMap::new);
         if (in.getTransportVersion().supports(EXECUTION_METADATA_VERSION)) {
             this.includeExecutionMetadata = in.readEnum(IncludeExecutionMetadata.class);
@@ -130,18 +130,16 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         }
         this.isPartial = in.readBoolean();
         this.skipOnFailurePredicate = Predicates.always();
-        this.relativeStart = null;
-        if (in.getTransportVersion().supports(ESQL_QUERY_PLANNING_DURATION)) {
-            this.overallTimeSpan = in.readOptional(TimeSpan::readFrom);
-            this.planningProfile = PlanningProfile.readFrom(in);
-        } else {
-            this.planningProfile = new PlanningProfile();
-        }
+        this.queryProfile = in.getTransportVersion().supports(ESQL_QUERY_PLANNING_DURATION)
+            ? EsqlQueryProfile.readFrom(in)
+            : new EsqlQueryProfile();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalTimeValue(overallTook);
+        if (out.getTransportVersion().supports(EXECUTION_PROFILE_FORMAT_VERSION) == false) {
+            out.writeOptionalTimeValue(overallTook());
+        }
         if (clusterInfo != null && clusterInfoInitializing == false) {
             out.writeCollection(clusterInfo.values());
         } else {
@@ -154,8 +152,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         }
         out.writeBoolean(isPartial);
         if (out.getTransportVersion().supports(ESQL_QUERY_PLANNING_DURATION)) {
-            out.writeOptionalWriteable(overallTimeSpan);
-            planningProfile.writeTo(out);
+            queryProfile.writeTo(out);
         }
 
         assert inSubplan == false : "Should not be serializing execution info while in subplans";
@@ -175,36 +172,20 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      */
     public void markEndQuery() {
         if (isMainPlan()) {
-            overallTimeSpan = relativeStart.stop();
-            overallTook = overallTimeSpan.toTimeValue();
+            queryProfile.stop();
         }
     }
 
-    public void overallTook(TimeValue took) {
-        this.overallTook = took;
-    }
-
     public TimeValue overallTook() {
-        return overallTook;
-    }
-
-    /**
-     * How much time the query took since starting.
-     */
-    public TimeValue tookSoFar() {
-        return relativeStart != null ? relativeStart.stop().toTimeValue() : TimeValue.ZERO;
-    }
-
-    public TimeSpan overallTimeSpan() {
-        return overallTimeSpan;
+        return queryProfile.total().timeTook();
     }
 
     public Set<String> clusterAliases() {
         return clusterInfo.keySet();
     }
 
-    public PlanningProfile planningProfile() {
-        return planningProfile;
+    public EsqlQueryProfile queryProfile() {
+        return queryProfile;
     }
 
     /**
@@ -344,16 +325,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     @Override
     public String toString() {
-        return "EsqlExecutionInfo{"
-            + "overallTook="
-            + overallTook
-            + ", isPartial="
-            + isPartial
-            + ", isStopped="
-            + isStopped
-            + ", clusterInfo="
-            + clusterInfo
-            + '}';
+        return "EsqlExecutionInfo{" + "isPartial=" + isPartial + ", isStopped=" + isStopped + ", clusterInfo=" + clusterInfo + '}';
     }
 
     @Override
@@ -361,12 +333,12 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         EsqlExecutionInfo that = (EsqlExecutionInfo) o;
-        return Objects.equals(clusterInfo, that.clusterInfo) && Objects.equals(overallTook, that.overallTook);
+        return Objects.equals(clusterInfo, that.clusterInfo);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(clusterInfo, overallTook);
+        return Objects.hash(clusterInfo);
     }
 
     public boolean isPartial() {
@@ -667,6 +639,15 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
         public String getIndexExpression() {
             return indexExpression;
+        }
+
+        public String getQualifiedIndexExpression() {
+            if (Objects.equals(clusterAlias, RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+                return indexExpression;
+            }
+            return Stream.of(Strings.splitStringByCommaToArray(indexExpression))
+                .map(pattern -> RemoteClusterAware.buildRemoteIndexName(clusterAlias, pattern))
+                .collect(joining(","));
         }
 
         public boolean isSkipUnavailable() {

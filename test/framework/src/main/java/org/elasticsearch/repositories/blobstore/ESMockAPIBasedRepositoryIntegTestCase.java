@@ -291,7 +291,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
             this.requests = new ConcurrentHashMap<>();
             this.delegate = delegate;
             this.maxErrorsPerRequest = maxErrorsPerRequest;
-            assert maxErrorsPerRequest > 1;
+            assert maxErrorsPerRequest > 0;
         }
 
         @Override

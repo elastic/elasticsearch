@@ -370,3 +370,22 @@ Not under date_histo:
             d:
               derivative:
                 buckets_path: "the_avg"
+
+---
+invalid parent aggregation:
+  - do:
+      catch: /derivative aggregation \[d\] must have a histogram, date_histogram or auto_date_histogram as parent/
+      search:
+        body:
+          aggs:
+            a:
+              filter:
+                term:
+                  a: 1
+              aggs:
+                b:
+                  sum:
+                    field: b
+                d:
+                  derivative:
+                    buckets_path: b

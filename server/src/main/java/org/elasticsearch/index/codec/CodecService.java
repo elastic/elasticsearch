@@ -51,14 +51,12 @@ public class CodecService implements CodecProvider {
 
         boolean useSyntheticId = mapperService != null
             && mapperService.getIndexSettings().useTimeSeriesSyntheticId()
-            && mapperService.getIndexSettings()
-                .getIndexVersionCreated()
-                .onOrAfter(IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID);
+            && mapperService.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94);
 
         var legacyBestSpeedCodec = new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_SPEED, mapperService, bigArrays, threadPool);
         if (useSyntheticId) {
             // Use the default Lucene compression when the synthetic id is used even if the ZSTD feature flag is enabled
-            codecs.put(DEFAULT_CODEC, new ES93TSDBDefaultCompressionLucene103Codec(legacyBestSpeedCodec, bigArrays));
+            codecs.put(DEFAULT_CODEC, new ES93TSDBDefaultCompressionLucene103Codec(legacyBestSpeedCodec));
         } else if (ZSTD_STORED_FIELDS_FEATURE_FLAG) {
             codecs.put(
                 DEFAULT_CODEC,

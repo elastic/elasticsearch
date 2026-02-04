@@ -175,7 +175,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
 
         public RequestObjectBuilder timeZone(ZoneId zoneId) throws IOException {
-            builder.field("time_zone", zoneId.toString());
+            return timeZone(zoneId.toString());
+        }
+
+        public RequestObjectBuilder timeZone(String timezone) throws IOException {
+            builder.field("time_zone", timezone);
             return this;
         }
 
@@ -2150,7 +2154,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return request;
     }
 
-    private static String attachBody(RequestObjectBuilder requestObject, Request request) throws IOException {
+    public static String attachBody(RequestObjectBuilder requestObject, Request request) throws IOException {
         String mediaType = requestObject.contentType().mediaTypeWithoutParameters();
         try (ByteArrayOutputStream bos = (ByteArrayOutputStream) requestObject.getOutputStream()) {
             request.setEntity(new NByteArrayEntity(bos.toByteArray(), ContentType.getByMimeType(mediaType)));

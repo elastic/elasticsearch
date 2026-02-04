@@ -655,6 +655,7 @@ public class Constants {
         "internal:admin/xpack/searchable_snapshots/frozen_cache_info",
         "internal:admin/xpack/searchable_snapshots/frozen_cache_info[n]",
         "internal:cluster/nodes/indices/shard/store",
+        "internal:cluster/nodes/state/await_version",
         "internal:cluster/master_history/get",
         "internal:cluster/coordination_diagnostics/info",
         "internal:cluster/formation/info",

@@ -89,7 +89,7 @@ import java.io.IOException;
  * will be treated as a Summary mismatch on the source shard node.
  */
 
-public class SplitShardCountSummary implements Writeable {
+public class SplitShardCountSummary implements Writeable, Comparable<SplitShardCountSummary> {
     public static final SplitShardCountSummary UNSET = new SplitShardCountSummary(0);
 
     /**
@@ -229,5 +229,10 @@ public class SplitShardCountSummary implements Writeable {
     @Override
     public String toString() {
         return "SplitShardCountSummary [shardCountSummary=" + shardCountSummary + "]";
+    }
+
+    @Override
+    public int compareTo(SplitShardCountSummary o) {
+        return Integer.compare(this.shardCountSummary, o.shardCountSummary);
     }
 }

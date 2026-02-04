@@ -11,7 +11,6 @@ package org.elasticsearch.reindex.management;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
@@ -30,15 +29,19 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.XContentTestUtils;
 import org.junit.Before;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.elasticsearch.test.rest.ESRestTestCase.entityAsMap;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 
 /** Integration tests for <code>POST _reindex/{taskId}/_cancel</code> endpoint. */
@@ -116,6 +119,12 @@ public class ReindexCancelIT extends ESIntegTestCase {
         final CancelReindexResponse cancelResponse = cancelReindexSynchronously(parentTaskId);
         assertThat(cancelResponse.getTaskFailures(), empty());
         assertThat(cancelResponse.getNodeFailures(), empty());
+        final Map<String, Object> responseBody = XContentTestUtils.convertToMap(cancelResponse);
+        assertThat(
+            "reindex is cancelled and contains GET response",
+            responseBody,
+            allOf(hasEntry("cancelled", true), hasEntry("completed", true))
+        );
 
         final var notFoundException = expectThrows(ResourceNotFoundException.class, () -> cancelReindexSynchronously(parentTaskId));
         assertThat(notFoundException.getMessage(), is(Strings.format("reindex task [%s] either not found or completed", parentTaskId)));
@@ -161,6 +170,8 @@ public class ReindexCancelIT extends ESIntegTestCase {
         final CancelReindexResponse cancelResponse = cancelReindexAsynchronously(parentTaskId);
         assertThat(cancelResponse.getTaskFailures(), empty());
         assertThat(cancelResponse.getNodeFailures(), empty());
+        final Map<String, Object> responseBody = XContentTestUtils.convertToMap(cancelResponse);
+        assertThat("reindex is cancelled and contains acknowledged response", responseBody, equalTo(Map.of("acknowledged", true)));
 
         assertBusy(() -> assertThat("there are no open scroll contexts", currentNumberOfScrollContexts(), equalTo(0L)));
         assertBusy(() -> assertThat("parent group should be absent", findTaskGroup(parentTaskId).isEmpty(), is(true)));
@@ -194,37 +205,6 @@ public class ReindexCancelIT extends ESIntegTestCase {
         assertThat(asynchronousException.getMessage(), is(expectedExceptionMessage));
     }
 
-    public void testCancellingTaskOnNonexistingNode() {
-        final TaskId taskId = new TaskId("non-existing-node-" + randomAlphaOfLength(8), randomLongBetween(1, 1_000_000L));
-
-        final String expectedExceptionMessage = Strings.format("reindex task [%s] either not found or completed", taskId);
-
-        final var synchronousException = expectThrows(ResourceNotFoundException.class, () -> cancelReindexSynchronously(taskId));
-        assertThat(synchronousException.getMessage(), is(expectedExceptionMessage));
-
-        final var asynchronousException = expectThrows(ResourceNotFoundException.class, () -> cancelReindexAsynchronously(taskId));
-        assertThat(asynchronousException.getMessage(), is(expectedExceptionMessage));
-    }
-
-    public void testCancellingExistingNonReindexTaskReturns404() throws Exception {
-        final TaskId deleteByQueryTaskId = startAsyncThrottledDeleteByQuery();
-        try {
-            final TaskInfo running = getRunningTask(deleteByQueryTaskId);
-            assertThat(running.description(), equalTo("delete-by-query [reindex_src]"));
-            assertThat(running.cancellable(), is(true));
-            assertThat(running.cancelled(), is(false));
-
-            final String expectedExceptionMessage = Strings.format("reindex task [%s] either not found or completed", deleteByQueryTaskId);
-            final var exception = expectThrows(ResourceNotFoundException.class, () -> cancelReindexSynchronously(deleteByQueryTaskId));
-            assertThat(exception.getMessage(), is(expectedExceptionMessage));
-        } finally { // cleanup by killing deleteByQuery, gracefully handles if task is dead (in case of *very slow* CI)
-            final CancelTasksRequest cancelRequest = new CancelTasksRequest();
-            cancelRequest.setWaitForCompletion(true);
-            cancelRequest.setTargetTaskId(deleteByQueryTaskId);
-            clusterAdmin().cancelTasks(cancelRequest).get();
-        }
-    }
-
     private TaskId startAsyncThrottledReindex() throws Exception {
         final RestClient restClient = getRestClient();
         final Request request = new Request("POST", "/_reindex");
@@ -245,25 +225,6 @@ public class ReindexCancelIT extends ESIntegTestCase {
         final Response response = restClient.performRequest(request);
         final String task = (String) entityAsMap(response).get("task");
         assertNotNull("reindex did not return a task id", task);
-        return new TaskId(task);
-    }
-
-    private TaskId startAsyncThrottledDeleteByQuery() throws Exception {
-        final RestClient restClient = getRestClient();
-        final Request request = new Request("POST", "/" + SOURCE_INDEX + "/_delete_by_query");
-        request.addParameter("wait_for_completion", "false");
-        request.addParameter("slices", Integer.toString(NUM_OF_SLICES));
-        request.addParameter("requests_per_second", Integer.toString(REQUESTS_PER_SECOND));
-        request.setJsonEntity("""
-            {
-              "query": {
-                "match_all": {}
-              }
-            }""");
-
-        final Response response = restClient.performRequest(request);
-        final String task = (String) entityAsMap(response).get("task");
-        assertNotNull("delete by query did not return a task id", task);
         return new TaskId(task);
     }
 

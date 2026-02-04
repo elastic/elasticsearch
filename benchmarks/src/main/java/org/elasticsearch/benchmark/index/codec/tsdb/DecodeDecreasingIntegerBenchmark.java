@@ -41,10 +41,19 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Benchmark)
 public class DecodeDecreasingIntegerBenchmark {
     private static final int SEED = 17;
-    private static final int BLOCK_SIZE = 128;
 
     @Param({ "1", "4", "8", "9", "16", "17", "24", "25", "32", "33", "40", "48", "56", "57", "64" })
     private int bitsPerValue;
+
+    /**
+     * Number of blocks decoded per measured benchmark invocation.
+     *
+     * <p>Default is 10: the smallest batch size that provides stable measurements with good
+     * signal-to-noise ratio for regression tracking. Exposed as a JMH parameter to allow
+     * tuning without code changes.
+     */
+    @Param({ "10" })
+    private int blocksPerInvocation;
 
     private final AbstractTSDBCodecBenchmark decode;
 
@@ -52,19 +61,17 @@ public class DecodeDecreasingIntegerBenchmark {
         this.decode = new DecodeBenchmark();
     }
 
-    @Setup(Level.Invocation)
-    public void setupInvocation() throws IOException {
-        decode.setupInvocation();
-    }
-
     @Setup(Level.Trial)
     public void setupTrial() throws IOException {
-        decode.setupTrial(new DecreasingIntegerSupplier(SEED, bitsPerValue, BLOCK_SIZE));
+        decode.setupTrial(new DecreasingIntegerSupplier(SEED, bitsPerValue, decode.getBlockSize()));
+
+        decode.setBlocksPerInvocation(blocksPerInvocation);
+        decode.run();
     }
 
     @Benchmark
     public void throughput(Blackhole bh, ThroughputMetrics metrics) throws IOException {
         decode.benchmark(bh);
-        metrics.recordOperation(BLOCK_SIZE, decode.getEncodedSize());
+        metrics.recordOperation(decode.getBlockSize() * blocksPerInvocation, decode.getEncodedSize() * blocksPerInvocation);
     }
 }

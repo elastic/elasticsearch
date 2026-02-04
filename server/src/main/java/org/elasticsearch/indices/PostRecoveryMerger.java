@@ -47,7 +47,7 @@ class PostRecoveryMerger {
     private static final boolean TRIGGER_MERGE_AFTER_RECOVERY;
 
     static {
-        @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_INDEXING) // remove this escape hatch
+        @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // remove this escape hatch
         final var propertyValue = System.getProperty("es.trigger_merge_after_recovery");
         if (propertyValue == null) {
             TRIGGER_MERGE_AFTER_RECOVERY = true;

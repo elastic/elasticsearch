@@ -688,6 +688,14 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return vector;
     }
 
+    public static List<Float> randomDenseVector(int dimension) {
+        List<Float> vector = new ArrayList<>();
+        for (int i = 0; i < dimension; i++) {
+            vector.add(randomFloatBetween(-1.0f, +1.0f, true));
+        }
+        return vector;
+    }
+
     /**
      * Generate positive test cases for a unary function operating on an {@link DataType#BOOLEAN}.
      */
@@ -878,6 +886,26 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    public static void forUnaryDateTime(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<Instant, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unary(suppliers, expectedEvaluatorToString, dateCases(), expectedType, v -> expectedValue.apply((Instant) v), warnings);
+    }
+
+    public static void forUnaryDateNanos(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<Instant, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unary(suppliers, expectedEvaluatorToString, dateNanosCases(), expectedType, v -> expectedValue.apply((Instant) v), warnings);
+    }
+
     public static void forUnaryDateRange(
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
@@ -924,6 +952,16 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         unary(suppliers, expectedEvaluatorToString, histogramCases(), expectedType, v -> expectedValue.apply((BytesRef) v), warnings);
     }
 
+    public static void forUnaryTDigest(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<TDigestHolder, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unary(suppliers, expectedEvaluatorToString, tdigestCases(), expectedType, v -> expectedValue.apply((TDigestHolder) v), warnings);
+    }
+
     private static void unaryNumeric(
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
@@ -958,21 +996,18 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         String expectedEvaluatorToString,
         List<TypedDataSupplier> valueSuppliers,
         DataType expectedOutputType,
-        Function<Object, Object> expectedValue,
+        Function<Object, Object> expectedValueMapper,
         Function<Object, List<String>> expectedWarnings
     ) {
         for (TypedDataSupplier supplier : valueSuppliers) {
             suppliers.add(new TestCaseSupplier(supplier.name(), List.of(supplier.type()), () -> {
                 TypedData typed = supplier.get();
                 Object value = typed.getValue();
+                var expectedValue = expectedValueMapper.apply(value);
                 logger.info("Value is " + value + " of type " + value.getClass());
-                logger.info("expectedValue is " + expectedValue.apply(value));
-                TestCase testCase = new TestCase(
-                    List.of(typed),
-                    expectedEvaluatorToString,
-                    expectedOutputType,
-                    equalTo(expectedValue.apply(value))
-                );
+                logger.info("expectedValue is " + expectedValue);
+                var matcher = expectedValue instanceof Matcher<?> ? (Matcher<?>) expectedValue : equalTo(expectedValue);
+                TestCase testCase = new TestCase(List.of(typed), expectedEvaluatorToString, expectedOutputType, matcher);
                 for (String warning : expectedWarnings.apply(value)) {
                     testCase = testCase.withWarning(warning);
                 }

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.core.tree;
 
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.stream.Collectors;
 
 public abstract class NodeUtils {
     public static <A extends Node<A>, B extends Node<B>> String diffString(A left, B right) {
@@ -58,8 +59,15 @@ public abstract class NodeUtils {
 
     private static final int TO_STRING_LIMIT = 52;
 
-    public static <E> String limitedToString(Collection<E> c) {
-        Iterator<E> it = c.iterator();
+    public static String toString(Collection<?> c, Node.NodeStringFormat format) {
+        return switch (format) {
+            case LIMITED -> limitedToString(c);
+            case FULL -> unlimitedToString(c);
+        };
+    }
+
+    private static String limitedToString(Collection<?> c) {
+        Iterator<?> it = c.iterator();
         if (it.hasNext() == false) {
             return "[]";
         }
@@ -68,7 +76,7 @@ public abstract class NodeUtils {
         StringBuilder sb = new StringBuilder(TO_STRING_LIMIT + 4);
         sb.append('[');
         for (;;) {
-            E e = it.next();
+            Object e = it.next();
             String next = e == c ? "(this Collection)" : String.valueOf(e);
             if (next.length() + sb.length() > TO_STRING_LIMIT) {
                 sb.append(next.substring(0, Math.max(0, TO_STRING_LIMIT - sb.length())));
@@ -82,5 +90,9 @@ public abstract class NodeUtils {
             }
             sb.append(',').append(' ');
         }
+    }
+
+    private static String unlimitedToString(Collection<?> c) {
+        return c.stream().map(s -> s != null ? s.toString() : "null").collect(Collectors.joining(", ", "[", "]"));
     }
 }

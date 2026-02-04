@@ -11,10 +11,6 @@ The *Elastic Confluence connector* is a [connector](/reference/search-connectors
 
 View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/atlassian/confluence) (branch *main*, compatible with Elastic *9.0*).
 
-::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
-::::
-
 ## **Self-managed connector** [es-connectors-confluence-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-confluence-client-availability-prerequisites]

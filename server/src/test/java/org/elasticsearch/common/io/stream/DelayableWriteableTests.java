@@ -153,7 +153,7 @@ public class DelayableWriteableTests extends ESTestCase {
     }
 
     public void testSerializesWithRemoteVersion() throws IOException {
-        TransportVersion remoteVersion = TransportVersionUtils.randomCompatibleVersion(random());
+        TransportVersion remoteVersion = TransportVersionUtils.randomCompatibleVersion();
         DelayableWriteable<SneakOtherSideVersionOnWire> original = DelayableWriteable.referencing(new SneakOtherSideVersionOnWire());
         assertThat(roundTrip(original, SneakOtherSideVersionOnWire::new, remoteVersion).expand().version, equalTo(remoteVersion));
     }
@@ -202,9 +202,6 @@ public class DelayableWriteableTests extends ESTestCase {
     }
 
     private static TransportVersion randomOldVersion() {
-        return TransportVersionUtils.randomVersionBetween(
-            TransportVersion.minimumCompatible(),
-            TransportVersionUtils.getPreviousVersion(TransportVersion.current())
-        );
+        return TransportVersionUtils.randomVersionNotSupporting(TransportVersion.current());
     }
 }

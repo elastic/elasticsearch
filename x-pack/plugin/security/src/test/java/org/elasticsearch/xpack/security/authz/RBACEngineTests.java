@@ -85,6 +85,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
+import org.elasticsearch.xpack.core.security.authz.permission.LimitedRole;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermission;
@@ -101,6 +102,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilegeTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -136,6 +138,7 @@ import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES;
 import static org.elasticsearch.xpack.security.authz.AuthorizedIndicesTests.getRequestInfo;
 import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
@@ -1596,7 +1599,7 @@ public class RBACEngineTests extends ESTestCase {
         }
 
         final PlainActionFuture<GetUserPrivilegesResponse> future = new PlainActionFuture<>();
-        engine.getUserPrivileges(authorizationInfo, future);
+        engine.getUserPrivileges(authorizationInfo, null, future);
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
 
@@ -1608,6 +1611,63 @@ public class RBACEngineTests extends ESTestCase {
             )
         );
         assertThat(e.getCause(), sameInstance(unsupportedOperationException));
+    }
+
+    public void testGetUserPrivilegesUnwrapsLimitedRole() {
+        final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
+        final Role assignedRole = Role.builder(RESTRICTED_INDICES, "assigned")
+            .cluster(Set.of("monitor"), List.of())
+            .add(IndexPrivilege.READ, "*")
+            .addApplicationPrivilege(ApplicationPrivilegeTests.createPrivilege("app", "read", "action:read"), Set.of("*"))
+            .build();
+        final Role userRole = Role.builder(RESTRICTED_INDICES, "user")
+            .cluster(Set.of("manage"), List.of())
+            .add(IndexPrivilege.ALL, "index-*")
+            .addApplicationPrivilege(ApplicationPrivilegeTests.createPrivilege("app", "all", "action:*"), Set.of("org:1"))
+            .build();
+
+        final LimitedRole limitedRole;
+        if (randomBoolean()) {
+            limitedRole = new LimitedRole(assignedRole, userRole);
+        } else {
+            final Role otherRole = Role.builder(RESTRICTED_INDICES, "other").build();
+            limitedRole = new LimitedRole(new LimitedRole(assignedRole, otherRole), new LimitedRole(otherRole, userRole));
+        }
+
+        when(authorizationInfo.getRole()).thenReturn(limitedRole);
+
+        for (var unwrapRole : RoleReference.ApiKeyRoleType.values()) {
+            final PlainActionFuture<GetUserPrivilegesResponse> future = new PlainActionFuture<>();
+            engine.getUserPrivileges(authorizationInfo, unwrapRole, future);
+
+            final GetUserPrivilegesResponse response = future.actionGet();
+            assertThat(response.getRunAs(), emptyIterable());
+            assertThat(response.getConditionalClusterPrivileges(), emptyIterable());
+            assertThat(response.getClusterPrivileges(), iterableWithSize(1));
+            assertThat(response.getIndexPrivileges(), iterableWithSize(1));
+            assertThat(response.getApplicationPrivileges(), iterableWithSize(1));
+            final var indexPrivilege = response.getIndexPrivileges().iterator().next();
+            final var appPrivilege = response.getApplicationPrivileges().iterator().next();
+            assertThat(appPrivilege.getApplication(), equalTo("app"));
+
+            switch (unwrapRole) {
+                case ASSIGNED -> {
+                    assertThat(response.getClusterPrivileges(), containsInAnyOrder("monitor"));
+                    assertThat(indexPrivilege.getPrivileges(), containsInAnyOrder("read"));
+                    assertThat(indexPrivilege.getIndices(), containsInAnyOrder("*"));
+                    assertThat(appPrivilege.getPrivileges(), arrayContainingInAnyOrder("read"));
+                    assertThat(appPrivilege.getResources(), arrayContainingInAnyOrder("*"));
+                }
+                case LIMITED_BY -> {
+                    assertThat(response.getClusterPrivileges(), containsInAnyOrder("manage"));
+                    assertThat(indexPrivilege.getPrivileges(), containsInAnyOrder("all"));
+                    assertThat(indexPrivilege.getIndices(), containsInAnyOrder("index-*"));
+                    assertThat(appPrivilege.getPrivileges(), arrayContainingInAnyOrder("all"));
+                    assertThat(appPrivilege.getResources(), arrayContainingInAnyOrder("org:1"));
+                }
+                default -> fail("Unexpected enum type: " + unwrapRole);
+            }
+        }
     }
 
     public void testGetRoleDescriptorsIntersectionForRemoteCluster() throws ExecutionException, InterruptedException {

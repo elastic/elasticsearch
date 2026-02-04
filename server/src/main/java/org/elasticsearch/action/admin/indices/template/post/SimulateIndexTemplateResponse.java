@@ -68,7 +68,7 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
      * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
      * we no longer need to support calling this action remotely.
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(resolvedTemplate);

@@ -18,7 +18,6 @@ import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
@@ -30,16 +29,17 @@ import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
 import org.elasticsearch.index.codec.vectors.cluster.KmeansFloatVectorValues;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
-import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
+import java.util.List;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans.NO_SOAR_ASSIGNMENT;
+import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.BULK_SIZE;
 
 /**
  * Default implementation of {@link IVFVectorsWriter}. It uses {@link HierarchicalKMeans} algorithm to
@@ -139,7 +139,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         // write the posting lists
         final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
         final PackedLongValues.Builder lengths = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
-        DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(1, ES91OSQVectorsScorer.BULK_SIZE, postingsOutput);
+        DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(1, BULK_SIZE, postingsOutput);
         OnHeapQuantizedVectors onHeapQuantizedVectors = new OnHeapQuantizedVectors(
             floatVectorValues,
             fieldInfo.getVectorDimension(),
@@ -159,7 +159,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
             // write raw centroid for quantizing the query vectors
             postingsOutput.writeBytes(buffer.array(), buffer.array().length);
             // write centroid dot product for quantizing the query vectors
-            postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
+            postingsOutput.writeInt(Float.floatToIntBits(ESVectorUtil.dotProduct(centroid, centroid)));
             int size = cluster.length;
             // write docIds
             postingsOutput.writeVInt(size);
@@ -174,11 +174,11 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
                 docDeltas[j] = j == 0 ? docIds[clusterOrds[j]] : docIds[clusterOrds[j]] - docIds[clusterOrds[j - 1]];
             }
             onHeapQuantizedVectors.reset(centroid, size, ord -> cluster[clusterOrds[ord]]);
-            byte encoding = idsWriter.calculateBlockEncoding(i -> docDeltas[i], size, ES91OSQVectorsScorer.BULK_SIZE);
+            byte encoding = idsWriter.calculateBlockEncoding(i -> docDeltas[i], size, BULK_SIZE);
             postingsOutput.writeByte(encoding);
             bulkWriter.writeVectors(onHeapQuantizedVectors, i -> {
                 // for vector i we write `bulk` size docs or the remaining docs
-                idsWriter.writeDocIds(d -> docDeltas[i + d], Math.min(ES91OSQVectorsScorer.BULK_SIZE, size - i), encoding, postingsOutput);
+                idsWriter.writeDocIds(d -> docDeltas[i + d], Math.min(BULK_SIZE, size - i), encoding, postingsOutput);
             });
             lengths.add(postingsOutput.getFilePointer() - fileOffset - offset);
         }
@@ -289,7 +289,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
                 quantizedVectorsInput,
                 fieldInfo.getVectorDimension()
             );
-            DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(1, ES91OSQVectorsScorer.BULK_SIZE, postingsOutput);
+            DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(1, BULK_SIZE, postingsOutput);
             final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
             // write the max posting list size
             postingsOutput.writeVInt(maxPostingListSize);
@@ -308,7 +308,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
                 buffer.asFloatBuffer().put(centroid);
                 postingsOutput.writeBytes(buffer.array(), buffer.array().length);
                 // write centroid dot product for quantizing the query vectors
-                postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
+                postingsOutput.writeInt(Float.floatToIntBits(ESVectorUtil.dotProduct(centroid, centroid)));
                 // write docIds
                 int size = cluster.length;
                 postingsOutput.writeVInt(size);
@@ -322,18 +322,13 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
                 for (int j = 0; j < size; j++) {
                     docDeltas[j] = j == 0 ? docIds[clusterOrds[j]] : docIds[clusterOrds[j]] - docIds[clusterOrds[j - 1]];
                 }
-                byte encoding = idsWriter.calculateBlockEncoding(i -> docDeltas[i], size, ES91OSQVectorsScorer.BULK_SIZE);
+                byte encoding = idsWriter.calculateBlockEncoding(i -> docDeltas[i], size, BULK_SIZE);
                 postingsOutput.writeByte(encoding);
                 offHeapQuantizedVectors.reset(size, ord -> isOverspill[clusterOrds[ord]], ord -> cluster[clusterOrds[ord]]);
                 // write vectors
                 bulkWriter.writeVectors(offHeapQuantizedVectors, i -> {
                     // for vector i we write `bulk` size docs or the remaining docs
-                    idsWriter.writeDocIds(
-                        d -> docDeltas[d + i],
-                        Math.min(ES91OSQVectorsScorer.BULK_SIZE, size - i),
-                        encoding,
-                        postingsOutput
-                    );
+                    idsWriter.writeDocIds(d -> docDeltas[d + i], Math.min(BULK_SIZE, size - i), encoding, postingsOutput);
                 });
                 lengths.add(postingsOutput.getFilePointer() - fileOffset - offset);
             }
@@ -388,6 +383,35 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
+    protected Preconditioner inheritPreconditioner(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+        // no-op
+        return null;
+    }
+
+    @Override
+    protected Preconditioner createPreconditioner(int dimension) {
+        // no-op
+        return null;
+    }
+
+    @Override
+    protected FloatVectorValues preconditionVectors(Preconditioner Preconditioner, FloatVectorValues vectors) {
+        // no-op
+        return vectors;
+    }
+
+    @Override
+    protected Consumer<List<float[]>> preconditionVectors(Preconditioner preconditioner) {
+        // no-op
+        return (vectors) -> {};
+    }
+
+    @Override
+    protected void writePreconditioner(Preconditioner Preconditioner, IndexOutput out) throws IOException {
+        // no-op
+    }
+
+    @Override
     public void writeCentroids(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
@@ -432,7 +456,8 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    public void doWriteMeta(IndexOutput ivfMeta, FieldInfo field, int numCentroids) {
+    public void doWriteMeta(IndexOutput ivfMeta, FieldInfo field, int numCentroids, long preconditionerOfffset, long preconditionerLength)
+        throws IOException {
         // Do Nothing Extra
     }
 
@@ -444,7 +469,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         IndexOutput centroidOutput,
         CentroidGroups centroidGroups
     ) throws IOException {
-        DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(7, ES92Int7VectorsScorer.BULK_SIZE, centroidOutput);
+        DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(7, BULK_SIZE, centroidOutput);
         final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
         centroidOutput.writeVInt(centroidGroups.centroids.length);
         centroidOutput.writeVInt(centroidGroups.maxVectorsPerCentroidLength);
@@ -491,7 +516,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         IndexOutput centroidOutput
     ) throws IOException {
         centroidOutput.writeVInt(0);
-        DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(7, ES92Int7VectorsScorer.BULK_SIZE, centroidOutput);
+        DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(7, BULK_SIZE, centroidOutput);
         final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
         QuantizedCentroids quantizedCentroids = new QuantizedCentroids(
             centroidSupplier,

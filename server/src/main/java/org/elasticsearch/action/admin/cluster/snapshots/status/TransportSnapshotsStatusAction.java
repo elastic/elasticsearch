@@ -262,11 +262,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     }
                     // We failed to find the status of the shard from the responses we received from data nodes.
                     // This can happen if nodes drop out of the cluster completely or restart during the snapshot.
-                    final SnapshotIndexShardStage stage = switch (shardEntry.getValue().state()) {
-                        case FAILED, ABORTED, MISSING -> SnapshotIndexShardStage.FAILURE;
-                        case INIT, WAITING, PAUSED_FOR_NODE_REMOVAL, QUEUED -> SnapshotIndexShardStage.STARTED;
-                        case SUCCESS -> SnapshotIndexShardStage.DONE;
-                    };
+                    final SnapshotIndexShardStage stage = convertShardStateToSnapshotIndexShardStage(shardEntry.getValue().state());
                     final SnapshotIndexShardStatus shardStatus;
                     if (stage == SnapshotIndexShardStage.DONE) {
                         final ShardId shardId = entry.shardId(shardEntry.getKey());
@@ -314,6 +310,16 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         } else {
             listener.onResponse(new SnapshotsStatusResponse(Collections.unmodifiableList(builder)));
         }
+    }
+
+    // Visible for testing
+    SnapshotIndexShardStage convertShardStateToSnapshotIndexShardStage(SnapshotsInProgress.ShardState shardState) {
+        return switch (shardState) {
+            case QUEUED -> SnapshotIndexShardStage.INIT;
+            case FAILED, ABORTED, MISSING -> SnapshotIndexShardStage.FAILURE;
+            case INIT, WAITING, PAUSED_FOR_NODE_REMOVAL -> SnapshotIndexShardStage.STARTED;
+            case SUCCESS -> SnapshotIndexShardStage.DONE;
+        };
     }
 
     private void loadRepositoryData(

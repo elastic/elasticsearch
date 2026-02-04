@@ -189,9 +189,12 @@ public abstract class RetryingInputStream<V> extends InputStream {
         }
     }
 
+    public long meaningfulProgressSize() {
+        return blobStoreServices.getMeaningfulProgressSize();
+    }
+
     private <T extends Exception> void reopenStreamOrFail(T e) throws T, IOException {
-        final long meaningfulProgressSize = blobStoreServices.getMeaningfulProgressSize();
-        if (currentStreamProgress() >= meaningfulProgressSize) {
+        if (currentStreamProgress() >= meaningfulProgressSize()) {
             failuresAfterMeaningfulProgress += 1;
         }
         final long delayInMillis = maybeLogAndComputeRetryDelay(READ, e);

@@ -14,6 +14,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MemorySegmentAccessInput;
+import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
@@ -110,7 +111,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
             long byteOffset = (long) node * (vectorByteSize + Float.BYTES);
             float nodeCorrection = Float.intBitsToFloat(input.readInt(byteOffset + vectorByteSize));
             float adjustedDistance = dotProduct * scoreCorrectionConstant + queryCorrection + nodeCorrection;
-            return Math.max((1 + adjustedDistance) / 2, 0f);
+            return VectorUtil.normalizeToUnitInterval(adjustedDistance);
         }
 
         @Override
@@ -131,7 +132,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
                     long secondByteOffset = (long) secondOrd * vectorPitch;
                     var nodeCorrection = Float.intBitsToFloat(input.readInt(secondByteOffset + vectorByteSize));
                     float adjustedDistance = dotProduct * scoreCorrectionConstant + queryCorrection + nodeCorrection;
-                    scores[i] = Math.max((1 + adjustedDistance) / 2, 0f);
+                    scores[i] = VectorUtil.normalizeToUnitInterval(adjustedDistance);
                 }
             }
         }
@@ -147,7 +148,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
             checkOrdinal(node);
             int sqDist = squareDistance7u(query, getSegment(node), vectorByteSize);
             float adjustedDistance = sqDist * scoreCorrectionConstant;
-            return 1 / (1f + adjustedDistance);
+            return VectorUtil.normalizeDistanceToUnitInterval(adjustedDistance);
         }
 
         @Override
@@ -165,7 +166,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
                 for (int i = 0; i < numNodes; ++i) {
                     var squareDistance = scores[i];
                     float adjustedDistance = squareDistance * scoreCorrectionConstant;
-                    scores[i] = 1 / (1f + adjustedDistance);
+                    scores[i] = VectorUtil.normalizeDistanceToUnitInterval(adjustedDistance);
                 }
             }
         }
@@ -184,10 +185,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
             long byteOffset = (long) node * (vectorByteSize + Float.BYTES);
             float nodeCorrection = Float.intBitsToFloat(input.readInt(byteOffset + vectorByteSize));
             float adjustedDistance = dotProduct * scoreCorrectionConstant + queryCorrection + nodeCorrection;
-            if (adjustedDistance < 0) {
-                return 1 / (1 + -1 * adjustedDistance);
-            }
-            return adjustedDistance + 1;
+            return VectorUtil.scaleMaxInnerProductScore(adjustedDistance);
         }
 
         @Override
@@ -208,8 +206,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
                     long secondByteOffset = (long) secondOrd * vectorPitch;
                     var nodeCorrection = Float.intBitsToFloat(input.readInt(secondByteOffset + vectorByteSize));
                     float adjustedDistance = dotProduct * scoreCorrectionConstant + queryCorrection + nodeCorrection;
-                    adjustedDistance = adjustedDistance < 0 ? 1 / (1 + -1 * adjustedDistance) : adjustedDistance + 1;
-                    scores[i] = adjustedDistance;
+                    scores[i] = VectorUtil.scaleMaxInnerProductScore(adjustedDistance);
                 }
             }
         }

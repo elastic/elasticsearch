@@ -85,8 +85,8 @@ public class TransportVersionTests extends ESTestCase {
 
     public void testMin() {
         assertEquals(
-            TransportVersionUtils.getPreviousVersion(),
-            TransportVersion.min(TransportVersion.current(), TransportVersionUtils.getPreviousVersion())
+            TransportVersionUtils.getPreviousVersion(TransportVersion.current()),
+            TransportVersion.min(TransportVersion.current(), TransportVersionUtils.getPreviousVersion(TransportVersion.current()))
         );
         assertEquals(
             TransportVersion.fromId(1_01_01_99),
@@ -104,7 +104,7 @@ public class TransportVersionTests extends ESTestCase {
     public void testMax() {
         assertEquals(
             TransportVersion.current(),
-            TransportVersion.max(TransportVersion.current(), TransportVersionUtils.getPreviousVersion())
+            TransportVersion.max(TransportVersion.current(), TransportVersionUtils.getPreviousVersion(TransportVersion.current()))
         );
         assertEquals(TransportVersion.current(), TransportVersion.max(TransportVersion.fromId(1_01_01_99), TransportVersion.current()));
         TransportVersion version = TransportVersionUtils.randomVersion();

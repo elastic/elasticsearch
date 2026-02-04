@@ -30,13 +30,13 @@ public final class SearchContextIdForNode implements Writeable {
      * @param node The target node where the search context ID is defined, or {@code null} if the shard is missing or unavailable.
      * @param searchContextId The {@link ShardSearchContextId}, or {@code null} if the shard is missing or unavailable.
      */
-    SearchContextIdForNode(@Nullable String clusterAlias, @Nullable String node, @Nullable ShardSearchContextId searchContextId) {
+    public SearchContextIdForNode(@Nullable String clusterAlias, @Nullable String node, @Nullable ShardSearchContextId searchContextId) {
         this.node = node;
         this.clusterAlias = clusterAlias;
         this.searchContextId = searchContextId;
     }
 
-    SearchContextIdForNode(StreamInput in) throws IOException {
+    public SearchContextIdForNode(StreamInput in) throws IOException {
         this.node = in.readOptionalString();
         this.clusterAlias = in.readOptionalString();
         this.searchContextId = in.readOptionalWriteable(ShardSearchContextId::new);

@@ -1,15 +1,18 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-casting.html
+applies_to:
+  stack: ga
+  serverless: ga
 products:
   - id: painless
 ---
 
 # Casting [painless-casting]
 
-A cast converts the value of an original type to the equivalent value of a target type. An implicit cast infers the target type and automatically occurs during certain [operations](/reference/scripting-languages/painless/painless-operators.md). An explicit cast specifies the target type and forcefully occurs as its own operation. Use the `cast operator '()'` to specify an explicit cast.
+A cast converts the value of an original type to the equivalent value of a target type. An implicit cast infers the target type and automatically occurs during certain [operations](/reference/scripting-languages/painless/painless-operators.md). An explicit cast specifies the target type and forcefully occurs as its own operation. Use the `cast operator '()'` to specify an explicit cast. You can also check out the [type casting tutorial](docs-content://explore-analyze/scripting/modules-scripting-type-casting-tutorial.md) for related examples, and for help with troubleshooting refer to "type casting issues" in the Troubleshooting section.
 
-Refer to the [cast table](#allowed-casts) for a quick reference on all allowed casts.
+Refer to the [cast table](#allowed-casts) for a quick reference on all allowed casts. To help resolve any issues, check [Debug type casting errors in Painless](docs-content://explore-analyze/scripting/painless-type-casting-issues.md).
 
 **Errors**
 
@@ -24,7 +27,7 @@ cast: '(' TYPE ')' expression
 
 **Examples**
 
-* Valid casts.
+* Valid casts
 
     ```painless
     int i = (int)5L;         <1>
@@ -56,7 +59,7 @@ The allowed casts for values of each numeric type are shown as a row in the foll
 
 **Examples**
 
-* Valid numeric type casts.
+* Valid numeric type casts
 
     ```painless
     int a = 1;            <1>
@@ -70,7 +73,7 @@ The allowed casts for values of each numeric type are shown as a row in the foll
     3. declare `short c`; load from `b` → `long 1`; explicit cast `long 1` to `short 1` → `short 1`; store `short 1` value to `c`
     4. declare `double e`; load from `a` → `int 1`; explicit cast `int 1` to `double 1.0`; store `double 1.0` to `e`; (note the explicit cast is extraneous since an implicit cast is valid)
 
-* Invalid numeric type casts resulting in errors.
+* Invalid numeric type casts resulting in errors
 
     ```painless
     int a = 1.0; // error <1>
@@ -90,7 +93,7 @@ A [reference type](/reference/scripting-languages/painless/painless-types.md#ref
 
 **Examples**
 
-* Valid reference type casts.
+* Valid reference type casts
 
     ```painless
     List x;                        <1>
@@ -106,7 +109,7 @@ A [reference type](/reference/scripting-languages/painless/painless-types.md#ref
     4. load from `x` → `List reference`; explicit cast `List reference` to `ArrayList reference` → `ArrayList reference`; store `ArrayList reference` to `y`;
     5. load from `y` → `ArrayList reference`; explicit cast `ArrayList reference` to `List reference` → `List reference`; store `List reference` to `x`; (note the explicit cast is extraneous, and an implicit cast is valid)
 
-* Invalid reference type casts resulting in errors.
+* Invalid reference type casts resulting in errors
 
     ```painless
     List x = new ArrayList();          <1>
@@ -130,7 +133,7 @@ An implicit or explicit cast from an original `def` type value to any target typ
 
 **Examples**
 
-* Valid dynamic type casts with any original type to a target `def` type.
+* Valid dynamic type casts with any original type to a target `def` type
 
     ```painless
     def d0 = 3;               <1>
@@ -146,7 +149,7 @@ An implicit or explicit cast from an original `def` type value to any target typ
     4. declare `def d1`; load from `o` → `Object reference`; implicit cast `Object reference` to `def` → `def`; store `def` to `d1`
     5. declare `int i`; load from `d1` → `def`; implicit cast `def` to `HashMap reference` → HashMap reference`; call `size` on `HashMap reference` → `int 0`; store `int 0` to `i`; (note `def` was implicit cast to `HashMap reference` since `HashMap` is the child-most descendant type value that the `def` type value represents)
 
-* Valid dynamic type casts with an original `def` type to any target type.
+* Valid dynamic type casts with an original `def` type to any target type
 
     ```painless
     def d = 1.0;         <1>
@@ -164,7 +167,7 @@ An implicit or explicit cast from an original `def` type value to any target typ
     5. allocate `ArrayList` instance → `ArrayList reference`; store `ArrayList reference` to `d`; (note the switch in the type `d` represents from `int` to `ArrayList`)
     6. declare `List l`; load from `d` → `def`; implicit cast `def` to `ArrayList reference` → `ArrayList reference`; implicit cast `ArrayList reference` to `List reference` → `List reference`; store `List reference` to `l`
 
-* Invalid dynamic type casts resulting in errors.
+* Invalid dynamic type casts resulting in errors
 
     ```painless
     def d = 1;                  <1>
@@ -191,7 +194,7 @@ Use the cast operator to convert a [`String` type](/reference/scripting-language
 
 **Examples**
 
-* Casting string literals into `char` type values.
+* Casting string literals into `char` type values
 
     ```painless
     char c = (char)"C"; <1>
@@ -201,7 +204,7 @@ Use the cast operator to convert a [`String` type](/reference/scripting-language
     1. declare `char c`; explicit cast `String "C"` to `char C` → `char C`; store `char C` to `c`
     2. explicit cast `String 'c'` to `char c` → `char c`; store `char c` to `c`
 
-* Casting a `String` reference into a `char` type value.
+* Casting a `String` reference into a `char` type value
 
     ```painless
     String s = "s";   <1>
@@ -219,7 +222,7 @@ Use the cast operator to convert a [`char` type](/reference/scripting-languages/
 
 **Examples**
 
-* Casting a `String` reference into a `char` type value.
+* Casting a `String` reference into a `char` type value
 
     ```painless
     char c = 65;          <1>
@@ -249,7 +252,7 @@ Explicit boxing/unboxing is not allowed. Use the reference type API to explicitl
 
 **Examples**
 
-* Uses of implicit boxing/unboxing.
+* Uses of implicit boxing/unboxing
 
     ```painless
     List l = new ArrayList();       <1>
@@ -289,7 +292,7 @@ Promotion is when a single value is implicitly cast to a certain type or multipl
 
 **Examples**
 
-* Uses of promotion.
+* Uses of promotion
 
     ```painless
     double d = 2 + 2.0; <1>

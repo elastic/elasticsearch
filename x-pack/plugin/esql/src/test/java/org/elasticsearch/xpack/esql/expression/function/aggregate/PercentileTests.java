@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.core.Types;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramQuantile;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -31,7 +32,6 @@ import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.compute.aggregation.ExponentialHistogramStates.MAX_BUCKET_COUNT;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PercentileTests extends AbstractAggregationTestCase {
@@ -110,7 +110,7 @@ public class PercentileTests extends AbstractAggregationTestCase {
 
     public static Double getExpectedPercentileForExponentialHistograms(List<ExponentialHistogram> values, double percentile) {
         ExponentialHistogram merged = ExponentialHistogram.merge(
-            MAX_BUCKET_COUNT,
+            ExponentialHistogramMerger.DEFAULT_MAX_HISTOGRAM_BUCKETS,
             ExponentialHistogramCircuitBreaker.noop(),
             values.stream().filter(Objects::nonNull).toList().iterator()
         );

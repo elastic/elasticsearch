@@ -72,6 +72,8 @@ public class LimitOperator implements Operator {
     @Override
     public void addInput(Page page) {
         assert lastInput == null : "has pending input page";
+        rowsReceived += page.getPositionCount();
+
         final int acceptedRows = limiter.tryAccumulateHits(page.getPositionCount());
         if (acceptedRows == 0) {
             page.releaseBlocks();
@@ -81,7 +83,6 @@ public class LimitOperator implements Operator {
         } else {
             lastInput = page;
         }
-        rowsReceived += acceptedRows;
     }
 
     @Override

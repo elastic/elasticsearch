@@ -43,7 +43,7 @@ import static org.mockito.Mockito.when;
 public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
 
     private static KeyedFlattenedFieldType createFieldType() {
-        return new KeyedFlattenedFieldType("field", IndexType.terms(true, true), "key", false, Collections.emptyMap(), false);
+        return new KeyedFlattenedFieldType("field", IndexType.terms(true, true), "key", false, Collections.emptyMap(), false, true);
     }
 
     public void testIndexedValueForSearch() {
@@ -74,7 +74,8 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
             "key",
             false,
             Collections.emptyMap(),
-            false
+            false,
+            true
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("field", null));
         assertEquals("Cannot search on field [" + ft.name() + "] since it is not indexed.", e.getMessage());

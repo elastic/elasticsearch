@@ -12,14 +12,32 @@ package org.elasticsearch.reindex.management;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.TaskResult;
+
+import java.io.IOException;
+import java.util.Optional;
 
 /** Response to a single reindex task cancel action. */
 public class CancelReindexTaskResponse implements Writeable {
 
-    public CancelReindexTaskResponse() {}
+    @Nullable
+    private final TaskResult completedTaskResult;
 
-    public CancelReindexTaskResponse(final StreamInput in) {}
+    public CancelReindexTaskResponse(@Nullable final TaskResult completedTaskResult) {
+        this.completedTaskResult = completedTaskResult;
+    }
+
+    public CancelReindexTaskResponse(final StreamInput in) throws IOException {
+        this.completedTaskResult = in.readOptionalWriteable(TaskResult::new);
+    }
 
     @Override
-    public void writeTo(final StreamOutput out) {}
+    public void writeTo(final StreamOutput out) throws IOException {
+        out.writeOptionalWriteable(completedTaskResult);
+    }
+
+    public Optional<TaskResult> getCompletedTaskResult() {
+        return Optional.ofNullable(completedTaskResult);
+    }
 }

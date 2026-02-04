@@ -1395,7 +1395,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertThat(ex.getMessage(), containsString("dynamic template [my_template] has invalid content"));
 
         // the previous exception should be ignored by indices with v7 index versions
-        IndexVersion indexVersion = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
+        IndexVersion indexVersion = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.V_8_0_0);
         Settings settings = Settings.builder().put("number_of_shards", 1).put("index.version.created", indexVersion).build();
         MapperService mapperService = createMapperService(indexVersion, settings, () -> randomBoolean());
         merge(mapperService, mapping);

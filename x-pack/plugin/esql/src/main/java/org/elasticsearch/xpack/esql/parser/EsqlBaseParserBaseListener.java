@@ -157,30 +157,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterRerankFields(EsqlBaseParser.RerankFieldsContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitRerankFields(EsqlBaseParser.RerankFieldsContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterRerankField(EsqlBaseParser.RerankFieldContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitRerankField(EsqlBaseParser.RerankFieldContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterFromCommand(EsqlBaseParser.FromCommandContext ctx) { }
   /**
    * {@inheritDoc}
@@ -956,6 +932,42 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitSetField(EsqlBaseParser.SetFieldContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterMmrCommand(EsqlBaseParser.MmrCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitMmrCommand(EsqlBaseParser.MmrCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterMmrQueryVectorParameter(EsqlBaseParser.MmrQueryVectorParameterContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitMmrQueryVectorParameter(EsqlBaseParser.MmrQueryVectorParameterContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterMmrQueryVectorExpression(EsqlBaseParser.MmrQueryVectorExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitMmrQueryVectorExpression(EsqlBaseParser.MmrQueryVectorExpressionContext ctx) { }
   /**
    * {@inheritDoc}
    *

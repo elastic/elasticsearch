@@ -1,5 +1,3 @@
-config:
-  skip-target-branches: "7.17"
 steps:
   - label: part-4
     command: .ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart4

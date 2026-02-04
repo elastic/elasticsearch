@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
@@ -82,7 +81,8 @@ public class TransportDeleteSnapshotLifecycleAction extends TransportMasterNodeA
 
         @Override
         public ClusterState execute(ClusterState currentState) {
-            SnapshotLifecycleMetadata snapMeta = currentState.metadata().getProject().custom(SnapshotLifecycleMetadata.TYPE);
+            final var project = currentState.metadata().getProject();
+            SnapshotLifecycleMetadata snapMeta = project.custom(SnapshotLifecycleMetadata.TYPE);
             if (snapMeta == null) {
                 throw new ResourceNotFoundException("snapshot lifecycle policy not found: {}", request.getLifecycleId());
             }
@@ -101,20 +101,13 @@ public class TransportDeleteSnapshotLifecycleAction extends TransportMasterNodeA
                 .filter(e -> e.getKey().equals(request.getLifecycleId()) == false)
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-            Metadata metadata = currentState.metadata();
-            return ClusterState.builder(currentState)
-                .metadata(
-                    Metadata.builder(metadata)
-                        .putCustom(
-                            SnapshotLifecycleMetadata.TYPE,
-                            new SnapshotLifecycleMetadata(
-                                newConfigs,
-                                currentMode,
-                                snapMeta.getStats().removePolicy(request.getLifecycleId())
-                            )
-                        )
+            return currentState.copyAndUpdateProject(
+                project.id(),
+                builder -> builder.putCustom(
+                    SnapshotLifecycleMetadata.TYPE,
+                    new SnapshotLifecycleMetadata(newConfigs, currentMode, snapMeta.getStats().removePolicy(request.getLifecycleId()))
                 )
-                .build();
+            );
         }
     }
 

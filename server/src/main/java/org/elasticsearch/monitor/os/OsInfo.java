@@ -9,8 +9,6 @@
 
 package org.elasticsearch.monitor.os;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.Processors;
@@ -21,7 +19,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 
 public class OsInfo implements ReportingService.Info {
-    private static final TransportVersion DOUBLE_PRECISION_ALLOCATED_PROCESSORS_SUPPORT = TransportVersions.V_8_5_0;
 
     private final long refreshInterval;
     private final int availableProcessors;
@@ -52,11 +49,7 @@ public class OsInfo implements ReportingService.Info {
     public OsInfo(StreamInput in) throws IOException {
         this.refreshInterval = in.readLong();
         this.availableProcessors = in.readInt();
-        if (in.getTransportVersion().onOrAfter(DOUBLE_PRECISION_ALLOCATED_PROCESSORS_SUPPORT)) {
-            this.allocatedProcessors = Processors.readFrom(in);
-        } else {
-            this.allocatedProcessors = Processors.of((double) in.readInt());
-        }
+        this.allocatedProcessors = Processors.readFrom(in);
         this.name = in.readOptionalString();
         this.prettyName = in.readOptionalString();
         this.arch = in.readOptionalString();
@@ -67,11 +60,7 @@ public class OsInfo implements ReportingService.Info {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(refreshInterval);
         out.writeInt(availableProcessors);
-        if (out.getTransportVersion().onOrAfter(DOUBLE_PRECISION_ALLOCATED_PROCESSORS_SUPPORT)) {
-            allocatedProcessors.writeTo(out);
-        } else {
-            out.writeInt(getAllocatedProcessors());
-        }
+        allocatedProcessors.writeTo(out);
         out.writeOptionalString(name);
         out.writeOptionalString(prettyName);
         out.writeOptionalString(arch);

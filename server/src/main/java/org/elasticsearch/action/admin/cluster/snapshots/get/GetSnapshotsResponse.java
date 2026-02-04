@@ -9,7 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
@@ -31,6 +31,8 @@ import java.util.Objects;
  */
 public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXContentObject {
 
+    private static final TransportVersion REMOVE_SNAPSHOT_FAILURES = TransportVersion.fromName("remove_snapshot_failures");
+
     private final List<SnapshotInfo> snapshots;
 
     @Nullable
@@ -49,8 +51,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
 
     public GetSnapshotsResponse(StreamInput in) throws IOException {
         this.snapshots = in.readCollectionAsImmutableList(SnapshotInfo::readFrom);
-        if (in.getTransportVersion().before(TransportVersions.REMOVE_SNAPSHOT_FAILURES)
-            && in.getTransportVersion().isPatchFrom(TransportVersions.REMOVE_SNAPSHOT_FAILURES_90) == false) {
+        if (in.getTransportVersion().supports(REMOVE_SNAPSHOT_FAILURES) == false) {
             // Deprecated `failures` field
             in.readMap(StreamInput::readException);
         }
@@ -84,8 +85,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(snapshots);
-        if (out.getTransportVersion().before(TransportVersions.REMOVE_SNAPSHOT_FAILURES)
-            && out.getTransportVersion().isPatchFrom(TransportVersions.REMOVE_SNAPSHOT_FAILURES_90) == false) {
+        if (out.getTransportVersion().supports(REMOVE_SNAPSHOT_FAILURES) == false) {
             // Deprecated `failures` field
             out.writeMap(Map.of(), StreamOutput::writeException);
         }

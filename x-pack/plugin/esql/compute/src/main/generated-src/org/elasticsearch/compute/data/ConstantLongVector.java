@@ -7,9 +7,13 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.ReleasableIterator;
+// end generated imports
 
 /**
  * Vector implementation that stores a constant long value.
@@ -97,6 +101,11 @@ final class ConstantLongVector extends AbstractVector implements LongVector {
     @Override
     public boolean isConstant() {
         return true;
+    }
+
+    @Override
+    public LongVector deepCopy(BlockFactory blockFactory) {
+        return blockFactory.newConstantLongVector(value, getPositionCount());
     }
 
     @Override

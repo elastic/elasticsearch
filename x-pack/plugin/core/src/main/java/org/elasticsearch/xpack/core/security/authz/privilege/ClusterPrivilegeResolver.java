@@ -110,8 +110,19 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MONITOR_WATCHER_PATTERN = Set.of("cluster:monitor/xpack/watcher/*");
     private static final Set<String> MONITOR_ROLLUP_PATTERN = Set.of("cluster:monitor/xpack/rollup/*");
     private static final Set<String> MONITOR_ENRICH_PATTERN = Set.of("cluster:monitor/xpack/enrich/*", "cluster:admin/xpack/enrich/get");
+    private static final Set<String> MONITOR_ESQL_PATTERN = Set.of("cluster:monitor/xpack/esql/*");
     // intentionally cluster:monitor/stats* to match cluster:monitor/stats, cluster:monitor/stats[n] and cluster:monitor/stats/remote
     private static final Set<String> MONITOR_STATS_PATTERN = Set.of("cluster:monitor/stats*");
+    private static final Set<String> READ_PROJECT_ROUTING_PATTERN = Set.of(
+        // covers tags endpoint and other project metadata endpoints
+        "cluster:monitor/project/*",
+        "cluster:monitor/project_routing/*"
+    );
+    private static final Set<String> MANAGE_PROJECT_ROUTING_PATTERN = Set.of(
+        "cluster:monitor/project/*",
+        "cluster:monitor/project_routing/*",
+        "cluster:admin/project_routing/*"
+    );
 
     private static final Set<String> ALL_CLUSTER_PATTERN = Set.of(
         "cluster:*",
@@ -249,6 +260,7 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege MONITOR_WATCHER = new ActionClusterPrivilege("monitor_watcher", MONITOR_WATCHER_PATTERN);
     public static final NamedClusterPrivilege MONITOR_ROLLUP = new ActionClusterPrivilege("monitor_rollup", MONITOR_ROLLUP_PATTERN);
     public static final NamedClusterPrivilege MONITOR_ENRICH = new ActionClusterPrivilege("monitor_enrich", MONITOR_ENRICH_PATTERN);
+    public static final NamedClusterPrivilege MONITOR_ESQL = new ActionClusterPrivilege("monitor_esql", MONITOR_ESQL_PATTERN);
     public static final NamedClusterPrivilege MONITOR_STATS = new ActionClusterPrivilege("monitor_stats", MONITOR_STATS_PATTERN);
     public static final NamedClusterPrivilege MANAGE = new ActionClusterPrivilege("manage", ALL_CLUSTER_PATTERN, ALL_SECURITY_PATTERN);
     public static final NamedClusterPrivilege MANAGE_INFERENCE = new ActionClusterPrivilege("manage_inference", MANAGE_INFERENCE_PATTERN);
@@ -270,6 +282,10 @@ public class ClusterPrivilegeResolver {
         MANAGE_INGEST_PIPELINE_PATTERN
     );
     public static final NamedClusterPrivilege READ_PIPELINE = new ActionClusterPrivilege("read_pipeline", READ_PIPELINE_PATTERN);
+    public static final NamedClusterPrivilege READ_PROJECT_ROUTING = new ActionClusterPrivilege(
+        "read_project_routing",
+        READ_PROJECT_ROUTING_PATTERN
+    );
     public static final NamedClusterPrivilege TRANSPORT_CLIENT = new ActionClusterPrivilege("transport_client", TRANSPORT_CLIENT_PATTERN);
     public static final NamedClusterPrivilege MANAGE_SECURITY = new ActionClusterPrivilege(
         "manage_security",
@@ -313,6 +329,10 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege MANAGE_PIPELINE = new ActionClusterPrivilege(
         "manage_pipeline",
         Set.of("cluster:admin" + "/ingest/pipeline/*")
+    );
+    public static final NamedClusterPrivilege MANAGE_PROJECT_ROUTING = new ActionClusterPrivilege(
+        "manage_project_routing",
+        MANAGE_PROJECT_ROUTING_PATTERN
     );
     public static final NamedClusterPrivilege MANAGE_AUTOSCALING = new ActionClusterPrivilege(
         "manage_autoscaling",
@@ -431,6 +451,7 @@ public class ClusterPrivilegeResolver {
             MONITOR_WATCHER,
             MONITOR_ROLLUP,
             MONITOR_ENRICH,
+            MONITOR_ESQL,
             MONITOR_STATS,
             MANAGE,
             MANAGE_CONNECTOR,
@@ -443,6 +464,7 @@ public class ClusterPrivilegeResolver {
             MANAGE_IDX_TEMPLATES,
             MANAGE_INGEST_PIPELINES,
             READ_PIPELINE,
+            READ_PROJECT_ROUTING,
             TRANSPORT_CLIENT,
             MANAGE_SECURITY,
             READ_SECURITY,
@@ -453,6 +475,7 @@ public class ClusterPrivilegeResolver {
             MANAGE_SERVICE_ACCOUNT,
             MANAGE_USER_PROFILE,
             MANAGE_PIPELINE,
+            MANAGE_PROJECT_ROUTING,
             MANAGE_ROLLUP,
             MANAGE_AUTOSCALING,
             MANAGE_CCR,

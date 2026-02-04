@@ -10,6 +10,10 @@
     "name": {
       "type": "keyword"
     },
+    "host": {
+      "type": "keyword",
+      "time_series_dimension": true
+    },
     "network": {
       "properties": {
         "connections": {

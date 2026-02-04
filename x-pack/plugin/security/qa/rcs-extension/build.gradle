@@ -1,0 +1,21 @@
+apply plugin: 'elasticsearch.base-internal-es-plugin'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+esplugin {
+  name = 'test-rcs-extension-plugin'
+  description = 'A plugin for testing RemoteClusterSecurityExtension'
+  classname = 'org.elasticsearch.xpack.security.rcs.extension.RemoteClusterSecurityExtensionTestPlugin'
+  extendedPlugins = ['x-pack-core', 'x-pack-security']
+}
+
+dependencies {
+  compileOnly project(':x-pack:plugin:core')
+  compileOnly project(':x-pack:plugin:security')
+  clusterPlugins project(':x-pack:plugin:security:qa:rcs-extension')
+
+  javaRestTestImplementation project(':x-pack:plugin:core')
+  javaRestTestImplementation project(':x-pack:plugin:security')
+  javaRestTestImplementation project(':test:framework')
+}
+
+tasks.named("javadoc").configure { enabled = false }

@@ -102,7 +102,7 @@ public class AsyncTaskMaintenanceServiceTests extends ESTestCase {
             return null;
         }).when(client).execute(same(DeleteByQueryAction.INSTANCE), any(DeleteByQueryRequest.class), any(ActionListener.class));
 
-        final ProjectResolver projectResolver = Mockito.spy(TestProjectResolvers.singleProjectOnly());
+        final ProjectResolver projectResolver = Mockito.spy(TestProjectResolvers.mustExecuteFirst());
 
         final AsyncTaskMaintenanceService service = new AsyncTaskMaintenanceService(
             clusterService,

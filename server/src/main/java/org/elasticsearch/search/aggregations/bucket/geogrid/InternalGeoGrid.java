@@ -23,6 +23,7 @@ import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -137,20 +138,17 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
-        return create(
-            getName(),
-            requiredSize,
-            buckets.stream()
-                .<InternalGeoGridBucket>map(
-                    b -> this.createBucket(
-                        b.hashAsLong,
-                        samplingContext.scaleUp(b.docCount),
-                        InternalAggregations.finalizeSampling(b.aggregations, samplingContext)
-                    )
+        final List<InternalGeoGridBucket> buckets = new ArrayList<>(this.buckets.size());
+        for (InternalGeoGridBucket bucket : this.buckets) {
+            buckets.add(
+                this.createBucket(
+                    bucket.hashAsLong,
+                    samplingContext.scaleUp(bucket.docCount),
+                    InternalAggregations.finalizeSampling(bucket.aggregations, samplingContext)
                 )
-                .toList(),
-            getMetadata()
-        );
+            );
+        }
+        return create(getName(), requiredSize, buckets, getMetadata());
     }
 
     protected abstract B createBucket(long hashAsLong, long docCount, InternalAggregations aggregations);

@@ -44,6 +44,8 @@ public class WellKnownText {
     public static final String RPAREN = ")";
     public static final String COMMA = ",";
     public static final String NAN = "NaN";
+    public static final String Z = "Z";
+    public static final String M = "M";
     public static final int MAX_NESTED_DEPTH = 1000;
 
     private static final String NUMBER = "<NUMBER>";
@@ -440,7 +442,8 @@ public class WellKnownText {
      */
     private static Geometry parseGeometry(StreamTokenizer stream, boolean coerce, int depth) throws IOException, ParseException {
         final String type = nextWord(stream).toLowerCase(Locale.ROOT);
-        return switch (type) {
+        final boolean isExplicitlySpecifiesZorM = isZOrMNext(stream);
+        Geometry geometry = switch (type) {
             case "point" -> parsePoint(stream);
             case "multipoint" -> parseMultiPoint(stream);
             case "linestring" -> parseLine(stream);
@@ -453,6 +456,16 @@ public class WellKnownText {
                 parseCircle(stream);
             default -> throw new IllegalArgumentException("Unknown geometry type: " + type);
         };
+        checkZorMAttribute(isExplicitlySpecifiesZorM, geometry.hasZ());
+        return geometry;
+    }
+
+    private static void checkZorMAttribute(boolean isExplicitlySpecifiesZorM, boolean hasZ) {
+        if (isExplicitlySpecifiesZorM && hasZ == false) {
+            throw new IllegalArgumentException(
+                "When specifying 'Z' or 'M', coordinates must include three values. Only two coordinates were provided"
+            );
+        }
     }
 
     private static GeometryCollection<Geometry> parseGeometryCollection(StreamTokenizer stream, boolean coerce, int depth)
@@ -708,6 +721,21 @@ public class WellKnownText {
         final int type = stream.nextToken();
         stream.pushBack();
         return type == StreamTokenizer.TT_WORD;
+    }
+
+    private static boolean isZOrMNext(StreamTokenizer stream) {
+        String token;
+        try {
+            token = nextWord(stream);
+            if (token.equals(Z) || token.equals(M)) {
+                return true;
+            }
+            stream.pushBack();
+            return false;
+        } catch (ParseException | IOException e) {
+            return false;
+        }
+
     }
 
     private static String nextEmptyOrOpen(StreamTokenizer stream) throws IOException, ParseException {

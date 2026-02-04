@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -45,8 +45,8 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
     }
 
     @Override
-    public Result isConditionMet(Index index, ClusterState clusterState) {
-        IndexMetadata idxMeta = clusterState.metadata().getProject().index(index);
+    public Result isConditionMet(Index index, ProjectState currentState) {
+        IndexMetadata idxMeta = currentState.metadata().index(index);
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
@@ -55,16 +55,12 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
         List<String> preferredTierConfiguration = idxMeta.getTierPreference();
         Optional<String> availableDestinationTier = DataTierAllocationDecider.preferredAvailableTier(
             preferredTierConfiguration,
-            clusterState.getNodes(),
-            DesiredNodes.latestFromClusterState(clusterState),
-            clusterState.metadata().nodeShutdowns()
+            currentState.cluster().getNodes(),
+            DesiredNodes.latestFromClusterState(currentState.cluster()),
+            currentState.cluster().metadata().nodeShutdowns()
         );
 
-        if (ActiveShardCount.ALL.enoughShardsActive(
-            clusterState.metadata().getProject(),
-            clusterState.routingTable(),
-            index.getName()
-        ) == false) {
+        if (ActiveShardCount.ALL.enoughShardsActive(currentState.metadata(), currentState.routingTable(), index.getName()) == false) {
             if (preferredTierConfiguration.isEmpty()) {
                 logger.debug(
                     "[{}] lifecycle action for index [{}] cannot make progress because not all shards are active",
@@ -103,7 +99,7 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
             return new Result(true, null);
         }
 
-        int allocationPendingAllShards = getPendingAllocations(index, DECIDERS, clusterState);
+        int allocationPendingAllShards = getPendingAllocations(index, DECIDERS, currentState);
 
         if (allocationPendingAllShards > 0) {
             String statusMessage = availableDestinationTier.map(

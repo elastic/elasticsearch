@@ -1,0 +1,37 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: test_1
+
+---
+"Remote index mapping, should fail":
+  - requires:
+      cluster_features: [ "search.indices_boost_remote_index_fix" ]
+      reason: "indices_boost remote index fix must be present"
+  - do:
+      catch: /Cross-cluster calls are not supported in this context but remote indices were requested:/
+      indices.get_mapping:
+        index: remote1:test_1
+
+---
+"Remote and local index mapping, should fail":
+  - requires:
+      cluster_features: [ "search.indices_boost_remote_index_fix" ]
+      reason: "indices_boost remote index fix must be present"
+  - do:
+      catch: /Cross-cluster calls are not supported in this context but remote indices were requested:/
+      indices.get_mapping:
+        index: test_1,remote1:test_1
+
+---
+"Remote index mapping, ignore_unavailable=true, should fail":
+  - requires:
+      cluster_features: [ "search.indices_boost_remote_index_fix" ]
+      reason: "indices_boost remote index fix must be present"
+  - do:
+      catch: /Cross-cluster calls are not supported in this context but remote indices were requested:/
+      indices.get_mapping:
+        ignore_unavailable: true
+        index: remote1:test_1
+

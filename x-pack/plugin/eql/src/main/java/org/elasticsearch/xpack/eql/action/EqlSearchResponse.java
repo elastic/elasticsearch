@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.eql.action;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -121,18 +120,13 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
     }
 
     public EqlSearchResponse(StreamInput in) throws IOException {
-        super(in);
         tookInMillis = in.readVLong();
         isTimeout = in.readBoolean();
         hits = new Hits(in);
         asyncExecutionId = in.readOptionalString();
         isPartial = in.readBoolean();
         isRunning = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.EQL_ALLOW_PARTIAL_SEARCH_RESULTS)) {
-            shardFailures = in.readArray(ShardSearchFailure::readShardSearchFailure, ShardSearchFailure[]::new);
-        } else {
-            shardFailures = ShardSearchFailure.EMPTY_ARRAY;
-        }
+        shardFailures = in.readArray(ShardSearchFailure::readShardSearchFailure, ShardSearchFailure[]::new);
     }
 
     public static EqlSearchResponse fromXContent(XContentParser parser) {
@@ -147,9 +141,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         out.writeOptionalString(asyncExecutionId);
         out.writeBoolean(isPartial);
         out.writeBoolean(isRunning);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.EQL_ALLOW_PARTIAL_SEARCH_RESULTS)) {
-            out.writeArray(shardFailures);
-        }
+        out.writeArray(shardFailures);
     }
 
     @Override
@@ -311,16 +303,12 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             id = in.readString();
             // TODO: make this pooled?
             source = in.readBytesReference();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0) && in.readBoolean()) {
+            if (in.readBoolean()) {
                 fetchFields = in.readMap(DocumentField::new);
             } else {
                 fetchFields = null;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-                missing = in.readBoolean();
-            } else {
-                missing = index.isEmpty();
-            }
+            missing = in.readBoolean();
         }
 
         public static Event readFrom(StreamInput in) throws IOException {
@@ -333,17 +321,13 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             out.writeString(index);
             out.writeString(id);
             out.writeBytesReference(source);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
-                out.writeBoolean(fetchFields != null);
-                if (fetchFields != null) {
-                    out.writeMap(fetchFields, StreamOutput::writeWriteable);
-                }
+            out.writeBoolean(fetchFields != null);
+            if (fetchFields != null) {
+                out.writeMap(fetchFields, StreamOutput::writeWriteable);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-                // for BWC, 8.9.1+ does not have "missing" attribute, but it considers events with an empty index "" as missing events
-                // see https://github.com/elastic/elasticsearch/pull/98130
-                out.writeBoolean(missing);
-            }
+            // for BWC, 8.9.1+ does not have "missing" attribute, but it considers events with an empty index "" as missing events
+            // see https://github.com/elastic/elasticsearch/pull/98130
+            out.writeBoolean(missing);
         }
 
         @Override

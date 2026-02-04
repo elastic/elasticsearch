@@ -17,15 +17,17 @@ import java.util.Map;
 
 /**
  * Map containing ingest source and metadata.
- *
- * The Metadata values in {@link IngestDocument.Metadata} are validated when put in the map.
- * _index, _id and _routing must be a String or null
- * _version_type must be a lower case VersionType or null
- * _version must be representable as a long without loss of precision or null
- * _dynamic_templates must be a map
- * _if_seq_no must be a long or null
- * _if_primary_term must be a long or null
- *
+ * <p>
+ * The Metadata values in {@link IngestDocument.Metadata} are validated when put in the map:
+ * <ul>
+ *   <li>{@code _index}, {@code _id} and {@code _routing} must be a String or null</li>
+ *   <li>{@code _version_type} must be a lower case VersionType or null</li>
+ *   <li>{@code _version} must be representable as a long without loss of precision or null</li>
+ *   <li>{@code _dynamic_templates} must be a map</li>
+ *   <li>{@code _if_seq_no} must be a long or null</li>
+ *   <li>{@code _if_primary_term} must be a long or null</li>
+ * </ul>
+ * <p>
  * The map is expected to be used by processors, server code should the typed getter and setters where possible.
  */
 final class IngestCtxMap extends CtxMap<IngestDocMetadata> {

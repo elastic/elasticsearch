@@ -30,7 +30,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -48,16 +47,20 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemUtils;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
@@ -74,9 +77,11 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MapMatcher;
+import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -90,6 +95,7 @@ import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -116,6 +122,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -142,11 +149,14 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.test.rest.TestFeatureService.ALL_FEATURES;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -166,6 +176,10 @@ public abstract class ESRestTestCase extends ESTestCase {
     public static final String CLIENT_PATH_PREFIX = "client.path.prefix";
 
     private static final Pattern SEMANTIC_VERSION_PATTERN = Pattern.compile("^(\\d+\\.\\d+\\.\\d+)\\D?.*");
+
+    public interface VersionFeaturesPredicate {
+        boolean test(Version featureVersion, boolean canMatchAnyNode);
+    }
 
     private static final Logger SUITE_LOGGER = LogManager.getLogger(ESRestTestCase.class);
 
@@ -261,6 +275,9 @@ public abstract class ESRestTestCase extends ESTestCase {
     private static RestClient cleanupClient;
 
     private static boolean multiProjectEnabled;
+    private static String activeProject;
+    private static Set<String> extraProjects;
+    private static boolean projectsConfigured = false;
 
     public enum ProductFeature {
         XPACK,
@@ -352,95 +369,109 @@ public abstract class ESRestTestCase extends ESTestCase {
         return testFeatureService != ALL_FEATURES;
     }
 
+    /**
+     * Whether the old cluster version is not of the released versions, but a detached build.
+     * In that case the Git ref has to be specified via {@code tests.bwc.refspec.main} system property.
+     */
+    protected static boolean isOldClusterDetachedVersion() {
+        return System.getProperty("tests.bwc.refspec.main") != null;
+    }
+
+    @BeforeClass
+    public static void initializeProjectIds() {
+        // The active project-id is slightly longer, and has a fixed prefix so that it's easier to pick in error messages etc.
+        activeProject = "active00" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
+        extraProjects = randomSet(1, 3, () -> randomAlphaOfLength(12).toLowerCase(Locale.ROOT));
+        multiProjectEnabled = Booleans.parseBoolean(System.getProperty("tests.multi_project.enabled", "false"));
+    }
+
     @Before
     public void initClient() throws IOException {
         if (client == null) {
-            assert adminClient == null;
-            assert clusterHosts == null;
-            assert availableFeatures == null;
-            assert nodesVersions == null;
-            assert testFeatureServiceInitialized() == false;
-            clusterHosts = parseClusterHosts(getTestRestCluster());
-            logger.info("initializing REST clients against {}", clusterHosts);
-            var clientSettings = restClientSettings();
-            var adminSettings = restAdminSettings();
-            var hosts = clusterHosts.toArray(new HttpHost[0]);
-            client = buildClient(clientSettings, hosts);
-            adminClient = clientSettings.equals(adminSettings) ? client : buildClient(adminSettings, hosts);
-            cleanupClient = getCleanupClient();
+            boolean success = false;
+            try {
+                assert adminClient == null;
+                assert clusterHosts == null;
+                assert availableFeatures == null;
+                assert nodesVersions == null;
+                assert testFeatureServiceInitialized() == false;
+                clusterHosts = parseClusterHosts(getTestRestCluster());
+                logger.info("initializing REST clients against {}", clusterHosts);
+                // We add the project ID to the client settings afterward because a lot of subclasses don't call super.restClientSettings(),
+                // meaning the project ID would be removed from the settings.
+                var clientSettings = addProjectIdToSettings(restClientSettings());
+                var adminSettings = restAdminSettings();
+                var cleanupSettings = cleanupClientSettings();
+                var hosts = clusterHosts.toArray(new HttpHost[0]);
+                client = buildClient(clientSettings, hosts);
+                adminClient = clientSettings.equals(adminSettings) ? client : buildClient(adminSettings, hosts);
+                cleanupClient = adminSettings.equals(cleanupSettings) ? adminClient : buildClient(cleanupSettings, hosts);
 
-            availableFeatures = EnumSet.of(ProductFeature.LEGACY_TEMPLATES);
-            Set<String> versions = new HashSet<>();
-            boolean serverless = false;
-            String multiProjectPluginVariant = null;
+                availableFeatures = EnumSet.of(ProductFeature.LEGACY_TEMPLATES);
+                Set<String> versions = new HashSet<>();
+                boolean serverless = false;
 
-            for (Map<?, ?> nodeInfo : getNodesInfo(adminClient).values()) {
-                var nodeVersion = nodeInfo.get("version").toString();
-                versions.add(nodeVersion);
-                for (Object module : (List<?>) nodeInfo.get("modules")) {
-                    Map<?, ?> moduleInfo = (Map<?, ?>) module;
-                    final String moduleName = moduleInfo.get("name").toString();
-                    if (moduleName.startsWith("x-pack")) {
-                        availableFeatures.add(ProductFeature.XPACK);
+                for (Map<?, ?> nodeInfo : getNodesInfo(adminClient).values()) {
+                    var nodeVersion = nodeInfo.get("version").toString();
+                    versions.add(nodeVersion);
+                    for (Object module : (List<?>) nodeInfo.get("modules")) {
+                        Map<?, ?> moduleInfo = (Map<?, ?>) module;
+                        final String moduleName = moduleInfo.get("name").toString();
+                        if (moduleName.startsWith("x-pack")) {
+                            availableFeatures.add(ProductFeature.XPACK);
+                        }
+                        if (moduleName.equals("x-pack-ilm")) {
+                            availableFeatures.add(ProductFeature.ILM);
+                            availableFeatures.add(ProductFeature.SLM);
+                        }
+                        if (moduleName.equals("x-pack-rollup")) {
+                            availableFeatures.add(ProductFeature.ROLLUPS);
+                        }
+                        if (moduleName.equals("x-pack-ccr")) {
+                            availableFeatures.add(ProductFeature.CCR);
+                        }
+                        if (moduleName.equals("x-pack-shutdown")) {
+                            availableFeatures.add(ProductFeature.SHUTDOWN);
+                        }
+                        if (moduleName.equals("searchable-snapshots")) {
+                            availableFeatures.add(ProductFeature.SEARCHABLE_SNAPSHOTS);
+                        }
+                        if (moduleName.startsWith("serverless-")) {
+                            serverless = true;
+                        }
                     }
-                    if (moduleName.equals("x-pack-ilm")) {
-                        availableFeatures.add(ProductFeature.ILM);
-                        availableFeatures.add(ProductFeature.SLM);
-                    }
-                    if (moduleName.equals("x-pack-rollup")) {
-                        availableFeatures.add(ProductFeature.ROLLUPS);
-                    }
-                    if (moduleName.equals("x-pack-ccr")) {
-                        availableFeatures.add(ProductFeature.CCR);
-                    }
-                    if (moduleName.equals("x-pack-shutdown")) {
-                        availableFeatures.add(ProductFeature.SHUTDOWN);
-                    }
-                    if (moduleName.equals("searchable-snapshots")) {
-                        availableFeatures.add(ProductFeature.SEARCHABLE_SNAPSHOTS);
-                    }
-                    if (moduleName.startsWith("serverless-")) {
-                        serverless = true;
-                    }
-                    if (moduleName.contains("test-multi-project")) {
-                        multiProjectPluginVariant = "test";
-                    } else if (moduleName.contains("serverless-multi-project")) {
-                        multiProjectPluginVariant = "serverless";
+                    if (serverless) {
+                        availableFeatures.removeAll(
+                            List.of(
+                                ProductFeature.ILM,
+                                ProductFeature.SLM,
+                                ProductFeature.ROLLUPS,
+                                ProductFeature.CCR,
+                                ProductFeature.LEGACY_TEMPLATES
+                            )
+                        );
                     }
                 }
-                if (serverless) {
-                    availableFeatures.removeAll(
-                        List.of(
-                            ProductFeature.ILM,
-                            ProductFeature.SLM,
-                            ProductFeature.ROLLUPS,
-                            ProductFeature.CCR,
-                            ProductFeature.LEGACY_TEMPLATES
-                        )
-                    );
+                nodesVersions = Collections.unmodifiableSet(versions);
+                testFeatureService = createTestFeatureService(getClusterStateFeatures(adminClient), fromSemanticVersions(nodesVersions));
+
+                configureProjects();
+                success = true;
+            } finally {
+                if (success == false) {
+                    // clean up partially-initialized state on failure
+                    try {
+                        IOUtils.close(client, adminClient, cleanupClient);
+                    } finally {
+                        client = null;
+                        adminClient = null;
+                        clusterHosts = null;
+                        availableFeatures = null;
+                        nodesVersions = null;
+                        testFeatureService = ALL_FEATURES;
+                    }
                 }
             }
-            nodesVersions = Collections.unmodifiableSet(versions);
-
-            var semanticNodeVersions = nodesVersions.stream()
-                .map(ESRestTestCase::parseLegacyVersion)
-                .flatMap(Optional::stream)
-                .collect(Collectors.toSet());
-            assert semanticNodeVersions.isEmpty() == false || serverless;
-
-            if (multiProjectPluginVariant != null) {
-                final Request settingRequest = new Request(
-                    "GET",
-                    "/_cluster/settings?include_defaults&filter_path=*." + multiProjectPluginVariant + ".multi_project.enabled"
-                );
-                settingRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
-                final var response = entityAsMap(adminClient.performRequest(settingRequest));
-                multiProjectEnabled = Boolean.parseBoolean(
-                    ObjectPath.evaluate(response, "defaults." + multiProjectPluginVariant + ".multi_project.enabled")
-                );
-            }
-
-            testFeatureService = createTestFeatureService(getClusterStateFeatures(adminClient), semanticNodeVersions);
         }
 
         assert testFeatureServiceInitialized();
@@ -453,9 +484,9 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected final TestFeatureService createTestFeatureService(
         Map<String, Set<String>> clusterStateFeatures,
-        Set<Version> semanticNodeVersions
+        VersionFeaturesPredicate versionFeaturesPredicate
     ) {
-        return new ESRestTestFeatureService(semanticNodeVersions, clusterStateFeatures.values());
+        return new ESRestTestFeatureService(versionFeaturesPredicate, clusterStateFeatures.values());
     }
 
     protected static boolean has(ProductFeature feature) {
@@ -911,6 +942,15 @@ public abstract class ESRestTestCase extends ESTestCase {
         return false;
     }
 
+    /**
+     * Invoke {@code POST /_features/_reset?error_trace} with the given {@link RestClient}.
+     */
+    public static void performPostFeaturesReset(RestClient restClient) throws IOException {
+        final var request = new Request(HttpPost.METHOD_NAME, "/_features/_reset");
+        request.addParameter("error_trace", "true");
+        assertOK(restClient.performRequest(request));
+    }
+
     private void wipeCluster() throws Exception {
         waitForClusterUpdates();
 
@@ -937,8 +977,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         wipeSnapshots();
 
         if (resetFeatureStates()) {
-            final Request postRequest = new Request("POST", "/_features/_reset");
-            cleanupClient().performRequest(postRequest);
+            performPostFeaturesReset(cleanupClient());
         }
 
         // wipe data streams before indices so that the backing indices for data streams are handled properly
@@ -950,6 +989,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             // wipe indices
             wipeAllIndices(preserveSecurityIndicesUponCompletion());
         }
+
+        wipeAllViews();
 
         // wipe index templates
         if (preserveTemplatesUponCompletion() == false) {
@@ -1050,7 +1091,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         deleteAllNodeShutdownMetadata();
     }
 
-    private void waitForClusterUpdates() throws Exception {
+    public void waitForClusterUpdates() throws Exception {
         logger.info("Waiting for all cluster updates up to this moment to be processed");
 
         try {
@@ -1218,10 +1259,14 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void wipeAllIndices(boolean preserveSecurityIndices) throws IOException {
+        wipeAllIndices(preserveSecurityIndices, cleanupClient());
+    }
+
+    protected static void wipeAllIndices(boolean preserveSecurityIndices, RestClient cleanupClient) throws IOException {
         try {
             // remove all indices except some history indices which can pop up after deleting all data streams but shouldn't interfere
             final List<String> indexPatterns = new ArrayList<>(
-                List.of("*", "-.ds-ilm-history-*", "-.ds-.slm-history-*", "-.ds-.watcher-history-*")
+                List.of("*", "-.ds-ilm-history-*", "-.ds-.slm-history-*", "-.ds-.watcher-history-*", "-.ds-.triggered_watches-*")
             );
             if (preserveSecurityIndices) {
                 indexPatterns.add("-.security-*");
@@ -1236,7 +1281,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 RequestOptions.DEFAULT.toBuilder().setWarningsHandler(ESRestTestCase::ignoreSystemIndexAccessWarnings)
             );
 
-            final Response response = cleanupClient().performRequest(deleteRequest);
+            final Response response = cleanupClient.performRequest(deleteRequest);
             try (InputStream is = response.getEntity().getContent()) {
                 assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));
             }
@@ -1289,6 +1334,43 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
+    protected void wipeAllViews() throws IOException {
+        // retrieves all views
+        final Request request = new Request("GET", "_query/view");
+
+        final Response response;
+        try {
+            response = cleanupClient().performRequest(request);
+        } catch (ResponseException e) {
+            String err = EntityUtils.toString(e.getResponse().getEntity());
+            if (err.contains("no handler found for uri [_query/view]") || err.contains("Incorrect HTTP method for uri [_query/view]")) {
+                // Views are not supported, don't worry about wiping them
+                return;
+            }
+            throw e;
+        }
+
+        @SuppressWarnings("unchecked")
+        List<Object> views = (List<Object>) XContentMapValues.extractValue("views", entityAsMap(response));
+        if (views != null) {
+            for (Object view : views) {
+                try {
+                    @SuppressWarnings("unchecked")
+                    Map<String, String> viewMap = (Map<String, String>) view;
+                    String viewName = viewMap.get("name");
+                    assertAcked(
+                        "Failed to delete view [" + viewName + ']',
+                        cleanupClient().performRequest(new Request("DELETE", "_query/view/" + viewName))
+                    );
+                } catch (ResponseException e) {
+                    if (isNotFoundResponseException(e) == false) {
+                        throw e;
+                    }
+                }
+            }
+        }
+    }
+
     protected void wipeSearchableSnapshotsIndices() throws IOException {
         // retrieves all indices with a type of store equals to "snapshot"
         final Request request = new Request("GET", "_cluster/state/metadata");
@@ -1334,7 +1416,8 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected void deleteRepository(String repoName) throws IOException {
         logger.debug("wiping snapshot repository [{}]", repoName);
-        cleanupClient().performRequest(new Request("DELETE", "_snapshot/" + repoName));
+        final var response = cleanupClient().performRequest(new Request("DELETE", "_snapshot/" + repoName));
+        assertOK(response);
     }
 
     /**
@@ -1603,6 +1686,9 @@ public abstract class ESRestTestCase extends ESTestCase {
             final var projectId = System.getProperty("tests.rest.project.id");
             builder.put(ThreadContext.PREFIX + ".X-Elastic-Project-Id", projectId);
         }
+        if (System.getProperty("tests." + CLIENT_SOCKET_TIMEOUT) != null) {
+            builder.put(CLIENT_SOCKET_TIMEOUT, System.getProperty("tests." + CLIENT_SOCKET_TIMEOUT));
+        }
         return builder.build();
     }
 
@@ -1616,9 +1702,21 @@ public abstract class ESRestTestCase extends ESTestCase {
     /**
      * Returns the REST client used for cleaning up the cluster.
      */
-    protected RestClient getCleanupClient() {
-        assert adminClient != null;
-        return adminClient;
+    protected Settings cleanupClientSettings() {
+        if (multiProjectEnabled == false || shouldConfigureProjects() == false) {
+            return restAdminSettings();
+        }
+        return addProjectIdToSettings(restAdminSettings());
+    }
+
+    private Settings addProjectIdToSettings(Settings settings) {
+        if (multiProjectEnabled == false || shouldConfigureProjects() == false) {
+            return settings;
+        }
+        return Settings.builder()
+            .put(settings)
+            .put(ThreadContext.PREFIX + "." + Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, activeProject)
+            .build();
     }
 
     /**
@@ -2043,8 +2141,38 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static boolean indexExists(RestClient client, String index) throws IOException {
-        Response response = client.performRequest(new Request("HEAD", "/" + index));
-        return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
+        // We use the /_cluster/health/{index} API to ensure the index exists on the master node - which means all nodes see the index.
+        Request request = new Request("GET", "/_cluster/health/" + index);
+        request.addParameter("timeout", "0");
+        request.addParameter("level", "indices");
+        try {
+            final var response = client.performRequest(request);
+            @SuppressWarnings("unchecked")
+            final var indices = (Map<String, Object>) entityAsMap(response).get("indices");
+            return indices.containsKey(index);
+        } catch (ResponseException e) {
+            if (e.getResponse().getStatusLine().getStatusCode() == HttpStatus.SC_REQUEST_TIMEOUT) {
+                return false;
+            }
+            throw e;
+        }
+    }
+
+    protected static void awaitIndexExists(String index) throws IOException {
+        awaitIndexExists(index, SAFE_AWAIT_TIMEOUT);
+    }
+
+    protected static void awaitIndexExists(String index, TimeValue timeout) throws IOException {
+        // We use the /_cluster/health/{index} API to ensure the index exists on the master node - which means all nodes see the index.
+        ensureHealth(client(), index, request -> request.addParameter("timeout", timeout.toString()));
+    }
+
+    protected static void awaitIndexDoesNotExist(String index) throws Exception {
+        awaitIndexDoesNotExist(index, TimeValue.timeValueSeconds(10));
+    }
+
+    protected static void awaitIndexDoesNotExist(String index, TimeValue timeout) throws Exception {
+        assertBusy(() -> assertFalse(indexExists(index)), timeout.millis(), TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -2053,7 +2181,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Note that this message is also permitted in certain YAML test cases, it can be removed there too.
      * See https://github.com/elastic/elasticsearch/issues/66419 and https://github.com/elastic/elasticsearch/pull/119594 for more details.
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
     private static final String WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE = "the default value for the ?wait_for_active_shards "
         + "parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' "
         + "to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour";
@@ -2077,6 +2205,27 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static boolean aliasExists(String index, String alias) throws IOException {
         Response response = client().performRequest(new Request("HEAD", "/" + index + "/_alias/" + alias));
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
+    }
+
+    /**
+     * Returns a list of the data stream's backing index names.
+     */
+    protected static List<String> getDataStreamBackingIndexNames(String dataStreamName) throws IOException {
+        return getDataStreamBackingIndexNames(client(), dataStreamName);
+    }
+
+    /**
+     * Returns a list of the data stream's backing index names.
+     */
+    @SuppressWarnings("unchecked")
+    protected static List<String> getDataStreamBackingIndexNames(RestClient client, String dataStreamName) throws IOException {
+        Map<String, Object> response = getAsMap(client, "/_data_stream/" + dataStreamName);
+        List<?> dataStreams = (List<?>) response.get("data_streams");
+        assertThat(dataStreams.size(), equalTo(1));
+        Map<?, ?> dataStream = (Map<?, ?>) dataStreams.getFirst();
+        assertThat(dataStream.get("name"), equalTo(dataStreamName));
+        List<?> indices = (List<?>) dataStream.get("indices");
+        return indices.stream().map(index -> ((Map<String, String>) index).get("index_name")).toList();
     }
 
     @SuppressWarnings("unchecked")
@@ -2158,12 +2307,29 @@ public abstract class ESRestTestCase extends ESTestCase {
         assertAcked("Failed to create repository [" + repository + "] of type [" + type + "]: " + response, response);
     }
 
-    protected static void createSnapshot(String repository, String snapshot, boolean waitForCompletion) throws IOException {
-        createSnapshot(client(), repository, snapshot, waitForCompletion);
+    protected static XContentTestUtils.JsonMapView getRepository(String repoName) throws IOException {
+        final var response = client().performRequest(new Request("GET", "/_snapshot/" + repoName));
+        assertOK(response);
+        return new XContentTestUtils.JsonMapView(entityAsMap(response));
     }
 
-    protected static void createSnapshot(RestClient restClient, String repository, String snapshot, boolean waitForCompletion)
+    protected static void assertRepositoryNotFound(String repoName) throws IOException {
+        final var e = assertThrows(ResponseException.class, () -> client().performRequest(new Request("GET", "/_snapshot/" + repoName)));
+        final var statusLine = e.getResponse().getStatusLine();
+        assertEquals("expected 404, got " + statusLine, 404, statusLine.getStatusCode());
+    }
+
+    protected static XContentTestUtils.JsonMapView createSnapshot(String repository, String snapshot, boolean waitForCompletion)
         throws IOException {
+        return createSnapshot(client(), repository, snapshot, waitForCompletion);
+    }
+
+    protected static XContentTestUtils.JsonMapView createSnapshot(
+        RestClient restClient,
+        String repository,
+        String snapshot,
+        boolean waitForCompletion
+    ) throws IOException {
         final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot);
         request.addParameter("wait_for_completion", Boolean.toString(waitForCompletion));
 
@@ -2173,6 +2339,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             response.getStatusLine().getStatusCode(),
             equalTo(RestStatus.OK.getStatus())
         );
+        return new XContentTestUtils.JsonMapView(entityAsMap(response));
     }
 
     protected static void restoreSnapshot(String repository, String snapshot, boolean waitForCompletion) throws IOException {
@@ -2185,6 +2352,14 @@ public abstract class ESRestTestCase extends ESTestCase {
             response.getStatusLine().getStatusCode(),
             equalTo(RestStatus.OK.getStatus())
         );
+    }
+
+    protected XContentTestUtils.JsonMapView listAllSnapshots(String repository) throws IOException {
+        return new XContentTestUtils.JsonMapView(getAsMap("_snapshot/" + repository + "/" + randomFrom("*", "_all")));
+    }
+
+    protected XContentTestUtils.JsonMapView getIndexRecovery(String indexName) throws IOException {
+        return new XContentTestUtils.JsonMapView(getAsMap(indexName + "/_recovery"));
     }
 
     protected static void deleteSnapshot(String repository, String snapshot, boolean ignoreMissing) throws IOException {
@@ -2297,7 +2472,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
         return switch (id) {
             case "logs-default-pipeline", "logs@default-pipeline", "logs@json-message", "logs@json-pipeline" -> true;
-            case "apm@pipeline", "traces-apm@pipeline", "metrics-apm@pipeline" -> true;
+            case "apm@pipeline", "traces-apm@pipeline", "metrics-apm@pipeline", "logs-apm@pipeline" -> true;
             case "behavioral_analytics-events-final_pipeline", "ent-search-generic-ingestion", "search-default-ingestion" -> true;
             case "reindex-data-stream-pipeline" -> true;
             default -> false;
@@ -2464,9 +2639,9 @@ public abstract class ESRestTestCase extends ESTestCase {
             var transportVersion = getTransportVersionWithFallback(
                 objectPath.evaluate("nodes." + id + ".version"),
                 objectPath.evaluate("nodes." + id + ".transport_version"),
-                () -> TransportVersions.MINIMUM_COMPATIBLE
+                () -> TransportVersion.minimumCompatible()
             );
-            if (minTransportVersion == null || minTransportVersion.after(transportVersion)) {
+            if (minTransportVersion == null || transportVersion.supports(minTransportVersion) == false) {
                 minTransportVersion = transportVersion;
             }
         }
@@ -2504,6 +2679,27 @@ public abstract class ESRestTestCase extends ESTestCase {
         return Optional.empty();
     }
 
+    public static VersionFeaturesPredicate fromSemanticVersions(Set<String> nodesVersions) {
+        Set<Version> semanticNodeVersions = nodesVersions.stream()
+            .map(ESRestTestCase::parseLegacyVersion)
+            .flatMap(Optional::stream)
+            .collect(Collectors.toSet());
+        if (semanticNodeVersions.isEmpty()) {
+            // Nodes do not have a semantic version (e.g. serverless).
+            // We assume the cluster is on the "latest version", and all is supported.
+            return ((featureVersion, canMatchAnyNode) -> true);
+        }
+
+        return (featureVersion, canMatchAnyNode) -> {
+            if (canMatchAnyNode) {
+                return semanticNodeVersions.stream().anyMatch(nodeVersion -> nodeVersion.onOrAfter(featureVersion));
+            } else {
+                return semanticNodeVersions.isEmpty() == false
+                    && semanticNodeVersions.stream().allMatch(nodeVersion -> nodeVersion.onOrAfter(featureVersion));
+            }
+        };
+    }
+
     /**
      * Wait for the license to be applied and active. The specified admin client is used to check the license and this is done using
      * {@link ESTestCase#assertBusy(CheckedRunnable)} to give some time to the License to be applied on nodes.
@@ -2514,6 +2710,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static void waitForActiveLicense(final RestClient restClient) throws Exception {
         assertBusy(() -> {
             final Request request = new Request(HttpGet.METHOD_NAME, "/_xpack");
+            request.addParameter("categories", "license");
             request.setOptions(RequestOptions.DEFAULT.toBuilder());
 
             final Response response = restClient.performRequest(request);
@@ -2647,11 +2844,35 @@ public abstract class ESRestTestCase extends ESTestCase {
         return request;
     }
 
-    protected static MapMatcher getResultMatcher(boolean includeMetadata, boolean includePartial) {
+    protected static MapMatcher getProfileMatcher() {
+        return matchesMap() //
+            .entry("query", instanceOf(Map.class))
+            .entry("planning", instanceOf(Map.class))
+            .entry("parsing", instanceOf(Map.class))
+            .entry("preanalysis", instanceOf(Map.class))
+            .entry("dependency_resolution", instanceOf(Map.class))
+            .entry("analysis", instanceOf(Map.class))
+            .entry("field_caps_calls", instanceOf(Integer.class))
+            .entry("drivers", instanceOf(List.class))
+            .entry("plans", instanceOf(List.class))
+            .entry("minimumTransportVersion", instanceOf(Integer.class));
+    }
+
+    protected static MapMatcher getResultMatcher(boolean includePartial, boolean includeDocumentsFound, boolean includeTimestamps) {
         MapMatcher mapMatcher = matchesMap();
-        if (includeMetadata) {
-            mapMatcher = mapMatcher.entry("took", greaterThanOrEqualTo(0));
+        if (includeDocumentsFound) {
+            // Older versions may not return documents_found and values_loaded.
+            mapMatcher = mapMatcher.entry("documents_found", greaterThanOrEqualTo(0));
+            mapMatcher = mapMatcher.entry("values_loaded", greaterThanOrEqualTo(0));
         }
+        if (includeTimestamps) {
+            // Older versions may not return start_time_in_millis, completion_time_in_millis and expiration_time_in_millis
+            mapMatcher = mapMatcher.entry("start_time_in_millis", greaterThanOrEqualTo(0L));
+            mapMatcher = mapMatcher.entry("completion_time_in_millis", greaterThanOrEqualTo(0L));
+            mapMatcher = mapMatcher.entry("expiration_time_in_millis", greaterThanOrEqualTo(0L));
+        }
+
+        mapMatcher = mapMatcher.entry("took", greaterThanOrEqualTo(0));
         // Older version may not have is_partial
         if (includePartial) {
             mapMatcher = mapMatcher.entry("is_partial", false);
@@ -2663,7 +2884,11 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Create empty result matcher from result, taking into account all metadata items.
      */
     protected static MapMatcher getResultMatcher(Map<String, Object> result) {
-        return getResultMatcher(result.containsKey("took"), result.containsKey("is_partial"));
+        return getResultMatcher(
+            result.containsKey("is_partial"),
+            result.containsKey("documents_found"),
+            result.containsKey("start_time_in_millis")
+        );
     }
 
     /**
@@ -2687,5 +2912,227 @@ public abstract class ESRestTestCase extends ESTestCase {
         Matcher<?> valuesMatcher
     ) {
         assertMap(result, mapMatcher.entry("columns", columnMatcher).entry("values", valuesMatcher));
+    }
+
+    /**
+     * Whether the test framework should configure an active projects and some extra projects. This is true by default (when multi-project
+     * is enabled). Subclasses can override this method to avoid configuring projects - e.g. when they configure projects themselves.
+     */
+    protected boolean shouldConfigureProjects() {
+        assert multiProjectEnabled;
+        return true;
+    }
+
+    private void configureProjects() throws IOException {
+        if (projectsConfigured || multiProjectEnabled == false || shouldConfigureProjects() == false) {
+            return;
+        }
+        projectsConfigured = true;
+        createProject(activeProject);
+        for (var project : extraProjects) {
+            createProject(project);
+        }
+
+        // The admin client does not set a project id, and can see all projects
+        assertProjectIds(
+            adminClient(),
+            CollectionUtils.concatLists(List.of(Metadata.DEFAULT_PROJECT_ID.id(), activeProject), extraProjects)
+        );
+        // The test client can only see the project it targets
+        assertProjectIds(client(), List.of(activeProject));
+    }
+
+    @After
+    public final void assertEmptyProjects() throws Exception {
+        if (projectsConfigured == false) {
+            return;
+        }
+        assertEmptyProject(Metadata.DEFAULT_PROJECT_ID.id());
+        for (var project : extraProjects) {
+            assertEmptyProject(project);
+        }
+    }
+
+    /**
+     * If multi-project is enabled, returns the active project ID followed by a slash, which is used to prefix various keys in REST
+     * responses. Otherwise, returns the empty string.
+     */
+    protected String activeProjectPrefix() {
+        return multiProjectEnabled ? (activeProject + "/") : "";
+    }
+
+    protected void createProject(String project) throws IOException {
+        assert multiProjectEnabled;
+        final Request request = new Request("PUT", "/_project/" + project);
+        try {
+            final Response response = adminClient().performRequest(request);
+            logger.info("Created project {} : {}", project, response.getStatusLine());
+        } catch (ResponseException e) {
+            logger.error("Failed to create project: {}", project);
+            throw e;
+        }
+    }
+
+    protected void assertProjectIds(RestClient client, List<String> expectedProjects) throws IOException {
+        assert multiProjectEnabled;
+        final Collection<String> actualProjects = getProjectIds(client);
+        assertThat(
+            "Cluster returned project ids: " + actualProjects,
+            actualProjects,
+            containsInAnyOrder(expectedProjects.toArray(String[]::new))
+        );
+    }
+
+    protected Collection<String> getProjectIds(RestClient client) throws IOException {
+        assert multiProjectEnabled;
+        final Request request = new Request("GET", "/_cluster/state/routing_table?multi_project=true");
+        try {
+            final ObjectPath response = ObjectPath.createFromResponse(client.performRequest(request));
+            final List<Map<String, Object>> projectRouting = response.evaluate("routing_table.projects");
+            return projectRouting.stream().map(obj -> (String) obj.get("id")).toList();
+        } catch (ResponseException e) {
+            logger.error("Failed to retrieve cluster state");
+            throw e;
+        }
+    }
+
+    protected void cleanUpProjects() throws Exception {
+        assert multiProjectEnabled;
+        final var projectIds = getProjectIds(adminClient());
+        for (String projectId : projectIds) {
+            if (projectId.equals(ProjectId.DEFAULT.id())) {
+                continue;
+            }
+            try {
+                deleteProject(projectId);
+            } catch (ResponseException e) {
+                // Ignore errors for projects that don't exist (might have been deleted already)
+                if (e.getResponse().getStatusLine().getStatusCode() == 400) {
+                    final String reason = ObjectPath.createFromResponse(e.getResponse()).evaluate("error.reason");
+                    if (reason != null && reason.contains("does not exist")) {
+                        logger.warn("Project {} does not exist, ignoring deletion error", projectId);
+                        continue;
+                    }
+                }
+                throw e;
+            }
+        }
+        assertBusy(() -> {
+            final var projectIdsLeft = getProjectIds(adminClient());
+            assertThat(projectIdsLeft.size(), equalTo(1));
+            assertTrue(projectIdsLeft.contains(ProjectId.DEFAULT.id()));
+        });
+    }
+
+    private void deleteProject(String project) throws IOException {
+        assert multiProjectEnabled;
+        final Request request = new Request("DELETE", "/_project/" + project);
+        cleanupClient().performRequest(request);
+    }
+
+    protected void assertEmptyProject(String projectId) throws IOException {
+        assert multiProjectEnabled;
+        final Request request = new Request("GET", "_cluster/state/metadata,routing_table,customs");
+        request.setOptions(request.getOptions().toBuilder().addHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId).build());
+
+        var response = responseAsMap(adminClient().performRequest(request));
+        ObjectPath state = new ObjectPath(response);
+
+        final var indexNames = ((Map<?, ?>) state.evaluate("metadata.indices")).keySet();
+        final var routingTableEntries = ((Map<?, ?>) state.evaluate("routing_table.indices")).keySet();
+        if (indexNames.isEmpty() == false || routingTableEntries.isEmpty() == false) {
+            // Only the default project is allowed to have the security index after tests complete.
+            // The security index could show up in the indices, routing table, or both.
+            // If that happens, we need to check that it hasn't been modified by any leaking API calls.
+            if (projectId.equals(Metadata.DEFAULT_PROJECT_ID.id())
+                && (indexNames.isEmpty() || (indexNames.size() == 1 && indexNames.contains(".security-7")))
+                && (routingTableEntries.isEmpty() || (routingTableEntries.size() == 1 && routingTableEntries.contains(".security-7")))) {
+                checkSecurityIndex();
+            } else {
+                // If there are any other indices or if this is for a non-default project, we fail the test.
+                assertThat("Project [" + projectId + "] should not have indices", indexNames, empty());
+                assertThat("Project [" + projectId + "] should not have routing entries", routingTableEntries, empty());
+            }
+        }
+        assertThat(
+            "Project [" + projectId + "] should not have graveyard entries",
+            state.evaluate("metadata.index-graveyard.tombstones"),
+            empty()
+        );
+
+        final Map<String, ?> legacyTemplates = state.evaluate("metadata.templates");
+        if (legacyTemplates != null) {
+            var templateNames = legacyTemplates.keySet().stream().filter(name -> isXPackTemplate(name) == false).toList();
+            assertThat("Project [" + projectId + "] should not have legacy templates", templateNames, empty());
+        }
+
+        final Map<String, Object> indexTemplates = state.evaluate("metadata.index_template.index_template");
+        if (indexTemplates != null) {
+            var templateNames = indexTemplates.keySet().stream().filter(name -> isXPackTemplate(name) == false).toList();
+            assertThat("Project [" + projectId + "] should not have index templates", templateNames, empty());
+        }
+
+        final Map<String, Object> componentTemplates = state.evaluate("metadata.component_template.component_template");
+        if (componentTemplates != null) {
+            var templateNames = componentTemplates.keySet().stream().filter(name -> isXPackTemplate(name) == false).toList();
+            assertThat("Project [" + projectId + "] should not have component templates", templateNames, empty());
+        }
+
+        final List<Map<String, ?>> pipelines = state.evaluate("metadata.ingest.pipeline");
+        if (pipelines != null) {
+            var pipelineNames = pipelines.stream()
+                .map(pipeline -> String.valueOf(pipeline.get("id")))
+                .filter(id -> isXPackIngestPipeline(id) == false)
+                .toList();
+            assertThat("Project [" + projectId + "] should not have ingest pipelines", pipelineNames, empty());
+        }
+
+        if (has(ProductFeature.ILM)) {
+            final Map<String, Object> ilmPolicies = state.evaluate("metadata.index_lifecycle.policies");
+            if (ilmPolicies != null) {
+                var policyNames = new HashSet<>(ilmPolicies.keySet());
+                policyNames.removeAll(preserveILMPolicyIds());
+                assertThat("Project [" + projectId + "] should not have ILM Policies", policyNames, empty());
+            }
+        }
+    }
+
+    private void checkSecurityIndex() throws IOException {
+        assert multiProjectEnabled;
+        final Request request = new Request("GET", "/_security/_query/role");
+        request.setJsonEntity("""
+            {
+              "query": {
+                "bool": {
+                  "must_not": {
+                    "term": {
+                      "metadata._reserved": true
+                    }
+                  }
+                }
+              }
+            }""");
+        request.setOptions(
+            request.getOptions().toBuilder().addHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, Metadata.DEFAULT_PROJECT_ID.id()).build()
+        );
+        final var response = responseAsMap(adminClient().performRequest(request));
+        assertThat("Security index should not contain any non-reserved roles", (Collection<?>) response.get("roles"), empty());
+    }
+
+    public static final String FIPS_KEYSTORE_PASSWORD = "keystore-password";
+
+    /**
+     * @return a REST {@link Request} which will reload the keystore in the test cluster.
+     */
+    protected final Request createReloadSecureSettingsRequest() {
+        try {
+            return newXContentRequest(
+                HttpMethod.POST,
+                "/_nodes/reload_secure_settings",
+                (b, p) -> inFipsJvm() ? b.field("secure_settings_password", FIPS_KEYSTORE_PASSWORD) : b
+            );
+        } catch (IOException e) {
+            throw new AssertionError("impossible", e);
+        }
     }
 }

@@ -18,7 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.snapshots.SnapshotsServiceUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentParser;
@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -183,7 +184,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
             // incompatibility in the downgrade test step. We verify that it is impossible here and then create the repo using verify=false
             // to check behavior on other operations below.
             final boolean verify = TEST_STEP != TestStep.STEP3_OLD_CLUSTER
-                || SnapshotsService.includesUUIDs(minNodeVersion)
+                || SnapshotsServiceUtils.includesUUIDs(minNodeVersion)
                 || minNodeVersion.before(IndexVersions.V_7_12_0);
             if (verify == false) {
                 expectThrowsAnyOf(EXPECTED_BWC_EXCEPTIONS, () -> createRepository(repoName, false, true));
@@ -208,7 +209,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
                     ensureSnapshotRestoreWorks(repoName, "snapshot-2", shards, index);
                 }
             } else {
-                if (SnapshotsService.includesUUIDs(minNodeVersion) == false) {
+                if (SnapshotsServiceUtils.includesUUIDs(minNodeVersion) == false) {
                     assertThat(TEST_STEP, is(TestStep.STEP3_OLD_CLUSTER));
                     expectThrowsAnyOf(EXPECTED_BWC_EXCEPTIONS, () -> listSnapshots(repoName));
                     expectThrowsAnyOf(EXPECTED_BWC_EXCEPTIONS, () -> deleteSnapshot(repoName, "snapshot-1"));
@@ -227,12 +228,61 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
         }
     }
 
+    public void testSnapshotCreatedInOldVersionCanBeDeletedInNew() throws IOException {
+        final String repoName = getTestName();
+        try {
+            final int shards = 3;
+            final String index = "test-index";
+            createIndex(index, shards);
+            final IndexVersion minNodeVersion = minimumIndexVersion();
+            // 7.12.0+ will try to load RepositoryData during repo creation if verify is true, which is impossible in case of version
+            // incompatibility in the downgrade test step.
+            final boolean verify = TEST_STEP != TestStep.STEP3_OLD_CLUSTER
+                || SnapshotsServiceUtils.includesUUIDs(minNodeVersion)
+                || minNodeVersion.before(IndexVersions.V_7_12_0);
+            createRepository(repoName, false, verify);
+
+            // Create snapshots in the first step
+            if (TEST_STEP == TestStep.STEP1_OLD_CLUSTER) {
+                int numberOfSnapshots = randomIntBetween(5, 10);
+                for (int i = 0; i < numberOfSnapshots; i++) {
+                    createSnapshot(repoName, "snapshot-" + i, index);
+                }
+                final List<Map<String, Object>> snapshots = listSnapshots(repoName);
+                assertSnapshotStatusSuccessful(repoName, snapshots.stream().map(sn -> (String) sn.get("snapshot")).toArray(String[]::new));
+            } else if (TEST_STEP == TestStep.STEP2_NEW_CLUSTER) {
+                final List<Map<String, Object>> snapshots = listSnapshots(repoName);
+                List<String> snapshotNames = new ArrayList<>(snapshots.stream().map(sn -> (String) sn.get("snapshot")).toList());
+
+                // Delete a single snapshot
+                deleteSnapshot(repoName, snapshotNames.removeFirst());
+
+                // Delete a bulk number of snapshots, avoiding the case where we delete all snapshots since this invokes
+                // cleanup code and bulk snapshot deletion logic which is tested in testUpgradeMovesRepoToNewMetaVersion
+                final List<String> snapshotsToDeleteInBulk = randomSubsetOf(randomIntBetween(1, snapshotNames.size() - 1), snapshotNames);
+                deleteSnapshots(repoName, snapshotsToDeleteInBulk);
+                snapshotNames.removeAll(snapshotsToDeleteInBulk);
+
+                // Delete the rest of the snapshots (will invoke bulk snapshot deletion logic)
+                deleteSnapshots(repoName, snapshotNames);
+            }
+        } finally {
+            deleteRepository(repoName);
+        }
+    }
+
     private static void assertSnapshotStatusSuccessful(String repoName, String... snapshots) throws IOException {
         Request statusReq = new Request("GET", "/_snapshot/" + repoName + "/" + String.join(",", snapshots) + "/_status");
         ObjectPath statusResp = ObjectPath.createFromResponse(client().performRequest(statusReq));
         for (int i = 0; i < snapshots.length; i++) {
             assertThat(statusResp.evaluate("snapshots." + i + ".shards_stats.failed"), equalTo(0));
         }
+    }
+
+    private void deleteSnapshots(String repoName, List<String> names) throws IOException {
+        assertAcknowledged(
+            client().performRequest(new Request("DELETE", "/_snapshot/" + repoName + "/" + Strings.collectionToCommaDelimitedString(names)))
+        );
     }
 
     private void deleteSnapshot(String repoName, String name) throws IOException {

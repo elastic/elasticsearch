@@ -194,6 +194,9 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             assertNotNull(response);
 
             Clusters clusters = response.getClusters();
+            if (clusters.hasPartialResults()) {
+                logger.info("Unexpected partial results for search: {}", response);
+            }
             assertFalse("search cluster results should NOT be marked as partial", clusters.hasPartialResults());
             assertThat(clusters.getTotal(), equalTo(2));
             assertThat(clusters.getClusterStateCount(Cluster.Status.SUCCESSFUL), equalTo(2));
@@ -223,11 +226,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             assertThat(remoteClusterSearchInfo.getStatus(), equalTo(Cluster.Status.SUCCESSFUL));
             assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(remoteNumShards));
             assertThat(remoteClusterSearchInfo.getSuccessfulShards(), equalTo(remoteNumShards));
-            if (clusters.isCcsMinimizeRoundtrips()) {
-                assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(remoteNumShards));
-            } else {
-                assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(remoteNumShards));
-            }
+            assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(remoteNumShards));
             assertThat(remoteClusterSearchInfo.getFailedShards(), equalTo(0));
             assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(0));
             assertThat(remoteClusterSearchInfo.getTook().millis(), greaterThanOrEqualTo(0L));
@@ -437,7 +436,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 assertNull(remoteClusterSearchInfo.getTook());
                 assertFalse(remoteClusterSearchInfo.isTimedOut());
                 ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
-                assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+                assertThat(remoteShardSearchFailure.reason(), containsString("index corrupted"));
             });
         }
     }
@@ -655,7 +654,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 assertNull(remoteClusterSearchInfo.getTook());
                 assertFalse(remoteClusterSearchInfo.isTimedOut());
                 ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
-                assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+                assertThat(remoteShardSearchFailure.reason(), containsString("index corrupted"));
             });
         }
     }
@@ -825,7 +824,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         assertThat(cluster.getFailures().size(), equalTo(1));
         assertThat(cluster.getTook().millis(), greaterThan(0L));
         ShardSearchFailure remoteShardSearchFailure = cluster.getFailures().get(0);
-        assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+        assertThat(remoteShardSearchFailure.reason(), containsString("index corrupted"));
     }
 
     private Map<String, Object> setupTwoClusters(String[] localIndices, String[] remoteIndices) {

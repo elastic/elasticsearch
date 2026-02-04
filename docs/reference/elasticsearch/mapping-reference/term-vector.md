@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/term-vector.html
 ---
@@ -13,6 +16,8 @@ Term vectors contain information about the terms produced by the [analysis](docs
 * payloads (if they are available) — user-defined binary data associated with each term position.
 
 These term vectors can be stored so that they can be retrieved for a particular document.
+
+Refer to the [term vectors API examples](../rest-apis/term-vectors-examples.md) page for usage examples.
 
 The `term_vector` setting accepts:
 

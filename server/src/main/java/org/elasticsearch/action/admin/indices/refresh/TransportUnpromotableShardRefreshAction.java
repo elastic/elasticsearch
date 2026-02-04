@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeClosedException;
@@ -95,7 +96,12 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
 
     @Override
     protected void doExecute(Task task, UnpromotableShardRefreshRequest request, ActionListener<ActionResponse.Empty> listener) {
-        beforeDispatchingRequestToUnpromotableShards(request, listener.delegateFailure((l, unused) -> super.doExecute(task, request, l)));
+        beforeDispatchingRequestToUnpromotableShards(request, listener.delegateFailure((l, unused) -> {
+            if (logger.isTraceEnabled()) {
+                logger.trace("dispatching refresh request for unpromotable shard {}", request.shardId());
+            }
+            super.doExecute(task, request, l);
+        }));
     }
 
     private void beforeDispatchingRequestToUnpromotableShards(UnpromotableShardRefreshRequest request, ActionListener<Void> listener) {
@@ -150,16 +156,30 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
         final var indexService = indicesService.indexService(request.shardId().getIndex());
         final var shard = indexService == null ? null : indexService.getShardOrNull(request.shardId().id());
         if (shard == null) {
+            if (logger.isTraceEnabled()) {
+                logger.trace("unpromotable shard {} not yet created, responding OK to refresh request", request.shardId());
+            }
             responseListener.onResponse(ActionResponse.Empty.INSTANCE);
             return;
         }
 
+        var primaryTerm = request.getPrimaryTerm();
+        assert Engine.UNKNOWN_PRIMARY_TERM < primaryTerm : primaryTerm;
+        var segmentGeneration = request.getSegmentGeneration();
+        assert Engine.RefreshResult.UNKNOWN_GENERATION < segmentGeneration : segmentGeneration;
+
         ActionListener.run(responseListener, listener -> {
-            shard.waitForPrimaryTermAndGeneration(
-                request.getPrimaryTerm(),
-                request.getSegmentGeneration(),
-                listener.map(l -> ActionResponse.Empty.INSTANCE)
-            );
+            shard.waitForPrimaryTermAndGeneration(primaryTerm, segmentGeneration, listener.map(l -> {
+                if (logger.isTraceEnabled()) {
+                    logger.trace(
+                        "refreshed unpromotable shard {} for requested primary term {} and segment generation {}",
+                        request.shardId(),
+                        primaryTerm,
+                        segmentGeneration
+                    );
+                }
+                return ActionResponse.Empty.INSTANCE;
+            }));
         });
     }
 

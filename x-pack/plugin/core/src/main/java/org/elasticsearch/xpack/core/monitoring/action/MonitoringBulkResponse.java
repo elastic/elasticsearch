@@ -37,7 +37,6 @@ public class MonitoringBulkResponse extends ActionResponse {
     }
 
     public MonitoringBulkResponse(StreamInput in) throws IOException {
-        super(in);
         tookInMillis = in.readVLong();
         error = in.readOptionalWriteable(Error::new);
         ignored = in.readBoolean();

@@ -10,7 +10,7 @@
 package org.elasticsearch.cli;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
+import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -23,7 +23,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
-@WithoutSecurityManager
+@WithoutEntitlements // CLI tools don't run with entitlements enforced
 public class TerminalTests extends ESTestCase {
 
     public void testSystemTerminalIfRedirected() {
@@ -37,8 +37,7 @@ public class TerminalTests extends ESTestCase {
         PrintWriter stdOut = mock("stdOut");
         PrintWriter stdErr = mock("stdErr");
 
-        OutputStream out = new Terminal(mock("reader"), stdOut, stdErr) {
-        }.asLineOutputStream(StandardCharsets.UTF_8);
+        OutputStream out = new Terminal(mock("reader"), stdOut, stdErr) {}.asLineOutputStream(StandardCharsets.UTF_8);
 
         out.write("123".getBytes(StandardCharsets.UTF_8));
         out.write("456".getBytes(StandardCharsets.UTF_8));

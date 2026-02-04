@@ -9,9 +9,12 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -24,6 +27,7 @@ import java.util.Objects;
 public class RescoreVectorBuilder implements Writeable, ToXContentObject {
 
     public static final ParseField OVERSAMPLE_FIELD = new ParseField("oversample");
+    public static final float NO_OVERSAMPLE = 0.0F;
     public static final float MIN_OVERSAMPLE = 1.0F;
     private static final ConstructingObjectParser<RescoreVectorBuilder, Void> PARSER = new ConstructingObjectParser<>(
         "rescore_vector",
@@ -34,13 +38,15 @@ public class RescoreVectorBuilder implements Writeable, ToXContentObject {
         PARSER.declareFloat(ConstructingObjectParser.constructorArg(), OVERSAMPLE_FIELD);
     }
 
+    public static final TransportVersion RESCORE_VECTOR_ALLOW_ZERO = TransportVersion.fromName("rescore_vector_allow_zero");
+
     // Oversample is required as of now as it is the only field in the rescore vector
     private final float oversample;
 
     public RescoreVectorBuilder(float numCandidatesFactor) {
         Objects.requireNonNull(numCandidatesFactor, "[" + OVERSAMPLE_FIELD.getPreferredName() + "] must be set");
-        if (numCandidatesFactor < MIN_OVERSAMPLE) {
-            throw new IllegalArgumentException("[" + OVERSAMPLE_FIELD.getPreferredName() + "] must be >= " + MIN_OVERSAMPLE);
+        if (numCandidatesFactor < MIN_OVERSAMPLE && numCandidatesFactor != NO_OVERSAMPLE) {
+            throw new IllegalArgumentException("[" + OVERSAMPLE_FIELD.getPreferredName() + "] must be >= " + MIN_OVERSAMPLE + " or 0");
         }
         this.oversample = numCandidatesFactor;
     }
@@ -51,6 +57,17 @@ public class RescoreVectorBuilder implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        // We don't want to serialize a `0` oversample to a node that doesn't know what to do with it.
+        if (oversample == NO_OVERSAMPLE && out.getTransportVersion().supports(RESCORE_VECTOR_ALLOW_ZERO) == false) {
+            throw new ElasticsearchStatusException(
+                "[rescore_vector] does not support a 0 for ["
+                    + OVERSAMPLE_FIELD.getPreferredName()
+                    + "] before version ["
+                    + RESCORE_VECTOR_ALLOW_ZERO.toReleaseVersion()
+                    + "]",
+                RestStatus.BAD_REQUEST
+            );
+        }
         out.writeFloat(oversample);
     }
 

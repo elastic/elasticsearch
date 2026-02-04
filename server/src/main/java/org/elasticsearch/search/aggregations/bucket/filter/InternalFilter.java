@@ -18,7 +18,7 @@ import org.elasticsearch.search.aggregations.support.SamplingContext;
 import java.io.IOException;
 import java.util.Map;
 
-public class InternalFilter extends InternalSingleBucketAggregation implements Filter {
+public class InternalFilter extends InternalSingleBucketAggregation {
     InternalFilter(String name, long docCount, InternalAggregations subAggregations, Map<String, Object> metadata) {
         super(name, docCount, subAggregations, metadata);
     }

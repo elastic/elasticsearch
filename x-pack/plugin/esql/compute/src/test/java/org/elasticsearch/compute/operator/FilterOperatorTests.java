@@ -14,8 +14,9 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 import org.hamcrest.Matcher;
 
@@ -29,7 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class FilterOperatorTests extends OperatorTestCase {
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
-        return new TupleBlockSourceOperator(blockFactory, LongStream.range(0, end).mapToObj(l -> Tuple.tuple(l, end - l)));
+        return new TupleLongLongBlockSourceOperator(blockFactory, LongStream.range(0, end).mapToObj(l -> Tuple.tuple(l, end - l)));
     }
 
     record SameLastDigit(DriverContext context, int lhs, int rhs) implements EvalOperator.ExpressionEvaluator {
@@ -45,6 +46,11 @@ public class FilterOperatorTests extends OperatorTestCase {
         }
 
         @Override
+        public long baseRamBytesUsed() {
+            return 0;
+        }
+
+        @Override
         public String toString() {
             return "SameLastDigit[lhs=" + lhs + ", rhs=" + rhs + ']';
         }
@@ -54,7 +60,7 @@ public class FilterOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple() {
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
         return new FilterOperator.FilterOperatorFactory(new EvalOperator.ExpressionEvaluator.Factory() {
 
             @Override
@@ -108,15 +114,9 @@ public class FilterOperatorTests extends OperatorTestCase {
     }
 
     public void testReadFromBlock() {
-        DriverContext context = driverContext();
-        List<Page> input = CannedSourceOperator.collectPages(
-            new SequenceBooleanBlockSourceOperator(context.blockFactory(), List.of(true, false, true, false))
-        );
-        List<Page> results = drive(
-            new FilterOperator.FilterOperatorFactory(dvrCtx -> new EvalOperatorTests.LoadFromPage(0)).get(context),
-            input.iterator(),
-            context
-        );
+        var runner = new TestDriverRunner().builder(driverContext());
+        runner.input(new SequenceBooleanBlockSourceOperator(runner.blockFactory(), List.of(true, false, true, false)));
+        List<Page> results = runner.run(new FilterOperator.FilterOperatorFactory(dvrCtx -> new EvalOperatorTests.LoadFromPage(0)));
         List<Boolean> found = new ArrayList<>();
         for (var page : results) {
             BooleanVector lb = page.<BooleanBlock>getBlock(0).asVector();
@@ -124,6 +124,6 @@ public class FilterOperatorTests extends OperatorTestCase {
         }
         assertThat(found, equalTo(List.of(true, true)));
         results.forEach(Page::releaseBlocks);
-        assertThat(context.breaker().getUsed(), equalTo(0L));
+        assertThat(runner.context().breaker().getUsed(), equalTo(0L));
     }
 }

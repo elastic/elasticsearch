@@ -9,7 +9,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.sampler.random;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Releasables;
@@ -19,14 +18,15 @@ import org.elasticsearch.search.aggregations.AggregatorsReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.sampler.Sampler;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
-public class InternalRandomSampler extends InternalSingleBucketAggregation implements Sampler {
+public class InternalRandomSampler extends InternalSingleBucketAggregation {
     public static final String NAME = "mapped_random_sampler";
     public static final String PARSER_NAME = "random_sampler";
 
@@ -56,11 +56,7 @@ public class InternalRandomSampler extends InternalSingleBucketAggregation imple
         super(in);
         this.seed = in.readInt();
         this.probability = in.readDouble();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            this.shardSeed = in.readOptionalInt();
-        } else {
-            this.shardSeed = null;
-        }
+        this.shardSeed = in.readOptionalInt();
     }
 
     @Override
@@ -68,9 +64,7 @@ public class InternalRandomSampler extends InternalSingleBucketAggregation imple
         super.doWriteTo(out);
         out.writeInt(seed);
         out.writeDouble(probability);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            out.writeOptionalInt(shardSeed);
-        }
+        out.writeOptionalInt(shardSeed);
     }
 
     @Override
@@ -105,7 +99,12 @@ public class InternalRandomSampler extends InternalSingleBucketAggregation imple
                 InternalAggregations aggs = subAggregatorReducer.get();
                 if (reduceContext.isFinalReduce() && aggs != null) {
                     SamplingContext context = buildContext();
-                    aggs = InternalAggregations.from(aggs.asList().stream().map(agg -> agg.finalizeSampling(context)).toList());
+                    final List<InternalAggregation> aaggregationList = aggs.asList();
+                    final List<InternalAggregation> sampledAggregations = new ArrayList<>(aaggregationList.size());
+                    for (InternalAggregation agg : aaggregationList) {
+                        sampledAggregations.add(agg.finalizeSampling(context));
+                    }
+                    aggs = InternalAggregations.from(sampledAggregations);
                 }
                 return newAggregation(getName(), docCount, aggs);
             }

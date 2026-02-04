@@ -34,5 +34,5 @@ public abstract class InferenceInputs {
         return stream;
     }
 
-    public abstract int inputSize();
+    public abstract boolean isSingleInput();
 }

@@ -13,7 +13,9 @@ The Store SMB plugin provides two storage types optimized for SMB:
 :   a SMB specific implementation of the default [mmap fs](/reference/elasticsearch/index-settings/store.md#mmapfs)
 
 `smb_simple_fs`
-:   deprecated::[7.15,"smb_simple_fs is deprecated and will be removed in 8.0. Use smb_nio_fs or other file systems instead."]
+:   :::{admonition} Deprecated in 7.15
+    smb_simple_fs is deprecated and will be removed in 8.0. Use smb_nio_fs or other file systems instead.
+    :::
 
 `smb_nio_fs`
 :   a SMB specific implementation of the default [nio fs](/reference/elasticsearch/index-settings/store.md#niofs)

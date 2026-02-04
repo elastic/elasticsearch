@@ -77,7 +77,7 @@ public class SnapshotStatusTests extends AbstractChunkedSerializingTestCase<Snap
         PARSER.declareBoolean(optionalConstructorArg(), new ParseField(SnapshotStatus.INCLUDE_GLOBAL_STATE));
         PARSER.declareField(
             constructorArg(),
-            SnapshotStats::fromXContent,
+            SnapshotStatsTests::fromXContent,
             new ParseField(SnapshotStats.Fields.STATS),
             ObjectParser.ValueType.OBJECT
         );

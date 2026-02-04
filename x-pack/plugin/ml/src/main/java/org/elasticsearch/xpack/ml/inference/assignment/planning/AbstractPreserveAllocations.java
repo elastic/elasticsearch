@@ -55,6 +55,7 @@ abstract class AbstractPreserveAllocations {
 
         return new Deployment(
             m.deploymentId(),
+            m.modelId(),
             m.memoryBytes(),
             m.allocations() - calculatePreservedAllocations(m),
             m.threadsPerAllocation(),
@@ -69,7 +70,7 @@ abstract class AbstractPreserveAllocations {
     AssignmentPlan mergePreservedAllocations(AssignmentPlan assignmentPlan) {
         // As the model/node objects the assignment plan are the modified ones,
         // they will not match the models/nodes members we have in this class.
-        // Therefore, we build a lookup table based on the ids, so we can merge the plan
+        // Therefore, we build a lookup table based on the ids so we can merge the plan
         // with its preserved allocations.
         final Map<Tuple<String, String>, Integer> plannedAssignmentsByDeploymentNodeIdPair = new HashMap<>();
         for (Deployment d : assignmentPlan.deployments()) {
@@ -84,6 +85,7 @@ abstract class AbstractPreserveAllocations {
 
         AssignmentPlan.Builder mergedPlanBuilder = AssignmentPlan.builder(nodes, deployments);
         for (Node n : nodes) {
+            // TODO (#101612) Should the first loop happen in the builder constructor?
             for (Deployment deploymentAllocationsToPreserve : deployments) {
 
                 // if the model m is already allocated on the node n and I want to preserve this allocation
@@ -101,8 +103,7 @@ abstract class AbstractPreserveAllocations {
                     0
                 );
 
-                long requiredMemory = mergedPlanBuilder.getDeploymentMemoryRequirement(deploymentNewAllocations, n, newAllocations);
-                if (newAllocations > 0 && mergedPlanBuilder.canAssign(deploymentNewAllocations, n, newAllocations, requiredMemory)) {
+                if (newAllocations > 0) {
                     mergedPlanBuilder.assignModelToNode(deploymentNewAllocations, n, newAllocations);
                 }
             }

@@ -16,12 +16,16 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasables;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.transport.Transport;
 import org.junit.Assert;
 
@@ -29,6 +33,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -55,6 +60,7 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
             logger,
             new NamedWriteableRegistry(List.of()),
             mock(SearchTransportService.class),
+            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
             (clusterAlias, nodeId) -> null,
             null,
             null,
@@ -67,7 +73,10 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
             new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap()),
             new ArraySearchPhaseResults<>(numShards),
             5,
-            null
+            null,
+            new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
+            Map.of(),
+            false
         );
         this.numShards = numShards;
         numSuccess = new AtomicInteger(numShards);
@@ -87,9 +96,11 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
 
     @Override
     public void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
-        String scrollId = getRequest().scroll() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
+        String scrollId = getRequest().scroll() != null
+            ? TransportSearchHelper.buildScrollId(queryResults, bigArrays.bytesRefRecycler())
+            : null;
         BytesReference searchContextId = getRequest().pointInTimeBuilder() != null
-            ? new BytesArray(TransportSearchHelper.buildScrollId(queryResults))
+            ? new BytesArray(TransportSearchHelper.buildScrollId(queryResults, bigArrays.bytesRefRecycler()))
             : null;
         var existing = searchResponse.getAndSet(
             new SearchResponse(
@@ -104,8 +115,7 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
                 searchContextId
             )
         );
-        Releasables.close(releasables);
-        releasables.clear();
+        doneFuture.onResponse(null);
         if (existing != null) {
             existing.decRef();
         }
@@ -149,8 +159,7 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
         Transport.Connection shard,
         SearchActionListener<SearchPhaseResult> listener
     ) {
-        onShardResult(new SearchPhaseResult() {
-        });
+        onShardResult(new SearchPhaseResult() {});
     }
 
     @Override

@@ -25,7 +25,6 @@ public class ProfileHasPrivilegesResponse extends ActionResponse implements ToXC
     private final Map<String, Exception> errors;
 
     public ProfileHasPrivilegesResponse(StreamInput in) throws IOException {
-        super(in);
         this.hasPrivilegeUids = in.readCollectionAsSet(StreamInput::readString);
         this.errors = in.readMap(StreamInput::readException);
     }

@@ -18,10 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.geo.GeometryTestUtils;
-import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.utils.GeometryValidator;
-import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -37,7 +34,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -50,7 +46,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -168,7 +163,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         }));
         var ft = (GeoPointFieldMapper.GeoPointFieldType) mapperService.fieldType("field");
         assertThat(ft.getMetricType(), equalTo(positionMetricType));
-        assertThat(ft.isIndexed(), is(false));
+        assertTrue(ft.indexType().hasOnlyDocValues());
     }
 
     public void testMetricAndDocvalues() {
@@ -362,7 +357,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("index", false)));
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
-        assertThat(((GeoPointFieldMapper) fieldMapper).fieldType().isIndexed(), equalTo(false));
+        assertTrue(((GeoPointFieldMapper) fieldMapper).fieldType().indexType().hasOnlyDocValues());
         assertThat(((GeoPointFieldMapper) fieldMapper).fieldType().isSearchable(), equalTo(true));
     }
 
@@ -549,7 +544,6 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
     protected void assertSearchable(MappedFieldType fieldType) {
         // always searchable even if it uses TextSearchInfo.NONE
-        assertTrue(fieldType.isIndexed());
         assertTrue(fieldType.isSearchable());
     }
 
@@ -611,13 +605,13 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
                 if (randomBoolean()) {
                     Value v = generateValue();
                     if (v.malformedOutput != null) {
-                        return new SyntheticSourceExample(v.input, v.malformedOutput, null, this::mapping);
+                        return new SyntheticSourceExample(v.input, v.malformedOutput, this::mapping);
                     }
 
                     if (columnReader) {
-                        return new SyntheticSourceExample(v.input, decode(encode(v.output)), encode(v.output), this::mapping);
+                        return new SyntheticSourceExample(v.input, decode(encode(v.output)), this::mapping);
                     }
-                    return new SyntheticSourceExample(v.input, v.output, v.output.toWKT(), this::mapping);
+                    return new SyntheticSourceExample(v.input, v.output, this::mapping);
 
                 }
                 List<Value> values = randomList(1, maxVals, this::generateValue);
@@ -635,18 +629,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
                 List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedValues).toList();
                 Object out = outList.size() == 1 ? outList.get(0) : outList;
 
-                if (columnReader) {
-                    // When reading doc-values, the block is a list of encoded longs
-                    List<Long> outBlockList = outputFromDocValues.stream().map(this::encode).toList();
-                    Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
-                    return new SyntheticSourceExample(in, out, outBlock, this::mapping);
-                } else {
-                    // When reading row-stride, the block is a list of WKT encoded BytesRefs.
-                    // Values are ordered in order of input.
-                    List<String> outBlockList = values.stream().filter(v -> v.malformedOutput == null).map(v -> v.output.toWKT()).toList();
-                    Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
-                    return new SyntheticSourceExample(in, out, outBlock, this::mapping);
-                }
+                return new SyntheticSourceExample(in, out, this::mapping);
             }
 
             private record Value(Object input, GeoPoint output, Object malformedOutput) {}
@@ -738,39 +721,12 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Function<Object, Object> loadBlockExpected() {
-        throw new IllegalStateException("Should never reach here, call loadBlockExpected(BlockReaderSupport, boolean) instead");
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
     }
 
     @Override
-    protected Function<Object, Object> loadBlockExpected(BlockReaderSupport blockReaderSupport, boolean columnReader) {
-        if (columnReader) {
-            // When using column reader, we expect the output to be doc-values (which means encoded longs)
-            return v -> asJacksonNumberOutput(((Number) v).longValue());
-        } else {
-            // When using row-stride reader, we expect the output to be WKT encoded BytesRef
-            return v -> asWKT((BytesRef) v);
-        }
-    }
-
-    protected static Object asJacksonNumberOutput(long l) {
-        // Cast to int to mimic jackson-core behaviour in NumberOutput.outputLong()
-        if (l < 0 && l >= Integer.MIN_VALUE || l >= 0 && l <= Integer.MAX_VALUE) {
-            return (int) l;
-        } else {
-            return l;
-        }
-    }
-
-    protected static Object asWKT(BytesRef value) {
-        // Internally we use WKB in BytesRef, but for test assertions we want to use WKT for readability
-        Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, value.bytes);
-        return WellKnownText.toWKT(geometry);
-    }
-
-    @Override
-    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
-        MappedFieldType ft = mapper.fieldType(loaderFieldName);
-        return new BlockReaderSupport(ft.hasDocValues(), false, mapper, loaderFieldName);
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

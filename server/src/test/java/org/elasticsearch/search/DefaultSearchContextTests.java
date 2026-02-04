@@ -51,6 +51,7 @@ import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.IdLoader;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -131,8 +132,18 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         when(indexCache.query()).thenReturn(queryCache);
         when(indexService.cache()).thenReturn(indexCache);
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
-        when(indexService.newSearchExecutionContext(eq(shardId.id()), eq(shardId.id()), any(), any(), nullable(String.class), any(), any()))
-            .thenReturn(searchExecutionContext);
+        when(
+            indexService.newSearchExecutionContext(
+                eq(shardId.id()),
+                eq(shardId.id()),
+                any(),
+                any(),
+                nullable(String.class),
+                any(),
+                any(),
+                any()
+            )
+        ).thenReturn(searchExecutionContext);
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.hasNested()).thenReturn(randomBoolean());
         when(indexService.mapperService()).thenReturn(mapperService);
@@ -925,7 +936,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     IndexNumericFieldData.NumericType.LONG,
                     IndexNumericFieldData.NumericType.LONG.getValuesSourceType(),
                     null,
-                    true
+                    IndexType.points(true, true)
                 );
                 assertEquals(numDocs, DefaultSearchContext.getFieldCardinality(longFieldData, reader));
 
@@ -934,7 +945,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     IndexNumericFieldData.NumericType.INT,
                     IndexNumericFieldData.NumericType.INT.getValuesSourceType(),
                     null,
-                    true
+                    IndexType.points(true, true)
                 );
                 assertEquals(numDocs, DefaultSearchContext.getFieldCardinality(integerFieldData, reader));
 
@@ -943,7 +954,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     IndexNumericFieldData.NumericType.SHORT,
                     IndexNumericFieldData.NumericType.SHORT.getValuesSourceType(),
                     null,
-                    true
+                    IndexType.points(true, true)
                 );
                 assertEquals(numDocs, DefaultSearchContext.getFieldCardinality(shortFieldData, reader));
 
@@ -952,7 +963,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     IndexNumericFieldData.NumericType.LONG,
                     IndexNumericFieldData.NumericType.LONG.getValuesSourceType(),
                     null,
-                    false
+                    IndexType.points(false, true)
                 );
                 assertEquals(-1, DefaultSearchContext.getFieldCardinality(noIndexFieldata, reader));
             }
@@ -975,14 +986,14 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         assertEquals(-1, DefaultSearchContext.getFieldCardinality("field", indexService, null));
     }
 
-    public void testCheckRealMemoryCB() throws Exception {
+    public void testCheckCircuitBreaker() throws Exception {
         IndexShard indexShard = null;
         try (DefaultSearchContext context = createDefaultSearchContext(Settings.EMPTY)) {
             indexShard = context.indexShard();
             // allocated more than the 1MiB buffer
-            assertThat(context.checkRealMemoryCB(1024 * 1800, "test"), is(true));
+            assertThat(context.checkCircuitBreaker(1024 * 1800, "test"), is(true));
             // allocated less than the 1MiB buffer
-            assertThat(context.checkRealMemoryCB(1024 * 5, "test"), is(false));
+            assertThat(context.checkCircuitBreaker(1024 * 5, "test"), is(false));
         } finally {
             if (indexShard != null) {
                 indexShard.getThreadPool().shutdown();
@@ -1015,8 +1026,18 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         when(indexCache.query()).thenReturn(queryCache);
         when(indexService.cache()).thenReturn(indexCache);
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
-        when(indexService.newSearchExecutionContext(eq(shardId.id()), eq(shardId.id()), any(), any(), nullable(String.class), any()))
-            .thenReturn(searchExecutionContext);
+        when(
+            indexService.newSearchExecutionContext(
+                eq(shardId.id()),
+                eq(shardId.id()),
+                any(),
+                any(),
+                nullable(String.class),
+                any(),
+                any(),
+                any()
+            )
+        ).thenReturn(searchExecutionContext);
         CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
         when(indexService.breakerService()).thenReturn(breakerService);
         when(breakerService.getBreaker(anyString())).thenReturn(new NoopCircuitBreaker(CircuitBreaker.REQUEST));

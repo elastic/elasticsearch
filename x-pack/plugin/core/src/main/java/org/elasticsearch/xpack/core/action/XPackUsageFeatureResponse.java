@@ -18,7 +18,6 @@ public class XPackUsageFeatureResponse extends ActionResponse {
     private final XPackFeatureUsage usage;
 
     public XPackUsageFeatureResponse(StreamInput in) throws IOException {
-        super(in);
         usage = in.readNamedWriteable(XPackFeatureUsage.class);
     }
 

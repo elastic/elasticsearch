@@ -19,6 +19,9 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
+import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -41,6 +44,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -631,6 +635,64 @@ public class ClusterStateHealthTests extends ESTestCase {
             }
         }
         return true;
+    }
+
+    /**
+     * Tests the case where indices exist in metadata but their routing tables are missing.
+     * This happens during cluster restart where metadata is loaded but routing table is not yet built.
+     * All shards should be considered completely unassigned and the cluster should be RED.
+     */
+    public void testActiveShardsPercentDuringClusterRestart() {
+        final String indexName = "test-idx";
+        ProjectId projectId = randomUniqueProjectId();
+
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()))
+            .numberOfShards(3)
+            .numberOfReplicas(1)
+            .build();
+
+        // Create cluster state with index metadata but WITHOUT routing table entry
+        // This simulates cluster restart where metadata is loaded but routing table is not yet built
+        final var mdBuilder = Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, true).build());
+        final var rtBuilder = GlobalRoutingTable.builder().put(projectId, RoutingTable.EMPTY_ROUTING_TABLE);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test_cluster"))
+            .metadata(mdBuilder.build())
+            .routingTable(rtBuilder.build())
+            .blocks(
+                ClusterBlocks.builder()
+                    .addGlobalBlock(new ClusterBlock(1, "test", true, true, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL))
+            )
+            .build();
+
+        String[] concreteIndices = new String[] { indexName };
+        ClusterStateHealth clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices, projectId);
+
+        // The cluster should be RED because all shards are unassigned
+        assertThat(clusterStateHealth.getStatus(), equalTo(ClusterHealthStatus.RED));
+
+        // All shards are unassigned, so activeShardsPercent should be 0.0
+        assertThat(
+            "activeShardsPercent should be 0.0 when all shards are unassigned",
+            clusterStateHealth.getActiveShardsPercent(),
+            equalTo(0.0)
+        );
+
+        // Verify that totalShardCount is correctly calculated
+        int expectedTotalShards = indexMetadata.getTotalNumberOfShards();
+        assertThat("All shards should be counted as unassigned", clusterStateHealth.getUnassignedShards(), equalTo(expectedTotalShards));
+
+        // All primary shards should be unassigned
+        assertThat(
+            "All primary shards should be unassigned",
+            clusterStateHealth.getUnassignedPrimaryShards(),
+            equalTo(indexMetadata.getNumberOfShards())
+        );
+
+        // No active shards
+        assertThat(clusterStateHealth.getActiveShards(), equalTo(0));
+        assertThat(clusterStateHealth.getActivePrimaryShards(), equalTo(0));
     }
 
     private void assertClusterHealth(ClusterStateHealth clusterStateHealth, RoutingTableGenerator.ShardCounter counter) {

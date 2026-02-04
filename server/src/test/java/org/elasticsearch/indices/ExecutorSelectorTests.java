@@ -84,6 +84,7 @@ public class ExecutorSelectorTests extends ESTestCase {
                                     .build(),
                                 Map.of(),
                                 Collections.singletonList("test"),
+                                "test",
                                 null
                             )
                         )
@@ -116,6 +117,7 @@ public class ExecutorSelectorTests extends ESTestCase {
                                     .build(),
                                 Map.of(),
                                 Collections.singletonList("test"),
+                                "test",
                                 new ExecutorNames(
                                     ThreadPool.Names.SYSTEM_CRITICAL_READ,
                                     ThreadPool.Names.SYSTEM_READ,

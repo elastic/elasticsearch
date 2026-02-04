@@ -1,0 +1,38 @@
+{
+  "indices.get_data_stream_settings": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-get-data-stream-settings",
+      "description": "Get data stream settings"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_data_stream/{name}/_settings",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "name": {
+              "type": "list",
+              "description": "A comma-separated list of data streams or data stream patterns. Supports wildcards (`*`)."
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Period to wait for a connection to the master node"
+      }
+    }
+  }
+}

@@ -25,6 +25,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
@@ -35,6 +36,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.FielddataOperation;
 import org.elasticsearch.index.mapper.Mapper;
@@ -47,7 +49,9 @@ import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.query.support.AutoPrefilteringScope;
 import org.elasticsearch.index.query.support.NestedScope;
+import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
@@ -57,6 +61,7 @@ import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -100,61 +105,13 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     private final Map<String, Query> namedQueries = new HashMap<>();
     private NestedScope nestedScope;
+    private AutoPrefilteringScope autoPrefilteringScope;
     private QueryBuilder aliasFilter;
     private boolean rewriteToNamedQueries = false;
 
     private final Integer requestSize;
     private final MapperMetrics mapperMetrics;
-
-    /**
-     * Build a {@linkplain SearchExecutionContext}.
-     */
-    public SearchExecutionContext(
-        int shardId,
-        int shardRequestIndex,
-        IndexSettings indexSettings,
-        BitsetFilterCache bitsetFilterCache,
-        BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup,
-        MapperService mapperService,
-        MappingLookup mappingLookup,
-        SimilarityService similarityService,
-        ScriptCompiler scriptService,
-        XContentParserConfiguration parserConfiguration,
-        NamedWriteableRegistry namedWriteableRegistry,
-        Client client,
-        IndexSearcher searcher,
-        LongSupplier nowInMillis,
-        String clusterAlias,
-        Predicate<String> indexNameMatcher,
-        BooleanSupplier allowExpensiveQueries,
-        ValuesSourceRegistry valuesSourceRegistry,
-        Map<String, Object> runtimeMappings,
-        MapperMetrics mapperMetrics
-    ) {
-        this(
-            shardId,
-            shardRequestIndex,
-            indexSettings,
-            bitsetFilterCache,
-            indexFieldDataLookup,
-            mapperService,
-            mappingLookup,
-            similarityService,
-            scriptService,
-            parserConfiguration,
-            namedWriteableRegistry,
-            client,
-            searcher,
-            nowInMillis,
-            clusterAlias,
-            indexNameMatcher,
-            allowExpensiveQueries,
-            valuesSourceRegistry,
-            runtimeMappings,
-            null,
-            mapperMetrics
-        );
-    }
+    private final ShardSearchStats shardSearchStats;
 
     public SearchExecutionContext(
         int shardId,
@@ -177,7 +134,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, Object> runtimeMappings,
         Integer requestSize,
-        MapperMetrics mapperMetrics
+        MapperMetrics mapperMetrics,
+        ShardSearchStats shardSearchStats
     ) {
         this(
             shardId,
@@ -195,6 +153,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             searcher,
             nowInMillis,
             indexNameMatcher,
+            clusterAlias,
             new Index(
                 RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
                 indexSettings.getIndex().getUUID()
@@ -203,7 +162,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             valuesSourceRegistry,
             parseRuntimeMappings(runtimeMappings, mapperService, indexSettings, mappingLookup),
             requestSize,
-            mapperMetrics
+            mapperMetrics,
+            shardSearchStats
         );
     }
 
@@ -224,12 +184,14 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.searcher,
             source.nowInMillis,
             source.indexNameMatcher,
+            source.getLocalClusterAlias(),
             source.getFullyQualifiedIndex(),
             source.allowExpensiveQueries,
             source.getValuesSourceRegistry(),
             source.runtimeMappings,
             source.requestSize,
-            source.mapperMetrics
+            source.mapperMetrics,
+            source.shardSearchStats
         );
     }
 
@@ -249,12 +211,14 @@ public class SearchExecutionContext extends QueryRewriteContext {
         IndexSearcher searcher,
         LongSupplier nowInMillis,
         Predicate<String> indexNameMatcher,
+        String clusterAlias,
         Index fullyQualifiedIndex,
         BooleanSupplier allowExpensiveQueries,
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, MappedFieldType> runtimeMappings,
         Integer requestSize,
-        MapperMetrics mapperMetrics
+        MapperMetrics mapperMetrics,
+        ShardSearchStats shardSearchStats
     ) {
         super(
             parserConfig,
@@ -264,6 +228,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             mappingLookup,
             runtimeMappings,
             indexSettings,
+            null,
+            clusterAlias,
             fullyQualifiedIndex,
             indexNameMatcher,
             namedWriteableRegistry,
@@ -273,6 +239,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             null,
             null,
             null,
+            null,
+            false,
             false
         );
         this.shardId = shardId;
@@ -281,9 +249,11 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.bitsetFilterCache = bitsetFilterCache;
         this.indexFieldDataLookup = indexFieldDataLookup;
         this.nestedScope = new NestedScope();
+        this.autoPrefilteringScope = new AutoPrefilteringScope();
         this.searcher = searcher;
         this.requestSize = requestSize;
         this.mapperMetrics = mapperMetrics;
+        this.shardSearchStats = shardSearchStats;
     }
 
     private void reset() {
@@ -291,6 +261,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.lookup = null;
         this.namedQueries.clear();
         this.nestedScope = new NestedScope();
+        this.autoPrefilteringScope = new AutoPrefilteringScope();
     }
 
     // Set alias filter, so it can be applied for queries that need it (e.g. knn query)
@@ -439,15 +410,16 @@ public class SearchExecutionContext extends QueryRewriteContext {
     /**
      * Build something to load source {@code _source}.
      */
-    public SourceLoader newSourceLoader(boolean forceSyntheticSource) {
+    public SourceLoader newSourceLoader(@Nullable SourceFilter filter, boolean forceSyntheticSource) {
         if (forceSyntheticSource) {
             return new SourceLoader.Synthetic(
-                null,
+                filter,
                 () -> mappingLookup.getMapping().syntheticFieldLoader(null),
-                mapperMetrics.sourceFieldMetrics()
+                mapperMetrics.sourceFieldMetrics(),
+                IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings.getIndexVersionCreated())
             );
         }
-        return mappingLookup.newSourceLoader(null, mapperMetrics.sourceFieldMetrics());
+        return mappingLookup.newSourceLoader(filter, mapperMetrics.sourceFieldMetrics());
     }
 
     /**
@@ -499,16 +471,14 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public SearchLookup lookup() {
         if (this.lookup == null) {
-            var sourceProvider = createSourceProvider();
+            var sourceProvider = createSourceProvider(null);
             setLookupProviders(sourceProvider, LeafFieldLookupProvider.fromStoredFields());
         }
         return this.lookup;
     }
 
-    public SourceProvider createSourceProvider() {
-        return isSourceSynthetic()
-            ? SourceProvider.fromSyntheticSource(mappingLookup.getMapping(), null, mapperMetrics.sourceFieldMetrics())
-            : SourceProvider.fromStoredFields();
+    public SourceProvider createSourceProvider(SourceFilter sourceFilter) {
+        return SourceProvider.fromLookup(mappingLookup, sourceFilter, mapperMetrics.sourceFieldMetrics());
     }
 
     /**
@@ -526,6 +496,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         // as well as runtime fields loaded from _source that do need a source provider as part of executing the query
         this.lookup = new SearchLookup(
             this::getFieldType,
+            fieldName -> mappingLookup.getMapper(fieldName) == null,
             (fieldType, searchLookup, fielddataOperation) -> indexFieldDataLookup.apply(
                 fieldType,
                 new FieldDataContext(
@@ -543,6 +514,10 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     public NestedScope nestedScope() {
         return nestedScope;
+    }
+
+    public AutoPrefilteringScope autoPrefilteringScope() {
+        return autoPrefilteringScope;
     }
 
     public IndexVersion indexVersionCreated() {
@@ -732,5 +707,15 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public boolean rewriteToNamedQuery() {
         return rewriteToNamedQueries;
+    }
+
+    /**
+     * Returns the {@link ShardSearchStats} associated with this context, if available.
+     *
+     * @return the shard-level search statistics, or {@code null} if none are set
+     */
+    @Nullable
+    public ShardSearchStats stats() {
+        return shardSearchStats;
     }
 }

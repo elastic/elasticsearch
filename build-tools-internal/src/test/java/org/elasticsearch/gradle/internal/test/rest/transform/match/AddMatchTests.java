@@ -15,6 +15,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
+import org.elasticsearch.gradle.internal.test.rest.transform.SerializableJsonNode;
 import org.elasticsearch.gradle.internal.test.rest.transform.TransformTests;
 import org.hamcrest.CoreMatchers;
 import org.junit.Test;
@@ -38,7 +39,7 @@ public class AddMatchTests extends TransformTests {
     public void testAddAllNotSupported() throws Exception {
         String testName = "/rest/transform/match/match_original.yml";
         List<ObjectNode> tests = getTests(testName);
-        JsonNode addNode = MAPPER.convertValue("_doc", JsonNode.class);
+        var addNode = SerializableJsonNode.of("_doc", JsonNode.class);
         assertEquals(
             "adding matches is only supported for named tests",
             assertThrows(
@@ -52,7 +53,7 @@ public class AddMatchTests extends TransformTests {
     public void testAddByTest() throws Exception {
         String testName = "/rest/transform/match/match_original.yml";
         List<ObjectNode> tests = getTests(testName);
-        JsonNode addNode = MAPPER.convertValue(123456789, JsonNode.class);
+        var addNode = SerializableJsonNode.of(123456789, JsonNode.class);
         validateTest(tests, true);
         List<ObjectNode> transformedTests = transformTests(
             tests,

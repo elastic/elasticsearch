@@ -11,14 +11,12 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 // Necessary to use tests in Serverless
 apply plugin: 'elasticsearch.internal-test-artifact'
 
-group = 'org.elasticsearch.plugin'
-
 esplugin {
   description = 'A test module that can trigger out of memory'
   classname ='org.elasticsearch.test.esql.heap_attack.HeapAttackPlugin'
 }
 
 tasks.named('javaRestTest') {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
   it.onlyIf("snapshot build") { buildParams.snapshotBuild }
 }

@@ -285,14 +285,20 @@ public class DestinationIndexTests extends ESTestCase {
         doAnswer(callListenerOnResponse(getMappingsResponse)).when(client)
             .execute(eq(GetMappingsAction.INSTANCE), getMappingsRequestCaptor.capture(), any());
 
-        FieldCapabilitiesResponse fieldCapabilitiesResponse = new FieldCapabilitiesResponse(new String[0], new HashMap<>() {
-            {
-                put(NUMERICAL_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
-                put(OUTER_FIELD + "." + INNER_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
-                put(ALIAS_TO_NUMERICAL_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
-                put(ALIAS_TO_NESTED_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
-            }
-        });
+        FieldCapabilitiesResponse fieldCapabilitiesResponse = FieldCapabilitiesResponse.builder()
+            .withFields(
+                Map.of(
+                    NUMERICAL_FIELD,
+                    singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")),
+                    OUTER_FIELD + "." + INNER_FIELD,
+                    singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")),
+                    ALIAS_TO_NUMERICAL_FIELD,
+                    singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")),
+                    ALIAS_TO_NESTED_FIELD,
+                    singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer"))
+                )
+            )
+            .build();
 
         doAnswer(callListenerOnResponse(fieldCapabilitiesResponse)).when(client)
             .execute(eq(TransportFieldCapabilitiesAction.TYPE), fieldCapabilitiesRequestCaptor.capture(), any());
@@ -615,14 +621,20 @@ public class DestinationIndexTests extends ESTestCase {
         doAnswer(callListenerOnResponse(AcknowledgedResponse.TRUE)).when(client)
             .execute(eq(TransportPutMappingAction.TYPE), putMappingRequestCaptor.capture(), any());
 
-        FieldCapabilitiesResponse fieldCapabilitiesResponse = new FieldCapabilitiesResponse(new String[0], new HashMap<>() {
-            {
-                put(NUMERICAL_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
-                put(OUTER_FIELD + "." + INNER_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
-                put(ALIAS_TO_NUMERICAL_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
-                put(ALIAS_TO_NESTED_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
-            }
-        });
+        FieldCapabilitiesResponse fieldCapabilitiesResponse = FieldCapabilitiesResponse.builder()
+            .withFields(
+                Map.of(
+                    NUMERICAL_FIELD,
+                    singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")),
+                    OUTER_FIELD + "." + INNER_FIELD,
+                    singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")),
+                    ALIAS_TO_NUMERICAL_FIELD,
+                    singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")),
+                    ALIAS_TO_NESTED_FIELD,
+                    singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer"))
+                )
+            )
+            .build();
 
         doAnswer(callListenerOnResponse(fieldCapabilitiesResponse)).when(client)
             .execute(eq(TransportFieldCapabilitiesAction.TYPE), fieldCapabilitiesRequestCaptor.capture(), any());

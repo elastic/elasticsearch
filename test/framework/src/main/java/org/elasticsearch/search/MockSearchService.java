@@ -9,6 +9,9 @@
 
 package org.elasticsearch.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
@@ -21,6 +24,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.telemetry.tracing.Tracer;
@@ -28,6 +32,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
@@ -38,6 +43,8 @@ public class MockSearchService extends SearchService {
      * Marker plugin used by {@link MockNode} to enable {@link MockSearchService}.
      */
     public static class TestPlugin extends Plugin {}
+
+    private static final Logger logger = LogManager.getLogger(MockSearchService.class);
 
     private static final Map<ReaderContext, Throwable> ACTIVE_SEARCH_CONTEXTS = new ConcurrentHashMap<>();
 
@@ -65,7 +72,7 @@ public class MockSearchService extends SearchService {
      * Add an active search context to the list of tracked contexts. Package private for testing.
      */
     static void addActiveContext(ReaderContext context) {
-        ACTIVE_SEARCH_CONTEXTS.put(context, new RuntimeException(context.toString()));
+        ACTIVE_SEARCH_CONTEXTS.put(context, new RuntimeException(String.format(Locale.ROOT, "%s : %s", context.toString(), context.id())));
     }
 
     /**
@@ -84,7 +91,8 @@ public class MockSearchService extends SearchService {
         FetchPhase fetchPhase,
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
-        Tracer tracer
+        Tracer tracer,
+        OnlinePrewarmingService onlinePrewarmingService
     ) {
         super(
             clusterService,
@@ -95,7 +103,8 @@ public class MockSearchService extends SearchService {
             fetchPhase,
             circuitBreakerService,
             executorSelector,
-            tracer
+            tracer,
+            onlinePrewarmingService
         );
     }
 
@@ -107,7 +116,14 @@ public class MockSearchService extends SearchService {
     }
 
     @Override
-    protected ReaderContext removeReaderContext(long id) {
+    protected void putRelocatedReaderContext(Long mappingKey, ReaderContext context) {
+        onPutContext.accept(context);
+        addActiveContext(context);
+        super.putRelocatedReaderContext(mappingKey, context);
+    }
+
+    @Override
+    protected ReaderContext removeReaderContext(ShardSearchContextId id) {
         final ReaderContext removed = super.removeReaderContext(id);
         if (removed != null) {
             onRemoveContext.accept(removed);
@@ -149,7 +165,12 @@ public class MockSearchService extends SearchService {
     @Override
     public SearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout) throws IOException {
         SearchContext searchContext = super.createSearchContext(request, timeout);
-        onPutContext.accept(searchContext.readerContext());
+        try {
+            onCreateSearchContext.accept(searchContext);
+        } catch (Exception e) {
+            searchContext.close();
+            throw e;
+        }
         searchContext.addReleasable(() -> onRemoveContext.accept(searchContext.readerContext()));
         return searchContext;
     }

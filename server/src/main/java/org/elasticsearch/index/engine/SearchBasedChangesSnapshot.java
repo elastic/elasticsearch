@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.engine;
 
-import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -22,11 +21,10 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldCollectorManager;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -47,7 +45,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, Closeable {
     public static final int DEFAULT_BATCH_SIZE = 1024;
 
-    private final IndexVersion indexVersionCreated;
+    private final IndexSettings indexSettings;
     private final IndexSearcher indexSearcher;
     private final ValueFetcher sourceMetadataFetcher;
     private final Closeable onClose;
@@ -70,8 +68,8 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
      * @param toSeqNo              Ending sequence number.
      * @param requiredFullRange    Whether the full range is required.
      * @param accessStats          If true, enable access statistics for counting total operations.
-     * @param indexVersionCreated  Version of the index when it was created.
      */
+    @SuppressWarnings("this-escape")
     protected SearchBasedChangesSnapshot(
         MapperService mapperService,
         Engine.Searcher engineSearcher,
@@ -79,8 +77,7 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
         long fromSeqNo,
         long toSeqNo,
         boolean requiredFullRange,
-        boolean accessStats,
-        IndexVersion indexVersionCreated
+        boolean accessStats
     ) throws IOException {
 
         if (fromSeqNo < 0 || toSeqNo < 0 || fromSeqNo > toSeqNo) {
@@ -97,20 +94,32 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
             }
         };
 
-        this.indexVersionCreated = indexVersionCreated;
+        this.indexSettings = mapperService.getIndexSettings();
         this.fromSeqNo = fromSeqNo;
         this.toSeqNo = toSeqNo;
         this.lastSeenSeqNo = fromSeqNo - 1;
         this.requiredFullRange = requiredFullRange;
-        this.indexSearcher = newIndexSearcher(engineSearcher);
+        this.indexSearcher = createIndexSearcher(engineSearcher);
         this.indexSearcher.setQueryCache(null);
 
         long requestingSize = (toSeqNo - fromSeqNo == Long.MAX_VALUE) ? Long.MAX_VALUE : (toSeqNo - fromSeqNo + 1L);
         this.searchBatchSize = (int) Math.min(requestingSize, searchBatchSize);
 
         this.accessStats = accessStats;
-        this.totalHits = accessStats ? indexSearcher.count(rangeQuery(fromSeqNo, toSeqNo, indexVersionCreated)) : -1;
+        this.totalHits = accessStats ? indexSearcher.count(rangeQuery(indexSettings, fromSeqNo, toSeqNo)) : -1;
         this.sourceMetadataFetcher = createSourceMetadataValueFetcher(mapperService, indexSearcher);
+    }
+
+    /**
+     * Creates the {@link IndexSearcher} used to list the documents to include in the snapshot. By default, all documents are returned
+     * including the non-live ones. This method can be overridden in test to only return live documents.
+     *
+     * @param engineSearcher the {@link Engine.Searcher} to create the {@link IndexSearcher} from
+     * @return an {@link IndexSearcher}
+     * @throws IOException if something goes wrong
+     */
+    protected IndexSearcher createIndexSearcher(Engine.Searcher engineSearcher) throws IOException {
+        return newIndexSearcher(engineSearcher);
     }
 
     private ValueFetcher createSourceMetadataValueFetcher(MapperService mapperService, IndexSearcher searcher) {
@@ -123,6 +132,24 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
         return mapper != null
             ? mapper.fieldType().valueFetcher(mapperService.mappingLookup(), mapperService.getBitSetProducer(), searcher)
             : null;
+    }
+
+    /**
+     * @return if true, documents with _source disabled are also returned. This shouldn't be the case in peer-recoveries where the source is
+     * retained but this method exist to allow tests classes to also list documents without source.
+     */
+    protected boolean skipDocsWithNullSource() {
+        return true;
+    }
+
+    /**
+     * Allows test classes to return documents with a null _id field.
+     *
+     * @param id the document id
+     * @return a non-null value for the document id
+     */
+    protected String overrideId(String id) {
+        return id;
     }
 
     /**
@@ -183,7 +210,7 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
      * @return TopDocs instance containing the documents in the current batch.
      */
     protected TopDocs nextTopDocs() throws IOException {
-        Query rangeQuery = rangeQuery(Math.max(fromSeqNo, lastSeenSeqNo), toSeqNo, indexVersionCreated);
+        Query rangeQuery = rangeQuery(indexSettings, Math.max(fromSeqNo, lastSeenSeqNo), toSeqNo);
         SortField sortBySeqNo = new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG);
 
         TopFieldCollectorManager collectorManager = new TopFieldCollectorManager(new Sort(sortBySeqNo), searchBatchSize, afterDoc, 0);
@@ -199,14 +226,14 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
     }
 
     /**
-     * Sets the reader context to enable reading metadata that was removed from the {@code _source}.
+     * Sets the reader context to enable reading synthetic fields that were removed from the {@code _source}.
      * This method sets up the {@code sourceMetadataFetcher} with the provided {@link LeafReaderContext},
      * ensuring it is ready to fetch metadata for subsequent operations.
      *
-     * <p>Note: This method should be called before {@link #addSourceMetadata(BytesReference, int)} at the start of every leaf
+     * <p>Note: This method should be called before {@link #addSyntheticFields(Source, int)} at the start of every leaf
      * to ensure the metadata fetcher is properly initialized.</p>
      */
-    protected void setNextSourceMetadataReader(LeafReaderContext context) {
+    protected void setNextSyntheticFieldsReader(LeafReaderContext context) throws IOException {
         if (sourceMetadataFetcher != null) {
             sourceMetadataFetcher.setNextReader(context);
         }
@@ -214,36 +241,34 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
 
     /**
      * Creates a new {@link Source} object by combining the provided {@code originalSource}
-     * with additional metadata fields. If the {@code sourceMetadataFetcher} is null or no metadata
+     * with additional synthetic fields. If the {@code sourceMetadataFetcher} is null or no metadata
      * fields are fetched, the original source is returned unchanged.
      *
-     * @param originalSourceBytes the original source bytes
+     * @param originalSource the original source
      * @param segmentDocID the document ID used to fetch metadata fields
      * @return a new {@link Source} instance containing the original data and additional metadata,
      *         or the original source if no metadata is added
-     * @throws IOException if an error occurs while fetching metadata values
+     * @throws IOException if an error occurs while fetching synthetic values
      */
-    protected BytesReference addSourceMetadata(BytesReference originalSourceBytes, int segmentDocID) throws IOException {
+    protected Source addSyntheticFields(Source originalSource, int segmentDocID) throws IOException {
         if (sourceMetadataFetcher == null) {
-            return originalSourceBytes;
+            return originalSource;
         }
-        var originalSource = Source.fromBytes(originalSourceBytes);
         List<Object> values = sourceMetadataFetcher.fetchValues(originalSource, segmentDocID, List.of());
         if (values.isEmpty()) {
-            return originalSourceBytes;
+            return originalSource;
         }
-        var map = originalSource.source();
-        map.put(InferenceMetadataFieldsMapper.NAME, values.get(0));
-        return Source.fromMap(map, originalSource.sourceContentType()).internalSourceRef();
+        return originalSource.withMutations(map -> map.put(InferenceMetadataFieldsMapper.NAME, values.get(0)));
     }
 
     static IndexSearcher newIndexSearcher(Engine.Searcher engineSearcher) throws IOException {
         return new IndexSearcher(Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader()));
     }
 
-    static Query rangeQuery(long fromSeqNo, long toSeqNo, IndexVersion indexVersionCreated) {
-        return new BooleanQuery.Builder().add(LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, fromSeqNo, toSeqNo), BooleanClause.Occur.MUST)
-            .add(Queries.newNonNestedFilter(indexVersionCreated), BooleanClause.Occur.MUST)
+    static Query rangeQuery(IndexSettings indexSettings, long fromSeqNo, long toSeqNo) {
+        Query seqNoQuery = SeqNoFieldMapper.rangeQueryForSeqNo(indexSettings.seqNoIndexOptions(), fromSeqNo, toSeqNo);
+        return new BooleanQuery.Builder().add(seqNoQuery, BooleanClause.Occur.MUST)
+            .add(Queries.newNonNestedFilter(indexSettings.getIndexVersionCreated()), BooleanClause.Occur.MUST)
             .build();
     }
 

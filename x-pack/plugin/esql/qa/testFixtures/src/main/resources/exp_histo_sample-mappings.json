@@ -1,0 +1,15 @@
+{
+  "properties": {
+    "@timestamp": {
+      "type": "date"
+    },
+    "instance": {
+      "type": "keyword",
+      "time_series_dimension": true
+    },
+    "responseTime": {
+      "type": "exponential_histogram",
+      "time_series_metric": "histogram"
+    }
+  }
+}

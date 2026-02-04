@@ -31,4 +31,4 @@ template:
   settings:
     index:
       default_pipeline: logs-apm.error@default-pipeline
-      final_pipeline: apm@pipeline
+      final_pipeline: logs-apm@pipeline

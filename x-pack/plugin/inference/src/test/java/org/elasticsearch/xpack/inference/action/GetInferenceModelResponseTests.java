@@ -11,12 +11,14 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
 import org.elasticsearch.xpack.inference.ModelConfigurationsTests;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 
 public class GetInferenceModelResponseTests extends AbstractWireSerializingTestCase<GetInferenceModelAction.Response> {
     @Override
@@ -43,6 +45,9 @@ public class GetInferenceModelResponseTests extends AbstractWireSerializingTestC
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(InferenceNamedWriteablesProvider.getNamedWriteables());
+        List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>(InferenceNamedWriteablesProvider.getNamedWriteables());
+        namedWriteables.addAll(XPackClientPlugin.getChunkingSettingsNamedWriteables());
+
+        return new NamedWriteableRegistry(namedWriteables);
     }
 }

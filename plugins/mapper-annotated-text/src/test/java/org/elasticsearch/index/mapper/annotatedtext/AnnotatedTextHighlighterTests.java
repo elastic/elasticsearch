@@ -22,7 +22,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
@@ -35,6 +34,7 @@ import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedHighlighterAnalyzer;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotationAnalyzerWrapper;
@@ -45,6 +45,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.LimitTokenOffsetAnalyze
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.text.BreakIterator;
 import java.util.ArrayList;
 import java.util.Locale;
@@ -131,7 +132,7 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
                     plainTextForHighlighter.add(annotations[i].textMinusMarkup());
                 }
 
-                TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 1, Sort.INDEXORDER);
+                TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, 1, Sort.INDEXORDER);
                 assertThat(topDocs.totalHits.value(), equalTo(1L));
                 String rawValue = Strings.collectionToDelimitedString(plainTextForHighlighter, String.valueOf(MULTIVAL_SEP_CHAR));
                 UnifiedHighlighter.Builder builder = UnifiedHighlighter.builder(searcher, hiliteAnalyzer);
@@ -167,7 +168,7 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
         // on marked-up
         // content using an "annotated_text" type field.
         String url = "https://en.wikipedia.org/wiki/Key_Word_in_Context";
-        String encodedUrl = URLEncoder.encode(url, "UTF-8");
+        String encodedUrl = URLEncoder.encode(url, StandardCharsets.UTF_8);
         String annotatedWord = "[highlighting](" + encodedUrl + ")";
         String highlightedAnnotatedWord = "[highlighting]("
             + AnnotatedPassageFormatter.SEARCH_HIT_TYPE

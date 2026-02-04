@@ -13,11 +13,12 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.azureopenai.AzureOpenAiActionVisitor;
-import org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenAiUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiModel;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
+import org.elasticsearch.xpack.inference.services.azureopenai.action.AzureOpenAiActionVisitor;
+import org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils;
 
 import java.net.URISyntaxException;
 import java.util.Map;
@@ -64,11 +65,14 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
         ChunkingSettings chunkingSettings,
         @Nullable AzureOpenAiSecretSettings secrets
     ) {
-        super(
+        this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
-            new ModelSecrets(secrets),
-            serviceSettings
+            new ModelSecrets(secrets)
         );
+    }
+
+    public AzureOpenAiEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets, (AzureOpenAiRateLimitServiceSettings) modelConfigurations.getServiceSettings());
         try {
             this.uri = buildUriString();
         } catch (URISyntaxException e) {

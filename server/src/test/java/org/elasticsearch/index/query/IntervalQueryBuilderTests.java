@@ -20,7 +20,6 @@ import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
@@ -29,6 +28,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.Script;
@@ -111,7 +111,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
     }
 
     static IntervalsSourceProvider.Combine createRandomCombine(int depth, boolean useScripts) {
-        int count = randomInt(5) + 1;
+        int count = randomInt(4) + 1;
         List<IntervalsSourceProvider> subSources = createRandomSourceList(depth, useScripts, count);
         boolean ordered = randomBoolean();
         int maxGaps = randomInt(5) - 1;
@@ -497,7 +497,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
     public void testNonIndexedFields() throws IOException {
         IntervalsSourceProvider provider = new IntervalsSourceProvider.Match("test", 0, true, null, null, null);
         IntervalQueryBuilder b = new IntervalQueryBuilder("no_such_field", provider);
-        assertThat(b.toQuery(createSearchExecutionContext()), equalTo(new MatchNoDocsQuery()));
+        assertThat(b.toQuery(createSearchExecutionContext()), equalTo(Queries.NO_DOCS_INSTANCE));
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> {
             IntervalQueryBuilder builder = new IntervalQueryBuilder(INT_FIELD_NAME, provider);

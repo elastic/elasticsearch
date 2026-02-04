@@ -116,8 +116,11 @@ public class GetConnectorSyncJobAction {
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.connectorSyncJob = new ConnectorSyncJobSearchResult(in);
+        }
+
+        ConnectorSyncJobSearchResult getConnectorSyncJob() {
+            return connectorSyncJob;
         }
 
         @Override

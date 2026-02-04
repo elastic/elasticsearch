@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -134,7 +135,7 @@ public class GoogleVertexAiRerankTaskSettingsTests extends AbstractBWCWireSerial
 
     @Override
     protected GoogleVertexAiRerankTaskSettings mutateInstance(GoogleVertexAiRerankTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, GoogleVertexAiRerankTaskSettingsTests::createRandom);
+        return new GoogleVertexAiRerankTaskSettings(randomValueOtherThan(instance.topN(), ESTestCase::randomNonNegativeIntOrNull));
     }
 
     @Override
@@ -146,7 +147,7 @@ public class GoogleVertexAiRerankTaskSettingsTests extends AbstractBWCWireSerial
     }
 
     private static GoogleVertexAiRerankTaskSettings createRandom() {
-        return new GoogleVertexAiRerankTaskSettings(randomFrom(new Integer[] { null, randomNonNegativeInt() }));
+        return new GoogleVertexAiRerankTaskSettings(randomNonNegativeIntOrNull());
     }
 
     private static Map<String, Object> getTaskSettingsMap(@Nullable Object topN) {

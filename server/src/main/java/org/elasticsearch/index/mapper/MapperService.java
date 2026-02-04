@@ -14,6 +14,7 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -101,9 +102,31 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public static final String SINGLE_MAPPING_NAME = "_doc";
     public static final String TYPE_FIELD_NAME = "_type";
+
+    private static final int LEGACY_NESTED_FIELDS_LIMIT = 50;
+    private static final int DEFAULT_NESTED_FIELDS_LIMIT = 100;
     public static final Setting<Long> INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.nested_fields.limit",
-        50L,
+        settings -> {
+            final IndexVersion indexVersionCreated = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
+            return Integer.toString(
+                indexVersionCreated.onOrAfter(IndexVersions.NESTED_PATH_LIMIT) ? DEFAULT_NESTED_FIELDS_LIMIT : LEGACY_NESTED_FIELDS_LIMIT
+            );
+        },
+        0,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+    private static final int LEGACY_NESTED_PARENTS_LIMIT = Integer.MAX_VALUE;
+    private static final int DEFAULT_NESTED_PARENTS_LIMIT = 50;
+    public static final Setting<Long> INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING = Setting.longSetting(
+        "index.mapping.nested_parents.limit",
+        settings -> {
+            final IndexVersion indexVersionCreated = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
+            return Integer.toString(
+                indexVersionCreated.onOrAfter(IndexVersions.NESTED_PATH_LIMIT) ? DEFAULT_NESTED_PARENTS_LIMIT : LEGACY_NESTED_PARENTS_LIMIT
+            );
+        },
         0,
         Property.Dynamic,
         Property.IndexScope
@@ -157,6 +180,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Property.Dynamic,
         Property.IndexScope
     );
+    public static final Setting<Boolean> INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING = Setting.boolSetting(
+        "index.mapping.field_name_length.ignore_dynamic_beyond_limit",
+        false,
+        Property.Dynamic,
+        Property.IndexScope
+    );
     public static final Setting<Long> INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.dimension_fields.limit",
         32_768,
@@ -180,6 +209,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final MappingParser mappingParser;
     private final DocumentParser documentParser;
     private final IndexVersion indexVersionCreated;
+    private final IndexMode indexMode;
     private final MapperRegistry mapperRegistry;
     private final Supplier<MappingParserContext> mappingParserContextSupplier;
     private final Function<Query, BitSetProducer> bitSetProducer;
@@ -199,7 +229,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         IdFieldMapper idFieldMapper,
         ScriptCompiler scriptCompiler,
         Function<Query, BitSetProducer> bitSetProducer,
-        MapperMetrics mapperMetrics
+        MapperMetrics mapperMetrics,
+        @Nullable DocumentMapper documentMapper,
+        @Nullable Supplier<ProjectMetadata> projectMetadataSupplier
     ) {
         this(
             () -> clusterService.state().getMinTransportVersion(),
@@ -212,7 +244,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             idFieldMapper,
             scriptCompiler,
             bitSetProducer,
-            mapperMetrics
+            mapperMetrics,
+            documentMapper,
+            projectMetadataSupplier
         );
     }
 
@@ -228,10 +262,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         IdFieldMapper idFieldMapper,
         ScriptCompiler scriptCompiler,
         Function<Query, BitSetProducer> bitSetProducer,
-        MapperMetrics mapperMetrics
+        MapperMetrics mapperMetrics,
+        @Nullable DocumentMapper documentMapper,
+        @Nullable Supplier<ProjectMetadata> projectMetadataSupplier
     ) {
         super(indexSettings);
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
+        // We parse the setting in this way to avoid any index settings validations which are not relevant here.
+        this.indexMode = IndexMode.fromIndexSettingsWithoutValidation(indexSettings.getSettings());
         this.indexAnalyzers = indexAnalyzers;
         this.mapperRegistry = mapperRegistry;
         this.mappingParserContextSupplier = () -> new MappingParserContext(
@@ -245,7 +283,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             indexAnalyzers,
             indexSettings,
             idFieldMapper,
-            bitSetProducer
+            bitSetProducer,
+            mapperRegistry.getVectorsFormatProviders(),
+            mapperRegistry.getNamespaceValidator(),
+            projectMetadataSupplier
         );
         this.documentParser = new DocumentParser(parserConfiguration, this.mappingParserContextSupplier.get());
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
@@ -259,6 +300,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         );
         this.bitSetProducer = bitSetProducer;
         this.mapperMetrics = mapperMetrics;
+        this.mapper = documentMapper;
     }
 
     public boolean hasNested() {
@@ -604,7 +646,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             mappingSource,
             indexVersionCreated,
             mapperMetrics,
-            index().getName()
+            index().getName(),
+            indexMode
         );
         newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
         return newMapper;
@@ -846,5 +889,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public MapperMetrics getMapperMetrics() {
         return mapperMetrics;
+    }
+
+    public IndexMode getIndexMode() {
+        return indexMode;
     }
 }

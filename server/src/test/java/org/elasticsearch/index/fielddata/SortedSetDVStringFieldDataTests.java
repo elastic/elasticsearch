@@ -25,4 +25,14 @@ public class SortedSetDVStringFieldDataTests extends AbstractStringFieldDataTest
     protected long minRamBytesUsed() {
         return 0;
     }
+
+    @Override
+    protected SortedBinaryDocValues.ValueMode expectedValueModeSingleValueWithMissing() {
+        return SortedBinaryDocValues.ValueMode.SINGLE_VALUED;
+    }
+
+    @Override
+    protected SortedBinaryDocValues.ValueMode expectedValueModeSingleValueAllSet() {
+        return SortedBinaryDocValues.ValueMode.SINGLE_VALUED;
+    }
 }

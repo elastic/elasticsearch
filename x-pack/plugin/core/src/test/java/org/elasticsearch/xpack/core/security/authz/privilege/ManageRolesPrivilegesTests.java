@@ -34,10 +34,13 @@ import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -255,6 +258,70 @@ public class ManageRolesPrivilegesTests extends AbstractNamedWriteableTestCase<C
 
         putRoleRequest.name(randomAlphaOfLength(4));
         assertThat(permissionCheck(permission, "cluster:admin/xpack/security/role/put", putRoleRequest), is(false));
+    }
+
+    public void testParseInvalidPrivilege() throws Exception {
+        final String unknownPrivilege = randomValueOtherThanMany(
+            i -> IndexPrivilege.values().containsKey(i),
+            () -> randomAlphaOfLength(10).toLowerCase(Locale.ROOT)
+        );
+
+        final String invalidJsonString = String.format(Locale.ROOT, """
+            {
+                "manage": {
+                    "indices": [
+                        {
+                            "names": ["test-*"],
+                            "privileges": ["%s"]
+                        }
+                    ]
+                }
+            }""", unknownPrivilege);
+        assertInvalidPrivilegeParsing(invalidJsonString, unknownPrivilege);
+    }
+
+    public void testParseMixedValidAndInvalidPrivileges() throws Exception {
+        final String unknownPrivilege = randomValueOtherThanMany(
+            i -> IndexPrivilege.values().containsKey(i),
+            () -> randomAlphaOfLength(10).toLowerCase(Locale.ROOT)
+        );
+
+        final String validPrivilege = "read";
+        final String mixedPrivilegesJson = String.format(Locale.ROOT, """
+            {
+                "manage": {
+                    "indices": [
+                        {
+                            "names": ["test-*"],
+                            "privileges": ["%s", "%s"]
+                        }
+                    ]
+                }
+            }""", validPrivilege, unknownPrivilege);
+
+        assertInvalidPrivilegeParsing(mixedPrivilegesJson, unknownPrivilege);
+    }
+
+    /**
+     * Helper method to assert that parsing the given JSON payload results in an
+     * IllegalArgumentException due to an unknown privilege.
+     *
+     * @param jsonPayload The JSON string containing the privilege data.
+     * @param expectedErrorDetail The specific unknown privilege name expected in the error message.
+     */
+    private static void assertInvalidPrivilegeParsing(final String jsonPayload, final String expectedErrorDetail) throws Exception {
+        final XContent xContent = XContentType.JSON.xContent();
+
+        try (
+            XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY, jsonPayload.getBytes(StandardCharsets.UTF_8))
+        ) {
+            assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
+            assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
+
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> ManageRolesPrivilege.parse(parser));
+
+            assertThat(exception.getMessage(), containsString("unknown index privilege [" + expectedErrorDetail + "]"));
+        }
     }
 
     private static boolean permissionCheck(ClusterPermission permission, String action, ActionRequest request) {

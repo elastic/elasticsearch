@@ -40,7 +40,8 @@ import java.io.IOException;
 public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
     ForceMergeRequest,
     BroadcastResponse,
-    TransportBroadcastByNodeAction.EmptyResult> {
+    TransportBroadcastByNodeAction.EmptyResult,
+    Void> {
 
     private final IndicesService indicesService;
     private final ThreadPool threadPool;
@@ -94,13 +95,14 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
         ForceMergeRequest request,
         ShardRouting shardRouting,
         Task task,
-        ActionListener<TransportBroadcastByNodeAction.EmptyResult> listener
+        Void nodeContext,
+        ActionListener<EmptyResult> listener
     ) {
         assert (task instanceof CancellableTask) == false; // TODO: add cancellation handling here once the task supports it
         SubscribableListener.<IndexShard>newForked(l -> {
             IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.shardId().getIndex())
                 .getShard(shardRouting.shardId().id());
-            indexShard.ensureMutable(l.map(unused -> indexShard));
+            indexShard.ensureMutable(l.map(unused -> indexShard), false);
         }).<EmptyResult>andThen((l, indexShard) -> {
             threadPool.executor(ThreadPool.Names.FORCE_MERGE).execute(ActionRunnable.supply(l, () -> {
                 indexShard.forceMerge(request);
@@ -119,7 +121,7 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
 
     @Override
     protected ClusterBlockException checkGlobalBlock(ClusterState state, ForceMergeRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override

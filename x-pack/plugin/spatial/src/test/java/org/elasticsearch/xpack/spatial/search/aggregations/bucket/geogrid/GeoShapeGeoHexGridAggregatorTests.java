@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.geo.LatLonGeometry;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.h3.H3;
@@ -81,7 +81,7 @@ public class GeoShapeGeoHexGridAggregatorTests extends GeoShapeGeoGridTestCase<I
     public void testMappedMissingGeoShape() throws IOException {
         final String lineString = "LINESTRING (30 10, 10 30, 40 40)";
         final GeoGridAggregationBuilder builder = createBuilder("_name").field(FIELD_NAME).missing(lineString);
-        testCase(new MatchAllDocsQuery(), 1, null, iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, 1, null, iw -> {
             iw.addDocument(Collections.singleton(new SortedSetDocValuesField("string", new BytesRef("a"))));
         }, geoGrid -> { assertEquals(8, geoGrid.getBuckets().size()); }, builder);
     }

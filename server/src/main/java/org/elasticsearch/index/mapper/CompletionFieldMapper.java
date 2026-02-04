@@ -32,11 +32,13 @@ import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.FilterXContentParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.NumberType;
 import org.elasticsearch.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.MapXContentParser;
 
@@ -249,7 +251,13 @@ public class CompletionFieldMapper extends FieldMapper {
         private ContextMappings contextMappings = null;
 
         public CompletionFieldType(String name, NamedAnalyzer searchAnalyzer, Map<String, String> meta) {
-            super(name, true, false, false, new TextSearchInfo(Defaults.FIELD_TYPE, null, searchAnalyzer, searchAnalyzer), meta);
+            super(
+                name,
+                IndexType.terms(true, false),
+                false,
+                new TextSearchInfo(Defaults.FIELD_TYPE, null, searchAnalyzer, searchAnalyzer),
+                meta
+            );
         }
 
         public void setContextMappings(ContextMappings contextMappings) {
@@ -705,6 +713,14 @@ public class CompletionFieldMapper extends FieldMapper {
                 return Token.START_OBJECT;
             }
             return super.currentToken();
+        }
+
+        @Override
+        public XContentString optimizedTextOrNull() throws IOException {
+            if (parsingObject == false) {
+                return new Text(textValue);
+            }
+            return super.optimizedTextOrNull();
         }
 
         @Override

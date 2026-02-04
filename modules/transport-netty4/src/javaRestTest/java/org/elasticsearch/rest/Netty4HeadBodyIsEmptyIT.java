@@ -9,11 +9,12 @@
 
 package org.elasticsearch.rest;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matcher;
 
@@ -28,7 +29,12 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.nullValue;
 
-public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
+public class Netty4HeadBodyIsEmptyIT extends AbstractNetty4IT {
+
+    public Netty4HeadBodyIsEmptyIT(@Name("pooled") boolean pooledAllocator) {
+        super(pooledAllocator);
+    }
+
     public void testHeadRoot() throws IOException {
         headTestCase("/", emptyMap(), greaterThan(0));
         headTestCase("/", singletonMap("pretty", ""), greaterThan(0));

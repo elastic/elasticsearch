@@ -7,19 +7,17 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
-$if(BytesRef)$
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
-
-$else$
 import org.elasticsearch.core.ReleasableIterator;
+// end generated imports
 
-$endif$
 /**
  * Vector implementation that stores a constant $type$ value.
  * This class is generated. Edit {@code X-ConstantVector.java.st} instead.
@@ -42,11 +40,15 @@ $endif$
 
     @Override
 $if(BytesRef)$
-    public BytesRef getBytesRef(int position, BytesRef ignore) {
+    public BytesRef getBytesRef(int position, BytesRef scratch) {
+        scratch.bytes = value.bytes;
+        scratch.offset = value.offset;
+        scratch.length = value.length;
+        return scratch;
 $else$
     public $type$ get$Type$(int position) {
-$endif$
         return value;
+$endif$
     }
 
     @Override
@@ -176,14 +178,19 @@ $endif$
         return true;
     }
 
+    @Override
+    public $Type$Vector deepCopy(BlockFactory blockFactory) {
+        return blockFactory.newConstant$Type$Vector(value, getPositionCount());
+    }
+
 $if(BytesRef)$
-    public static long ramBytesUsed(BytesRef value) {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(value.bytes);
+    public static long ramBytesUsedWithLength(BytesRef value) {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + value.length);
     }
 
     @Override
     public long ramBytesUsed() {
-        return ramBytesUsed(value);
+        return ramBytesUsedWithLength(value);
     }
 
 $else$

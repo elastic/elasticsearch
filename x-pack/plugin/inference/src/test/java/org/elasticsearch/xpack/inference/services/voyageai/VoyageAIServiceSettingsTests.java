@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 import org.hamcrest.MatcherAssert;
@@ -26,23 +27,14 @@ import static org.hamcrest.Matchers.is;
 
 public class VoyageAIServiceSettingsTests extends AbstractWireSerializingTestCase<VoyageAIServiceSettings> {
 
-    public static VoyageAIServiceSettings createRandomWithNonNullUrl() {
-        return createRandom();
-    }
-
-    /**
-     * The created settings can have a url set to null.
-     */
     public static VoyageAIServiceSettings createRandom() {
-        var model = randomAlphaOfLength(15);
-
-        return new VoyageAIServiceSettings(model, RateLimitSettingsTests.createRandom());
+        return new VoyageAIServiceSettings(randomAlphaOfLength(15), RateLimitSettingsTests.createRandom());
     }
 
     public void testFromMap() {
         var model = "model";
         var serviceSettings = VoyageAIServiceSettings.fromMap(
-            new HashMap<>(Map.of(VoyageAIServiceSettings.MODEL_ID, model)),
+            new HashMap<>(Map.of(ServiceFields.MODEL_ID, model)),
             ConfigurationParseContext.REQUEST
         );
 
@@ -54,7 +46,7 @@ public class VoyageAIServiceSettingsTests extends AbstractWireSerializingTestCas
         var serviceSettings = VoyageAIServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
-                    VoyageAIServiceSettings.MODEL_ID,
+                    ServiceFields.MODEL_ID,
                     model,
                     RateLimitSettings.FIELD_NAME,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 3))
@@ -69,7 +61,7 @@ public class VoyageAIServiceSettingsTests extends AbstractWireSerializingTestCas
     public void testFromMap_WhenUsingModelId() {
         var model = "model";
         var serviceSettings = VoyageAIServiceSettings.fromMap(
-            new HashMap<>(Map.of(VoyageAIServiceSettings.MODEL_ID, model)),
+            new HashMap<>(Map.of(ServiceFields.MODEL_ID, model)),
             ConfigurationParseContext.PERSISTENT
         );
 
@@ -94,18 +86,24 @@ public class VoyageAIServiceSettingsTests extends AbstractWireSerializingTestCas
 
     @Override
     protected VoyageAIServiceSettings createTestInstance() {
-        return createRandomWithNonNullUrl();
+        return createRandom();
     }
 
     @Override
     protected VoyageAIServiceSettings mutateInstance(VoyageAIServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, VoyageAIServiceSettingsTests::createRandom);
+        if (randomBoolean()) {
+            var modelId = randomValueOtherThan(instance.modelId(), () -> randomAlphaOfLength(15));
+            return new VoyageAIServiceSettings(modelId, instance.rateLimitSettings());
+        } else {
+            var rateLimitSettings = randomValueOtherThan(instance.rateLimitSettings(), RateLimitSettingsTests::createRandom);
+            return new VoyageAIServiceSettings(instance.modelId(), rateLimitSettings);
+        }
     }
 
     public static Map<String, Object> getServiceSettingsMap(String model) {
         var map = new HashMap<String, Object>();
 
-        map.put(VoyageAIServiceSettings.MODEL_ID, model);
+        map.put(ServiceFields.MODEL_ID, model);
 
         return map;
     }

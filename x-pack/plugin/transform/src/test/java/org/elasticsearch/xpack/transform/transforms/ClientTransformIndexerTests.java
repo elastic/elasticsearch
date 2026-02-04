@@ -41,6 +41,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.suggest.Suggest;
@@ -74,17 +75,21 @@ import org.elasticsearch.xpack.transform.transforms.scheduling.TransformSchedule
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -157,7 +162,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     mock(TransformCheckpointService.class),
                     mock(TransformAuditor.class),
                     new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
-                    mock(TransformNode.class)
+                    mock(TransformNode.class),
+                    mock(CrossProjectModeDecider.class)
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
@@ -186,7 +192,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
             );
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
-                assertEquals(new BytesArray("the_pit_id+"), response.pointInTimeId());
+                assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id+")));
             });
 
             assertEquals(1L, client.getPitContextCounter());
@@ -199,15 +205,15 @@ public class ClientTransformIndexerTests extends ESTestCase {
             assertEquals(0L, client.getPitContextCounter());
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
-                assertEquals(new BytesArray("the_pit_id+"), response.pointInTimeId());
+                assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id+")));
             });
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
-                assertEquals(new BytesArray("the_pit_id++"), response.pointInTimeId());
+                assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id++")));
             });
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
-                assertEquals(new BytesArray("the_pit_id+++"), response.pointInTimeId());
+                assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id+++")));
             });
 
             assertEquals(1L, client.getPitContextCounter());
@@ -216,15 +222,25 @@ public class ClientTransformIndexerTests extends ESTestCase {
             assertEquals(0L, client.getPitContextCounter());
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
-                assertEquals(new BytesArray("the_pit_id+"), response.pointInTimeId());
+                assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id+")));
+            });
+
+            var paceCounter = new AtomicInteger(0);
+            client.addBeforeCloseListener(() -> assertThat(paceCounter.getAndIncrement(), equalTo(0)));
+            indexer.closePointInTime(() -> assertThat(paceCounter.getAndIncrement(), equalTo(1)));
+            assertThat(paceCounter.get(), equalTo(2));
+            assertEquals(0L, client.getPitContextCounter());
+
+            this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
+                assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id+")));
             });
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
-                assertEquals(new BytesArray("the_pit_id++"), response.pointInTimeId());
+                assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id++")));
             });
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
-                assertEquals(new BytesArray("the_pit_id+++"), response.pointInTimeId());
+                assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id+++")));
             });
 
             assertEquals(1L, client.getPitContextCounter());
@@ -255,7 +271,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     mock(TransformCheckpointService.class),
                     mock(TransformAuditor.class),
                     new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
-                    mock(TransformNode.class)
+                    mock(TransformNode.class),
+                    mock(CrossProjectModeDecider.class)
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
@@ -337,7 +354,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     mock(TransformCheckpointService.class),
                     mock(TransformAuditor.class),
                     new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
-                    mock(TransformNode.class)
+                    mock(TransformNode.class),
+                    mock(CrossProjectModeDecider.class)
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
@@ -367,7 +385,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
                 if (pitEnabled) {
-                    assertEquals(new BytesArray("the_pit_id+"), response.pointInTimeId());
+                    assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id+")));
                 } else {
                     assertNull(response.pointInTimeId());
                 }
@@ -380,7 +398,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 if (pitEnabled) {
                     assertNull(response.pointInTimeId());
                 } else {
-                    assertEquals(new BytesArray("the_pit_id+"), response.pointInTimeId());
+                    assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id+")));
                 }
             });
         }
@@ -405,7 +423,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     mock(TransformCheckpointService.class),
                     mock(TransformAuditor.class),
                     new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
-                    mock(TransformNode.class)
+                    mock(TransformNode.class),
+                    mock(CrossProjectModeDecider.class)
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
@@ -586,10 +605,15 @@ public class ClientTransformIndexerTests extends ESTestCase {
     private static class PitMockClient extends NoOpClient {
         private final boolean pitSupported;
         private AtomicLong pitContextCounter = new AtomicLong();
+        private List<Runnable> beforeCloseListeners = new ArrayList<>();
 
         PitMockClient(ThreadPool threadPool, boolean pitSupported) {
             super(threadPool);
             this.pitSupported = pitSupported;
+        }
+
+        public void addBeforeCloseListener(Runnable listener) {
+            this.beforeCloseListeners.add(listener);
         }
 
         public long getPitContextCounter() {
@@ -613,6 +637,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 }
                 return;
             } else if (request instanceof ClosePointInTimeRequest) {
+                beforeCloseListeners.forEach(Runnable::run);
                 ClosePointInTimeResponse response = new ClosePointInTimeResponse(true, 1);
                 assert pitContextCounter.get() > 0;
                 pitContextCounter.decrementAndGet();
@@ -717,7 +742,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 mock(TransformCheckpointService.class),
                 mock(TransformAuditor.class),
                 new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
-                mock(TransformNode.class)
+                mock(TransformNode.class),
+                mock(CrossProjectModeDecider.class)
             ),
             mock(CheckpointProvider.class),
             new AtomicReference<>(IndexerState.STOPPED),

@@ -9,11 +9,12 @@
 
 package org.elasticsearch.index;
 
+import org.elasticsearch.action.admin.indices.ResizeIndexTestUtils;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
-import org.elasticsearch.action.admin.indices.shrink.ResizeAction;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -140,9 +141,7 @@ public class LookupIndexModeIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().execute(TransportCreateIndexAction.TYPE, createIndexRequest));
         client().admin().indices().prepareAddBlock(IndexMetadata.APIBlock.WRITE, "lookup-1").get();
 
-        ResizeRequest clone = new ResizeRequest("lookup-2", "lookup-1");
-        clone.setResizeType(ResizeType.CLONE);
-        assertAcked(client().admin().indices().execute(ResizeAction.INSTANCE, clone).actionGet());
+        assertAcked(ResizeIndexTestUtils.executeResize(ResizeType.CLONE, "lookup-1", "lookup-2", Settings.builder()));
         Settings settings = client().admin()
             .indices()
             .prepareGetSettings(TEST_REQUEST_TIMEOUT, "lookup-2")
@@ -152,12 +151,15 @@ public class LookupIndexModeIT extends ESIntegTestCase {
         assertThat(settings.get("index.mode"), equalTo("lookup"));
         assertThat(settings.get("index.number_of_shards"), equalTo("1"));
 
-        ResizeRequest split = new ResizeRequest("lookup-3", "lookup-1");
-        split.setResizeType(ResizeType.SPLIT);
-        split.getTargetIndexRequest().settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3));
+        ResizeRequest split = ResizeIndexTestUtils.resizeRequest(
+            ResizeType.SPLIT,
+            "lookup-1",
+            "lookup-3",
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
+        );
         IllegalArgumentException error = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin().indices().execute(ResizeAction.INSTANCE, split).actionGet()
+            () -> client().execute(TransportResizeAction.TYPE, split).actionGet()
         );
         assertThat(
             error.getMessage(),
@@ -186,27 +188,29 @@ public class LookupIndexModeIT extends ESIntegTestCase {
             .setSettings(Settings.builder().put("index.number_of_replicas", 0))
             .get();
 
-        ResizeRequest clone = new ResizeRequest("lookup-3", "regular-1");
-        clone.setResizeType(ResizeType.CLONE);
-        clone.getTargetIndexRequest().settings(Settings.builder().put("index.mode", "lookup"));
+        ResizeRequest clone = ResizeIndexTestUtils.resizeRequest(
+            ResizeType.CLONE,
+            "regular-1",
+            "lookup-3",
+            Settings.builder().put("index.mode", "lookup")
+        );
         IllegalArgumentException error = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin().indices().execute(ResizeAction.INSTANCE, clone).actionGet()
+            () -> client().execute(TransportResizeAction.TYPE, clone).actionGet()
         );
         assertThat(
             error.getMessage(),
             equalTo("index with [lookup] mode must have [index.number_of_shards] set to 1 or unset; provided 2")
         );
 
-        ResizeRequest shrink = new ResizeRequest("lookup-4", "regular-1");
-        shrink.setResizeType(ResizeType.SHRINK);
-        shrink.getTargetIndexRequest()
-            .settings(Settings.builder().put("index.mode", "lookup").put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1));
-
-        error = expectThrows(
-            IllegalArgumentException.class,
-            () -> client().admin().indices().execute(ResizeAction.INSTANCE, shrink).actionGet()
+        ResizeRequest shrink = ResizeIndexTestUtils.resizeRequest(
+            ResizeType.SHRINK,
+            "regular-1",
+            "lookup-4",
+            Settings.builder().put("index.mode", "lookup").put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
         );
+
+        error = expectThrows(IllegalArgumentException.class, () -> client().execute(TransportResizeAction.TYPE, shrink).actionGet());
         assertThat(error.getMessage(), equalTo("can't change setting [index.mode] during resize"));
     }
 

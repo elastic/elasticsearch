@@ -1,40 +1,42 @@
 {
-  "transform.reset_transform":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/reset-transform.html",
-      "description":"Resets an existing transform."
+  "transform.reset_transform": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-transform-reset-transform",
+      "description": "Reset a transform"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_transform/{transform_id}/_reset",
-          "methods":[
+          "path": "/_transform/{transform_id}/_reset",
+          "methods": [
             "POST"
           ],
-          "parts":{
-            "transform_id":{
-              "type":"string",
-              "description":"The id of the transform to reset"
+          "parts": {
+            "transform_id": {
+              "type": "string",
+              "description": "The id of the transform to reset"
             }
           }
         }
       ]
     },
-    "params":{
-      "force":{
-        "type":"boolean",
-        "required":false,
-        "description":"When `true`, the transform is reset regardless of its current state. The default value is `false`, meaning that the transform must be `stopped` before it can be reset."
+    "params": {
+      "force": {
+        "type": "boolean",
+        "default": false,
+        "description": "When `true`, the transform is reset regardless of its current state. The default value is `false`, meaning that the transform must be `stopped` before it can be reset."
       },
-      "timeout":{
-        "type":"time",
-        "required":false,
-        "description":"Controls the time to wait for the transform to reset"
+      "timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Controls the time to wait for the transform to reset"
       }
     }
   }

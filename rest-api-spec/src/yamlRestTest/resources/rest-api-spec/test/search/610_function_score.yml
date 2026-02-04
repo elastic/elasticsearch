@@ -1,0 +1,184 @@
+---
+"Random":
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+
+  - do:
+      index:
+        index:  test
+        id:     "1"
+        body:   { text: "foo bar", uuid: 1234}
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body: { text: "high bar", uuid: 5678 }
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body: { text: "raise bar", uuid: 9012 }
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body: { text: "raise hands", uuid: 3456 }
+
+  - do:
+      indices.refresh:
+        index: [ test ]
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 10
+          query:
+            "function_score": {
+              "query": {
+                "match": {
+                  "text": "bar"
+                }
+              },
+              "random_score": {
+                "seed": 10,
+                "field": "_seq_no"
+              }
+            }
+
+  - length: { hits.hits: 2 }
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 10
+          query:
+            "function_score": {
+              "query": {
+                "match": {
+                  "text": "bar"
+                }
+              },
+              "random_score": {
+                "seed": 10,
+                "field": "uuid"
+              }
+            }
+
+  - length: { hits.hits: 2 }
+  - match: { hits.total.value: 2 }
+
+---
+"No field only runs on 9.x":
+  - requires:
+      cluster_features: [ "gte_v9.0.0" ]
+      reason: "empty field works seamlessly (relying on _seqno since 9.x)"
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body: { text: "foo bar", uuid: 1234 }
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body: { text: "high bar", uuid: 5678 }
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body: { text: "raise bar", uuid: 9012 }
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body: { text: "raise hands", uuid: 3456 }
+
+  - do:
+      indices.refresh:
+        index: [ test ]
+  - do:
+      search:
+        index: test
+        body:
+          size: 10
+          query:
+            "function_score": {
+              "query": {
+                "match": {
+                  "text": "bar"
+                }
+              },
+              "random_score": {
+                "seed": 10
+              }
+            }
+  - length: { hits.hits: 2 }
+  - match: { hits.total.value: 2 }
+
+---
+"formulating a function score query with a negative number returns bad request":
+  - requires:
+      cluster_features: [ "search.negative.function.score.bad.request" ]
+      reason: "Testing the behaviour change with this feature"
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 1
+          mappings:
+            properties:
+              qty:
+                type: float
+  - do:
+      index:
+        index: test
+        id: "1"
+        body: { qty: -1, uuid: 3456 }
+  - do:
+      indices.refresh: {}
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          query:
+            "function_score": {
+              "query": {
+                "match_all": {}
+              },
+              "field_value_factor": {
+                "field": "qty",
+                "factor": 1.2,
+                "missing": 1,
+                "modifier": "ln1p"
+              }
+            }
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "function score query returned an invalid score: NaN for doc: 0; score must be a non-negative real number" }

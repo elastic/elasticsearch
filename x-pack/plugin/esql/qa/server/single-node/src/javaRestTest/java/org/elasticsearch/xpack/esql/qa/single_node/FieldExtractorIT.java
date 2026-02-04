@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.qa.rest.FieldExtractorTestCase;
@@ -19,8 +20,17 @@ public class FieldExtractorIT extends FieldExtractorTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster();
 
+    public FieldExtractorIT(MappedFieldType.FieldExtractPreference preference) {
+        super(preference);
+    }
+
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    @Override
+    protected void canUsePragmasOk() {
+        // always can use
     }
 }

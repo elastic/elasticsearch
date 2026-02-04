@@ -1,0 +1,19 @@
+{
+  "properties": {
+    "@timestamp": {
+      "type": "date"
+    },
+    "instance": {
+      "type": "keyword",
+      "time_series_dimension": true
+    },
+    "responseTime": {
+      "type": "tdigest",
+      "time_series_metric": "histogram"
+    },
+    "caseTestPlaceholder": {
+      "type": "tdigest",
+      "time_series_metric": "histogram"
+    }
+  }
+}

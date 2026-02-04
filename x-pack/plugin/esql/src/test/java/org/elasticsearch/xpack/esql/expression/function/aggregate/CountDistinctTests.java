@@ -39,8 +39,30 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        var suppliers = new ArrayList<TestCaseSupplier>();
+        List<TestCaseSupplier> suppliers = suppliers();
 
+        // Add some extra cases with TSID
+        MultiRowTestCaseSupplier.tsidCases(1, 1000).forEach(fieldCaseSupplier -> suppliers.add(makeSupplier(fieldCaseSupplier)));
+
+        suppliers.add(
+            makeSupplier(
+                new TestCaseSupplier.TypedDataSupplier(
+                    "No rows (" + DataType.TSID_DATA_TYPE + ")",
+                    List::of,
+                    DataType.TSID_DATA_TYPE,
+                    false,
+                    true,
+                    List.of()
+                )
+            )
+        );
+
+        // "No rows" expects 0 here instead of null
+        return parameterSuppliersFromTypedData(randomizeBytesRefsOffset(suppliers));
+    }
+
+    protected static List<TestCaseSupplier> suppliers() {
+        var suppliers = new ArrayList<TestCaseSupplier>();
         var precisionSuppliers = Stream.of(
             TestCaseSupplier.intCases(0, 100_000, true),
             TestCaseSupplier.longCases(0L, 100_000L, true),
@@ -57,8 +79,7 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.ipCases(1, 1000),
             MultiRowTestCaseSupplier.versionCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
-            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
-            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.SEMANTIC_TEXT)
+            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT)
         ).flatMap(List::stream).forEach(fieldCaseSupplier -> {
             // With precision
             for (var precisionCaseSupplier : precisionSuppliers) {
@@ -81,7 +102,14 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
             DataType.KEYWORD,
             DataType.TEXT
         )) {
-            var emptyFieldSupplier = new TestCaseSupplier.TypedDataSupplier("No rows (" + dataType + ")", List::of, dataType, false, true);
+            var emptyFieldSupplier = new TestCaseSupplier.TypedDataSupplier(
+                "No rows (" + dataType + ")",
+                List::of,
+                dataType,
+                false,
+                true,
+                List.of()
+            );
 
             // With precision
             for (var precisionCaseSupplier : precisionSuppliers) {
@@ -91,9 +119,7 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
             // Without precision
             suppliers.add(makeSupplier(emptyFieldSupplier));
         }
-
-        // "No rows" expects 0 here instead of null
-        return parameterSuppliersFromTypedData(randomizeBytesRefsOffset(suppliers));
+        return suppliers;
     }
 
     @Override
@@ -121,7 +147,7 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
 
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData, precisionTypedData),
-                "CountDistinct[field=Attribute[channel=0],precision=Attribute[channel=1]]",
+                standardAggregatorNameAllBytesTheSame("CountDistinct", fieldTypedData.type()),
                 DataType.LONG,
                 equalTo(result)
             );
@@ -143,7 +169,7 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
 
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
-                "CountDistinct[field=Attribute[channel=0]]",
+                standardAggregatorNameAllBytesTheSame("CountDistinct", fieldTypedData.type()),
                 DataType.LONG,
                 equalTo(result)
             );

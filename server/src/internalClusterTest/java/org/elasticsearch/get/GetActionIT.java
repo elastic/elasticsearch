@@ -60,6 +60,7 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import static java.util.Collections.singleton;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -1026,9 +1027,9 @@ public class GetActionIT extends ESIntegTestCase {
         assertTrue(lucene1.isExists());
         assertTrue(lucene2.isExists());
         assertTrue(lucene3.isExists());
-        assertThat(translog1.getSourceAsBytesRef(), equalTo(lucene1.getSourceAsBytesRef()));
-        assertThat(translog2.getSourceAsBytesRef(), equalTo(lucene2.getSourceAsBytesRef()));
-        assertThat(translog3.getSourceAsBytesRef(), equalTo(lucene3.getSourceAsBytesRef()));
+        assertThat(translog1.getSourceAsBytesRef(), equalBytes(lucene1.getSourceAsBytesRef()));
+        assertThat(translog2.getSourceAsBytesRef(), equalBytes(lucene2.getSourceAsBytesRef()));
+        assertThat(translog3.getSourceAsBytesRef(), equalBytes(lucene3.getSourceAsBytesRef()));
     }
 
     private void assertGetFieldsAlwaysWorks(String index, String docId, String[] fields) {

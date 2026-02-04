@@ -14,7 +14,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
@@ -41,7 +40,9 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
@@ -74,6 +75,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.IndexCreationException;
+import org.elasticsearch.indices.IndexLimitExceededException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.ShardLimitValidator;
@@ -124,6 +126,40 @@ import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
  * Service responsible for submitting create index requests
  */
 public class MetadataCreateIndexService {
+    public static TransportVersion INDEX_LIMIT_EXCEEDED_EXCEPTION_VERSION = TransportVersion.fromName("index_limit_exceeded_exception");
+
+    // Deliberately not registered so it can only be set in tests/plugins.
+    public static final Setting<Priority> CREATE_INDEX_PRIORITY_SETTING = Setting.enumSetting(
+        Priority.class,
+        "cluster.service.create_index.priority",
+        Priority.URGENT,
+        Setting.Property.NodeScope
+    );
+
+    // Deliberately not registered so it can only be set in tests/plugins.
+    public static final Setting<TimeValue> CREATE_INDEX_MAX_TIMEOUT_SETTING = Setting.timeSetting(
+        "cluster.service.create_index.max_timeout",
+        TimeValue.MINUS_ONE,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<Boolean> CLUSTER_MAX_INDICES_PER_PROJECT_ENABLED_SETTING = Setting.boolSetting(
+        "cluster.max_indices_per_project.enabled",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    // High default value so that is disabled by default.
+    public static final Setting<Integer> CLUSTER_MAX_INDICES_PER_PROJECT_SETTING = Setting.intSetting(
+        "cluster.max_indices_per_project",
+        Integer.MAX_VALUE,
+        0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private static final Logger logger = LogManager.getLogger(MetadataCreateIndexService.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MetadataCreateIndexService.class);
 
@@ -136,12 +172,7 @@ public class MetadataCreateIndexService {
 
     @FunctionalInterface
     interface ClusterBlocksTransformer {
-        void apply(
-            ClusterBlocks.Builder clusterBlocks,
-            ProjectId projectId,
-            IndexMetadata indexMetadata,
-            TransportVersion minClusterTransportVersion
-        );
+        void apply(ClusterBlocks.Builder clusterBlocks, ProjectId projectId, IndexMetadata indexMetadata);
     }
 
     private final Settings settings;
@@ -157,6 +188,11 @@ public class MetadataCreateIndexService {
     private final Set<IndexSettingProvider> indexSettingProviders;
     private final ThreadPool threadPool;
     private final ClusterBlocksTransformer blocksTransformerUponIndexCreation;
+    private final Priority clusterStateUpdateTaskPriority;
+
+    private volatile TimeValue maxMasterNodeTimeout;
+    private volatile int maxIndicesPerProject;
+    private volatile boolean maxIndicesPerProjectEnabled;
 
     public MetadataCreateIndexService(
         final Settings settings,
@@ -185,6 +221,49 @@ public class MetadataCreateIndexService {
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
         this.threadPool = threadPool;
         this.blocksTransformerUponIndexCreation = createClusterBlocksTransformerForIndexCreation(settings);
+        this.clusterStateUpdateTaskPriority = CREATE_INDEX_PRIORITY_SETTING.get(settings);
+
+        if (clusterService.getClusterSettings().isDynamicSetting(CREATE_INDEX_MAX_TIMEOUT_SETTING.getKey())) {
+            // setting only registered in some tests today
+            clusterService.getClusterSettings().initializeAndWatch(CREATE_INDEX_MAX_TIMEOUT_SETTING, v -> maxMasterNodeTimeout = v);
+        } else {
+            maxMasterNodeTimeout = CREATE_INDEX_MAX_TIMEOUT_SETTING.get(clusterService.getSettings());
+        }
+
+        if (clusterService.getClusterSettings().isDynamicSetting(CLUSTER_MAX_INDICES_PER_PROJECT_ENABLED_SETTING.getKey())) {
+            clusterService.getClusterSettings()
+                .initializeAndWatch(CLUSTER_MAX_INDICES_PER_PROJECT_ENABLED_SETTING, v -> maxIndicesPerProjectEnabled = v);
+        } else {
+            maxIndicesPerProjectEnabled = CLUSTER_MAX_INDICES_PER_PROJECT_ENABLED_SETTING.get(clusterService.getSettings());
+        }
+
+        if (clusterService.getClusterSettings().isDynamicSetting(CLUSTER_MAX_INDICES_PER_PROJECT_SETTING.getKey())) {
+            clusterService.getClusterSettings().initializeAndWatch(CLUSTER_MAX_INDICES_PER_PROJECT_SETTING, v -> maxIndicesPerProject = v);
+        } else {
+            maxIndicesPerProject = CLUSTER_MAX_INDICES_PER_PROJECT_SETTING.get(clusterService.getSettings());
+        }
+    }
+
+    public void validateIndexLimit(ProjectMetadata projectMetadata, CreateIndexClusterStateUpdateRequest request) {
+        if (maxIndicesPerProjectEnabled == false) {
+            return;
+        }
+
+        if (systemIndices.isSystemIndex(request.index()) || systemIndices.isSystemIndexBackingDataStream(request.index())) {
+            return;
+        }
+
+        var totalUserIndices = projectMetadata.stream().filter(indexMetadata -> indexMetadata.isSystem() == false).count();
+        if (totalUserIndices >= maxIndicesPerProject) {
+            throw new IndexLimitExceededException(
+                "This action would add an index, but this project currently has ["
+                    + totalUserIndices
+                    + "]/["
+                    + maxIndicesPerProject
+                    + "] maximum indices; for more information, see "
+                    + ReferenceDocs.MAX_INDICES_PER_PROJECT
+            );
+        }
     }
 
     /**
@@ -206,6 +285,9 @@ public class MetadataCreateIndexService {
         }
         if (projectMetadata.hasAlias(index)) {
             throw new InvalidIndexNameException(index, "already exists as alias");
+        }
+        if (projectMetadata.hasView(index)) {
+            throw new InvalidIndexNameException(index, "already exists as an ESQL view");
         }
     }
 
@@ -295,37 +377,42 @@ public class MetadataCreateIndexService {
         final ActionListener<ShardsAcknowledgedResponse> listener
     ) {
         logger.trace("createIndex[{}]", request);
-        onlyCreateIndex(masterNodeTimeout, ackTimeout, request, listener.delegateFailureAndWrap((delegate, response) -> {
-            if (response.isAcknowledged()) {
-                logger.trace(
-                    "[{}] index creation in project [{}] acknowledged, waiting for active shards [{}]",
-                    request.index(),
-                    request.projectId(),
-                    request.waitForActiveShards()
-                );
-                ActiveShardsObserver.waitForActiveShards(
-                    clusterService,
-                    request.projectId(),
-                    new String[] { request.index() },
-                    request.waitForActiveShards(),
-                    waitForActiveShardsTimeout,
-                    delegate.map(shardsAcknowledged -> {
-                        if (shardsAcknowledged == false) {
-                            logger.debug(
-                                "[{}] index created, but the operation timed out while waiting for enough shards to be started.",
-                                request.index()
-                            );
-                        } else {
-                            logger.trace("[{}] index created and shards acknowledged", request.index());
-                        }
-                        return ShardsAcknowledgedResponse.of(true, shardsAcknowledged);
-                    })
-                );
-            } else {
-                logger.trace("index creation not acknowledged for [{}]", request);
-                delegate.onResponse(ShardsAcknowledgedResponse.NOT_ACKNOWLEDGED);
-            }
-        }));
+        onlyCreateIndex(
+            MasterService.maybeLimitMasterNodeTimeout(masterNodeTimeout, maxMasterNodeTimeout),
+            ackTimeout,
+            request,
+            listener.delegateFailureAndWrap((delegate, response) -> {
+                if (response.isAcknowledged()) {
+                    logger.trace(
+                        "[{}] index creation in project [{}] acknowledged, waiting for active shards [{}]",
+                        request.index(),
+                        request.projectId(),
+                        request.waitForActiveShards()
+                    );
+                    ActiveShardsObserver.waitForActiveShards(
+                        clusterService,
+                        request.projectId(),
+                        new String[] { request.index() },
+                        request.waitForActiveShards(),
+                        waitForActiveShardsTimeout,
+                        delegate.map(shardsAcknowledged -> {
+                            if (shardsAcknowledged == false) {
+                                logger.debug(
+                                    "[{}] index created, but the operation timed out while waiting for enough shards to be started.",
+                                    request.index()
+                                );
+                            } else {
+                                logger.trace("[{}] index created and shards acknowledged", request.index());
+                            }
+                            return ShardsAcknowledgedResponse.of(true, shardsAcknowledged);
+                        })
+                    );
+                } else {
+                    logger.trace("index creation not acknowledged for [{}]", request);
+                    delegate.onResponse(ShardsAcknowledgedResponse.NOT_ACKNOWLEDGED);
+                }
+            })
+        );
     }
 
     private void onlyCreateIndex(
@@ -344,7 +431,7 @@ public class MetadataCreateIndexService {
         var delegate = new AllocationActionListener<>(listener, threadPool.getThreadContext());
         submitUnbatchedTask(
             "create-index [" + request.index() + "], in project [" + request.projectId() + "], cause [" + request.cause() + "]",
-            new AckedClusterStateUpdateTask(Priority.URGENT, masterNodeTimeout, ackTimeout, delegate.clusterStateUpdate()) {
+            new AckedClusterStateUpdateTask(clusterStateUpdateTaskPriority, masterNodeTimeout, ackTimeout, delegate.clusterStateUpdate()) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
@@ -441,6 +528,18 @@ public class MetadataCreateIndexService {
                 ? IndexMetadata.INDEX_HIDDEN_SETTING.get(request.settings())
                 : null;
 
+            ComposableIndexTemplate templateFromRequest = request.matchingTemplate();
+            if (templateFromRequest != null) {
+                return applyCreateIndexRequestWithV2Template(
+                    currentState,
+                    request,
+                    silent,
+                    templateFromRequest,
+                    metadataTransformer,
+                    rerouteListener
+                );
+            }
+
             // Check to see if a v2 template matched
             final String v2Template = MetadataIndexTemplateService.findV2Template(
                 projectMetadata,
@@ -531,11 +630,15 @@ public class MetadataCreateIndexService {
         assert indicesService.hasIndex(temporaryIndexMeta.getIndex()) == false
             : Strings.format("Index [%s] already exists", temporaryIndexMeta.getIndex().getName());
         return indicesService.<ClusterState, Exception>withTempIndexService(temporaryIndexMeta, indexService -> {
-            try {
-                updateIndexMappingsAndBuildSortOrder(indexService, request, mappings, sourceMetadata);
-            } catch (Exception e) {
-                logger.log(silent ? Level.DEBUG : Level.INFO, "failed on parsing mappings on index creation [{}]", request.index(), e);
-                throw e;
+            // If we're creating the index from an existing index, we should not provide any mappings, as the new index shards will take
+            // care of copying the mappings from the source index during recovery. Providing mappings here would cause conflicts.
+            if (sourceMetadata == null) {
+                try {
+                    updateIndexMappingsAndBuildSortOrder(indexService, request, mappings);
+                } catch (Exception e) {
+                    logger.log(silent ? Level.DEBUG : Level.INFO, "failed on parsing mappings on index creation [{}]", request.index(), e);
+                    throw e;
+                }
             }
 
             final List<AliasMetadata> aliases = aliasSupplier.apply(indexService);
@@ -549,7 +652,9 @@ public class MetadataCreateIndexService {
                     temporaryIndexMeta.getSettings(),
                     temporaryIndexMeta.getRoutingNumShards(),
                     sourceMetadata,
-                    temporaryIndexMeta.isSystem()
+                    temporaryIndexMeta.isSystem(),
+                    temporaryIndexMeta.getCustomData(),
+                    currentState.getMinTransportVersion()
                 );
             } catch (Exception e) {
                 logger.info("failed to build index metadata [{}]", request.index());
@@ -577,7 +682,7 @@ public class MetadataCreateIndexService {
                 blocksTransformerUponIndexCreation,
                 allocationService.getShardRoutingRoleStrategy()
             );
-            assert assertHasRefreshBlock(indexMetadata, updated.projectState(request.projectId()), updated.getMinTransportVersion());
+            assert assertHasRefreshBlock(indexMetadata, updated.projectState(request.projectId()));
             if (request.performReroute()) {
                 updated = allocationService.reroute(
                     updated,
@@ -683,7 +788,7 @@ public class MetadataCreateIndexService {
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
                 xContentRegistry,
-                indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
+                indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap(), null, null),
                 IndexService.dateMathExpressionResolverAt(request.getNameResolvedAt()),
                 systemIndices::isSystemName
             ),
@@ -705,7 +810,6 @@ public class MetadataCreateIndexService {
 
         final Metadata metadata = currentState.getMetadata();
         final ProjectMetadata projectMetadata = metadata.getProject(request.projectId());
-        final RoutingTable routingTable = currentState.routingTable(request.projectId());
 
         ComposableIndexTemplate template = projectMetadata.templatesV2().get(templateName);
         final boolean isDataStream = template.getDataStreamTemplate() != null;
@@ -719,11 +823,28 @@ public class MetadataCreateIndexService {
                     + "use create data stream api instead"
             );
         }
+        return applyCreateIndexRequestWithV2Template(currentState, request, silent, template, projectMetadataTransformer, rerouteListener);
+    }
+
+    private ClusterState applyCreateIndexRequestWithV2Template(
+        final ClusterState currentState,
+        final CreateIndexClusterStateUpdateRequest request,
+        final boolean silent,
+        final ComposableIndexTemplate template,
+        final BiConsumer<ProjectMetadata.Builder, IndexMetadata> projectMetadataTransformer,
+        final ActionListener<Void> rerouteListener
+    ) throws Exception {
+
+        final Metadata metadata = currentState.getMetadata();
+        final ProjectMetadata projectMetadata = metadata.getProject(request.projectId());
+        final RoutingTable routingTable = currentState.routingTable(request.projectId());
+
+        final boolean isDataStream = template.getDataStreamTemplate() != null;
 
         final List<CompressedXContent> mappings = collectV2Mappings(
             request.mappings(),
             projectMetadata,
-            templateName,
+            template,
             xContentRegistry,
             request.index()
         );
@@ -734,7 +855,7 @@ public class MetadataCreateIndexService {
             currentState.blocks(),
             routingTable,
             request,
-            resolveSettings(projectMetadata, templateName),
+            resolveSettings(template, projectMetadata.componentTemplates()),
             mappings,
             null,
             settings,
@@ -756,15 +877,15 @@ public class MetadataCreateIndexService {
                 request.index(),
                 // data stream aliases are created separately in MetadataCreateDataStreamService::createDataStream
                 isDataStream ? Set.of() : request.aliases(),
-                isDataStream ? List.of() : MetadataIndexTemplateService.resolveAliases(projectMetadata, templateName),
+                isDataStream ? List.of() : MetadataIndexTemplateService.resolveAliases(projectMetadata, template),
                 projectMetadata,
                 xContentRegistry,
                 // the context is used ony for validation so it's fine to pass fake values for the shard id and the current timestamp
-                indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
+                indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap(), null, null),
                 IndexService.dateMathExpressionResolverAt(request.getNameResolvedAt()),
                 systemIndices::isSystemName
             ),
-            Collections.singletonList(templateName),
+            Collections.singletonList("provided in request"),
             projectMetadataTransformer,
             rerouteListener
         );
@@ -815,7 +936,7 @@ public class MetadataCreateIndexService {
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
                 xContentRegistry,
-                indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
+                indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap(), null, null),
                 IndexService.dateMathExpressionResolverAt(request.getNameResolvedAt()),
                 systemIndices::isSystemName
             ),
@@ -882,7 +1003,7 @@ public class MetadataCreateIndexService {
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
                 xContentRegistry,
-                indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
+                indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap(), null, null),
                 IndexService.dateMathExpressionResolverAt(request.getNameResolvedAt()),
                 systemIndices::isSystemName
             ),
@@ -906,22 +1027,11 @@ public class MetadataCreateIndexService {
         return collectV2Mappings(null, templateMappings, xContentRegistry);
     }
 
-    public static List<CompressedXContent> collectV2Mappings(
-        @Nullable final String requestMappings,
-        final ProjectMetadata projectMetadata,
-        final String templateName,
-        final NamedXContentRegistry xContentRegistry,
-        final String indexName
-    ) throws Exception {
-        List<CompressedXContent> templateMappings = MetadataIndexTemplateService.collectMappings(projectMetadata, templateName, indexName);
-        return collectV2Mappings(requestMappings, templateMappings, xContentRegistry);
-    }
-
     private static List<CompressedXContent> collectV2Mappings(
         @Nullable final String requestMappings,
         final List<CompressedXContent> templateMappings,
         final NamedXContentRegistry xContentRegistry
-    ) throws Exception {
+    ) throws IOException {
         List<CompressedXContent> result = new ArrayList<>(templateMappings.size() + 1);
         result.addAll(templateMappings);
         if (requestMappings != null) {
@@ -931,6 +1041,21 @@ public class MetadataCreateIndexService {
             }
         }
         return result;
+    }
+
+    public static List<CompressedXContent> collectV2Mappings(
+        @Nullable final String requestMappings,
+        final ProjectMetadata projectMetadata,
+        final ComposableIndexTemplate template,
+        final NamedXContentRegistry xContentRegistry,
+        final String indexName
+    ) throws IOException {
+        List<CompressedXContent> templateMappings = MetadataIndexTemplateService.collectMappings(
+            template,
+            projectMetadata.componentTemplates(),
+            indexName
+        );
+        return collectV2Mappings(requestMappings, templateMappings, xContentRegistry);
     }
 
     private ClusterState applyCreateIndexRequestWithExistingMetadata(
@@ -987,7 +1112,7 @@ public class MetadataCreateIndexService {
                 xContentRegistry,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
-                indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
+                indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap(), null, null),
                 IndexService.dateMathExpressionResolverAt(request.getNameResolvedAt()),
                 systemIndices::isSystemName
             ),
@@ -1067,10 +1192,26 @@ public class MetadataCreateIndexService {
         final Settings.Builder templateSettings = Settings.builder().put(combinedTemplateSettings);
         final Settings.Builder requestSettings = Settings.builder().put(request.settings());
 
+        // Create a combined builder that serves two purposes:
+        // 1) It is used to pass to the IndexSettingProviders so they can see the combined settings
+        // that will be applied to the new index
+        // 2) It is used to create the IndexVersion for the new index which will be passed in to the IndexSettingProviders.
+        // IndexSettingProviders are not allowed to set the index version.
+        // Otherwise, they wouldn't be able to rely on the version they receive because another provider would be able to change it.
+        Settings.Builder templateAndRequestSettingsBuilder = Settings.builder().put(combinedTemplateSettings).put(request.settings());
+        if (request.isFailureIndex()) {
+            DataStreamFailureStoreDefinition.filterUserDefinedSettings(templateAndRequestSettingsBuilder);
+        }
+        final Settings templateAndRequestSettings = templateAndRequestSettingsBuilder.build();
+        final IndexVersion createdVersion;
+        if (IndexMetadata.SETTING_INDEX_VERSION_CREATED.exists(templateAndRequestSettings)) {
+            createdVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(templateAndRequestSettings);
+        } else {
+            createdVersion = IndexVersion.min(IndexVersion.current(), nodes.getMaxDataNodeCompatibleIndexVersion());
+        }
+
         final Settings.Builder indexSettingsBuilder = Settings.builder();
         if (sourceMetadata == null) {
-            final Settings templateAndRequestSettings = Settings.builder().put(combinedTemplateSettings).put(request.settings()).build();
-
             final IndexMode templateIndexMode = Optional.of(request)
                 .filter(r -> r.isFailureIndex() == false)
                 .map(CreateIndexClusterStateUpdateRequest::matchingTemplate)
@@ -1083,15 +1224,19 @@ public class MetadataCreateIndexService {
             final var resolvedAt = Instant.ofEpochMilli(request.getNameResolvedAt());
             Set<String> overrulingSettings = new HashSet<>();
             for (IndexSettingProvider provider : indexSettingProviders) {
-                var newAdditionalSettings = provider.getAdditionalIndexSettings(
+                Settings.Builder builder = Settings.builder();
+                provider.provideAdditionalSettings(
                     request.index(),
                     request.dataStreamName(),
                     templateIndexMode,
                     projectMetadata,
                     resolvedAt,
                     templateAndRequestSettings,
-                    combinedTemplateMappings
+                    combinedTemplateMappings,
+                    createdVersion,
+                    builder
                 );
+                var newAdditionalSettings = builder.build();
                 validateAdditionalSettings(provider, newAdditionalSettings, additionalIndexSettings);
                 additionalIndexSettings.put(newAdditionalSettings);
                 if (provider.overrulesTemplateAndRequestSettings()) {
@@ -1165,10 +1310,7 @@ public class MetadataCreateIndexService {
             }
         }
 
-        if (indexSettingsBuilder.get(IndexMetadata.SETTING_VERSION_CREATED) == null) {
-            IndexVersion createdVersion = IndexVersion.min(IndexVersion.current(), nodes.getMaxDataNodeCompatibleIndexVersion());
-            indexSettingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion);
-        }
+        indexSettingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion);
         if (INDEX_NUMBER_OF_SHARDS_SETTING.exists(indexSettingsBuilder) == false) {
             indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, INDEX_NUMBER_OF_SHARDS_SETTING.get(settings));
         }
@@ -1213,13 +1355,14 @@ public class MetadataCreateIndexService {
     }
 
     /**
-     * Validates whether additional settings don't have keys that are already defined in all additional settings.
+     * Validates that additional settings don't have keys that are already defined in all additional settings
+     * and that they don't try to set {@link IndexMetadata#SETTING_VERSION_CREATED}.
      *
      * @param provider                  The {@link IndexSettingProvider} that produced <code>additionalSettings</code>
      * @param additionalSettings        The settings produced by the specified <code>provider</code>
      * @param allAdditionalSettings     A settings builder containing all additional settings produced by any {@link IndexSettingProvider}
      *                                  that already executed
-     * @throws IllegalArgumentException If keys in additionalSettings are already defined in allAdditionalSettings
+     * @throws IllegalArgumentException If any of the validations fail
      */
     public static void validateAdditionalSettings(
         IndexSettingProvider provider,
@@ -1230,6 +1373,15 @@ public class MetadataCreateIndexService {
             if (allAdditionalSettings.keys().contains(settingName)) {
                 var name = provider.getClass().getSimpleName();
                 var message = Strings.format("additional index setting [%s] added by [%s] is already present", settingName, name);
+                throw new IllegalArgumentException(message);
+            }
+            if (IndexMetadata.SETTING_VERSION_CREATED.equals(settingName)) {
+                var name = provider.getClass().getSimpleName();
+                var message = Strings.format(
+                    "setting [%s] added by [%s] is not allowed to be set via an IndexSettingProvider",
+                    settingName,
+                    name
+                );
                 throw new IllegalArgumentException(message);
             }
         }
@@ -1250,10 +1402,23 @@ public class MetadataCreateIndexService {
      * it will return the value configured for that index.
      */
     static int getIndexNumberOfRoutingShards(Settings indexSettings, @Nullable IndexMetadata sourceMetadata) {
+        final int routingNumShards = getIndexNumberOfRoutingShards(
+            indexSettings,
+            sourceMetadata == null ? 1 : sourceMetadata.getNumberOfShards(),
+            sourceMetadata == null ? 0 : sourceMetadata.getRoutingNumShards()
+        );
+        return routingNumShards;
+    }
+
+    /**
+     * Calculates the number of routing shards based on the configured value in indexSettings or if recovering from another index
+     * it will return the value configured for that index.
+     */
+    static int getIndexNumberOfRoutingShards(Settings indexSettings, final int sourceNumShards, final int sourceRoutingNumShards) {
         final int numTargetShards = INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings);
         final IndexVersion indexVersionCreated = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexSettings);
         final int routingNumShards;
-        if (sourceMetadata == null || sourceMetadata.getNumberOfShards() == 1) {
+        if (sourceNumShards == 1) {
             // in this case we either have no index to recover from or
             // we have a source index with 1 shard and without an explicit split factor
             // or one that is valid in that case we can split into whatever and auto-generate a new factor.
@@ -1267,7 +1432,7 @@ public class MetadataCreateIndexService {
         } else {
             assert IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(indexSettings) == false
                 : "index.number_of_routing_shards should not be present on the target index on resize";
-            routingNumShards = sourceMetadata.getRoutingNumShards();
+            routingNumShards = sourceRoutingNumShards;
         }
         return routingNumShards;
     }
@@ -1394,7 +1559,7 @@ public class MetadataCreateIndexService {
         var blocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
         blocksBuilder.updateBlocks(projectId, indexMetadata);
         if (blocksTransformer != null) {
-            blocksTransformer.apply(blocksBuilder, projectId, indexMetadata, currentState.getMinTransportVersion());
+            blocksTransformer.apply(blocksBuilder, projectId, indexMetadata);
         }
 
         var routingTableBuilder = RoutingTable.builder(shardRoutingRoleStrategy, currentState.routingTable(projectId))
@@ -1414,10 +1579,13 @@ public class MetadataCreateIndexService {
         Settings indexSettings,
         int routingNumShards,
         @Nullable IndexMetadata sourceMetadata,
-        boolean isSystem
+        boolean isSystem,
+        Map<String, DiffableStringMap> customData,
+        TransportVersion minClusterTransportVersion
     ) {
         IndexMetadata.Builder indexMetadataBuilder = createIndexMetadataBuilder(indexName, sourceMetadata, indexSettings, routingNumShards);
         indexMetadataBuilder.system(isSystem);
+        indexMetadataBuilder.transportVersion(minClusterTransportVersion);
         // now, update the mappings with the actual source
         Map<String, MappingMetadata> mappingsMetadata = new HashMap<>();
         DocumentMapper docMapper = documentMapperSupplier.get();
@@ -1437,6 +1605,7 @@ public class MetadataCreateIndexService {
         }
 
         indexMetadataBuilder.state(IndexMetadata.State.OPEN);
+        indexMetadataBuilder.putCustom(customData);
         return indexMetadataBuilder.build();
     }
 
@@ -1475,8 +1644,7 @@ public class MetadataCreateIndexService {
     private static void updateIndexMappingsAndBuildSortOrder(
         IndexService indexService,
         CreateIndexClusterStateUpdateRequest request,
-        List<CompressedXContent> mappings,
-        @Nullable IndexMetadata sourceMetadata
+        List<CompressedXContent> mappings
     ) throws IOException {
         MapperService mapperService = indexService.mapperService();
         IndexMode indexMode = indexService.getIndexSettings() != null ? indexService.getIndexSettings().getMode() : IndexMode.STANDARD;
@@ -1490,13 +1658,11 @@ public class MetadataCreateIndexService {
 
         indexMode.validateTimestampFieldMapping(request.dataStreamName() != null, mapperService.mappingLookup());
 
-        if (sourceMetadata == null) {
-            // now that the mapping is merged we can validate the index sort.
-            // we cannot validate for index shrinking since the mapping is empty
-            // at this point. The validation will take place later in the process
-            // (when all shards are copied in a single place).
-            indexService.getIndexSortSupplier().get();
-        }
+        // now that the mapping is merged we can validate the index sort.
+        // we cannot validate for index shrinking since the mapping is empty
+        // at this point. The validation will take place later in the process
+        // (when all shards are copied in a single place).
+        indexService.getIndexSortSupplier().get();
     }
 
     private static void validateActiveShardCount(ActiveShardCount waitForActiveShards, IndexMetadata indexMetadata) {
@@ -1515,13 +1681,14 @@ public class MetadataCreateIndexService {
     }
 
     private void validate(CreateIndexClusterStateUpdateRequest request, ProjectMetadata projectMetadata, RoutingTable routingTable) {
+        validateIndexLimit(projectMetadata, request);
         validateIndexName(request.index(), projectMetadata, routingTable);
-        validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings);
+        validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings && request.settingsSystemProvided() == false);
     }
 
     public void validateIndexSettings(String indexName, final Settings settings, final boolean forbidPrivateIndexSettings)
         throws IndexCreationException {
-        List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings);
+        List<String> validationErrors = getIndexSettingsValidationErrors(settings, null, forbidPrivateIndexSettings);
 
         if (validationErrors.isEmpty() == false) {
             ValidationException validationException = new ValidationException();
@@ -1530,25 +1697,41 @@ public class MetadataCreateIndexService {
         }
     }
 
-    List<String> getIndexSettingsValidationErrors(final Settings settings, final boolean forbidPrivateIndexSettings) {
+    List<String> getIndexSettingsValidationErrors(
+        final Settings settings,
+        @Nullable Settings systemProvided,
+        final boolean forbidPrivateIndexSettings
+    ) {
         List<String> validationErrors = validateIndexCustomPath(settings, env.sharedDataDir());
         if (forbidPrivateIndexSettings) {
-            validationErrors.addAll(validatePrivateSettingsNotExplicitlySet(settings, indexScopedSettings));
+            validationErrors.addAll(validatePrivateSettingsNotExplicitlySet(settings, systemProvided, indexScopedSettings));
         }
         return validationErrors;
     }
 
-    private static List<String> validatePrivateSettingsNotExplicitlySet(Settings settings, IndexScopedSettings indexScopedSettings) {
+    private static List<String> validatePrivateSettingsNotExplicitlySet(
+        Settings settings,
+        @Nullable Settings systemProvided,
+        IndexScopedSettings indexScopedSettings
+    ) {
         List<String> validationErrors = new ArrayList<>();
         for (final String key : settings.keySet()) {
             final Setting<?> setting = indexScopedSettings.get(key);
             if (setting == null) {
                 assert indexScopedSettings.isPrivateSetting(key) : "expected [" + key + "] to be private but it was not";
-            } else if (setting.isPrivateIndex()) {
+            } else if (setting.isPrivateIndex() && isSystemProvided(key, settings, systemProvided) == false) {
                 validationErrors.add("private index setting [" + key + "] can not be set explicitly");
             }
         }
         return validationErrors;
+    }
+
+    /*
+     * System-provided settings are always allowed to configure private settings.
+     * These are typically coming from an IndexSettingProvider.
+     */
+    private static boolean isSystemProvided(String key, Settings settings, @Nullable Settings systemProvided) {
+        return systemProvided != null && settings.get(key).equals(systemProvided.get(key));
     }
 
     /**
@@ -1676,6 +1859,12 @@ public class MetadataCreateIndexService {
     ) {
         if (projectMetadata.hasIndex(targetIndexName)) {
             throw new ResourceAlreadyExistsException(projectMetadata.index(targetIndexName).getIndex());
+        }
+        if (projectMetadata.hasView(targetIndexName)) {
+            throw new ResourceAlreadyExistsException(
+                "cannot resize to [{}], as an ESQL view already exists with that name",
+                targetIndexName
+            );
         }
         final IndexMetadata sourceMetadata = projectMetadata.index(sourceIndex);
         if (sourceMetadata == null) {
@@ -1841,11 +2030,11 @@ public class MetadataCreateIndexService {
 
     static ClusterBlocksTransformer createClusterBlocksTransformerForIndexCreation(Settings settings) {
         if (useRefreshBlock(settings) == false) {
-            return (clusterBlocks, projectId, indexMetadata, minClusterTransportVersion) -> {};
+            return (clusterBlocks, projectId, indexMetadata) -> {};
         }
         logger.debug("applying refresh block on index creation");
-        return (clusterBlocks, projectId, indexMetadata, minClusterTransportVersion) -> {
-            if (applyRefreshBlock(indexMetadata, minClusterTransportVersion)) {
+        return (clusterBlocks, projectId, indexMetadata) -> {
+            if (applyRefreshBlock(indexMetadata)) {
                 // Applies the INDEX_REFRESH_BLOCK to the index. This block will remain in cluster state until an unpromotable shard is
                 // started or a configurable delay is elapsed.
                 clusterBlocks.addIndexBlock(projectId, indexMetadata.getIndex().getName(), IndexMetadata.INDEX_REFRESH_BLOCK);
@@ -1853,17 +2042,16 @@ public class MetadataCreateIndexService {
         };
     }
 
-    private static boolean applyRefreshBlock(IndexMetadata indexMetadata, TransportVersion minClusterTransportVersion) {
+    private static boolean applyRefreshBlock(IndexMetadata indexMetadata) {
         return 0 < indexMetadata.getNumberOfReplicas() // index has replicas
             && indexMetadata.getResizeSourceIndex() == null // index is not a split/shrink index
-            && indexMetadata.getInSyncAllocationIds().values().stream().allMatch(Set::isEmpty) // index is a new index
-            && minClusterTransportVersion.onOrAfter(TransportVersions.NEW_REFRESH_CLUSTER_BLOCK);
+            && indexMetadata.getInSyncAllocationIds().values().stream().allMatch(Set::isEmpty); // index is a new index
     }
 
-    private boolean assertHasRefreshBlock(IndexMetadata indexMetadata, ProjectState state, TransportVersion minTransportVersion) {
+    private boolean assertHasRefreshBlock(IndexMetadata indexMetadata, ProjectState state) {
         var hasRefreshBlock = state.blocks()
             .hasIndexBlock(state.projectId(), indexMetadata.getIndex().getName(), IndexMetadata.INDEX_REFRESH_BLOCK);
-        if (useRefreshBlock(settings) == false || applyRefreshBlock(indexMetadata, minTransportVersion) == false) {
+        if (useRefreshBlock(settings) == false || applyRefreshBlock(indexMetadata) == false) {
             assert hasRefreshBlock == false : indexMetadata.getIndex();
         } else {
             assert hasRefreshBlock : indexMetadata.getIndex();

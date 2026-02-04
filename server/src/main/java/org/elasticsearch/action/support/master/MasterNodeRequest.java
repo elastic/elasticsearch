@@ -9,11 +9,11 @@
 
 package org.elasticsearch.action.support.master;
 
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestUtils;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -21,7 +21,7 @@ import java.util.Objects;
 /**
  * A based request for master based operation.
  */
-public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Request>> extends ActionRequest {
+public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Request>> extends LegacyActionRequest {
 
     /**
      * The default timeout for master-node requests. It's super-trappy to have such a default, because it makes it all too easy to forget
@@ -29,7 +29,7 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
      * that is struggling to process cluster state updates fast enough, and it's a disaster if we cannot extend the master-node timeout in
      * those cases. We shouldn't use this any more and should work towards removing it.
      * <p>
-     * For requests which originate in the REST layer, use {@link org.elasticsearch.rest.RestUtils#getMasterNodeTimeout} to determine the
+     * For requests which originate in the REST layer, use {@link RestUtils#getMasterNodeTimeout} to determine the
      * timeout.
      * <p>
      * For internally-generated requests, choose an appropriate timeout. Often this will be {@link #INFINITE_MASTER_NODE_TIMEOUT}, since
@@ -60,7 +60,7 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
      *                          <ul>
      *                          <li>
      *                              For requests which originate in the REST layer, use
-     *                              {@link org.elasticsearch.rest.RestUtils#getMasterNodeTimeout} to determine the timeout.
+     *                              {@link RestUtils#getMasterNodeTimeout} to determine the timeout.
      *                          </li>
      *                          <li>
      *                              For internally-generated requests, choose an appropriate timeout. Often this will be an infinite
@@ -78,11 +78,7 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
     protected MasterNodeRequest(StreamInput in) throws IOException {
         super(in);
         masterNodeTimeout = in.readTimeValue();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            masterTerm = in.readVLong();
-        } else {
-            masterTerm = 0L;
-        }
+        masterTerm = in.readVLong();
     }
 
     @Override
@@ -92,9 +88,7 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
         assert masterTerm <= newMasterTerm : masterTerm + " vs " + newMasterTerm;
         super.writeTo(out);
         out.writeTimeValue(masterNodeTimeout);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeVLong(newMasterTerm);
-        } // else no protection against routing loops in older versions
+        out.writeVLong(newMasterTerm);
     }
 
     private long getNewMasterTerm(StreamOutput out) {
@@ -109,7 +103,7 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
      * Specifies how long to wait when the master has not been discovered yet, or is disconnected, or is busy processing other tasks. The
      * value {@link #INFINITE_MASTER_NODE_TIMEOUT} means to wait forever.
      * <p>
-     * For requests which originate in the REST layer, use {@link org.elasticsearch.rest.RestUtils#getMasterNodeTimeout} to determine the
+     * For requests which originate in the REST layer, use {@link RestUtils#getMasterNodeTimeout} to determine the
      * timeout.
      * <p>
      * For internally-generated requests, choose an appropriate timeout. Often this will be {@link #INFINITE_MASTER_NODE_TIMEOUT} since

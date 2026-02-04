@@ -104,10 +104,16 @@ public class TransportSetTransformUpgradeModeActionTests extends ESTestCase {
     }
 
     public void testCreateUpdatedState() {
-        var updatedState = action.createUpdatedState(new SetUpgradeModeActionRequest(true), state(false));
+        var updatedState = action.createUpdatedState(
+            new SetUpgradeModeActionRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, true),
+            state(false)
+        );
         assertTrue(TransformMetadata.upgradeMode(updatedState));
 
-        updatedState = action.createUpdatedState(new SetUpgradeModeActionRequest(false), state(true));
+        updatedState = action.createUpdatedState(
+            new SetUpgradeModeActionRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, false),
+            state(true)
+        );
         assertFalse(TransformMetadata.upgradeMode(updatedState));
     }
 
@@ -150,7 +156,7 @@ public class TransportSetTransformUpgradeModeActionTests extends ESTestCase {
 
     private void upgradeModeSuccessfullyChanged(ClusterState state, ActionListener<AcknowledgedResponse> listener)
         throws InterruptedException {
-        upgradeModeSuccessfullyChanged(new SetUpgradeModeActionRequest(true), state, listener);
+        upgradeModeSuccessfullyChanged(new SetUpgradeModeActionRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, true), state, listener);
     }
 
     private void upgradeModeSuccessfullyChanged(
@@ -193,13 +199,17 @@ public class TransportSetTransformUpgradeModeActionTests extends ESTestCase {
 
     public void testDisableUpgradeMode() throws InterruptedException {
         doAnswer(ans -> {
-            ActionListener<Boolean> listener = ans.getArgument(2);
+            ActionListener<Boolean> listener = ans.getArgument(3);
             listener.onResponse(true);
             return null;
-        }).when(persistentTasksService).waitForPersistentTasksCondition(any(), any(), any());
-        upgradeModeSuccessfullyChanged(new SetUpgradeModeActionRequest(false), stateWithTransformTask(), assertNoFailureListener(r -> {
-            assertThat(r, is(AcknowledgedResponse.TRUE));
-            verify(clusterService, never()).submitUnbatchedStateUpdateTask(eq("unassign persistent task from any node"), any());
-        }));
+        }).when(persistentTasksService).waitForPersistentTasksCondition(any(), any(), any(), any());
+        upgradeModeSuccessfullyChanged(
+            new SetUpgradeModeActionRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, false),
+            stateWithTransformTask(),
+            assertNoFailureListener(r -> {
+                assertThat(r, is(AcknowledgedResponse.TRUE));
+                verify(clusterService, never()).submitUnbatchedStateUpdateTask(eq("unassign persistent task from any node"), any());
+            })
+        );
     }
 }

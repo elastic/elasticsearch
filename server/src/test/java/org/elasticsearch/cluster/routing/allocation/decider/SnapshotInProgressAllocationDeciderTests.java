@@ -229,7 +229,7 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
             // mark nodeID as shutting down for removal
             .withUpdatedNodeIdsForRemoval(clusterStateWithShutdownMetadata)
             // create a running snapshot with shardId paused
-            .withUpdatedEntriesForRepo(
+            .createCopyWithUpdatedEntriesForRepo(
                 repositoryName,
                 List.of(
                     SnapshotsInProgress.Entry.snapshot(
@@ -337,7 +337,7 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
         } else {
             shardSnapshotStatus = new SnapshotsInProgress.ShardSnapshotStatus(nodeId, shardState, ShardGeneration.newGeneration(random()));
         }
-        return SnapshotsInProgress.EMPTY.withUpdatedEntriesForRepo(
+        return SnapshotsInProgress.EMPTY.createCopyWithUpdatedEntriesForRepo(
             repositoryName,
             List.of(
                 SnapshotsInProgress.Entry.snapshot(

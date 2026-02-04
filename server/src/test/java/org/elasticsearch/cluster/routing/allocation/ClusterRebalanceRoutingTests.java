@@ -704,7 +704,8 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
             }
         );
         assertCriticalWarnings(
-            "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release."
+            "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
         );
 
         Metadata metadata = Metadata.builder()

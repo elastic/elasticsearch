@@ -30,4 +30,9 @@ public class ProcessClusterEventTimeoutException extends ElasticsearchException 
     public RestStatus status() {
         return RestStatus.TOO_MANY_REQUESTS;
     }
+
+    @Override
+    public boolean isTimeout() {
+        return true;
+    }
 }

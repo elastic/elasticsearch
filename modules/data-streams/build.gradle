@@ -14,7 +14,7 @@ esplugin {
 restResources {
   restApi {
     include 'bulk', 'count', 'search', '_common', 'indices', 'index', 'cluster', 'rank_eval', 'reindex', 'update_by_query', 'delete_by_query',
-      'eql', 'data_stream', 'ingest', 'cat', 'capabilities'
+      'eql', 'data_stream', 'ingest', 'cat', 'capabilities', 'reindex'
   }
 }
 
@@ -22,10 +22,16 @@ dependencies {
   testImplementation project(path: ':test:test-clusters')
   testImplementation project(":modules:mapper-extras")
   internalClusterTestImplementation project(":modules:mapper-extras")
+  internalClusterTestImplementation project(':modules:rest-root')
+  internalClusterTestImplementation project(':modules:reindex')
 }
 
 tasks.withType(StandaloneRestIntegTestTask).configureEach {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
+}
+
+tasks.named("internalClusterTest").configure {
+  systemProperty 'es.logs_stream_feature_flag_enabled', 'true'
 }
 
 if (buildParams.inFipsJvm){
@@ -33,12 +39,6 @@ if (buildParams.inFipsJvm){
   // Tracked in :
   tasks.named("javaRestTest").configure{enabled = false }
   tasks.named("yamlRestTest").configure{enabled = false }
-}
-
-if (buildParams.snapshotBuild == false) {
-  tasks.withType(Test).configureEach {
-    systemProperty 'es.failure_store_feature_flag_enabled', 'true'
-  }
 }
 
 tasks.named("yamlRestCompatTestTransform").configure({ task ->
@@ -52,6 +52,10 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("data_stream/30_auto_create_data_stream/Don't initialize failure store during data stream auto-creation on successful index", "Configuring the failure store via data stream templates is not supported anymore.")
 
   task.skipTest("data_stream/150_tsdb/TSDB failures go to failure store", "Configuring the failure store via data stream templates is not supported anymore.")
+  // TODO remove these after removing exact _tsid assertions in 8.x
+  task.skipTest("data_stream/150_tsdb/dynamic templates", "The _tsid has changed in a new index version. This tests verifies the exact _tsid value with is too brittle for compatibility testing.")
+  task.skipTest("data_stream/150_tsdb/dynamic templates - conflicting aliases", "The _tsid has changed in a new index version. This tests verifies the exact _tsid value with is too brittle for compatibility testing.")
+  task.skipTest("data_stream/150_tsdb/dynamic templates with nesting", "The _tsid has changed in a new index version. This tests verifies the exact _tsid value with is too brittle for compatibility testing.")
 
   task.skipTest("data_stream/170_modify_data_stream/Modify a data stream's failure store", "Configuring the failure store via data stream templates is not supported anymore.")
 
@@ -83,10 +87,11 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("data_stream/210_rollover_failure_store/Lazily roll over a data stream's failure store after an ingest failure", "Rolling over a data stream using target_failure_store is no longer supported.")
   task.skipTest("data_stream/210_rollover_failure_store/Lazily roll over a data stream's failure store after a shard failure", "Rolling over a data stream using target_failure_store is no longer supported.")
   task.skipTest("data_stream/210_rollover_failure_store/Roll over a data stream's failure store without conditions", "Rolling over a data stream using target_failure_store is no longer supported.")
+  task.skipTest("data_stream/240_failure_store_info/Get failure store info from explicitly enabled failure store and disabled lifecycle", "failure store lifecycle is not using anymore the data stream lifecycle")
 })
 
 configurations {
-  basicRestSpecs {
+  restTests {
     attributes {
       attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
     }
@@ -94,5 +99,5 @@ configurations {
 }
 
 artifacts {
-  basicRestSpecs(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+  restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }

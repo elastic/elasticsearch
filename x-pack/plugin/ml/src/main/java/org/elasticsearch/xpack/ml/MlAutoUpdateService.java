@@ -66,7 +66,6 @@ public class MlAutoUpdateService implements ClusterStateListener {
             .filter(action -> action.isAbleToRun(latestState))
             .filter(action -> currentlyUpdating.add(action.getName()))
             .toList();
-        // TODO run updates serially
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
             .execute(() -> toRun.forEach((action) -> this.runUpdate(action, latestState)));
     }

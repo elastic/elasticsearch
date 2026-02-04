@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.nulls;
 
+// begin generated imports
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -20,14 +22,17 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 
 import java.util.List;
 import java.util.stream.IntStream;
+// end generated imports
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Coalesce}.
- * This class is generated. Edit {@code X-InEvaluator.java.st} instead.
+ * This class is generated. Edit {@code X-CoalesceEvaluator.java.st} instead.
  */
 abstract sealed class CoalesceLongEvaluator implements EvalOperator.ExpressionEvaluator permits
     CoalesceLongEvaluator.CoalesceLongEagerEvaluator, //
     CoalesceLongEvaluator.CoalesceLongLazyEvaluator {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CoalesceLongEvaluator.class);
 
     static ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator, List<Expression> children) {
         List<ExpressionEvaluator.Factory> childEvaluators = children.stream().map(toEvaluator::apply).toList();
@@ -35,7 +40,11 @@ abstract sealed class CoalesceLongEvaluator implements EvalOperator.ExpressionEv
             return new ExpressionEvaluator.Factory() {
                 @Override
                 public ExpressionEvaluator get(DriverContext context) {
-                    return new CoalesceLongEagerEvaluator(context, childEvaluators.stream().map(x -> x.get(context)).toList());
+                    return new CoalesceLongEagerEvaluator(
+                        // comment to make spotless happy about line breaks
+                        context,
+                        childEvaluators.stream().map(x -> x.get(context)).toList()
+                    );
                 }
 
                 @Override
@@ -47,7 +56,11 @@ abstract sealed class CoalesceLongEvaluator implements EvalOperator.ExpressionEv
         return new ExpressionEvaluator.Factory() {
             @Override
             public ExpressionEvaluator get(DriverContext context) {
-                return new CoalesceLongLazyEvaluator(context, childEvaluators.stream().map(x -> x.get(context)).toList());
+                return new CoalesceLongLazyEvaluator(
+                    // comment to make spotless happy about line breaks
+                    context,
+                    childEvaluators.stream().map(x -> x.get(context)).toList()
+                );
             }
 
             @Override
@@ -129,6 +142,15 @@ abstract sealed class CoalesceLongEvaluator implements EvalOperator.ExpressionEv
     }
 
     @Override
+    public long baseRamBytesUsed() {
+        long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+        for (ExpressionEvaluator e : evaluators) {
+            baseRamBytesUsed += e.baseRamBytesUsed();
+        }
+        return baseRamBytesUsed;
+    }
+
+    @Override
     public final void close() {
         Releasables.closeExpectNoException(() -> Releasables.close(evaluators));
     }
@@ -156,7 +178,10 @@ abstract sealed class CoalesceLongEvaluator implements EvalOperator.ExpressionEv
                 for (int f = 1; f < flatten.length; f++) {
                     flatten[f] = (LongBlock) evaluators.get(firstToEvaluate + f - 1).eval(page);
                 }
-                try (LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+                try (
+                    LongBlock.Builder result = driverContext.blockFactory() //
+                        .newLongBlockBuilder(positionCount)
+                ) {
                     position: for (int p = 0; p < positionCount; p++) {
                         for (LongBlock f : flatten) {
                             if (false == f.isNull(p)) {
@@ -193,7 +218,10 @@ abstract sealed class CoalesceLongEvaluator implements EvalOperator.ExpressionEv
         @Override
         protected LongBlock perPosition(Page page, LongBlock lastFullBlock, int firstToEvaluate) {
             int positionCount = page.getPositionCount();
-            try (LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+            try (
+                LongBlock.Builder result = driverContext.blockFactory() //
+                    .newLongBlockBuilder(positionCount)
+            ) {
                 position: for (int p = 0; p < positionCount; p++) {
                     if (lastFullBlock.isNull(p) == false) {
                         result.copyFrom(lastFullBlock, p, p + 1);

@@ -8,14 +8,15 @@
 package org.elasticsearch.xpack.inference.services.azureopenai;
 
 import org.apache.http.client.utils.URIBuilder;
-import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.azureopenai.AzureOpenAiActionVisitor;
-import org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenAiUtils;
+import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
+import org.elasticsearch.xpack.inference.services.azureopenai.action.AzureOpenAiActionVisitor;
+import org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -27,7 +28,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
 
-public abstract class AzureOpenAiModel extends Model {
+public abstract class AzureOpenAiModel extends RateLimitGroupingModel {
 
     protected URI uri;
     private final AzureOpenAiRateLimitServiceSettings rateLimitServiceSettings;
@@ -93,6 +94,16 @@ public abstract class AzureOpenAiModel extends Model {
 
     public AzureOpenAiRateLimitServiceSettings rateLimitServiceSettings() {
         return rateLimitServiceSettings;
+    }
+
+    @Override
+    public RateLimitSettings rateLimitSettings() {
+        return rateLimitServiceSettings.rateLimitSettings();
+    }
+
+    @Override
+    public int rateLimitGroupingHash() {
+        return Objects.hash(resourceName(), deploymentId());
     }
 
     // TODO: can be inferred directly from modelConfigurations.getServiceSettings(); will be addressed with separate refactoring

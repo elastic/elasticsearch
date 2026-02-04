@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.core.datastreams;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -17,8 +15,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.datastreams.DataStreamLifecycleFeatureSetUsage.LifecycleStats;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
@@ -42,7 +42,11 @@ public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
+    }
+
+    public DataStreamStats getStats() {
+        return streamStats;
     }
 
     @Override
@@ -50,13 +54,41 @@ public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
         super.innerXContent(builder, params);
         builder.field("data_streams", streamStats.totalDataStreamCount);
         builder.field("indices_count", streamStats.indicesBehindDataStream);
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            builder.startObject("failure_store");
-            builder.field("explicitly_enabled_count", streamStats.failureStoreExplicitlyEnabledDataStreamCount);
-            builder.field("effectively_enabled_count", streamStats.failureStoreEffectivelyEnabledDataStreamCount);
-            builder.field("failure_indices_count", streamStats.failureStoreIndicesCount);
-            builder.endObject();
-        }
+        builder.startObject("failure_store");
+        builder.field("explicitly_enabled_count", streamStats.failureStoreExplicitlyEnabledDataStreamCount);
+        builder.field("effectively_enabled_count", streamStats.failureStoreEffectivelyEnabledDataStreamCount);
+        builder.field("failure_indices_count", streamStats.failureStoreIndicesCount);
+
+        // Failures lifecycle
+        builder.startObject("lifecycle");
+        builder.field("explicitly_enabled_count", streamStats.failuresLifecycleExplicitlyEnabledCount);
+        builder.field("effectively_enabled_count", streamStats.failuresLifecycleEffectivelyEnabledCount);
+
+        // Retention
+        DataStreamLifecycleFeatureSetUsage.RetentionStats.toXContentFragment(
+            builder,
+            streamStats.failuresLifecycleDataRetentionStats,
+            false
+        );
+        DataStreamLifecycleFeatureSetUsage.RetentionStats.toXContentFragment(
+            builder,
+            streamStats.failuresLifecycleEffectiveRetentionStats,
+            true
+        );
+        builder.startObject("global_retention");
+        DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats.toXContentFragment(
+            builder,
+            LifecycleStats.DEFAULT_RETENTION_FIELD_NAME,
+            streamStats.globalRetentionStats.get(LifecycleStats.DEFAULT_RETENTION_FIELD_NAME)
+        );
+        DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats.toXContentFragment(
+            builder,
+            LifecycleStats.MAX_RETENTION_FIELD_NAME,
+            streamStats.globalRetentionStats.get(LifecycleStats.MAX_RETENTION_FIELD_NAME)
+        );
+        builder.endObject();
+        builder.endObject();
+        builder.endObject();
     }
 
     @Override
@@ -86,16 +118,34 @@ public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
         long indicesBehindDataStream,
         long failureStoreExplicitlyEnabledDataStreamCount,
         long failureStoreEffectivelyEnabledDataStreamCount,
-        long failureStoreIndicesCount
+        long failureStoreIndicesCount,
+        long failuresLifecycleExplicitlyEnabledCount,
+        long failuresLifecycleEffectivelyEnabledCount,
+        DataStreamLifecycleFeatureSetUsage.RetentionStats failuresLifecycleDataRetentionStats,
+        DataStreamLifecycleFeatureSetUsage.RetentionStats failuresLifecycleEffectiveRetentionStats,
+        Map<String, DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats> globalRetentionStats
     ) implements Writeable {
+
+        private static final TransportVersion INTRODUCE_FAILURES_LIFECYCLE = TransportVersion.fromName("introduce_failures_lifecycle");
 
         public DataStreamStats(StreamInput in) throws IOException {
             this(
                 in.readVLong(),
                 in.readVLong(),
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? in.readVLong() : 0,
-                in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ENABLED_BY_CLUSTER_SETTING) ? in.readVLong() : 0,
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? in.readVLong() : 0
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE) ? in.readVLong() : 0,
+                in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE) ? in.readVLong() : 0,
+                in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)
+                    ? DataStreamLifecycleFeatureSetUsage.RetentionStats.read(in)
+                    : DataStreamLifecycleFeatureSetUsage.RetentionStats.NO_DATA,
+                in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)
+                    ? DataStreamLifecycleFeatureSetUsage.RetentionStats.read(in)
+                    : DataStreamLifecycleFeatureSetUsage.RetentionStats.NO_DATA,
+                in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)
+                    ? in.readMap(DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats::new)
+                    : Map.of()
             );
         }
 
@@ -103,12 +153,15 @@ public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(this.totalDataStreamCount);
             out.writeVLong(this.indicesBehindDataStream);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                out.writeVLong(this.failureStoreExplicitlyEnabledDataStreamCount);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ENABLED_BY_CLUSTER_SETTING)) {
-                    out.writeVLong(failureStoreEffectivelyEnabledDataStreamCount);
-                }
-                out.writeVLong(this.failureStoreIndicesCount);
+            out.writeVLong(this.failureStoreExplicitlyEnabledDataStreamCount);
+            out.writeVLong(this.failureStoreEffectivelyEnabledDataStreamCount);
+            out.writeVLong(this.failureStoreIndicesCount);
+            if (out.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)) {
+                out.writeVLong(failuresLifecycleExplicitlyEnabledCount);
+                out.writeVLong(failuresLifecycleEffectivelyEnabledCount);
+                failuresLifecycleDataRetentionStats.writeTo(out);
+                failuresLifecycleEffectiveRetentionStats.writeTo(out);
+                out.writeMap(globalRetentionStats, (o, v) -> v.writeTo(o));
             }
         }
     }

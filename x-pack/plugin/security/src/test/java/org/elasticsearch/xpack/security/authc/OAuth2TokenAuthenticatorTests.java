@@ -112,11 +112,7 @@ public class OAuth2TokenAuthenticatorTests extends AbstractAuthenticatorTests {
         assertThat(e, sameInstance(failureError));
 
         // verify we recorded failure metric
-        assertSingleFailedAuthMetric(
-            telemetryPlugin,
-            SecurityMetricType.AUTHC_OAUTH2_TOKEN,
-            Map.ofEntries(Map.entry(OAuth2TokenAuthenticator.ATTRIBUTE_AUTHC_FAILURE_REASON, "failed to authenticate OAuth2 token"))
-        );
+        assertSingleFailedAuthMetric(telemetryPlugin, SecurityMetricType.AUTHC_OAUTH2_TOKEN, Map.of());
 
         // verify that there were no successes recorded
         assertZeroSuccessAuthMetrics(telemetryPlugin, SecurityMetricType.AUTHC_OAUTH2_TOKEN);

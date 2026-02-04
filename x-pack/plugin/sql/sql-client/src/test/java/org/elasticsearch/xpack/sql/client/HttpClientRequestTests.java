@@ -175,7 +175,8 @@ public class HttpClientRequestTests extends ESTestCase {
             randomBoolean(),
             randomBoolean(),
             isBinary,
-            randomBoolean()
+            randomBoolean(),
+            null
         );
 
         prepareMockResponse();

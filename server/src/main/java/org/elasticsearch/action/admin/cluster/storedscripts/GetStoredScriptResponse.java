@@ -31,8 +31,6 @@ public class GetStoredScriptResponse extends ActionResponse implements ToXConten
     private final StoredScriptSource source;
 
     public GetStoredScriptResponse(StreamInput in) throws IOException {
-        super(in);
-
         if (in.readBoolean()) {
             source = new StoredScriptSource(in);
         } else {

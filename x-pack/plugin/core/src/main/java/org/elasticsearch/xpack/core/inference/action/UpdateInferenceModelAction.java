@@ -244,7 +244,6 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             model = new ModelConfigurations(in);
         }
 

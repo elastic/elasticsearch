@@ -11,6 +11,7 @@ package org.elasticsearch.reservedstate.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
@@ -18,19 +19,21 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.file.MasterNodeFileWatchingService;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.node.FileSettingsHealthInfo;
 import org.elasticsearch.health.node.HealthInfo;
+import org.elasticsearch.health.node.tracker.FileSettingsHealthTracker;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -40,9 +43,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
@@ -72,7 +78,7 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
 
     private final Path watchedFile;
     private final ReservedClusterStateService stateService;
-    private final FileSettingsHealthIndicatorService healthIndicatorService;
+    private final FileSettingsHealthTracker healthIndicatorTracker;
 
     /**
      * Constructs the {@link FileSettingsService}
@@ -80,19 +86,19 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
      * @param clusterService so we can register ourselves as a cluster state change listener
      * @param stateService an instance of the immutable cluster state controller, so we can perform the cluster state changes
      * @param environment we need the environment to pull the location of the config and operator directories
-     * @param healthIndicatorService tracks the success or failure of file-based settings
+     * @param healthIndicatorTracker tracks the success or failure of file-based settings operations
      */
     @SuppressWarnings("this-escape")
     public FileSettingsService(
         ClusterService clusterService,
         ReservedClusterStateService stateService,
         Environment environment,
-        FileSettingsHealthIndicatorService healthIndicatorService
+        FileSettingsHealthTracker healthIndicatorTracker
     ) {
         super(clusterService, environment.configDir().toAbsolutePath().resolve(OPERATOR_DIRECTORY));
         this.watchedFile = watchedFileDir().resolve(SETTINGS_FILE_NAME);
         this.stateService = stateService;
-        this.healthIndicatorService = healthIndicatorService;
+        this.healthIndicatorTracker = healthIndicatorTracker;
     }
 
     protected Logger logger() {
@@ -101,10 +107,6 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
 
     public Path watchedFile() {
         return watchedFile;
-    }
-
-    public FileSettingsHealthIndicatorService healthIndicatorService() {
-        return healthIndicatorService;
     }
 
     /**
@@ -116,38 +118,46 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
      * <p>
      * If there's no file based settings file in this cluster, we'll remove all state reservations for
      * file based settings from the cluster state.
+     *
      * @param clusterState the cluster state before snapshot restore
-     * @param mdBuilder the current metadata builder for the new cluster state
+     * @param builder      the current ClusterState builder for the new cluster state
+     * @param mdBuilder    the current metadata builder for the new cluster state
+     * @param projectId    the project associated with the restore
      */
-    public void handleSnapshotRestore(ClusterState clusterState, Metadata.Builder mdBuilder) {
+    @FixForMultiProject(description = "Simplify parameters (ES-12796)")
+    public void handleSnapshotRestore(
+        ClusterState clusterState,
+        ClusterState.Builder builder,
+        Metadata.Builder mdBuilder,
+        ProjectId projectId
+    ) {
         assert clusterState.nodes().isLocalNodeElectedMaster();
-
-        ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(NAMESPACE);
 
         // When we restore from a snapshot we remove the reserved cluster state for file settings,
         // since we don't know the current operator configuration, e.g. file settings could be disabled
         // on the target cluster. If file settings exist and the cluster state has lost it's reserved
         // state for the "file_settings" namespace, we touch our file settings file to cause it to re-process the file.
-        if (watching() && Files.exists(watchedFile)) {
+        if (watching() && filesExists(watchedFile)) {
+            ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(NAMESPACE);
             if (fileSettingsMetadata != null) {
                 ReservedStateMetadata withResetVersion = new ReservedStateMetadata.Builder(fileSettingsMetadata).version(0L).build();
                 mdBuilder.put(withResetVersion);
             }
-        } else if (fileSettingsMetadata != null) {
-            mdBuilder.removeReservedState(fileSettingsMetadata);
+        } else {
+            stateService.initEmpty(NAMESPACE, ActionListener.noop());
         }
     }
 
     @Override
     protected void doStart() {
-        healthIndicatorService.startOccurred();
+        healthIndicatorTracker.startOccurred();
         super.doStart();
     }
 
     @Override
     protected void doStop() {
         super.doStop();
-        healthIndicatorService.stopOccurred();
+        healthIndicatorTracker.stopOccurred();
     }
 
     /**
@@ -190,7 +200,7 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
             logger().debug("Received notification for unknown file {}", file);
         } else {
             logger().info("processing path [{}] for [{}]{}", watchedFile, NAMESPACE, startup ? " on service start" : "");
-            healthIndicatorService.changeOccurred();
+            healthIndicatorTracker.changeOccurred();
             processFileChanges(startup ? HIGHER_OR_SAME_VERSION : HIGHER_VERSION_ONLY);
         }
     }
@@ -201,7 +211,7 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
 
     private void processFileChanges(ReservedStateVersionCheck versionCheck) throws IOException, InterruptedException, ExecutionException {
         PlainActionFuture<Void> completion = new PlainActionFuture<>();
-        try (var bis = new BufferedInputStream(Files.newInputStream(watchedFile)); var parser = createParser(bis)) {
+        try (var bis = new BufferedInputStream(filesNewInputStream(watchedFile)); var parser = createParser(bis)) {
             stateService.process(NAMESPACE, parser, versionCheck, (e) -> completeProcessing(e, completion));
         }
         completion.get();
@@ -209,11 +219,11 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
 
     protected void completeProcessing(Exception e, PlainActionFuture<Void> completion) {
         if (e != null) {
-            healthIndicatorService.failureOccurred(e.toString());
+            healthIndicatorTracker.failureOccurred(e.toString());
             completion.onFailure(e);
         } else {
             completion.onResponse(null);
-            healthIndicatorService.successOccurred();
+            healthIndicatorTracker.successOccurred();
         }
     }
 
@@ -222,13 +232,13 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
         if (e instanceof ExecutionException) {
             var cause = e.getCause();
             if (cause instanceof FailedToCommitClusterStateException) {
-                logger().error(Strings.format("Unable to commit cluster state while processing file [%s]", file), e);
+                logger().warn(Strings.format("Unable to commit cluster state while processing file [%s]", file), e);
                 return;
             } else if (cause instanceof XContentParseException) {
                 logger().error(Strings.format("Unable to parse settings from file [%s]", file), e);
                 return;
             } else if (cause instanceof NotMasterException) {
-                logger().error(Strings.format("Node is no longer master while processing file [%s]", file), e);
+                logger().warn(Strings.format("Node is no longer master while processing file [%s]", file), e);
                 return;
             }
         }
@@ -244,6 +254,9 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
         completion.get();
     }
 
+    /**
+     * Stateless service that maps a {@link FileSettingsHealthInfo} to a {@link HealthIndicatorResult}.
+     */
     public static class FileSettingsHealthIndicatorService implements HealthIndicatorService {
         static final String NAME = "file_settings";
         static final String INACTIVE_SYMPTOM = "File-based settings are inactive";
@@ -261,62 +274,6 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
             )
         );
 
-        /**
-         * We want a length limit so we don't blow past the indexing limit in the case of a long description string.
-         * This is an {@code OperatorDynamic} setting so that if the truncation hampers troubleshooting efforts,
-         * the operator could override it and retry the operation without necessarily restarting the cluster.
-         */
-        public static final String DESCRIPTION_LENGTH_LIMIT_KEY = "fileSettings.descriptionLengthLimit";
-        static final Setting<Integer> DESCRIPTION_LENGTH_LIMIT = Setting.intSetting(
-            DESCRIPTION_LENGTH_LIMIT_KEY,
-            100,
-            1, // Need room for the ellipsis
-            Setting.Property.OperatorDynamic
-        );
-
-        private final Settings settings;
-        private boolean isActive = false;
-        private long changeCount = 0;
-        private long failureStreak = 0;
-        private String mostRecentFailure = null;
-
-        public FileSettingsHealthIndicatorService(Settings settings) {
-            this.settings = settings;
-        }
-
-        public synchronized void startOccurred() {
-            isActive = true;
-            failureStreak = 0;
-        }
-
-        public synchronized void stopOccurred() {
-            isActive = false;
-            mostRecentFailure = null;
-        }
-
-        public synchronized void changeOccurred() {
-            ++changeCount;
-        }
-
-        public synchronized void successOccurred() {
-            failureStreak = 0;
-            mostRecentFailure = null;
-        }
-
-        public synchronized void failureOccurred(String description) {
-            ++failureStreak;
-            mostRecentFailure = limitLength(description);
-        }
-
-        private String limitLength(String description) {
-            int descriptionLengthLimit = DESCRIPTION_LENGTH_LIMIT.get(settings);
-            if (description.length() > descriptionLengthLimit) {
-                return description.substring(0, descriptionLengthLimit - 1) + "…";
-            } else {
-                return description;
-            }
-        }
-
         @Override
         public String name() {
             return NAME;
@@ -324,23 +281,67 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
 
         @Override
         public synchronized HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
-            if (isActive == false) {
+            return calculate(healthInfo.fileSettingsHealthInfo());
+        }
+
+        public HealthIndicatorResult calculate(FileSettingsHealthInfo info) {
+            if (info.isActive() == false) {
                 return createIndicator(GREEN, INACTIVE_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of());
             }
-            if (0 == changeCount) {
+            if (0 == info.changeCount()) {
                 return createIndicator(GREEN, NO_CHANGES_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of());
             }
-            if (0 == failureStreak) {
+            if (0 == info.failureStreak()) {
                 return createIndicator(GREEN, SUCCESS_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of());
             } else {
                 return createIndicator(
                     YELLOW,
                     FAILURE_SYMPTOM,
-                    new SimpleHealthIndicatorDetails(Map.of("failure_streak", failureStreak, "most_recent_failure", mostRecentFailure)),
+                    new SimpleHealthIndicatorDetails(
+                        Map.of("failure_streak", info.failureStreak(), "most_recent_failure", info.mostRecentFailure())
+                    ),
                     STALE_SETTINGS_IMPACT,
                     List.of()
                 );
             }
         }
+    }
+
+    // the following methods are a workaround to ensure exclusive access for files
+    // required by child watchers; this is required because we only check the caller's module
+    // not the entire stack
+    @Override
+    protected boolean filesExists(Path path) {
+        return Files.exists(path);
+    }
+
+    @Override
+    protected boolean filesIsDirectory(Path path) {
+        return Files.isDirectory(path);
+    }
+
+    @Override
+    protected boolean filesIsSymbolicLink(Path path) {
+        return Files.isSymbolicLink(path);
+    }
+
+    @Override
+    protected <A extends BasicFileAttributes> A filesReadAttributes(Path path, Class<A> clazz) throws IOException {
+        return Files.readAttributes(path, clazz);
+    }
+
+    @Override
+    protected Stream<Path> filesList(Path dir) throws IOException {
+        return Files.list(dir);
+    }
+
+    @Override
+    protected Path filesSetLastModifiedTime(Path path, FileTime time) throws IOException {
+        return Files.setLastModifiedTime(path, time);
+    }
+
+    @Override
+    protected InputStream filesNewInputStream(Path path) throws IOException {
+        return Files.newInputStream(path);
     }
 }

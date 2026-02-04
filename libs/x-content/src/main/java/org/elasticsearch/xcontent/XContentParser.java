@@ -109,6 +109,10 @@ public interface XContentParser extends Closeable {
 
     String textOrNull() throws IOException;
 
+    XContentString optimizedText() throws IOException;
+
+    XContentString optimizedTextOrNull() throws IOException;
+
     CharBuffer charBufferOrNull() throws IOException;
 
     /**
@@ -221,4 +225,12 @@ public interface XContentParser extends Closeable {
      * The callback to notify when parsing encounters a deprecated field.
      */
     DeprecationHandler getDeprecationHandler();
+
+    /**
+     * Switch to a different underlying parser.
+     * Typically, that's a noop but some filter parsers might want to wrap the underlying parser again.
+     */
+    default XContentParser switchParser(XContentParser parser) throws IOException {
+        return parser;
+    }
 }

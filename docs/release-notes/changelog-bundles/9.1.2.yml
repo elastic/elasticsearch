@@ -1,0 +1,64 @@
+version: 9.1.2
+released: true
+generated: 2025-08-12T15:34:54.365179895Z
+changelogs:
+  - pr: 132320
+    summary: "Aggs: Add validation to Bucket script pipeline agg"
+    area: Aggregations
+    type: bug
+    issues:
+      - 132272
+    entryOverride: |
+      :::{dropdown} Validates parent aggregation type in `bucket_script`
+      The `bucket_script` pipeline aggregation didn’t validate that its parent aggregation was a multi-bucket aggregation.
+      This caused a `ClassCastException` at runtime when the parent was not multi-bucket.
+      [#132320](https://github.com/elastic/elasticsearch/pull/132320) adds a validation step so the aggregation fails early, preventing the runtime error. (issue: [#132272](https://github.com/elastic/elasticsearch/issues/132272))
+      :::
+  - pr: 132387
+    summary: "[ExtraHop & QualysGAV] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system`"
+    area: Authorization
+    type: enhancement
+    issues:
+      - 131825
+  - pr: 132459
+    summary: Small fixes for COPY_SIGN
+    area: ES|QL
+    type: bug
+    issues: []
+    entryOverride: |
+      :::{dropdown} Fixes for `COPY_SIGN` function in ESQL
+      The `COPY_SIGN` function has been updated to better support the literal `NULL` in parameters.
+      [#132459](https://github.com/elastic/elasticsearch/pull/132459)
+      :::
+  - pr: 132570
+    summary: Always stop the timer when profiling the fetch phase
+    area: Search
+    type: bug
+    issues: []
+    entryOverride: |
+      :::{dropdown} Always stops the timer when profiling the fetch phase
+      Exceptions in fetch sub-phases (for example, `setNextReader`) left the profiling timer running, causing mismatched start/stop calls and errors.
+      [#132570](https://github.com/elastic/elasticsearch/pull/132570) ensures the `timer.stop()` call always stops.
+      :::
+  - pr: 132593
+    summary: Strings outside BMP have 2 chars per code points
+    area: Mapping
+    type: bug
+    issues: []
+    entryOverride: |
+      :::{dropdown} Calculates text string length correctly for code points outside BMP
+      Strings parsed with the optimized UTF-8 parsing path had incorrect length calculations for characters outside the basic multilingual plane (BMP).
+      These characters require two UTF-16 code units, but the optimized path did not account for this, causing mismatches with the non-optimized path.
+      [#132593](https://github.com/elastic/elasticsearch/pull/132593) fixes the calculation to ensure consistent and correct string lengths.
+      :::
+  - pr: 132597
+    summary: Use local segment `fieldInfos` to lookup tsdb merge stats
+    area: Codec
+    type: bug
+    issues: []
+    entryOverride: |
+      :::{dropdown} Uses local segment `fieldInfos` for TSDB merge stats
+      Merging shrink TSDB or LogsDB indices in versions 8.19 or 9.1+ could fail when using `addIndexes` to combine Lucene segments directly.
+      In these cases, the `fieldInfos` value could differ between shards and the merged segment, causing incorrect merge statistics.
+      PR [#132597](https://github.com/elastic/elasticsearch/pull/132597) updates the process to use `fieldInfos` from each segment instead of the merged segment, ensuring accurate stats and preventing merge failures.
+      :::

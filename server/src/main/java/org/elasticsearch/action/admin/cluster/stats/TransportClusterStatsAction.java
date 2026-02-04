@@ -12,7 +12,6 @@ package org.elasticsearch.action.admin.cluster.stats;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
@@ -40,6 +39,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.CancellableSingleObjectCache;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.FixForMultiProject;
@@ -48,6 +48,8 @@ import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeService;
@@ -57,10 +59,11 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.RemoteClusterConnection;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteClusterSettings;
 import org.elasticsearch.transport.RemoteConnectionInfo;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.usage.SearchUsageHolder;
@@ -74,6 +77,7 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -157,15 +161,15 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     protected SubscribableListener<AdditionalStats> createActionContext(Task task, ClusterStatsRequest request) {
         assert task instanceof CancellableTask;
         final var cancellableTask = (CancellableTask) task;
-        final var additionalStatsListener = new SubscribableListener<AdditionalStats>();
         if (request.isRemoteStats() == false) {
+            final var additionalStatsListener = new SubscribableListener<AdditionalStats>();
             final AdditionalStats additionalStats = new AdditionalStats();
             additionalStats.compute(cancellableTask, request, additionalStatsListener);
+            return additionalStatsListener;
         } else {
             // For remote stats request, we don't need to compute anything
-            additionalStatsListener.onResponse(null);
+            return SubscribableListener.nullSuccess();
         }
-        return additionalStatsListener;
     }
 
     @Override
@@ -196,7 +200,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                     null,
                     null,
                     null,
-                    Map.of()
+                    Map.of(),
+                    false
                 )
                 : new ClusterStatsResponse(
                     System.currentTimeMillis(),
@@ -208,7 +213,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                     additionalStats.analysisStats(),
                     VersionStats.of(clusterService.state().metadata(), responses),
                     additionalStats.clusterSnapshotStats(),
-                    additionalStats.getRemoteStats()
+                    additionalStats.getRemoteStats(),
+                    request.isCPS()
                 )
         ).addListener(listener);
     }
@@ -257,9 +263,13 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             false,
             false
         );
+        Supplier<Map<ShardId, Long>> shardIdToSharedRam = CachedSupplier.wrap(
+            () -> IndicesQueryCache.getSharedRamSizeForAllShards(indicesService)
+        );
         List<ShardStats> shardsStats = new ArrayList<>();
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
+                // get the shared ram for this shard id (or zero if there's nothing in the map)
                 cancellableTask.ensureNotCancelled();
                 if (indexShard.routingEntry() != null && indexShard.routingEntry().active()) {
                     // only report on fully started shards
@@ -280,7 +290,12 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                         new ShardStats(
                             indexShard.routingEntry(),
                             indexShard.shardPath(),
-                            CommonStats.getShardLevelStats(indicesService.getIndicesQueryCache(), indexShard, SHARD_STATS_FLAGS),
+                            CommonStats.getShardLevelStats(
+                                indicesService.getIndicesQueryCache(),
+                                indexShard,
+                                SHARD_STATS_FLAGS,
+                                () -> shardIdToSharedRam.get().getOrDefault(indexShard.shardId(), 0L)
+                            ),
                             commitStats,
                             seqNoStats,
                             retentionLeaseStats,
@@ -311,7 +326,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             clusterStatus,
             nodeInfo,
             nodeStats,
-            shardsStats.toArray(new ShardStats[shardsStats.size()]),
+            shardsStats.toArray(new ShardStats[0]),
             searchUsageStats,
             repositoryUsageStats,
             ccsTelemetry,
@@ -319,7 +334,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         );
     }
 
-    public static class ClusterStatsNodeRequest extends TransportRequest {
+    public static class ClusterStatsNodeRequest extends AbstractTransportRequest {
 
         ClusterStatsNodeRequest() {}
 
@@ -439,7 +454,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     }
 
     private boolean doRemotes(ClusterStatsRequest request) {
-        return SearchService.CCS_COLLECT_TELEMETRY.get(settings) && request.doRemotes();
+        return SearchService.CCS_COLLECT_TELEMETRY.get(settings) && request.doRemotes() && request.isCPS() == false;
     }
 
     private class RemoteStatsFanout extends CancellableFanOut<String, RemoteClusterStatsResponse, Map<String, RemoteClusterStats>> {
@@ -462,18 +477,14 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             var remoteRequest = new RemoteClusterStatsRequest();
             remoteRequest.setParentTask(taskId);
             remoteClusterClient.getConnection(remoteRequest, listener.delegateFailureAndWrap((responseListener, connection) -> {
-                if (connection.getTransportVersion().before(TransportVersions.V_8_16_0)) {
-                    responseListener.onResponse(null);
-                } else {
-                    remoteClusterClient.execute(connection, TransportRemoteClusterStatsAction.REMOTE_TYPE, remoteRequest, responseListener);
-                }
+                remoteClusterClient.execute(connection, TransportRemoteClusterStatsAction.REMOTE_TYPE, remoteRequest, responseListener);
             }));
         }
 
         @Override
         protected void onItemResponse(String clusterAlias, RemoteClusterStatsResponse response) {
             if (response != null) {
-                remoteClustersStats.computeIfPresent(clusterAlias, (k, v) -> v.acceptResponse(response));
+                remoteClustersStats.computeIfPresent(clusterAlias, (ignored, v) -> v.acceptResponse(response));
             }
         }
 
@@ -493,10 +504,10 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         RemoteClusterStats makeRemoteClusterStats(String clusterAlias) {
             RemoteClusterConnection remoteConnection = remoteClusterService.getRemoteClusterConnection(clusterAlias);
             RemoteConnectionInfo remoteConnectionInfo = remoteConnection.getConnectionInfo();
-            var compression = RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings);
+            var compression = RemoteClusterSettings.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings);
             return new RemoteClusterStats(
                 remoteConnectionInfo.getModeInfo().modeName(),
-                remoteConnection.isSkipUnavailable(),
+                remoteClusterService.isSkipUnavailable(clusterAlias),
                 compression.toString()
             );
         }

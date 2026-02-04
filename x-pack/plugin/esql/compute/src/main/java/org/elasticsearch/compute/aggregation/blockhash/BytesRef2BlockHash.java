@@ -145,7 +145,9 @@ final class BytesRef2BlockHash extends BlockHash {
         try {
             try (BytesRefBlock.Builder b1 = blockFactory.newBytesRefBlockBuilder(positions)) {
                 for (int i = 0; i < positions; i++) {
-                    int k1 = (int) (finalHash.get(i) & 0xffffL);
+                    int k1 = (int) (finalHash.get(i) & 0xffffffffL);
+                    // k1 is always positive, it's how hash values are generated, see BytesRefBlockHash.
+                    // For now, we only manage at most 2^31 hash entries
                     if (k1 == 0) {
                         b1.appendNull();
                     } else {
@@ -180,7 +182,12 @@ final class BytesRef2BlockHash extends BlockHash {
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(0, Math.toIntExact(finalHash.size()), blockFactory);
+        return blockFactory.newIntRangeVector(0, Math.toIntExact(finalHash.size()));
+    }
+
+    @Override
+    public int numKeys() {
+        return Math.toIntExact(finalHash.size());
     }
 
     @Override

@@ -23,7 +23,6 @@ public final class CanMatchShardResponse extends SearchPhaseResult {
     private final MinAndMax<?> estimatedMinAndMax;
 
     public CanMatchShardResponse(StreamInput in) throws IOException {
-        super(in);
         this.canMatch = in.readBoolean();
         estimatedMinAndMax = in.readOptionalWriteable(MinAndMax::new);
     }

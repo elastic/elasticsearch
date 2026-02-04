@@ -52,6 +52,23 @@ public class FormattingPrecommitPlugin implements Plugin<Project> {
             // Spotless resolves required dependencies from project repositories, so we need maven central
             project.getRepositories().mavenCentral();
 
+            // we cannot update to a newer spotless plugin version yet but we want to use the latest eclipse formatter to be compatible
+            // with latest java versions
+            project.getConfigurations().matching(it -> it.getName().startsWith("spotless")).configureEach(conf -> {
+                project.getDependencies().constraints(constraints -> {
+                    constraints.add(conf.getName(), "org.eclipse.jdt:org.eclipse.jdt.core:3.42.0", dependencyConstraint -> {
+                        dependencyConstraint.because(
+                            "We want to use a recent version of the Eclipse formatter libraries to support latest Java"
+                        );
+                    });
+                    constraints.add(conf.getName(), "org.eclipse.jdt:ecj:3.42.0", dependencyConstraint -> {
+                        dependencyConstraint.because(
+                            "We want to use a recent version of the Eclipse formatter libraries to support latest Java"
+                        );
+                    });
+                });
+            });
+
             project.getExtensions().getByType(SpotlessExtension.class).java(java -> {
                 File elasticsearchWorkspace = Util.locateElasticsearchWorkspace(project.getGradle());
                 String importOrderPath = "build-conventions/elastic.importorder";
@@ -74,7 +91,7 @@ public class FormattingPrecommitPlugin implements Plugin<Project> {
                 // When running build benchmarks we alter the source in some scenarios.
                 // The gradle-profiler unfortunately does not generate compliant formatted
                 // sources so we ignore that altered file when running build benchmarks
-                if(Boolean.getBoolean("BUILD_PERFORMANCE_TEST") && project.getPath().equals(":server")) {
+                if (Boolean.getBoolean("BUILD_PERFORMANCE_TEST") && project.getPath().equals(":server")) {
                     java.targetExclude("src/main/java/org/elasticsearch/bootstrap/BootstrapInfo.java");
                 }
             });

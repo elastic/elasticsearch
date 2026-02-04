@@ -7,9 +7,12 @@
 
 package org.elasticsearch.repositories.blobstore.testkit.analyze;
 
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 public abstract class AbstractRepositoryAnalysisRestTestCase extends ESRestTestCase {
@@ -26,12 +29,18 @@ public abstract class AbstractRepositoryAnalysisRestTestCase extends ESRestTestC
         logger.info("creating repository [{}] of type [{}]", repository, repositoryType);
         registerRepository(repository, repositoryType, true, repositorySettings);
 
+        final TimeValue timeout = TimeValue.timeValueSeconds(120);
         final Request request = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + repository + "/_analyze");
         request.addParameter("blob_count", "10");
         request.addParameter("concurrency", "4");
-        request.addParameter("max_blob_size", "1mb");
-        request.addParameter("timeout", "120s");
+        request.addParameter("max_blob_size", randomFrom("1mb", "10mb"));
+        request.addParameter("timeout", timeout.getStringRep());
         request.addParameter("seed", Long.toString(randomLong()));
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .setRequestConfig(RequestConfig.custom().setSocketTimeout(Math.toIntExact(timeout.millis() + 10_000)).build())
+        );
+
         assertOK(client().performRequest(request));
     }
 

@@ -63,7 +63,7 @@ public class BaseResponseHandlerTests extends ESTestCase {
         );
     }
 
-    public void testValidateResponse_ThrowsErrorWhenMalformedErrorObjectExists() {
+    public void testValidateResponse_DoesNotThrowError_WhenStatus200_AndMalformedErrorObject() {
         var handler = getBaseResponseHandler();
 
         String responseJson = """
@@ -79,24 +79,15 @@ public class BaseResponseHandlerTests extends ESTestCase {
         var request = mock(Request.class);
         when(request.getInferenceEntityId()).thenReturn("abc");
 
-        var exception = expectThrows(
-            RetryException.class,
-            () -> handler.validateResponse(
-                mock(ThrottlerManager.class),
-                mock(Logger.class),
-                request,
-                new HttpResult(response, responseJson.getBytes(StandardCharsets.UTF_8))
-            )
-        );
-
-        assertFalse(exception.shouldRetry());
-        assertThat(
-            exception.getCause().getMessage(),
-            is("Received an error response for request from inference entity id [abc] status [200]")
+        handler.validateResponse(
+            mock(ThrottlerManager.class),
+            mock(Logger.class),
+            request,
+            new HttpResult(response, responseJson.getBytes(StandardCharsets.UTF_8))
         );
     }
 
-    public void testValidateResponse_ThrowsErrorWhenWellFormedErrorObjectExists() {
+    public void testValidateResponse_DoesNotThrow_WhenStatus200_AndWellFormedErrorObjectExists() {
         var handler = getBaseResponseHandler();
 
         String responseJson = """
@@ -113,20 +104,36 @@ public class BaseResponseHandlerTests extends ESTestCase {
         var request = mock(Request.class);
         when(request.getInferenceEntityId()).thenReturn("abc");
 
-        var exception = expectThrows(
-            RetryException.class,
-            () -> handler.validateResponse(
-                mock(ThrottlerManager.class),
-                mock(Logger.class),
-                request,
-                new HttpResult(response, responseJson.getBytes(StandardCharsets.UTF_8))
-            )
+        handler.validateResponse(
+            mock(ThrottlerManager.class),
+            mock(Logger.class),
+            request,
+            new HttpResult(response, responseJson.getBytes(StandardCharsets.UTF_8))
         );
+    }
 
-        assertFalse(exception.shouldRetry());
-        assertThat(
-            exception.getCause().getMessage(),
-            is("Received an error response for request from inference entity id [abc] status [200]. Error message: [a message]")
+    public void testValidateResponse_DoesNot_ThrowErrorWhenWellFormedErrorObjectExists_WhenCheckForErrorIsFalse() {
+        var handler = getBaseResponseHandler();
+
+        String responseJson = """
+            {
+              "error": {
+                "type": "not_found_error",
+                "message": "a message"
+              }
+            }
+            """;
+
+        var response = mock200Response();
+
+        var request = mock(Request.class);
+        when(request.getInferenceEntityId()).thenReturn("abc");
+
+        handler.validateResponse(
+            mock(ThrottlerManager.class),
+            mock(Logger.class),
+            request,
+            new HttpResult(response, responseJson.getBytes(StandardCharsets.UTF_8))
         );
     }
 

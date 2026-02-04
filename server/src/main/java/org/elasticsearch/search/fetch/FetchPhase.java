@@ -14,9 +14,11 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.IdLoader;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.search.LeafNestedDocuments;
 import org.elasticsearch.search.NestedDocuments;
@@ -25,6 +27,8 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
+import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsPhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -44,7 +48,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.IntConsumer;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.index.get.ShardGetService.maybeExcludeVectorFields;
+import static org.elasticsearch.index.get.ShardGetService.shouldExcludeInferenceFieldsFromSource;
 
 /**
  * Fetch phase of a search request, used to fetch the actual top matching documents to be returned to the client, identified
@@ -61,6 +69,17 @@ public final class FetchPhase {
     }
 
     public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs) {
+        execute(context, docIdsToLoad, rankDocs, null);
+    }
+
+    /**
+     *
+     * @param context
+     * @param docIdsToLoad
+     * @param rankDocs
+     * @param memoryChecker if not provided, the fetch phase will use the circuit breaker to check memory usage
+     */
+    public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs, @Nullable IntConsumer memoryChecker) {
         if (LOGGER.isTraceEnabled()) {
             LOGGER.trace("{}", new SearchContextSourcePrinter(context));
         }
@@ -81,15 +100,28 @@ public final class FetchPhase {
                 ? Profiler.NOOP
                 : Profilers.startProfilingFetchPhase();
         SearchHits hits = null;
+        long searchHitsBytesSize = 0L;
         try {
-            hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs);
+            SearchHitsWithSizeBytes result = buildSearchHits(context, docIdsToLoad, profiler, rankDocs, memoryChecker);
+            hits = result.hits;
+            searchHitsBytesSize = result.searchHitsBytesSize;
         } finally {
-            // Always finish profiling
-            ProfileResult profileResult = profiler.finish();
-            // Only set the shardResults if building search hits was successful
-            if (hits != null) {
-                context.fetchResult().shardResult(hits, profileResult);
-                hits.decRef();
+            try {
+                // Always finish profiling
+                ProfileResult profileResult = profiler.finish();
+                // Only set the shardResults if building search hits was successful
+                if (hits != null) {
+                    context.fetchResult().shardResult(hits, profileResult);
+                    context.fetchResult().setSearchHitsSizeBytes(searchHitsBytesSize);
+                    hits = null;
+                } else {
+                    assert searchHitsBytesSize == 0L
+                        : "searchHitsBytesSize must be 0 when hits are null but was [" + searchHitsBytesSize + "]";
+                }
+            } finally {
+                if (hits != null) {
+                    hits.decRef();
+                }
             }
         }
     }
@@ -104,10 +136,43 @@ public final class FetchPhase {
         }
     }
 
-    private SearchHits buildSearchHits(SearchContext context, int[] docIdsToLoad, Profiler profiler, RankDocShardInfo rankDocs) {
+    private SearchHitsWithSizeBytes buildSearchHits(
+        SearchContext context,
+        int[] docIdsToLoad,
+        Profiler profiler,
+        RankDocShardInfo rankDocs,
+        IntConsumer memoryChecker
+    ) {
+        var lookup = context.getSearchExecutionContext().getMappingLookup();
 
-        FetchContext fetchContext = new FetchContext(context);
-        SourceLoader sourceLoader = context.newSourceLoader();
+        // Optionally remove sparse and dense vector fields early to:
+        // - Reduce the in-memory size of the source
+        // - Speed up retrieval of the synthetic source
+        // Note: These vectors will no longer be accessible via _source for any sub-fetch processors,
+        // but they are typically accessed through doc values instead (e.g: re-scorer).
+        var res = maybeExcludeVectorFields(
+            context.getSearchExecutionContext().getMappingLookup(),
+            context.getSearchExecutionContext().getIndexSettings(),
+            context.fetchSourceContext(),
+            context.fetchFieldsContext()
+        );
+        if (context.fetchSourceContext() != res.v1()) {
+            context.fetchSourceContext(res.v1());
+        }
+
+        if (lookup.inferenceFields().isEmpty() == false && shouldExcludeInferenceFieldsFromSource(context.fetchSourceContext()) == false) {
+            // Rehydrate the inference fields into the {@code _source} because they were explicitly requested.
+            var oldFetchFieldsContext = context.fetchFieldsContext();
+            var newFetchFieldsContext = new FetchFieldsContext(new ArrayList<>());
+            if (oldFetchFieldsContext != null) {
+                newFetchFieldsContext.fields().addAll(oldFetchFieldsContext.fields());
+            }
+            newFetchFieldsContext.fields().add(new FieldAndFormat(InferenceMetadataFieldsMapper.NAME, null));
+            context.fetchFieldsContext(newFetchFieldsContext);
+        }
+
+        SourceLoader sourceLoader = context.newSourceLoader(res.v2());
+        FetchContext fetchContext = new FetchContext(context, sourceLoader);
 
         PreloadedSourceProvider sourceProvider = new PreloadedSourceProvider();
         PreloadedFieldLookupProvider fieldLookupProvider = new PreloadedFieldLookupProvider();
@@ -141,20 +206,32 @@ public final class FetchPhase {
             SourceLoader.Leaf leafSourceLoader;
             IdLoader.Leaf leafIdLoader;
 
+            IntConsumer memChecker = memoryChecker != null ? memoryChecker : bytes -> {
+                locallyAccumulatedBytes[0] += bytes;
+                if (context.checkCircuitBreaker(locallyAccumulatedBytes[0], "fetch source")) {
+                    addRequestBreakerBytes(locallyAccumulatedBytes[0]);
+                    locallyAccumulatedBytes[0] = 0;
+                }
+            };
+
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) throws IOException {
                 Timer timer = profiler.startNextReader();
-                this.ctx = ctx;
-                this.leafNestedDocuments = nestedDocuments.getLeafNestedDocuments(ctx);
-                this.leafStoredFieldLoader = storedFieldLoader.getLoader(ctx, docsInLeaf);
-                this.leafSourceLoader = sourceLoader.leaf(ctx.reader(), docsInLeaf);
-                this.leafIdLoader = idLoader.leaf(leafStoredFieldLoader, ctx.reader(), docsInLeaf);
-                fieldLookupProvider.setNextReader(ctx);
-                for (FetchSubPhaseProcessor processor : processors) {
-                    processor.setNextReader(ctx);
-                }
-                if (timer != null) {
-                    timer.stop();
+                try {
+                    this.ctx = ctx;
+                    this.leafNestedDocuments = nestedDocuments.getLeafNestedDocuments(ctx);
+                    this.leafStoredFieldLoader = storedFieldLoader.getLoader(ctx, docsInLeaf);
+                    this.leafSourceLoader = sourceLoader.leaf(ctx.reader(), docsInLeaf);
+                    this.leafIdLoader = idLoader.leaf(leafStoredFieldLoader, ctx.reader(), docsInLeaf);
+
+                    fieldLookupProvider.setNextReader(ctx);
+                    for (FetchSubPhaseProcessor processor : processors) {
+                        processor.setNextReader(ctx);
+                    }
+                } finally {
+                    if (timer != null) {
+                        timer.stop();
+                    }
                 }
             }
 
@@ -162,10 +239,6 @@ public final class FetchPhase {
             protected SearchHit nextDoc(int doc) throws IOException {
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
-                }
-                if (context.checkRealMemoryCB(locallyAccumulatedBytes[0], "fetch source")) {
-                    // if we checked the real memory breaker, we restart our local accounting
-                    locallyAccumulatedBytes[0] = 0;
                 }
 
                 HitContext hit = prepareHitContext(
@@ -190,7 +263,9 @@ public final class FetchPhase {
 
                     BytesReference sourceRef = hit.hit().getSourceRef();
                     if (sourceRef != null) {
-                        locallyAccumulatedBytes[0] += sourceRef.length();
+                        // This is an empirical value that seems to work well.
+                        // Deserializing a large source would also mean serializing it to HTTP response later on, so x2 seems reasonable
+                        memChecker.accept(sourceRef.length() * 2);
                     }
                     success = true;
                     return hit.hit();
@@ -202,24 +277,34 @@ public final class FetchPhase {
             }
         };
 
-        SearchHit[] hits = docsIterator.iterate(
-            context.shardTarget(),
-            context.searcher().getIndexReader(),
-            docIdsToLoad,
-            context.request().allowPartialSearchResults(),
-            context.queryResult()
-        );
+        try {
+            SearchHit[] hits = docsIterator.iterate(
+                context.shardTarget(),
+                context.searcher().getIndexReader(),
+                docIdsToLoad,
+                context.request().allowPartialSearchResults(),
+                context.queryResult()
+            );
 
-        if (context.isCancelled()) {
-            for (SearchHit hit : hits) {
-                // release all hits that would otherwise become owned and eventually released by SearchHits below
-                hit.decRef();
+            if (context.isCancelled()) {
+                for (SearchHit hit : hits) {
+                    // release all hits that would otherwise become owned and eventually released by SearchHits below
+                    hit.decRef();
+                }
+                throw new TaskCancelledException("cancelled");
             }
-            throw new TaskCancelledException("cancelled");
-        }
 
-        TotalHits totalHits = context.getTotalHits();
-        return new SearchHits(hits, totalHits, context.getMaxScore());
+            TotalHits totalHits = context.getTotalHits();
+            SearchHits searchHits = new SearchHits(hits, totalHits, context.getMaxScore());
+            return new SearchHitsWithSizeBytes(searchHits, docsIterator.getRequestBreakerBytes());
+        } catch (Exception e) {
+            // On exception, release the breaker bytes immediately since the hits won't make it to the result
+            long bytes = docsIterator.getRequestBreakerBytes();
+            if (bytes > 0L) {
+                context.circuitBreaker().addWithoutBreaking(-bytes);
+            }
+            throw e;
+        }
     }
 
     List<FetchSubPhaseProcessor> getProcessors(SearchShardTarget target, FetchContext context, Profiler profiler) {
@@ -426,5 +511,15 @@ public final class FetchPhase {
                 return "noop";
             }
         };
+    }
+
+    private static class SearchHitsWithSizeBytes {
+        final SearchHits hits;
+        final long searchHitsBytesSize;
+
+        SearchHitsWithSizeBytes(SearchHits hits, long searchHitsBytesSize) {
+            this.hits = hits;
+            this.searchHitsBytesSize = searchHitsBytesSize;
+        }
     }
 }

@@ -35,7 +35,9 @@ public class GetSearchApplicationActionResponseBWCSerializingTests extends Abstr
 
     @Override
     protected GetSearchApplicationAction.Response mutateInstance(GetSearchApplicationAction.Response instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new GetSearchApplicationAction.Response(
+            randomValueOtherThan(instance.searchApp(), () -> EnterpriseSearchModuleTestUtils.randomSearchApplication())
+        );
     }
 
     @Override

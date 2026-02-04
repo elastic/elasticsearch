@@ -10,7 +10,6 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -49,7 +48,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.ToLongFunction;
 
 public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHitsAggregationBuilder> {
     public static final String NAME = "top_hits";
@@ -821,20 +819,6 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
-    }
-
-    @Override
-    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
-        if (sorts != null) {
-            // the implicit sorting is by _score, which supports parallel collection
-            for (SortBuilder<?> sortBuilder : sorts) {
-                if (sortBuilder.supportsParallelCollection() == false) {
-                    return false;
-                }
-            }
-        }
-
-        return super.supportsParallelCollection(fieldCardinalityResolver);
+        return TransportVersion.zero();
     }
 }

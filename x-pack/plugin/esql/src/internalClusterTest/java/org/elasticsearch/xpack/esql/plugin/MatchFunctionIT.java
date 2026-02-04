@@ -10,14 +10,18 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.CoreMatchers.containsString;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
@@ -25,7 +29,7 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndex() {
-        createAndPopulateIndex();
+        createAndPopulateIndex(this::ensureYellow);
     }
 
     public void testSimpleWhereMatch() {
@@ -246,6 +250,42 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         );
     }
 
+    public void testMatchWithStats() {
+        var errorQuery = """
+            FROM test
+            | STATS c = count(*) BY match(content, "fox")
+            """;
+
+        var error = expectThrows(ElasticsearchException.class, () -> run(errorQuery));
+        assertThat(error.getMessage(), containsString("[MATCH] function is only supported in WHERE and STATS commands"));
+
+        var query = """
+            FROM test
+            | STATS c = count(*) WHERE match(content, "fox"), d = count(*) WHERE match(content, "dog")
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("c", "d"));
+            assertColumnTypes(resp.columns(), List.of("long", "long"));
+            assertValues(resp.values(), List.of(List.of(2L, 4L)));
+        }
+
+        query = """
+            FROM test METADATA _score
+            | WHERE match(content, "fox")
+            | STATS m = max(_score), n = min(_score)
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("m", "n"));
+            assertColumnTypes(resp.columns(), List.of("double", "double"));
+            List<List<Object>> valuesList = getValuesList(resp.values());
+            assertEquals(1, valuesList.size());
+            assertThat((double) valuesList.get(0).get(0), Matchers.greaterThan(1.0));
+            assertThat((double) valuesList.get(0).get(1), Matchers.greaterThan(0.0));
+        }
+    }
+
     public void testMatchWithinEval() {
         var query = """
             FROM test
@@ -253,16 +293,55 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[MATCH] function is only supported in WHERE commands"));
+        assertThat(error.getMessage(), containsString("[MATCH] function is only supported in WHERE and STATS commands"));
     }
 
-    private void createAndPopulateIndex() {
+    public void testMatchWithLookupJoin() {
+        var query = """
+            FROM test
+            | LOOKUP JOIN test_lookup ON id
+            | WHERE id > 0 AND MATCH(lookup_content, "fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(
+            error.getMessage(),
+            containsString(
+                "line 3:26: [MATCH] function cannot operate on [lookup_content], supplied by an index [test_lookup] "
+                    + "in non-STANDARD mode [lookup]"
+            )
+        );
+    }
+
+    public void testMatchWithLookupJoinOnMatch() {
+        var query = """
+            FROM test
+            | rename id as id_left
+            | LOOKUP JOIN test_lookup ON id_left == id and MATCH(lookup_content, "fox")
+            | WHERE id > 0
+            | SORT id, id_left, content, lookup_content
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("content", "id_left", "id", "lookup_content"));
+            assertColumnTypes(resp.columns(), List.of("text", "integer", "integer", "text"));
+            // Should return rows where lookup_content matches "fox" (ids 1 and 6)
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of("This is a brown fox", 1, 1, "This is a brown fox"),
+                    List.of("The quick brown fox jumps over the lazy dog", 6, 6, "The quick brown fox jumps over the lazy dog")
+                )
+            );
+        }
+    }
+
+    static void createAndPopulateIndex(Consumer<String[]> ensureYellow) {
         var indexName = "test";
         var client = client().admin().indices();
-        var CreateRequest = client.prepareCreate(indexName)
+        var createRequest = client.prepareCreate(indexName)
             .setSettings(Settings.builder().put("index.number_of_shards", 1))
             .setMapping("id", "type=integer", "content", "type=text");
-        assertAcked(CreateRequest);
+        assertAcked(createRequest);
         client().prepareBulk()
             .add(new IndexRequest(indexName).id("1").source("id", 1, "content", "This is a brown fox"))
             .add(new IndexRequest(indexName).id("2").source("id", 2, "content", "This is a brown dog"))
@@ -272,6 +351,31 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             .add(new IndexRequest(indexName).id("6").source("id", 6, "content", "The quick brown fox jumps over the lazy dog"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
-        ensureYellow(indexName);
+
+        var lookupIndexName = "test_lookup";
+        createAndPopulateLookupIndex(client, lookupIndexName);
+
+        ensureYellow.accept(new String[] { indexName, lookupIndexName });
+    }
+
+    static void createAndPopulateLookupIndex(IndicesAdminClient client, String lookupIndexName) {
+        var createRequest = client.prepareCreate(lookupIndexName)
+            .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.mode", "lookup"))
+            .setMapping("id", "type=integer", "lookup_content", "type=text");
+        assertAcked(createRequest);
+
+        // Populate the lookup index with test data
+        client().prepareBulk()
+            .add(new IndexRequest(lookupIndexName).id("1").source("id", 1, "lookup_content", "This is a brown fox"))
+            .add(new IndexRequest(lookupIndexName).id("2").source("id", 2, "lookup_content", "This is a brown dog"))
+            .add(new IndexRequest(lookupIndexName).id("3").source("id", 3, "lookup_content", "This dog is really brown"))
+            .add(
+                new IndexRequest(lookupIndexName).id("4")
+                    .source("id", 4, "lookup_content", "The dog is brown but this document is very very long")
+            )
+            .add(new IndexRequest(lookupIndexName).id("5").source("id", 5, "lookup_content", "There is also a white cat"))
+            .add(new IndexRequest(lookupIndexName).id("6").source("id", 6, "lookup_content", "The quick brown fox jumps over the lazy dog"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
     }
 }

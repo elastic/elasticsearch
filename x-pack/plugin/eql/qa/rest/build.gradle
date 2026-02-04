@@ -4,15 +4,15 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-
+ 
+apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
-apply plugin: 'elasticsearch.internal-test-artifact'
 
 restResources {
   restApi {
-    include '_common', 'bulk', 'indices', 'eql'
+    include '_common', 'bulk', 'indices', 'eql', 'capabilities'
   }
 }
 
@@ -25,14 +25,14 @@ artifacts {
 }
 
 tasks.named('javaRestTest') {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
 }
 tasks.named('yamlRestTest') {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }
 tasks.named('yamlRestCompatTest') {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }
 
 if (buildParams.inFipsJvm){

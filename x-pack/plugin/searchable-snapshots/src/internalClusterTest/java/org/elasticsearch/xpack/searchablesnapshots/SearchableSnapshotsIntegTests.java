@@ -51,6 +51,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -80,6 +81,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanationUtils.getClusterAllocationExplanation;
+import static org.elasticsearch.action.admin.indices.ResizeIndexTestUtils.executeResize;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -89,6 +91,7 @@ import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READO
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_RECOVERY_STATE_FACTORY_KEY;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -328,14 +331,14 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         final String clonedIndexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         assertAcked(
-            indicesAdmin().prepareResizeIndex(restoredIndexName, clonedIndexName)
-                .setResizeType(ResizeType.CLONE)
-                .setSettings(
-                    Settings.builder()
-                        .putNull(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())
-                        .putNull(IndexModule.INDEX_RECOVERY_TYPE_SETTING.getKey())
-                        .build()
-                )
+            executeResize(
+                ResizeType.CLONE,
+                restoredIndexName,
+                clonedIndexName,
+                Settings.builder()
+                    .putNull(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())
+                    .putNull(IndexModule.INDEX_RECOVERY_TYPE_SETTING.getKey())
+            )
         );
         ensureGreen(clonedIndexName);
         assertTotalHits(clonedIndexName, originalAllHits, originalBarHits);
@@ -494,7 +497,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             final IndicesService service = internalCluster().getInstance(IndicesService.class, node);
             if (service != null && service.hasIndex(restoredIndex)) {
                 assertThat(
-                    getRepositoryOnNode(repositoryName, node).getRestoreThrottleTimeInNanos(),
+                    getRepositoryOnNode(repositoryName, node).getSnapshotStats().totalReadThrottledNanos(),
                     useRateLimits ? greaterThan(0L) : equalTo(0L)
                 );
             }
@@ -684,6 +687,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
     }
 
     public void testSnapshotMountedIndexWithTimestampsRecordsTimestampRangeInIndexMetadata() throws Exception {
+
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numShards = between(1, 3);
 
@@ -711,7 +715,10 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                         .endObject()
                         .endObject()
                 )
-                .setSettings(indexSettingsNoReplicas(numShards).put(INDEX_SOFT_DELETES_SETTING.getKey(), true))
+                .setSettings(
+                    indexSettingsNoReplicas(numShards).put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                        .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true)
+                )
         );
         ensureGreen(indexName);
 
@@ -774,31 +781,27 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         final IndexLongFieldRange eventIngestedRange = indexMetadata.getEventIngestedRange();
         assertTrue(eventIngestedRange.isComplete());
 
-        if (indexed) {
-            assertThat(timestampRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
-            assertThat(eventIngestedRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
-            if (docCount == 0) {
-                assertThat(timestampRange, sameInstance(IndexLongFieldRange.EMPTY));
-                assertThat(eventIngestedRange, sameInstance(IndexLongFieldRange.EMPTY));
-            } else {
-                assertThat(timestampRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
-                assertThat(eventIngestedRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
-
-                // both @timestamp and event.ingested have the same resolution in this test
-                DateFieldMapper.Resolution resolution = dateType.equals("date")
-                    ? DateFieldMapper.Resolution.MILLISECONDS
-                    : DateFieldMapper.Resolution.NANOSECONDS;
-
-                assertThat(timestampRange.getMin(), greaterThanOrEqualTo(resolution.convert(Instant.parse("2020-11-26T00:00:00Z"))));
-                assertThat(timestampRange.getMin(), lessThanOrEqualTo(resolution.convert(Instant.parse("2020-11-27T00:00:00Z"))));
-
-                assertThat(eventIngestedRange.getMin(), greaterThanOrEqualTo(resolution.convert(Instant.parse("2020-11-26T00:00:00Z"))));
-                assertThat(eventIngestedRange.getMin(), lessThanOrEqualTo(resolution.convert(Instant.parse("2020-11-27T00:00:00Z"))));
-            }
+        assertThat(timestampRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
+        assertThat(eventIngestedRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
+        if (docCount == 0) {
+            assertThat(timestampRange, sameInstance(IndexLongFieldRange.EMPTY));
+            assertThat(eventIngestedRange, sameInstance(IndexLongFieldRange.EMPTY));
         } else {
-            assertThat(timestampRange, sameInstance(IndexLongFieldRange.UNKNOWN));
-            assertThat(eventIngestedRange, sameInstance(IndexLongFieldRange.UNKNOWN));
+            assertThat(timestampRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
+            assertThat(eventIngestedRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
+
+            // both @timestamp and event.ingested have the same resolution in this test
+            DateFieldMapper.Resolution resolution = dateType.equals("date")
+                ? DateFieldMapper.Resolution.MILLISECONDS
+                : DateFieldMapper.Resolution.NANOSECONDS;
+
+            assertThat(timestampRange.getMin(), greaterThanOrEqualTo(resolution.convert(Instant.parse("2020-11-26T00:00:00Z"))));
+            assertThat(timestampRange.getMin(), lessThanOrEqualTo(resolution.convert(Instant.parse("2020-11-27T00:00:00Z"))));
+
+            assertThat(eventIngestedRange.getMin(), greaterThanOrEqualTo(resolution.convert(Instant.parse("2020-11-26T00:00:00Z"))));
+            assertThat(eventIngestedRange.getMin(), lessThanOrEqualTo(resolution.convert(Instant.parse("2020-11-27T00:00:00Z"))));
         }
+
     }
 
     public void testSnapshotOfSearchableSnapshotIncludesNoDataButCanBeRestored() throws Exception {
@@ -1278,6 +1281,37 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 safeGet(response);
             }
         }
+    }
+
+    public void testRefreshFullyMountedIndex() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+
+        final var index = "index";
+        createIndex(index, 1, 0);
+        populateIndex(index, 1_000);
+
+        final var repository = "repository";
+        createRepository(repository, FsRepository.TYPE, Settings.builder().put("location", randomRepoPath()));
+
+        final var snapshot = "repository";
+        createFullSnapshot(repository, snapshot);
+
+        assertAcked(indicesAdmin().prepareDelete(index));
+
+        final var fullIndex = "full-" + index;
+        mountSnapshot(
+            repository,
+            snapshot,
+            index,
+            fullIndex,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(1)).build(),
+            MountSearchableSnapshotRequest.Storage.FULL_COPY
+        );
+        ensureGreen(fullIndex);
+
+        // before the fix this would have failed
+        var refreshResult = indicesAdmin().prepareRefresh(fullIndex).execute().actionGet();
+        assertNoFailures(refreshResult);
     }
 
     private TaskInfo getTaskForActionFromMaster(String action) {

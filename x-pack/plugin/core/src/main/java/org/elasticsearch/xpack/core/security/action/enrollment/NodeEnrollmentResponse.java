@@ -36,7 +36,6 @@ public final class NodeEnrollmentResponse extends ActionResponse implements ToXC
     private final List<String> nodesAddresses;
 
     public NodeEnrollmentResponse(StreamInput in) throws IOException {
-        super(in);
         httpCaKey = in.readString();
         httpCaCert = in.readString();
         transportCaCert = in.readString();

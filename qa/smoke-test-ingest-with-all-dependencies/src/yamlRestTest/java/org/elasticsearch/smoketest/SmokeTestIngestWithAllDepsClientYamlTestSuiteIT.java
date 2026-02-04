@@ -12,10 +12,24 @@ package org.elasticsearch.smoketest;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.junit.ClassRule;
 
 public class SmokeTestIngestWithAllDepsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .module("ingest-common")
+        .module("lang-mustache")
+        .module("reindex")
+        .module("data-streams")
+        .module("ingest-geoip")
+        .module("mapper-extras")
+        .configFile("ingest-geoip/GeoLite2-City.mmdb", Resource.fromClasspath("GeoLite2-City.mmdb"))
+        .build();
 
     public SmokeTestIngestWithAllDepsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
@@ -26,4 +40,8 @@ public class SmokeTestIngestWithAllDepsClientYamlTestSuiteIT extends ESClientYam
         return ESClientYamlSuiteTestCase.createParameters();
     }
 
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 }

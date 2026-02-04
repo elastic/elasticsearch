@@ -60,7 +60,8 @@ public class WeightFunction {
         theta3 = diskUsageBalance / sum;
     }
 
-    float calculateNodeWeightWithIndex(
+    // Visible for testing
+    public float calculateNodeWeightWithIndex(
         BalancedShardsAllocator.Balancer balancer,
         BalancedShardsAllocator.ModelNode node,
         ProjectIndex index

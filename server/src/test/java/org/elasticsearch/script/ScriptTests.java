@@ -29,6 +29,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ScriptTests extends ESTestCase {
@@ -192,7 +194,6 @@ public class ScriptTests extends ESTestCase {
         map.put("long", 1L);
         map.put("string", "value");
         DynamicMap dm = new DynamicMap(map, Collections.emptyMap());
-        assertTrue(dm.toString().contains("string=value"));
-        assertTrue(dm.toString().contains("long=1"));
+        assertThat(dm.toString(), both(containsString("long=1")).and(containsString("string=value")));
     }
 }

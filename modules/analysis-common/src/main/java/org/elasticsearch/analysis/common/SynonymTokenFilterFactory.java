@@ -72,7 +72,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                     );
                 } else {
                     reader = new ReaderWithOrigin(
-                        Analysis.getReaderFromIndex(synonymsSet, factory.synonymsManagementAPIService),
+                        Analysis.getReaderFromIndex(synonymsSet, factory.synonymsManagementAPIService, factory.lenient),
                         "[" + synonymsSet + "] synonyms_set in .synonyms index",
                         synonymsSet
                     );

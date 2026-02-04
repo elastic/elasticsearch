@@ -209,7 +209,7 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
             String auth = context.getHeader(AUTHORIZATION_HEADER);
             if (auth == null) {
                 ElasticsearchSecurityException e = new ElasticsearchSecurityException("Authentication required", RestStatus.UNAUTHORIZED);
-                e.addHeader("WWW-Authenticate", "Basic realm=auth-realm");
+                e.addBodyHeader("WWW-Authenticate", "Basic realm=auth-realm");
                 throw e;
             }
             if (false == REQUIRED_AUTH.equals(auth)) {

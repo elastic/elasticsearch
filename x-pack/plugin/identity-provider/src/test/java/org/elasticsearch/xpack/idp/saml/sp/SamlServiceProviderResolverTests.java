@@ -9,7 +9,11 @@ package org.elasticsearch.xpack.idp.saml.sp;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex.DocumentVersion;
@@ -123,6 +127,37 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
         assertThat(serviceProvider1b, sameInstance(serviceProvider1a));
 
         mockDocument(document1.entityId, docVersion2, document2);
+        final SamlServiceProvider serviceProvider2 = resolveServiceProvider(document1.entityId);
+
+        assertThat(serviceProvider2, not(sameInstance(serviceProvider1a)));
+        assertThat(serviceProvider2.getEntityId(), equalTo(document2.entityId));
+        assertThat(serviceProvider2.getAssertionConsumerService().toString(), equalTo(document2.acs));
+        assertThat(serviceProvider2.getAttributeNames().principal, equalTo(document2.attributeNames.principal));
+        assertThat(serviceProvider2.getAttributeNames().name, equalTo(document2.attributeNames.name));
+        assertThat(serviceProvider2.getAttributeNames().email, equalTo(document2.attributeNames.email));
+        assertThat(serviceProvider2.getAttributeNames().roles, equalTo(document2.attributeNames.roles));
+        assertThat(serviceProvider2.getPrivileges().getResource(), equalTo(document2.privileges.resource));
+    }
+
+    public void testCacheIsClearedWhenIndexChanges() throws Exception {
+        final SamlServiceProviderDocument document1 = SamlServiceProviderTestUtils.randomDocument(1);
+        final SamlServiceProviderDocument document2 = SamlServiceProviderTestUtils.randomDocument(2);
+        document2.entityId = document1.entityId;
+
+        final DocumentVersion docVersion = new DocumentVersion(randomAlphaOfLength(12), 1, 1);
+
+        mockDocument(document1.entityId, docVersion, document1);
+        final SamlServiceProvider serviceProvider1a = resolveServiceProvider(document1.entityId);
+        final SamlServiceProvider serviceProvider1b = resolveServiceProvider(document1.entityId);
+        assertThat(serviceProvider1b, sameInstance(serviceProvider1a));
+
+        final ClusterState oldState = ClusterState.builder(ClusterName.DEFAULT).build();
+        final ClusterState newState = ClusterState.builder(ClusterName.DEFAULT).build();
+        when(index.getIndex(oldState)).thenReturn(new Index(SamlServiceProviderIndex.INDEX_NAME, randomUUID()));
+        when(index.getIndex(newState)).thenReturn(new Index(SamlServiceProviderIndex.INDEX_NAME, randomUUID()));
+        resolver.clusterChanged(new ClusterChangedEvent(getTestName(), newState, oldState));
+
+        mockDocument(document1.entityId, docVersion, document2);
         final SamlServiceProvider serviceProvider2 = resolveServiceProvider(document1.entityId);
 
         assertThat(serviceProvider2, not(sameInstance(serviceProvider1a)));

@@ -10,9 +10,10 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -60,26 +61,39 @@ public class DriverContext {
 
     private final WarningsMode warningsMode;
 
+    private final @Nullable String driverDescription;
+
+    private final LocalCircuitBreaker.SizeSettings localBreakerSettings;
+
     private Runnable earlyTerminationChecker = () -> {};
 
-    public DriverContext(BigArrays bigArrays, BlockFactory blockFactory) {
-        this(bigArrays, blockFactory, WarningsMode.COLLECT);
+    public DriverContext(BigArrays bigArrays, BlockFactory blockFactory, @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings) {
+        this(bigArrays, blockFactory, localBreakerSettings, null, WarningsMode.COLLECT);
     }
 
-    private DriverContext(BigArrays bigArrays, BlockFactory blockFactory, WarningsMode warningsMode) {
+    public DriverContext(
+        BigArrays bigArrays,
+        BlockFactory blockFactory,
+        @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings,
+        String description
+    ) {
+        this(bigArrays, blockFactory, localBreakerSettings, description, WarningsMode.COLLECT);
+    }
+
+    private DriverContext(
+        BigArrays bigArrays,
+        BlockFactory blockFactory,
+        @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings,
+        @Nullable String description,
+        WarningsMode warningsMode
+    ) {
         Objects.requireNonNull(bigArrays);
         Objects.requireNonNull(blockFactory);
         this.bigArrays = bigArrays;
         this.blockFactory = blockFactory;
+        this.localBreakerSettings = localBreakerSettings == null ? LocalCircuitBreaker.SizeSettings.DEFAULT_SETTINGS : localBreakerSettings;
+        this.driverDescription = description;
         this.warningsMode = warningsMode;
-    }
-
-    public static DriverContext getLocalDriver() {
-        return new DriverContext(
-            BigArrays.NON_RECYCLING_INSTANCE,
-            // TODO maybe this should have a small fixed limit?
-            new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
-        );
     }
 
     public BigArrays bigArrays() {
@@ -93,8 +107,18 @@ public class DriverContext {
         return blockFactory.breaker();
     }
 
+    public LocalCircuitBreaker.SizeSettings localBreakerSettings() {
+        return localBreakerSettings;
+    }
+
     public BlockFactory blockFactory() {
         return blockFactory;
+    }
+
+    /** See {@link Driver#shortDescription}. */
+    @Nullable
+    public String driverDescription() {
+        return driverDescription;
     }
 
     /** A snapshot of the driver context. */
@@ -206,6 +230,26 @@ public class DriverContext {
     public enum WarningsMode {
         COLLECT,
         IGNORE
+    }
+
+    /**
+     * Marks the beginning of a run loop for assertion purposes.
+     */
+    public boolean assertBeginRunLoop() {
+        if (blockFactory.breaker() instanceof LocalCircuitBreaker localBreaker) {
+            assert localBreaker.assertBeginRunLoop();
+        }
+        return true;
+    }
+
+    /**
+     * Marks the end of a run loop for assertion purposes.
+     */
+    public boolean assertEndRunLoop() {
+        if (blockFactory.breaker() instanceof LocalCircuitBreaker localBreaker) {
+            assert localBreaker.assertEndRunLoop();
+        }
+        return true;
     }
 
     private static class AsyncActions {

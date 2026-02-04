@@ -77,7 +77,7 @@ public class NativeControllerTests extends ESTestCase {
 
         assertEquals(
             "1\tstart\tmy_process\t--arg1\t--arg2=42\t--arg3=something with spaces\n",
-            commandStream.toString(StandardCharsets.UTF_8.name())
+            commandStream.toString(StandardCharsets.UTF_8)
         );
 
         mockNativeProcessLoggingStreamEnds.countDown();
@@ -115,7 +115,7 @@ public class NativeControllerTests extends ESTestCase {
 
         assertEquals(
             "1\tstart\tmy_process\t--arg1\t--arg2=666\t--arg3=something different with spaces\n",
-            commandStream.toString(StandardCharsets.UTF_8.name())
+            commandStream.toString(StandardCharsets.UTF_8)
         );
         assertEquals("ML controller failed to execute command [1]: [some problem]", e.getMessage());
 

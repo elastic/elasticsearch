@@ -1,0 +1,168 @@
+setup:
+
+  # Create index template for data stream with failure store enabled
+  - do:
+      indices.put_index_template:
+        name: test-logs-template
+        body:
+          index_patterns: ["test-logs-*"]
+          data_stream:
+            allow_custom_routing: true
+          template:
+            data_stream_options:
+              failure_store:
+                enabled: true
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                message:
+                  type: text
+                count:
+                  type: long
+
+  # Create a pipeline that will cause mapping failures
+  - do:
+      ingest.put_pipeline:
+        id: "failing_pipeline"
+        body:
+          description: "Pipeline that may cause mapping failures"
+          processors:
+            - set:
+                field: count
+                value: "not_a_number"  # This will cause a mapping failure
+
+  # Create a remediation-pipeline with the recover_failure_document processor
+  - do:
+      ingest.put_pipeline:
+        id: "remediation_pipeline"
+        body:
+          description: "Pipeline to remediate failed documents"
+          processors:
+            - recover_failure_document: {}
+
+---
+teardown:
+  - do:
+      indices.delete_data_stream:
+        name: test-logs-recover_failure_document
+        ignore: 404
+
+  - do:
+      ingest.delete_pipeline:
+        id: "failing_pipeline"
+        ignore: 404
+
+  - do:
+      ingest.delete_pipeline:
+        id: "remediation_pipeline"
+        ignore: 404
+
+  - do:
+      indices.delete_index_template:
+        name: test-logs-template
+        ignore: 404
+
+---
+"Test recover_failure_document processor with data stream failure store":
+  # Create the data stream by indexing a document
+  - do:
+      index:
+        index: test-logs-recover_failure_document
+        routing: custom-route-123
+        pipeline: failing_pipeline
+        body:
+          "@timestamp": "2023-01-01T00:00:00Z"
+          message: "test message"
+          count: 42  # This will be overwritten by the pipeline and cause failure
+
+  # Wait for the failure store to be populated
+  - do:
+      indices.refresh:
+        index: ".fs-test-logs-recover_failure_document-*"
+
+  # Check that document went to failure store
+  - do:
+      search:
+        index: ".fs-test-logs-recover_failure_document-*"
+        body:
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.document.source.message: "test message" }
+  - match: { hits.hits.0._source.document.source.count: "not_a_number" }
+  - match: { hits.hits.0._source.document.index: "test-logs-recover_failure_document" }
+  - match: { hits.hits.0._source.document.routing: "custom-route-123" }
+  - is_true: hits.hits.0._source.error
+  - set: { hits.hits.0._source.@timestamp: original_timestamp }
+
+  # Get the failure document ID for remediation
+  - set: { hits.hits.0._id: failure_doc_id }
+  - set: { hits.hits.0._source: original_source }
+
+  - do:
+      ingest.simulate:
+        body:
+          pipeline:
+            processors:
+              - recover_failure_document: {}
+          docs:
+            - _source: $original_source
+              _index: "test-logs-recover_failure_document"
+              _id: "${failure_doc_id}"
+
+  # Check that it is using the remediated format
+  - match: { docs.0.doc._index: "test-logs-recover_failure_document" }
+  - match: { docs.0.doc._routing: "custom-route-123" }
+  - match: { docs.0.doc._source.message: "test message" }
+  - match: { docs.0.doc._source.count: "not_a_number" }
+  - is_false: docs.0.doc._source.error
+  - is_false: docs.0.doc._source.document
+
+  # Check that ingest metadata's pre_recovery field contains all original failure metadata
+  - is_true: docs.0.doc._ingest.timestamp
+  - is_true: docs.0.doc._ingest.pre_recovery
+  - match: { docs.0.doc._ingest.pre_recovery.@timestamp: "${original_timestamp}" }
+  - match: { docs.0.doc._ingest.pre_recovery._index: "test-logs-recover_failure_document" }
+  - match: { docs.0.doc._ingest.pre_recovery._id: "${failure_doc_id}" }
+  - match: { docs.0.doc._ingest.pre_recovery._version: -3 }
+  - match: { docs.0.doc._ingest.pre_recovery.document.index: "test-logs-recover_failure_document" }
+  - match: { docs.0.doc._ingest.pre_recovery.document.routing: "custom-route-123" }
+  - match: { docs.0.doc._ingest.pre_recovery.error.type: "document_parsing_exception" }
+
+---
+"Test recover_failure_document processor error handling - missing document field":
+  - do:
+      ingest.simulate:
+        body:
+          pipeline:
+            processors:
+              - recover_failure_document: {}
+          docs:
+            - _source:
+                error: "simulated failure"
+                message: "test message"
+                count: 42
+                # Missing "document" field should cause an exception
+
+  - match: { docs.0.error.type: "illegal_argument_exception" }
+  - match: { docs.0.error.reason: "failure store document has unexpected structure, missing required [document] field" }
+
+---
+"Test recover_failure_document processor error handling - missing source field":
+  - do:
+      ingest.simulate:
+        body:
+          pipeline:
+            processors:
+              - recover_failure_document: {}
+          docs:
+            - _source:
+                error: "simulated failure"
+                document:
+                  index: "original-index"
+                  # Missing "source" field should cause an exception
+
+  - match: { docs.0.error.type: "illegal_argument_exception" }
+  - match: { docs.0.error.reason: "failure store document has unexpected structure, missing required [document.source] field" }

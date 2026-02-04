@@ -9,13 +9,13 @@
 
 package org.elasticsearch.search.slice;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -44,6 +44,7 @@ import java.util.Objects;
  *  {@link DocValuesSliceQuery} is used to filter the results.
  */
 public class SliceBuilder implements Writeable, ToXContentObject {
+    private static final MatchNoDocsQuery NOT_PART_OF_SLICE = new MatchNoDocsQuery("this shard is not part of the slice");
 
     private static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField ID_FIELD = new ParseField("id");
@@ -197,7 +198,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         if (numShards == 1) {
             return createSliceQuery(id, max, context, isScroll);
         }
-        if (max >= numShards) {
+        if (max > numShards) {
             // the number of slices is greater than the number of shards
             // in such case we can reduce the number of requested shards by slice
 
@@ -205,7 +206,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
             int targetShard = id % numShards;
             if (targetShard != shardIndex) {
                 // the shard is not part of this slice, we can skip it.
-                return new MatchNoDocsQuery("this shard is not part of the slice");
+                return NOT_PART_OF_SLICE;
             }
             // compute the number of slices where this shard appears
             int numSlicesInShard = max / numShards;
@@ -216,21 +217,21 @@ public class SliceBuilder implements Writeable, ToXContentObject {
 
             if (numSlicesInShard == 1) {
                 // this shard has only one slice so we must check all the documents
-                return new MatchAllDocsQuery();
+                return Queries.ALL_DOCS_INSTANCE;
             }
             // get the new slice id for this shard
             int shardSlice = id / numShards;
             return createSliceQuery(shardSlice, numSlicesInShard, context, isScroll);
         }
-        // the number of shards is greater than the number of slices
+        // the number of shards is greater than or equal to the number of slices
 
         // check if the shard is assigned to the slice
         int targetSlice = shardIndex % max;
         if (id != targetSlice) {
             // the shard is not part of this slice, we can skip it.
-            return new MatchNoDocsQuery("this shard is not part of the slice");
+            return NOT_PART_OF_SLICE;
         }
-        return new MatchAllDocsQuery();
+        return Queries.ALL_DOCS_INSTANCE;
     }
 
     private Query createSliceQuery(int id, int max, SearchExecutionContext context, boolean isScroll) {

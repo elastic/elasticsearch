@@ -145,6 +145,10 @@ public abstract class PackagingTestCase extends Assert {
         @Override
         protected void failed(Throwable e, Description description) {
             failed = true;
+            if (installation != null) {
+                logger.warn("Test {} failed. Printing logs for failed test...", description.getMethodName());
+                dumpDebug();
+            }
         }
     };
 
@@ -228,6 +232,22 @@ public abstract class PackagingTestCase extends Assert {
             }
         }
 
+        // Only remove docker containers after each test when a test class explicitly opts in.
+        // This runs after the TestWatcher (which calls dumpDebug on failure), so the container is still
+        // available for diagnostics.
+        if (distribution().isDocker() && shouldRemoveDockerContainerAfterTest()) {
+            removeContainer();
+        }
+    }
+
+    /**
+     * Controls whether a Docker-based test should remove its container during {@link #teardown()}.
+     * <p>
+     * Default is {@code false} because some docker test classes intentionally reuse a container across
+     * multiple test methods (e.g., {@code KeystoreManagementTests}).
+     */
+    protected boolean shouldRemoveDockerContainerAfterTest() {
+        return false;
     }
 
     /** The {@link Distribution} that should be tested in this case */
@@ -288,19 +308,8 @@ public abstract class PackagingTestCase extends Assert {
      * Starts and stops elasticsearch, and performs assertions while it is running.
      */
     protected void assertWhileRunning(Platforms.PlatformAction assertions) throws Exception {
-        try {
-            awaitElasticsearchStartup(runElasticsearchStartCommand(null, true, false));
-        } catch (AssertionError | Exception e) {
-            dumpDebug();
-            throw e;
-        }
-
-        try {
-            assertions.run();
-        } catch (AssertionError | Exception e) {
-            dumpDebug();
-            throw e;
-        }
+        awaitElasticsearchStartup(runElasticsearchStartCommand(null, true, false));
+        assertions.run();
         stopElasticsearch();
     }
 
@@ -389,12 +398,7 @@ public abstract class PackagingTestCase extends Assert {
      * @throws Exception if Elasticsearch can't start
      */
     public void startElasticsearch() throws Exception {
-        try {
-            awaitElasticsearchStartup(runElasticsearchStartCommand(null, true, false));
-        } catch (AssertionError | Exception e) {
-            dumpDebug();
-            throw e;
-        }
+        awaitElasticsearchStartup(runElasticsearchStartCommand(null, true, false));
     }
 
     public void assertElasticsearchFailure(Shell.Result result, String expectedMessage, Packages.JournaldWrapper journaldWrapper) {

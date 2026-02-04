@@ -55,6 +55,9 @@ public final class TransportCreateCrossClusterApiKeyAction extends TransportActi
                 )
             );
         } else {
+            if (request.getCertificateIdentity() != null) {
+                apiKeyService.ensureCertificateIdentityFeatureIsEnabled();
+            }
             apiKeyService.createApiKey(authentication, request, Set.of(), listener);
         }
     }

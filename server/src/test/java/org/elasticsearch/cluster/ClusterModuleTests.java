@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceA
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.IndexBalanceAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.IndexVersionAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeReplacementAllocationDecider;
@@ -36,6 +37,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationD
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -110,7 +112,7 @@ public class ClusterModuleTests extends ModuleTestCase {
         }
 
         @Override
-        public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+        public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
             throw new UnsupportedOperationException("explain API not supported on FakeShardsAllocator");
         }
     }
@@ -166,7 +168,7 @@ public class ClusterModuleTests extends ModuleTestCase {
                 null,
                 threadPool,
                 EmptySystemIndices.INSTANCE,
-                TestProjectResolvers.singleProjectOnly(),
+                TestProjectResolvers.alwaysThrow(),
                 WriteLoadForecaster.DEFAULT,
                 TelemetryProvider.NOOP
             )
@@ -185,7 +187,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             null,
             threadPool,
             EmptySystemIndices.INSTANCE,
-            TestProjectResolvers.singleProjectOnly(),
+            TestProjectResolvers.alwaysThrow(),
             WriteLoadForecaster.DEFAULT,
             TelemetryProvider.NOOP
         );
@@ -203,7 +205,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             null,
             threadPool,
             EmptySystemIndices.INSTANCE,
-            TestProjectResolvers.singleProjectOnly(),
+            TestProjectResolvers.alwaysThrow(),
             WriteLoadForecaster.DEFAULT,
             TelemetryProvider.NOOP
         );
@@ -214,7 +216,8 @@ public class ClusterModuleTests extends ModuleTestCase {
         ClusterModule module = newClusterModuleWithShardsAllocator(settings, "custom", FakeShardsAllocator::new);
         assertEquals(FakeShardsAllocator.class, module.shardsAllocator.getClass());
         assertCriticalWarnings(
-            "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release."
+            "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
         );
     }
 
@@ -238,14 +241,15 @@ public class ClusterModuleTests extends ModuleTestCase {
                 null,
                 threadPool,
                 EmptySystemIndices.INSTANCE,
-                TestProjectResolvers.singleProjectOnly(),
+                TestProjectResolvers.alwaysThrow(),
                 WriteLoadForecaster.DEFAULT,
                 TelemetryProvider.NOOP
             )
         );
         assertEquals("Unknown ShardsAllocator [dne]", e.getMessage());
         assertCriticalWarnings(
-            "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release."
+            "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
         );
     }
 
@@ -253,7 +257,8 @@ public class ClusterModuleTests extends ModuleTestCase {
         Settings settings = Settings.builder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), "bad").build();
         expectThrows(NullPointerException.class, () -> newClusterModuleWithShardsAllocator(settings, "bad", () -> null));
         assertCriticalWarnings(
-            "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release."
+            "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
         );
     }
 
@@ -275,13 +280,15 @@ public class ClusterModuleTests extends ModuleTestCase {
             SnapshotInProgressAllocationDecider.class,
             RestoreInProgressAllocationDecider.class,
             NodeShutdownAllocationDecider.class,
+            WriteLoadConstraintDecider.class,
             NodeReplacementAllocationDecider.class,
             FilterAllocationDecider.class,
             SameShardAllocationDecider.class,
             DiskThresholdDecider.class,
             ThrottlingAllocationDecider.class,
             ShardsLimitAllocationDecider.class,
-            AwarenessAllocationDecider.class
+            AwarenessAllocationDecider.class,
+            IndexBalanceAllocationDecider.class
         );
         Collection<AllocationDecider> deciders = ClusterModule.createAllocationDeciders(
             Settings.EMPTY,
@@ -300,7 +307,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             null,
             threadPool,
             EmptySystemIndices.INSTANCE,
-            TestProjectResolvers.singleProjectOnly(),
+            TestProjectResolvers.alwaysThrow(),
             WriteLoadForecaster.DEFAULT,
             TelemetryProvider.NOOP
         );
@@ -316,7 +323,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             null,
             threadPool,
             EmptySystemIndices.INSTANCE,
-            TestProjectResolvers.singleProjectOnly(),
+            TestProjectResolvers.alwaysThrow(),
             WriteLoadForecaster.DEFAULT,
             TelemetryProvider.NOOP
         );

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
@@ -23,7 +22,7 @@ public class ElserInternalServiceSettings extends ElasticsearchInternalServiceSe
     public static final String NAME = "elser_mlnode_service_settings";
 
     public static MinimalServiceSettings minimalServiceSettings() {
-        return MinimalServiceSettings.sparseEmbedding();
+        return MinimalServiceSettings.sparseEmbedding(ElasticsearchInternalService.NAME);
     }
 
     public static ElserInternalServiceSettings defaultEndpointSettings(boolean useLinuxOptimizedModel) {
@@ -59,6 +58,6 @@ public class ElserInternalServiceSettings extends ElasticsearchInternalServiceSe
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_11_X;
+        return TransportVersion.minimumCompatible();
     }
 }

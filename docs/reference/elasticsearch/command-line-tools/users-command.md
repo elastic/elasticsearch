@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/users-command.html
+applies_to:
+  deployment:
+    self: ga
 ---
 
 # elasticsearch-users [users-command]

@@ -12,20 +12,20 @@ package org.elasticsearch.reservedstate.service;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collection;
 
-class ProjectClusterStateHandlerAdapter<T> implements ReservedClusterStateHandler<ClusterState, T> {
+class ProjectClusterStateHandlerAdapter<T> implements ReservedClusterStateHandler<T> {
 
     private final ProjectId projectId;
-    private final ReservedClusterStateHandler<ProjectMetadata, T> handler;
+    private final ReservedProjectStateHandler<T> handler;
 
-    ProjectClusterStateHandlerAdapter(ProjectId projectId, ReservedClusterStateHandler<ProjectMetadata, T> handler) {
+    ProjectClusterStateHandlerAdapter(ProjectId projectId, ReservedProjectStateHandler<T> handler) {
         this.projectId = projectId;
         this.handler = handler;
     }
@@ -56,18 +56,13 @@ class ProjectClusterStateHandlerAdapter<T> implements ReservedClusterStateHandle
     }
 
     @Override
-    public TransformState<ClusterState> transform(T source, TransformState<ClusterState> prevState) throws Exception {
-        ProjectMetadata project = prevState.state().metadata().getProject(projectId);
+    public TransformState transform(T source, TransformState prevState) throws Exception {
+        return handler.transform(projectId, source, prevState);
+    }
 
-        TransformState<ProjectMetadata> oldProjectState = new TransformState<>(project, prevState.keys());
-        TransformState<ProjectMetadata> newProjectState = handler.transform(source, oldProjectState);
-
-        return newProjectState == oldProjectState
-            ? prevState
-            : new TransformState<>(
-                ClusterState.builder(prevState.state()).putProjectMetadata(newProjectState.state()).build(),
-                newProjectState.keys()
-            );
+    @Override
+    public ClusterState remove(TransformState prevState) throws Exception {
+        return handler.remove(projectId, prevState);
     }
 
     @Override

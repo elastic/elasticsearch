@@ -18,7 +18,7 @@ public class UnifiedChatInputTests extends ESTestCase {
     public void testConvertsStringInputToMessages() {
         var a = new UnifiedChatInput(List.of("hello", "awesome"), "a role", true);
 
-        assertThat(a.inputSize(), Matchers.is(2));
+        assertThat(a.isSingleInput(), Matchers.is(false));
         assertThat(
             a.getRequest(),
             Matchers.is(

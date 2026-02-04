@@ -122,14 +122,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Set the timeout for the {@link #setWaitForCheckpoints(Map)} request.
-     */
-    public SearchRequestBuilder setWaitForCheckpointsTimeout(final TimeValue waitForCheckpointsTimeout) {
-        request.setWaitForCheckpointsTimeout(waitForCheckpointsTimeout);
-        return this;
-    }
-
-    /**
      * Specifies what type of requested indices to ignore and wildcard indices expressions.
      * <p>
      * For example indices that don't exist.
@@ -271,6 +263,14 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setFetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
         sourceBuilder().fetchSource(includes, excludes);
+        return this;
+    }
+
+    /**
+     * Indicate whether vectors should be excluded from the _source.
+     */
+    public SearchRequestBuilder setExcludeVectors(boolean excludeVectors) {
+        sourceBuilder().excludeVectors(excludeVectors);
         return this;
     }
 

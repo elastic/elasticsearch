@@ -1,19 +1,21 @@
 {
-  "slm.stop":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/slm-api-stop.html",
-      "description":"Turns off snapshot lifecycle management (SLM)."
+  "slm.stop": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-slm-stop",
+      "description": "Stop snapshot lifecycle management"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_slm/stop",
-          "methods":[
+          "path": "/_slm/stop",
+          "methods": [
             "POST"
           ]
         }
@@ -22,10 +24,12 @@
     "params": {
       "master_timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Timeout for processing on master node"
       },
       "timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Timeout for acknowledgement of update from all nodes in cluster"
       }
     }

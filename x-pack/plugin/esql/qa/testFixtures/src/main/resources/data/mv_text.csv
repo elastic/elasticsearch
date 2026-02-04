@@ -1,0 +1,6 @@
+@timestamp:date         ,message:text
+2023-10-23T13:55:01.543Z,[Connected to 10.1.0.1, Banana]
+2023-10-23T13:55:01.544Z,Connected to 10.1.0.1
+2023-10-23T13:55:01.545Z,[Connected to 10.1.0.1, More than one hundred characters long so it isn't indexed by the sub keyword field with ignore_above:100]
+2023-10-23T13:55:01.546Z,More than one hundred characters long so it isn't indexed by the sub keyword field with ignore_above:100
+2023-10-23T13:55:01.547Z,[More than one hundred characters long so it isn't indexed by the sub keyword field with ignore_above:100,Second than one hundred characters long so it isn't indexed by the sub keyword field with ignore_above:100]

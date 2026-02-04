@@ -49,6 +49,12 @@ import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Requ
 @ServerlessScope(Scope.PUBLIC)
 public class RestCatTrainedModelsAction extends AbstractCatAction {
 
+    private final boolean areDataFrameAnalyticsEnabled;
+
+    public RestCatTrainedModelsAction(boolean areDataFrameAnalyticsEnabled) {
+        this.areDataFrameAnalyticsEnabled = areDataFrameAnalyticsEnabled;
+    }
+
     @Override
     public List<Route> routes() {
         return List.of(
@@ -122,14 +128,18 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
                         listeners.acquire(response -> trainedModelsStats = response.getResources().results())
                     );
 
-                    final var dataFrameAnalyticsRequest = new GetDataFrameAnalyticsAction.Request(requestIdPattern);
-                    dataFrameAnalyticsRequest.setAllowNoResources(true);
-                    dataFrameAnalyticsRequest.setPageParams(new PageParams(0, potentialAnalyticsIds.size()));
-                    client.execute(
-                        GetDataFrameAnalyticsAction.INSTANCE,
-                        dataFrameAnalyticsRequest,
-                        listeners.acquire(response -> dataFrameAnalytics = response.getResources().results())
-                    );
+                    if (areDataFrameAnalyticsEnabled) {
+                        final var dataFrameAnalyticsRequest = new GetDataFrameAnalyticsAction.Request(requestIdPattern);
+                        dataFrameAnalyticsRequest.setAllowNoResources(true);
+                        dataFrameAnalyticsRequest.setPageParams(new PageParams(0, potentialAnalyticsIds.size()));
+                        client.execute(
+                            GetDataFrameAnalyticsAction.INSTANCE,
+                            dataFrameAnalyticsRequest,
+                            listeners.acquire(response -> dataFrameAnalytics = response.getResources().results())
+                        );
+                    } else {
+                        dataFrameAnalytics = List.of();
+                    }
                 }
             }
 

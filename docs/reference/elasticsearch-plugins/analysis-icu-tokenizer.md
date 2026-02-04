@@ -5,7 +5,7 @@ mapped_pages:
 
 # ICU tokenizer [analysis-icu-tokenizer]
 
-Tokenizes text into words on word boundaries, as defined in [UAX #29: Unicode Text Segmentation](https://www.unicode.org/reports/tr29/). It behaves much like the [`standard` tokenizer](/reference/data-analysis/text-analysis/analysis-standard-tokenizer.md), but adds better support for some Asian languages by using a dictionary-based approach to identify words in Thai, Lao, Chinese, Japanese, and Korean, and using custom rules to break Myanmar and Khmer text into syllables.
+Tokenizes text into words on word boundaries, as defined in [UAX #29: Unicode Text Segmentation](https://www.unicode.org/reports/tr29/). It behaves much like the [`standard` tokenizer](/reference/text-analysis/analysis-standard-tokenizer.md), but adds better support for some Asian languages by using a dictionary-based approach to identify words in Thai, Lao, Chinese, Japanese, and Korean, and using custom rules to break Myanmar and Khmer text into syllables.
 
 ```console
 PUT icu_sample

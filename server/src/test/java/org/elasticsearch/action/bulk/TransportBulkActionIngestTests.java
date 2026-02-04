@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -37,6 +38,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
@@ -45,12 +47,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -74,7 +78,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
@@ -82,7 +85,6 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -105,8 +107,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     private static final Thread DUMMY_WRITE_THREAD = new Thread(ThreadPool.Names.WRITE);
     private FeatureService mockFeatureService;
 
-    private static final ExecutorService writeExecutor = new NamedDirectExecutorService("write");
-    private static final ExecutorService systemWriteExecutor = new NamedDirectExecutorService("system_write");
+    private static final ExecutorService writeCoordinationExecutor = new NamedDirectExecutorService("write_coordination");
+    private static final ExecutorService systemWriteCoordinationExecutor = new NamedDirectExecutorService("system_write_coordination");
 
     private final ProjectId projectId = randomProjectIdOrDefault();
 
@@ -124,7 +126,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     @Captor
     ArgumentCaptor<TriConsumer<Integer, Exception, IndexDocFailureStoreStatus>> failureHandler;
     @Captor
-    ArgumentCaptor<BiConsumer<Thread, Exception>> completionHandler;
+    ArgumentCaptor<ActionListener<Void>> listener;
     @Captor
     ArgumentCaptor<TransportResponseHandler<BulkResponse>> remoteResponseHandler;
     @Captor
@@ -158,15 +160,28 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 transportService,
                 TransportBulkActionIngestTests.this.clusterService,
                 ingestService,
-                new NodeClient(Settings.EMPTY, TransportBulkActionIngestTests.this.threadPool),
+                new NodeClient(Settings.EMPTY, TransportBulkActionIngestTests.this.threadPool, TestProjectResolvers.alwaysThrow()),
                 new ActionFilters(Collections.emptySet()),
                 TestIndexNameExpressionResolver.newInstance(),
                 new IndexingPressure(SETTINGS),
                 EmptySystemIndices.INSTANCE,
                 TestProjectResolvers.singleProject(projectId),
                 FailureStoreMetrics.NOOP,
-                DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings())
+                DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+                new FeatureService(List.of()) {
+                    @Override
+                    public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
+                        return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
+                    }
+                },
+                initializeSamplingService()
             );
+        }
+
+        private static SamplingService initializeSamplingService() {
+            SamplingService samplingService = mock(SamplingService.class);
+            when(samplingService.atLeastOneSampleConfigured(any())).thenReturn(true);
+            return samplingService;
         }
 
         @Override
@@ -285,8 +300,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     public void setupAction() {
         // initialize captors, which must be members to use @Capture because of generics
         threadPool = mock(ThreadPool.class);
-        when(threadPool.executor(eq(ThreadPool.Names.WRITE))).thenReturn(writeExecutor);
-        when(threadPool.executor(eq(ThreadPool.Names.SYSTEM_WRITE))).thenReturn(systemWriteExecutor);
+        when(threadPool.executor(eq(ThreadPool.Names.WRITE_COORDINATION))).thenReturn(writeCoordinationExecutor);
+        when(threadPool.executor(eq(ThreadPool.Names.SYSTEM_WRITE_COORDINATION))).thenReturn(systemWriteCoordinationExecutor);
         MockitoAnnotations.openMocks(this);
         // setup services that will be called by action
         transportService = mock(TransportService.class);
@@ -342,6 +357,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         when(state.getMetadata()).thenReturn(metadata);
         when(state.metadata()).thenReturn(metadata);
         when(state.blocks()).thenReturn(mock(ClusterBlocks.class));
+        when(state.custom(eq(ProjectStateRegistry.TYPE), any())).thenReturn(
+            ProjectStateRegistry.builder().putProjectSettings(projectId, Settings.builder().build()).build()
+        );
         when(clusterService.state()).thenReturn(state);
         doAnswer(invocation -> {
             ClusterChangedEvent event = mock(ClusterChangedEvent.class);
@@ -413,10 +431,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             redirectPredicate.capture(),
             redirectHandler.capture(),
             failureHandler.capture(),
-            completionHandler.capture(),
-            same(writeExecutor)
+            listener.capture()
         );
-        completionHandler.getValue().accept(null, exception);
+        listener.getValue().onFailure(exception);
         assertTrue(failureCalled.get());
 
         // now check success
@@ -429,7 +446,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertNull(redirectPredicate.getValue().apply(WITH_DEFAULT_PIPELINE)); // no redirects for random existing indices
         assertNull(redirectPredicate.getValue().apply("index")); // no redirects for non-existent indices with no templates
         redirectHandler.getValue().apply(2, WITH_FAILURE_STORE_ENABLED + "-1", exception); // exception and redirect for request 3 (slot 2)
-        completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null); // all ingestion completed
+        listener.getValue().onResponse(null); // all ingestion completed
         assertTrue(action.isExecuted);
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
         verifyNoMoreInteractions(transportService);
@@ -464,15 +481,14 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             any(),
             failureHandler.capture(),
-            completionHandler.capture(),
-            same(writeExecutor)
+            listener.capture()
         );
-        completionHandler.getValue().accept(null, exception);
+        listener.getValue().onFailure(exception);
         assertTrue(failureCalled.get());
 
         // now check success
         indexRequest.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
-        completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
+        listener.getValue().onResponse(null);
         assertTrue(action.isExecuted);
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
         verifyNoMoreInteractions(transportService);
@@ -513,10 +529,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             any(),
             failureHandler.capture(),
-            completionHandler.capture(),
-            same(systemWriteExecutor)
+            listener.capture()
         );
-        completionHandler.getValue().accept(null, exception);
+        listener.getValue().onFailure(exception);
         assertTrue(failureCalled.get());
 
         // now check success
@@ -524,7 +539,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         // have an exception for our one index request
         failureHandler.getValue().apply(0, exception, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
         indexRequest2.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
-        completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
+        listener.getValue().onResponse(null);
         assertTrue(action.isExecuted);
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
         verifyNoMoreInteractions(transportService);
@@ -546,7 +561,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         ActionTestUtils.execute(action, null, bulkRequest, listener);
 
         // should not have executed ingest locally
-        verify(ingestService, never()).executeBulkRequest(eq(projectId), anyInt(), any(), any(), any(), any(), any(), any(), any());
+        verify(ingestService, never()).executeBulkRequest(eq(projectId), anyInt(), any(), any(), any(), any(), any(), any());
         // but instead should have sent to a remote node with the transport service
         ArgumentCaptor<DiscoveryNode> node = ArgumentCaptor.forClass(DiscoveryNode.class);
         verify(transportService).sendRequest(node.capture(), eq(TransportBulkAction.NAME), any(), remoteResponseHandler.capture());
@@ -586,7 +601,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         ActionTestUtils.execute(singleItemBulkWriteAction, null, indexRequest, listener);
 
         // should not have executed ingest locally
-        verify(ingestService, never()).executeBulkRequest(eq(projectId), anyInt(), any(), any(), any(), any(), any(), any(), any());
+        verify(ingestService, never()).executeBulkRequest(eq(projectId), anyInt(), any(), any(), any(), any(), any(), any());
         // but instead should have sent to a remote node with the transport service
         ArgumentCaptor<DiscoveryNode> node = ArgumentCaptor.forClass(DiscoveryNode.class);
         verify(transportService).sendRequest(node.capture(), eq(TransportBulkAction.NAME), any(), remoteResponseHandler.capture());
@@ -674,20 +689,19 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             any(),
             failureHandler.capture(),
-            completionHandler.capture(),
-            same(writeExecutor)
+            listener.capture()
         );
         assertEquals(indexRequest1.getPipeline(), "default_pipeline");
         assertEquals(indexRequest2.getPipeline(), "default_pipeline");
         assertEquals(indexRequest3.getPipeline(), "default_pipeline");
-        completionHandler.getValue().accept(null, exception);
+        listener.getValue().onFailure(exception);
         assertTrue(failureCalled.get());
 
         // now check success of the transport bulk action
         indexRequest1.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
         indexRequest2.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
         indexRequest3.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
-        completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
+        listener.getValue().onResponse(null);
         assertTrue(action.isExecuted);
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
         verifyNoMoreInteractions(transportService);
@@ -725,16 +739,15 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             any(),
             failureHandler.capture(),
-            completionHandler.capture(),
-            same(writeExecutor)
+            listener.capture()
         );
-        completionHandler.getValue().accept(null, exception);
+        listener.getValue().onFailure(exception);
         assertFalse(action.indexCreated); // still no index yet, the ingest node failed.
         assertTrue(failureCalled.get());
 
         // now check success
         indexRequest.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
-        completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
+        listener.getValue().onResponse(null);
         assertTrue(action.isExecuted);
         assertTrue(action.indexCreated); // now the index is created since we skipped the ingest node path.
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
@@ -819,8 +832,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             any(),
             failureHandler.capture(),
-            completionHandler.capture(),
-            same(writeExecutor)
+            listener.capture()
         );
     }
 
@@ -860,8 +872,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             any(),
             failureHandler.capture(),
-            completionHandler.capture(),
-            same(writeExecutor)
+            listener.capture()
         );
     }
 
@@ -890,11 +901,10 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             any(),
             failureHandler.capture(),
-            completionHandler.capture(),
-            same(writeExecutor)
+            listener.capture()
         );
         indexRequest1.autoGenerateId();
-        completionHandler.getValue().accept(Thread.currentThread(), null);
+        listener.getValue().onResponse(null);
 
         // check failure passed through to the listener
         assertFalse(action.isExecuted);
@@ -930,16 +940,15 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             any(),
             failureHandler.capture(),
-            completionHandler.capture(),
-            same(writeExecutor)
+            listener.capture()
         );
         assertEquals(indexRequest.getPipeline(), "default_pipeline");
-        completionHandler.getValue().accept(null, exception);
+        listener.getValue().onFailure(exception);
         assertTrue(failureCalled.get());
 
         // now check success
         indexRequest.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
-        completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
+        listener.getValue().onResponse(null);
         assertTrue(action.isExecuted);
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
         verifyNoMoreInteractions(transportService);

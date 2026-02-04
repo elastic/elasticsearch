@@ -20,7 +20,6 @@ import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-@ESTestCase.WithoutSecurityManager
 public class ProcessLimitsTests extends ESTestCase {
 
     private static final NativeAccess nativeAccess = NativeAccess.instance();

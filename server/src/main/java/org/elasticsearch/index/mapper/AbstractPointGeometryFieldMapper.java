@@ -22,8 +22,6 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
-
 /** Base class for spatial fields that only support indexing points */
 public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeometryFieldMapper<T> {
 
@@ -148,30 +146,20 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
     }
 
     public abstract static class AbstractPointFieldType<T extends SpatialPoint> extends AbstractGeometryFieldType<T> {
-
         protected AbstractPointFieldType(
             String name,
-            boolean indexed,
+            IndexType indexType,
             boolean stored,
-            boolean hasDocValues,
             Parser<T> geometryParser,
             T nullValue,
             Map<String, String> meta
         ) {
-            super(name, indexed, stored, hasDocValues, geometryParser, nullValue, meta);
+            super(name, indexType, stored, geometryParser, nullValue, meta);
         }
 
         @Override
         protected Object nullValueAsSource(T nullValue) {
             return nullValue == null ? null : nullValue.toWKT();
-        }
-
-        @Override
-        public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            if (blContext.fieldExtractPreference() == DOC_VALUES && hasDocValues()) {
-                return new BlockDocValuesReader.LongsBlockLoader(name());
-            }
-            return blockLoaderFromSource(blContext);
         }
     }
 }

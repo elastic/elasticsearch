@@ -59,7 +59,6 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             globalCheckpoint = in.readLong();
             timedOut = in.readBoolean();
         }

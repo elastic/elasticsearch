@@ -97,7 +97,6 @@ public class GetAnalyticsCollectionAction {
         public static final ParseField EVENT_DATA_STREAM_NAME_FIELD = new ParseField("name");
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.collections = in.readCollectionAsList(AnalyticsCollection::new);
         }
 

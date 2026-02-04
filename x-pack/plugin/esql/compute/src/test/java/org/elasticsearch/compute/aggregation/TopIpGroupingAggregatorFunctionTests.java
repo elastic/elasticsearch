@@ -9,7 +9,6 @@ package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 
 public class TopIpGroupingAggregatorFunctionTests extends AbstractTopBytesRefGroupingAggregatorFunctionTests {
     @Override
@@ -23,8 +22,8 @@ public class TopIpGroupingAggregatorFunctionTests extends AbstractTopBytesRefGro
     }
 
     @Override
-    protected DataType acceptedDataType() {
-        return DataType.IP;
+    protected DataFormat acceptedDataFormat() {
+        return DataFormat.IP;
     }
 
     @Override

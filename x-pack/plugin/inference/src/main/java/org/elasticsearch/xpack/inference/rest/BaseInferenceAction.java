@@ -14,10 +14,13 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.xpack.core.inference.InferenceContext;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.rest.Paths.TASK_TYPE_OR_INFERENCE_ID;
@@ -44,6 +47,8 @@ abstract class BaseInferenceAction extends BaseRestHandler {
         var params = parseParams(restRequest);
         var content = restRequest.requiredContent();
         var inferTimeout = parseTimeout(restRequest);
+        var productUseCase = extractProductUseCase(restRequest);
+        var context = new InferenceContext(productUseCase);
 
         var request = new InferenceActionProxy.Request(
             params.taskType(),
@@ -51,7 +56,8 @@ abstract class BaseInferenceAction extends BaseRestHandler {
             content,
             restRequest.getXContentType(),
             inferTimeout,
-            shouldStream()
+            shouldStream(),
+            context
         );
 
         return channel -> client.execute(InferenceActionProxy.INSTANCE, request, ActionListener.withRef(listener(channel), content));
@@ -60,4 +66,21 @@ abstract class BaseInferenceAction extends BaseRestHandler {
     protected abstract boolean shouldStream();
 
     protected abstract ActionListener<InferenceAction.Response> listener(RestChannel channel);
+
+    private String extractProductUseCase(RestRequest restRequest) {
+        var headers = restRequest.getHeaders();
+
+        if (Objects.isNull(headers) || headers.isEmpty()) {
+            return "";
+        }
+
+        var productUseCaseHeaders = headers.get(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
+
+        if (Objects.isNull(productUseCaseHeaders) || productUseCaseHeaders.isEmpty()) {
+            return "";
+        }
+
+        // We always get the first value as the header doesn't allow multiple values
+        return productUseCaseHeaders.get(0);
+    }
 }

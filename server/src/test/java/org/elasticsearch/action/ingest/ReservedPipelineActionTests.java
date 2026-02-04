@@ -9,6 +9,9 @@
 
 package org.elasticsearch.action.ingest;
 
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.test.ESTestCase;
@@ -23,26 +26,26 @@ import static org.hamcrest.Matchers.empty;
 
 public class ReservedPipelineActionTests extends ESTestCase {
 
-    private TransformState<ProjectMetadata> processJSON(
-        ReservedPipelineAction action,
-        TransformState<ProjectMetadata> prevState,
-        String json
-    ) throws Exception {
+    private TransformState processJSON(ProjectId projectId, ReservedPipelineAction action, TransformState prevState, String json)
+        throws Exception {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
-            return action.transform(action.fromXContent(parser), prevState);
+            return action.transform(projectId, action.fromXContent(parser), prevState);
         }
     }
 
     public void testAddRemoveIngestPipeline() throws Exception {
-        ProjectMetadata state = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
-        TransformState<ProjectMetadata> prevState = new TransformState<>(state, Collections.emptySet());
+        ProjectId projectId = randomProjectIdOrDefault();
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).build();
+        TransformState prevState = new TransformState(
+            ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadata).build(),
+            Collections.emptySet()
+        );
         ReservedPipelineAction action = new ReservedPipelineAction();
 
         String emptyJSON = "";
 
-        TransformState<ProjectMetadata> updatedState = processJSON(action, prevState, emptyJSON);
+        TransformState updatedState = processJSON(projectId, action, prevState, emptyJSON);
         assertThat(updatedState.keys(), empty());
-        assertEquals(prevState.state(), updatedState.state());
 
         String json = """
             {
@@ -71,7 +74,7 @@ public class ReservedPipelineActionTests extends ESTestCase {
             }""";
 
         prevState = updatedState;
-        updatedState = processJSON(action, prevState, json);
+        updatedState = processJSON(projectId, action, prevState, json);
         assertThat(updatedState.keys(), containsInAnyOrder("my_ingest_pipeline", "my_ingest_pipeline_1"));
 
         String halfJSON = """
@@ -89,10 +92,10 @@ public class ReservedPipelineActionTests extends ESTestCase {
                }
             }""";
 
-        updatedState = processJSON(action, prevState, halfJSON);
+        updatedState = processJSON(projectId, action, prevState, halfJSON);
         assertThat(updatedState.keys(), containsInAnyOrder("my_ingest_pipeline_1"));
 
-        updatedState = processJSON(action, prevState, emptyJSON);
+        updatedState = processJSON(projectId, action, prevState, emptyJSON);
         assertThat(updatedState.keys(), empty());
     }
 }

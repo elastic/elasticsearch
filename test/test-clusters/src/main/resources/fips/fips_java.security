@@ -49,3 +49,6 @@ jdk.xml.dsig.secureValidationPolicy=\
     noRetrievalMethodLoops
 jceks.key.serialFilter = java.base/java.lang.Enum;java.base/java.security.KeyRep;\
   java.base/java.security.KeyRep$Type;java.base/javax.crypto.spec.SecretKeySpec;!*
+
+# Needed since JDK25 to match the default config in the out-of-the-box java.security
+jdk.includeInExceptions=hostInfoExclSocket

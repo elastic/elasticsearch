@@ -1,0 +1,16 @@
+{
+    "properties": {
+        "@timestamp": {
+            "type": "date"
+        },
+        "message": {
+            "type": "text",
+            "fields": {
+                "raw": {
+                    "type": "keyword",
+                    "ignore_above": 100
+                }
+            }
+        }
+    }
+}

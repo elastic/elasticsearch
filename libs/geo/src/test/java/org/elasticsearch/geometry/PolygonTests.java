@@ -18,6 +18,7 @@ import org.elasticsearch.geometry.utils.WellKnownText;
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.Collections;
+import java.util.List;
 
 public class PolygonTests extends BaseGeometryTestCase<Polygon> {
     @Override
@@ -132,6 +133,61 @@ public class PolygonTests extends BaseGeometryTestCase<Polygon> {
             "first and last points of the linear ring must be the same (it must close itself): x[0]=0.5 x[2]=2.0 y[0]=1.5 y[2]=1.0",
             ex.getMessage()
         );
+    }
+
+    public void testParsePolygonZorMWithThreeCoordinates() throws IOException, ParseException {
+        GeometryValidator validator = GeographyValidator.instance(true);
+
+        Polygon expectedZ = new Polygon(
+            new LinearRing(
+                new double[] { 20.0, 30.0, 40.0, 20.0 },
+                new double[] { 10.0, 15.0, 10.0, 10.0 },
+                new double[] { 100.0, 200.0, 300.0, 100.0 }
+            )
+        );
+        assertEquals(
+            expectedZ,
+            WellKnownText.fromWKT(validator, true, "POLYGON Z ((20.0 10.0 100.0, 30.0 15.0 200.0, 40.0 10.0 300.0, 20.0 10.0 100.0))")
+        );
+
+        Polygon expectedM = new Polygon(
+            new LinearRing(
+                new double[] { 20.0, 30.0, 40.0, 20.0 },
+                new double[] { 10.0, 15.0, 10.0, 10.0 },
+                new double[] { 100.0, 200.0, 300.0, 100.0 }
+            )
+        );
+        assertEquals(
+            expectedM,
+            WellKnownText.fromWKT(validator, true, "POLYGON M ((20.0 10.0 100.0, 30.0 15.0 200.0, 40.0 10.0 300.0, 20.0 10.0 100.0))")
+        );
+
+        Polygon expectedZAutoClose = new Polygon(
+            new LinearRing(
+                new double[] { 20.0, 30.0, 40.0, 20.0 },
+                new double[] { 10.0, 15.0, 10.0, 10.0 },
+                new double[] { 100.0, 200.0, 300.0, 100.0 }
+            )
+        );
+        assertEquals(
+            expectedZAutoClose,
+            WellKnownText.fromWKT(validator, true, "POLYGON Z ((20.0 10.0 100.0, 30.0 15.0 200.0, 40.0 10.0 300.0))")
+        );
+    }
+
+    public void testParsePolygonZorMWithTwoCoordinatesThrowsException() {
+        GeometryValidator validator = GeographyValidator.instance(true);
+        List<String> polygonsWkt = List.of(
+            "POLYGON Z ((20.0 10.0, 30.0 15.0, 40.0 10.0, 20.0 10.0))",
+            "POLYGON M ((20.0 10.0, 30.0 15.0, 40.0 10.0, 20.0 10.0))"
+        );
+        for (String polygon : polygonsWkt) {
+            IllegalArgumentException ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> WellKnownText.fromWKT(validator, true, polygon)
+            );
+            assertEquals(ZorMMustIncludeThreeValuesMsg, ex.getMessage());
+        }
     }
 
     @Override

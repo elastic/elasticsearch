@@ -68,6 +68,11 @@
 
     <!-- Unused imports are forbidden -->
     <module name="UnusedImports" />
+    <module name="SuppressionCommentFilter">
+      <property name="offCommentFormat" value="begin generated imports"/>
+      <property name="onCommentFormat" value="end generated imports"/>
+      <property name="checkFormat" value="UnusedImports"/>
+    </module>
 
     <!-- Non-inner classes must be in files that match their names. -->
     <module name="OuterTypeFilename" />

@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -230,7 +231,18 @@ public class AzureAiStudioChatCompletionTaskSettingsTests extends AbstractBWCWir
 
     @Override
     protected AzureAiStudioChatCompletionTaskSettings mutateInstance(AzureAiStudioChatCompletionTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, AzureAiStudioChatCompletionTaskSettingsTests::createRandom);
+        var temperature = instance.temperature();
+        var topP = instance.topP();
+        var doSample = instance.doSample();
+        var maxNewTokens = instance.maxNewTokens();
+        switch (randomInt(3)) {
+            case 0 -> temperature = randomValueOtherThan(temperature, ESTestCase::randomOptionalDouble);
+            case 1 -> topP = randomValueOtherThan(topP, ESTestCase::randomOptionalDouble);
+            case 2 -> doSample = doSample == null ? randomBoolean() : doSample == false;
+            case 3 -> maxNewTokens = randomValueOtherThan(maxNewTokens, ESTestCase::randomNonNegativeIntOrNull);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new AzureAiStudioChatCompletionTaskSettings(temperature, topP, doSample, maxNewTokens);
     }
 
     @Override
@@ -243,10 +255,10 @@ public class AzureAiStudioChatCompletionTaskSettingsTests extends AbstractBWCWir
 
     private static AzureAiStudioChatCompletionTaskSettings createRandom() {
         return new AzureAiStudioChatCompletionTaskSettings(
-            randomFrom(new Double[] { null, randomDouble() }),
-            randomFrom(new Double[] { null, randomDouble() }),
-            randomFrom(randomFrom(new Boolean[] { null, randomBoolean() })),
-            randomFrom(new Integer[] { null, randomNonNegativeInt() })
+            randomOptionalDouble(),
+            randomOptionalDouble(),
+            randomOptionalBoolean(),
+            randomNonNegativeIntOrNull()
         );
     }
 }

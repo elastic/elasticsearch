@@ -9,6 +9,8 @@
 
 package org.elasticsearch.discovery.ec2;
 
+import software.amazon.awssdk.services.ec2.Ec2Client;
+
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.core.TimeValue;
@@ -16,6 +18,11 @@ import org.elasticsearch.core.TimeValue;
 import java.io.Closeable;
 import java.util.List;
 
+/**
+ * Abstract representation of a connection to the EC2 API service: exposes an {@link AmazonEc2Reference} via {@link #client()} and allows
+ * to refresh the client settings via {@link #refreshAndClearCache}.
+ */
+// This is kinda pointless extra indirection and only has one implementation; TODO fold it into Ec2DiscoveryPlugin
 interface AwsEc2Service extends Closeable {
     Setting<Boolean> AUTO_ATTRIBUTE_SETTING = Setting.boolSetting("cloud.node.auto_attributes", false, Property.NodeScope);
 
@@ -70,8 +77,8 @@ interface AwsEc2Service extends Closeable {
     );
 
     /**
-     * Builds then caches an {@code AmazonEC2} client using the current client
-     * settings. Returns an {@code AmazonEc2Reference} wrapper which should be
+     * Builds then caches an {@link Ec2Client} client using the current client
+     * settings. Returns an {@link AmazonEc2Reference} wrapper which should be
      * released as soon as it is not required anymore.
      */
     AmazonEc2Reference client();

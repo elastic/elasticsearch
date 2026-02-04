@@ -21,6 +21,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 
+import java.util.Arrays;
 import java.util.Map;
 
 /**
@@ -252,7 +254,7 @@ public class TransformUpdater {
             long lastCheckpoint = currentState.v1().getTransformState().getCheckpoint();
 
             // if: the state is stored on the latest index, it does not need an update
-            if (currentState.v2().getIndex().equals(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)) {
+            if (transformConfigManager.isLatestTransformIndex(currentState.v2().getIndex())) {
                 listener.onResponse(lastCheckpoint);
                 return;
             }
@@ -283,8 +285,7 @@ public class TransformUpdater {
         ActionListener<Boolean> listener
     ) {
         transformConfigManager.getTransformCheckpointForUpdate(transformId, lastCheckpoint, ActionListener.wrap(checkpointAndVersion -> {
-            if (checkpointAndVersion == null
-                || checkpointAndVersion.v2().getIndex().equals(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)) {
+            if (checkpointAndVersion == null || transformConfigManager.isLatestTransformIndex(checkpointAndVersion.v2().getIndex())) {
                 listener.onResponse(true);
                 return;
             }
@@ -336,17 +337,19 @@ public class TransformUpdater {
         final String destinationIndex = config.getDestination().getIndex();
         String[] dest = indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), destinationIndex);
 
-        String[] src = indexNameExpressionResolver.concreteIndexNames(
-            clusterState,
-            IndicesOptions.lenientExpandOpen(),
-            true,
-            config.getSource().getIndex()
-        );
+        // FIXME: what do we do with remote indices?
+        String[] sourceIndices = Arrays.stream(config.getSource().getIndex())
+            .filter(ind -> RemoteClusterAware.isRemoteIndexName(ind) == false)
+            .toArray(String[]::new);
+        String[] src = sourceIndices.length > 0
+            ? indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), true, sourceIndices)
+            : null;
         // If we are running, we should verify that the destination index exists and create it if it does not
         if (PersistentTasksCustomMetadata.getTaskWithId(clusterState, config.getId()) != null && dest.length == 0
         // Verify we have source indices. The user could defer_validations and if the task is already running
         // we allow source indices to disappear. If the source and destination indices do not exist, don't do anything
         // the transform will just have to dynamically create the destination index without special mapping.
+            && src != null
             && src.length > 0) {
             TransformIndex.createDestinationIndex(
                 client,

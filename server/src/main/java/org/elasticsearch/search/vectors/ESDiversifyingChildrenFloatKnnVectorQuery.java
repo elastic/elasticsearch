@@ -13,27 +13,29 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.DiversifyingChildrenFloatKnnVectorQuery;
+import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChildrenFloatKnnVectorQuery implements QueryProfilerProvider {
-    private final Integer kParam;
+    private final int kParam;
     private long vectorOpsCount;
 
     public ESDiversifyingChildrenFloatKnnVectorQuery(
         String field,
         float[] query,
         Query childFilter,
-        Integer k,
+        int k,
         int numCands,
-        BitSetProducer parentsFilter
+        BitSetProducer parentsFilter,
+        KnnSearchStrategy strategy
     ) {
-        super(field, query, childFilter, numCands, parentsFilter);
+        super(field, query, childFilter, numCands, parentsFilter, strategy);
         this.kParam = k;
     }
 
     @Override
     protected TopDocs mergeLeafResults(TopDocs[] perLeafResults) {
-        TopDocs topK = kParam == null ? super.mergeLeafResults(perLeafResults) : TopDocs.merge(kParam, perLeafResults);
+        TopDocs topK = TopDocs.merge(kParam, perLeafResults);
         vectorOpsCount = topK.totalHits.value();
         return topK;
     }
@@ -41,5 +43,9 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
     @Override
     public void profile(QueryProfiler queryProfiler) {
         queryProfiler.addVectorOpsCount(vectorOpsCount);
+    }
+
+    public KnnSearchStrategy getStrategy() {
+        return searchStrategy;
     }
 }

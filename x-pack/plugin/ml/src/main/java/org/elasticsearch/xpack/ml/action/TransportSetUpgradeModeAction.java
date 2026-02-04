@@ -87,11 +87,10 @@ public class TransportSetUpgradeModeAction extends AbstractTransportSetUpgradeMo
     @Override
     protected ClusterState createUpdatedState(SetUpgradeModeActionRequest request, ClusterState currentState) {
         logger.trace("Executing cluster state update");
-        MlMetadata.Builder builder = new MlMetadata.Builder(currentState.metadata().getProject().custom(MlMetadata.TYPE));
+        final var project = currentState.metadata().getProject();
+        MlMetadata.Builder builder = new MlMetadata.Builder(project.custom(MlMetadata.TYPE));
         builder.isUpgradeMode(request.enabled());
-        ClusterState.Builder newState = ClusterState.builder(currentState);
-        newState.metadata(Metadata.builder(currentState.getMetadata()).putCustom(MlMetadata.TYPE, builder.build()).build());
-        return newState.build();
+        return currentState.copyAndUpdateProject(project.id(), b -> b.putCustom(MlMetadata.TYPE, builder.build()));
     }
 
     protected void upgradeModeSuccessfullyChanged(
@@ -170,11 +169,19 @@ public class TransportSetUpgradeModeAction extends AbstractTransportSetUpgradeMo
             isolateDatafeeds(tasksCustomMetadata, isolateDatafeedListener);
         } else {
             logger.info("Disabling upgrade mode, must wait for tasks to not have AWAITING_UPGRADE assignment");
+            @FixForMultiProject
+            final var projectId = Metadata.DEFAULT_PROJECT_ID;
             persistentTasksService.waitForPersistentTasksCondition(
                 // Wait for jobs, datafeeds and analytics not to be "Awaiting upgrade"
-                persistentTasksCustomMetadata -> persistentTasksCustomMetadata.tasks()
-                    .stream()
-                    .noneMatch(t -> ML_TASK_NAMES.contains(t.getTaskName()) && t.getAssignment().equals(AWAITING_UPGRADE)),
+                projectId,
+                persistentTasksCustomMetadata -> {
+                    if (persistentTasksCustomMetadata == null) {
+                        return true;
+                    }
+                    return persistentTasksCustomMetadata.tasks()
+                        .stream()
+                        .noneMatch(t -> ML_TASK_NAMES.contains(t.getTaskName()) && t.getAssignment().equals(AWAITING_UPGRADE));
+                },
                 request.ackTimeout(),
                 ActionListener.wrap(r -> {
                     logger.info("Done waiting for tasks to be out of AWAITING_UPGRADE");

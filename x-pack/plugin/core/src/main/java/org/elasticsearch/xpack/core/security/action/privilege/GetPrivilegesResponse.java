@@ -31,7 +31,6 @@ public final class GetPrivilegesResponse extends ActionResponse {
     }
 
     public GetPrivilegesResponse(StreamInput in) throws IOException {
-        super(in);
         this.privileges = in.readArray(ApplicationPrivilegeDescriptor::new, ApplicationPrivilegeDescriptor[]::new);
     }
 

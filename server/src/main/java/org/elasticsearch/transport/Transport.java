@@ -113,9 +113,9 @@ public interface Transport extends LifecycleComponent {
             TransportException;
 
         /**
-         * The listener's {@link ActionListener#onResponse(Object)} method will be called when this
-         * connection is closed. No implementations currently throw an exception during close, so
-         * {@link ActionListener#onFailure(Exception)} will not be called.
+         * The listener will be called when this connection has completed closing. The {@link ActionListener#onResponse(Object)} method
+         * will be called when the connection closed gracefully, and the {@link ActionListener#onFailure(Exception)} method will be called
+         * when the connection has successfully closed, but an exception has prompted the close.
          *
          * @param listener to be called
          */
@@ -163,7 +163,8 @@ public interface Transport extends LifecycleComponent {
     ) {};
 
     /**
-     * This class is a registry that allows
+     * A registry of response handlers for in-flight transport requests. Keeps a map of request IDs to their
+     * relevant {@link Transport.ResponseContext} so that when a peer response is received, the appropriate handler can be invoked.
      */
     final class ResponseHandlers {
         private final Map<Long, ResponseContext<? extends TransportResponse>> handlers = ConcurrentCollections

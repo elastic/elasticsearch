@@ -71,7 +71,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: {}
 
@@ -105,7 +106,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: {}
 
@@ -139,7 +141,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: {}
 
@@ -173,7 +176,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: {}
 
@@ -246,7 +250,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             nested:
               path: sparse_field.inference.chunks
@@ -293,7 +298,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             nested:
               path: dense_field.inference.chunks
@@ -364,8 +370,15 @@ setup:
         body:
           source:
             index: test-index
+            _source:
+              exclude_vectors: false
           dest:
             index: destination-index
+
+  - match: { created: 1 }
+  - match: { updated: 0 }
+  - match: { version_conflicts: 0 }
+  - match: { failures: [ ] }
 
   - do:
       indices.refresh: { }
@@ -383,7 +396,106 @@ setup:
       search:
         index: destination-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks: 1 }
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.end_offset: 14 }
+
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks: 1 }
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.end_offset: 22 }
+
+---
+"Reindex recomputes embeddings by default":
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: "inference test"
+          dense_field: "another inference test"
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      indices.create:
+        index: destination-index
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              sparse_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+              dense_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              non_inference_field:
+                type: text
+
+  # reindex fails when preserving embeddings
+  - do:
+      catch: bad_request
+      reindex:
+        wait_for_completion: true
+        body:
+          source:
+            index: test-index
+            _source:
+              exclude_vectors: false
+          dest:
+            index: destination-index
+
+  - length: { failures: 1 }
+
+  # reindex succeeds when embeddings are recomputed
+  - do:
+      reindex:
+        wait_for_completion: true
+        body:
+          source:
+            index: test-index
+          dest:
+            index: destination-index
+
+  - match: { created: 1 }
+  - match: { updated: 0 }
+  - match: { version_conflicts: 0 }
+  - match: { failures: [ ] }
+
+  - do:
+      indices.refresh: { }
+
+  - do:
+      get:
+        index: destination-index
+        id: doc_1
+
+  - match: { _source.sparse_field: "inference test" }
+  - match: { _source.dense_field: "another inference test" }
+  - match: { _source.non_inference_field: "non inference test" }
+
+  - do:
+      search:
+        index: destination-index
+        body:
+          _source:
+            exclude_vectors: false
           query:
             match_all: {}
 
@@ -472,7 +584,8 @@ setup:
       search:
         index: test-copy-to-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: {}
 
@@ -518,7 +631,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: {}
 
@@ -601,7 +715,8 @@ setup:
       search:
         index: mapping-update-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: {}
 
@@ -636,7 +751,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: {}
 
@@ -670,7 +786,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: {}
 
@@ -721,7 +838,8 @@ setup:
       search:
         index: test-elser-2-default-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: {}
 
@@ -782,7 +900,8 @@ setup:
       search:
         index: test-in-object-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: {}
 
@@ -997,7 +1116,8 @@ setup:
             semantic:
               field: sparse_field
               query: "inference test"
-          fields: [ "_inference_fields" ]
+          _source:
+            exclude_vectors: false
 
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
@@ -1005,3 +1125,323 @@ setup:
   - match: { hits.hits.0._source.dense_field: "another inference test" }
   - match: { hits.hits.0._source.non_inference_field: "non inference test" }
   - exists: hits.hits.0._source._inference_fields
+
+---
+"Empty semantic_text field skips embedding generation":
+  - requires:
+      cluster_features: "semantic_text.handle_empty_input"
+      reason: Skips embedding generation when semantic_text is empty or contains only whitespace, effective from 8.19 and 9.1.0.
+
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: ""
+        refresh: true
+
+  - do:
+      index:
+        index: test-index
+        id: doc_2
+        body:
+          sparse_field: "   "
+        refresh: true
+
+  - do:
+      search:
+        index: test-index
+        body:
+          _source:
+            exclude_vectors: false
+          query:
+            match_all: { }
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.sparse_field: "" }
+  - match: { hits.hits.1._source.sparse_field: "   " }
+  - not_exists: hits.hits.0._source._inference_fields
+  - not_exists: hits.hits.1._source._inference_fields
+
+---
+"Reindexing with empty or whitespace semantic_text skips embedding generation":
+  - requires:
+      cluster_features: "semantic_text.handle_empty_input"
+      reason: Skips embedding generation when semantic_text is empty or contains only whitespace, effective from 8.19 and 9.1.0.
+
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: "  "
+        refresh: true
+
+  - do:
+      indices.create:
+        index: destination-index
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              sparse_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+
+  - do:
+      reindex:
+        wait_for_completion: true
+        body:
+          source:
+            index: test-index
+          dest:
+            index: destination-index
+        refresh: true
+
+  - do:
+      get:
+        index: destination-index
+        id: doc_1
+
+  - match: { _source.sparse_field: "  " }
+
+  - do:
+      search:
+        index: destination-index
+        body:
+          _source:
+            exclude_vectors: false
+          query:
+            match_all: { }
+
+  - not_exists: hits.hits.0._source._inference_fields
+
+---
+"Empty Multi-Field skips embedding generation":
+  - requires:
+      cluster_features: "semantic_text.handle_empty_input"
+      reason: Skips embedding generation when semantic_text is empty or contains only whitespace, effective from 8.19 and 9.1.0.
+
+  - do:
+      indices.create:
+        index: test-multi-index
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+                fields:
+                  sparse:
+                    type: semantic_text
+                    inference_id: sparse-inference-id
+
+  - do:
+      bulk:
+        index: test-multi-index
+        refresh: true
+        body: |
+          {"index":{"_id": "1"}}
+          {"field": ["you know, for testing", "now with chunks"]}
+          {"index":{"_id": "2"}}
+          {"field": ["", "  "]}
+
+  - do:
+      search:
+        index: test-multi-index
+        body:
+          _source:
+            exclude_vectors: false
+          query:
+            match_all: { }
+
+  - exists: hits.hits.0._source._inference_fields
+  - not_exists: hits.hits.1._source._inference_fields
+
+---
+"Multi chunks skips empty input embedding generation":
+  - requires:
+      cluster_features: "semantic_text.handle_empty_input"
+      reason: Skips embedding generation when semantic_text is empty or contains only whitespace, effective from 8.19 and 9.1.0.
+
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: ["some test data", "    ", "now with chunks"]
+        refresh: true
+
+  - do:
+      search:
+        index: test-index
+        body:
+          _source:
+            exclude_vectors: false
+          query:
+            match_all: { }
+
+  - match: { hits.total.value: 1 }
+
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks: 1 }
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field: 2 }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.end_offset: 14 }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.1.embeddings
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.1.start_offset: 20 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.1.end_offset: 35 }
+
+---
+"inference endpoint late creation":
+  - do:
+      indices.create:
+        index: new-index
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: new_inference_endpoint
+
+  - do:
+      inference.put:
+        task_type: sparse_embedding
+        inference_id: new_inference_endpoint
+        body: >
+          {
+            "service": "test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+
+  - do:
+      index:
+        index: new-index
+        id: doc_1
+        body:
+          inference_field: "inference test"
+        refresh: true
+
+  - do:
+      search:
+        index: new-index
+        body:
+          query:
+            exists:
+              field: "inference_field"
+
+  - match: { hits.total.value: 1 }
+
+---
+"Search can rehydrate the inference metadata fields in _source":
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        refresh: true
+        body:
+          sparse_field: "inference test"
+          dense_field: "another inference test"
+          non_inference_field: "non inference test"
+
+  - do:
+      search:
+        index: test-index
+        body:
+          _source:
+            exclude_vectors: false
+          fields: ["sparse_field", "dense_field", "non_inference_field"]
+          query:
+            term:
+              _id: doc_1
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.sparse_field: ["inference test"]}
+  - match: { hits.hits.0.fields.dense_field: ["another inference test"]}
+  - match: { hits.hits.0.fields.non_inference_field: ["non inference test"]}
+  - not_exists: hits.hits.0.fields._inference_fields
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks: 1 }
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.end_offset: 14 }
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.end_offset: 22 }
+
+  - do:
+      search:
+        index: test-index
+        body:
+          _source:
+            exclude_vectors: false
+            excludes: ["*"]
+          query:
+            term:
+              _id: doc_1
+
+  - match:  { hits.total.value: 1 }
+  - length: { hits.hits.0._source: 0}
+
+  - do:
+      search:
+        index: test-index
+        body:
+          _source:
+            exclude_vectors: false
+            excludes: ["*_field"]
+          query:
+            term:
+              _id: doc_1
+
+  - match:  { hits.total.value: 1 }
+  - length: { hits.hits.0._source: 1}
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks: 1 }
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field: 1 }
+  - exists:   hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
+  - match:  { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.start_offset: 0 }
+  - match:  { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.end_offset: 14 }
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field: 1 }
+  - exists:   hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.embeddings
+  - match:  { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.start_offset: 0 }
+  - match:  { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.end_offset: 22 }
+
+---
+"Get _inference_fields via _source_includes":
+
+  - requires:
+      cluster_features: "inference_fields.get_via_source_includes"
+      reason: Bug fix for inference fields get via source includes
+
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: "value1"
+        refresh: true
+
+  - do:
+      get:
+        index: test-index
+        id: doc_1
+        _source_includes: _inference_fields
+
+  - match: { _id: doc_1 }
+  - exists: _source._inference_fields

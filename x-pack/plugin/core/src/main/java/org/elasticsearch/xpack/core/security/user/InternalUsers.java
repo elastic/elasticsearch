@@ -29,14 +29,18 @@ import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.index.reindex.ReindexAction;
+import org.elasticsearch.tasks.TaskCancellationService;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -156,14 +160,18 @@ public class InternalUsers {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("*")
                     .privileges(
-                        "delete_index",
-                        RolloverAction.NAME,
-                        ForceMergeAction.NAME + "*",
-                        // indices stats is used by rollover, so we need to grant it here
-                        IndicesStatsAction.NAME + "*",
-                        TransportUpdateSettingsAction.TYPE.name(),
-                        DownsampleAction.NAME,
-                        TransportAddIndexBlockAction.TYPE.name()
+                        filterNonNull(
+                            // needed to rollover failure store
+                            "manage_failure_store",
+                            "delete_index",
+                            RolloverAction.NAME,
+                            ForceMergeAction.NAME + "*",
+                            // indices stats is used by rollover, so we need to grant it here
+                            IndicesStatsAction.NAME + "*",
+                            TransportUpdateSettingsAction.TYPE.name(),
+                            DownsampleAction.NAME,
+                            TransportAddIndexBlockAction.TYPE.name()
+                        )
                     )
                     .allowRestrictedIndices(false)
                     .build(),
@@ -172,17 +180,23 @@ public class InternalUsers {
                         // System data stream for result history of fleet actions (see Fleet#fleetActionsResultsDescriptor)
                         ".fleet-actions-results",
                         // System data streams for storing uploaded file data for Agent diagnostics and Endpoint response actions
-                        ".fleet-fileds*"
+                        ".fleet-fileds*",
+                        // System data stream for kibana workflows logs
+                        ".workflows-execution-data-stream-logs"
                     )
                     .privileges(
-                        "delete_index",
-                        RolloverAction.NAME,
-                        ForceMergeAction.NAME + "*",
-                        // indices stats is used by rollover, so we need to grant it here
-                        IndicesStatsAction.NAME + "*",
-                        TransportUpdateSettingsAction.TYPE.name(),
-                        DownsampleAction.NAME,
-                        TransportAddIndexBlockAction.TYPE.name()
+                        filterNonNull(
+                            // needed to rollover failure store
+                            "manage_failure_store",
+                            "delete_index",
+                            RolloverAction.NAME,
+                            ForceMergeAction.NAME + "*",
+                            // indices stats is used by rollover, so we need to grant it here
+                            IndicesStatsAction.NAME + "*",
+                            TransportUpdateSettingsAction.TYPE.name(),
+                            DownsampleAction.NAME,
+                            TransportAddIndexBlockAction.TYPE.name()
+                        )
                     )
                     .allowRestrictedIndices(true)
                     .build() },
@@ -226,7 +240,7 @@ public class InternalUsers {
                         ModifyDataStreamsAction.NAME,
                         ILMActions.RETRY.name()
                     )
-                    .allowRestrictedIndices(false)
+                    .allowRestrictedIndices(true)
                     .build() },
             null,
             null,
@@ -248,7 +262,13 @@ public class InternalUsers {
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("*")
-                    .privileges(LazyRolloverAction.NAME)
+                    .privileges(
+                        filterNonNull(
+                            // needed to rollover failure store
+                            "manage_failure_store",
+                            LazyRolloverAction.NAME
+                        )
+                    )
                     .allowRestrictedIndices(true)
                     .build() },
             null,
@@ -266,10 +286,34 @@ public class InternalUsers {
         UsernamesField.SYNONYMS_USER_NAME,
         new RoleDescriptor(
             UsernamesField.SYNONYMS_ROLE_NAME,
-            null,
+            new String[] { "monitor" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder().indices(".synonyms*").privileges("all").allowRestrictedIndices(true).build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges(TransportReloadAnalyzersAction.TYPE.name()).build(), },
+            null,
+            null,
+            null,
+            MetadataUtils.DEFAULT_RESERVED_METADATA,
+            Map.of()
+        )
+    );
+
+    /**
+     * Internal user that can manage a cross-project connections (e.g. handshake)
+     * and searches (e.g. cancelling).
+     */
+    public static final InternalUser CROSS_PROJECT_SEARCH_USER = new InternalUser(
+        UsernamesField.CROSS_PROJECT_SEARCH_USER_NAME,
+        new RoleDescriptor(
+            UsernamesField.CROSS_PROJECT_SEARCH_ROLE_NAME,
+            new String[] {
+                RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
+                TaskCancellationService.REMOTE_CLUSTER_BAN_PARENT_ACTION_NAME,
+                TaskCancellationService.REMOTE_CLUSTER_CANCEL_CHILD_ACTION_NAME,
+                "cluster:internal:data/read/esql/open_exchange",
+                "cluster:internal:data/read/esql/exchange",
+                "cluster:internal/remote_cluster/nodes" },
+            null,
             null,
             null,
             null,
@@ -293,7 +337,8 @@ public class InternalUsers {
             DATA_STREAM_LIFECYCLE_USER,
             REINDEX_DATA_STREAM_USER,
             SYNONYMS_USER,
-            LAZY_ROLLOVER_USER
+            LAZY_ROLLOVER_USER,
+            CROSS_PROJECT_SEARCH_USER
         ).collect(Collectors.toUnmodifiableMap(InternalUser::principal, Function.identity()));
     }
 
@@ -307,5 +352,9 @@ public class InternalUsers {
             throw new IllegalStateException("user [" + username + "] is not internal");
         }
         return instance;
+    }
+
+    private static String[] filterNonNull(String... privileges) {
+        return Arrays.stream(privileges).filter(Objects::nonNull).toArray(String[]::new);
     }
 }

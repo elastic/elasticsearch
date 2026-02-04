@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.security.action.settings;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -16,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -40,13 +38,8 @@ public class GetSecuritySettingsAction {
             super(masterNodeTimeout);
         }
 
-        @UpdateForV9(owner = UpdateForV9.Owner.SECURITY) // no need for bwc any more, this can be inlined
         public static Request readFrom(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                return new Request(in);
-            } else {
-                return new Request(TimeValue.THIRTY_SECONDS);
-            }
+            return new Request(in);
         }
 
         private Request(StreamInput in) throws IOException {
@@ -55,9 +48,7 @@ public class GetSecuritySettingsAction {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                super.writeTo(out);
-            }
+            super.writeTo(out);
         }
 
         @Override

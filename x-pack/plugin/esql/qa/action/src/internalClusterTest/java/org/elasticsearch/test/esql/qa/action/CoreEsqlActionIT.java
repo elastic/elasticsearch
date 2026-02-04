@@ -15,11 +15,11 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
-import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequest;
-import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
+import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.junit.Before;
 
@@ -30,6 +30,7 @@ import java.util.Map;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.contains;
 
 // A subset of test scenarios exercised through the xpack core ES|QL
@@ -54,8 +55,7 @@ public class CoreEsqlActionIT extends ESIntegTestCase {
 
     public void testRowTypesAndValues() {
         var query = "row a = 1, b = \"x\", c = 1000000000000, d = 1.1";
-        var request = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query);
-        try (EsqlQueryResponse queryResp = run(request)) {
+        try (EsqlQueryResponse queryResp = run(syncEsqlQueryRequest(query))) {
             logger.info("response=" + queryResp);
             EsqlResponse resp = queryResp.response();
             assertThat(resp.columns().stream().map(ColumnInfo::name).toList(), contains("a", "b", "c", "d"));
@@ -69,8 +69,7 @@ public class CoreEsqlActionIT extends ESIntegTestCase {
 
     public void testRowStatsProjectGroupByInt() {
         var query = "row a = 1, b = 2 | stats count(b) by a | keep a";
-        var request = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query);
-        try (var queryResp = run(request)) {
+        try (var queryResp = run(syncEsqlQueryRequest(query))) {
             logger.info("response=" + queryResp);
             var resp = queryResp.response();
             assertThat(resp.columns().stream().map(ColumnInfo::name).toList(), contains("a"));
@@ -81,8 +80,7 @@ public class CoreEsqlActionIT extends ESIntegTestCase {
 
     public void testFrom() {
         var query = "from test | keep item, cost, color, sale | sort item";
-        var request = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query);
-        try (var queryResp = run(request)) {
+        try (var queryResp = run(syncEsqlQueryRequest(query))) {
             var resp = queryResp.response();
             logger.info("response=" + queryResp);
             assertThat(resp.columns().stream().map(ColumnInfo::name).toList(), contains("item", "cost", "color", "sale"));
@@ -108,8 +106,7 @@ public class CoreEsqlActionIT extends ESIntegTestCase {
     public void testAccessAfterClose() {
         for (var closedQueryResp : new boolean[] { true, false }) {
             var query = "row a = 1";
-            var request = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query);
-            var queryResp = run(request);
+            var queryResp = run(syncEsqlQueryRequest(query));
             var resp = queryResp.response();
             var rows = resp.rows();
             var rowItr = rows.iterator();
@@ -136,19 +133,17 @@ public class CoreEsqlActionIT extends ESIntegTestCase {
         }
     }
 
-    protected EsqlQueryResponse run(EsqlQueryRequestBuilder<? extends EsqlQueryRequest, ? extends EsqlQueryResponse> request) {
+    protected EsqlQueryResponse run(EsqlQueryRequest request) {
         try {
             // The variants here ensure API usage patterns
             if (randomBoolean()) {
-                return request.execute().actionGet(30, SECONDS);
-            } else if (randomBoolean()) {
-                return client().execute(request.action(), request.request()).actionGet(30, SECONDS);
+                return client().execute(EsqlQueryAction.INSTANCE, request).actionGet(30, SECONDS);
             } else {
                 return ClientHelper.executeWithHeaders(
                     Map.of("Foo", "bar"),
                     "origin",
                     client(),
-                    () -> request.execute().actionGet(30, SECONDS)
+                    () -> client().execute(EsqlQueryAction.INSTANCE, request).actionGet(30, SECONDS)
                 );
             }
         } catch (ElasticsearchTimeoutException e) {

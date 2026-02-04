@@ -8,14 +8,14 @@
  */
 package org.elasticsearch.action.datastreams;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -25,11 +25,16 @@ import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -41,7 +46,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.V_8_11_X;
 import static org.elasticsearch.cluster.metadata.DataStream.AUTO_SHARDING_FIELD;
 
 public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response> {
@@ -53,7 +57,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         super(NAME);
     }
 
-    public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest.Replaceable {
+    public static class Request extends LocalClusterStateRequest implements IndicesRequest.Replaceable {
 
         private String[] names;
         private IndicesOptions indicesOptions = IndicesOptions.builder()
@@ -104,33 +108,22 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             return null;
         }
 
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, headers);
+        }
+
+        /**
+         * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until
+         * we no longer need to support calling this action remotely.
+         */
+        @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
         public Request(StreamInput in) throws IOException {
             super(in);
             this.names = in.readOptionalStringArray();
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                this.includeDefaults = in.readBoolean();
-            } else {
-                this.includeDefaults = false;
-            }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                this.verbose = in.readBoolean();
-            } else {
-                this.verbose = false;
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeOptionalStringArray(names);
-            indicesOptions.writeIndicesOptions(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                out.writeBoolean(includeDefaults);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                out.writeBoolean(verbose);
-            }
+            this.includeDefaults = in.readBoolean();
+            this.verbose = in.readBoolean();
         }
 
         @Override
@@ -208,10 +201,19 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
         public static final ParseField DATA_STREAMS_FIELD = new ParseField("data_streams");
 
+        private static final TransportVersion INTRODUCE_FAILURES_DEFAULT_RETENTION_PATCH = TransportVersion.fromName(
+            "introduce_failures_default_retention"
+        ).nextPatchVersion();
+        private static final TransportVersion INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM = TransportVersion.fromName(
+            "include_index_mode_in_get_data_stream"
+        );
+
         public static class DataStreamInfo implements SimpleDiffable<DataStreamInfo>, ToXContentObject {
 
             public static final ParseField STATUS_FIELD = new ParseField("status");
             public static final ParseField INDEX_TEMPLATE_FIELD = new ParseField("template");
+            public static final ParseField SETTINGS_FIELD = new ParseField("settings");
+            public static final ParseField MAPPINGS_FIELD = new ParseField("mappings");
             public static final ParseField PREFER_ILM = new ParseField("prefer_ilm");
             public static final ParseField MANAGED_BY = new ParseField("managed_by");
             public static final ParseField NEXT_GENERATION_INDEX_MANAGED_BY = new ParseField("next_generation_managed_by");
@@ -274,29 +276,6 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 this.indexMode = indexMode;
             }
 
-            @SuppressWarnings("unchecked")
-            DataStreamInfo(StreamInput in) throws IOException {
-                this.dataStream = DataStream.read(in);
-                this.failureStoreEffectivelyEnabled = in.getTransportVersion()
-                    .onOrAfter(TransportVersions.FAILURE_STORE_ENABLED_BY_CLUSTER_SETTING)
-                        ? in.readBoolean()
-                        : dataStream.isFailureStoreExplicitlyEnabled(); // Revert to the behaviour before this field was added
-                this.dataStreamStatus = ClusterHealthStatus.readFrom(in);
-                this.indexTemplate = in.readOptionalString();
-                this.ilmPolicyName = in.readOptionalString();
-                this.timeSeries = in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)
-                    ? in.readOptionalWriteable(TimeSeries::new)
-                    : null;
-                this.indexSettingsValues = in.getTransportVersion().onOrAfter(V_8_11_X)
-                    ? in.readMap(Index::new, IndexProperties::new)
-                    : Map.of();
-                this.templatePreferIlmValue = in.getTransportVersion().onOrAfter(V_8_11_X) ? in.readBoolean() : true;
-                this.maximumTimestamp = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readOptionalVLong() : null;
-                this.indexMode = in.getTransportVersion().onOrAfter(TransportVersions.INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM)
-                    ? in.readOptionalString()
-                    : null;
-            }
-
             public DataStream getDataStream() {
                 return dataStream;
             }
@@ -342,33 +321,30 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 return indexMode;
             }
 
+            /**
+             * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
+             * we no longer need to support calling this action remotely.
+             */
+            @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 dataStream.writeTo(out);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ENABLED_BY_CLUSTER_SETTING)) {
-                    out.writeBoolean(failureStoreEffectivelyEnabled);
-                }
+                out.writeBoolean(failureStoreEffectivelyEnabled);
                 dataStreamStatus.writeTo(out);
                 out.writeOptionalString(indexTemplate);
                 out.writeOptionalString(ilmPolicyName);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
-                    out.writeOptionalWriteable(timeSeries);
-                }
-                if (out.getTransportVersion().onOrAfter(V_8_11_X)) {
-                    out.writeMap(indexSettingsValues);
-                    out.writeBoolean(templatePreferIlmValue);
-                }
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                    out.writeOptionalVLong(maximumTimestamp);
-                }
-                if (out.getTransportVersion().onOrAfter(TransportVersions.INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM)) {
+                out.writeOptionalWriteable(timeSeries);
+                out.writeMap(indexSettingsValues);
+                out.writeBoolean(templatePreferIlmValue);
+                out.writeOptionalVLong(maximumTimestamp);
+                if (out.getTransportVersion().supports(INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM)) {
                     out.writeOptionalString(indexMode);
                 }
             }
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                return toXContent(builder, params, null, null);
+                return toXContent(builder, params, null, null, null);
             }
 
             /**
@@ -379,7 +355,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 XContentBuilder builder,
                 Params params,
                 @Nullable RolloverConfiguration rolloverConfiguration,
-                @Nullable DataStreamGlobalRetention globalRetention
+                @Nullable DataStreamGlobalRetention dataGlobalRetention,
+                @Nullable DataStreamGlobalRetention failureGlobalRetention
             ) throws IOException {
                 builder.startObject();
                 builder.field(DataStream.NAME_FIELD.getPreferredName(), dataStream.getName());
@@ -388,7 +365,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     .field(DataStream.NAME_FIELD.getPreferredName(), DataStream.TIMESTAMP_FIELD_NAME)
                     .endObject();
 
-                indicesToXContent(builder, dataStream.getIndices());
+                indicesToXContent(builder, dataStream.getIndices(), false);
                 builder.field(DataStream.GENERATION_FIELD.getPreferredName(), dataStream.getGeneration());
                 if (dataStream.getMetadata() != null) {
                     builder.field(DataStream.METADATA_FIELD.getPreferredName(), dataStream.getMetadata());
@@ -397,9 +374,10 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 if (indexTemplate != null) {
                     builder.field(INDEX_TEMPLATE_FIELD.getPreferredName(), indexTemplate);
                 }
-                if (dataStream.getLifecycle() != null) {
+                if (dataStream.getDataLifecycle() != null) {
                     builder.field(LIFECYCLE_FIELD.getPreferredName());
-                    dataStream.getLifecycle().toXContent(builder, params, rolloverConfiguration, globalRetention, dataStream.isInternal());
+                    dataStream.getDataLifecycle()
+                        .toXContent(builder, params, rolloverConfiguration, dataGlobalRetention, dataStream.isInternal());
                 }
                 if (ilmPolicyName != null) {
                     builder.field(ILM_POLICY_FIELD.getPreferredName(), ilmPolicyName);
@@ -432,22 +410,33 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     builder.endArray();
                     builder.endObject();
                 }
-                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                    builder.startObject(DataStream.FAILURE_STORE_FIELD.getPreferredName());
-                    builder.field(FAILURE_STORE_ENABLED.getPreferredName(), failureStoreEffectivelyEnabled);
-                    builder.field(
-                        DataStream.ROLLOVER_ON_WRITE_FIELD.getPreferredName(),
-                        dataStream.getFailureComponent().isRolloverOnWrite()
-                    );
-                    indicesToXContent(builder, dataStream.getFailureIndices());
-                    addAutoShardingEvent(builder, params, dataStream.getFailureComponent().getAutoShardingEvent());
-                    builder.endObject();
+                builder.startObject(SETTINGS_FIELD.getPreferredName());
+                dataStream.getSettings().toXContent(builder, params);
+                builder.endObject();
+                builder.field(MAPPINGS_FIELD.getPreferredName());
+                Map<String, Object> uncompressedMappings = XContentHelper.convertToMap(
+                    dataStream.getMappings().uncompressed(),
+                    true,
+                    builder.contentType()
+                ).v2();
+                builder.map(uncompressedMappings);
+                builder.startObject(DataStream.FAILURE_STORE_FIELD.getPreferredName());
+                builder.field(FAILURE_STORE_ENABLED.getPreferredName(), failureStoreEffectivelyEnabled);
+                builder.field(DataStream.ROLLOVER_ON_WRITE_FIELD.getPreferredName(), dataStream.getFailureComponent().isRolloverOnWrite());
+                indicesToXContent(builder, dataStream.getFailureIndices(), true);
+                addAutoShardingEvent(builder, params, dataStream.getFailureComponent().getAutoShardingEvent());
+                DataStreamLifecycle failuresLifecycle = dataStream.getFailuresLifecycle(failureStoreEffectivelyEnabled);
+                if (failuresLifecycle != null) {
+                    builder.field(LIFECYCLE_FIELD.getPreferredName());
+                    failuresLifecycle.toXContent(builder, params, rolloverConfiguration, failureGlobalRetention, dataStream.isInternal());
                 }
+                builder.endObject();
                 builder.endObject();
                 return builder;
             }
 
-            private XContentBuilder indicesToXContent(XContentBuilder builder, List<Index> indices) throws IOException {
+            private XContentBuilder indicesToXContent(XContentBuilder builder, List<Index> indices, boolean failureIndices)
+                throws IOException {
                 builder.field(DataStream.INDICES_FIELD.getPreferredName());
                 builder.startArray();
                 for (Index index : indices) {
@@ -455,12 +444,22 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     index.toXContentFragment(builder);
                     IndexProperties indexProperties = indexSettingsValues.get(index);
                     if (indexProperties != null) {
-                        builder.field(PREFER_ILM.getPreferredName(), indexProperties.preferIlm());
-                        if (indexProperties.ilmPolicyName() != null) {
-                            builder.field(ILM_POLICY_FIELD.getPreferredName(), indexProperties.ilmPolicyName());
-                        }
                         builder.field(MANAGED_BY.getPreferredName(), indexProperties.managedBy.displayValue);
-                        builder.field(INDEX_MODE.getPreferredName(), indexProperties.indexMode);
+                        // Failure indices have more limitation than backing indices,
+                        // so we hide some index properties that are less relevant
+                        if (failureIndices) {
+                            // We only display ILM info, if this index has an ILM policy
+                            if (indexProperties.ilmPolicyName() != null) {
+                                builder.field(PREFER_ILM.getPreferredName(), indexProperties.preferIlm());
+                                builder.field(ILM_POLICY_FIELD.getPreferredName(), indexProperties.ilmPolicyName());
+                            }
+                        } else {
+                            builder.field(PREFER_ILM.getPreferredName(), indexProperties.preferIlm());
+                            if (indexProperties.ilmPolicyName() != null) {
+                                builder.field(ILM_POLICY_FIELD.getPreferredName(), indexProperties.ilmPolicyName());
+                            }
+                            builder.field(INDEX_MODE.getPreferredName(), indexProperties.indexMode);
+                        }
                     }
                     builder.endObject();
                 }
@@ -488,7 +487,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
              */
             public ManagedBy getNextGenerationManagedBy() {
                 // both ILM and DSL are configured so let's check the prefer_ilm setting to see which system takes precedence
-                if (ilmPolicyName != null && dataStream.getLifecycle() != null && dataStream.getLifecycle().isEnabled()) {
+                if (ilmPolicyName != null && dataStream.getDataLifecycle() != null && dataStream.getDataLifecycle().enabled()) {
                     return templatePreferIlmValue ? ManagedBy.ILM : ManagedBy.LIFECYCLE;
                 }
 
@@ -496,7 +495,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     return ManagedBy.ILM;
                 }
 
-                if (dataStream.getLifecycle() != null && dataStream.getLifecycle().isEnabled()) {
+                if (dataStream.getDataLifecycle() != null && dataStream.getDataLifecycle().enabled()) {
                     return ManagedBy.LIFECYCLE;
                 }
 
@@ -543,10 +542,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
         public record TimeSeries(List<Tuple<Instant, Instant>> temporalRanges) implements Writeable {
 
-            TimeSeries(StreamInput in) throws IOException {
-                this(in.readCollectionAsList(in1 -> new Tuple<>(in1.readInstant(), in1.readInstant())));
-            }
-
+            /**
+             * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
+             * we no longer need to support calling this action remotely.
+             */
+            @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeCollection(temporalRanges, (out1, value) -> {
@@ -581,9 +581,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     in.readBoolean(),
                     in.readOptionalString(),
                     in.readEnum(ManagedBy.class),
-                    in.getTransportVersion().onOrAfter(TransportVersions.INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM)
-                        ? in.readOptionalString()
-                        : "unknown"
+                    in.getTransportVersion().supports(INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM) ? in.readOptionalString() : "unknown"
                 );
             }
 
@@ -592,7 +590,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 out.writeBoolean(preferIlm);
                 out.writeOptionalString(ilmPolicyName);
                 out.writeEnum(managedBy);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM)) {
+                if (out.getTransportVersion().supports(INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM)) {
                     out.writeOptionalString(indexMode);
                 }
             }
@@ -602,30 +600,24 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         @Nullable
         private final RolloverConfiguration rolloverConfiguration;
         @Nullable
-        private final DataStreamGlobalRetention globalRetention;
+        private final DataStreamGlobalRetention dataGlobalRetention;
+        @Nullable
+        private final DataStreamGlobalRetention failuresGlobalRetention;
 
         public Response(List<DataStreamInfo> dataStreams) {
-            this(dataStreams, null, null);
+            this(dataStreams, null, null, null);
         }
 
         public Response(
             List<DataStreamInfo> dataStreams,
             @Nullable RolloverConfiguration rolloverConfiguration,
-            @Nullable DataStreamGlobalRetention globalRetention
+            @Nullable DataStreamGlobalRetention dataGlobalRetention,
+            @Nullable DataStreamGlobalRetention failuresGlobalRetention
         ) {
             this.dataStreams = dataStreams;
             this.rolloverConfiguration = rolloverConfiguration;
-            this.globalRetention = globalRetention;
-        }
-
-        public Response(StreamInput in) throws IOException {
-            this(
-                in.readCollectionAsList(DataStreamInfo::new),
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X) ? in.readOptionalWriteable(RolloverConfiguration::new) : null,
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
-                    ? in.readOptionalWriteable(DataStreamGlobalRetention::read)
-                    : null
-            );
+            this.dataGlobalRetention = dataGlobalRetention;
+            this.failuresGlobalRetention = failuresGlobalRetention;
         }
 
         public List<DataStreamInfo> getDataStreams() {
@@ -638,18 +630,31 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         }
 
         @Nullable
-        public DataStreamGlobalRetention getGlobalRetention() {
-            return globalRetention;
+        public DataStreamGlobalRetention getDataGlobalRetention() {
+            return dataGlobalRetention;
         }
 
+        @Nullable
+        public DataStreamGlobalRetention getFailuresGlobalRetention() {
+            return failuresGlobalRetention;
+        }
+
+        /**
+         * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
+         * we no longer need to support calling this action remotely.
+         */
+        @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(dataStreams);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                out.writeOptionalWriteable(rolloverConfiguration);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                out.writeOptionalWriteable(globalRetention);
+            out.writeOptionalWriteable(rolloverConfiguration);
+            // A version 9.x cluster will never read this, so we only need to include the patch version here.
+            if (out.getTransportVersion().supports(INTRODUCE_FAILURES_DEFAULT_RETENTION_PATCH)) {
+                out.writeOptionalTimeValue(dataGlobalRetention == null ? null : dataGlobalRetention.defaultRetention());
+                out.writeOptionalTimeValue(dataGlobalRetention == null ? null : dataGlobalRetention.maxRetention());
+                out.writeOptionalTimeValue(failuresGlobalRetention == null ? null : failuresGlobalRetention.defaultRetention());
+            } else {
+                out.writeOptionalWriteable(dataGlobalRetention);
             }
         }
 
@@ -662,7 +667,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     builder,
                     DataStreamLifecycle.addEffectiveRetentionParams(params),
                     rolloverConfiguration,
-                    globalRetention
+                    dataGlobalRetention,
+                    failuresGlobalRetention
                 );
             }
             builder.endArray();
@@ -677,12 +683,13 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             Response response = (Response) o;
             return dataStreams.equals(response.dataStreams)
                 && Objects.equals(rolloverConfiguration, response.rolloverConfiguration)
-                && Objects.equals(globalRetention, response.globalRetention);
+                && Objects.equals(dataGlobalRetention, response.dataGlobalRetention)
+                && Objects.equals(failuresGlobalRetention, response.failuresGlobalRetention);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(dataStreams, rolloverConfiguration, globalRetention);
+            return Objects.hash(dataStreams, rolloverConfiguration, dataGlobalRetention, failuresGlobalRetention);
         }
     }
 

@@ -90,6 +90,47 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
         assertThat(ile.getMessage(), containsString("may only check index privileges without any DLS query"));
     }
 
+    public void testHasPrivilegesRequestDoesNotAllowSelectorsInIndexPatterns() {
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final SecurityContext context = mock(SecurityContext.class);
+        final User user = new User("user-1", "superuser");
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(new Authentication.RealmRef("native", "default_native", "node1"))
+            .build(false);
+        when(context.getAuthentication()).thenReturn(authentication);
+        threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
+
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
+        final TransportHasPrivilegesAction transportHasPrivilegesAction = new TransportHasPrivilegesAction(
+            transportService,
+            new ActionFilters(Set.of()),
+            mock(AuthorizationService.class),
+            mock(NativePrivilegeStore.class),
+            context
+        );
+
+        final HasPrivilegesRequest request = new HasPrivilegesRequest();
+        final RoleDescriptor.IndicesPrivileges[] indicesPrivileges = new RoleDescriptor.IndicesPrivileges[randomIntBetween(1, 5)];
+        for (int i = 0; i < indicesPrivileges.length; i++) {
+            indicesPrivileges[i] = RoleDescriptor.IndicesPrivileges.builder()
+                .privileges(randomFrom("read", "write"))
+                .indices(randomAlphaOfLengthBetween(2, 8) + randomFrom("::failures", "::data"))
+                .build();
+        }
+        request.indexPrivileges(indicesPrivileges);
+        request.clusterPrivileges(new String[0]);
+        request.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
+        request.username("user-1");
+
+        final PlainActionFuture<HasPrivilegesResponse> listener = new PlainActionFuture<>();
+        transportHasPrivilegesAction.execute(mock(Task.class), request, listener);
+
+        final IllegalArgumentException ile = expectThrows(IllegalArgumentException.class, listener::actionGet);
+        assertThat(ile, notNullValue());
+        assertThat(ile.getMessage(), containsString("may only check index privileges without selectors in index patterns"));
+    }
+
     public void testRequiresSameUser() {
         final SecurityContext context = mock(SecurityContext.class);
 

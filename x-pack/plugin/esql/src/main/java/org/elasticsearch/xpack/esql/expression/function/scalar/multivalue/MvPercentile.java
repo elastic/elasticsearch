@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -165,7 +166,7 @@ public class MvPercentile extends EsqlScalarFunction {
     @Evaluator(extraName = "Double", warnExceptions = IllegalArgumentException.class)
     static void process(
         DoubleBlock.Builder builder,
-        int position,
+        @Position int position,
         DoubleBlock values,
         double percentile,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) DoubleSortingScratch scratch
@@ -188,7 +189,7 @@ public class MvPercentile extends EsqlScalarFunction {
     @Evaluator(extraName = "Integer", warnExceptions = IllegalArgumentException.class)
     static void process(
         IntBlock.Builder builder,
-        int position,
+        @Position int position,
         IntBlock values,
         double percentile,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) IntSortingScratch scratch
@@ -211,7 +212,7 @@ public class MvPercentile extends EsqlScalarFunction {
     @Evaluator(extraName = "Long", warnExceptions = IllegalArgumentException.class)
     static void process(
         LongBlock.Builder builder,
-        int position,
+        @Position int position,
         LongBlock values,
         double percentile,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) LongSortingScratch scratch
@@ -439,7 +440,7 @@ public class MvPercentile extends EsqlScalarFunction {
      * Calculates a percentile for a double avoiding overflows.
      * <p>
      *     If the values are too separated (negative + positive), it uses a slightly different approach.
-     *     This approach would fail if the values are big but not separated, so it's only used in this case.
+     *     This approach would fail if the values are big but not separated, so it’s only used in this case.
      * </p>
      */
     private static double calculateDoublePercentile(double fraction, double lowerValue, double upperValue) {

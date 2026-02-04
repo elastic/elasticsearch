@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Shape"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/shape.html
@@ -9,7 +12,7 @@ mapped_pages:
 
 The `shape` data type facilitates the indexing of and searching with arbitrary `x, y` cartesian shapes such as rectangles and polygons. It can be used to index and query geometries whose coordinates fall in a 2-dimensional planar coordinate system.
 
-You can query documents using this type using [shape Query](/reference/query-languages/query-dsl-shape-query.md).
+You can query documents using this type using [shape Query](/reference/query-languages/query-dsl/query-dsl-shape-query.md).
 
 
 ## Mapping Options [shape-mapping-options]
@@ -47,6 +50,7 @@ PUT /example
   }
 }
 ```
+% TESTSETUP
 
 This mapping definition maps the geometry field to the shape type. The indexer uses single precision floats for the vertex values so accuracy is guaranteed to the same precision as `float` values provided by the java virtual machine approximately (typically 1E-38).
 

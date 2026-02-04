@@ -268,6 +268,10 @@ public class IndexSettingsTests extends ESTestCase {
         return IndexMetadata.builder(name).settings(indexSettings(IndexVersion.current(), 1, 1).put(indexSettings)).build();
     }
 
+    public static IndexMetadata newIndexMeta(String name, Settings indexSettings, IndexVersion indexVersion) {
+        return IndexMetadata.builder(name).settings(indexSettings(indexVersion, 1, 1).put(indexSettings)).build();
+    }
+
     public void testUpdateDurability() {
         IndexMetadata metadata = newIndexMeta(
             "index",
@@ -780,7 +784,7 @@ public class IndexSettingsTests extends ESTestCase {
 
     public void testSoftDeletesDefaultSetting() {
         // enabled by default on 7.0+ or later
-        IndexVersion createdVersion = IndexVersionUtils.randomCompatibleVersion(random());
+        IndexVersion createdVersion = IndexVersionUtils.randomCompatibleVersion();
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion).build();
         assertTrue(IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings));
     }
@@ -857,7 +861,13 @@ public class IndexSettingsTests extends ESTestCase {
             Settings.EMPTY,
             null,
             xContentRegistry(),
-            new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
+            new MapperRegistry(
+                Collections.emptyMap(),
+                Collections.emptyMap(),
+                Collections.emptyMap(),
+                MapperPlugin.NOOP_FIELD_FILTER,
+                null
+            ),
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             null,
             MapperMetrics.NOOP
@@ -915,4 +925,5 @@ public class IndexSettingsTests extends ESTestCase {
         }
         assertTrue(IndexSettings.same(settings, differentOtherSettingBuilder.build()));
     }
+
 }

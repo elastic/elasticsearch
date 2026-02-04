@@ -20,11 +20,11 @@ import java.util.Objects;
  * A {@link BulkScorer} wrapper that runs a {@link Runnable} on a regular basis
  * so that the query can be interrupted.
  */
-final class CancellableBulkScorer extends BulkScorer {
+public final class CancellableBulkScorer extends BulkScorer {
 
     // we use the BooleanScorer window size as a base interval in order to make sure that we do not
     // slow down boolean queries
-    private static final int INITIAL_INTERVAL = 1 << 11;
+    private static final int INITIAL_INTERVAL = 1 << 12;
 
     // No point in having intervals that are larger than 1M
     private static final int MAX_INTERVAL = 1 << 20;
@@ -32,7 +32,7 @@ final class CancellableBulkScorer extends BulkScorer {
     private final BulkScorer scorer;
     private final Runnable checkCancelled;
 
-    CancellableBulkScorer(BulkScorer scorer, Runnable checkCancelled) {
+    public CancellableBulkScorer(BulkScorer scorer, Runnable checkCancelled) {
         this.scorer = Objects.requireNonNull(scorer);
         this.checkCancelled = Objects.requireNonNull(checkCancelled);
     }

@@ -1,6 +1,0 @@
-pr: 123492
-summary: Fix function registry concurrency issues on constructor
-area: ES|QL
-type: bug
-issues:
- - 123430

@@ -8,9 +8,6 @@
 package org.elasticsearch.xpack.autoscaling;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -121,12 +118,12 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(GetAutoscalingCapacityAction.INSTANCE, TransportGetAutoscalingCapacityAction.class),
-            new ActionHandler<>(DeleteAutoscalingPolicyAction.INSTANCE, TransportDeleteAutoscalingPolicyAction.class),
-            new ActionHandler<>(GetAutoscalingPolicyAction.INSTANCE, TransportGetAutoscalingPolicyAction.class),
-            new ActionHandler<>(PutAutoscalingPolicyAction.INSTANCE, TransportPutAutoscalingPolicyAction.class)
+            new ActionHandler(GetAutoscalingCapacityAction.INSTANCE, TransportGetAutoscalingCapacityAction.class),
+            new ActionHandler(DeleteAutoscalingPolicyAction.INSTANCE, TransportDeleteAutoscalingPolicyAction.class),
+            new ActionHandler(GetAutoscalingPolicyAction.INSTANCE, TransportGetAutoscalingPolicyAction.class),
+            new ActionHandler(PutAutoscalingPolicyAction.INSTANCE, TransportPutAutoscalingPolicyAction.class)
         );
     }
 
@@ -233,7 +230,7 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         return autoscalingExtensions.stream().flatMap(p -> p.deciders().stream()).collect(Collectors.toSet());
     }
 
-    public Collection<ReservedClusterStateHandler<ClusterState, ?>> reservedClusterStateHandlers() {
+    public Collection<ReservedClusterStateHandler<?>> reservedClusterStateHandlers() {
         return Set.of(reservedAutoscalingPolicyAction.get());
     }
 }

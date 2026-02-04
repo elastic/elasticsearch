@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -68,11 +67,7 @@ public class DetectionRule implements ToXContentObject, Writeable {
         actions = in.readEnumSet(RuleAction.class);
         scope = new RuleScope(in);
         conditions = in.readCollectionAsList(RuleCondition::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            params = new RuleParams(in);
-        } else {
-            params = new RuleParams();
-        }
+        params = new RuleParams(in);
     }
 
     @Override
@@ -80,9 +75,7 @@ public class DetectionRule implements ToXContentObject, Writeable {
         out.writeEnumSet(actions);
         scope.writeTo(out);
         out.writeCollection(conditions);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            params.writeTo(out);
-        }
+        params.writeTo(out);
     }
 
     @Override

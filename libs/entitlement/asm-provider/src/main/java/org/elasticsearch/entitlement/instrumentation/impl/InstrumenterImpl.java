@@ -9,7 +9,9 @@
 
 package org.elasticsearch.entitlement.instrumentation.impl;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.entitlement.instrumentation.CheckMethod;
+import org.elasticsearch.entitlement.instrumentation.EntitlementInstrumented;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.logging.LogManager;
@@ -23,21 +25,23 @@ import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.RecordComponentVisitor;
 import org.objectweb.asm.Type;
+import org.objectweb.asm.util.CheckClassAdapter;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.Map;
 import java.util.stream.Stream;
 
 import static org.objectweb.asm.ClassWriter.COMPUTE_FRAMES;
 import static org.objectweb.asm.ClassWriter.COMPUTE_MAXS;
 import static org.objectweb.asm.Opcodes.ACC_STATIC;
-import static org.objectweb.asm.Opcodes.GETSTATIC;
+import static org.objectweb.asm.Opcodes.CHECKCAST;
 import static org.objectweb.asm.Opcodes.INVOKEINTERFACE;
 import static org.objectweb.asm.Opcodes.INVOKESTATIC;
-import static org.objectweb.asm.Opcodes.INVOKEVIRTUAL;
 
-public class InstrumenterImpl implements Instrumenter {
+public final class InstrumenterImpl implements Instrumenter {
     private static final Logger logger = LogManager.getLogger(InstrumenterImpl.class);
 
     private final String getCheckerClassMethodDescriptor;
@@ -62,6 +66,7 @@ public class InstrumenterImpl implements Instrumenter {
     }
 
     public static InstrumenterImpl create(Class<?> checkerClass, Map<MethodKey, CheckMethod> checkMethods) {
+
         Type checkerClassType = Type.getType(checkerClass);
         String handleClass = checkerClassType.getInternalName() + "Handle";
         String getCheckerClassMethodDescriptor = Type.getMethodDescriptor(checkerClassType);
@@ -81,18 +86,59 @@ public class InstrumenterImpl implements Instrumenter {
         return new ClassFileInfo(fileName, originalBytecodes);
     }
 
+    private enum VerificationPhase {
+        BEFORE_INSTRUMENTATION,
+        AFTER_INSTRUMENTATION
+    }
+
+    private static String verify(byte[] classfileBuffer) {
+        ClassReader reader = new ClassReader(classfileBuffer);
+        StringWriter stringWriter = new StringWriter();
+        PrintWriter printWriter = new PrintWriter(stringWriter);
+        CheckClassAdapter.verify(reader, false, printWriter);
+        return stringWriter.toString();
+    }
+
+    private static void verifyAndLog(byte[] classfileBuffer, String className, VerificationPhase phase) {
+        try {
+            String result = verify(classfileBuffer);
+            if (result.isEmpty() == false) {
+                logger.error(Strings.format("Bytecode verification (%s) for class [%s] failed: %s", phase, className, result));
+            } else {
+                logger.info("Bytecode verification ({}) for class [{}] passed", phase, className);
+            }
+        } catch (ClassCircularityError e) {
+            // Apparently, verification during instrumentation is challenging for class resolution and loading
+            // Treat this not as an error, but as "inconclusive"
+            logger.warn(Strings.format("Cannot perform bytecode verification (%s) for class [%s]", phase, className), e);
+        } catch (IllegalArgumentException e) {
+            // The ASM CheckClassAdapter in some cases throws this instead of printing the error
+            logger.error(Strings.format("Bytecode verification (%s) for class [%s] failed", phase, className), e);
+        }
+    }
+
     @Override
-    public byte[] instrumentClass(String className, byte[] classfileBuffer) {
+    public byte[] instrumentClass(String className, byte[] classfileBuffer, boolean verify) {
+        if (verify) {
+            verifyAndLog(classfileBuffer, className, VerificationPhase.BEFORE_INSTRUMENTATION);
+        }
+
         ClassReader reader = new ClassReader(classfileBuffer);
         ClassWriter writer = new ClassWriter(reader, COMPUTE_FRAMES | COMPUTE_MAXS);
         ClassVisitor visitor = new EntitlementClassVisitor(Opcodes.ASM9, writer, className);
         reader.accept(visitor, 0);
-        return writer.toByteArray();
+        var outBytes = writer.toByteArray();
+
+        if (verify) {
+            verifyAndLog(outBytes, className, VerificationPhase.AFTER_INSTRUMENTATION);
+        }
+
+        return outBytes;
     }
 
     class EntitlementClassVisitor extends ClassVisitor {
 
-        private static final String ENTITLEMENT_ANNOTATION = "EntitlementInstrumented";
+        private static final String ENTITLEMENT_ANNOTATION_DESCRIPTOR = Type.getDescriptor(EntitlementInstrumented.class);
 
         private final String className;
 
@@ -111,7 +157,7 @@ public class InstrumenterImpl implements Instrumenter {
 
         @Override
         public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
-            if (visible && descriptor.equals(ENTITLEMENT_ANNOTATION)) {
+            if (visible && descriptor.equals(ENTITLEMENT_ANNOTATION_DESCRIPTOR)) {
                 isAnnotationPresent = true;
                 annotationNeeded = false;
             }
@@ -177,7 +223,7 @@ public class InstrumenterImpl implements Instrumenter {
         private void addClassAnnotationIfNeeded() {
             if (annotationNeeded) {
                 // logger.debug("Adding {} annotation", ENTITLEMENT_ANNOTATION);
-                AnnotationVisitor av = cv.visitAnnotation(ENTITLEMENT_ANNOTATION, true);
+                AnnotationVisitor av = cv.visitAnnotation(ENTITLEMENT_ANNOTATION_DESCRIPTOR, true);
                 if (av != null) {
                     av.visitEnd();
                 }
@@ -226,7 +272,8 @@ public class InstrumenterImpl implements Instrumenter {
         }
 
         private void pushEntitlementChecker() {
-            InstrumenterImpl.this.pushEntitlementChecker(mv);
+            mv.visitMethodInsn(INVOKESTATIC, handleClass, "instance", getCheckerClassMethodDescriptor, false);
+            mv.visitTypeInsn(CHECKCAST, checkMethod.className());
         }
 
         private void pushCallerClass() {
@@ -239,22 +286,9 @@ public class InstrumenterImpl implements Instrumenter {
                     false
                 );
             } else {
-                mv.visitFieldInsn(
-                    GETSTATIC,
-                    Type.getInternalName(StackWalker.Option.class),
-                    "RETAIN_CLASS_REFERENCE",
-                    Type.getDescriptor(StackWalker.Option.class)
-                );
                 mv.visitMethodInsn(
                     INVOKESTATIC,
-                    Type.getInternalName(StackWalker.class),
-                    "getInstance",
-                    Type.getMethodDescriptor(Type.getType(StackWalker.class), Type.getType(StackWalker.Option.class)),
-                    false
-                );
-                mv.visitMethodInsn(
-                    INVOKEVIRTUAL,
-                    Type.getInternalName(StackWalker.class),
+                    "org/elasticsearch/entitlement/bridge/Util",
                     "getCallerClass",
                     Type.getMethodDescriptor(Type.getType(Class.class)),
                     false
@@ -287,10 +321,7 @@ public class InstrumenterImpl implements Instrumenter {
                 true
             );
         }
-    }
 
-    protected void pushEntitlementChecker(MethodVisitor mv) {
-        mv.visitMethodInsn(INVOKESTATIC, handleClass, "instance", getCheckerClassMethodDescriptor, false);
     }
 
     record ClassFileInfo(String fileName, byte[] bytecodes) {}

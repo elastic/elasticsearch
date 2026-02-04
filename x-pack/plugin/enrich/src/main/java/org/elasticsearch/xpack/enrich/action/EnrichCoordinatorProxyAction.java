@@ -75,7 +75,9 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
             // search thread, which could end up here again if there is more than one enrich processor in a pipeline.
             assert ThreadPool.assertCurrentThreadPool(
                 ThreadPool.Names.WRITE,
+                ThreadPool.Names.WRITE_COORDINATION,
                 ThreadPool.Names.SYSTEM_WRITE,
+                ThreadPool.Names.SYSTEM_WRITE_COORDINATION,
                 ThreadPool.Names.SEARCH,
                 ThreadPool.Names.MANAGEMENT
             );

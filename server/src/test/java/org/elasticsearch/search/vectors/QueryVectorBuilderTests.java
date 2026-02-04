@@ -64,6 +64,6 @@ public class QueryVectorBuilderTests extends AbstractQueryVectorBuilderTestCase<
 
     @Override
     protected ActionResponse createResponse(float[] array, TestQueryVectorBuilderPlugin.TestQueryVectorBuilder builder) {
-        return new ActionResponse.Empty();
+        return ActionResponse.Empty.INSTANCE;
     }
 }

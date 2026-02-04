@@ -7,11 +7,10 @@
 
 package org.elasticsearch.xpack.esql.planner.mapper;
 
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -21,9 +20,16 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -32,12 +38,18 @@ import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.FuseScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
+import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 
 import java.util.List;
@@ -45,7 +57,7 @@ import java.util.List;
 /**
  * Class for sharing code across Mappers.
  */
-class MapperUtils {
+public class MapperUtils {
     private MapperUtils() {}
 
     static PhysicalPlan mapLeaf(LeafPlan p) {
@@ -82,6 +94,28 @@ class MapperUtils {
             return new GrokExec(grok.source(), child, grok.input(), grok.parser(), grok.extractedFields());
         }
 
+        if (p instanceof Rerank rerank) {
+            return new RerankExec(
+                rerank.source(),
+                child,
+                rerank.inferenceId(),
+                rerank.queryText(),
+                rerank.rerankFields(),
+                rerank.scoreAttribute()
+            );
+        }
+
+        if (p instanceof Completion completion) {
+            return new CompletionExec(
+                completion.source(),
+                child,
+                completion.inferenceId(),
+                completion.prompt(),
+                completion.targetField(),
+                completion.taskSettings()
+            );
+        }
+
         if (p instanceof Enrich enrich) {
             return new EnrichExec(
                 enrich.source(),
@@ -89,11 +123,15 @@ class MapperUtils {
                 enrich.mode(),
                 enrich.policy().getType(),
                 enrich.matchField(),
-                BytesRefs.toString(enrich.policyName().fold(FoldContext.small() /* TODO remove me */)),
+                enrich.resolvedPolicyName(),
                 enrich.policy().getMatchField(),
                 enrich.concreteIndices(),
                 enrich.enrichFields()
             );
+        }
+
+        if (p instanceof MMR mmr) {
+            return new MMRExec(mmr.source(), child, mmr.diversifyField(), mmr.limit(), mmr.queryVector(), mmr.options());
         }
 
         if (p instanceof MvExpand mvExpand) {
@@ -111,6 +149,19 @@ class MapperUtils {
             );
         }
 
+        if (p instanceof FuseScoreEval fuse) {
+            return new FuseScoreEvalExec(fuse.source(), child, fuse.score(), fuse.discriminator(), fuse.fuseConfig());
+        }
+
+        if (p instanceof Sample sample) {
+            return new SampleExec(sample.source(), child, sample.probability());
+        }
+
+        if (p instanceof Subquery) {
+            // A Subquery node is just a placeholder for the subquery plan, so we just return the child plan
+            return child;
+        }
+
         return unsupported(p);
     }
 
@@ -123,18 +174,40 @@ class MapperUtils {
     }
 
     static AggregateExec aggExec(Aggregate aggregate, PhysicalPlan child, AggregatorMode aggMode, List<Attribute> intermediateAttributes) {
-        return new AggregateExec(
-            aggregate.source(),
-            child,
-            aggregate.groupings(),
-            aggregate.aggregates(),
-            aggMode,
-            intermediateAttributes,
-            null
-        );
+        if (aggregate instanceof TimeSeriesAggregate ts) {
+            return new TimeSeriesAggregateExec(
+                aggregate.source(),
+                child,
+                aggregate.groupings(),
+                aggregate.aggregates(),
+                aggMode,
+                intermediateAttributes,
+                null,
+                ts.timeBucket()
+            );
+        } else {
+            return new AggregateExec(
+                aggregate.source(),
+                child,
+                aggregate.groupings(),
+                aggregate.aggregates(),
+                aggMode,
+                intermediateAttributes,
+                null
+            );
+        }
     }
 
     static PhysicalPlan unsupported(LogicalPlan p) {
         throw new EsqlIllegalArgumentException("unsupported logical plan node [" + p.nodeName() + "]");
+    }
+
+    public static boolean hasScoreAttribute(List<? extends Attribute> attributes) {
+        for (Attribute attr : attributes) {
+            if (MetadataAttribute.isScoreAttribute(attr)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

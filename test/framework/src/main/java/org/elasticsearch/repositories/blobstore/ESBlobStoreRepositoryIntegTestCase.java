@@ -65,6 +65,7 @@ import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.SNAPS
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.SNAPSHOT_NAME_FORMAT;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomRetryingPurpose;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
@@ -130,24 +131,34 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         try (BlobStore store = newBlobStore()) {
             final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
             expectThrows(NoSuchFileException.class, () -> {
-                try (InputStream is = container.readBlob(randomPurpose(), "non-existing")) {
+                try (InputStream is = container.readBlob(randomRetryingPurpose(), "non-existing")) {
                     is.read();
                 }
             });
         }
     }
 
-    public void testWriteRead() throws IOException {
+    public void testWriteMaybeCopyRead() throws IOException {
         try (BlobStore store = newBlobStore()) {
             final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
             byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
-            writeBlob(container, "foobar", new BytesArray(data), randomBoolean());
+            final String blobName = randomAlphaOfLengthBetween(8, 12);
+            String readBlobName = blobName;
+            writeBlob(container, blobName, new BytesArray(data), randomBoolean());
             if (randomBoolean()) {
                 // override file, to check if we get latest contents
                 data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
-                writeBlob(container, "foobar", new BytesArray(data), false);
+                writeBlob(container, blobName, new BytesArray(data), false);
             }
-            try (InputStream stream = container.readBlob(randomPurpose(), "foobar")) {
+            if (randomBoolean()) {
+                // server-side copy if supported
+                try {
+                    final var destinationBlobName = blobName + "_copy";
+                    container.copyBlob(randomPurpose(), container, blobName, destinationBlobName, data.length);
+                    readBlobName = destinationBlobName;
+                } catch (UnsupportedOperationException ignored) {}
+            }
+            try (InputStream stream = container.readBlob(randomRetryingPurpose(), readBlobName)) {
                 BytesRefBuilder target = new BytesRefBuilder();
                 while (target.length() < data.length) {
                     byte[] buffer = new byte[scaledRandomIntBetween(1, data.length - target.length())];
@@ -275,7 +286,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
 
     public static byte[] readBlobFully(BlobContainer container, String name, int length) throws IOException {
         byte[] data = new byte[length];
-        try (InputStream inputStream = container.readBlob(randomPurpose(), name)) {
+        try (InputStream inputStream = container.readBlob(randomRetryingPurpose(), name)) {
             assertThat(Streams.readFully(inputStream, data), CoreMatchers.equalTo(length));
             assertThat(inputStream.read(), CoreMatchers.equalTo(-1));
         }

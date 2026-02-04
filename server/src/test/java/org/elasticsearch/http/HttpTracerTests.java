@@ -29,6 +29,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
+
 public class HttpTracerTests extends ESTestCase {
 
     // these loggers are named in the docs so must not be changed without due care
@@ -96,15 +98,15 @@ public class HttpTracerTests extends ESTestCase {
             .withContent(responseBody, null)
             .build();
 
-        assertEquals(
-            responseBody,
+        assertThat(
             ChunkedLoggingStreamTestUtils.getDecodedLoggedBody(
                 LogManager.getLogger(HTTP_BODY_TRACER_LOGGER),
                 Level.TRACE,
                 "[" + request.getRequestId() + "] request body",
                 ReferenceDocs.HTTP_TRACER,
                 () -> assertNotNull(tracer.maybeLogRequest(request, null))
-            )
+            ),
+            equalBytes(responseBody)
         );
     }
 }

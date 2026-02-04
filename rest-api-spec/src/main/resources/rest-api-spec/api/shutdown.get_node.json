@@ -1,29 +1,36 @@
 {
-  "shutdown.get_node":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current",
-      "description":"Retrieve status of a node or nodes that are currently marked as shutting down. Designed for indirect use by ECE/ESS and ECK. Direct use is not supported."
+  "shutdown.get_node": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-shutdown-get-node",
+      "description": "Get the shutdown status"
     },
-    "stability":"stable",
-    "visibility":"private",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "private",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_nodes/shutdown",
-          "methods":["GET"],
-          "parts":{}
+          "path": "/_nodes/shutdown",
+          "methods": [
+            "GET"
+          ]
         },
         {
-          "path":"/_nodes/{node_id}/shutdown",
-          "methods":["GET"],
-          "parts":{
-            "node_id":{
-              "type":"string",
-              "description":"Which node for which to retrieve the shutdown status"
+          "path": "/_nodes/{node_id}/shutdown",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "node_id": {
+              "type": "list",
+              "description": "Comma-separated list of nodes for which to retrieve the shutdown status"
             }
           }
         }
@@ -32,6 +39,7 @@
     "params": {
       "master_timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Timeout for processing on master node"
       }
     }

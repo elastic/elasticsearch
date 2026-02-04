@@ -82,7 +82,7 @@ setup:
                       field: location
                     sort:
                       field: "@timestamp"
-                    sort_order: ASC
+                    sort_order: asc
   - match: { hits.total: 10 }
   - length: { aggregations.by_time_series.buckets: 3 }
   - match:
@@ -135,7 +135,7 @@ setup:
                       field: location
                     sort:
                       field: "@timestamp"
-                    sort_order: DESC
+                    sort_order: desc
   - match: { hits.total: 10 }
   - length: { aggregations.by_time_series.buckets: 3 }
   - match:

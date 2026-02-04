@@ -28,17 +28,19 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.BearerToken;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyCredentials;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.containsString;
@@ -91,6 +93,8 @@ public class AuthenticatorChainTests extends ESTestCase {
         oAuth2TokenAuthenticator = mock(OAuth2TokenAuthenticator.class);
         apiKeyAuthenticator = mock(ApiKeyAuthenticator.class);
         realmsAuthenticator = mock(RealmsAuthenticator.class);
+        PluggableAuthenticatorChain pluggableAuthenticatorChain = new PluggableAuthenticatorChain(Collections.emptyList());
+
         when(realms.getActiveRealms()).thenReturn(List.of(mock(Realm.class)));
         when(realms.getUnlicensedRealms()).thenReturn(List.of());
         final User user = new User(randomAlphaOfLength(8));
@@ -101,6 +105,7 @@ public class AuthenticatorChainTests extends ESTestCase {
             operatorPrivilegesService,
             anonymousUser,
             authenticationContextSerializer,
+            pluggableAuthenticatorChain,
             serviceAccountAuthenticator,
             oAuth2TokenAuthenticator,
             apiKeyAuthenticator,
@@ -317,10 +322,13 @@ public class AuthenticatorChainTests extends ESTestCase {
     }
 
     public void testContextWithDirectWrongTokenFailsAuthn() {
-        final Authenticator.Context context = createAuthenticatorContext(mock(AuthenticationToken.class));
+        final AuthenticationToken token = mock(AuthenticationToken.class);
+        when(token.principal()).thenReturn("MOCK_USER");
+        final Authenticator.Context context = createAuthenticatorContext(token);
         doCallRealMethod().when(serviceAccountAuthenticator).authenticate(eq(context), anyActionListener());
         doCallRealMethod().when(oAuth2TokenAuthenticator).authenticate(eq(context), anyActionListener());
         doCallRealMethod().when(apiKeyAuthenticator).authenticate(eq(context), anyActionListener());
+
         // 1. realms do not consume the token
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
@@ -330,6 +338,20 @@ public class AuthenticatorChainTests extends ESTestCase {
             return null;
         }).when(realmsAuthenticator).authenticate(eq(context), any());
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
+
+        Loggers.setLevel(LogManager.getLogger(AuthenticatorChain.class), Level.DEBUG);
+        final MockLog mockLog = MockLog.capture(AuthenticatorChain.class);
+        mockLog.addExpectation(
+            new MockLog.PatternSeenEventExpectation(
+                "debug-failure",
+                AuthenticatorChain.class.getName(),
+                Level.DEBUG,
+                Pattern.quote("Authentication for context [Context{tokens=[")
+                    + "AuthenticationToken\\$.*:MOCK_USER"
+                    + Pattern.quote("], messages=[]}] failed")
+            )
+        );
+
         authenticatorChain.authenticate(context, future);
         final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(e.getMessage(), containsString("failed to authenticate"));
@@ -340,6 +362,8 @@ public class AuthenticatorChainTests extends ESTestCase {
         verify(realmsAuthenticator, never()).extractCredentials(any());
         verifyNoMoreInteractions(authenticationContextSerializer);
         verifyNoMoreInteractions(operatorPrivilegesService);
+        mockLog.assertAllExpectationsMatched();
+
         // OR 2. realms fail the token
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")

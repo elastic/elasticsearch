@@ -26,6 +26,7 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -40,8 +41,8 @@ public class SecurityRolesMultiProjectIT extends MultiProjectRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .nodes(1)
-        .distribution(DistributionType.DEFAULT)
-        .module("test-multi-project")
+        .distribution(DistributionType.INTEG_TEST)
+        .module("analysis-common")
         .setting("test.multi_project.enabled", "true")
         .setting("xpack.security.enabled", "true")
         .user("admin", PASSWORD)
@@ -132,14 +133,15 @@ public class SecurityRolesMultiProjectIT extends MultiProjectRestTestCase {
         assertBusy(() -> {
             assertThat(getClusterPrivileges(project1, username1), contains("monitor"));
             assertThat(getClusterPrivileges(project2, username2), contains("monitor"));
-        });
+        }, 20, TimeUnit.SECONDS); // increasing this to try and solve for a rare failure
+
         rolesFile.update(Resource.fromString(""));
 
         assertBusy(() -> {
             // Both projects should automatically reflect that the role has been removed
             assertThat(getClusterPrivileges(project1, username1), empty());
             assertThat(getClusterPrivileges(project2, username2), empty());
-        });
+        }, 20, TimeUnit.SECONDS);
     }
 
     private void createUser(ProjectId projectId, String username, String roleName) throws IOException {

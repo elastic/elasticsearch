@@ -26,6 +26,7 @@ import org.gradle.api.internal.file.FileOperations;
 import org.gradle.api.invocation.Gradle;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.plugins.JvmToolchainsPlugin;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
@@ -33,6 +34,10 @@ import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
 import org.gradle.build.event.BuildEventsListenerRegistry;
 import org.gradle.internal.jvm.Jvm;
+import org.gradle.jvm.toolchain.JavaLanguageVersion;
+import org.gradle.jvm.toolchain.JavaLauncher;
+import org.gradle.jvm.toolchain.JavaToolchainService;
+import org.gradle.jvm.toolchain.JvmVendorSpec;
 import org.gradle.process.ExecOperations;
 import org.gradle.tooling.events.FinishEvent;
 import org.gradle.tooling.events.OperationCompletionListener;
@@ -99,11 +104,19 @@ public class TestClustersPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getPlugins().apply(DistributionDownloadPlugin.class);
+        project.getPlugins().apply(JvmToolchainsPlugin.class);
         project.getRootProject().getPluginManager().apply(ReaperPlugin.class);
         Provider<ReaperService> reaperServiceProvider = GradleUtils.getBuildService(
             project.getGradle().getSharedServices(),
             ReaperPlugin.REAPER_SERVICE_NAME
         );
+
+        JavaToolchainService toolChainService = project.getExtensions().getByType(JavaToolchainService.class);
+        Provider<JavaLauncher> fallbackJdk17Launcher = toolChainService.launcherFor(spec -> {
+            spec.getVendor().set(JvmVendorSpec.ADOPTIUM);
+            spec.getLanguageVersion().set(JavaLanguageVersion.of(17));
+        });
+
         runtimeJavaProvider = providerFactory.provider(
             () -> System.getenv("RUNTIME_JAVA_HOME") == null ? Jvm.current().getJavaHome() : new File(System.getenv("RUNTIME_JAVA_HOME"))
         );
@@ -117,7 +130,8 @@ public class TestClustersPlugin implements Plugin<Project> {
         NamedDomainObjectContainer<ElasticsearchCluster> container = createTestClustersContainerExtension(
             project,
             testClustersRegistryProvider,
-            reaperServiceProvider
+            reaperServiceProvider,
+            fallbackJdk17Launcher
         );
 
         // provide a task to be able to list defined clusters.
@@ -154,7 +168,8 @@ public class TestClustersPlugin implements Plugin<Project> {
     private NamedDomainObjectContainer<ElasticsearchCluster> createTestClustersContainerExtension(
         Project project,
         Provider<TestClustersRegistry> testClustersRegistryProvider,
-        Provider<ReaperService> reaper
+        Provider<ReaperService> reaper,
+        Provider<JavaLauncher> fallbackJdk17Launcher
     ) {
         // Create an extensions that allows describing clusters
         NamedDomainObjectContainer<ElasticsearchCluster> container = project.container(
@@ -171,7 +186,8 @@ public class TestClustersPlugin implements Plugin<Project> {
                 getFileOperations(),
                 new File(project.getBuildDir(), "testclusters"),
                 runtimeJavaProvider,
-                isReleasedVersion
+                isReleasedVersion,
+                fallbackJdk17Launcher
             )
         );
         project.getExtensions().add(EXTENSION_NAME, container);

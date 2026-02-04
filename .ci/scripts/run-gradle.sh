@@ -41,5 +41,13 @@ else
 fi
 
 set -e
+
+# Pass TESTS_SEED as Java system property if available
+TESTS_SEED_PARAM=""
+if [[ -n "${TESTS_SEED:-}" ]]; then
+  TESTS_SEED_PARAM="-Dtests.seed=$TESTS_SEED"
+  echo "Using test seed: $TESTS_SEED"
+fi
+
 for attempt in 1 2 3 4 5; do ./gradlew --version && break; echo "Failed to download gradle wrapper - attempt $attempt/5" && sleep 5; done
-$GRADLEW -S --max-workers=$MAX_WORKERS $@
+$GRADLEW -S --max-workers=$MAX_WORKERS $TESTS_SEED_PARAM "$@"

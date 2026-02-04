@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -196,15 +197,21 @@ public final class JobModelSnapshotUpgrader {
                     );
                 }
             }, e -> {
-                logger.warn(
-                    () -> format(
+                logger.warn(() -> {
+                    String baseMessage = format(
                         "[%s] [%s] failed to delete old snapshot [%s] result document",
                         jobId,
                         snapshotId,
                         ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName()
-                    ),
-                    e
-                );
+                    );
+                    if (e instanceof org.elasticsearch.cluster.block.ClusterBlockException) {
+                        return baseMessage
+                            + ". Remove the write block from the results index to delete the model snapshot. See "
+                            + ReferenceDocs.DELETE_INDEX_BLOCK
+                            + " for details.";
+                    }
+                    return baseMessage;
+                }, e);
             }), () -> runAfter.accept(null)));
     }
 

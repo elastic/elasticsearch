@@ -50,6 +50,9 @@ public class Platforms {
     }
 
     public static boolean isDocker() {
+        if (WINDOWS) {
+            return new Shell().runIgnoreExitCode("where docker").isSuccess();
+        }
         return new Shell().runIgnoreExitCode("which docker").isSuccess();
     }
 

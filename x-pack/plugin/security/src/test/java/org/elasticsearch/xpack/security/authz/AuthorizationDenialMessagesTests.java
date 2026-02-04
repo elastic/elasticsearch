@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.security.authz;
 
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
@@ -23,6 +25,7 @@ import java.util.Map;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -231,6 +234,86 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    public void testActionDeniedWithFailuresAndCorrectActionIncludesFailuresMessage() {
+        Authentication authentication = AuthenticationTestHelper.builder().build();
+
+        final String action = "indices:data/read/" + randomAlphaOfLengthBetween(0, 8);
+        SearchRequest request = mock(SearchRequest.class);
+        for (List<String> requestedIndices : List.of(
+            List.of(randomAlphaOfLength(5) + "::failures"),
+            List.of(randomAlphaOfLength(5) + "::failures", randomAlphaOfLength(5)),
+            List.of(randomAlphaOfLength(5), randomAlphaOfLength(5) + "::failures")
+        )) {
+            when(request.indices()).thenReturn(requestedIndices.toArray(new String[0]));
+            assertThat(
+                "for [" + Strings.collectionToCommaDelimitedString(requestedIndices) + "]",
+                denialMessages.actionDenied(authentication, null, action, request, null),
+                endsWith(
+                    "this action is granted by the index privileges [read,all] for data access, "
+                        + "or by [read_failure_store] for access with the [::failures] selector"
+                )
+            );
+        }
+    }
+
+    public void testActionDeniedWithNonMatchingActionFailuresOmitsFailuresMessage() {
+        Authentication authentication = AuthenticationTestHelper.builder().build();
+
+        // granted only by all, so selector message is omitted
+        final String action = "indices:/some/action/" + randomAlphaOfLengthBetween(0, 8);
+        SearchRequest request = mock(SearchRequest.class);
+        for (List<String> requestedIndices : List.of(
+            List.of(randomAlphaOfLength(5) + "::failures"),
+            List.of(randomAlphaOfLength(5) + "::failures", randomAlphaOfLength(5)),
+            List.of(randomAlphaOfLength(5), randomAlphaOfLength(5) + "::failures")
+        )) {
+            when(request.indices()).thenReturn(requestedIndices.toArray(new String[0]));
+            assertThat(
+                "for [" + Strings.collectionToCommaDelimitedString(requestedIndices) + "]",
+                denialMessages.actionDenied(authentication, null, action, request, null),
+                endsWith("this action is granted by the index privileges [all]")
+            );
+        }
+    }
+
+    public void testActionDeniedWithoutFailuresOmitsFailuresMessage() {
+        Authentication authentication = AuthenticationTestHelper.builder().build();
+
+        final String action = "indices:data/read/" + randomAlphaOfLengthBetween(0, 8);
+        SearchRequest request = mock(SearchRequest.class);
+        for (List<String> requestedIndices : List.of(
+            List.<String>of(),
+            List.of(randomAlphaOfLength(5)),
+            List.of(randomAlphaOfLength(5), randomAlphaOfLength(5))
+        )) {
+            when(request.indices()).thenReturn(requestedIndices.toArray(new String[0]));
+            assertThat(
+                "for [" + Strings.collectionToCommaDelimitedString(requestedIndices) + "]",
+                denialMessages.actionDenied(authentication, null, action, request, null),
+                endsWith("this action is granted by the index privileges [read,all]")
+            );
+        }
+    }
+
+    public void testActionDeniedWithoutIndicesOmitsFailuresMessage() {
+        Authentication authentication = AuthenticationTestHelper.builder().build();
+
+        final String action = "indices:data/read/" + randomAlphaOfLengthBetween(0, 8);
+        // not an IndicesRequest
+        TransportRequest request = mock(TransportRequest.class);
+        for (List<String> requestedIndices : List.of(
+            List.<String>of(),
+            List.of(randomAlphaOfLength(5)),
+            List.of(randomAlphaOfLength(5), randomAlphaOfLength(5))
+        )) {
+            assertThat(
+                "for [" + Strings.collectionToCommaDelimitedString(requestedIndices) + "]",
+                denialMessages.actionDenied(authentication, null, action, request, null),
+                endsWith("this action is granted by the index privileges [read,all]")
+            );
+        }
     }
 
     public void testSuccessfulAuthenticationDescription() {

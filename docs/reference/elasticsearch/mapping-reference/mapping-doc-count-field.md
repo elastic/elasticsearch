@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-doc-count-field.html
 ---
@@ -70,7 +73,7 @@ PUT my_index/_doc/2
 1. Field `_doc_count` must be a positive integer storing the number of documents aggregated to produce each histogram.
 
 
-If we run the following [terms aggregation](/reference/data-analysis/aggregations/search-aggregations-bucket-terms-aggregation.md) on `my_index`:
+If we run the following [terms aggregation](/reference/aggregations/search-aggregations-bucket-terms-aggregation.md) on `my_index`:
 
 ```console
 GET /_search
@@ -106,5 +109,5 @@ We will get the following response:
     }
 }
 ```
-
+% TESTRESPONSE[skip:test not setup]
 

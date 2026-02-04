@@ -1,0 +1,27 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+configurations {
+  allPlugins
+}
+
+// only configure immediate children of plugins dir
+configure(subprojects.findAll { it.parent.path == project.path }) {
+  group = 'org.elasticsearch.plugin'
+  apply plugin: 'elasticsearch.internal-es-plugin'
+
+  esplugin {
+    // for local ES plugins, the name of the plugin is the same as the directory
+    name = project.name
+    licenseFile = layout.settingsDirectory.file('licenses/ELASTIC-LICENSE-2.0.txt').asFile
+    noticeFile = layout.settingsDirectory.file('NOTICE.txt').asFile
+  }
+
+  parent.artifacts.add('allPlugins', tasks.named('bundlePlugin'))
+}

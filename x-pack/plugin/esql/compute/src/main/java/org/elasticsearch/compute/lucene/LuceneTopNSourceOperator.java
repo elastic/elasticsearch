@@ -12,7 +12,6 @@ import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
@@ -20,15 +19,15 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollectorManager;
 import org.apache.lucene.search.TopScoreDocCollectorManager;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Releasables;
@@ -36,6 +35,7 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -43,36 +43,60 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.apache.lucene.search.ScoreMode.COMPLETE;
-import static org.apache.lucene.search.ScoreMode.TOP_DOCS;
-
 /**
- * Source operator that builds Pages out of the output of a TopFieldCollector (aka TopN)
+ * Source operator that builds Pages out of the output of a TopFieldCollector (aka TopN).
+ * <p>
+ *     Makes {@link Page}s of the shape {@code (docBlock)} or {@code (docBlock, score)}.
+ *     Lucene loads the sort keys, but we don't read them from lucene. Yet. We should.
+ * </p>
  */
 public final class LuceneTopNSourceOperator extends LuceneOperator {
 
     public static class Factory extends LuceneOperator.Factory {
+        private final IndexedByShardId<? extends ShardContext> contexts;
         private final int maxPageSize;
         private final List<SortBuilder<?>> sorts;
+        private final long estimatedPerRowSortSize;
 
         public Factory(
-            List<? extends ShardContext> contexts,
-            Function<ShardContext, Query> queryFunction,
+            IndexedByShardId<? extends ShardContext> contexts,
+            Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
             DataPartitioning dataPartitioning,
             int taskConcurrency,
             int maxPageSize,
             int limit,
             List<SortBuilder<?>> sorts,
-            boolean scoring
+            long estimatedPerRowSortSize,
+            boolean needsScore
         ) {
-            super(contexts, queryFunction, dataPartitioning, taskConcurrency, limit, scoring ? COMPLETE : TOP_DOCS);
+            super(
+                contexts,
+                queryFunction,
+                dataPartitioning,
+                query -> LuceneSliceQueue.PartitioningStrategy.SHARD,
+                taskConcurrency,
+                limit,
+                needsScore,
+                scoreModeFunction(sorts, needsScore)
+            );
+            this.contexts = contexts;
             this.maxPageSize = maxPageSize;
             this.sorts = sorts;
+            this.estimatedPerRowSortSize = estimatedPerRowSortSize;
         }
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new LuceneTopNSourceOperator(driverContext.blockFactory(), maxPageSize, sorts, limit, sliceQueue, scoreMode);
+            return new LuceneTopNSourceOperator(
+                contexts,
+                driverContext,
+                maxPageSize,
+                sorts,
+                estimatedPerRowSortSize,
+                limit,
+                sliceQueue,
+                needsScore
+            );
         }
 
         public int maxPageSize() {
@@ -88,40 +112,52 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 + maxPageSize
                 + ", limit = "
                 + limit
-                + ", scoreMode = "
-                + scoreMode
+                + ", needsScore = "
+                + needsScore
                 + ", sorts = ["
                 + notPrettySorts
                 + "]]";
         }
     }
 
+    // We use the same value as the INITIAL_INTERVAL from CancellableBulkScorer
+    private static final int NUM_DOCS_INTERVAL = 1 << 12;
+
+    private final DriverContext driverContext;
+    private final List<SortBuilder<?>> sorts;
+    private final long estimatedPerRowSortSize;
+    private final int limit;
+    private final boolean needsScore;
+
     /**
-     * Collected docs. {@code null} until we're {@link #emit(boolean)}.
+     * Collected docs. {@code null} until we're ready to {@link #emit()}.
      */
-    private ScoreDoc[] scoreDocs;
+    private ScoreDoc[] topDocs;
+
     /**
-     * The offset in {@link #scoreDocs} of the next page.
+     * The offset in {@link #topDocs} of the next page.
      */
     private int offset = 0;
 
     private PerShardCollector perShardCollector;
-    private final List<SortBuilder<?>> sorts;
-    private final int limit;
-    private final ScoreMode scoreMode;
 
     public LuceneTopNSourceOperator(
-        BlockFactory blockFactory,
+        IndexedByShardId<? extends ShardContext> contexts,
+        DriverContext driverContext,
         int maxPageSize,
         List<SortBuilder<?>> sorts,
+        long estimatedPerRowSortSize,
         int limit,
         LuceneSliceQueue sliceQueue,
-        ScoreMode scoreMode
+        boolean needsScore
     ) {
-        super(blockFactory, maxPageSize, sliceQueue);
+        super(contexts, driverContext.blockFactory(), maxPageSize, sliceQueue);
+        this.driverContext = driverContext;
         this.sorts = sorts;
+        this.estimatedPerRowSortSize = estimatedPerRowSortSize;
         this.limit = limit;
-        this.scoreMode = scoreMode;
+        this.needsScore = needsScore;
+        driverContext.breaker().addEstimateBytesAndMaybeBreak(reserveSize(), "esql lucene topn");
     }
 
     @Override
@@ -132,7 +168,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
     @Override
     public void finish() {
         doneCollecting = true;
-        scoreDocs = null;
+        topDocs = null;
         assert isFinished();
     }
 
@@ -144,7 +180,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         long start = System.nanoTime();
         try {
             if (isEmitting()) {
-                return emit(false);
+                return emit();
             } else {
                 return collect();
             }
@@ -155,50 +191,85 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
 
     private Page collect() throws IOException {
         assert doneCollecting == false;
+        long start = System.nanoTime();
+
         var scorer = getCurrentOrLoadNextScorer();
-        if (scorer == null) {
-            doneCollecting = true;
-            return emit(true);
-        }
-        try {
-            if (perShardCollector == null || perShardCollector.shardContext.index() != scorer.shardContext().index()) {
-                // TODO: share the bottom between shardCollectors
-                perShardCollector = newPerShardCollector(scorer.shardContext(), sorts, limit);
+
+        while (scorer != null) {
+            if (scorer.tags().isEmpty() == false) {
+                throw new UnsupportedOperationException("tags not supported by " + getClass());
             }
-            var leafCollector = perShardCollector.getLeafCollector(scorer.leafReaderContext());
-            scorer.scoreNextRange(leafCollector, scorer.leafReaderContext().reader().getLiveDocs(), maxPageSize);
-        } catch (CollectionTerminatedException cte) {
-            // Lucene terminated early the collection (doing topN for an index that's sorted and the topN uses the same sorting)
-            scorer.markAsDone();
-        }
-        if (scorer.isDone()) {
-            var nextScorer = getCurrentOrLoadNextScorer();
-            if (nextScorer == null || nextScorer.shardContext().index() != scorer.shardContext().index()) {
-                return emit(true);
+
+            try {
+                if (perShardCollector == null || perShardCollector.shardContext.index() != scorer.shardContext().index()) {
+                    // TODO: share the bottom between shardCollectors
+                    perShardCollector = newPerShardCollector(scorer.shardContext(), sorts, needsScore, limit);
+                }
+                var leafCollector = perShardCollector.getLeafCollector(scorer.leafReaderContext());
+                scorer.scoreNextRange(leafCollector, scorer.leafReaderContext().reader().getLiveDocs(), NUM_DOCS_INTERVAL);
+            } catch (CollectionTerminatedException cte) {
+                // Lucene terminated early the collection (doing topN for an index that's sorted and the topN uses the same sorting)
+                scorer.markAsDone();
+            }
+
+            // check if the query has been cancelled.
+            driverContext.checkForEarlyTermination();
+
+            if (scorer.isDone()) {
+                var nextScorer = getCurrentOrLoadNextScorer();
+                if (nextScorer != null && nextScorer.shardContext().index() != scorer.shardContext().index()) {
+                    startEmitting();
+                    return emit();
+                }
+                scorer = nextScorer;
+            }
+
+            // When it takes a long time to start emitting pages we need to return back to the driver so we can update its status.
+            // Even if this should almost never happen, we want to update the driver status even when a query runs "forever".
+            if (System.nanoTime() - start > Driver.DEFAULT_STATUS_INTERVAL.getNanos()) {
+                return null;
             }
         }
-        return null;
+
+        doneCollecting = true;
+        startEmitting();
+        return emit();
     }
 
     private boolean isEmitting() {
-        return scoreDocs != null && offset < scoreDocs.length;
+        return topDocs != null;
     }
 
-    private Page emit(boolean startEmitting) {
-        if (startEmitting) {
-            assert isEmitting() == false : "offset=" + offset + " score_docs=" + Arrays.toString(scoreDocs);
-            offset = 0;
-            if (perShardCollector != null) {
-                scoreDocs = perShardCollector.collector.topDocs().scoreDocs;
-            } else {
-                scoreDocs = new ScoreDoc[0];
-            }
+    private void startEmitting() {
+        assert isEmitting() == false : "offset=" + offset + " score_docs=" + Arrays.toString(topDocs);
+        offset = 0;
+        if (perShardCollector != null) {
+            /*
+             * Important note for anyone who looks at this and has bright ideas:
+             * There *is* a method in lucene to return topDocs with an offset
+             * and a limit. So you'd *think* you can scroll the top docs there.
+             * But you can't. It's expressly forbidden to call any of the `topDocs`
+             * methods more than once. You *must* call `topDocs` once and use the
+             * array.
+             */
+            topDocs = perShardCollector.collector.topDocs().scoreDocs;
+            int shardId = perShardCollector.shardContext.index();
+        } else {
+            topDocs = new ScoreDoc[0];
         }
-        if (offset >= scoreDocs.length) {
+    }
+
+    private void stopEmitting() {
+        topDocs = null;
+    }
+
+    private Page emit() {
+        if (offset >= topDocs.length) {
+            stopEmitting();
             return null;
         }
-        int size = Math.min(maxPageSize, scoreDocs.length - offset);
-        IntBlock shard = null;
+        int size = Math.min(maxPageSize, topDocs.length - offset);
+        IntVector shard = null;
         IntVector segments = null;
         IntVector docs = null;
         DocBlock docBlock = null;
@@ -211,22 +282,26 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         ) {
             int start = offset;
             offset += size;
-            List<LeafReaderContext> leafContexts = perShardCollector.shardContext.searcher().getLeafContexts();
+            ShardContext shardContext = perShardCollector.shardContext;
+            List<LeafReaderContext> leafContexts = shardContext.searcher().getLeafContexts();
             for (int i = start; i < offset; i++) {
-                int doc = scoreDocs[i].doc;
+                int doc = topDocs[i].doc;
                 int segment = ReaderUtil.subIndex(doc, leafContexts);
                 currentSegmentBuilder.appendInt(segment);
                 currentDocsBuilder.appendInt(doc - leafContexts.get(segment).docBase); // the offset inside the segment
                 if (currentScoresBuilder != null) {
-                    float score = getScore(scoreDocs[i]);
+                    float score = getScore(topDocs[i]);
                     currentScoresBuilder.appendDouble(score);
                 }
+                // Null the top doc so it can be GCed early, just in case.
+                topDocs[i] = null;
             }
 
-            shard = blockFactory.newConstantIntBlockWith(perShardCollector.shardContext.index(), size);
+            int shardId = shardContext.index();
+            shard = blockFactory.newConstantIntBlockWith(shardId, size).asVector();
             segments = currentSegmentBuilder.build();
             docs = currentDocsBuilder.build();
-            docBlock = new DocVector(shard.asVector(), segments, docs, null).asBlock();
+            docBlock = new DocVector(refCounteds, shard, segments, docs, null).asBlock();
             shard = null;
             segments = null;
             docs = null;
@@ -261,7 +336,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
     }
 
     private DoubleVector.Builder scoreVectorOrNull(int size) {
-        if (scoreMode.needsScores()) {
+        if (needsScore) {
             return blockFactory.newDoubleVectorFixedBuilder(size);
         } else {
             return null;
@@ -271,40 +346,25 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
     @Override
     protected void describe(StringBuilder sb) {
         sb.append(", limit = ").append(limit);
-        sb.append(", scoreMode = ").append(scoreMode);
+        sb.append(", needsScore = ").append(needsScore);
         String notPrettySorts = sorts.stream().map(Strings::toString).collect(Collectors.joining(","));
         sb.append(", sorts = [").append(notPrettySorts).append("]");
     }
 
-    PerShardCollector newPerShardCollector(ShardContext shardContext, List<SortBuilder<?>> sorts, int limit) throws IOException {
-        Optional<SortAndFormats> sortAndFormats = shardContext.buildSort(sorts);
-        if (sortAndFormats.isEmpty()) {
-            throw new IllegalStateException("sorts must not be disabled in TopN");
-        }
-        if (scoreMode.needsScores() == false) {
-            return new NonScoringPerShardCollector(shardContext, sortAndFormats.get().sort, limit);
-        } else {
-            SortField[] sortFields = sortAndFormats.get().sort.getSort();
-            if (sortFields != null && sortFields.length == 1 && sortFields[0].needsScores() && sortFields[0].getReverse() == false) {
-                // SORT _score DESC
-                return new ScoringPerShardCollector(shardContext, new TopScoreDocCollectorManager(limit, null, limit).newCollector());
-            } else {
-                // SORT ..., _score, ...
-                var sort = new Sort();
-                if (sortFields != null) {
-                    var l = new ArrayList<>(Arrays.asList(sortFields));
-                    l.add(SortField.FIELD_DOC);
-                    l.add(SortField.FIELD_SCORE);
-                    sort = new Sort(l.toArray(SortField[]::new));
-                }
-                return new ScoringPerShardCollector(shardContext, new TopFieldCollectorManager(sort, limit, null, limit).newCollector());
-            }
-        }
+    @Override
+    protected void additionalClose() {
+        Releasables.close(() -> driverContext.breaker().addWithoutBreaking(-reserveSize()));
+    }
+
+    private long reserveSize() {
+        long perRowSize = FIELD_DOC_SIZE + estimatedPerRowSortSize;
+        return limit * perRowSize;
     }
 
     abstract static class PerShardCollector {
         private final ShardContext shardContext;
         private final TopDocsCollector<?> collector;
+
         private int leafIndex;
         private LeafCollector leafCollector;
         private Thread currentThread;
@@ -336,4 +396,40 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             super(shardContext, topDocsCollector);
         }
     }
+
+    private static Function<ShardContext, ScoreMode> scoreModeFunction(List<SortBuilder<?>> sorts, boolean needsScore) {
+        return ctx -> {
+            try {
+                // we create a collector with a limit of 1 to determine the appropriate score mode to use.
+                return newPerShardCollector(ctx, sorts, needsScore, 1).collector.scoreMode();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        };
+    }
+
+    private static PerShardCollector newPerShardCollector(ShardContext context, List<SortBuilder<?>> sorts, boolean needsScore, int limit)
+        throws IOException {
+        Optional<SortAndFormats> sortAndFormats = context.buildSort(sorts);
+        if (sortAndFormats.isEmpty()) {
+            throw new IllegalStateException("sorts must not be disabled in TopN");
+        }
+        if (needsScore == false) {
+            return new NonScoringPerShardCollector(context, sortAndFormats.get().sort, limit);
+        }
+        Sort sort = sortAndFormats.get().sort;
+        if (Sort.RELEVANCE.equals(sort)) {
+            // SORT _score DESC
+            return new ScoringPerShardCollector(context, new TopScoreDocCollectorManager(limit, null, 0).newCollector());
+        }
+
+        // SORT ..., _score, ...
+        var l = new ArrayList<>(Arrays.asList(sort.getSort()));
+        l.add(SortField.FIELD_DOC);
+        l.add(SortField.FIELD_SCORE);
+        sort = new Sort(l.toArray(SortField[]::new));
+        return new ScoringPerShardCollector(context, new TopFieldCollectorManager(sort, limit, null, 0).newCollector());
+    }
+
+    private static final int FIELD_DOC_SIZE = Math.toIntExact(RamUsageEstimator.shallowSizeOf(FieldDoc.class));
 }

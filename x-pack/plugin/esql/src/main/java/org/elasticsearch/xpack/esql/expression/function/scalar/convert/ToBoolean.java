@@ -28,7 +28,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToBoolean;
@@ -42,10 +41,9 @@ public class ToBoolean extends AbstractConvertFunction {
     );
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(BOOLEAN, (field, source) -> field),
+        Map.entry(BOOLEAN, (source, field) -> field),
         Map.entry(KEYWORD, ToBooleanFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToBooleanFromStringEvaluator.Factory::new),
-        Map.entry(SEMANTIC_TEXT, ToBooleanFromStringEvaluator.Factory::new),
         Map.entry(DOUBLE, ToBooleanFromDoubleEvaluator.Factory::new),
         Map.entry(LONG, ToBooleanFromLongEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToBooleanFromUnsignedLongEvaluator.Factory::new),
@@ -56,9 +54,9 @@ public class ToBoolean extends AbstractConvertFunction {
         returnType = "boolean",
         description = """
             Converts an input value to a boolean value.
-            A string value of *true* will be case-insensitive converted to the Boolean *true*.
-            For anything else, including the empty string, the function will return *false*.
-            The numerical value of *0* will be converted to *false*, anything else will be converted to *true*.""",
+            A string value of `true` will be case-insensitive converted to the Boolean `true`.
+            For anything else, including the empty string, the function will return `false`.
+            The numerical value of `0` will be converted to `false`, anything else will be converted to `true`.""",
         examples = @Example(file = "boolean", tag = "to_boolean")
     )
     public ToBoolean(

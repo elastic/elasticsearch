@@ -22,6 +22,7 @@ import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -120,6 +121,13 @@ public class BlockSerializationTests extends SerializationTestCase {
         }
     }
 
+    public void testEmptyAggregateMetricDoubleBlock() throws IOException {
+        assertEmptyBlock(blockFactory.newAggregateMetricDoubleBlockBuilder(0).build());
+        try (AggregateMetricDoubleBlock toFilter = blockFactory.newAggregateMetricDoubleBlockBuilder(0).appendNull().build()) {
+            assertEmptyBlock(toFilter.filter());
+        }
+    }
+
     private void assertEmptyBlock(Block origBlock) throws IOException {
         assertThat(origBlock.getPositionCount(), is(0));
         try (origBlock; Block deserBlock = serializeDeserializeBlock(origBlock)) {
@@ -215,6 +223,35 @@ public class BlockSerializationTests extends SerializationTestCase {
                 .build()
         ) {
             assertFilterBlock(toFilter.asBlock().filter(randomIntBetween(0, 1)));
+        }
+    }
+
+    public void testFilterAggregateMetricDoubleBlock() throws IOException {
+        {
+            var builder = blockFactory.newAggregateMetricDoubleBlockBuilder(0);
+            builder.min().appendDouble(randomDouble());
+            builder.max().appendDouble(randomDouble());
+            builder.sum().appendDouble(randomDouble());
+            builder.count().appendInt(randomInt());
+            builder.min().appendDouble(randomDouble());
+            builder.max().appendDouble(randomDouble());
+            builder.sum().appendDouble(randomDouble());
+            builder.count().appendInt(randomInt());
+            try (AggregateMetricDoubleBlock toFilter = builder.build()) {
+                assertFilterBlock(toFilter.filter(randomIntBetween(0, 1)));
+            }
+        }
+
+        {
+            var builder = blockFactory.newAggregateMetricDoubleBlockBuilder(0);
+            builder.min().appendDouble(randomDouble());
+            builder.max().appendDouble(randomDouble());
+            builder.sum().appendDouble(randomDouble());
+            builder.count().appendInt(randomInt());
+            builder.appendNull();
+            try (AggregateMetricDoubleBlock toFilter = builder.build()) {
+                assertFilterBlock(toFilter.filter(randomIntBetween(0, 1)));
+            }
         }
     }
 
@@ -383,11 +420,75 @@ public class BlockSerializationTests extends SerializationTestCase {
             for (int b = 0; b < numBlocks; b++) {
                 assertThat(origBlock.getBlock(b), equalTo(blocks[b]));
             }
-            try (CompositeBlock deserBlock = serializeDeserializeBlock(origBlock)) {
+            try (
+                CompositeBlock deserBlock = serializeDeserializeBlockWithVersion(
+                    origBlock,
+                    TransportVersionUtils.randomVersionSupporting(Block.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK)
+                )
+            ) {
                 assertThat(deserBlock.getBlockCount(), equalTo(numBlocks));
                 for (int b = 0; b < numBlocks; b++) {
                     assertThat(deserBlock.getBlock(b), equalTo(origBlock.getBlock(b)));
                 }
+                EqualsHashCodeTestUtils.checkEqualsAndHashCode(deserBlock, unused -> deserBlock);
+            }
+        }
+    }
+
+    public void testAggregateMetricDouble() throws IOException {
+        final int positionCount = randomIntBetween(1, 1000);
+        DoubleBlock minBlock = (DoubleBlock) RandomBlock.randomBlock(
+            blockFactory,
+            randomFrom(ElementType.DOUBLE, ElementType.NULL),
+            positionCount,
+            true,
+            0,
+            1,
+            0,
+            0
+        ).block();
+
+        DoubleBlock maxBlock = (DoubleBlock) RandomBlock.randomBlock(
+            blockFactory,
+            randomFrom(ElementType.DOUBLE, ElementType.NULL),
+            positionCount,
+            true,
+            0,
+            1,
+            0,
+            0
+        ).block();
+
+        DoubleBlock suBlock = (DoubleBlock) RandomBlock.randomBlock(
+            blockFactory,
+            randomFrom(ElementType.DOUBLE, ElementType.NULL),
+            positionCount,
+            true,
+            0,
+            1,
+            0,
+            0
+        ).block();
+
+        IntBlock countBlock = (IntBlock) RandomBlock.randomBlock(
+            blockFactory,
+            randomFrom(ElementType.INT, ElementType.NULL),
+            positionCount,
+            true,
+            0,
+            1,
+            0,
+            0
+        ).block();
+
+        try (var origBlock = new AggregateMetricDoubleArrayBlock(minBlock, maxBlock, suBlock, countBlock)) {
+            try (
+                AggregateMetricDoubleBlock deserBlock = serializeDeserializeBlockWithVersion(
+                    origBlock,
+                    TransportVersionUtils.randomVersionSupporting(Block.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK)
+                )
+            ) {
+                assertThat(deserBlock, equalTo(origBlock));
                 EqualsHashCodeTestUtils.checkEqualsAndHashCode(deserBlock, unused -> deserBlock);
             }
         }
@@ -412,6 +513,6 @@ public class BlockSerializationTests extends SerializationTestCase {
      * A {@link DriverContext} with a nonBreakingBigArrays.
      */
     protected DriverContext driverContext() { // TODO make this final and return a breaking block factory
-        return new DriverContext(nonBreakingBigArrays(), TestBlockFactory.getNonBreakingInstance());
+        return new DriverContext(nonBreakingBigArrays(), TestBlockFactory.getNonBreakingInstance(), null);
     }
 }

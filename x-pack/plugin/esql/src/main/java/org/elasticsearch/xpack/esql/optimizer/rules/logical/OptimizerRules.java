@@ -7,9 +7,13 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.util.ReflectionUtils;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
@@ -55,11 +59,25 @@ public final class OptimizerRules {
         @Override
         public final LogicalPlan apply(LogicalPlan plan, LogicalOptimizerContext ctx) {
             return direction == TransformDirection.DOWN
-                ? plan.transformExpressionsDown(expressionTypeToken, e -> rule(e, ctx))
-                : plan.transformExpressionsUp(expressionTypeToken, e -> rule(e, ctx));
+                ? plan.transformExpressionsDown(this::shouldVisit, expressionTypeToken, e -> rule(e, ctx))
+                : plan.transformExpressionsUp(this::shouldVisit, expressionTypeToken, e -> rule(e, ctx));
         }
 
         protected abstract Expression rule(E e, LogicalOptimizerContext ctx);
+
+        /**
+         * Defines if a node should be visited or not.
+         * Allows to skip nodes that are not applicable for the rule even if they contain expressions.
+         * By default that skips FROM, LIMIT, PROJECT, KEEP and DROP but this list could be extended or replaced in subclasses.
+         */
+        protected boolean shouldVisit(Node<?> node) {
+            return switch (node) {
+                case EsRelation relation -> false;
+                case Project project -> false;// this covers project, keep and drop
+                case Limit limit -> false;
+                default -> true;
+            };
+        }
 
         public Class<E> expressionToken() {
             return expressionTypeToken;
@@ -90,5 +108,24 @@ public final class OptimizerRules {
         }
 
         protected abstract LogicalPlan rule(SubPlan plan, P context);
+    }
+
+    /**
+     * Rule that has a different implementation when applied to a local plan.
+     */
+    public interface LocalAware<SubPlan extends LogicalPlan> {
+        /**
+         * the local version of the rule. {@code null} if the rule should not be applied locally.
+         */
+        Rule<SubPlan, LogicalPlan> local();
+    }
+
+    /**
+     * This rule should only be applied on the coordinator plan, not for a local plan.
+     */
+    public interface CoordinatorOnly extends LocalAware<LogicalPlan> {
+        default Rule<LogicalPlan, LogicalPlan> local() {
+            return null;
+        }
     }
 }

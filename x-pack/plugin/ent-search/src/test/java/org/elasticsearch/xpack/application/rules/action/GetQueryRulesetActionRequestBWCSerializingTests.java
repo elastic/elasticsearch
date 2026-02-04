@@ -28,7 +28,7 @@ public class GetQueryRulesetActionRequestBWCSerializingTests extends AbstractBWC
 
     @Override
     protected GetQueryRulesetAction.Request mutateInstance(GetQueryRulesetAction.Request instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new GetQueryRulesetAction.Request(randomValueOtherThan(instance.rulesetId(), () -> randomAlphaOfLengthBetween(1, 10)));
     }
 
     @Override

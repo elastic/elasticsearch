@@ -86,7 +86,10 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("time_series_dimensions", b -> b.field("time_series_dimensions", List.of("one", "two")));
 
         checker.registerUpdateCheck(b -> b.field("eager_global_ordinals", true), m -> assertTrue(m.fieldType().eagerGlobalOrdinals()));
-        checker.registerUpdateCheck(b -> b.field("ignore_above", 256), m -> assertEquals(256, ((FlattenedFieldMapper) m).ignoreAbove()));
+        checker.registerUpdateCheck(
+            b -> b.field("ignore_above", 256),
+            m -> assertEquals(256, ((FlattenedFieldMapper) m).fieldType().ignoreAbove().get())
+        );
         checker.registerUpdateCheck(
             b -> b.field("split_queries_on_whitespace", true),
             m -> assertEquals("_whitespace", m.fieldType().getTextSearchInfo().searchAnalyzer().name())
@@ -139,6 +142,29 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         // Check that there is no 'field names' field.
         List<IndexableField> fieldNamesFields = parsedDoc.rootDoc().getFields(FieldNamesFieldMapper.NAME);
         assertEquals(0, fieldNamesFields.size());
+    }
+
+    public void testBinaryDocValuesType() throws Exception {
+        DocumentMapper mapper = createMapperService(
+            Settings.builder().put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true).build(),
+            fieldMapping(this::minimalMapping)
+        ).documentMapper();
+        ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("key", "value").endObject()));
+
+        List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+
+        // Check the keyed fields.
+        List<IndexableField> keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
+        assertEquals(2, keyedFields.size());
+
+        assertEquals("field", fields.get(1).name());
+        assertEquals(new BytesRef("value"), fields.get(1).binaryValue());
+        assertEquals(DocValuesType.BINARY, fields.get(1).fieldType().docValuesType());
+
+        assertEquals("field._keyed", keyedFields.get(1).name());
+        assertEquals(new BytesRef("key\0value"), keyedFields.get(1).binaryValue());
+        assertEquals(DocValuesType.BINARY, keyedFields.get(1).fieldType().docValuesType());
     }
 
     public void testNotDimension() throws Exception {
@@ -242,6 +268,25 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         List<IndexableField> keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
         assertEquals(1, keyedFields.size());
         assertEquals(DocValuesType.SORTED_SET, keyedFields.get(0).fieldType().docValuesType());
+    }
+
+    public void testDisableIndexBinary() throws Exception {
+        DocumentMapper mapper = createMapperService(
+            Settings.builder().put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true).build(),
+            fieldMapping(b -> {
+                b.field("type", "flattened");
+                b.field("index", false);
+            })
+        ).documentMapper();
+        ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("key", "value").endObject()));
+
+        List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertEquals(DocValuesType.BINARY, fields.get(0).fieldType().docValuesType());
+
+        List<IndexableField> keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
+        assertEquals(1, keyedFields.size());
+        assertEquals(DocValuesType.BINARY, keyedFields.get(0).fieldType().docValuesType());
     }
 
     public void testDisableDocValues() throws Exception {
@@ -851,6 +896,136 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         assertThat(syntheticSource, equalTo("{\"field\":{\"key1\":\"val1\",\"obj1\":{\"key2\":\"val2\",\"key3\":[\"val3\",\"val4\"]}}}"));
     }
 
+    public void testSyntheticSourceWithCommonLeafField() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            mapping(b -> { b.startObject("field").field("type", "flattened").endObject(); })
+        ).documentMapper();
+
+        var syntheticSource = syntheticSource(mapper, b -> {
+            b.startObject("field");
+            {
+                b.startObject("obj1").field("key", "foo").endObject();
+                b.startObject("obj2").field("key", "bar").endObject();
+            }
+            b.endObject();
+        });
+        assertThat(syntheticSource, equalTo("""
+            {"field":{"obj1":{"key":"foo"},"obj2":{"key":"bar"}}}"""));
+    }
+
+    public void testSyntheticSourceWithScalarObjectMismatch() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            mapping(b -> { b.startObject("field").field("type", "flattened").endObject(); })
+        ).documentMapper();
+
+        var syntheticSource = syntheticSource(mapper, b -> {
+            b.startObject("field");
+            {
+                b.field("key1.key2", "foo");
+                b.startObject("key1");
+                {
+                    b.startObject("key2").field("key3", "bar").endObject();
+                    b.field("key4", "baz");
+                }
+                b.endObject();
+                b.field("key5", "qux");
+            }
+            b.endObject();
+        });
+        assertThat(syntheticSource, equalTo("""
+            {"field":{"key1":{"key2":"foo","key2.key3":"bar","key4":"baz"},"key5":"qux"}}"""));
+    }
+
+    public void testSyntheticSourceWithScalarObjectMismatchArray() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            mapping(b -> { b.startObject("field").field("type", "flattened").endObject(); })
+        ).documentMapper();
+
+        var syntheticSource = syntheticSource(mapper, b -> {
+            b.startObject("field");
+            {
+                b.array("key1.key2", "qux", "foo");
+                b.startObject("key1");
+                {
+                    b.field("key2.key3", "baz");
+                    b.field("key2", "bar");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        });
+        assertThat(syntheticSource, equalTo("""
+            {"field":{"key1":{"key2":["bar","foo","qux"],"key2.key3":"baz"}}}"""));
+    }
+
+    public void testSyntheticSourceWithEmptyObject() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            mapping(b -> { b.startObject("field").field("type", "flattened").endObject(); })
+        ).documentMapper();
+
+        var syntheticSource = syntheticSource(mapper, b -> {
+            b.startObject("field");
+            {
+                b.field("key1", "foo");
+                b.startObject("key2").endObject();
+            }
+            b.endObject();
+        });
+        // Objects without any values are not included in the synthetic source
+        assertThat(syntheticSource, equalTo("""
+            {"field":{"key1":"foo"}}"""));
+    }
+
+    public void testSyntheticSourceWithMatchesInNestedPath() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            mapping(b -> { b.startObject("field").field("type", "flattened").endObject(); })
+        ).documentMapper();
+
+        // This test covers a scenario that previously had a bug.
+        // Since a.b.c and b.b.d have a matching middle key `b`, and b.b.d starts with a `b`,
+        // startObject was not called for the first `b` in b.b.d.
+        // For a full explanation see this comment: https://github.com/elastic/elasticsearch/pull/129600#issuecomment-3024476134
+        var syntheticSource = syntheticSource(mapper, b -> {
+            b.startObject("field");
+            {
+                b.startObject("a");
+                {
+                    b.startObject("b").field("c", "1").endObject();
+                }
+                b.endObject();
+                b.startObject("b");
+                {
+                    b.startObject("b").field("d", "2").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        });
+        assertThat(syntheticSource, equalTo("""
+            {"field":{"a":{"b":{"c":"1"}},"b":{"b":{"d":"2"}}}}"""));
+    }
+
+    public void testMultipleDotsInPath() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            mapping(b -> { b.startObject("field").field("type", "flattened").endObject(); })
+        ).documentMapper();
+
+        var syntheticSource = syntheticSource(mapper, b -> {
+            b.startObject("field");
+            {
+                b.startObject(".");
+                {
+                    b.field(".", "bar");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        });
+        // This behavior is weird to say the least. But this is the only reasonable way to interpret the meaning of the path `...`
+        assertThat(syntheticSource, equalTo("""
+            {"field":{"":{"":{"":{"":"bar"}}}}}"""));
+    }
+
     @Override
     protected boolean supportsCopyTo() {
         return false;
@@ -882,5 +1057,15 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             }
             assertFalse(info, rightIterator.hasNext());
         }
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, true));
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

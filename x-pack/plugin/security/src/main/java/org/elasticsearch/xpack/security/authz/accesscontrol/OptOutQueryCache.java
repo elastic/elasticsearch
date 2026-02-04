@@ -37,7 +37,7 @@ public final class OptOutQueryCache extends IndexQueryCache {
 
     @Override
     public Weight doCache(Weight weight, QueryCachingPolicy policy) {
-        IndicesAccessControl indicesAccessControl = context.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+        IndicesAccessControl indicesAccessControl = AuthorizationServiceField.INDICES_PERMISSIONS_VALUE.get(context);
         if (indicesAccessControl == null) {
             logger.debug("opting out of the query cache for index [{}]. current request doesn't hold indices permissions", index);
             return weight;

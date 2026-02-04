@@ -9,13 +9,9 @@ package org.elasticsearch.xpack.esql.plan.logical.join;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Utility class defining the concrete types of joins supported by ESQL.
@@ -66,80 +62,6 @@ public class JoinTypes {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeByte(id);
-        }
-    }
-
-    /**
-     * Join type for the USING clause - shorthand for defining an equi-join (equality join meaning the condition checks if columns across
-     * each side of the join are equal).
-     * One important difference is that the USING clause returns the join column only once, at the beginning of the result set.
-     */
-    public static class UsingJoinType implements JoinType {
-        private final List<Attribute> columns;
-        private final JoinType coreJoin;
-
-        public UsingJoinType(JoinType coreJoin, List<Attribute> columns) {
-            this.columns = columns;
-            this.coreJoin = coreJoin;
-        }
-
-        @Override
-        public String joinName() {
-            return coreJoin.joinName() + " USING " + columns.toString();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            throw new IllegalArgumentException("USING join type should not be serialized due to being rewritten");
-        }
-
-        public JoinType coreJoin() {
-            return coreJoin;
-        }
-
-        public List<Attribute> columns() {
-            return columns;
-        }
-
-        @Override
-        public boolean resolved() {
-            return Resolvables.resolved(columns);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(columns, coreJoin);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            UsingJoinType that = (UsingJoinType) o;
-            return Objects.equals(columns, that.columns) && coreJoin == that.coreJoin;
-        }
-
-        @Override
-        public String toString() {
-            return joinName();
-        }
-    }
-
-    /**
-     * Private class so it doesn't get used yet it is defined to showcase why the join type was defined as an interface instead of a simpler
-     * enum.
-     */
-    private abstract static class NaturalJoinType implements JoinType {
-
-        private final JoinType joinType;
-
-        private NaturalJoinType(JoinType joinType) {
-            this.joinType = joinType;
-        }
-
-        @Override
-        public String joinName() {
-            return "NATURAL " + joinType.joinName();
         }
     }
 

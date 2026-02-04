@@ -7,15 +7,16 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+
 import org.elasticsearch.gradle.OS
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 esplugin {
   description = 'The HDFS repository plugin adds support for Hadoop Distributed File-System (HDFS) repositories.'
-  classname ='org.elasticsearch.repositories.hdfs.HdfsPlugin'
+  classname = 'org.elasticsearch.repositories.hdfs.HdfsPlugin'
 }
 
 versions << [
@@ -23,10 +24,19 @@ versions << [
 ]
 
 def patched = Attribute.of('patched', Boolean)
+def hdfsVersionAttr = Attribute.of('hdfs.major.version', Integer)
 
 configurations {
-  hdfsFixture2
-  hdfsFixture3
+  hdfsFixture2 {
+    attributes {
+      attribute(hdfsVersionAttr, 2)
+    }
+  }
+  hdfsFixture3 {
+    attributes {
+      attribute(hdfsVersionAttr, 3)
+    }
+  }
   compileClasspath {
     attributes {
       attribute(patched, true)
@@ -59,7 +69,7 @@ dependencies {
   api 'commons-cli:commons-cli:1.5.0'
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api 'commons-io:commons-io:2.16.1'
-  api 'org.apache.commons:commons-lang3:3.11'
+  api 'org.apache.commons:commons-lang3:3.20.0'
   api 'javax.servlet:javax.servlet-api:3.1.0'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
   runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
@@ -82,8 +92,8 @@ dependencies {
   yamlRestTestRuntimeOnly "commons-cli:commons-cli:1.5.0"
   yamlRestTestRuntimeOnly "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
 
-  hdfsFixture2 project(path: ':test:fixtures:hdfs-fixture', configuration: 'shadowedHdfs2')
-  hdfsFixture3 project(path: ':test:fixtures:hdfs-fixture', configuration: 'shadow')
+  hdfsFixture2 project(':test:fixtures:hdfs-fixture')
+  hdfsFixture3 project(':test:fixtures:hdfs-fixture')
 
   attributesSchema {
     attribute(patched)
@@ -111,7 +121,7 @@ tasks.named("dependencyLicenses").configure {
 }
 
 tasks.withType(RestIntegTestTask).configureEach {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
   buildParams.withFipsEnabledOnly(it)
   jvmArgs '--add-exports', 'java.security.jgss/sun.security.krb5=ALL-UNNAMED'
 }
@@ -124,16 +134,6 @@ tasks.register("javaRestTestHdfs2", RestIntegTestTask) {
   description = "Runs rest tests against an elasticsearch cluster with HDFS version 2"
   testClassesDirs = sourceSets.javaRestTest.output.classesDirs
   classpath = sourceSets.javaRestTest.runtimeClasspath + configurations.hdfsFixture2
-}
-
-tasks.named('yamlRestTest').configure {
-  classpath = sourceSets.yamlRestTest.runtimeClasspath + configurations.hdfsFixture2
-}
-
-tasks.register("yamlRestTestHdfs2", RestIntegTestTask) {
-  description = "Runs yaml rest tests against an elasticsearch cluster with HDFS version 2"
-  testClassesDirs = sourceSets.yamlRestTest.output.classesDirs
-  classpath = sourceSets.yamlRestTest.runtimeClasspath + configurations.hdfsFixture2
 }
 
 tasks.named("test").configure {

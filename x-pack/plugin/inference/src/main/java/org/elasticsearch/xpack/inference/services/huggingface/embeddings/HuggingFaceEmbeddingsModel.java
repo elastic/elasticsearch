@@ -13,10 +13,10 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.huggingface.HuggingFaceActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettings;
+import org.elasticsearch.xpack.inference.services.huggingface.action.HuggingFaceActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.util.Map;
@@ -41,8 +41,7 @@ public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
         );
     }
 
-    // Should only be used directly for testing
-    HuggingFaceEmbeddingsModel(
+    public HuggingFaceEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
@@ -50,11 +49,15 @@ public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
         ChunkingSettings chunkingSettings,
         @Nullable DefaultSecretSettings secrets
     ) {
+        this(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, chunkingSettings), new ModelSecrets(secrets));
+    }
+
+    public HuggingFaceEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, chunkingSettings),
-            new ModelSecrets(secrets),
-            serviceSettings,
-            secrets
+            modelConfigurations,
+            modelSecrets,
+            (HuggingFaceServiceSettings) modelConfigurations.getServiceSettings(),
+            (DefaultSecretSettings) modelSecrets.getSecretSettings()
         );
     }
 

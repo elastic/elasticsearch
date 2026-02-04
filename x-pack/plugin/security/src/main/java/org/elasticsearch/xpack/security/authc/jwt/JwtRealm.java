@@ -26,6 +26,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
@@ -83,8 +84,12 @@ public class JwtRealm extends Realm implements CachingRealm, ReloadableSecurityC
     private final TimeValue allowedClockSkew;
     DelegatedAuthorizationSupport delegatedAuthorizationSupport = null;
 
-    public JwtRealm(final RealmConfig realmConfig, final SSLService sslService, final UserRoleMapper userRoleMapper)
-        throws SettingsException {
+    public JwtRealm(
+        final RealmConfig realmConfig,
+        final SSLService sslService,
+        final UserRoleMapper userRoleMapper,
+        final ThreadPool threadPool
+    ) throws SettingsException {
         super(realmConfig);
         this.userRoleMapper = userRoleMapper;
         this.userRoleMapper.clearRealmCacheOnChange(this);
@@ -116,7 +121,11 @@ public class JwtRealm extends Realm implements CachingRealm, ReloadableSecurityC
             this.jwtCache = null;
             this.jwtCacheHelper = null;
         }
-        jwtAuthenticator = new JwtAuthenticator(realmConfig, sslService, this::expireAll);
+        // PKC JWK reload callback notes (comments originally in JwtAuthenticator):
+        // If all PKC JWKs were replaced, all PKC JWT cache entries need to be invalidated.
+        // Enhancement idea: Use separate caches for PKC vs HMAC JWKs, so only PKC entries get invalidated.
+        // Enhancement idea: When some JWKs are retained (ex: rotation), only invalidate for removed JWKs.
+        jwtAuthenticator = new JwtAuthenticator(realmConfig, sslService, this::invalidateJwtCache, threadPool);
 
         final Map<String, String> fallbackClaimNames = jwtAuthenticator.getFallbackClaimNames();
 

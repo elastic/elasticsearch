@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal.dependencies.patches.hdfs;
 
+import org.elasticsearch.gradle.internal.dependencies.patches.MethodReplacement;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.MethodVisitor;

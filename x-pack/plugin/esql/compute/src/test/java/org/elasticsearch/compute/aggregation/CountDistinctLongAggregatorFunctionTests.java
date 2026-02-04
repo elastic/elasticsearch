@@ -19,6 +19,7 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 
 import java.util.List;
 import java.util.stream.LongStream;
@@ -46,8 +47,8 @@ public class CountDistinctLongAggregatorFunctionTests extends AggregatorFunction
     }
 
     @Override
-    protected void assertSimpleOutput(List<Block> input, Block result) {
-        long expected = input.stream().flatMapToLong(b -> allLongs(b)).distinct().count();
+    protected void assertSimpleOutput(List<Page> input, Block result) {
+        long expected = input.stream().flatMapToLong(p -> allLongs(p.getBlock(0))).distinct().count();
         long count = ((LongBlock) result).getLong(0);
 
         // HLL is an approximation algorithm and precision depends on the number of values computed and the precision_threshold param
@@ -73,7 +74,7 @@ public class CountDistinctLongAggregatorFunctionTests extends AggregatorFunction
                 new PageConsumerOperator(page -> fail("shouldn't have made it this far"))
             )
         ) {
-            expectThrows(Exception.class, () -> runDriver(d));  // ### find a more specific exception type
+            expectThrows(Exception.class, () -> new TestDriverRunner().run(d));  // ### find a more specific exception type
         }
     }
 }

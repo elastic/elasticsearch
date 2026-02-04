@@ -37,24 +37,24 @@ public class StdDev extends AggregateFunction implements ToAggregator {
 
     @FunctionInfo(
         returnType = "double",
-        description = "The standard deviation of a numeric field.",
+        description = "The population standard deviation of a numeric field.",
         type = FunctionType.AGGREGATE,
         examples = {
             @Example(file = "stats", tag = "stdev"),
             @Example(
-                description = "The expression can use inline functions. For example, to calculate the standard "
-                    + "deviation of each employee's maximum salary changes, first use `MV_MAX` on each row, "
+                description = "The expression can use inline functions. For example, to calculate the population standard "
+                    + "deviation of each employee’s maximum salary changes, first use `MV_MAX` on each row, "
                     + "and then use `STD_DEV` on the result",
                 file = "stats",
                 tag = "docsStatsStdDevNestedExpression"
             ) }
     )
     public StdDev(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, NO_WINDOW);
     }
 
-    public StdDev(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    public StdDev(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, emptyList());
     }
 
     private StdDev(StreamInput in) throws IOException {
@@ -84,29 +84,29 @@ public class StdDev extends AggregateFunction implements ToAggregator {
 
     @Override
     protected NodeInfo<StdDev> info() {
-        return NodeInfo.create(this, StdDev::new, field(), filter());
+        return NodeInfo.create(this, StdDev::new, field(), filter(), window());
     }
 
     @Override
     public StdDev replaceChildren(List<Expression> newChildren) {
-        return new StdDev(source(), newChildren.get(0), newChildren.get(1));
+        return new StdDev(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     public StdDev withFilter(Expression filter) {
-        return new StdDev(source(), field(), filter);
+        return new StdDev(source(), field(), filter, window());
     }
 
     @Override
     public final AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
         if (type == DataType.LONG) {
-            return new StdDevLongAggregatorFunctionSupplier();
+            return new StdDevLongAggregatorFunctionSupplier(true);
         }
         if (type == DataType.INTEGER) {
-            return new StdDevIntAggregatorFunctionSupplier();
+            return new StdDevIntAggregatorFunctionSupplier(true);
         }
         if (type == DataType.DOUBLE) {
-            return new StdDevDoubleAggregatorFunctionSupplier();
+            return new StdDevDoubleAggregatorFunctionSupplier(true);
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }

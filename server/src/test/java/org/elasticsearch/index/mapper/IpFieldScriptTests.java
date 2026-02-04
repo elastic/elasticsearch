@@ -104,7 +104,11 @@ public class IpFieldScriptTests extends FieldScriptTestCase<IpFieldScript.Factor
                 IpFieldScript.LeafFactory leafFactory = fromSource().newFactory(
                     "field",
                     Collections.emptyMap(),
-                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, SourceProvider.fromStoredFields()),
+                    new SearchLookup(
+                        field -> null,
+                        (ft, lookup, fdt) -> null,
+                        SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP)
+                    ),
                     OnScriptError.FAIL
                 );
                 IpFieldScript ipFieldScript = leafFactory.newInstance(reader.leaves().get(0));

@@ -11,8 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -21,8 +19,8 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -45,6 +43,7 @@ import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
@@ -52,7 +51,6 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignme
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlPlatformArchitecturesUtil;
-import org.elasticsearch.xpack.core.ml.utils.TransportVersionUtils;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.NodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AllocationReducer;
@@ -73,15 +71,13 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.NUMBER_OF_ALLOCATIONS;
+import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.PRIORITY;
 import static org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils.NODES_CHANGED_REASON;
 import static org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils.createShuttingDownRoute;
 
 public class TrainedModelAssignmentClusterService implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(TrainedModelAssignmentClusterService.class);
-
-    private static final TransportVersion RENAME_ALLOCATION_TO_ASSIGNMENT_TRANSPORT_VERSION = TransportVersions.V_8_3_0;
-    public static final TransportVersion DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION = TransportVersions.V_8_4_0;
 
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
@@ -170,14 +166,6 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             return;
         }
 
-        if (eventStateMinTransportVersionIsBeforeDistributedModelAllocationTransportVersion(event)) {
-            // we should not try to rebalance assignments while there may be nodes running on a version
-            // prior to introducing distributed model allocation.
-            // But we should remove routing to removed or shutting down nodes.
-            removeRoutingToRemovedOrShuttingDownNodes(event);
-            return;
-        }
-
         if (event.nodesAdded()) {
             logMlNodeHeterogeneity();
         }
@@ -202,10 +190,6 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 )
             );
         }
-    }
-
-    boolean eventStateMinTransportVersionIsBeforeDistributedModelAllocationTransportVersion(ClusterChangedEvent event) {
-        return event.state().getMinTransportVersion().before(DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION);
     }
 
     boolean eventStateHasGlobalBlockStateNotRecoveredBlock(ClusterChangedEvent event) {
@@ -401,18 +385,6 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         CreateTrainedModelAssignmentAction.Request request,
         ActionListener<TrainedModelAssignment> listener
     ) {
-        if (clusterService.state().getMinTransportVersion().before(DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION)) {
-            listener.onFailure(
-                new ElasticsearchStatusException(
-                    "cannot create new assignment [{}] for model [{}] while cluster upgrade is in progress",
-                    RestStatus.CONFLICT,
-                    request.getTaskParams().getDeploymentId(),
-                    request.getTaskParams().getModelId()
-                )
-            );
-            return;
-        }
-
         if (MlMetadata.getMlMetadata(clusterService.state()).isResetMode()) {
             listener.onFailure(
                 new ElasticsearchStatusException(
@@ -523,14 +495,12 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
     private static ClusterState forceUpdate(ClusterState currentState, TrainedModelAssignmentMetadata.Builder modelAssignments) {
         logger.debug(() -> format("updated assignments: %s", modelAssignments.build()));
-        Metadata.Builder metadata = Metadata.builder(currentState.metadata());
-        if (currentState.getMinTransportVersion().onOrAfter(RENAME_ALLOCATION_TO_ASSIGNMENT_TRANSPORT_VERSION)) {
-            metadata.putCustom(TrainedModelAssignmentMetadata.NAME, modelAssignments.build())
-                .removeProjectCustom(TrainedModelAssignmentMetadata.DEPRECATED_NAME);
-        } else {
-            metadata.putCustom(TrainedModelAssignmentMetadata.DEPRECATED_NAME, modelAssignments.buildOld());
-        }
-        return ClusterState.builder(currentState).metadata(metadata).build();
+
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(currentState.metadata().getProject());
+        builder.putCustom(TrainedModelAssignmentMetadata.NAME, modelAssignments.build())
+            .removeCustom(TrainedModelAssignmentMetadata.DEPRECATED_NAME);
+
+        return ClusterState.builder(currentState).putProjectMetadata(builder).build();
     }
 
     ClusterState createModelAssignment(ClusterState currentState, CreateTrainedModelAssignmentAction.Request request) throws Exception {
@@ -645,23 +615,22 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     private TrainedModelAssignmentMetadata.Builder rebalanceAssignments(
         ClusterState currentState,
         Optional<CreateTrainedModelAssignmentAction.Request> createAssignmentRequest
-    ) throws Exception {
-        List<DiscoveryNode> nodes = getAssignableNodes(currentState);
-        logger.debug(() -> format("assignable nodes are %s", nodes.stream().map(DiscoveryNode::getId).toList()));
-        Map<DiscoveryNode, NodeLoad> nodeLoads = detectNodeLoads(nodes, currentState);
+    ) {
+        List<DiscoveryNode> assignableNodes = getAssignableNodes(currentState);
+        logger.debug(() -> format("assignable nodes are %s", assignableNodes.stream().map(DiscoveryNode::getId).toList()));
+        Map<DiscoveryNode, NodeLoad> nodeLoads = detectNodeLoads(assignableNodes, currentState);
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.fromState(currentState);
 
-        boolean useNewMemoryFields = TrainedModelAssignment.useNewMemoryFields(TransportVersionUtils.getMinTransportVersion(currentState));
         TrainedModelAssignmentRebalancer rebalancer = new TrainedModelAssignmentRebalancer(
             currentMetadata,
             nodeLoads,
-            nodeAvailabilityZoneMapper.buildMlNodesByAvailabilityZone(currentState),
+            nodeAvailabilityZoneMapper.buildMlNodesByAvailabilityZone(assignableNodes),
             createAssignmentRequest,
             allocatedProcessorsScale,
-            useNewMemoryFields
+            useAuto
         );
 
-        Set<String> shuttingDownNodeIds = currentState.metadata().nodeShutdowns().getAllNodeIds();
+        Set<String> shuttingDownNodeIds = nodesShuttingDown(currentState);
         /*
          * To signal that we should gracefully stop the deployments routed to a particular node we set the routing state to stopping.
          * The TrainedModelAssignmentNodeService will see that the route is in stopping for a shutting down node and gracefully shut down
@@ -677,7 +646,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             checkModelIsFullyAllocatedIfScalingIsNotPossible(
                 createAssignmentRequest.get().getTaskParams().getDeploymentId(),
                 rebalanced,
-                nodes
+                assignableNodes
             );
         }
 
@@ -845,9 +814,28 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 return;
             }
         }
+        if (Priority.LOW.equals(existingAssignment.getTaskParams().getPriority())) {
+            if (numberOfAllocations != null && numberOfAllocations > 1) {
+                ValidationException validationException = new ValidationException();
+                validationException.addValidationError("[" + NUMBER_OF_ALLOCATIONS + "] must be 1 when [" + PRIORITY + "] is low");
+                listener.onFailure(validationException);
+                return;
+            }
+            if (adaptiveAllocationsSettings != null
+                && adaptiveAllocationsSettings.getMaxNumberOfAllocations() != null
+                && adaptiveAllocationsSettings.getMaxNumberOfAllocations() > 1) {
+                ValidationException validationException = new ValidationException();
+                validationException.addValidationError(
+                    "[" + AdaptiveAllocationsSettings.MAX_NUMBER_OF_ALLOCATIONS + "] must be 1 when [" + PRIORITY + "] is low"
+                );
+                listener.onFailure(validationException);
+                return;
+            }
+        }
+
         boolean hasUpdates = hasUpdates(numberOfAllocations, adaptiveAllocationsSettingsUpdates, existingAssignment);
         if (hasUpdates == false) {
-            logger.info("no updates");
+            logger.debug("no updates to be made for deployment [{}]", deploymentId);
             listener.onResponse(existingAssignment);
             return;
         }
@@ -861,19 +849,9 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             );
             return;
         }
-        if (clusterState.getMinTransportVersion().before(DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION)) {
-            listener.onFailure(
-                new ElasticsearchStatusException(
-                    "cannot update deployment with model id [{}] while cluster upgrade is in progress.",
-                    RestStatus.CONFLICT,
-                    deploymentId
-                )
-            );
-            return;
-        }
 
-        ActionListener<ClusterState> updatedStateListener = ActionListener.wrap(
-            updatedState -> submitUnbatchedTask("update model deployment", new ClusterStateUpdateTask() {
+        ActionListener<TrainedModelAssignmentMetadata.Builder> updatedAssignmentListener = ActionListener.wrap(
+            updatedAssignment -> submitUnbatchedTask("update model deployment", new ClusterStateUpdateTask() {
 
                 private volatile boolean isUpdated;
 
@@ -881,7 +859,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 public ClusterState execute(ClusterState currentState) {
                     if (areClusterStatesCompatibleForRebalance(clusterState, currentState)) {
                         isUpdated = true;
-                        return updatedState;
+                        return update(currentState, updatedAssignment);
                     }
                     logger.debug(() -> format("[%s] Retrying update as cluster state has been modified", deploymentId));
                     updateDeployment(currentState, deploymentId, numberOfAllocations, adaptiveAllocationsSettings, isInternal, listener);
@@ -913,7 +891,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             listener::onFailure
         );
 
-        updateAssignment(clusterState, existingAssignment, numberOfAllocations, adaptiveAllocationsSettings, updatedStateListener);
+        updateAssignment(clusterState, existingAssignment, numberOfAllocations, adaptiveAllocationsSettings, updatedAssignmentListener);
     }
 
     static boolean hasUpdates(
@@ -947,7 +925,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         TrainedModelAssignment assignment,
         Integer numberOfAllocations,
         AdaptiveAllocationsSettings adaptiveAllocationsSettings,
-        ActionListener<ClusterState> listener
+        ActionListener<TrainedModelAssignmentMetadata.Builder> listener
     ) {
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
             if (numberOfAllocations == null || numberOfAllocations == assignment.getTaskParams().getNumberOfAllocations()) {
@@ -964,13 +942,13 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         ClusterState clusterState,
         TrainedModelAssignment assignment,
         AdaptiveAllocationsSettings adaptiveAllocationsSettings,
-        ActionListener<ClusterState> listener
+        ActionListener<TrainedModelAssignmentMetadata.Builder> listener
     ) {
         TrainedModelAssignment.Builder updatedAssignment = TrainedModelAssignment.Builder.fromAssignment(assignment)
             .setAdaptiveAllocationsSettings(adaptiveAllocationsSettings);
         TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.builder(clusterState);
         builder.updateAssignment(assignment.getDeploymentId(), updatedAssignment);
-        listener.onResponse(update(clusterState, builder));
+        listener.onResponse(builder);
     }
 
     private void increaseNumberOfAllocations(
@@ -978,7 +956,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         TrainedModelAssignment assignment,
         int numberOfAllocations,
         AdaptiveAllocationsSettings adaptiveAllocationsSettings,
-        ActionListener<ClusterState> listener
+        ActionListener<TrainedModelAssignmentMetadata.Builder> listener
     ) {
         try {
             TrainedModelAssignment.Builder updatedAssignment = TrainedModelAssignment.Builder.fromAssignment(assignment)
@@ -998,7 +976,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                     )
                 );
             } else {
-                listener.onResponse(update(clusterState, rebalancedMetadata));
+                listener.onResponse(rebalancedMetadata);
             }
         } catch (Exception e) {
             listener.onFailure(e);
@@ -1010,10 +988,11 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         TrainedModelAssignment assignment,
         int numberOfAllocations,
         AdaptiveAllocationsSettings adaptiveAllocationsSettings,
-        ActionListener<ClusterState> listener
+        ActionListener<TrainedModelAssignmentMetadata.Builder> listener
     ) {
+        List<DiscoveryNode> assignableNodes = getAssignableNodes(clusterState);
         TrainedModelAssignment.Builder updatedAssignment = numberOfAllocations < assignment.totalTargetAllocations()
-            ? new AllocationReducer(assignment, nodeAvailabilityZoneMapper.buildMlNodesByAvailabilityZone(clusterState)).reduceTo(
+            ? new AllocationReducer(assignment, nodeAvailabilityZoneMapper.buildMlNodesByAvailabilityZone(assignableNodes)).reduceTo(
                 numberOfAllocations
             )
             : TrainedModelAssignment.Builder.fromAssignment(assignment).setNumberOfAllocations(numberOfAllocations);
@@ -1025,7 +1004,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         }
         TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.builder(clusterState);
         builder.updateAssignment(assignment.getDeploymentId(), updatedAssignment);
-        listener.onResponse(update(clusterState, builder));
+        listener.onResponse(builder);
     }
 
     static ClusterState setToStopping(ClusterState clusterState, String deploymentId, String reason) {

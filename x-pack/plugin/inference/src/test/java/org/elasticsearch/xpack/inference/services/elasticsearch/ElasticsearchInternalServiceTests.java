@@ -11,31 +11,43 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankingInferenceService;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.telemetry.InferenceStats;
+import org.elasticsearch.inference.telemetry.InferenceStatsTests;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ParseField;
@@ -43,33 +55,45 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests;
+import org.elasticsearch.xpack.core.inference.chunking.RerankRequestChunker;
+import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
+import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.inference.ModelDeploymentTimeoutException;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentTests;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResultsTests;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResultsTests;
+import org.elasticsearch.xpack.core.ml.inference.results.TextSimilarityInferenceResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
 import org.elasticsearch.xpack.inference.InferencePlugin;
-import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
-import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
+import org.elasticsearch.xpack.inference.InputTypeTests;
+import org.elasticsearch.xpack.inference.ModelConfigurationsTests;
+import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -91,19 +115,26 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction.Response.RESULTS_FIELD;
-import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
-import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
+import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.BaseElasticsearchInternalService.notElasticsearchModelException;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86;
-import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.NAME;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.OLD_ELSER_SERVICE_NAME;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.assertArg;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
@@ -112,15 +143,22 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class ElasticsearchInternalServiceTests extends ESTestCase {
+public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase {
 
-    String randomInferenceEntityId = randomAlphaOfLength(10);
+    private static final String INFERENCE_ENTITY_ID_VALUE = "inference_id";
+    private String randomInferenceEntityId;
+    private InferenceStats inferenceStats;
 
     private static ThreadPool threadPool;
 
+    private final String TEST_SENTENCE = "This is a test sentence that has ten total words. ";
+
     @Before
-    public void setUpThreadPool() {
-        threadPool = createThreadPool(InferencePlugin.inferenceUtilityExecutor(Settings.EMPTY));
+    public void setUp() throws Exception {
+        super.setUp();
+        randomInferenceEntityId = randomAlphaOfLength(10);
+        inferenceStats = InferenceStatsTests.mockInferenceStats();
+        threadPool = createThreadPool(inferenceUtilityExecutors());
     }
 
     @After
@@ -207,12 +245,17 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                         ElasticsearchInternalServiceSettings.NUM_THREADS,
                         4,
                         ElasticsearchInternalServiceSettings.MODEL_ID,
-                        MULTILINGUAL_E5_SMALL_MODEL_ID
+                        ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID
                     )
                 )
             );
 
-            var e5ServiceSettings = new MultilingualE5SmallInternalServiceSettings(1, 4, MULTILINGUAL_E5_SMALL_MODEL_ID, null);
+            var e5ServiceSettings = new MultilingualE5SmallInternalServiceSettings(
+                1,
+                4,
+                ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID,
+                null
+            );
 
             service.parseRequestConfig(
                 randomInferenceEntityId,
@@ -267,7 +310,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                         ElasticsearchInternalServiceSettings.NUM_THREADS,
                         4,
                         ElasticsearchInternalServiceSettings.MODEL_ID,
-                        MULTILINGUAL_E5_SMALL_MODEL_ID,
+                        ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID,
                         "not_a_valid_service_setting",
                         randomAlphaOfLength(10)
                     )
@@ -294,13 +337,18 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                         ElasticsearchInternalServiceSettings.NUM_THREADS,
                         4,
                         ElasticsearchInternalServiceSettings.MODEL_ID,
-                        MULTILINGUAL_E5_SMALL_MODEL_ID
+                        ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID
                     )
                 )
             );
             settings.put(ModelConfigurations.CHUNKING_SETTINGS, createRandomChunkingSettingsMap());
 
-            var e5ServiceSettings = new MultilingualE5SmallInternalServiceSettings(1, 4, MULTILINGUAL_E5_SMALL_MODEL_ID, null);
+            var e5ServiceSettings = new MultilingualE5SmallInternalServiceSettings(
+                1,
+                4,
+                ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID,
+                null
+            );
 
             service.parseRequestConfig(
                 randomInferenceEntityId,
@@ -322,12 +370,17 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                         ElasticsearchInternalServiceSettings.NUM_THREADS,
                         4,
                         ElasticsearchInternalServiceSettings.MODEL_ID,
-                        MULTILINGUAL_E5_SMALL_MODEL_ID
+                        ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID
                     )
                 )
             );
 
-            var e5ServiceSettings = new MultilingualE5SmallInternalServiceSettings(1, 4, MULTILINGUAL_E5_SMALL_MODEL_ID, null);
+            var e5ServiceSettings = new MultilingualE5SmallInternalServiceSettings(
+                1,
+                4,
+                ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID,
+                null
+            );
 
             service.parseRequestConfig(
                 randomInferenceEntityId,
@@ -698,7 +751,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             ElserInternalModel elserInternalModel = (ElserInternalModel) model;
             assertEquals(randomInferenceEntityId, elserInternalModel.getInferenceEntityId());
             assertEquals(TaskType.SPARSE_EMBEDDING, elserInternalModel.getTaskType());
-            assertEquals(NAME, elserInternalModel.getConfigurations().getService());
+            assertEquals(ElasticsearchInternalService.NAME, elserInternalModel.getConfigurations().getService());
             assertEquals(elserServiceSettings, elserInternalModel.getServiceSettings());
             if (expectChunkingSettings) {
                 assertThat(model.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
@@ -708,6 +761,30 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
     }
 
     public void testParsePersistedConfig() {
+
+        // Parsing a persistent configuration using model_version succeeds
+        {
+            var service = createService(mock(Client.class));
+            var settings = new HashMap<String, Object>();
+            settings.put(
+                ModelConfigurations.SERVICE_SETTINGS,
+                new HashMap<>(
+                    Map.of(
+                        ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS,
+                        1,
+                        ElasticsearchInternalServiceSettings.NUM_THREADS,
+                        4,
+                        "model_version",
+                        ".elser_model_2"
+                    )
+                )
+            );
+
+            var model = service.parsePersistedConfig(randomInferenceEntityId, TaskType.TEXT_EMBEDDING, settings);
+            assertThat(model, instanceOf(ElserInternalModel.class));
+            ElserInternalModel elserInternalModel = (ElserInternalModel) model;
+            assertThat(elserInternalModel.getServiceSettings().modelId(), is(".elser_model_2"));
+        }
 
         // Null model variant
         {
@@ -727,11 +804,12 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 )
             );
 
-            expectThrows(
+            var exception = expectThrows(
                 IllegalArgumentException.class,
                 () -> service.parsePersistedConfig(randomInferenceEntityId, TaskType.TEXT_EMBEDDING, settings)
             );
 
+            assertThat(exception.getMessage(), containsString(randomInferenceEntityId));
         }
 
         // Invalid model variant
@@ -794,14 +872,19 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                         ElasticsearchInternalServiceSettings.NUM_THREADS,
                         4,
                         ElasticsearchInternalServiceSettings.MODEL_ID,
-                        MULTILINGUAL_E5_SMALL_MODEL_ID,
+                        ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID,
                         ServiceFields.DIMENSIONS,
                         1
                     )
                 )
             );
 
-            var e5ServiceSettings = new MultilingualE5SmallInternalServiceSettings(1, 4, MULTILINGUAL_E5_SMALL_MODEL_ID, null);
+            var e5ServiceSettings = new MultilingualE5SmallInternalServiceSettings(
+                1,
+                4,
+                ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID,
+                null
+            );
 
             MultilingualE5SmallModel parsedModel = (MultilingualE5SmallModel) service.parsePersistedConfig(
                 randomInferenceEntityId,
@@ -858,6 +941,187 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         }
     }
 
+    public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() {
+        var service = createService(mock(Client.class));
+        var model = new Model(ModelConfigurationsTests.createRandomInstance());
+
+        assertThrows(ElasticsearchStatusException.class, () -> { service.updateModelWithEmbeddingDetails(model, randomNonNegativeInt()); });
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_TextEmbeddingCustomElandEmbeddingsModelUpdatesDimensions() {
+        var service = createService(mock(Client.class));
+        var elandServiceSettings = new CustomElandInternalTextEmbeddingServiceSettings(
+            1,
+            4,
+            "invalid",
+            null,
+            null,
+            null,
+            SimilarityMeasure.COSINE,
+            DenseVectorFieldMapper.ElementType.FLOAT
+        );
+        var model = new CustomElandEmbeddingModel(
+            randomAlphaOfLength(10),
+            TaskType.TEXT_EMBEDDING,
+            "elasticsearch",
+            elandServiceSettings,
+            null
+        );
+
+        var embeddingSize = randomNonNegativeInt();
+        var updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
+
+        assertEquals(embeddingSize, updatedModel.getServiceSettings().dimensions().intValue());
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_NonTextEmbeddingCustomElandEmbeddingsModelNotModified() {
+        var service = createService(mock(Client.class));
+        var elandServiceSettings = new CustomElandInternalTextEmbeddingServiceSettings(
+            1,
+            4,
+            "invalid",
+            null,
+            null,
+            null,
+            SimilarityMeasure.COSINE,
+            DenseVectorFieldMapper.ElementType.FLOAT
+        );
+        var model = new CustomElandEmbeddingModel(
+            randomAlphaOfLength(10),
+            TaskType.SPARSE_EMBEDDING,
+            "elasticsearch",
+            elandServiceSettings,
+            null
+        );
+
+        var embeddingSize = randomNonNegativeInt();
+        var updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
+
+        assertEquals(model, updatedModel);
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_ElasticsearchInternalModelNotModified() {
+        var service = createService(mock(Client.class));
+        var model = mock(ElasticsearchInternalModel.class);
+
+        var updatedModel = service.updateModelWithEmbeddingDetails(model, randomNonNegativeInt());
+
+        assertEquals(model, updatedModel);
+        verifyNoMoreInteractions(model);
+    }
+
+    public void testInfer_UnsupportedModel() {
+        var service = createService(mock(Client.class));
+        var model = new Model(ModelConfigurationsTests.createRandomInstance());
+
+        ActionListener<InferenceServiceResults> listener = ActionListener.wrap(
+            results -> fail("Expected infer to fail for unsupported model type"),
+            e -> assertEquals(e.getMessage(), notElasticsearchModelException(model).getMessage())
+        );
+
+        service.infer(model, null, null, null, List.of(), randomBoolean(), Map.of(), InputType.INGEST, null, listener);
+    }
+
+    public void testInfer_ElasticRerankerSucceedsWithoutChunkingConfiguration() {
+        var model = new ElasticRerankerModel(
+            randomAlphaOfLength(10),
+            TaskType.RERANK,
+            ElasticsearchInternalService.NAME,
+            ElasticRerankerServiceSettingsTests.createRandomWithoutChunkingConfiguration(randomAlphaOfLength(8)),
+            new RerankTaskSettings(randomBoolean())
+        );
+
+        testInfer_ElasticReranker(model, generateTestDocs(randomIntBetween(2, 10), randomIntBetween(50, 100)));
+    }
+
+    public void testInfer_SucceedsWithTruncateLongDocumentStrategy() {
+        var model = new ElasticRerankerModel(
+            randomAlphaOfLength(10),
+            TaskType.RERANK,
+            ElasticsearchInternalService.NAME,
+            ElasticRerankerServiceSettingsTests.createRandomWithChunkingConfiguration(
+                ElasticRerankerServiceSettings.LongDocumentStrategy.TRUNCATE,
+                null
+            ),
+            new RerankTaskSettings(randomBoolean())
+        );
+
+        testInfer_ElasticReranker(model, generateTestDocs(randomIntBetween(2, 10), randomIntBetween(50, 100)));
+    }
+
+    public void testInfer_SucceedsWithChunkLongDocumentStrategy() {
+        var model = new ElasticRerankerModel(
+            randomAlphaOfLength(10),
+            TaskType.RERANK,
+            ElasticsearchInternalService.NAME,
+            ElasticRerankerServiceSettingsTests.createRandomWithChunkingConfiguration(
+                ElasticRerankerServiceSettings.LongDocumentStrategy.CHUNK,
+                randomBoolean() ? randomIntBetween(1, 10) : null
+            ),
+            new RerankTaskSettings(randomBoolean())
+        );
+
+        testInfer_ElasticReranker(model, generateTestDocs(randomIntBetween(2, 10), randomIntBetween(50, 100)));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void testInfer_ElasticReranker(ElasticRerankerModel model, List<String> inputs) {
+        var query = randomAlphaOfLength(10);
+        var mlTrainedModelResults = new ArrayList<InferenceResults>();
+        var numResults = inputs.size();
+        if (ElasticRerankerServiceSettings.LongDocumentStrategy.CHUNK.equals(model.getServiceSettings().getLongDocumentStrategy())) {
+            var rerankRequestChunker = new RerankRequestChunker(query, inputs, model.getServiceSettings().getMaxChunksPerDoc());
+            numResults = rerankRequestChunker.getChunkedInputs().size();
+        }
+        for (int i = 0; i < numResults; i++) {
+            mlTrainedModelResults.add(TextSimilarityInferenceResultsTests.createRandomResults());
+        }
+        var response = new InferModelAction.Response(mlTrainedModelResults, "foo", true);
+
+        Client client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        doAnswer(invocationOnMock -> {
+            var listener = (ActionListener<InferModelAction.Response>) invocationOnMock.getArguments()[2];
+            listener.onResponse(response);
+            return null;
+        }).when(client).execute(same(InferModelAction.INSTANCE), any(InferModelAction.Request.class), any(ActionListener.class));
+
+        var service = createService(client);
+        var topN = randomBoolean() ? null : randomIntBetween(1, inputs.size());
+
+        ActionListener<InferenceServiceResults> listener = ActionListener.wrap(results -> {
+            assertThat(results, instanceOf(RankedDocsResults.class));
+            var rankedDocsResults = (RankedDocsResults) results;
+            assertEquals(topN == null ? inputs.size() : topN, rankedDocsResults.getRankedDocs().size());
+
+        }, ESTestCase::fail);
+
+        service.infer(
+            model,
+            randomAlphaOfLength(10),
+            randomBoolean() ? null : randomBoolean(),
+            topN,
+            inputs,
+            false,
+            Map.of(),
+            InputType.INGEST,
+            null,
+            listener
+        );
+    }
+
+    private List<String> generateTestDocs(int numDocs, int numSentencesPerDoc) {
+        var docs = new ArrayList<String>();
+        for (int docIndex = 0; docIndex < numDocs; docIndex++) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < numSentencesPerDoc; i++) {
+                sb.append(TEST_SENTENCE);
+            }
+            docs.add(sb.toString());
+        }
+        return docs;
+    }
+
     public void testChunkInfer_E5WithNullChunkingSettings() throws InterruptedException {
         testChunkInfer_e5(null);
     }
@@ -869,8 +1133,8 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     private void testChunkInfer_e5(ChunkingSettings chunkingSettings) throws InterruptedException {
         var mlTrainedModelResults = new ArrayList<InferenceResults>();
-        mlTrainedModelResults.add(MlTextEmbeddingResultsTests.createRandomResults());
-        mlTrainedModelResults.add(MlTextEmbeddingResultsTests.createRandomResults());
+        mlTrainedModelResults.add(MlDenseEmbeddingResultsTests.createRandomResults());
+        mlTrainedModelResults.add(MlDenseEmbeddingResultsTests.createRandomResults());
         var response = new InferModelAction.Response(mlTrainedModelResults, "foo", true);
 
         Client client = mock(Client.class);
@@ -896,20 +1160,20 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             assertThat(chunkedResponse.get(0), instanceOf(ChunkedInferenceEmbedding.class));
             var result1 = (ChunkedInferenceEmbedding) chunkedResponse.get(0);
             assertThat(result1.chunks(), hasSize(1));
-            assertThat(result1.chunks().get(0), instanceOf(TextEmbeddingFloatResults.Chunk.class));
+            assertThat(result1.chunks().get(0).embedding(), instanceOf(DenseEmbeddingFloatResults.Embedding.class));
             assertArrayEquals(
-                ((MlTextEmbeddingResults) mlTrainedModelResults.get(0)).getInferenceAsFloat(),
-                ((TextEmbeddingFloatResults.Chunk) result1.chunks().get(0)).embedding(),
+                ((MlDenseEmbeddingResults) mlTrainedModelResults.get(0)).getInferenceAsFloat(),
+                ((DenseEmbeddingFloatResults.Embedding) result1.chunks().get(0).embedding()).values(),
                 0.0001f
             );
             assertEquals(new ChunkedInference.TextOffset(0, 1), result1.chunks().get(0).offset());
             assertThat(chunkedResponse.get(1), instanceOf(ChunkedInferenceEmbedding.class));
             var result2 = (ChunkedInferenceEmbedding) chunkedResponse.get(1);
             assertThat(result2.chunks(), hasSize(1));
-            assertThat(result2.chunks().get(0), instanceOf(TextEmbeddingFloatResults.Chunk.class));
+            assertThat(result2.chunks().get(0).embedding(), instanceOf(DenseEmbeddingFloatResults.Embedding.class));
             assertArrayEquals(
-                ((MlTextEmbeddingResults) mlTrainedModelResults.get(1)).getInferenceAsFloat(),
-                ((TextEmbeddingFloatResults.Chunk) result2.chunks().get(0)).embedding(),
+                ((MlDenseEmbeddingResults) mlTrainedModelResults.get(1)).getInferenceAsFloat(),
+                ((DenseEmbeddingFloatResults.Embedding) result2.chunks().get(0).embedding()).values(),
                 0.0001f
             );
             assertEquals(new ChunkedInference.TextOffset(0, 2), result2.chunks().get(0).offset());
@@ -923,7 +1187,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         service.chunkedInfer(
             model,
             null,
-            List.of("a", "bb"),
+            List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
             Map.of(),
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -972,18 +1236,18 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             assertThat(chunkedResponse, hasSize(2));
             assertThat(chunkedResponse.get(0), instanceOf(ChunkedInferenceEmbedding.class));
             var result1 = (ChunkedInferenceEmbedding) chunkedResponse.get(0);
-            assertThat(result1.chunks().get(0), instanceOf(SparseEmbeddingResults.Chunk.class));
+            assertThat(result1.chunks().get(0).embedding(), instanceOf(SparseEmbeddingResults.Embedding.class));
             assertEquals(
                 ((TextExpansionResults) mlTrainedModelResults.get(0)).getWeightedTokens(),
-                ((SparseEmbeddingResults.Chunk) result1.chunks().get(0)).weightedTokens()
+                ((SparseEmbeddingResults.Embedding) result1.chunks().get(0).embedding()).tokens()
             );
             assertEquals(new ChunkedInference.TextOffset(0, 1), result1.chunks().get(0).offset());
             assertThat(chunkedResponse.get(1), instanceOf(ChunkedInferenceEmbedding.class));
             var result2 = (ChunkedInferenceEmbedding) chunkedResponse.get(1);
-            assertThat(result2.chunks().get(0), instanceOf(SparseEmbeddingResults.Chunk.class));
+            assertThat(result2.chunks().get(0).embedding(), instanceOf(SparseEmbeddingResults.Embedding.class));
             assertEquals(
                 ((TextExpansionResults) mlTrainedModelResults.get(1)).getWeightedTokens(),
-                ((SparseEmbeddingResults.Chunk) result2.chunks().get(0)).weightedTokens()
+                ((SparseEmbeddingResults.Embedding) result2.chunks().get(0).embedding()).tokens()
             );
             assertEquals(new ChunkedInference.TextOffset(0, 2), result2.chunks().get(0).offset());
             gotResults.set(true);
@@ -995,7 +1259,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         service.chunkedInfer(
             model,
             null,
-            List.of("a", "bb"),
+            List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
             Map.of(),
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -1044,18 +1308,18 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             assertThat(chunkedResponse, hasSize(2));
             assertThat(chunkedResponse.get(0), instanceOf(ChunkedInferenceEmbedding.class));
             var result1 = (ChunkedInferenceEmbedding) chunkedResponse.get(0);
-            assertThat(result1.chunks().get(0), instanceOf(SparseEmbeddingResults.Chunk.class));
+            assertThat(result1.chunks().get(0).embedding(), instanceOf(SparseEmbeddingResults.Embedding.class));
             assertEquals(
                 ((TextExpansionResults) mlTrainedModelResults.get(0)).getWeightedTokens(),
-                ((SparseEmbeddingResults.Chunk) result1.chunks().get(0)).weightedTokens()
+                ((SparseEmbeddingResults.Embedding) result1.chunks().get(0).embedding()).tokens()
             );
             assertEquals(new ChunkedInference.TextOffset(0, 1), result1.chunks().get(0).offset());
             assertThat(chunkedResponse.get(1), instanceOf(ChunkedInferenceEmbedding.class));
             var result2 = (ChunkedInferenceEmbedding) chunkedResponse.get(1);
-            assertThat(result2.chunks().get(0), instanceOf(SparseEmbeddingResults.Chunk.class));
+            assertThat(result2.chunks().get(0).embedding(), instanceOf(SparseEmbeddingResults.Embedding.class));
             assertEquals(
                 ((TextExpansionResults) mlTrainedModelResults.get(1)).getWeightedTokens(),
-                ((SparseEmbeddingResults.Chunk) result2.chunks().get(0)).weightedTokens()
+                ((SparseEmbeddingResults.Embedding) result2.chunks().get(0).embedding()).tokens()
             );
             assertEquals(new ChunkedInference.TextOffset(0, 2), result2.chunks().get(0).offset());
             gotResults.set(true);
@@ -1067,7 +1331,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         service.chunkedInfer(
             model,
             null,
-            List.of("a", "bb"),
+            List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
             Map.of(),
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -1112,7 +1376,8 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         expectedWindowSize.set(null);
         service.chunkedInfer(
             model,
-            List.of("foo", "bar"),
+            null,
+            List.of(new ChunkInferenceInput("foo"), new ChunkInferenceInput("bar")),
             Map.of(),
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -1123,7 +1388,8 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         expectedWindowSize.set(256);
         service.chunkedInfer(
             model,
-            List.of("foo", "bar"),
+            null,
+            List.of(new ChunkInferenceInput("foo"), new ChunkInferenceInput("bar")),
             Map.of(),
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -1135,8 +1401,8 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testChunkInfer_FailsBatch() throws InterruptedException {
         var mlTrainedModelResults = new ArrayList<InferenceResults>();
-        mlTrainedModelResults.add(MlTextEmbeddingResultsTests.createRandomResults());
-        mlTrainedModelResults.add(MlTextEmbeddingResultsTests.createRandomResults());
+        mlTrainedModelResults.add(MlDenseEmbeddingResultsTests.createRandomResults());
+        mlTrainedModelResults.add(MlDenseEmbeddingResultsTests.createRandomResults());
         mlTrainedModelResults.add(new ErrorInferenceResults(new RuntimeException("boom")));
         var response = new InferModelAction.Response(mlTrainedModelResults, "foo", true);
 
@@ -1175,7 +1441,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         service.chunkedInfer(
             model,
             null,
-            List.of("foo", "bar", "baz"),
+            List.of(new ChunkInferenceInput("foo"), new ChunkInferenceInput("bar"), new ChunkInferenceInput("baz")),
             Map.of(),
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -1201,7 +1467,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         // build a doc with enough words to make numChunks of chunks
         int wordsPerChunk = 10;
         int numWords = numChunks * wordsPerChunk;
-        var input = "word ".repeat(numWords);
+        var input = new ChunkInferenceInput("word ".repeat(numWords));
 
         Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
@@ -1212,7 +1478,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             var listener = (ActionListener<InferModelAction.Response>) invocationOnMock.getArguments()[2];
             var mlTrainedModelResults = new ArrayList<InferenceResults>();
             for (int i = 0; i < request.numberOfDocuments(); i++) {
-                mlTrainedModelResults.add(MlTextEmbeddingResultsTests.createRandomResults());
+                mlTrainedModelResults.add(MlDenseEmbeddingResultsTests.createRandomResults());
             }
             var response = new InferModelAction.Response(mlTrainedModelResults, "foo", true);
             listener.onResponse(response);
@@ -1256,6 +1522,23 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
 
         latch.await();
         assertTrue("Listener not called with results", gotResults.get());
+    }
+
+    public void testChunkInfer_noInputs() throws IOException {
+        var model = new MultilingualE5SmallModel(
+            "foo",
+            TaskType.TEXT_EMBEDDING,
+            "e5",
+            new MultilingualE5SmallInternalServiceSettings(1, 1, "cross-platform", null),
+            null
+        );
+        try (var service = createService(mock(Client.class))) {
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            service.chunkedInfer(model, null, List.of(), Map.of(), InputType.SEARCH, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+
+            var results = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+            assertThat(results, empty());
+        }
     }
 
     public void testParsePersistedConfig_Rerank() {
@@ -1397,7 +1680,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
     public void testBuildInferenceRequest() {
         var id = randomAlphaOfLength(5);
         var inputs = randomList(1, 3, () -> randomAlphaOfLength(4));
-        var inputType = randomFrom(InputType.SEARCH, InputType.INGEST);
+        var inputType = InputTypeTests.randomWithoutUnspecified();
         var timeout = randomTimeValue();
         var request = ElasticsearchInternalService.buildInferenceRequest(
             id,
@@ -1409,10 +1692,14 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
 
         assertEquals(id, request.getId());
         assertEquals(inputs, request.getTextInput());
-        assertEquals(
-            inputType == InputType.INGEST ? TrainedModelPrefixStrings.PrefixType.INGEST : TrainedModelPrefixStrings.PrefixType.SEARCH,
-            request.getPrefixType()
-        );
+        if (inputType == InputType.INTERNAL_INGEST || inputType == InputType.INGEST) {
+            assertEquals(TrainedModelPrefixStrings.PrefixType.INGEST, request.getPrefixType());
+        } else if (inputType == InputType.INTERNAL_SEARCH || inputType == InputType.SEARCH) {
+            assertEquals(TrainedModelPrefixStrings.PrefixType.SEARCH, request.getPrefixType());
+        } else {
+            assertEquals(TrainedModelPrefixStrings.PrefixType.NONE, request.getPrefixType());
+        }
+
         assertEquals(timeout, request.getInferenceTimeout());
         assertEquals(false, request.isChunked());
     }
@@ -1456,67 +1743,6 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         assertEquals("text_field", putConfig.getInput().getFieldNames().get(0));
     }
 
-    public void testParseRequestConfigEland_SetsDimensionsToOne() {
-        var client = mock(Client.class);
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<InferModelAction.Response> listener = (ActionListener<InferModelAction.Response>) invocationOnMock
-                .getArguments()[2];
-            listener.onResponse(
-                new InferModelAction.Response(List.of(new MlTextEmbeddingResults("field", new double[] { 0.1 }, false)), "id", true)
-            );
-
-            var request = (InferModelAction.Request) invocationOnMock.getArguments()[1];
-            assertThat(request.getId(), is("custom-model"));
-            return Void.TYPE;
-        }).when(client).execute(eq(InferModelAction.INSTANCE), any(), any());
-        when(client.threadPool()).thenReturn(threadPool);
-
-        var service = createService(client);
-
-        var serviceSettings = new CustomElandInternalTextEmbeddingServiceSettings(
-            1,
-            4,
-            "custom-model",
-            null,
-            null,
-            1,
-            SimilarityMeasure.COSINE,
-            DenseVectorFieldMapper.ElementType.FLOAT
-        );
-        var taskType = TaskType.TEXT_EMBEDDING;
-        var expectedModel = new CustomElandEmbeddingModel(
-            randomInferenceEntityId,
-            taskType,
-            ElasticsearchInternalService.NAME,
-            serviceSettings,
-            null
-        );
-
-        PlainActionFuture<Model> listener = new PlainActionFuture<>();
-        service.checkModelConfig(
-            new CustomElandEmbeddingModel(
-                randomInferenceEntityId,
-                taskType,
-                ElasticsearchInternalService.NAME,
-                new CustomElandInternalTextEmbeddingServiceSettings(
-                    1,
-                    4,
-                    "custom-model",
-                    null,
-                    null,
-                    null,
-                    SimilarityMeasure.COSINE,
-                    DenseVectorFieldMapper.ElementType.FLOAT
-                ),
-                null
-            ),
-            listener
-        );
-        var model = listener.actionGet(TimeValue.THIRTY_SECONDS);
-        assertThat(model, is(expectedModel));
-    }
-
     public void testModelVariantDoesNotMatchArchitecturesAndIsNotPlatformAgnostic() {
         {
             assertFalse(
@@ -1529,7 +1755,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             assertTrue(
                 ElasticsearchInternalService.modelVariantValidForArchitecture(
                     BaseElasticsearchInternalService.PreferredModelVariant.PLATFORM_AGNOSTIC,
-                    MULTILINGUAL_E5_SMALL_MODEL_ID
+                    ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID
                 )
             );
         }
@@ -1543,7 +1769,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             assertTrue(
                 ElasticsearchInternalService.modelVariantValidForArchitecture(
                     BaseElasticsearchInternalService.PreferredModelVariant.LINUX_X86_OPTIMIZED,
-                    MULTILINGUAL_E5_SMALL_MODEL_ID
+                    ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID
                 )
             );
         }
@@ -1720,7 +1946,9 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             modelsByDeploymentId.forEach((deploymentId, models) -> {
                 var expectedNumberOfAllocations = updatedNumberOfAllocations.get(deploymentId);
                 models.forEach(model -> {
-                    verify((ElasticsearchInternalModel) model).updateNumAllocations(expectedNumberOfAllocations);
+                    verify((ElasticsearchInternalModel) model).updateServiceSettings(assertArg(assignmentStats -> {
+                        assertThat(assignmentStats.getNumberOfAllocations(), equalTo(expectedNumberOfAllocations));
+                    }));
                     verify((ElasticsearchInternalModel) model).mlNodeDeploymentId();
                     verifyNoMoreInteractions(model);
                 });
@@ -1762,7 +1990,8 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             mock(),
             threadPool,
             cs,
-            Settings.builder().put("xpack.ml.enabled", false).build()
+            Settings.builder().put("xpack.ml.enabled", false).build(),
+            inferenceStats
         );
         try (var service = new ElasticsearchInternalService(context)) {
             var models = List.of(mock(Model.class));
@@ -1804,23 +2033,249 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             client,
             threadPool,
             cs,
-            Settings.builder().put("xpack.ml.enabled", true).build()
+            Settings.builder().put("xpack.ml.enabled", true).build(),
+            inferenceStats
         );
         try (var service = new ElasticsearchInternalService(context)) {
             List<Model> models = List.of(model);
             var latch = new CountDownLatch(1);
             service.updateModelsWithDynamicFields(models, ActionTestUtils.assertNoFailureListener(r -> latch.countDown()));
             assertTrue(latch.await(30, TimeUnit.SECONDS));
-            verify(model).updateNumAllocations(3);
+            verify(model).updateServiceSettings(
+                assertArg(assignmentStats -> { assertThat(assignmentStats.getNumberOfAllocations(), equalTo(3)); })
+            );
         }
+    }
+
+    public void testStart_OnFailure_WhenTimeoutOccurs() throws IOException {
+        var model = mockModel();
+
+        var client = mockClientForStart(
+            listener -> listener.onFailure(new ElasticsearchStatusException("failed", RestStatus.GATEWAY_TIMEOUT))
+        );
+
+        try (var service = createService(client)) {
+            var actionListener = new PlainActionFuture<Boolean>();
+            service.start(model, TimeValue.timeValueSeconds(30), actionListener);
+            var exception = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> actionListener.actionGet(TimeValue.timeValueSeconds(30))
+            );
+
+            assertThat(exception.getMessage(), is("failed"));
+            verify(inferenceStats.deploymentDuration()).record(anyLong(), assertArg(attributes -> {
+                assertNotNull(attributes);
+                assertThat(attributes.get("error_type"), is("504"));
+            }));
+        }
+    }
+
+    public void testStart_OnFailure_WhenDeploymentTimeoutOccurs() throws IOException {
+        var model = mockModel();
+
+        var client = mockClientForStart(
+            listener -> listener.onFailure(new ElasticsearchTimeoutException("failed", RestStatus.GATEWAY_TIMEOUT))
+        );
+
+        try (var service = createService(client)) {
+            var actionListener = new PlainActionFuture<Boolean>();
+            service.start(model, TimeValue.timeValueSeconds(30), actionListener);
+            var exception = expectThrows(
+                ModelDeploymentTimeoutException.class,
+                () -> actionListener.actionGet(TimeValue.timeValueSeconds(30))
+            );
+
+            assertThat(
+                exception.getMessage(),
+                is(
+                    "Timed out after [30s] waiting for trained model deployment for inference endpoint [inference_id] to start. "
+                        + "The inference endpoint can not be used to perform inference until the deployment has started. "
+                        + "Use the trained model stats API to track the state of the deployment."
+                )
+            );
+            verify(inferenceStats.deploymentDuration()).record(anyLong(), assertArg(attributes -> {
+                assertNotNull(attributes);
+                assertThat(attributes.get("error_type"), is("408"));
+            }));
+        }
+    }
+
+    public void testStart() throws IOException {
+        var model = mockModel();
+
+        var client = mockClientForStart(listener -> {
+            var response = mock(CreateTrainedModelAssignmentAction.Response.class);
+            when(response.getTrainedModelAssignment()).thenReturn(TrainedModelAssignmentTests.randomInstance());
+            listener.onResponse(response);
+        });
+
+        try (var service = createService(client)) {
+            var actionListener = new PlainActionFuture<Boolean>();
+            service.start(model, TimeValue.timeValueSeconds(30), actionListener);
+            assertTrue(actionListener.actionGet(TimeValue.timeValueSeconds(30)));
+
+            verify(inferenceStats.deploymentDuration()).record(anyLong(), assertArg(attributes -> {
+                assertNotNull(attributes);
+                assertNull(attributes.get("error_type"));
+                assertThat(attributes.get("status_code"), is(200));
+            }));
+        }
+    }
+
+    private ElserInternalModel mockModel() {
+        return new ElserInternalModel(
+            INFERENCE_ENTITY_ID_VALUE,
+            TaskType.SPARSE_EMBEDDING,
+            "elasticsearch",
+            new ElserInternalServiceSettings(
+                new ElasticsearchInternalServiceSettings(1, 1, "id", new AdaptiveAllocationsSettings(false, 0, 0), null)
+            ),
+            new ElserMlNodeTaskSettings(),
+            null
+        );
+    }
+
+    private Client mockClientForStart(Consumer<ActionListener<CreateTrainedModelAssignmentAction.Response>> startModelListener) {
+        var client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+
+        doAnswer(invocationOnMock -> {
+            ActionListener<GetTrainedModelsAction.Response> listener = invocationOnMock.getArgument(2);
+            var builder = GetTrainedModelsAction.Response.builder();
+            builder.setModels(List.of(mock(TrainedModelConfig.class)));
+            builder.setTotalCount(1);
+
+            listener.onResponse(builder.build());
+            return Void.TYPE;
+        }).when(client).execute(eq(GetTrainedModelsAction.INSTANCE), any(), any());
+
+        doAnswer(invocationOnMock -> {
+            ActionListener<CreateTrainedModelAssignmentAction.Response> listener = invocationOnMock.getArgument(2);
+            startModelListener.accept(listener);
+            return Void.TYPE;
+        }).when(client).execute(eq(StartTrainedModelDeploymentAction.INSTANCE), any(), any());
+
+        return client;
+    }
+
+    @SuppressWarnings("unchecked")
+    public void test_nullTimeoutUsesClusterSetting() throws InterruptedException {
+        Client client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        doAnswer(invocationOnMock -> {
+            var listener = (ActionListener<InferModelAction.Response>) invocationOnMock.getArguments()[2];
+            listener.onResponse(null);
+            return null;
+        }).when(client).execute(same(InferModelAction.INSTANCE), any(InferModelAction.Request.class), any(ActionListener.class));
+
+        var configuredTimeout = TimeValue.timeValueSeconds(15);
+        var clusterService = mockClusterService(
+            Settings.builder().put(InferencePlugin.INFERENCE_QUERY_TIMEOUT.getKey(), configuredTimeout).build()
+        );
+
+        var context = new InferenceServiceExtension.InferenceServiceFactoryContext(
+            client,
+            threadPool,
+            clusterService,
+            Settings.EMPTY,
+            inferenceStats
+        );
+        var service = new ElasticsearchInternalService(context);
+
+        var model = new MultilingualE5SmallModel(
+            "foo",
+            TaskType.TEXT_EMBEDDING,
+            "e5",
+            new MultilingualE5SmallInternalServiceSettings(1, 1, "cross-platform", null),
+            null
+        );
+
+        var latch = new CountDownLatch(1);
+        var latchedListener = new LatchedActionListener<>(ActionListener.<InferenceServiceResults>noop(), latch);
+
+        service.infer(model, null, null, null, List.of("test input"), false, Map.of(), InputType.SEARCH, null, latchedListener);
+
+        assertTrue(latch.await(30, TimeUnit.SECONDS));
+
+        ArgumentCaptor<InferModelAction.Request> requestCaptor = ArgumentCaptor.forClass(InferModelAction.Request.class);
+        verify(client).execute(same(InferModelAction.INSTANCE), requestCaptor.capture(), any(ActionListener.class));
+        assertEquals(configuredTimeout, requestCaptor.getValue().getInferenceTimeout());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void test_providedTimeoutPropagateProperly() throws InterruptedException {
+        Client client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        doAnswer(invocationOnMock -> {
+            var listener = (ActionListener<InferModelAction.Response>) invocationOnMock.getArguments()[2];
+            listener.onResponse(null);
+            return null;
+        }).when(client).execute(same(InferModelAction.INSTANCE), any(InferModelAction.Request.class), any(ActionListener.class));
+
+        var providedTimeout = TimeValue.timeValueSeconds(45);
+        var clusterService = mockClusterService(
+            Settings.builder().put(InferencePlugin.INFERENCE_QUERY_TIMEOUT.getKey(), TimeValue.timeValueSeconds(15)).build()
+        );
+
+        var context = new InferenceServiceExtension.InferenceServiceFactoryContext(
+            client,
+            threadPool,
+            clusterService,
+            Settings.EMPTY,
+            inferenceStats
+        );
+        var service = new ElasticsearchInternalService(context);
+
+        var model = new MultilingualE5SmallModel(
+            "foo",
+            TaskType.TEXT_EMBEDDING,
+            "e5",
+            new MultilingualE5SmallInternalServiceSettings(1, 1, "cross-platform", null),
+            null
+        );
+
+        var latch = new CountDownLatch(1);
+        var latchedListener = new LatchedActionListener<>(ActionListener.<InferenceServiceResults>noop(), latch);
+
+        service.infer(model, null, null, null, List.of("test input"), false, Map.of(), InputType.SEARCH, providedTimeout, latchedListener);
+
+        assertTrue(latch.await(30, TimeUnit.SECONDS));
+
+        ArgumentCaptor<InferModelAction.Request> requestCaptor = ArgumentCaptor.forClass(InferModelAction.Request.class);
+        verify(client).execute(same(InferModelAction.INSTANCE), requestCaptor.capture(), any(ActionListener.class));
+        assertEquals(providedTimeout, requestCaptor.getValue().getInferenceTimeout());
+    }
+
+    public void testUpdateServiceSettings_ThrowsExceptionWhenNumThreadsIsUpdated() {
+        var existingSettings = new ElasticsearchInternalServiceSettings(1, 4, "test-model", null, null);
+
+        Map<String, Object> serviceSettingsWithNumThreads = Map.of(ElasticsearchInternalServiceSettings.NUM_THREADS, 8);
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> existingSettings.updateServiceSettings(serviceSettingsWithNumThreads)
+        );
+        assertThat(exception.getMessage(), containsString("[num_threads] cannot be updated"));
     }
 
     private ElasticsearchInternalService createService(Client client) {
         var cs = mock(ClusterService.class);
         var cSettings = new ClusterSettings(Settings.EMPTY, Set.of(MachineLearningField.MAX_LAZY_ML_NODES));
         when(cs.getClusterSettings()).thenReturn(cSettings);
-        var context = new InferenceServiceExtension.InferenceServiceFactoryContext(client, threadPool, cs, Settings.EMPTY);
+        var context = new InferenceServiceExtension.InferenceServiceFactoryContext(client, threadPool, cs, Settings.EMPTY, inferenceStats);
         return new ElasticsearchInternalService(context);
+    }
+
+    @Override
+    public InferenceService createInferenceService() {
+        return createService(mock(Client.class));
+    }
+
+    @Override
+    protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
+        assertThat(
+            rerankingInferenceService.rerankerWindowSize("any model"),
+            CoreMatchers.is(RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE)
+        );
     }
 
     private ElasticsearchInternalService createService(Client client, BaseElasticsearchInternalService.PreferredModelVariant modelVariant) {
@@ -1828,8 +2283,88 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             client,
             threadPool,
             mock(ClusterService.class),
-            Settings.EMPTY
+            Settings.EMPTY,
+            inferenceStats
         );
         return new ElasticsearchInternalService(context, l -> l.onResponse(modelVariant));
+    }
+
+    public void testBuildModelFromConfigAndSecrets_MultilingualE5SmallModel() throws IOException {
+        var model = new MultilingualE5SmallModel(
+            INFERENCE_ENTITY_ID_VALUE,
+            TaskType.TEXT_EMBEDDING,
+            ElasticsearchInternalService.NAME,
+            new MultilingualE5SmallInternalServiceSettings(1, 1, ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID, null),
+            null
+        );
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_ElserInternalModel() throws IOException {
+        var model = new ElserInternalModel(
+            INFERENCE_ENTITY_ID_VALUE,
+            TaskType.SPARSE_EMBEDDING,
+            ElasticsearchInternalService.NAME,
+            new ElserInternalServiceSettings(new ElasticsearchInternalServiceSettings(1, 1, ElserModels.ELSER_V1_MODEL, null, null)),
+            new ElserMlNodeTaskSettings(),
+            null
+        );
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_ElasticRerankerModel() throws IOException {
+        var model = new ElasticRerankerModel(
+            INFERENCE_ENTITY_ID_VALUE,
+            TaskType.RERANK,
+            ElasticsearchInternalService.NAME,
+            ElasticRerankerServiceSettingsTests.createRandomWithoutChunkingConfiguration(ElasticsearchInternalService.RERANKER_ID),
+            new RerankTaskSettings(randomBoolean())
+        );
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_CustomElandEmbeddingModel() throws IOException {
+        var model = getCustomElandModel(TaskType.TEXT_EMBEDDING);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_CustomElandModel() throws IOException {
+        var model = getCustomElandModel(TaskType.SPARSE_EMBEDDING);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_CustomElandRerankModel() throws IOException {
+        var model = getCustomElandModel(TaskType.RERANK);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_UnsupportedTaskType() throws IOException {
+        var serviceSettings = mock(ServiceSettings.class);
+        when(serviceSettings.modelId()).thenReturn("any-model-id");
+        var modelConfigurations = new ModelConfigurations(
+            INFERENCE_ENTITY_ID_VALUE,
+            TaskType.ANY,
+            ElasticsearchInternalService.NAME,
+            serviceSettings
+        );
+        try (var inferenceService = createInferenceService()) {
+            var thrownException = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> inferenceService.buildModelFromConfigAndSecrets(modelConfigurations, mock(ModelSecrets.class))
+            );
+            assertThat(
+                thrownException.getMessage(),
+                CoreMatchers.is(
+                    Strings.format("The [%s] service does not support task type [%s]", ElasticsearchInternalService.NAME, TaskType.ANY)
+                )
+            );
+        }
+    }
+
+    private void validateModelBuilding(Model model) throws IOException {
+        try (var inferenceService = createInferenceService()) {
+            var resultModel = inferenceService.buildModelFromConfigAndSecrets(model.getConfigurations(), model.getSecrets());
+            assertThat(resultModel, CoreMatchers.is(model));
+        }
     }
 }

@@ -91,13 +91,13 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
         assertThat(getSnapshot("test-repo", "test-snapshot").state(), equalTo(SnapshotState.SUCCESS));
 
         logger.info("update custom persistent metadata");
-        updateClusterState(currentState -> currentState.copyAndUpdateMetadata(metadataBuilder -> {
+        updateClusterState(currentState -> currentState.copyAndUpdateProject(currentState.metadata().getProject().id(), builder -> {
             if (isSnapshotMetadataSet == false || randomBoolean()) {
-                metadataBuilder.putCustom(SnapshotMetadata.TYPE, new SnapshotMetadata("after_snapshot_s"));
+                builder.putCustom(SnapshotMetadata.TYPE, new SnapshotMetadata("after_snapshot_s"));
             } else {
-                metadataBuilder.removeProjectCustom(SnapshotMetadata.TYPE);
+                builder.removeCustom(SnapshotMetadata.TYPE);
             }
-            metadataBuilder.putCustom(ApiMetadata.TYPE, new ApiMetadata("after_snapshot_ns"));
+            builder.putCustom(ApiMetadata.TYPE, new ApiMetadata("after_snapshot_ns"));
         }));
 
         logger.info("restore snapshot");

@@ -11,42 +11,41 @@ package fixture.gcs;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.net.URLDecoder;
 import java.util.HashMap;
-import java.util.Locale;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.zip.GZIPInputStream;
 
 import static fixture.gcs.MockGcsBlobStore.failAndThrow;
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static java.util.stream.Collectors.joining;
-import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.rest.RestStatus.BAD_GATEWAY;
+import static org.elasticsearch.rest.RestStatus.GATEWAY_TIMEOUT;
+import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
+import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
+import static org.elasticsearch.rest.RestStatus.NO_CONTENT;
+import static org.elasticsearch.rest.RestStatus.REQUEST_TIMEOUT;
+import static org.elasticsearch.rest.RestStatus.SERVICE_UNAVAILABLE;
+import static org.elasticsearch.rest.RestStatus.TOO_MANY_REQUESTS;
 
 /**
  * Minimal HTTP handler that acts as a Google Cloud Storage compliant server
@@ -54,12 +53,19 @@ import static org.elasticsearch.core.Strings.format;
 @SuppressForbidden(reason = "Uses a HttpServer to emulate a Google Cloud Storage endpoint")
 public class GoogleCloudStorageHttpHandler implements HttpHandler {
 
-    private static final Logger logger = LogManager.getLogger(GoogleCloudStorageHttpHandler.class);
+    private static final String CRLF = "\r\n";
+
     private static final String IF_GENERATION_MATCH = "ifGenerationMatch";
+    private static final String GENERATION = "generation";
 
     private final AtomicInteger defaultPageLimit = new AtomicInteger(1_000);
     private final MockGcsBlobStore mockGcsBlobStore;
     private final String bucket;
+
+    // track delete failures for individual blobs to avoid unbounded retries
+    private final Map<String, Integer> batchDeleteFailureCounters = new HashMap<>();
+    // maximum number of delete failures for individual blob
+    private static final int MAX_DELETE_FAILURES = 3;
 
     public GoogleCloudStorageHttpHandler(final String bucket) {
         this.bucket = Objects.requireNonNull(bucket);
@@ -92,7 +98,8 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
             } else if (Regex.simpleMatch("GET /storage/v1/b/" + bucket + "/o/*", request)) {
                 final String key = exchange.getRequestURI().getPath().replace("/storage/v1/b/" + bucket + "/o/", "");
                 final Long ifGenerationMatch = parseOptionalLongParameter(exchange, IF_GENERATION_MATCH);
-                final MockGcsBlobStore.BlobVersion blob = mockGcsBlobStore.getBlob(key, ifGenerationMatch);
+                final Long generation = parseOptionalLongParameter(exchange, GENERATION);
+                final MockGcsBlobStore.BlobVersion blob = mockGcsBlobStore.getBlob(key, ifGenerationMatch, generation);
                 writeBlobVersionAsJson(exchange, blob);
             } else if (Regex.simpleMatch("GET /storage/v1/b/" + bucket + "/o*", request)) {
                 // List Objects https://cloud.google.com/storage/docs/json_api/v1/objects/list
@@ -126,86 +133,86 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 // Download Object https://cloud.google.com/storage/docs/request-body
                 final String path = exchange.getRequestURI().getPath().replace("/download/storage/v1/b/" + bucket + "/o/", "");
                 final Long ifGenerationMatch = parseOptionalLongParameter(exchange, IF_GENERATION_MATCH);
-                final MockGcsBlobStore.BlobVersion blob = mockGcsBlobStore.getBlob(path, ifGenerationMatch);
+                final Long generation = parseOptionalLongParameter(exchange, GENERATION);
+                final MockGcsBlobStore.BlobVersion blob = mockGcsBlobStore.getBlob(path, ifGenerationMatch, generation);
                 if (blob != null) {
                     final String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
-                    final long offset;
-                    final long end;
+                    final BytesReference response;
+                    final int statusCode;
                     if (rangeHeader == null) {
-                        offset = 0L;
-                        end = blob.contents().length() - 1;
+                        response = blob.contents();
+                        statusCode = RestStatus.OK.getStatus();
                     } else {
                         final HttpHeaderParser.Range range = HttpHeaderParser.parseRangeHeader(rangeHeader);
                         if (range == null) {
                             throw new AssertionError("Range bytes header does not match expected format: " + rangeHeader);
                         }
-                        offset = range.start();
-                        end = range.end();
-                    }
 
-                    if (offset >= blob.contents().length()) {
-                        exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                        exchange.sendResponseHeaders(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), -1);
-                        return;
-                    }
+                        if (range.start() >= blob.contents().length()) {
+                            exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                            exchange.sendResponseHeaders(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), -1);
+                            return;
+                        }
 
-                    BytesReference response = blob.contents();
+                        final long lastIndex = Math.min(range.end(), blob.contents().length() - 1);
+                        response = blob.contents().slice(Math.toIntExact(range.start()), Math.toIntExact(lastIndex - range.start() + 1));
+                        statusCode = RestStatus.PARTIAL_CONTENT.getStatus();
+                    }
+                    // I think it's enough to use the generation here, at least until
+                    // we implement "metageneration", at that point we must incorporate both
+                    // See: https://cloud.google.com/storage/docs/metadata#etags
+                    exchange.getResponseHeaders().add("ETag", String.valueOf(blob.generation()));
+                    exchange.getResponseHeaders().add("x-goog-generation", String.valueOf(blob.generation()));
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                    final int bufferedLength = response.length();
-                    if (offset > 0 || bufferedLength > end) {
-                        response = response.slice(
-                            Math.toIntExact(offset),
-                            Math.toIntExact(Math.min(end + 1 - offset, bufferedLength - offset))
-                        );
-                    }
-                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length());
+                    exchange.sendResponseHeaders(statusCode, response.length());
                     response.writeTo(exchange.getResponseBody());
                 } else {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                 }
 
             } else if (Regex.simpleMatch("POST /batch/storage/v1", request)) {
-                // Batch https://cloud.google.com/storage/docs/json_api/v1/how-tos/batch
-                final String uri = "/storage/v1/b/" + bucket + "/o/";
-                final StringBuilder batch = new StringBuilder();
-                for (String line : Streams.readAllLines(requestBody.streamInput())) {
-                    if (line.isEmpty() || line.startsWith("--") || line.toLowerCase(Locale.ROOT).startsWith("content")) {
-                        batch.append(line).append("\r\n");
-                    } else if (line.startsWith("DELETE")) {
-                        final String name = line.substring(line.indexOf(uri) + uri.length(), line.lastIndexOf(" HTTP"));
-                        if (Strings.hasText(name)) {
-                            mockGcsBlobStore.deleteBlob(URLDecoder.decode(name, UTF_8));
-                            batch.append("HTTP/1.1 204 NO_CONTENT").append("\r\n");
-                            batch.append("\r\n");
+                // https://docs.cloud.google.com/storage/docs/batch#http
+                final var boundary = MultipartContent.Reader.getBoundary(exchange);
+                final var batchReader = MultipartContent.Reader.readStream(boundary, requestBody.streamInput());
+                final var responseStream = new ByteArrayOutputStream();
+                final var batchWriter = new MultipartContent.Writer(boundary, responseStream);
+                // allow some batches to proceed without partial failures
+                final var allowPartialFailures = ESTestCase.randomBoolean();
+                while (batchReader.hasNext()) {
+                    final var batchItem = batchReader.next();
+                    final var contentId = batchItem.headers().get("content-id");
+                    // batch supports only deletions
+                    final var objectName = parseBatchItemDeleteObject(bucket, batchItem.content());
+                    final var deleteStatus = allowPartialFailures ? deleteObjectOrRandomlyFail(objectName) : deleteObject(objectName);
+                    final var partHeaders = new LinkedHashMap<String, String>() {
+                        {
+                            put("content-type", "application/http");
+                            put("content-id", "response-" + contentId);
                         }
-                    }
+                    };
+                    final var partContent = deleteItemStatusToHttpContent(deleteStatus);
+                    batchWriter.write(MultipartContent.Part.of(partHeaders, partContent));
                 }
-                byte[] response = batch.toString().getBytes(UTF_8);
+                batchWriter.end();
+
+                byte[] response = responseStream.toByteArray();
                 exchange.getResponseHeaders().add("Content-Type", exchange.getRequestHeaders().getFirst("Content-Type"));
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                 exchange.getResponseBody().write(response);
 
             } else if (Regex.simpleMatch("POST /upload/storage/v1/b/" + bucket + "/*uploadType=multipart*", request)) {
-                // Multipart upload
-                Optional<Tuple<String, BytesReference>> content = parseMultipartRequestBody(requestBody.streamInput());
-                if (content.isPresent()) {
+                try {
+                    final var multipartUpload = MultipartUpload.parseBody(exchange, requestBody.streamInput());
                     final Long ifGenerationMatch = parseOptionalLongParameter(exchange, IF_GENERATION_MATCH);
                     final MockGcsBlobStore.BlobVersion newBlobVersion = mockGcsBlobStore.updateBlob(
-                        content.get().v1(),
+                        multipartUpload.name(),
                         ifGenerationMatch,
-                        content.get().v2()
+                        multipartUpload.content()
                     );
                     writeBlobVersionAsJson(exchange, newBlobVersion);
-                } else {
-                    throw new AssertionError(
-                        "Could not read multi-part request to ["
-                            + request
-                            + "] with headers ["
-                            + new HashMap<>(exchange.getRequestHeaders())
-                            + "]"
-                    );
+                } catch (IllegalArgumentException e) {
+                    throw new AssertionError(e);
                 }
-
             } else if (Regex.simpleMatch("POST /upload/storage/v1/b/" + bucket + "/*uploadType=resumable*", request)) {
                 // Resumable upload initialization https://cloud.google.com/storage/docs/json_api/v1/how-tos/resumable-upload
                 final Map<String, String> params = new HashMap<>();
@@ -253,8 +260,13 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 if (updateResponse.rangeHeader() != null) {
                     exchange.getResponseHeaders().add("Range", updateResponse.rangeHeader().headerString());
                 }
-                exchange.getResponseHeaders().add("Content-Length", "0");
+                exchange.getResponseHeaders().add("x-goog-stored-content-length", String.valueOf(updateResponse.storedContentLength()));
                 exchange.sendResponseHeaders(updateResponse.statusCode(), -1);
+            } else if (Regex.simpleMatch("DELETE /storage/v1/b/" + bucket + "/o*", request)) {
+                final var object = readObjectName(request);
+                // don't fail deletes here, fixture will inject failures before reaching this point
+                final var deleteStatus = deleteObject(object);
+                exchange.sendResponseHeaders(deleteStatus.getStatus(), -1);
             } else {
                 exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
             }
@@ -273,6 +285,117 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
             exchange.sendResponseHeaders(RestStatus.OK.getStatus(), responseBytes.length());
             responseBytes.writeTo(exchange.getResponseBody());
         }
+    }
+
+    // Example of request line
+    static final Pattern METHOD_BUCKET_OBJECT_PATTERN = Pattern.compile(
+        "(?<method>\\w+) .+/v1/b/(?<bucket>[a-zA-Z0-9._-]+)/o/" + "(?<object>[^?^\\s]+)"
+    );
+
+    private String readObjectName(String requestLine) {
+        var m = METHOD_BUCKET_OBJECT_PATTERN.matcher(requestLine);
+        if (m.find()) {
+            final var _bucket = m.group("bucket");
+            if (bucket.equals(_bucket) == false) {
+                throw failAndThrow("bucket name does not match, expected: " + bucket + ", got: " + _bucket);
+            }
+            return URLDecoder.decode(m.group("object"), UTF_8);
+        } else {
+            throw failAndThrow("cannot parse bucket and object from uri: " + requestLine);
+        }
+    }
+
+    private RestStatus deleteObjectOrRandomlyFail(String objectName) {
+        synchronized (batchDeleteFailureCounters) {
+            final var failures = batchDeleteFailureCounters.getOrDefault(objectName, 0);
+            // 10% failure is an arbitrary number, not too small, not too big
+            if (fail10Percent()) {
+                if (failures < MAX_DELETE_FAILURES) {
+                    batchDeleteFailureCounters.put(objectName, failures + 1);
+                    return randomRetryableError();
+                }
+            }
+            return deleteObject(objectName);
+        }
+    }
+
+    RestStatus deleteObject(String objectName) {
+        synchronized (batchDeleteFailureCounters) {
+            batchDeleteFailureCounters.remove(objectName);
+            final var deleted = mockGcsBlobStore.deleteBlob(objectName);
+            return deleted ? NO_CONTENT : NOT_FOUND;
+        }
+    }
+
+    static RestStatus randomRetryableError() {
+        return ESTestCase.randomFrom(
+            REQUEST_TIMEOUT,
+            TOO_MANY_REQUESTS,
+            INTERNAL_SERVER_ERROR,
+            BAD_GATEWAY,
+            SERVICE_UNAVAILABLE,
+            GATEWAY_TIMEOUT
+        );
+    }
+
+    // returns HTTP content for a part in multipart batch delete response
+    static String deleteItemStatusToHttpContent(RestStatus itemStatus) {
+        final var responseText = new StringBuilder();
+        final var statusLine = switch (itemStatus) {
+            case NO_CONTENT -> "204 No Content";
+            case NOT_FOUND -> "404 Not Found";
+            case REQUEST_TIMEOUT -> "408 Request Timeout";
+            case TOO_MANY_REQUESTS -> "429 Too Many Requests";
+            case INTERNAL_SERVER_ERROR -> "500 Internal Server Error";
+            case BAD_GATEWAY -> "502 Bad Gateway";
+            case SERVICE_UNAVAILABLE -> "503 Service Unavailable";
+            case GATEWAY_TIMEOUT -> "504 Gateway Timeout";
+            default -> throw failAndThrow("HTTP status line is not implemented for " + itemStatus);
+        };
+        responseText.append("HTTP/1.1 ").append(statusLine).append(CRLF);
+        // an error must contain a JSON object describing error, a minimal description needs at least an error code
+        if (itemStatus != NO_CONTENT) {
+            final var errorObj = """
+                {
+                  "error" : {
+                    "code": $code
+                  }
+                }
+                """.replace("$code", Integer.toString(itemStatus.getStatus()));
+            responseText.append("content-type: application/json")
+                .append(CRLF)
+                .append("content-length: ")
+                .append(errorObj.length())
+                .append(CRLF)
+                .append(CRLF)
+                .append(errorObj)
+                .append(CRLF);
+        }
+        return responseText.toString();
+    }
+
+    static boolean fail10Percent() {
+        return ESTestCase.between(1, 10) == 1;
+    }
+
+    static String parseBatchItemDeleteObject(String bucket, BytesReference bytes) {
+        final var s = bytes.utf8ToString();
+        return s.lines().findFirst().map(line -> {
+            var matcher = METHOD_BUCKET_OBJECT_PATTERN.matcher(line);
+            if (matcher.find() == false) {
+                throw failAndThrow("Cannot parse batch item HTTP line: " + line);
+            }
+            var method = matcher.group("method");
+            if (method.equals("DELETE") == false) {
+                throw failAndThrow("Expected DELETE item, found " + line);
+            }
+            var _bucket = matcher.group("bucket");
+            if (bucket.equals(_bucket) == false) {
+                throw failAndThrow("Bucket does not match expected: " + bucket + ", got: " + _bucket);
+            }
+            return URLDecoder.decode(matcher.group("object"), UTF_8);
+
+        }).orElseThrow(() -> failAndThrow("Empty batch item"));
     }
 
     record ListBlobsResponse(String bucket, MockGcsBlobStore.PageOfBlobs pageOfBlobs) implements ToXContent {
@@ -329,81 +452,6 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
 
     private static String httpServerUrl(final HttpExchange exchange) {
         return "http://" + exchange.getRequestHeaders().get("HOST").get(0);
-    }
-
-    private static final Pattern NAME_PATTERN = Pattern.compile("\"name\":\"([^\"]*)\"");
-
-    public static Optional<Tuple<String, BytesReference>> parseMultipartRequestBody(final InputStream requestBody) throws IOException {
-        Tuple<String, BytesReference> content = null;
-        final BytesReference fullRequestBody;
-        try (InputStream in = new GZIPInputStream(requestBody)) {
-            fullRequestBody = Streams.readFully(in);
-        }
-        String name = null;
-        boolean skippedEmptyLine = false;
-        int startPos = 0;
-        int endPos = 0;
-        while (startPos < fullRequestBody.length()) {
-            do {
-                endPos = fullRequestBody.indexOf((byte) '\r', endPos + 1);
-            } while (endPos >= 0 && fullRequestBody.get(endPos + 1) != '\n');
-            boolean markAndContinue = false;
-            final String bucketPrefix = "{\"bucket\":";
-            if (startPos > 0) {
-                startPos += 2;
-            }
-            if (name == null || skippedEmptyLine == false) {
-                if ((skippedEmptyLine == false && endPos == startPos)
-                    || (fullRequestBody.get(startPos) == '-' && fullRequestBody.get(startPos + 1) == '-')) {
-                    markAndContinue = true;
-                } else {
-                    final String start = fullRequestBody.slice(startPos, Math.min(endPos - startPos, bucketPrefix.length())).utf8ToString();
-                    if (start.toLowerCase(Locale.ROOT).startsWith("content")) {
-                        markAndContinue = true;
-                    } else if (start.startsWith(bucketPrefix)) {
-                        markAndContinue = true;
-                        final String line = fullRequestBody.slice(
-                            startPos + bucketPrefix.length(),
-                            endPos - startPos - bucketPrefix.length()
-                        ).utf8ToString();
-                        Matcher matcher = NAME_PATTERN.matcher(line);
-                        if (matcher.find()) {
-                            name = matcher.group(1);
-                        }
-                    }
-                }
-                skippedEmptyLine = markAndContinue && endPos == startPos;
-                startPos = endPos;
-            } else {
-                while (isEndOfPart(fullRequestBody, endPos) == false) {
-                    endPos = fullRequestBody.indexOf((byte) '\r', endPos + 1);
-                }
-                content = Tuple.tuple(name, fullRequestBody.slice(startPos, endPos - startPos));
-                break;
-            }
-        }
-        if (content == null) {
-            final InputStream stream = fullRequestBody.streamInput();
-            logger.warn(
-                () -> format(
-                    "Failed to find multi-part upload in [%s]",
-                    new BufferedReader(new InputStreamReader(stream)).lines().collect(joining("\n"))
-                )
-            );
-        }
-        return Optional.ofNullable(content);
-    }
-
-    private static final byte[] END_OF_PARTS_MARKER = "\r\n--__END_OF_PART__".getBytes(UTF_8);
-
-    private static boolean isEndOfPart(BytesReference fullRequestBody, int endPos) {
-        for (int i = 0; i < END_OF_PARTS_MARKER.length; i++) {
-            final byte b = END_OF_PARTS_MARKER[i];
-            if (fullRequestBody.get(endPos + i) != b) {
-                return false;
-            }
-        }
-        return true;
     }
 
     private static String requireHeader(HttpExchange exchange, String headerName) {

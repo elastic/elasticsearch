@@ -1,10 +1,10 @@
 {
   "connector.update_index_name": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/update-connector-index-name-api.html",
-      "description": "Updates the index name of the connector."
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-connector-update-index-name",
+      "description": "Update the connector index name"
     },
-    "stability": "experimental",
+    "stability": "beta",
     "visibility": "public",
     "headers": {
       "accept": [

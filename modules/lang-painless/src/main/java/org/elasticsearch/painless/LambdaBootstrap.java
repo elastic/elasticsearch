@@ -22,8 +22,6 @@ import java.lang.invoke.LambdaConversionException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.List;
 
 import static java.lang.invoke.MethodHandles.Lookup;
@@ -504,9 +502,7 @@ public final class LambdaBootstrap {
         byte[] classBytes = cw.toByteArray();
         // DEBUG:
         // new ClassReader(classBytes).accept(new TraceClassVisitor(new PrintWriter(System.out)), ClassReader.SKIP_DEBUG);
-        return AccessController.doPrivileged(
-            (PrivilegedAction<Class<?>>) () -> loader.defineLambda(lambdaClassType.getClassName(), classBytes)
-        );
+        return loader.defineLambda(lambdaClassType.getClassName(), classBytes);
     }
 
     /**

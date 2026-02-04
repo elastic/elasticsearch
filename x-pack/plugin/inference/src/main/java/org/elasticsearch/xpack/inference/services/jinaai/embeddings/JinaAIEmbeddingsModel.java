@@ -7,60 +7,91 @@
 
 package org.elasticsearch.xpack.inference.services.jinaai.embeddings;
 
+import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.jinaai.JinaAIActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIModel;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
+import org.elasticsearch.xpack.inference.services.jinaai.action.JinaAIActionVisitor;
+import org.elasticsearch.xpack.inference.services.jinaai.request.JinaAIUtils;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
-import java.net.URI;
 import java.util.Map;
+import java.util.Objects;
+
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
 
 public class JinaAIEmbeddingsModel extends JinaAIModel {
-    public static JinaAIEmbeddingsModel of(JinaAIEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType) {
+
+    private static final URIBuilder DEFAULT_URI_BUILDER = new URIBuilder().setScheme("https")
+        .setHost(JinaAIUtils.HOST)
+        .setPathSegments(JinaAIUtils.VERSION_1, JinaAIUtils.EMBEDDINGS_PATH);
+
+    public static JinaAIEmbeddingsModel of(JinaAIEmbeddingsModel model, Map<String, Object> taskSettings) {
         var requestTaskSettings = JinaAIEmbeddingsTaskSettings.fromMap(taskSettings);
-        return new JinaAIEmbeddingsModel(model, JinaAIEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings, inputType));
+        if (requestTaskSettings.isEmpty() || requestTaskSettings.equals(model.getTaskSettings())) {
+            return model;
+        }
+        return new JinaAIEmbeddingsModel(model, JinaAIEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
     }
 
     public JinaAIEmbeddingsModel(
         String inferenceId,
-        String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secrets,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        TaskType taskType
     ) {
         this(
             inferenceId,
-            service,
-            JinaAIEmbeddingsServiceSettings.fromMap(serviceSettings, context),
+            createServiceSettings(serviceSettings, taskType, context),
             JinaAIEmbeddingsTaskSettings.fromMap(taskSettings),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets),
+            null,
+            taskType
         );
     }
 
-    // should only be used for testing
     JinaAIEmbeddingsModel(
-        String modelId,
-        String service,
-        JinaAIEmbeddingsServiceSettings serviceSettings,
+        String inferenceId,
+        BaseJinaAIEmbeddingsServiceSettings serviceSettings,
         JinaAIEmbeddingsTaskSettings taskSettings,
         ChunkingSettings chunkingSettings,
-        @Nullable DefaultSecretSettings secretSettings
+        @Nullable DefaultSecretSettings secretSettings,
+        @Nullable String uri,
+        TaskType taskType
     ) {
         super(
-            new ModelConfigurations(modelId, TaskType.TEXT_EMBEDDING, service, serviceSettings, taskSettings, chunkingSettings),
+            new ModelConfigurations(inferenceId, taskType, JinaAIService.NAME, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secretSettings),
             secretSettings,
-            serviceSettings.getCommonSettings()
+            serviceSettings.getCommonSettings(),
+            Objects.requireNonNullElse(ServiceUtils.createOptionalUri(uri), buildUri("JinaAI", DEFAULT_URI_BUILDER::build))
+        );
+    }
+
+    /**
+     * Constructor for creating {@link JinaAIEmbeddingsModel} instances
+     * from {@link ModelConfigurations} and {@link ModelSecrets}.
+     * @param config a model configurations object
+     * @param secrets a model secrets object
+     */
+    public JinaAIEmbeddingsModel(ModelConfigurations config, ModelSecrets secrets) {
+        super(
+            config,
+            secrets,
+            (DefaultSecretSettings) secrets.getSecretSettings(),
+            ((BaseJinaAIEmbeddingsServiceSettings) config.getServiceSettings()).getCommonSettings(),
+            buildUri("JinaAI", DEFAULT_URI_BUILDER::build)
         );
     }
 
@@ -68,13 +99,13 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
         super(model, taskSettings);
     }
 
-    public JinaAIEmbeddingsModel(JinaAIEmbeddingsModel model, JinaAIEmbeddingsServiceSettings serviceSettings) {
+    public JinaAIEmbeddingsModel(JinaAIEmbeddingsModel model, BaseJinaAIEmbeddingsServiceSettings serviceSettings) {
         super(model, serviceSettings);
     }
 
     @Override
-    public JinaAIEmbeddingsServiceSettings getServiceSettings() {
-        return (JinaAIEmbeddingsServiceSettings) super.getServiceSettings();
+    public BaseJinaAIEmbeddingsServiceSettings getServiceSettings() {
+        return (BaseJinaAIEmbeddingsServiceSettings) super.getServiceSettings();
     }
 
     @Override
@@ -88,12 +119,20 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
     }
 
     @Override
-    public ExecutableAction accept(JinaAIActionVisitor visitor, Map<String, Object> taskSettings, InputType inputType) {
-        return visitor.create(this, taskSettings, inputType);
+    public ExecutableAction accept(JinaAIActionVisitor visitor, Map<String, Object> taskSettings) {
+        return visitor.create(this, taskSettings);
     }
 
-    @Override
-    public URI uri() {
-        return getServiceSettings().getCommonSettings().uri();
+    private static BaseJinaAIEmbeddingsServiceSettings createServiceSettings(
+        Map<String, Object> serviceSettings,
+        TaskType taskType,
+        ConfigurationParseContext context
+    ) {
+        return switch (taskType) {
+            case TEXT_EMBEDDING -> JinaAITextEmbeddingServiceSettings.fromMap(serviceSettings, context);
+            case EMBEDDING -> JinaAIEmbeddingServiceSettings.fromMap(serviceSettings, context);
+            // Should not be possible
+            default -> throw new IllegalArgumentException();
+        };
     }
 }

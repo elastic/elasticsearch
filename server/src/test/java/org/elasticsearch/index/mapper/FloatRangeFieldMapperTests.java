@@ -42,10 +42,11 @@ public class FloatRangeFieldMapperTests extends RangeFieldMapperTests {
 
     @Override
     protected TestRange<Float> randomRangeForSyntheticSourceTest() {
-        var includeFrom = randomBoolean();
         Float from = (float) randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE - Math.ulp(Float.MAX_VALUE), true);
-        var includeTo = randomBoolean();
         Float to = (float) randomDoubleBetween(from + Math.ulp(from), Float.MAX_VALUE, true);
+        boolean valuesAdjacent = Math.nextUp(from) > Math.nextDown(to);
+        var includeFrom = valuesAdjacent || randomBoolean();
+        var includeTo = valuesAdjacent || randomBoolean();
 
         if (rarely()) {
             from = null;

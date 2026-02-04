@@ -21,12 +21,24 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class SingleValueQueryNegateTests extends ESTestCase {
     public void testNot() {
-        var sv = new SingleValueQuery(new MatchAll(Source.EMPTY), "foo");
-        assertThat(sv.negate(Source.EMPTY), equalTo(new SingleValueQuery(new NotQuery(Source.EMPTY, new MatchAll(Source.EMPTY)), "foo")));
+        boolean useSyntheticSourceDelegate = randomBoolean();
+        var sv = new SingleValueQuery(new MatchAll(Source.EMPTY), "foo", useSyntheticSourceDelegate);
+        assertThat(
+            sv.negate(Source.EMPTY),
+            equalTo(
+                new SingleValueQuery(
+                    new NotQuery(Source.EMPTY, new MatchAll(Source.EMPTY)),
+                    "foo",
+                    useSyntheticSourceDelegate
+                        ? SingleValueQuery.UseSyntheticSourceDelegate.YES_NEGATED
+                        : SingleValueQuery.UseSyntheticSourceDelegate.NO
+                )
+            )
+        );
     }
 
     public void testNotNot() {
-        var sv = new SingleValueQuery(new MatchAll(Source.EMPTY), "foo");
+        var sv = new SingleValueQuery(new MatchAll(Source.EMPTY), "foo", randomBoolean());
         assertThat(sv.negate(Source.EMPTY).negate(Source.EMPTY), equalTo(sv));
     }
 }

@@ -123,7 +123,7 @@ public class RoutingAllocation {
      * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
      * @param isSimulating {@code true} if "transient" deciders should be ignored because we are simulating the final allocation
      */
-    private RoutingAllocation(
+    public RoutingAllocation(
         AllocationDeciders deciders,
         @Nullable RoutingNodes routingNodes,
         ClusterState clusterState,
@@ -177,7 +177,7 @@ public class RoutingAllocation {
                 long totalSize = 0;
                 for (ShardRouting shard : node.started()) {
                     if (shard.getExpectedShardSize() > 0
-                        && clusterState.metadata().getProject().getIndexSafe(shard.index()).isSearchableSnapshot()
+                        && clusterState.metadata().indexMetadata(shard.index()).isSearchableSnapshot()
                         && reservedSpace.containsShardId(shard.shardId()) == false
                         && clusterInfo.getShardSize(shard) == null) {
                         totalSize += shard.getExpectedShardSize();
@@ -370,12 +370,18 @@ public class RoutingAllocation {
     }
 
     /**
-     * Create a routing decision, including the reason if the debug flag is
-     * turned on
-     * @param decision decision whether to allow/deny allocation
-     * @param deciderLabel a human readable label for the AllocationDecider
+     * Create a routing decision, including the reason if the debug flag is turned on. This is useful to avoid constructing a new {@link
+     * Decision} instance directly in the common case on the hot path where the explanation isn't needed and thus it's best to avoid
+     * allocating a new object.
+     *
+     * @param decision decision whether to allow/deny allocation, typically a global constant such as {@link Decision#YES},
+     *                 {@link Decision#NO} etc. to avoid unnecessary allocations.
+     * @param deciderLabel a human-readable label for the AllocationDecider
      * @param reason a format string explanation of the decision
-     * @param params format string parameters
+     * @param params format string parameters. Note that these parameters are all evaluated before this method checks {@link #debugDecision}
+     *               and therefore they must be cheap to compute and ideally involve no extra allocations. To construct an explanation
+     *               message with an expensive-to-compute parameter, check {@link #debugDecision()} yourself first to ensure the computation
+     *               is needed.
      */
     public Decision decision(Decision decision, String deciderLabel, String reason, Object... params) {
         if (debugDecision()) {

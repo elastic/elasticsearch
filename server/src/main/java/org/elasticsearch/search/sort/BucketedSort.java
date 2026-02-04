@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.FloatArray;
+import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -711,6 +712,95 @@ public abstract class BucketedSort implements Releasable {
             @Override
             protected final boolean docBetterThan(long index) {
                 return getOrder().reverseMul() * Long.compare(docValue(), values.get(index)) < 0;
+            }
+        }
+    }
+
+    public abstract static class ForInts extends BucketedSort {
+        private IntArray values;
+
+        @SuppressWarnings("this-escape")
+        public ForInts(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format, int bucketSize, ExtraData extra) {
+            super(bigArrays, sortOrder, format, bucketSize, extra);
+            boolean success = false;
+            try {
+                values = bigArrays.newIntArray(1, false);
+                success = true;
+            } finally {
+                if (success == false) {
+                    close();
+                }
+            }
+            initGatherOffsets();
+        }
+
+        @Override
+        public final boolean needsScores() {
+            return false;
+        }
+
+        @Override
+        protected final BigArray values() {
+            return values;
+        }
+
+        @Override
+        protected final void growValues(long minSize) {
+            values = bigArrays.grow(values, minSize);
+        }
+
+        @Override
+        protected final int getNextGatherOffset(long rootIndex) {
+            return values.get(rootIndex);
+        }
+
+        @Override
+        protected final void setNextGatherOffset(long rootIndex, int offset) {
+            values.set(rootIndex, offset);
+        }
+
+        @Override
+        protected final SortValue getValue(long index) {
+            return SortValue.from(values.get(index));
+        }
+
+        @Override
+        protected final boolean betterThan(long lhs, long rhs) {
+            return getOrder().reverseMul() * Integer.compare(values.get(lhs), values.get(rhs)) < 0;
+        }
+
+        @Override
+        protected final void swap(long lhs, long rhs) {
+            int tmp = values.get(lhs);
+            values.set(lhs, values.get(rhs));
+            values.set(rhs, tmp);
+        }
+
+        protected abstract class Leaf extends BucketedSort.Leaf {
+            protected Leaf(LeafReaderContext ctx) {
+                super(ctx);
+            }
+
+            /**
+             * Return the value for of this sort for the document to which
+             * we just {@link #advanceExact(int) moved}. This should be fast
+             * because it is called twice per competitive hit when in heap
+             * mode, once for {@link #docBetterThan(long)} and once
+             * for {@link #setIndexToDocValue(long)}.
+             */
+            protected abstract int docValue();
+
+            @Override
+            public final void setScorer(Scorable scorer) {}
+
+            @Override
+            protected final void setIndexToDocValue(long index) {
+                values.set(index, docValue());
+            }
+
+            @Override
+            protected final boolean docBetterThan(long index) {
+                return getOrder().reverseMul() * Integer.compare(docValue(), values.get(index)) < 0;
             }
         }
     }

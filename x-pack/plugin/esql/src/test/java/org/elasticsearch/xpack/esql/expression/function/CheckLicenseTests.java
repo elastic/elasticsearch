@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -34,14 +33,15 @@ import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzerDefaultMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnrichResolution;
 import static org.hamcrest.Matchers.containsString;
 
 public class CheckLicenseTests extends ESTestCase {
 
-    private final EsqlParser parser = new EsqlParser();
-    private final String esql = "from tests | eval license() | LIMIT 10";
+    private final String esql = "from test | eval license() | LIMIT 10";
 
     public void testLicense() {
         for (License.OperationMode functionLicense : License.OperationMode.values()) {
@@ -78,7 +78,7 @@ public class CheckLicenseTests extends ESTestCase {
             }
         };
 
-        var plan = parser.createStatement(esql);
+        var plan = EsqlParser.INSTANCE.parseQuery(esql);
         plan = plan.transformDown(
             Limit.class,
             l -> Objects.equals(l.limit().fold(FoldContext.small()), 10)
@@ -90,7 +90,13 @@ public class CheckLicenseTests extends ESTestCase {
 
     private static Analyzer analyzer(EsqlFunctionRegistry registry, License.OperationMode operationMode) {
         return new Analyzer(
-            new AnalyzerContext(EsqlTestUtils.TEST_CFG, registry, analyzerDefaultMapping(), defaultEnrichResolution()),
+            testAnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                registry,
+                analyzerDefaultMapping(),
+                defaultEnrichResolution(),
+                emptyInferenceResolution()
+            ),
             new Verifier(new Metrics(new EsqlFunctionRegistry()), getLicenseState(operationMode))
         );
     }

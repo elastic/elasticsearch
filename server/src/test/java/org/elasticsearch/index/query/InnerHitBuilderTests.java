@@ -45,6 +45,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -105,7 +106,7 @@ public class InnerHitBuilderTests extends ESTestCase {
             BytesStreamOutput out2 = new BytesStreamOutput();
             original.writeTo(out1);
             deserialized.writeTo(out2);
-            assertEquals(out1.bytes(), out2.bytes());
+            assertThat(out2.bytes(), equalBytes(out1.bytes()));
         }
     }
 

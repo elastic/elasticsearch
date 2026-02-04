@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.watcher.transport.actions.execute;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,7 +28,7 @@ import java.util.Map;
 /**
  * A request to execute a watch by id
  */
-public class ExecuteWatchRequest extends ActionRequest {
+public class ExecuteWatchRequest extends LegacyActionRequest {
 
     public static final String INLINE_WATCH_ID = "_inlined_";
 
@@ -200,8 +200,8 @@ public class ExecuteWatchRequest extends ActionRequest {
     }
 
     /**
-     * @return  the execution modes for the actions. These modes determine the nature of the execution
-     *          of the watch actions while the watch is executing.
+     * @return the execution modes for the actions. These modes determine the nature of the execution
+     * of the watch actions while the watch is executing.
      */
     public Map<String, ActionExecutionMode> getActionModes() {
         return actionModes;
@@ -210,8 +210,8 @@ public class ExecuteWatchRequest extends ActionRequest {
     /**
      * Sets the action execution mode for the give action (identified by its id).
      *
-     * @param actionId      the action id.
-     * @param actionMode    the execution mode of the action.
+     * @param actionId   the action id.
+     * @param actionMode the execution mode of the action.
      */
     public void setActionMode(String actionId, ActionExecutionMode actionMode) {
         actionModes.put(actionId, actionMode);
@@ -219,7 +219,7 @@ public class ExecuteWatchRequest extends ActionRequest {
 
     /**
      * @return whether the watch should execute in debug mode. In debug mode the execution {@code vars}
-     *         will be returned as part of the watch record.
+     * will be returned as part of the watch record.
      */
     public boolean isDebug() {
         return debug;

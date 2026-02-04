@@ -77,9 +77,10 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
-            match_all: {}
+            match_all: { }
 
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
@@ -102,9 +103,10 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
-            match_all: {}
+            match_all: { }
 
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
@@ -127,9 +129,10 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
-            match_all: {}
+            match_all: { }
 
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
@@ -150,9 +153,10 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
-            match_all: {}
+            match_all: { }
 
   # We can't directly check that the embeddings are different since there isn't a "does not match" assertion in the
   # YAML test framework. Check that the start and end offsets change as expected as a proxy.
@@ -177,9 +181,10 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
-            match_all: {}
+            match_all: { }
 
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
@@ -200,9 +205,10 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
-            match_all: {}
+            match_all: { }
 
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
@@ -252,9 +258,10 @@ setup:
       search:
         index: test-copy-to-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
-            match_all: {}
+            match_all: { }
 
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
@@ -281,9 +288,10 @@ setup:
       search:
         index: test-copy-to-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
-            match_all: {}
+            match_all: { }
 
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
@@ -318,9 +326,10 @@ setup:
       search:
         index: test-copy-to-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
-            match_all: {}
+            match_all: { }
 
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
@@ -367,7 +376,7 @@ setup:
         index: test-index
         id: doc_1
         body:
-          doc: { "sparse_field": [{"key": "value"}], "dense_field": [{"key": "value"}] }
+          doc: { "sparse_field": [ { "key": "value" } ], "dense_field": [ { "key": "value" } ] }
 
   - match: { error.type: "status_exception" }
   - match: { error.reason: "/Invalid\\ format\\ for\\ field\\ \\[(dense|sparse)_field\\].+/" }
@@ -413,9 +422,10 @@ setup:
       search:
         index: test-copy-to-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
-            match_all: {}
+            match_all: { }
 
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
@@ -446,9 +456,10 @@ setup:
       search:
         index: test-copy-to-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
-            match_all: {}
+            match_all: { }
 
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
@@ -507,9 +518,10 @@ setup:
       search:
         index: test-copy-to-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
-            match_all: {}
+            match_all: { }
 
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
@@ -538,9 +550,10 @@ setup:
       search:
         index: test-copy-to-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
-            match_all: {}
+            match_all: { }
 
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
@@ -607,7 +620,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 
@@ -668,7 +682,8 @@ setup:
       search:
         index: test-copy-to-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 
@@ -710,7 +725,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 
@@ -767,7 +783,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 
@@ -800,7 +817,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 
@@ -845,7 +863,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 
@@ -922,7 +941,8 @@ setup:
       search:
         index: test-copy-to-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 
@@ -974,7 +994,8 @@ setup:
       search:
         index: test-copy-to-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 
@@ -1013,7 +1034,8 @@ setup:
       search:
         index: test-copy-to-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 

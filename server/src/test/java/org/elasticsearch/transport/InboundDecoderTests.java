@@ -10,17 +10,20 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.InboundDecoder.ChannelType;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,13 +37,17 @@ import static org.hamcrest.Matchers.instanceOf;
 public class InboundDecoderTests extends ESTestCase {
 
     private ThreadContext threadContext;
-    private BytesRefRecycler recycler;
+    private MockBytesRefRecycler recycler;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void createServices() {
         threadContext = new ThreadContext(Settings.EMPTY);
-        recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+        recycler = new MockBytesRefRecycler();
+    }
+
+    @After
+    public void closeServices() {
+        Releasables.closeExpectNoException(recycler);
     }
 
     public void testDecode() throws IOException {
@@ -54,30 +61,20 @@ public class InboundDecoderTests extends ESTestCase {
         } else {
             threadContext.addResponseHeader(headerKey, headerValue);
         }
-        OutboundMessage message;
-        if (isRequest) {
-            message = new OutboundMessage.Request(
-                threadContext,
-                new TestRequest(randomAlphaOfLength(100)),
-                TransportVersion.current(),
+
+        try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
+            final BytesReference totalBytes = OutboundHandler.serialize(
+                isRequest ? OutboundHandler.MessageDirection.REQUEST : OutboundHandler.MessageDirection.RESPONSE,
                 action,
                 requestId,
                 false,
-                null
-            );
-        } else {
-            message = new OutboundMessage.Response(
-                threadContext,
-                new TestResponse(randomAlphaOfLength(100)),
                 TransportVersion.current(),
-                requestId,
-                false,
-                null
+                null,
+                isRequest ? new TestRequest(randomAlphaOfLength(100)) : new TestResponse(randomAlphaOfLength(100)),
+                threadContext,
+                os,
+                recycler
             );
-        }
-
-        try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
-            final BytesReference totalBytes = message.serialize(os);
             int totalHeaderSize = TcpHeader.HEADER_SIZE + totalBytes.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
             final BytesReference messageBytes = totalBytes.slice(totalHeaderSize, totalBytes.length() - totalHeaderSize);
 
@@ -137,18 +134,20 @@ public class InboundDecoderTests extends ESTestCase {
         final String headerKey = randomAlphaOfLength(10);
         final String headerValue = randomAlphaOfLength(20);
         threadContext.putHeader(headerKey, headerValue);
-        OutboundMessage message = new OutboundMessage.Request(
-            threadContext,
-            new TestRequest(randomAlphaOfLength(100)),
-            transportVersion,
-            action,
-            requestId,
-            true,
-            compressionScheme
-        );
 
         try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
-            final BytesReference bytes = message.serialize(os);
+            final BytesReference bytes = OutboundHandler.serialize(
+                OutboundHandler.MessageDirection.REQUEST,
+                action,
+                requestId,
+                true,
+                transportVersion,
+                compressionScheme,
+                new TestRequest(randomAlphaOfLength(100)),
+                threadContext,
+                os,
+                recycler
+            );
 
             InboundDecoder decoder = new InboundDecoder(recycler);
             final ArrayList<Object> fragments = new ArrayList<>();
@@ -185,20 +184,22 @@ public class InboundDecoderTests extends ESTestCase {
         final var isHandshake = randomBoolean();
         final var version = isHandshake
             ? randomFrom(TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS)
-            : TransportVersionUtils.randomCompatibleVersion(random());
+            : TransportVersionUtils.randomCompatibleVersion();
         logger.info("--> version = {}", version);
-        OutboundMessage message = new OutboundMessage.Request(
-            threadContext,
-            new TestRequest(randomAlphaOfLength(100)),
-            version,
-            action,
-            requestId,
-            isHandshake,
-            randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4, null)
-        );
 
         try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
-            final BytesReference bytes = message.serialize(os);
+            final BytesReference bytes = OutboundHandler.serialize(
+                OutboundHandler.MessageDirection.REQUEST,
+                action,
+                requestId,
+                isHandshake,
+                version,
+                randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4, null),
+                new TestRequest(randomAlphaOfLength(100)),
+                threadContext,
+                os,
+                recycler
+            );
             try (InboundDecoder clientDecoder = new InboundDecoder(recycler, ChannelType.CLIENT)) {
                 IllegalArgumentException e = expectThrows(
                     IllegalArgumentException.class,
@@ -233,18 +234,21 @@ public class InboundDecoderTests extends ESTestCase {
         final var isHandshake = randomBoolean();
         final var version = isHandshake
             ? randomFrom(TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS)
-            : TransportVersionUtils.randomCompatibleVersion(random());
-        OutboundMessage message = new OutboundMessage.Response(
-            threadContext,
-            new TestResponse(randomAlphaOfLength(100)),
-            version,
-            requestId,
-            isHandshake,
-            randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4, null)
-        );
+            : TransportVersionUtils.randomCompatibleVersion();
 
         try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
-            final BytesReference bytes = message.serialize(os);
+            final BytesReference bytes = OutboundHandler.serialize(
+                OutboundHandler.MessageDirection.RESPONSE,
+                "test:action",
+                requestId,
+                isHandshake,
+                version,
+                randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4, null),
+                new TestRequest(randomAlphaOfLength(100)),
+                threadContext,
+                os,
+                recycler
+            );
             try (InboundDecoder decoder = new InboundDecoder(recycler, ChannelType.SERVER)) {
                 final ReleasableBytesReference releasable1 = wrapAsReleasable(bytes);
                 IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> decoder.decode(releasable1, ignored -> {}));
@@ -273,27 +277,24 @@ public class InboundDecoderTests extends ESTestCase {
         } else {
             threadContext.addResponseHeader(headerKey, headerValue);
         }
-        OutboundMessage message;
-        TransportMessage transportMessage;
         Compression.Scheme scheme = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4);
-        if (isRequest) {
-            transportMessage = new TestRequest(randomAlphaOfLength(100));
-            message = new OutboundMessage.Request(
-                threadContext,
-                transportMessage,
-                TransportVersion.current(),
+
+        try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
+            final Writeable transportMessage = isRequest
+                ? new TestRequest(randomAlphaOfLength(100))
+                : new TestResponse(randomAlphaOfLength(100));
+            final BytesReference totalBytes = OutboundHandler.serialize(
+                isRequest ? OutboundHandler.MessageDirection.REQUEST : OutboundHandler.MessageDirection.RESPONSE,
                 action,
                 requestId,
                 false,
-                scheme
+                TransportVersion.current(),
+                scheme,
+                transportMessage,
+                threadContext,
+                os,
+                recycler
             );
-        } else {
-            transportMessage = new TestResponse(randomAlphaOfLength(100));
-            message = new OutboundMessage.Response(threadContext, transportMessage, TransportVersion.current(), requestId, false, scheme);
-        }
-
-        try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
-            final BytesReference totalBytes = message.serialize(os);
             final BytesStreamOutput out = new BytesStreamOutput();
             transportMessage.writeTo(out);
             final BytesReference uncompressedBytes = out.bytes();
@@ -350,20 +351,21 @@ public class InboundDecoderTests extends ESTestCase {
     public void testVersionIncompatibilityDecodeException() throws IOException {
         String action = "test-request";
         long requestId = randomNonNegativeLong();
-        TransportVersion incompatibleVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.MINIMUM_COMPATIBLE);
-        OutboundMessage message = new OutboundMessage.Request(
-            threadContext,
-            new TestRequest(randomAlphaOfLength(100)),
-            incompatibleVersion,
-            action,
-            requestId,
-            false,
-            Compression.Scheme.DEFLATE
-        );
-
+        TransportVersion incompatibleVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible(), true);
         final ReleasableBytesReference releasable1;
         try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
-            final BytesReference bytes = message.serialize(os);
+            final BytesReference bytes = OutboundHandler.serialize(
+                OutboundHandler.MessageDirection.REQUEST,
+                action,
+                requestId,
+                false,
+                incompatibleVersion,
+                Compression.Scheme.DEFLATE,
+                new TestRequest(randomAlphaOfLength(100)),
+                threadContext,
+                os,
+                recycler
+            );
 
             InboundDecoder decoder = new InboundDecoder(recycler);
             final ArrayList<Object> fragments = new ArrayList<>();
@@ -378,14 +380,12 @@ public class InboundDecoderTests extends ESTestCase {
 
     public void testCheckVersionCompatibility() {
         try {
-            InboundDecoder.checkVersionCompatibility(
-                TransportVersionUtils.randomVersionBetween(random(), TransportVersions.MINIMUM_COMPATIBLE, TransportVersion.current())
-            );
+            InboundDecoder.checkVersionCompatibility(TransportVersionUtils.randomCompatibleVersion());
         } catch (IllegalStateException e) {
             throw new AssertionError(e);
         }
 
-        TransportVersion invalid = TransportVersionUtils.getPreviousVersion(TransportVersions.MINIMUM_COMPATIBLE);
+        TransportVersion invalid = TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible(), true);
         try {
             InboundDecoder.checkVersionCompatibility(invalid);
             fail();
@@ -394,7 +394,7 @@ public class InboundDecoderTests extends ESTestCase {
                 "Received message from unsupported version: ["
                     + invalid.toReleaseVersion()
                     + "] minimal compatible version is: ["
-                    + TransportVersions.MINIMUM_COMPATIBLE.toReleaseVersion()
+                    + TransportVersion.minimumCompatible().toReleaseVersion()
                     + "]",
                 expected.getMessage()
             );

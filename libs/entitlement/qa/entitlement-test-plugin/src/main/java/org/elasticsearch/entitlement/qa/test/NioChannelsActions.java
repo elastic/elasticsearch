@@ -15,8 +15,11 @@ import org.elasticsearch.entitlement.qa.entitled.EntitledActions;
 
 import java.io.FileDescriptor;
 import java.io.IOException;
+import java.net.StandardProtocolFamily;
 import java.nio.channels.AsynchronousFileChannel;
 import java.nio.channels.FileChannel;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.spi.SelectorProvider;
 import java.nio.file.StandardOpenOption;
 import java.util.Set;
 
@@ -84,5 +87,51 @@ class NioChannelsActions {
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
     static void channelsReadWriteSelectableChannel() throws IOException {
         jdk.nio.Channels.readWriteSelectableChannel(new FileDescriptor(), new DummyImplementations.DummySelectableChannelCloser()).close();
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void selectableChannelRegisterConnect() throws IOException {
+        try (var selectableChannel = new DummyImplementations.DummySelectableChannel(SelectorProvider.provider())) {
+            selectableChannel.configureBlocking(false);
+            selectableChannel.register(new DummyImplementations.DummySelector(SelectorProvider.provider()), SelectionKey.OP_CONNECT);
+        }
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void selectableChannelRegisterAccept() throws IOException {
+        try (var selectableChannel = new DummyImplementations.DummySelectableChannel(SelectorProvider.provider())) {
+            selectableChannel.configureBlocking(false);
+            selectableChannel.register(new DummyImplementations.DummySelector(SelectorProvider.provider()), SelectionKey.OP_ACCEPT);
+        }
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void selectorProviderOpenSocketChannel() throws IOException {
+        SelectorProvider.provider().openSocketChannel().close();
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void selectorProviderOpenDatagramChannel() throws IOException {
+        SelectorProvider.provider().openDatagramChannel().close();
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void selectorProviderOpenServerSocketChannel() throws IOException {
+        SelectorProvider.provider().openServerSocketChannel().close();
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void selectorProviderOpenSocketChannelWithProtocol() throws IOException {
+        SelectorProvider.provider().openSocketChannel(StandardProtocolFamily.INET).close();
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void selectorProviderOpenDatagramChannelWithProtocol() throws IOException {
+        SelectorProvider.provider().openDatagramChannel(StandardProtocolFamily.INET).close();
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void selectorProviderOpenServerSocketChannelWithProtocol() throws IOException {
+        SelectorProvider.provider().openServerSocketChannel(StandardProtocolFamily.INET).close();
     }
 }

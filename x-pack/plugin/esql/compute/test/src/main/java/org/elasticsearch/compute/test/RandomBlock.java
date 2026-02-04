@@ -8,15 +8,21 @@
 package org.elasticsearch.compute.test;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.ExponentialHistogramBlockBuilder;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
+import org.elasticsearch.compute.data.TDigestBlockBuilder;
+import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Point;
@@ -26,6 +32,10 @@ import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
+import static org.elasticsearch.test.ESTestCase.randomLongBetween;
+import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
 
 /**
  * A block of random values.
@@ -37,8 +47,17 @@ public record RandomBlock(List<List<Object>> values, Block block) {
      * A random {@link ElementType} for which we can build a {@link RandomBlock}.
      */
     public static ElementType randomElementType() {
+        return randomElementExcluding(List.of());
+    }
+
+    public static ElementType randomElementExcluding(List<ElementType> type) {
         return ESTestCase.randomValueOtherThanMany(
-            e -> e == ElementType.UNKNOWN || e == ElementType.NULL || e == ElementType.DOC || e == ElementType.COMPOSITE,
+            e -> e == ElementType.UNKNOWN
+                || e == ElementType.NULL
+                || e == ElementType.DOC
+                || e == ElementType.COMPOSITE
+                || e == ElementType.LONG_RANGE
+                || type.contains(e),
             () -> ESTestCase.randomFrom(ElementType.values())
         );
     }
@@ -78,6 +97,15 @@ public record RandomBlock(List<List<Object>> values, Block block) {
     ) {
         List<List<Object>> values = new ArrayList<>();
         Block.MvOrdering mvOrdering = Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING;
+        if (elementType == ElementType.EXPONENTIAL_HISTOGRAM || elementType == ElementType.TDIGEST) {
+            // histograms do not support multi-values
+            // TODO(b/133393) remove this when we support multi-values in exponential histogram blocks
+            minValuesPerPosition = Math.min(1, minValuesPerPosition);
+            maxValuesPerPosition = Math.min(1, maxValuesPerPosition);
+            minDupsPerPosition = 0;
+            maxDupsPerPosition = 0;
+            mvOrdering = Block.MvOrdering.UNORDERED; // histograms do not support ordering
+        }
         try (var builder = elementType.newBlockBuilder(positionCount, blockFactory)) {
             boolean bytesRefFromPoints = ESTestCase.randomBoolean();
             Supplier<Point> pointSupplier = ESTestCase.randomBoolean() ? GeometryTestUtils::randomPoint : ShapeTestUtils::randomPoint;
@@ -133,6 +161,38 @@ public record RandomBlock(List<List<Object>> values, Block block) {
                             boolean b = ESTestCase.randomBoolean();
                             valuesAtPosition.add(b);
                             ((BooleanBlock.Builder) builder).appendBoolean(b);
+                        }
+                        case AGGREGATE_METRIC_DOUBLE -> {
+                            AggregateMetricDoubleBlockBuilder b = (AggregateMetricDoubleBlockBuilder) builder;
+                            double min = ESTestCase.randomDouble();
+                            double max = ESTestCase.randomDouble();
+                            double sum = ESTestCase.randomDouble();
+                            int count = ESTestCase.randomNonNegativeInt();
+                            b.min().appendDouble(min);
+                            b.max().appendDouble(max);
+                            b.sum().appendDouble(sum);
+                            b.count().appendInt(count);
+                            valuesAtPosition.add(new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(min, max, sum, count));
+                        }
+                        case EXPONENTIAL_HISTOGRAM -> {
+                            ExponentialHistogramBlockBuilder b = (ExponentialHistogramBlockBuilder) builder;
+                            ExponentialHistogram histogram = BlockTestUtils.randomExponentialHistogram();
+                            b.append(histogram);
+                            valuesAtPosition.add(histogram);
+                        }
+                        case TDIGEST -> {
+                            TDigestBlockBuilder b = (TDigestBlockBuilder) builder;
+                            TDigestHolder digest = BlockTestUtils.randomTDigest();
+                            b.appendTDigest(digest);
+                            valuesAtPosition.add(digest);
+                        }
+                        case LONG_RANGE -> {
+                            var b = (LongRangeBlockBuilder) builder;
+                            var from = randomMillisUpToYear9999();
+                            var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
+                            b.from().appendLong(from);
+                            b.to().appendLong(to);
+                            valuesAtPosition.add(new LongRangeBlockBuilder.LongRange(from, to));
                         }
                         default -> throw new IllegalArgumentException("unsupported element type [" + elementType + "]");
                     }

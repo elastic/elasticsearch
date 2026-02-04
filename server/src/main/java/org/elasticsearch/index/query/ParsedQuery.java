@@ -60,6 +60,6 @@ public class ParsedQuery {
     }
 
     public static ParsedQuery parsedMatchAllQuery() {
-        return new ParsedQuery(Queries.newMatchAllQuery(), emptyMap());
+        return new ParsedQuery(Queries.ALL_DOCS_INSTANCE, emptyMap());
     }
 }

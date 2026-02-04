@@ -141,7 +141,9 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         clusterService.submitUnbatchedStateUpdateTask("testing-move-to-step-to-manipulate-step-time", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
+                final var projectState = currentState.projectState();
                 return new MoveToNextStepUpdateTask(
+                    projectState.projectId(),
                     managedIndexMetadata.getIndex(),
                     policy,
                     currentStepKey,
@@ -149,7 +151,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
                     nowWayBackInThePastSupplier,
                     indexLifecycleService.getPolicyRegistry(),
                     state -> {}
-                ).execute(currentState);
+                ).execute(projectState);
             }
 
             @Override
@@ -173,7 +175,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         // the shrink index generated in the first attempt must've been deleted!
         assertBusy(() -> assertFalse(indexExists(firstAttemptShrinkIndexName[0])));
 
-        assertBusy(() -> assertTrue(indexExists(secondCycleShrinkIndexName[0])), 30, TimeUnit.SECONDS);
+        awaitIndexExists(secondCycleShrinkIndexName[0]);
 
         // at this point, the second shrink attempt was executed and the manged index is looping into the `shrunk-shards-allocated` step as
         // waiting for the huge numbers of replicas for the shrunk index to allocate. this will never happen, so let's unblock this

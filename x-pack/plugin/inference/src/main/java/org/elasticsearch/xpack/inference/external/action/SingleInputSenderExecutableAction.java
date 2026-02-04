@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 
 import java.util.Objects;
 
-public class SingleInputSenderExecutableAction extends SenderExecutableAction {
+public final class SingleInputSenderExecutableAction extends SenderExecutableAction {
     private final String requestTypeForInputValidationError;
 
     public SingleInputSenderExecutableAction(
@@ -33,7 +33,7 @@ public class SingleInputSenderExecutableAction extends SenderExecutableAction {
 
     @Override
     public void execute(InferenceInputs inferenceInputs, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
-        if (inferenceInputs.inputSize() > 1) {
+        if (inferenceInputs.isSingleInput() == false) {
             listener.onFailure(
                 new ElasticsearchStatusException(requestTypeForInputValidationError + " only accepts 1 input", RestStatus.BAD_REQUEST)
             );

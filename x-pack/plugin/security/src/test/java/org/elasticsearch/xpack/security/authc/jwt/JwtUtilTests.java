@@ -11,6 +11,11 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -157,5 +162,22 @@ public class JwtUtilTests extends JwtTestCase {
         assertThat(JwtUtil.parseHttpsUri("https://example.com/path/jwkset.json"), notNullValue());
         assertThat(JwtUtil.parseHttpsUri("https://example.com:443/path/jwkset.json"), notNullValue());
         assertThat(JwtUtil.parseHttpsUri("https://example.com:8443/path/jwkset.json"), notNullValue());
+    }
+
+    public void testParseExpires() {
+        ZonedDateTime nowUtc = ZonedDateTime.now(ZoneId.of("UTC"));
+        Instant parsed = JwtUtil.JwksResponse.parseExpires(nowUtc.format(DateTimeFormatter.RFC_1123_DATE_TIME));
+        assertThat(parsed.getEpochSecond(), equalTo(nowUtc.toEpochSecond()));
+        assertThat(JwtUtil.JwksResponse.parseExpires(null), nullValue());
+        assertThat(JwtUtil.JwksResponse.parseExpires(""), nullValue());
+        assertThat(JwtUtil.JwksResponse.parseExpires("Jan 2024"), nullValue());
+    }
+
+    public void testParseMaxAge() {
+        assertThat(JwtUtil.JwksResponse.parseMaxAge("public, max-age=3600, immutable"), equalTo(3600));
+        assertThat(JwtUtil.JwksResponse.parseMaxAge("max-age=7200"), equalTo(7200));
+        assertThat(JwtUtil.JwksResponse.parseMaxAge("no-cache, no-store"), nullValue());
+        assertThat(JwtUtil.JwksResponse.parseMaxAge(""), nullValue());
+        assertThat(JwtUtil.JwksResponse.parseMaxAge(null), nullValue());
     }
 }

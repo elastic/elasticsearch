@@ -9,15 +9,14 @@ package org.elasticsearch.xpack.inference.services.jinaai;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.jinaai.JinaAIActionVisitor;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.jinaai.action.JinaAIActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
 
 import java.net.URI;
@@ -27,17 +26,20 @@ import java.util.Objects;
 public abstract class JinaAIModel extends Model {
     private final SecureString apiKey;
     private final JinaAIRateLimitServiceSettings rateLimitServiceSettings;
+    private final URI uri;
 
     public JinaAIModel(
         ModelConfigurations configurations,
         ModelSecrets secrets,
         @Nullable ApiKeySecrets apiKeySecrets,
-        JinaAIRateLimitServiceSettings rateLimitServiceSettings
+        JinaAIRateLimitServiceSettings rateLimitServiceSettings,
+        URI uri
     ) {
         super(configurations, secrets);
 
         this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
         apiKey = ServiceUtils.apiKey(apiKeySecrets);
+        this.uri = uri;
     }
 
     protected JinaAIModel(JinaAIModel model, TaskSettings taskSettings) {
@@ -45,6 +47,7 @@ public abstract class JinaAIModel extends Model {
 
         rateLimitServiceSettings = model.rateLimitServiceSettings();
         apiKey = model.apiKey();
+        uri = model.uri();
     }
 
     protected JinaAIModel(JinaAIModel model, ServiceSettings serviceSettings) {
@@ -52,6 +55,7 @@ public abstract class JinaAIModel extends Model {
 
         rateLimitServiceSettings = model.rateLimitServiceSettings();
         apiKey = model.apiKey();
+        uri = model.uri();
     }
 
     public SecureString apiKey() {
@@ -62,7 +66,9 @@ public abstract class JinaAIModel extends Model {
         return rateLimitServiceSettings;
     }
 
-    public abstract ExecutableAction accept(JinaAIActionVisitor creator, Map<String, Object> taskSettings, InputType inputType);
+    public URI uri() {
+        return uri;
+    }
 
-    public abstract URI uri();
+    public abstract ExecutableAction accept(JinaAIActionVisitor creator, Map<String, Object> taskSettings);
 }

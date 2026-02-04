@@ -1,52 +1,55 @@
 {
-  "tasks.cancel":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/tasks.html",
-      "description":"Cancels a task, if it can be cancelled through an API."
+  "tasks.cancel": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-tasks",
+      "description": "Cancel a task"
     },
-    "stability":"experimental",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_tasks/_cancel",
-          "methods":[
+          "path": "/_tasks/_cancel",
+          "methods": [
             "POST"
           ]
         },
         {
-          "path":"/_tasks/{task_id}/_cancel",
-          "methods":[
+          "path": "/_tasks/{task_id}/_cancel",
+          "methods": [
             "POST"
           ],
-          "parts":{
-            "task_id":{
-              "type":"string",
-              "description":"Cancel the task with specified task id (node_id:task_number)"
+          "parts": {
+            "task_id": {
+              "type": "string",
+              "description": "Cancel the task with specified task id (node_id:task_number)"
             }
           }
         }
       ]
     },
-    "params":{
-      "nodes":{
-        "type":"list",
-        "description":"A comma-separated list of node IDs or names to limit the returned information; use `_local` to return information from the node you're connecting to, leave empty to get information from all nodes"
+    "params": {
+      "nodes": {
+        "type": "list",
+        "description": "A comma-separated list of node IDs or names to limit the returned information; use `_local` to return information from the node you're connecting to, leave empty to get information from all nodes"
       },
-      "actions":{
-        "type":"list",
-        "description":"A comma-separated list of actions that should be cancelled. Leave empty to cancel all."
+      "actions": {
+        "type": "list",
+        "description": "A comma-separated list of actions that should be cancelled. Leave empty to cancel all."
       },
-      "parent_task_id":{
-        "type":"string",
-        "description":"Cancel tasks with specified parent task id (node_id:task_number). Set to -1 to cancel all."
+      "parent_task_id": {
+        "type": "string",
+        "description": "Cancel tasks with specified parent task id (node_id:task_number). Set to -1 to cancel all."
       },
       "wait_for_completion": {
-        "type":"boolean",
-        "description":"Should the request block until the cancellation of the task and its descendant tasks is completed. Defaults to false"
+        "type": "boolean",
+        "default": false,
+        "description": "Should the request block until the cancellation of the task and its descendant tasks is completed. Defaults to false"
       }
     }
   }

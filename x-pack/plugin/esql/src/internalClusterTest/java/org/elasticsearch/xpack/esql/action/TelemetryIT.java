@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.action;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -33,12 +32,23 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public class TelemetryIT extends AbstractEsqlIntegTestCase {
 
-    record Test(String query, Map<String, Integer> expectedCommands, Map<String, Integer> expectedFunctions, boolean success) {}
+    record Test(
+        String query,
+        Map<String, Integer> expectedCommands,
+        Map<String, Integer> expectedFunctions,
+        Map<String, Integer> expectedSettings,
+        boolean success
+    ) {
+        Test(String query, Map<String, Integer> expectedCommands, Map<String, Integer> expectedFunctions, boolean success) {
+            this(query, expectedCommands, expectedFunctions, Map.of(), success);
+        }
+    }
 
     private final Test testCase;
 
@@ -148,33 +158,87 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                 ) },
             new Object[] {
                 new Test(
-                    "METRICS idx | LIMIT 10",
-                    Build.current().isSnapshot() ? Map.ofEntries(Map.entry("METRICS", 1), Map.entry("LIMIT", 1)) : Collections.emptyMap(),
-                    Map.ofEntries(),
-                    Build.current().isSnapshot()
+                    """
+                        FROM idx
+                        | EVAL y = to_str(host)
+                        | RENAME host as host_left
+                        | LOOKUP JOIN lookup_idx ON host_left == host
+                        """,
+                    Map.ofEntries(
+                        Map.entry("RENAME", 1),
+                        Map.entry("FROM", 1),
+                        Map.entry("EVAL", 1),
+                        Map.entry("LOOKUP JOIN ON EXPRESSION", 1)
+                    ),
+                    Map.ofEntries(Map.entry("TO_STRING", 1)),
+                    true
                 ) },
             new Object[] {
                 new Test(
-                    "METRICS idx max(id) BY host | LIMIT 10",
-                    Build.current().isSnapshot() ? Map.ofEntries(Map.entry("METRICS", 1), Map.entry("LIMIT", 1)) : Collections.emptyMap(),
-                    Build.current().isSnapshot() ? Map.ofEntries(Map.entry("MAX", 1)) : Collections.emptyMap(),
-                    Build.current().isSnapshot()
-                ) }
-            // awaits fix for https://github.com/elastic/elasticsearch/issues/116003
-            // ,
-            // new Object[] {
-            // new Test(
-            // """
-            // FROM idx
-            // | EVAL ip = to_ip(host), x = to_string(host), y = to_string(host)
-            // | INLINESTATS max(id)
-            // """,
-            // Build.current().isSnapshot() ? Map.of("FROM", 1, "EVAL", 1, "INLINESTATS", 1) : Collections.emptyMap(),
-            // Build.current().isSnapshot()
-            // ? Map.ofEntries(Map.entry("MAX", 1), Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2))
-            // : Collections.emptyMap(),
-            // Build.current().isSnapshot()
-            // ) }
+                    "TS time_series_idx | LIMIT 10",
+                    Map.ofEntries(Map.entry("TS", 1), Map.entry("LIMIT", 1)),
+                    Map.ofEntries(),
+                    true
+                ) },
+            new Object[] {
+                new Test(
+                    "TS time_series_idx | STATS max(cpu) BY host | LIMIT 10",
+                    Map.ofEntries(Map.entry("TS", 1), Map.entry("STATS", 1), Map.entry("LIMIT", 1)),
+                    Map.ofEntries(Map.entry("MAX", 1)),
+                    true
+                ) },
+            new Object[] {
+                new Test(
+                    """
+                        FROM idx
+                        | EVAL ip = TO_IP(host), x = TO_STRING(host), y = TO_STRING(host)
+                        | INLINE STATS MAX(id)
+                        """,
+                    EsqlCapabilities.Cap.INLINE_STATS.isEnabled()
+                        ? Map.of("FROM", 1, "EVAL", 1, "INLINE STATS", 1)
+                        : Collections.emptyMap(),
+                    EsqlCapabilities.Cap.INLINE_STATS.isEnabled()
+                        ? Map.ofEntries(Map.entry("MAX", 1), Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2))
+                        : Collections.emptyMap(),
+                    EsqlCapabilities.Cap.INLINE_STATS.isEnabled()
+                ) },
+            new Object[] {
+                new Test(
+                    """
+                        FROM idx, (FROM idx | WHERE host =="127.0.0.1")
+                        | WHERE id > 10
+                        """,
+                    EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled()
+                        ? Map.of("FROM", 2, "UNIONALL", 1, "WHERE", 2)
+                        : Collections.emptyMap(),
+                    Collections.emptyMap(),
+                    EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled()
+                ) },
+            // Implicit cast shouldn't add extra metrics
+            new Object[] { new Test("""
+                FROM idx
+                | EVAL x = DATE_DIFF("hours", "2021-01-02T00:00:00", "2021-01-02T00:00:00Z")
+                """, Map.of("FROM", 1, "EVAL", 1), Map.of("DATE_DIFF", 1), true) },
+            // Test with settings
+            new Object[] { new Test("""
+                SET time_zone = "UTC";
+                FROM idx
+                | EVAL ip = to_ip(host)
+                """, Map.of("FROM", 1, "EVAL", 1), Map.of("TO_IP", 1), Map.of("TIME_ZONE", 1), true) },
+            // Test with multiple settings
+            new Object[] { new Test("""
+                SET time_zone = "UTC";
+                SET unmapped_fields = "NULLIFY";
+                FROM idx
+                | KEEP host
+                """, Map.of("FROM", 1, "KEEP", 1), Map.of(), Map.of("TIME_ZONE", 1, "UNMAPPED_FIELDS", 1), true) },
+            // Test with duplicate settings (both should be counted)
+            new Object[] { new Test("""
+                SET time_zone = "UTC";
+                SET time_zone = "America/New_York";
+                FROM idx
+                | LIMIT 10
+                """, Map.of("FROM", 1, "LIMIT", 1), Map.of(), Map.of("TIME_ZONE", 2), true) }
         );
     }
 
@@ -186,12 +250,18 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMetrics() throws Exception {
+        if (testCase.query().contains("LOOKUP JOIN lookup_idx ON host_left == host")) {
+            assumeTrue(
+                "requires LOOKUP JOIN ON boolean expression capability",
+                EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+            );
+        }
         DiscoveryNode dataNode = randomDataNode();
         testQuery(dataNode, testCase);
     }
 
     private static void testQuery(DiscoveryNode dataNode, Test test) throws InterruptedException {
-        testQuery(dataNode, test.query, test.success, test.expectedCommands, test.expectedFunctions);
+        testQuery(dataNode, test.query, test.success, test.expectedCommands, test.expectedFunctions, test.expectedSettings);
     }
 
     private static void testQuery(
@@ -199,7 +269,8 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
         String query,
         Boolean success,
         Map<String, Integer> expectedCommands,
-        Map<String, Integer> expectedFunctions
+        Map<String, Integer> expectedFunctions,
+        Map<String, Integer> expectedSettings
     ) throws InterruptedException {
         final var plugins = internalCluster().getInstance(PluginsService.class, dataNode.getName())
             .filterPlugins(TestTelemetryPlugin.class)
@@ -231,6 +302,14 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                         // test number of queries using a function
                         final List<Measurement> functionMeasurements = measurements(plugin, PlanTelemetryManager.FUNCTION_METRICS);
                         assertUsageInQuery(expectedFunctions, functionMeasurements, iteration, success);
+
+                        // test total settings used
+                        final List<Measurement> settingMeasurementsAll = measurements(plugin, PlanTelemetryManager.SETTING_METRICS_ALL);
+                        assertAllUsages(expectedSettings, settingMeasurementsAll, iteration, success);
+
+                        // test number of queries using a setting
+                        final List<Measurement> settingMeasurements = measurements(plugin, PlanTelemetryManager.SETTING_METRICS);
+                        assertUsageInQuery(expectedSettings, settingMeasurements, iteration, success);
                     } finally {
                         latch.countDown();
                     }
@@ -275,10 +354,7 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
     }
 
     private static EsqlQueryRequest executeQuery(String query) {
-        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-        request.query(query);
-        request.pragmas(randomPragmas());
-        return request;
+        return syncEsqlQueryRequest(query).pragmas(randomPragmas());
     }
 
     private static void loadData(String nodeName) {
@@ -311,6 +387,22 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 )
                 .setMapping("ip", "type=ip", "host", "type=keyword")
+        );
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("time_series_idx")
+                .setSettings(Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host")).build())
+                .setMapping(
+                    "@timestamp",
+                    "type=date",
+                    "id",
+                    "type=keyword",
+                    "host",
+                    "type=keyword,time_series_dimension=true",
+                    "cpu",
+                    "type=long,time_series_metric=gauge"
+                )
         );
     }
 

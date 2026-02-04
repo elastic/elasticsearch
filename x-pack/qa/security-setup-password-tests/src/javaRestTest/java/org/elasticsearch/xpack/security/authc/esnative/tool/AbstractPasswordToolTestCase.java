@@ -17,10 +17,15 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TemporaryFolder;
+import org.junit.rules.TestRule;
 
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
@@ -34,18 +39,45 @@ import java.util.stream.Collectors;
 
 public abstract class AbstractPasswordToolTestCase extends ESRestTestCase {
 
+    private static final String TEST_ADMIN_USER = "test_admin";
+    private static final String TEST_ADMIN_PASSWORD = "x-pack-test-password";
+
+    public static TemporaryFolder configDir = new TemporaryFolder();
+
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .withConfigDir(AbstractPasswordToolTestCase::getConfigDirPath)
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.license.self_generated.type", "trial")
+        // Setup passwords doesn't work when there is a password auto-configured on first start
+        .setting("xpack.security.autoconfiguration.enabled", "false")
+        .user(TEST_ADMIN_USER, TEST_ADMIN_PASSWORD)
+        .build();
+
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(configDir).around(cluster);
+
+    @SuppressForbidden(reason = "TemporaryFolder uses java.io.File")
+    private static Path getConfigDirPath() {
+        return configDir.getRoot().toPath();
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
     @Override
     protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()));
+        String token = basicAuthHeaderValue(TEST_ADMIN_USER, new SecureString(TEST_ADMIN_PASSWORD.toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @Before
     @SuppressWarnings("unchecked")
     void writeConfigurationToDisk() throws Exception {
-        final String testConfigDir = System.getProperty("tests.config.dir");
-        logger.info("--> CONF: {}", testConfigDir);
-        final Path configPath = PathUtils.get(testConfigDir);
+        final Path configPath = getConfigDirPath();
+        logger.info("--> CONF: {}", configPath);
         setSystemPropsForTool(configPath);
 
         Response nodesResponse = client().performRequest(new Request("GET", "/_nodes/http"));

@@ -26,6 +26,7 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
@@ -63,6 +64,26 @@ public interface IndexFieldData<FD extends LeafFieldData> {
      * Loads directly the atomic field data for the reader, ignoring any caching involved.
      */
     FD loadDirect(LeafReaderContext context) throws Exception;
+
+    /**
+     * Returns the {@link SortField} to use for sorting depending on the version of the index.
+     */
+    default SortField sortField(
+        boolean indexSort,
+        IndexVersion indexCreatedVersion,
+        @Nullable Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested,
+        boolean reverse
+    ) {
+        return indexSort
+            ? indexSort(indexCreatedVersion, missingValue, sortMode, reverse)
+            : sortField(missingValue, sortMode, nested, reverse);
+    }
+
+    default SortField indexSort(IndexVersion indexCreatedVersion, @Nullable Object missingValue, MultiValueMode sortMode, boolean reverse) {
+        return sortField(missingValue, sortMode, null, reverse);
+    }
 
     /**
      * Returns the {@link SortField} to use for sorting.
@@ -216,6 +237,10 @@ public interface IndexFieldData<FD extends LeafFieldData> {
         }
 
         public abstract SortField.Type reducedType();
+
+        public SortField.Type sortType() {
+            return reducedType();
+        }
 
         /**
          * Return a missing value that is understandable by {@link SortField#setMissingValue(Object)}.

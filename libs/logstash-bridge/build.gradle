@@ -17,7 +17,15 @@ dependencies {
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(':modules:lang-mustache')
   compileOnly project(':modules:ingest-common')
-//  compileOnly project(':modules:ingest-geoip')
+  compileOnly project(':modules:ingest-geoip')
+  compileOnly project(':modules:ingest-user-agent')
+  compileOnly project(':x-pack:plugin:core')
+  compileOnly project(':x-pack:plugin:mapper-constant-keyword')
+  compileOnly project(':x-pack:plugin:redact')
+  compileOnly project(':x-pack:plugin:spatial')
+  compileOnly project(':x-pack:plugin:wildcard')
+
+  compileOnly('com.maxmind.db:maxmind-db:3.1.1')
 }
 
 tasks.named('forbiddenApisMain').configure {

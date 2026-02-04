@@ -1,0 +1,111 @@
+---
+setup:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/130740"
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
+      reason: "ESQL is available in 8.11+"
+      test_runner_features: allowed_warnings_regex
+  - do:
+      indices.create:
+        index: cities
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              city_code:
+                type: keyword
+              city:
+                type: text
+              country:
+                type: keyword
+
+  - do:
+      bulk:
+        index: cities
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "city_code": "nyc", "city": "New York", "country": "USA" }
+          - { "index": { } }
+          - { "city_code": "rom", "city": "Rome", "country": "Italy" }
+
+  - do:
+      enrich.put_policy:
+        name: city_codes)policy
+        body:
+          match:
+            indices: [ "cities" ]
+            match_field: "city_code"
+            enrich_fields: [ "city", "country" ]
+
+
+  - do:
+      enrich.execute_policy:
+        name: city_codes)policy
+
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              city_id:
+                type: keyword
+              city_name:
+                type: text
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "name": "Alice", "city_id": "nyc", "city_name": "New York" }
+          - { "index": { } }
+          - { "name": "Bob", "city_id": "nyc", "city_name": "New York" }
+          - { "index": { } }
+          - { "name": "Mario", "city_id": "rom", "city_name": "Rome" }
+          - { "index": { } }
+          - { "name": "Denise", "city_id": "sgn", "city_name": "Tan Son Nhat" }
+
+
+---
+teardown:
+  - do:
+      enrich.delete_policy:
+        name: city_codes)policy
+
+---
+"Enrich on keyword":
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ no_brackets_in_unquoted_index_names ]
+      reason: "Change in the grammar"
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | enrich "city_codes)policy" on city_id | keep name, city, country | sort name'
+
+  - match: { columns.0.name: "name" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "city" }
+  - match: { columns.1.type: "text" }
+  - match: { columns.2.name: "country" }
+  - match: { columns.2.type: "keyword" }
+
+  - length: { values: 4 }
+  - match: { values.0: [ "Alice", "New York", "USA" ] }
+  - match: { values.1: [ "Bob", "New York", "USA" ] }
+  - match: { values.2: [ "Denise", null, null ] }
+  - match: { values.3: [ "Mario", "Rome", "Italy" ] }

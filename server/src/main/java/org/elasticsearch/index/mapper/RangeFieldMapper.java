@@ -9,9 +9,13 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.network.InetAddresses;
@@ -20,13 +24,19 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.LocaleUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -55,6 +65,8 @@ public class RangeFieldMapper extends FieldMapper {
 
     public static final boolean DEFAULT_INCLUDE_UPPER = true;
     public static final boolean DEFAULT_INCLUDE_LOWER = true;
+
+    public static final TransportVersion ESQL_LONG_RANGES = TransportVersion.fromName("esql_long_ranges");
 
     public static class Defaults {
         public static final DateFormatter DATE_FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
@@ -136,9 +148,8 @@ public class RangeFieldMapper extends FieldMapper {
                 }
                 return new RangeFieldType(
                     fullName,
-                    index.getValue(),
+                    IndexType.points(index.get(), hasDocValues.get()),
                     store.getValue(),
-                    hasDocValues.getValue(),
                     DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue()),
                     coerce.getValue().value(),
                     meta.getValue()
@@ -147,9 +158,8 @@ public class RangeFieldMapper extends FieldMapper {
             if (type == RangeType.DATE) {
                 return new RangeFieldType(
                     fullName,
-                    index.getValue(),
+                    IndexType.points(index.get(), hasDocValues.get()),
                     store.getValue(),
-                    hasDocValues.getValue(),
                     Defaults.DATE_FORMATTER,
                     coerce.getValue().value(),
                     meta.getValue()
@@ -158,9 +168,8 @@ public class RangeFieldMapper extends FieldMapper {
             return new RangeFieldType(
                 fullName,
                 type,
-                index.getValue(),
+                IndexType.points(index.get(), hasDocValues.get()),
                 store.getValue(),
-                hasDocValues.getValue(),
                 coerce.getValue().value(),
                 meta.getValue()
             );
@@ -179,16 +188,8 @@ public class RangeFieldMapper extends FieldMapper {
         protected final DateMathParser dateMathParser;
         protected final boolean coerce;
 
-        public RangeFieldType(
-            String name,
-            RangeType type,
-            boolean indexed,
-            boolean stored,
-            boolean hasDocValues,
-            boolean coerce,
-            Map<String, String> meta
-        ) {
-            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+        public RangeFieldType(String name, RangeType type, IndexType indexType, boolean stored, boolean coerce, Map<String, String> meta) {
+            super(name, indexType, stored, meta);
             assert type != RangeType.DATE;
             this.rangeType = Objects.requireNonNull(type);
             dateTimeFormatter = null;
@@ -197,19 +198,18 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         public RangeFieldType(String name, RangeType type) {
-            this(name, type, true, false, true, false, Collections.emptyMap());
+            this(name, type, IndexType.points(true, true), false, false, Collections.emptyMap());
         }
 
         public RangeFieldType(
             String name,
-            boolean indexed,
+            IndexType indexType,
             boolean stored,
-            boolean hasDocValues,
             DateFormatter formatter,
             boolean coerce,
             Map<String, String> meta
         ) {
-            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+            super(name, indexType, stored, meta);
             this.rangeType = RangeType.DATE;
             this.dateTimeFormatter = Objects.requireNonNull(formatter);
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
@@ -217,7 +217,7 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         public RangeFieldType(String name, DateFormatter formatter) {
-            this(name, true, false, true, formatter, false, Collections.emptyMap());
+            this(name, IndexType.points(true, true), false, formatter, false, Collections.emptyMap());
         }
 
         public RangeType rangeType() {
@@ -227,7 +227,27 @@ public class RangeFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new BinaryIndexFieldData.Builder(name(), CoreValuesSourceType.RANGE);
+            return new BinaryIndexFieldData.Builder(name(), CoreValuesSourceType.RANGE) {
+                @Override
+                public BinaryIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
+                    return new BinaryIndexFieldData(name(), CoreValuesSourceType.RANGE) {
+                        @Override
+                        public SortField sortField(
+                            @Nullable Object missingValue,
+                            MultiValueMode sortMode,
+                            XFieldComparatorSource.Nested nested,
+                            boolean reverse
+                        ) {
+                            throw new IllegalArgumentException("Sorting by range field [" + name() + "] is not supported");
+                        }
+                    };
+                }
+            };
+        }
+
+        @Override
+        public TextSearchInfo getTextSearchInfo() {
+            return TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;
         }
 
         @Override
@@ -328,6 +348,100 @@ public class RangeFieldMapper extends FieldMapper {
                 parser,
                 context
             );
+        }
+
+        public static class DateRangeDocValuesLoader extends BlockDocValuesReader.DocValuesBlockLoader {
+            private final String fieldName;
+
+            public DateRangeDocValuesLoader(String fieldName) {
+                this.fieldName = fieldName;
+            }
+
+            @Override
+            public Builder builder(BlockFactory factory, int expectedCount) {
+                return factory.longRangeBuilder(expectedCount);
+            }
+
+            @Override
+            public AllReader reader(LeafReaderContext context) throws IOException {
+                var docValues = context.reader().getBinaryDocValues(fieldName);
+                if (docValues == null) {
+                    return ConstantNull.READER;
+                }
+                return new DateRangeDocValuesReader(docValues);
+            }
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (rangeType != RangeType.DATE) {
+                throw new UnsupportedOperationException("loading blocks is only supported for date fields");
+            }
+            if (hasDocValues()) {
+                return new DateRangeDocValuesLoader(name());
+            }
+            throw new IllegalStateException("Cannot load blocks without doc values");
+        }
+    }
+
+    public static class DateRangeDocValuesReader extends BlockDocValuesReader {
+        private final BinaryDocValues numericDocValues;
+
+        public DateRangeDocValuesReader(BinaryDocValues numericDocValues) {
+            this.numericDocValues = numericDocValues;
+        }
+
+        private int docId = -1;
+
+        @Override
+        protected int docId() {
+            return docId;
+        }
+
+        @Override
+        public String toString() {
+            return "BlockDocValuesReader.DateRangeDocValuesReader";
+        }
+
+        @Override
+        public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
+            throws IOException {
+            try (BlockLoader.LongRangeBuilder builder = factory.longRangeBuilder(docs.count() - offset)) {
+                int lastDoc = -1;
+                for (int i = offset; i < docs.count(); i++) {
+                    int doc = docs.get(i);
+                    if (doc < lastDoc) {
+                        throw new IllegalStateException("docs within same block must be in order");
+                    }
+                    if (false == numericDocValues.advanceExact(doc)) {
+                        builder.appendNull();
+                    } else {
+                        BytesRef ref = numericDocValues.binaryValue();
+                        var ranges = BinaryRangeUtil.decodeLongRanges(ref);
+                        for (var range : ranges) {
+                            lastDoc = doc;
+                            this.docId = doc;
+                            builder.from().appendLong((long) range.from);
+                            builder.to().appendLong((long) range.to);
+                        }
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        @Override
+        public void read(int doc, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
+            var blockBuilder = (BlockLoader.LongRangeBuilder) builder;
+            this.docId = doc;
+            if (false == numericDocValues.advanceExact(doc)) {
+                blockBuilder.appendNull();
+            } else {
+                var range = BinaryRangeUtil.decodeLongRanges(numericDocValues.binaryValue());
+                assert range.size() == 1 : "stored fields should only have a single range";
+                blockBuilder.from().appendLong((long) range.getFirst().from);
+                blockBuilder.to().appendLong((long) range.getFirst().to);
+            }
         }
     }
 

@@ -17,11 +17,11 @@ import com.google.cloud.storage.StorageBatch;
 import com.google.cloud.storage.StorageBatchResult;
 import com.google.cloud.storage.StorageException;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 
@@ -54,11 +54,7 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
         } else {
             StorageBatchResult<Boolean> resultA = mock(StorageBatchResult.class);
             doReturn(resultA).when(batch).delete(eq(BlobId.of("bucket", "blobA")));
-            doAnswer(invocation -> {
-                StorageException storageException = new StorageException(new IOException("Batched delete throws a storage exception"));
-                ((BatchResult.Callback) invocation.getArguments()[0]).error(storageException);
-                return null;
-            }).when(resultA).notify(any(StorageBatchResult.Callback.class));
+            doThrow(new StorageException(new IOException("Batch item delete throws exception"))).when(resultA).get();
 
             StorageBatchResult<Boolean> resultB = mock(StorageBatchResult.class);
             doReturn(resultB).when(batch).delete(eq(BlobId.of("bucket", "blobB")));
@@ -78,26 +74,24 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
         final Storage storage = mock(Storage.class);
         when(storage.get("bucket")).thenReturn(mock(Bucket.class));
         when(storage.batch()).thenReturn(batch);
+        final com.google.api.services.storage.Storage storageRpc = mock(com.google.api.services.storage.Storage.class);
+        final MeteredStorage meteredStorage = new MeteredStorage(storage, storageRpc, new GcsRepositoryStatsCollector());
 
         final GoogleCloudStorageService storageService = mock(GoogleCloudStorageService.class);
-        when(
-            storageService.client(
-                any(String.class),
-                any(String.class),
-                any(OperationPurpose.class),
-                any(GoogleCloudStorageOperationsStats.class)
-            )
-        ).thenReturn(storage);
+        when(storageService.client(eq(ProjectId.DEFAULT), any(String.class), any(String.class), any(GcsRepositoryStatsCollector.class)))
+            .thenReturn(meteredStorage);
 
         try (
             BlobStore store = new GoogleCloudStorageBlobStore(
+                ProjectId.DEFAULT,
                 "bucket",
                 "test",
                 "repo",
                 storageService,
                 BigArrays.NON_RECYCLING_INSTANCE,
                 randomIntBetween(1, 8) * 1024,
-                BackoffPolicy.noBackoff()
+                BackoffPolicy.noBackoff(),
+                new GcsRepositoryStatsCollector()
             )
         ) {
             final BlobContainer container = store.blobContainer(BlobPath.EMPTY);

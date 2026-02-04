@@ -31,6 +31,7 @@ import org.elasticsearch.test.hamcrest.RectangleMatcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -39,6 +40,8 @@ import java.util.stream.IntStream;
 
 import static org.apache.lucene.geo.GeoEncodingUtils.decodeLongitude;
 import static org.elasticsearch.common.geo.Orientation.RIGHT;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class AbstractShapeGeometryFieldMapperTests extends ESTestCase {
     public void testCartesianBoundsBlockLoader() throws IOException {
@@ -61,6 +64,22 @@ public class AbstractShapeGeometryFieldMapperTests extends ESTestCase {
             g -> SpatialEnvelopeVisitor.visitGeo(g, SpatialEnvelopeVisitor.WrapLongitude.WRAP),
             AbstractShapeGeometryFieldMapperTests::makeGeoRectangle
         );
+    }
+
+    public void testCartesianBoundsNoData() throws IOException {
+        var loader = new AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.BoundsBlockLoader("field");
+        try (Directory directory = newDirectory()) {
+            try (var iw = new IndexWriter(directory, new IndexWriterConfig(null /* analyzer */))) {
+                iw.addDocument(List.of());
+            }
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                LeafReader leaf = getOnlyLeafReader(reader);
+                try (var block = (TestBlock) loader.reader(leaf.getContext()).read(TestBlock.factory(), TestBlock.docs(0), 0, false)) {
+                    assertThat(block.size(), equalTo(1));
+                    assertThat(block.get(0), nullValue());
+                }
+            }
+        }
     }
 
     // TODO: Re-enable this test after fixing the bug in the SpatialEnvelopeVisitor regarding Rectangle crossing the dateline
@@ -125,7 +144,7 @@ public class AbstractShapeGeometryFieldMapperTests extends ESTestCase {
                     for (int j : array) {
                         expected.add(visitor.apply(geometries.get(j + currentIndex)).get());
                     }
-                    try (var block = (TestBlock) loader.reader(leaf).read(TestBlock.factory(leafReader.numDocs()), TestBlock.docs(array))) {
+                    try (var block = (TestBlock) loader.reader(leaf).read(TestBlock.factory(), TestBlock.docs(array), 0, false)) {
                         for (int i = 0; i < block.size(); i++) {
                             intArrayResults.add(block.get(i));
                         }

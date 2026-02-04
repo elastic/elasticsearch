@@ -9,9 +9,10 @@
 
 package org.elasticsearch.action.synonyms;
 
-import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,20 +30,29 @@ public class DeleteSynonymRuleAction extends ActionType<SynonymUpdateResponse> {
         super(NAME);
     }
 
-    public static class Request extends ActionRequest {
-        private final String synonymsSetId;
+    public static class Request extends LegacyActionRequest {
 
+        private static final TransportVersion SYNONYMS_REFRESH_PARAM = TransportVersion.fromName("synonyms_refresh_param");
+
+        private final String synonymsSetId;
         private final String synonymRuleId;
+        private final boolean refresh;
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.synonymsSetId = in.readString();
             this.synonymRuleId = in.readString();
+            if (in.getTransportVersion().supports(SYNONYMS_REFRESH_PARAM)) {
+                this.refresh = in.readBoolean();
+            } else {
+                this.refresh = true;
+            }
         }
 
-        public Request(String synonymsSetId, String synonymRuleId) {
+        public Request(String synonymsSetId, String synonymRuleId, boolean refresh) {
             this.synonymsSetId = synonymsSetId;
             this.synonymRuleId = synonymRuleId;
+            this.refresh = refresh;
         }
 
         @Override
@@ -63,6 +73,9 @@ public class DeleteSynonymRuleAction extends ActionType<SynonymUpdateResponse> {
             super.writeTo(out);
             out.writeString(synonymsSetId);
             out.writeString(synonymRuleId);
+            if (out.getTransportVersion().supports(SYNONYMS_REFRESH_PARAM)) {
+                out.writeBoolean(refresh);
+            }
         }
 
         public String synonymsSetId() {
@@ -73,17 +86,23 @@ public class DeleteSynonymRuleAction extends ActionType<SynonymUpdateResponse> {
             return synonymRuleId;
         }
 
+        public boolean refresh() {
+            return refresh;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(synonymsSetId, request.synonymsSetId) && Objects.equals(synonymRuleId, request.synonymRuleId);
+            return Objects.equals(synonymsSetId, request.synonymsSetId)
+                && Objects.equals(synonymRuleId, request.synonymRuleId)
+                && refresh == request.refresh;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(synonymsSetId, synonymRuleId);
+            return Objects.hash(synonymsSetId, synonymRuleId, refresh);
         }
     }
 }

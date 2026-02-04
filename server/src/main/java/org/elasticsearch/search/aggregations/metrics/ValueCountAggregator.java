@@ -8,12 +8,12 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -55,7 +55,7 @@ public final class ValueCountAggregator extends NumericMetricsAggregator.SingleV
     @Override
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource instanceof ValuesSource.Numeric) {
-            final SortedNumericDocValues values = ((ValuesSource.Numeric) valuesSource).longValues(aggCtx.getLeafReaderContext());
+            final SortedNumericLongValues values = ((ValuesSource.Numeric) valuesSource).longValues(aggCtx.getLeafReaderContext());
             return new LeafBucketCollectorBase(sub, values) {
 
                 @Override

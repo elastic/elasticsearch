@@ -71,6 +71,27 @@ public class MultiPointTests extends BaseGeometryTestCase<MultiPoint> {
         StandardValidator.instance(true).validate(new MultiPoint(Collections.singletonList(new Point(2, 1, 3))));
     }
 
+    public void testParseMultiPointWithThreeCoordinates() throws IOException, ParseException {
+        GeometryValidator validator = GeographyValidator.instance(true);
+        MultiPoint expectedZ = new MultiPoint(Arrays.asList(new Point(10, 20, 30), new Point(40, 50, 60)));
+        MultiPoint expectedM = new MultiPoint(Arrays.asList(new Point(10, 20, 30), new Point(40, 50, 60)));
+
+        assertEquals(expectedZ, WellKnownText.fromWKT(validator, true, "MULTIPOINT Z (10 20 30, 40 50 60)"));
+        assertEquals(expectedM, WellKnownText.fromWKT(validator, true, "MULTIPOINT M (10 20 30, 40 50 60)"));
+    }
+
+    public void testParseMultiPointWithTwoCoordinatesThrowsException() {
+        GeometryValidator validator = GeographyValidator.instance(true);
+        List<String> multiPointsWkt = List.of("MULTIPOINT Z (10 20, 40 50)", "MULTIPOINT M (10 20, 40 50)");
+        for (String multiPoint : multiPointsWkt) {
+            IllegalArgumentException ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> WellKnownText.fromWKT(validator, true, multiPoint)
+            );
+            assertEquals(ZorMMustIncludeThreeValuesMsg, ex.getMessage());
+        }
+    }
+
     @Override
     protected MultiPoint mutateInstance(MultiPoint instance) {
         return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929

@@ -5,9 +5,12 @@
  * 2.0.
  */
 
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask
+
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 restResources {
   restApi {
@@ -18,7 +21,7 @@ restResources {
 esplugin {
   name = 'x-pack-inference'
   description = 'Configuration and evaluation of inference models'
-  classname ='org.elasticsearch.xpack.inference.InferencePlugin'
+  classname = 'org.elasticsearch.xpack.inference.InferencePlugin'
   extendedPlugins = ['x-pack-core']
 }
 
@@ -35,9 +38,8 @@ dependencies {
   testImplementation(project(':x-pack:plugin:inference:qa:test-service-plugin'))
   testImplementation project(':modules:reindex')
   testImplementation project(':modules:mapper-extras')
+  testImplementation project(':x-pack:plugin:ml')
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
-
-  api "com.ibm.icu:icu4j:${versions.icu4j}"
 
   runtimeOnly 'com.google.guava:guava:32.0.1-jre'
   implementation 'com.google.code.gson:gson:2.10'
@@ -57,9 +59,12 @@ dependencies {
   implementation 'io.grpc:grpc-context:1.49.2'
   implementation 'io.opencensus:opencensus-api:0.31.1'
   implementation 'io.opencensus:opencensus-contrib-http-util:0.31.1'
+  implementation "org.apache.commons:commons-lang3:${versions.commons_lang3}"
+  implementation 'org.apache.commons:commons-text:1.4'
 
   /* AWS SDK v2 */
-  implementation ("software.amazon.awssdk:bedrockruntime:${versions.awsv2sdk}")
+  implementation("software.amazon.awssdk:bedrockruntime:${versions.awsv2sdk}")
+  implementation("software.amazon.awssdk:sagemakerruntime:${versions.awsv2sdk}")
   api "software.amazon.awssdk:protocol-core:${versions.awsv2sdk}"
   api "software.amazon.awssdk:aws-json-protocol:${versions.awsv2sdk}"
   api "software.amazon.awssdk:third-party-jackson-core:${versions.awsv2sdk}"
@@ -107,7 +112,7 @@ dependencies {
   runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
 }
 
-tasks.named("dependencyLicenses").configure {
+tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: /google-auth-.*/, to: 'google-auth'
   mapping from: /google-http-.*/, to: 'google-http'
   mapping from: /opencensus.*/, to: 'opencensus'
@@ -140,6 +145,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /json-utils.*/, to: 'aws-sdk-2'
   mapping from: /endpoints-spi.*/, to: 'aws-sdk-2'
   mapping from: /bedrockruntime.*/, to: 'aws-sdk-2'
+  mapping from: /sagemakerruntime.*/, to: 'aws-sdk-2'
   mapping from: /netty-nio-client/, to: 'aws-sdk-2'
   /* Cannot use REGEX to match netty-* because netty-nio-client is an AWS package */
   mapping from: /netty-buffer/, to: 'netty'
@@ -180,12 +186,6 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$1',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$2',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$3',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$4',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$5',
     'io.netty.util.internal.PlatformDependent0',
     'io.netty.util.internal.PlatformDependent0$1',
     'io.netty.util.internal.PlatformDependent0$2',
@@ -391,8 +391,6 @@ tasks.named("thirdPartyAudit").configure {
     'software.amazon.awssdk.crt.auth.signing.AwsSigningConfig$AwsSignedBodyHeaderType',
     'software.amazon.awssdk.crt.auth.signing.AwsSigningConfig$AwsSigningAlgorithm',
     'software.amazon.awssdk.crt.auth.signing.AwsSigningResult',
-    'software.amazon.awssdk.crt.checksums.CRC32',
-    'software.amazon.awssdk.crt.checksums.CRC32C',
     'software.amazon.awssdk.crt.http.HttpHeader',
     'software.amazon.awssdk.crt.http.HttpRequest',
     'software.amazon.awssdk.crt.http.HttpRequestBodyStream',
@@ -400,6 +398,9 @@ tasks.named("thirdPartyAudit").configure {
 }
 
 tasks.named('yamlRestTest') {
-  usesDefaultDistribution()
+  usesDefaultDistribution("Uses the inference API")
 }
 
+artifacts {
+  restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}

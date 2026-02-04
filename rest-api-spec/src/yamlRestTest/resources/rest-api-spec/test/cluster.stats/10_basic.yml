@@ -351,6 +351,7 @@
   - match: { indices.docs.count: 5 }
   - match: { indices.docs.deleted: 0 }
   - match: { indices.dense_vector.value_count: 8 }
+  - is_false: indices.dense_vector.off_heap
 
 ---
 "Sparse vector stats":

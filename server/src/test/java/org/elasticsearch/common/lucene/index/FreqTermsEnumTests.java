@@ -170,9 +170,9 @@ public class FreqTermsEnumTests extends ESTestCase {
     }
 
     public void testNonDeletedFreqs() throws Exception {
-        assertAgainstReference(true, true, Queries.newMatchAllQuery(), referenceNotDeleted);
-        assertAgainstReference(true, false, Queries.newMatchAllQuery(), referenceNotDeleted);
-        assertAgainstReference(false, true, Queries.newMatchAllQuery(), referenceNotDeleted);
+        assertAgainstReference(true, true, Queries.ALL_DOCS_INSTANCE, referenceNotDeleted);
+        assertAgainstReference(true, false, Queries.ALL_DOCS_INSTANCE, referenceNotDeleted);
+        assertAgainstReference(false, true, Queries.ALL_DOCS_INSTANCE, referenceNotDeleted);
     }
 
     public void testFilterFreqs() throws Exception {

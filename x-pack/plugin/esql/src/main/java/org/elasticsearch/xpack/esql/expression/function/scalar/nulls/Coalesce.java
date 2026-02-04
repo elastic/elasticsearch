@@ -31,20 +31,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
-import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 
 /**
  * Function returning the first non-null value. {@code COALESCE} runs as though
@@ -62,13 +49,19 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             "cartesian_shape",
             "date_nanos",
             "date",
+            "histogram",
             "geo_point",
             "geo_shape",
+            "geohash",
+            "geotile",
+            "geohex",
             "integer",
             "ip",
             "keyword",
             "long",
-            "version" },
+            "tdigest",
+            "version",
+            "exponential_histogram" },
         description = "Returns the first of its arguments that is not null. If all arguments are null, it returns `null`.",
         examples = { @Example(file = "null", tag = "coalesce") }
     )
@@ -82,14 +75,20 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 "cartesian_shape",
                 "date_nanos",
                 "date",
+                "histogram",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
                 "long",
+                "tdigest",
                 "text",
-                "version" },
+                "version",
+                "exponential_histogram" },
             description = "Expression to evaluate."
         ) Expression first,
         @Param(
@@ -100,14 +99,20 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 "cartesian_shape",
                 "date_nanos",
                 "date",
+                "histogram",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
                 "long",
+                "tdigest",
                 "text",
-                "version" },
+                "version",
+                "exponential_histogram" },
             description = "Other expression to evaluate.",
             optional = true
         ) List<Expression> rest
@@ -170,16 +175,16 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public Nullability nullable() {
-        // If any of the children aren't nullable then this isn't.
+        // If any of the children aren’t nullable then this isn’t .
         for (Expression c : children()) {
             if (c.nullable() == Nullability.FALSE) {
                 return Nullability.FALSE;
             }
         }
         /*
-         * Otherwise let's call this one "unknown". If we returned TRUE here
+         * Otherwise let’s call this one "unknown". If we returned TRUE here
          * an optimizer rule would replace this with null if any of our children
-         * fold to null. We don't want that at all.
+         * fold to null. We don’t want that at all.
          */
         return Nullability.UNKNOWN;
     }
@@ -205,12 +210,17 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             case BOOLEAN -> CoalesceBooleanEvaluator.toEvaluator(toEvaluator, children());
             case DOUBLE, COUNTER_DOUBLE -> CoalesceDoubleEvaluator.toEvaluator(toEvaluator, children());
             case INTEGER, COUNTER_INTEGER -> CoalesceIntEvaluator.toEvaluator(toEvaluator, children());
-            case LONG, DATE_NANOS, DATETIME, COUNTER_LONG, UNSIGNED_LONG -> CoalesceLongEvaluator.toEvaluator(toEvaluator, children());
-            case KEYWORD, TEXT, SEMANTIC_TEXT, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, IP, VERSION ->
-                CoalesceBytesRefEvaluator.toEvaluator(toEvaluator, children());
+            case LONG, DATE_NANOS, DATETIME, COUNTER_LONG, UNSIGNED_LONG, GEOHASH, GEOTILE, GEOHEX -> CoalesceLongEvaluator.toEvaluator(
+                toEvaluator,
+                children()
+            );
+            case KEYWORD, TEXT, CARTESIAN_POINT, CARTESIAN_SHAPE, HISTOGRAM, GEO_POINT, GEO_SHAPE, IP, VERSION -> CoalesceBytesRefEvaluator
+                .toEvaluator(toEvaluator, children());
+            case EXPONENTIAL_HISTOGRAM -> CoalesceExponentialHistogramEvaluator.toEvaluator(toEvaluator, children());
+            case TDIGEST -> CoalesceTDigestEvaluator.toEvaluator(toEvaluator, children());
             case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
             case UNSUPPORTED, SHORT, BYTE, DATE_PERIOD, OBJECT, DOC_DATA_TYPE, SOURCE, TIME_DURATION, FLOAT, HALF_FLOAT, TSID_DATA_TYPE,
-                SCALED_FLOAT, PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE -> throw new UnsupportedOperationException(
+                SCALED_FLOAT, AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR, DATE_RANGE -> throw new UnsupportedOperationException(
                     dataType() + " can't be coalesced"
                 );
         };

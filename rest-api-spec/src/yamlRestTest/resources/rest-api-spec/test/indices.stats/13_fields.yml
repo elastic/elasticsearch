@@ -9,7 +9,9 @@ setup:
                 # Limit the number of shards so that shards are unlikely
                 # to be relocated or being initialized between the test
                 # set up and the test execution
-                index.number_of_shards: 2
+                # The tests in `IndexStatsIT` provide sufficient coverage for multi-shard scenarios.
+                index.number_of_shards: 1
+                index.number_of_replicas: 0
               mappings:
                   properties:
                       bar:
@@ -24,11 +26,6 @@ setup:
                           fields:
                               completion:
                                   type: completion
-
-  - do:
-      cluster.health:
-        index: test1
-        wait_for_no_relocating_shards: true
 
   - do:
       index:
@@ -72,6 +69,14 @@ setup:
         rest_total_hits_as_int: true
         body:
           sort: [ "bar", "baz" ]
+
+  # Wait for the shards to be allocated to avoid missing results in the stats request
+  # See https://github.com/elastic/elasticsearch/issues/96711#issuecomment-2996311920 for more context
+  - do:
+      cluster.health:
+        index: test1
+        wait_for_status: green
+        wait_for_no_relocating_shards: true
 
 ---
 "Fields - blank":

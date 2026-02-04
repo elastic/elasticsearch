@@ -11,10 +11,11 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link Block#lookup Looks up} values from a provided {@link Block} and
- * mergeds them into each {@link Page}.
+ * merged them into each {@link Page}.
  */
 public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
     public record Values(String name, Block block) {
@@ -44,8 +45,19 @@ public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
     private final int positionsOrd;
 
     public ColumnLoadOperator(Values values, int positionsOrd) {
-        this.values = values;
         this.positionsOrd = positionsOrd;
+        this.values = clone(values);
+    }
+
+    // FIXME: Since we don't have a thread-safe RefCounted for blocks/vectors, we have to clone the values block to avoid
+    // data races of reference when sharing blocks/vectors across threads. Remove this when we have a thread-safe RefCounted
+    // for blocks/vectors.
+    static Values clone(Values values) {
+        final Block block = values.block;
+        try (var builder = block.elementType().newBlockBuilder(block.getPositionCount(), block.blockFactory())) {
+            builder.copyFrom(block, 0, block.getPositionCount());
+            return new Values(values.name, builder.build());
+        }
     }
 
     /**
@@ -65,6 +77,11 @@ public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
          * the memory of the block.
          */
         return appendBlocks(page, values.block.lookup(page.getBlock(positionsOrd), TARGET_BLOCK_SIZE));
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(values.block, super::close);
     }
 
     @Override

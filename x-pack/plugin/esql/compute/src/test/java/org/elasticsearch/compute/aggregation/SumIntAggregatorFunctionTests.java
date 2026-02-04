@@ -19,6 +19,7 @@ import org.elasticsearch.compute.operator.SequenceIntBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 
 import java.util.List;
 import java.util.stream.LongStream;
@@ -43,8 +44,8 @@ public class SumIntAggregatorFunctionTests extends AggregatorFunctionTestCase {
     }
 
     @Override
-    protected void assertSimpleOutput(List<Block> input, Block result) {
-        long sum = input.stream().flatMapToInt(b -> allInts(b)).asLongStream().sum();
+    protected void assertSimpleOutput(List<Page> input, Block result) {
+        long sum = input.stream().flatMapToInt(p -> allInts(p.getBlock(0))).asLongStream().sum();
         assertThat(((LongBlock) result).getLong(0), equalTo(sum));
     }
 
@@ -59,7 +60,7 @@ public class SumIntAggregatorFunctionTests extends AggregatorFunctionTestCase {
                 new PageConsumerOperator(page -> fail("shouldn't have made it this far"))
             )
         ) {
-            expectThrows(Exception.class, () -> runDriver(d));  // ### find a more specific exception type
+            expectThrows(Exception.class, () -> new TestDriverRunner().run(d));  // ### find a more specific exception type
         }
         assertDriverContext(driverContext);
     }

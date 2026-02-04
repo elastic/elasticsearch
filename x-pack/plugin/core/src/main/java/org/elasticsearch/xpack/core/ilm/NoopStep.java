@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.index.Index;
 
 /**
@@ -27,7 +27,7 @@ public class NoopStep extends ClusterStateWaitStep {
     }
 
     @Override
-    public Result isConditionMet(Index index, ClusterState clusterState) {
+    public Result isConditionMet(Index index, ProjectState currentState) {
         // We always want to move forward with this step so this should always be true
         return new Result(true, null);
     }

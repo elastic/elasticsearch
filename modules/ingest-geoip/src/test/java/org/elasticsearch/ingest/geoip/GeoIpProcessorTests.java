@@ -9,7 +9,9 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
@@ -26,12 +28,16 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
+import static org.elasticsearch.ingest.IngestPipelineFieldAccessPattern.CLASSIC;
+import static org.elasticsearch.ingest.IngestPipelineFieldAccessPattern.FLEXIBLE;
+import static org.elasticsearch.ingest.IngestPipelineTestUtils.runWithAccessPattern;
 import static org.elasticsearch.ingest.geoip.GeoIpProcessor.GEOIP_TYPE;
 import static org.elasticsearch.ingest.geoip.GeoIpProcessor.IP_LOCATION_TYPE;
 import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDatabase;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -474,6 +480,16 @@ public class GeoIpProcessorTests extends ESTestCase {
         return MaxmindIpDataLookups.getMaxmindLookup(database).apply(database.properties());
     }
 
+    private static IpDataLookup getMaxmindAsnLookup() {
+        final var database = Database.Asn;
+        return MaxmindIpDataLookups.getMaxmindLookup(database).apply(database.properties());
+    }
+
+    private static IpDataLookup getMaxmindCountryLookup() {
+        final var database = Database.Country;
+        return MaxmindIpDataLookups.getMaxmindLookup(database).apply(database.properties());
+    }
+
     private static IpDataLookup getIpinfoGeolocationLookup() {
         final var database = Database.CityV2;
         return IpinfoIpDataLookups.getIpinfoLookup(database).apply(database.properties());
@@ -484,13 +500,14 @@ public class GeoIpProcessorTests extends ESTestCase {
         return () -> loader;
     }
 
+    @FixForMultiProject(description = "Replace DEFAULT project")
     private DatabaseReaderLazyLoader loader(final String databaseName, final AtomicBoolean closed) {
         int last = databaseName.lastIndexOf("/");
         final Path path = tmpDir.resolve(last == -1 ? databaseName : databaseName.substring(last + 1));
         copyDatabase(databaseName, path);
 
         final GeoIpCache cache = new GeoIpCache(1000);
-        return new DatabaseReaderLazyLoader(cache, path, null) {
+        return new DatabaseReaderLazyLoader(ProjectId.DEFAULT, cache, path, null) {
             @Override
             protected void doShutdown() throws IOException {
                 if (closed != null) {
@@ -499,6 +516,446 @@ public class GeoIpProcessorTests extends ESTestCase {
                 super.doShutdown();
             }
         };
+    }
+
+    public void testMaxmindCityWithFlexibleFieldAccessMode() throws Exception {
+        String ip = "2602:306:33d3:8000::3257:9652";
+        GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            loader("GeoLite2-City.mmdb"),
+            () -> true,
+            "my.target",
+            getMaxmindCityLookup(),
+            false,
+            false,
+            "filename"
+        );
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", ip);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+
+        // Execute with flexible field access mode
+        ingestDocument = runWithAccessPattern(FLEXIBLE, ingestDocument, processor);
+
+        // Verify that individual dotted fields were created (check in source map directly)
+        Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
+        assertThat(sourceAndMetadata.containsKey("my.target.ip"), is(true));
+        assertThat(sourceAndMetadata.get("my.target.ip"), equalTo(ip));
+        assertThat(sourceAndMetadata.containsKey("my.target.city_name"), is(true));
+        assertThat(sourceAndMetadata.get("my.target.city_name"), equalTo("Homestead"));
+        assertThat(sourceAndMetadata.containsKey("my.target.country_name"), is(true));
+        assertThat(sourceAndMetadata.containsKey("my.target.country_iso_code"), is(true));
+        assertThat(sourceAndMetadata.containsKey("my.target.continent_name"), is(true));
+        assertThat(sourceAndMetadata.containsKey("my.target.region_name"), is(true));
+        assertThat(sourceAndMetadata.containsKey("my.target.region_iso_code"), is(true));
+
+        // Verify that location is written as an array [lon, lat] in flexible mode
+        assertThat(sourceAndMetadata.containsKey("my.target.location"), is(true));
+        Object location = sourceAndMetadata.get("my.target.location");
+        assertThat(location, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<Double> locationArray = (List<Double>) location;
+        assertThat(locationArray.size(), equalTo(2));
+        assertThat(locationArray.get(0), equalTo(-80.4572)); // longitude
+        assertThat(locationArray.get(1), equalTo(25.4573)); // latitude
+
+        // Verify that the nested "my.target" object was NOT created
+        assertThat(sourceAndMetadata.containsKey("my.target"), is(false));
+    }
+
+    public void testMaxmindCityWithClassicFieldAccessMode() throws Exception {
+        String ip = "2602:306:33d3:8000::3257:9652";
+        GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            loader("GeoLite2-City.mmdb"),
+            () -> true,
+            "my.target",
+            getMaxmindCityLookup(),
+            false,
+            false,
+            "filename"
+        );
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", ip);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+
+        // Execute with classic field access mode (default)
+        ingestDocument = runWithAccessPattern(CLASSIC, ingestDocument, processor);
+
+        // Verify that a nested object was created (classic behavior)
+        assertThat(ingestDocument.hasField("my.target"), is(true));
+        Object target = ingestDocument.getFieldValue("my.target", Object.class);
+        assertThat(target, instanceOf(Map.class));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) target;
+        assertThat(data, notNullValue());
+        assertThat(data.get("ip"), equalTo(ip));
+        assertThat(data.get("city_name"), equalTo("Homestead"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> location = (Map<String, Object>) data.get("location");
+        assertThat(location, notNullValue());
+        assertThat(location, hasEntry("lat", 25.4573));
+        assertThat(location, hasEntry("lon", -80.4572));
+    }
+
+    public void testIpinfoGeolocationWithFlexibleFieldAccessMode() throws Exception {
+        String ip = "72.20.12.220";
+        GeoIpProcessor processor = new GeoIpProcessor(
+            IP_LOCATION_TYPE,
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            loader("ipinfo/ip_geolocation_standard_sample.mmdb"),
+            () -> true,
+            "my.geo",
+            getIpinfoGeolocationLookup(),
+            false,
+            false,
+            "filename"
+        );
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", ip);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+
+        // Execute with flexible field access mode
+        ingestDocument = runWithAccessPattern(FLEXIBLE, ingestDocument, processor);
+
+        // Verify that individual dotted fields were created (check in source map directly)
+        Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
+        assertThat(sourceAndMetadata.containsKey("my.geo.ip"), is(true));
+        assertThat(sourceAndMetadata.get("my.geo.ip"), equalTo(ip));
+        assertThat(sourceAndMetadata.containsKey("my.geo.city_name"), is(true));
+        assertThat(sourceAndMetadata.get("my.geo.city_name"), equalTo("Chicago"));
+        assertThat(sourceAndMetadata.containsKey("my.geo.country_iso_code"), is(true));
+
+        // Verify that location is written as an array [lon, lat] in flexible mode
+        assertThat(sourceAndMetadata.containsKey("my.geo.location"), is(true));
+        Object location = sourceAndMetadata.get("my.geo.location");
+        assertThat(location, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<Double> locationArray = (List<Double>) location;
+        assertThat(locationArray.size(), equalTo(2));
+        assertThat(locationArray.get(0), equalTo(-87.6285));
+        assertThat(locationArray.get(1), equalTo(41.8798));
+
+        // Verify that the nested "my.geo" object was NOT created
+        assertThat(sourceAndMetadata.containsKey("my.geo"), is(false));
+    }
+
+    public void testIpinfoGeolocationWithClassicFieldAccessMode() throws Exception {
+        String ip = "72.20.12.220";
+        GeoIpProcessor processor = new GeoIpProcessor(
+            IP_LOCATION_TYPE,
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            loader("ipinfo/ip_geolocation_standard_sample.mmdb"),
+            () -> true,
+            "my.geo",
+            getIpinfoGeolocationLookup(),
+            false,
+            false,
+            "filename"
+        );
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", ip);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+
+        // Execute with classic field access mode
+        ingestDocument = runWithAccessPattern(CLASSIC, ingestDocument, processor);
+
+        // Verify that a nested object was created (classic behavior)
+        assertThat(ingestDocument.hasField("my.geo"), is(true));
+        Object target = ingestDocument.getFieldValue("my.geo", Object.class);
+        assertThat(target, instanceOf(Map.class));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) target;
+        assertThat(data, notNullValue());
+        assertThat(data.get("ip"), equalTo(ip));
+        assertThat(data.get("city_name"), equalTo("Chicago"));
+    }
+
+    public void testArrayWithFlexibleFieldAccessModeFirstOnly() throws Exception {
+        String ip1 = "2602:306:33d3:8000::3257:9652";
+        String ip2 = "82.170.213.79";
+        GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            loader("GeoLite2-City.mmdb"),
+            () -> true,
+            "my.target",
+            getMaxmindCityLookup(),
+            false,
+            true, // first_only = true
+            "filename"
+        );
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", List.of(ip1, ip2));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+
+        // Execute with flexible field access mode
+        ingestDocument = runWithAccessPattern(FLEXIBLE, ingestDocument, processor);
+
+        // Verify that individual dotted fields were created for the first IP only (check in source map directly)
+        Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
+        assertThat(sourceAndMetadata.containsKey("my.target.ip"), is(true));
+        assertThat(sourceAndMetadata.get("my.target.ip"), equalTo(ip1));
+        assertThat(sourceAndMetadata.containsKey("my.target.city_name"), is(true));
+        assertThat(sourceAndMetadata.get("my.target.city_name"), equalTo("Homestead"));
+    }
+
+    public void testIpLocationAsnWithFlexibleFieldAccessMode() throws Exception {
+        String ip = "82.171.64.0";
+        GeoIpProcessor processor = new GeoIpProcessor(
+            IP_LOCATION_TYPE,
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            loader("GeoLite2-ASN.mmdb"),
+            () -> true,
+            "ip.asn",
+            getMaxmindAsnLookup(),
+            false,
+            false,
+            "filename"
+        );
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", ip);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+
+        // Execute with flexible field access mode
+        ingestDocument = runWithAccessPattern(FLEXIBLE, ingestDocument, processor);
+
+        // Verify that individual dotted fields were created (check in source map directly)
+        Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
+        assertThat(sourceAndMetadata.containsKey("ip.asn.ip"), is(true));
+        assertThat(sourceAndMetadata.get("ip.asn.ip"), equalTo(ip));
+        assertThat(sourceAndMetadata.containsKey("ip.asn.asn"), is(true));
+        assertThat(sourceAndMetadata.containsKey("ip.asn.organization_name"), is(true));
+        assertThat(sourceAndMetadata.containsKey("ip.asn.network"), is(true));
+
+        // Verify that the nested "ip.asn" object was NOT created
+        assertThat(sourceAndMetadata.containsKey("ip.asn"), is(false));
+    }
+
+    public void testIpLocationCountryWithFlexibleFieldAccessMode() throws Exception {
+        String ip = "82.170.213.79";
+        GeoIpProcessor processor = new GeoIpProcessor(
+            IP_LOCATION_TYPE,
+            randomAlphaOfLength(10),
+            null,
+            "ip_address",
+            loader("GeoLite2-Country.mmdb"),
+            () -> true,
+            "geo.country",
+            getMaxmindCountryLookup(),
+            false,
+            false,
+            "filename"
+        );
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("ip_address", ip);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+
+        // Execute with flexible field access mode
+        ingestDocument = runWithAccessPattern(FLEXIBLE, ingestDocument, processor);
+
+        // Verify that individual dotted fields were created (check in source map directly)
+        Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
+        assertThat(sourceAndMetadata.containsKey("geo.country.ip"), is(true));
+        assertThat(sourceAndMetadata.get("geo.country.ip"), equalTo(ip));
+        assertThat(sourceAndMetadata.containsKey("geo.country.country_iso_code"), is(true));
+        assertThat(sourceAndMetadata.get("geo.country.country_iso_code"), equalTo("NL"));
+        assertThat(sourceAndMetadata.containsKey("geo.country.country_name"), is(true));
+        assertThat(sourceAndMetadata.get("geo.country.country_name"), equalTo("Netherlands"));
+        assertThat(sourceAndMetadata.containsKey("geo.country.continent_name"), is(true));
+        assertThat(sourceAndMetadata.get("geo.country.continent_name"), equalTo("Europe"));
+
+        // Verify that the nested "geo.country" object was NOT created
+        assertThat(sourceAndMetadata.containsKey("geo.country"), is(false));
+    }
+
+    public void testBothProcessorTypesWithFlexibleMode() throws Exception {
+        // Test that both geoip and ip_location processors work correctly with flexible mode
+        String ip = "2602:306:33d3:8000::3257:9652";
+
+        // Test with GEOIP_TYPE
+        GeoIpProcessor geoipProcessor = new GeoIpProcessor(
+            GEOIP_TYPE,
+            randomAlphaOfLength(10),
+            null,
+            "ip",
+            loader("GeoLite2-City.mmdb"),
+            () -> true,
+            "geoip.result",
+            getMaxmindCityLookup(),
+            false,
+            false,
+            "filename"
+        );
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("ip", ip);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        ingestDocument = runWithAccessPattern(FLEXIBLE, ingestDocument, geoipProcessor);
+
+        // Verify geoip processor created dotted fields (check in source map directly)
+        Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
+        assertThat(sourceAndMetadata.containsKey("geoip.result.city_name"), is(true));
+        assertThat(sourceAndMetadata.get("geoip.result.city_name"), equalTo("Homestead"));
+        assertThat(sourceAndMetadata.containsKey("geoip.result.location"), is(true));
+        assertThat(sourceAndMetadata.containsKey("geoip.result"), is(false));
+
+        // Test with IP_LOCATION_TYPE
+        GeoIpProcessor ipLocationProcessor = new GeoIpProcessor(
+            IP_LOCATION_TYPE,
+            randomAlphaOfLength(10),
+            null,
+            "ip",
+            loader("GeoLite2-City.mmdb"),
+            () -> true,
+            "ip_location.result",
+            getMaxmindCityLookup(),
+            false,
+            false,
+            "filename"
+        );
+
+        document = new HashMap<>();
+        document.put("ip", ip);
+        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        ingestDocument = runWithAccessPattern(FLEXIBLE, ingestDocument, ipLocationProcessor);
+
+        // Verify ip_location processor created dotted fields (check in source map directly)
+        sourceAndMetadata = ingestDocument.getSourceAndMetadata();
+        assertThat(sourceAndMetadata.containsKey("ip_location.result.city_name"), is(true));
+        assertThat(sourceAndMetadata.get("ip_location.result.city_name"), equalTo("Homestead"));
+        assertThat(sourceAndMetadata.containsKey("ip_location.result.location"), is(true));
+        assertThat(sourceAndMetadata.containsKey("ip_location.result"), is(false));
+    }
+
+    public void testListWithFlexibleFieldAccessMode() throws Exception {
+        GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            loader("GeoLite2-City.mmdb"),
+            () -> true,
+            "my.target",
+            getMaxmindCityLookup(),
+            false,
+            false,
+            "filename"
+        );
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", List.of("8.8.8.8", "82.171.64.0"));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+
+        // Execute with flexible field access mode
+        ingestDocument = runWithAccessPattern(FLEXIBLE, ingestDocument, processor);
+
+        // Verify that individual dotted fields contain lists (one value per IP)
+        Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
+
+        // Check that location is a list of arrays
+        assertThat(sourceAndMetadata.containsKey("my.target.location"), is(true));
+        Object location = sourceAndMetadata.get("my.target.location");
+        assertThat(location, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<List<Double>> locationList = (List<List<Double>>) location;
+        assertThat(locationList.size(), equalTo(2));
+        // First IP: 8.8.8.8
+        assertThat(locationList.get(0).get(0), equalTo(-97.822d)); // longitude
+        assertThat(locationList.get(0).get(1), equalTo(37.751d)); // latitude
+        // Second IP: 82.171.64.0
+        assertThat(locationList.get(1).get(0), equalTo(5.9345d)); // longitude
+        assertThat(locationList.get(1).get(1), equalTo(50.9118d)); // latitude
+
+        // Check that city_name is a list of strings
+        assertThat(sourceAndMetadata.containsKey("my.target.city_name"), is(true));
+        Object cityName = sourceAndMetadata.get("my.target.city_name");
+        assertThat(cityName, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<String> cityNameList = (List<String>) cityName;
+        assertThat(cityNameList.size(), equalTo(2));
+        assertThat(cityNameList.get(1), equalTo("Hoensbroek"));
+
+        // Check that ip is a list of strings
+        assertThat(sourceAndMetadata.containsKey("my.target.ip"), is(true));
+        Object ip = sourceAndMetadata.get("my.target.ip");
+        assertThat(ip, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<String> ipList = (List<String>) ip;
+        assertThat(ipList.size(), equalTo(2));
+        assertThat(ipList.get(0), equalTo("8.8.8.8"));
+        assertThat(ipList.get(1), equalTo("82.171.64.0"));
+
+        // Verify that the nested "my.target" object was NOT created
+        assertThat(sourceAndMetadata.containsKey("my.target"), is(false));
+    }
+
+    public void testListPartiallyValidWithFlexibleFieldAccessMode() throws Exception {
+        GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            loader("GeoLite2-City.mmdb"),
+            () -> true,
+            "my.target",
+            getMaxmindCityLookup(),
+            false,
+            false,
+            "filename"
+        );
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", List.of("8.8.8.8", "127.0.0.1"));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+
+        // Execute with flexible field access mode
+        ingestDocument = runWithAccessPattern(FLEXIBLE, ingestDocument, processor);
+
+        // Verify that individual dotted fields contain lists with nulls for non-matching IPs
+        Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
+
+        // Check that location is a list with one valid location and one null
+        assertThat(sourceAndMetadata.containsKey("my.target.location"), is(true));
+        Object location = sourceAndMetadata.get("my.target.location");
+        assertThat(location, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<Object> locationList = (List<Object>) location;
+        assertThat(locationList.size(), equalTo(2));
+        assertThat(locationList.get(0), instanceOf(List.class)); // First IP has location
+        assertThat(locationList.get(1), nullValue()); // Second IP (127.0.0.1) has no location data
+
+        // Check that ip list has the successful IP and null for the failed one
+        assertThat(sourceAndMetadata.containsKey("my.target.ip"), is(true));
+        Object ip = sourceAndMetadata.get("my.target.ip");
+        assertThat(ip, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<String> ipList = (List<String>) ip;
+        assertThat(ipList.size(), equalTo(2));
+        assertThat(ipList.get(0), equalTo("8.8.8.8"));
+        assertThat(ipList.get(1), nullValue()); // 127.0.0.1 has no GeoIP data, so this is null
     }
 
 }

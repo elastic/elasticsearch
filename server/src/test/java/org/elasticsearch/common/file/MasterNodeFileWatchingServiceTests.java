@@ -26,15 +26,19 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@ESTestCase.WithoutSecurityManager
 public class MasterNodeFileWatchingServiceTests extends ESTestCase {
 
     static final DiscoveryNode localNode = DiscoveryNodeUtils.create("local-node");
@@ -61,6 +65,44 @@ public class MasterNodeFileWatchingServiceTests extends ESTestCase {
             @Override
             protected void processInitialFilesMissing() throws InterruptedException, ExecutionException, IOException {
                 // file always exists, but we don't care about the missing case for master node behavior
+            }
+
+            // the following methods are a workaround to ensure exclusive access for files
+            // required by child watchers; this is required because we only check the caller's module
+            // not the entire stack
+            @Override
+            protected boolean filesExists(Path path) {
+                return Files.exists(path);
+            }
+
+            @Override
+            protected boolean filesIsDirectory(Path path) {
+                return Files.isDirectory(path);
+            }
+
+            @Override
+            protected boolean filesIsSymbolicLink(Path path) {
+                return Files.isSymbolicLink(path);
+            }
+
+            @Override
+            protected <A extends BasicFileAttributes> A filesReadAttributes(Path path, Class<A> clazz) throws IOException {
+                return Files.readAttributes(path, clazz);
+            }
+
+            @Override
+            protected Stream<Path> filesList(Path dir) throws IOException {
+                return Files.list(dir);
+            }
+
+            @Override
+            protected Path filesSetLastModifiedTime(Path path, FileTime time) throws IOException {
+                return Files.setLastModifiedTime(path, time);
+            }
+
+            @Override
+            protected InputStream filesNewInputStream(Path path) throws IOException {
+                return Files.newInputStream(path);
             }
         };
         testService.start();

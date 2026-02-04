@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
@@ -16,16 +15,25 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
@@ -39,9 +47,11 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlanConcurrencyCalculator;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -63,8 +73,15 @@ import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_
  * and executing these computes on the data nodes.
  */
 final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRequest> {
+
+    private static final TransportVersion ESQL_RETRY_ON_SHARD_LEVEL_FAILURE = TransportVersion.fromName(
+        "esql_retry_on_shard_level_failure"
+    );
+
     private final ComputeService computeService;
     private final SearchService searchService;
+    private final ClusterService clusterService;
+    private final ProjectResolver projectResolver;
     private final TransportService transportService;
     private final ExchangeService exchangeService;
     private final Executor esqlExecutor;
@@ -72,12 +89,16 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
     DataNodeComputeHandler(
         ComputeService computeService,
+        ClusterService clusterService,
+        ProjectResolver projectResolver,
         SearchService searchService,
         TransportService transportService,
         ExchangeService exchangeService,
         Executor esqlExecutor
     ) {
         this.computeService = computeService;
+        this.clusterService = clusterService;
+        this.projectResolver = projectResolver;
         this.searchService = searchService;
         this.transportService = transportService;
         this.exchangeService = exchangeService;
@@ -90,6 +111,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         String sessionId,
         String clusterAlias,
         CancellableTask parentTask,
+        EsqlFlags flags,
         Configuration configuration,
         PhysicalPlan dataNodePlan,
         Set<String> concreteIndices,
@@ -98,15 +120,33 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         Runnable runOnTaskFailure,
         ActionListener<ComputeResponse> outListener
     ) {
-        final boolean allowPartialResults = configuration.allowPartialResults();
-        DataNodeRequestSender sender = new DataNodeRequestSender(transportService, esqlExecutor, parentTask, allowPartialResults) {
+        Integer maxConcurrentNodesPerCluster = PlanConcurrencyCalculator.INSTANCE.calculateNodesConcurrency(dataNodePlan, configuration);
+
+        new DataNodeRequestSender(
+            clusterService,
+            projectResolver,
+            transportService,
+            esqlExecutor,
+            parentTask,
+            originalIndices,
+            PlannerUtils.canMatchFilter(flags, configuration, clusterService.state().getMinTransportVersion(), dataNodePlan),
+            clusterAlias,
+            configuration.allowPartialResults(),
+            maxConcurrentNodesPerCluster == null ? -1 : maxConcurrentNodesPerCluster,
+            configuration.pragmas().unavailableShardResolutionAttempts()
+        ) {
             @Override
             protected void sendRequest(
                 DiscoveryNode node,
-                List<ShardId> shardIds,
+                List<DataNodeRequest.Shard> shards,
                 Map<Index, AliasFilter> aliasFilters,
                 NodeListener nodeListener
             ) {
+                if (exchangeSource.isFinished()) {
+                    nodeListener.onSkip();
+                    return;
+                }
+
                 final AtomicLong pagesFetched = new AtomicLong();
                 var listener = ActionListener.wrap(nodeListener::onResponse, e -> nodeListener.onFailure(e, pagesFetched.get() > 0));
                 final Transport.Connection connection;
@@ -129,11 +169,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     listener.delegateFailureAndWrap((l, unused) -> {
                         final Runnable onGroupFailure;
                         final CancellableTask groupTask;
-                        if (allowPartialResults) {
+                        if (configuration.allowPartialResults()) {
                             try {
                                 groupTask = computeService.createGroupTask(
                                     parentTask,
-                                    () -> "compute group: data-node [" + node.getName() + "], " + shardIds + " [" + shardIds + "]"
+                                    () -> "compute group: data-node [" + node.getName() + "], shards [" + shards + "]"
                                 );
                             } catch (TaskCancelledException e) {
                                 l.onFailure(e);
@@ -149,25 +189,25 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         try (
                             var computeListener = new ComputeListener(threadPool, onGroupFailure, l.map(ignored -> nodeResponseRef.get()))
                         ) {
-                            final var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
-                            exchangeSource.addRemoteSink(
-                                remoteSink,
-                                allowPartialResults == false,
-                                pagesFetched::incrementAndGet,
-                                queryPragmas.concurrentExchangeClients(),
-                                computeListener.acquireAvoid()
-                            );
-                            final boolean sameNode = transportService.getLocalNode().getId().equals(connection.getNode().getId());
+                            final boolean sameNodeAsCoordinator = transportService.getLocalNode()
+                                .getId()
+                                .equals(connection.getNode().getId());
+                            boolean enableReduceNodeLateMaterialization = EsqlCapabilities.Cap.ENABLE_REDUCE_NODE_LATE_MATERIALIZATION
+                                .isEnabled();
                             var dataNodeRequest = new DataNodeRequest(
                                 childSessionId,
                                 configuration,
                                 clusterAlias,
-                                shardIds,
+                                shards,
                                 aliasFilters,
                                 dataNodePlan,
                                 originalIndices.indices(),
                                 originalIndices.indicesOptions(),
-                                sameNode == false && queryPragmas.nodeLevelReduction()
+                                // If the coordinator and data node are the same, we don't need to run the node-level reduction (except for
+                                // TopN late materialization, listed below), as the node-reduce driver would end up doing the exact same
+                                // work as the final driver.
+                                queryPragmas.nodeLevelReduction() && sameNodeAsCoordinator == false,
+                                queryPragmas.nodeLevelReduction() && enableReduceNodeLateMaterialization
                             );
                             transportService.sendChildRequest(
                                 connection,
@@ -177,43 +217,57 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 TransportRequestOptions.EMPTY,
                                 new ActionListenerResponseHandler<>(computeListener.acquireCompute().map(r -> {
                                     nodeResponseRef.set(r);
-                                    return r.profiles();
+                                    return r.completionInfo();
                                 }), DataNodeComputeResponse::new, esqlExecutor)
+                            );
+                            final var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
+                            exchangeSource.addRemoteSink(
+                                remoteSink,
+                                configuration.allowPartialResults() == false,
+                                pagesFetched::incrementAndGet,
+                                queryPragmas.concurrentExchangeClients(),
+                                computeListener.acquireAvoid()
                             );
                         }
                     })
                 );
             }
-        };
-        sender.startComputeOnDataNodes(
-            clusterAlias,
+        }.startComputeOnDataNodes(
             concreteIndices,
-            originalIndices,
-            PlannerUtils.canMatchFilter(dataNodePlan),
             runOnTaskFailure,
             ActionListener.releaseAfter(outListener, exchangeSource.addEmptySink())
         );
     }
 
+    private static final Logger LOGGER = LogManager.getLogger(DataNodeComputeHandler.class);
+
     private class DataNodeRequestExecutor {
+        private final EsqlFlags flags;
         private final DataNodeRequest request;
         private final CancellableTask parentTask;
         private final ExchangeSinkHandler exchangeSink;
         private final ComputeListener computeListener;
         private final int maxConcurrentShards;
         private final ExchangeSink blockingSink; // block until we have completed on all shards or the coordinator has enough data
+        private final boolean singleShardPipeline;
         private final boolean failFastOnShardFailure;
         private final Map<ShardId, Exception> shardLevelFailures;
+        private final AcquiredSearchContexts searchContexts;
+        private final PlanTimeProfile planTimeProfile;
 
         DataNodeRequestExecutor(
+            EsqlFlags flags,
             DataNodeRequest request,
             CancellableTask parentTask,
             ExchangeSinkHandler exchangeSink,
             int maxConcurrentShards,
             boolean failFastOnShardFailure,
             Map<ShardId, Exception> shardLevelFailures,
-            ComputeListener computeListener
+            boolean singleShardPipeline,
+            ComputeListener computeListener,
+            AcquiredSearchContexts searchContexts
         ) {
+            this.flags = flags;
             this.request = request;
             this.parentTask = parentTask;
             this.exchangeSink = exchangeSink;
@@ -221,13 +275,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             this.maxConcurrentShards = maxConcurrentShards;
             this.failFastOnShardFailure = failFastOnShardFailure;
             this.shardLevelFailures = shardLevelFailures;
+            this.singleShardPipeline = singleShardPipeline;
             this.blockingSink = exchangeSink.createExchangeSink(() -> {});
+            this.searchContexts = searchContexts;
+            this.planTimeProfile = new PlanTimeProfile();
         }
 
         void start() {
-            parentTask.addListener(
-                () -> exchangeService.finishSinkHandler(request.sessionId(), new TaskCancelledException(parentTask.getReasonCancelled()))
-            );
             runBatch(0);
         }
 
@@ -235,28 +289,28 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             final Configuration configuration = request.configuration();
             final String clusterAlias = request.clusterAlias();
             final var sessionId = request.sessionId();
-            final int endBatchIndex = Math.min(startBatchIndex + maxConcurrentShards, request.shardIds().size());
+            final int endBatchIndex = Math.min(startBatchIndex + maxConcurrentShards, request.shards().size());
             final AtomicInteger pagesProduced = new AtomicInteger();
-            List<ShardId> shardIds = request.shardIds().subList(startBatchIndex, endBatchIndex);
-            ActionListener<List<DriverProfile>> batchListener = new ActionListener<>() {
-                final ActionListener<List<DriverProfile>> ref = computeListener.acquireCompute();
+            List<DataNodeRequest.Shard> shards = request.shards().subList(startBatchIndex, endBatchIndex);
+            ActionListener<DriverCompletionInfo> batchListener = new ActionListener<>() {
+                final ActionListener<DriverCompletionInfo> ref = computeListener.acquireCompute();
 
                 @Override
-                public void onResponse(List<DriverProfile> result) {
+                public void onResponse(DriverCompletionInfo info) {
                     try {
                         onBatchCompleted(endBatchIndex);
                     } finally {
-                        ref.onResponse(result);
+                        ref.onResponse(info);
                     }
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     if (pagesProduced.get() == 0 && failFastOnShardFailure == false) {
-                        for (ShardId shardId : shardIds) {
-                            addShardLevelFailure(shardId, e);
+                        for (DataNodeRequest.Shard shard : shards) {
+                            addShardLevelFailure(shard.shardId(), e);
                         }
-                        onResponse(List.of());
+                        onResponse(DriverCompletionInfo.EMPTY);
                     } else {
                         // TODO: add these to fatal failures so we can continue processing other shards.
                         try {
@@ -267,72 +321,107 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     }
                 }
             };
-            acquireSearchContexts(clusterAlias, shardIds, configuration, request.aliasFilters(), ActionListener.wrap(searchContexts -> {
-                assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH, ESQL_WORKER_THREAD_POOL_NAME);
-                if (searchContexts.isEmpty()) {
-                    batchListener.onResponse(List.of());
-                    return;
-                }
-                var computeContext = new ComputeContext(
-                    sessionId,
-                    "data",
-                    clusterAlias,
-                    searchContexts,
-                    configuration,
-                    configuration.newFoldContext(),
-                    null,
-                    () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet)
-                );
-                computeService.runCompute(parentTask, computeContext, request.plan(), batchListener);
-            }, batchListener::onFailure));
+            acquireSearchContexts(
+                clusterAlias,
+                shards,
+                configuration,
+                request.aliasFilters(),
+                ActionListener.wrap(acquiredSearchContexts -> {
+                    assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH, ESQL_WORKER_THREAD_POOL_NAME);
+                    if (acquiredSearchContexts.isEmpty()) {
+                        batchListener.onResponse(DriverCompletionInfo.EMPTY);
+                        return;
+                    }
+                    if (singleShardPipeline) {
+                        try (ComputeListener sub = new ComputeListener(threadPool, () -> {}, batchListener)) {
+                            for (ComputeSearchContext searchContext : acquiredSearchContexts.iterable()) {
+                                var computeContext = new ComputeContext(
+                                    sessionId,
+                                    "data",
+                                    clusterAlias,
+                                    flags,
+                                    new IndexedByShardIdFromSingleton<>(searchContext, searchContext.index()),
+                                    configuration,
+                                    configuration.newFoldContext(),
+                                    null,
+                                    () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet)
+                                );
+                                computeService.runCompute(
+                                    parentTask,
+                                    computeContext,
+                                    request.plan(),
+                                    planTimeProfile,
+                                    sub.acquireCompute()
+                                );
+                            }
+                        }
+                    } else {
+                        var computeContext = new ComputeContext(
+                            sessionId,
+                            ComputeService.DATA_DESCRIPTION,
+                            clusterAlias,
+                            flags,
+                            acquiredSearchContexts,
+                            configuration,
+                            configuration.newFoldContext(),
+                            null,
+                            () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet)
+                        );
+                        computeService.runCompute(parentTask, computeContext, request.plan(), planTimeProfile, batchListener);
+                    }
+                }, batchListener::onFailure)
+            );
         }
 
         private void acquireSearchContexts(
             String clusterAlias,
-            List<ShardId> shardIds,
+            List<DataNodeRequest.Shard> shards,
             Configuration configuration,
             Map<Index, AliasFilter> aliasFilters,
-            ActionListener<List<SearchContext>> listener
+            ActionListener<IndexedByShardId<ComputeSearchContext>> listener
         ) {
-            final List<IndexShard> targetShards = new ArrayList<>();
-            for (ShardId shardId : shardIds) {
+            final List<Tuple<IndexShard, SplitShardCountSummary>> targetShards = new ArrayList<>();
+            for (DataNodeRequest.Shard shard : shards) {
                 try {
-                    var indexShard = searchService.getIndicesService().indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
-                    targetShards.add(indexShard);
+                    var indexShard = searchService.getIndicesService()
+                        .indexServiceSafe(shard.shardId().getIndex())
+                        .getShard(shard.shardId().id());
+                    targetShards.add(new Tuple<>(indexShard, shard.reshardSplitShardCountSummary()));
                 } catch (Exception e) {
-                    if (addShardLevelFailure(shardId, e) == false) {
+                    if (addShardLevelFailure(shard.shardId(), e) == false) {
                         listener.onFailure(e);
                         return;
                     }
                 }
             }
             final var doAcquire = ActionRunnable.supply(listener, () -> {
-                final List<SearchContext> searchContexts = new ArrayList<>(targetShards.size());
-                SearchContext context = null;
-                for (IndexShard shard : targetShards) {
+                var newContexts = new ArrayList<SearchContext>();
+                for (Tuple<IndexShard, SplitShardCountSummary> targetShard : targetShards) {
+                    SearchContext context = null;
+                    IndexShard indexShard = targetShard.v1();
                     try {
-                        var aliasFilter = aliasFilters.getOrDefault(shard.shardId().getIndex(), AliasFilter.EMPTY);
+                        var aliasFilter = aliasFilters.getOrDefault(indexShard.shardId().getIndex(), AliasFilter.EMPTY);
                         var shardRequest = new ShardSearchRequest(
-                            shard.shardId(),
+                            indexShard.shardId(),
                             configuration.absoluteStartedTimeInMillis(),
                             aliasFilter,
-                            clusterAlias
+                            clusterAlias,
+                            targetShard.v2()
                         );
                         // TODO: `searchService.createSearchContext` allows opening search contexts without limits,
                         // we need to limit the number of active search contexts here or in SearchService
                         context = searchService.createSearchContext(shardRequest, SearchService.NO_TIMEOUT);
                         context.preProcess();
-                        searchContexts.add(context);
-                    } catch (Exception e) {
-                        if (addShardLevelFailure(shard.shardId(), e)) {
-                            IOUtils.close(context);
-                        } else {
-                            IOUtils.closeWhileHandlingException(context, () -> IOUtils.close(searchContexts));
+                        newContexts.add(context);
+                    } catch (RuntimeException e) {
+                        IOUtils.close(context);
+                        if (addShardLevelFailure(indexShard.shardId(), e) == false) {
+                            IOUtils.closeWhileHandlingException(newContexts);
                             throw e;
                         }
                     }
                 }
-                return searchContexts;
+                return searchContexts.newSubRangeView(newContexts);
             });
             final AtomicBoolean waitedForRefreshes = new AtomicBoolean();
             try (RefCountingRunnable refs = new RefCountingRunnable(() -> {
@@ -342,9 +431,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     doAcquire.run();
                 }
             })) {
-                for (IndexShard targetShard : targetShards) {
+                for (Tuple<IndexShard, SplitShardCountSummary> targetShard : targetShards) {
                     final Releasable ref = refs.acquire();
-                    targetShard.ensureShardSearchActive(await -> {
+                    targetShard.v1().ensureShardSearchActive(await -> {
                         try (ref) {
                             if (await) {
                                 waitedForRefreshes.set(true);
@@ -356,7 +445,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         }
 
         private void onBatchCompleted(int lastBatchIndex) {
-            if (lastBatchIndex < request.shardIds().size() && exchangeSink.isFinished() == false) {
+            if (lastBatchIndex < request.shards().size() && exchangeSink.isFinished() == false) {
                 runBatch(lastBatchIndex);
             } else {
                 // don't return until all pages are fetched
@@ -375,6 +464,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             shardLevelFailures.put(shardId, e);
             return true;
         }
+
     }
 
     private void runComputeOnDataNode(
@@ -383,6 +473,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         PhysicalPlan reducePlan,
         DataNodeRequest request,
         boolean failFastOnShardFailure,
+        AcquiredSearchContexts searchContexts,
+        PlanTimeProfile planTimeProfile,
         ActionListener<DataNodeComputeResponse> listener
     ) {
         final Map<ShardId, Exception> shardLevelFailures = new HashMap<>();
@@ -396,22 +488,33 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             var parentListener = computeListener.acquireAvoid();
             try {
                 // run compute with target shards
+                var externalSink = exchangeService.getSinkHandler(externalId);
                 var internalSink = exchangeService.createSinkHandler(request.sessionId(), request.pragmas().exchangeBufferSize());
+                task.addListener(() -> {
+                    exchangeService.finishSinkHandler(externalId, new TaskCancelledException(task.getReasonCancelled()));
+                    exchangeService.finishSinkHandler(request.sessionId(), new TaskCancelledException(task.getReasonCancelled()));
+                });
+                EsqlFlags flags = computeService.createFlags();
+                int maxConcurrentShards = request.pragmas().maxConcurrentShardsPerNode();
+                final boolean sortedTimeSeriesSource = PlannerUtils.requiresSortedTimeSeriesSource(request.plan());
+                if (sortedTimeSeriesSource) {
+                    // each time-series pipeline uses 3 drivers
+                    maxConcurrentShards = Math.clamp(Math.ceilDiv(request.pragmas().taskConcurrency(), 3), 1, maxConcurrentShards);
+                }
                 DataNodeRequestExecutor dataNodeRequestExecutor = new DataNodeRequestExecutor(
+                    flags,
                     request,
                     task,
                     internalSink,
-                    request.configuration().pragmas().maxConcurrentShardsPerNode(),
+                    maxConcurrentShards,
                     failFastOnShardFailure,
                     shardLevelFailures,
-                    computeListener
+                    sortedTimeSeriesSource,
+                    computeListener,
+                    searchContexts
                 );
                 dataNodeRequestExecutor.start();
                 // run the node-level reduction
-                var externalSink = exchangeService.getSinkHandler(externalId);
-                task.addListener(
-                    () -> exchangeService.finishSinkHandler(externalId, new TaskCancelledException(task.getReasonCancelled()))
-                );
                 var exchangeSource = new ExchangeSourceHandler(1, esqlExecutor);
                 exchangeSource.addRemoteSink(internalSink::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
                 var reductionListener = computeListener.acquireCompute();
@@ -419,15 +522,17 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     task,
                     new ComputeContext(
                         request.sessionId(),
-                        "node_reduce",
+                        ComputeService.REDUCE_DESCRIPTION,
                         request.clusterAlias(),
-                        List.of(),
+                        flags,
+                        searchContexts.globalView(),
                         request.configuration(),
                         new FoldContext(request.pragmas().foldLimit().getBytes()),
                         exchangeSource::createExchangeSource,
                         () -> externalSink.createExchangeSink(() -> {})
                     ),
                     reducePlan,
+                    planTimeProfile,
                     ActionListener.wrap(resp -> {
                         // don't return until all pages are fetched
                         externalSink.addCompletionListener(ActionListener.running(() -> {
@@ -435,6 +540,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             reductionListener.onResponse(resp);
                         }));
                     }, e -> {
+                        LOGGER.debug("Error in node-level reduction", e);
                         exchangeService.finishSinkHandler(externalId, e);
                         reductionListener.onFailure(e);
                     })
@@ -450,10 +556,26 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
     @Override
     public void messageReceived(DataNodeRequest request, TransportChannel channel, Task task) {
-        final ActionListener<DataNodeComputeResponse> listener = new ChannelActionListener<>(channel);
-        final PhysicalPlan reductionPlan;
+        ActionListener<DataNodeComputeResponse> listener = new ChannelActionListener<>(channel);
+        ReductionPlan reductionPlan;
+        Configuration configuration = request.configuration();
+        // We can avoid synchronization (for the most part) since the array elements are never modified, and the array is only added to,
+        // with its size being known before we start the computation.
+        PlanTimeProfile planTimeProfile = null;
+        if (configuration.profile()) {
+            planTimeProfile = new PlanTimeProfile();
+        }
         if (request.plan() instanceof ExchangeSinkExec plan) {
-            reductionPlan = ComputeService.reductionPlan(plan, request.runNodeLevelReduction());
+            reductionPlan = ComputeService.reductionPlan(
+                computeService.plannerSettings(),
+                computeService.createFlags(),
+                configuration,
+                configuration.newFoldContext(),
+                plan,
+                request.runNodeLevelReduction(),
+                request.reductionLateMaterialization(),
+                planTimeProfile
+            );
         } else {
             listener.onFailure(new IllegalStateException("expected exchange sink for a remote compute; got " + request.plan()));
             return;
@@ -463,20 +585,30 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             sessionId + "[n]", // internal session
             request.configuration(),
             request.clusterAlias(),
-            request.shardIds(),
+            request.shards(),
             request.aliasFilters(),
             request.plan(),
             request.indices(),
             request.indicesOptions(),
-            request.runNodeLevelReduction()
+            request.runNodeLevelReduction(),
+            request.reductionLateMaterialization()
         );
         // the sender doesn't support retry on shard failures, so we need to fail fast here.
         final boolean failFastOnShardFailures = supportShardLevelRetryFailure(channel.getVersion()) == false;
-        runComputeOnDataNode((CancellableTask) task, sessionId, reductionPlan, request, failFastOnShardFailures, listener);
+        var computeSearchContexts = new AcquiredSearchContexts(request.shards().size());
+        runComputeOnDataNode(
+            (CancellableTask) task,
+            sessionId,
+            reductionPlan.nodeReducePlan(),
+            request.withPlan(reductionPlan.dataNodePlan()),
+            failFastOnShardFailures,
+            computeSearchContexts,
+            planTimeProfile,
+            ActionListener.releaseAfter(listener, computeSearchContexts)
+        );
     }
 
     static boolean supportShardLevelRetryFailure(TransportVersion transportVersion) {
-        return transportVersion.onOrAfter(TransportVersions.ESQL_RETRY_ON_SHARD_LEVEL_FAILURE)
-            || transportVersion.isPatchFrom(TransportVersions.ESQL_RETRY_ON_SHARD_LEVEL_FAILURE_BACKPORT_8_19);
+        return transportVersion.supports(ESQL_RETRY_ON_SHARD_LEVEL_FAILURE);
     }
 }

@@ -45,16 +45,15 @@ public class MedianAbsoluteDeviation extends NumericAggregate implements Surroga
             + "or may not be normally distributed. For such data it can be more descriptive "
             + "than standard deviation."
             + "\n\n"
-            + "It is calculated as the median of each data point's deviation from the median of "
+            + "It is calculated as the median of each data point’s deviation from the median of "
             + "the entire sample. That is, for a random variable `X`, the median absolute "
             + "deviation is `median(|median(X) - X|)`.",
         note = "Like <<esql-percentile>>, `MEDIAN_ABSOLUTE_DEVIATION` is <<esql-percentile-approximate,usually approximate>>.",
         appendix = """
-            [WARNING]
-            ====
+            ::::{warning}
             `MEDIAN_ABSOLUTE_DEVIATION` is also {wikipedia}/Nondeterministic_algorithm[non-deterministic].
             This means you can get slightly different results using the same data.
-            ====""",
+            ::::""",
         type = FunctionType.AGGREGATE,
         examples = {
             @Example(file = "median_absolute_deviation", tag = "median-absolute-deviation"),
@@ -68,11 +67,11 @@ public class MedianAbsoluteDeviation extends NumericAggregate implements Surroga
             ), }
     )
     public MedianAbsoluteDeviation(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, NO_WINDOW);
     }
 
-    public MedianAbsoluteDeviation(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    public MedianAbsoluteDeviation(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, emptyList());
     }
 
     private MedianAbsoluteDeviation(StreamInput in) throws IOException {
@@ -86,17 +85,17 @@ public class MedianAbsoluteDeviation extends NumericAggregate implements Surroga
 
     @Override
     protected NodeInfo<MedianAbsoluteDeviation> info() {
-        return NodeInfo.create(this, MedianAbsoluteDeviation::new, field(), filter());
+        return NodeInfo.create(this, MedianAbsoluteDeviation::new, field(), filter(), window());
     }
 
     @Override
     public MedianAbsoluteDeviation replaceChildren(List<Expression> newChildren) {
-        return new MedianAbsoluteDeviation(source(), newChildren.get(0), newChildren.get(1));
+        return new MedianAbsoluteDeviation(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
     public MedianAbsoluteDeviation withFilter(Expression filter) {
-        return new MedianAbsoluteDeviation(source(), field(), filter);
+        return new MedianAbsoluteDeviation(source(), field(), filter, window());
     }
 
     @Override

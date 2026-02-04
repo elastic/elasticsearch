@@ -47,7 +47,7 @@
   - match: { template_output.aggs.my_terms.terms.field: "my_other_field" }
 
   - do:
-      catch: /Improperly.closed.variable.in.query-template/
+      catch: "/Improperly.closed.variable(: my_value)?.in.query-template/"
       render_search_template:
         body: { "source": { "query": { "match": { "text": "{{{my_value}}" } }, "aggs": { "my_terms": { "terms": { "field": "{{my_field}}" } } } }, "params": { "my_value": "bar", "my_field": "field1" } }
 ---
@@ -99,7 +99,7 @@
   - match: { template_output.size: 100 }
 
   - do:
-      catch: /Improperly.closed.variable.in.query-template/
+      catch: "/Improperly.closed.variable(: my_value)?.in.query-template/"
       render_search_template:
         body: { "source": "{ \"query\": { \"match\": { \"text\": \"{{{my_value}}\" } }, \"size\": {{my_size}} }", "params": { "my_value": "bar", "my_size": 100 } }
 

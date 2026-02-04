@@ -30,7 +30,6 @@ import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.InvalidIndexNameException;
@@ -452,18 +451,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         );
         assertThat(infe.getResourceId().toString(), equalTo("[-*]"));
 
-        infe = expectThrows(
-            IndexNotFoundException.class,
-            // throws error because "-foobar" was not covered by a wildcard that included it
-            () -> indexNameExpressionResolver.concreteIndexNames(context2, "bar", "hidden", "-foobar")
-        );
-        assertThat(
-            infe.getMessage(),
-            containsString(
-                "if you intended to exclude this index, ensure that you use wildcards that include it " + "before explicitly excluding it"
-            )
-        );
-        assertThat(infe.getResourceId().toString(), equalTo("[-foobar]"));
+        results = indexNameExpressionResolver.concreteIndexNames(context2, "bar", "hidden", "-foobar");
+        assertThat(results, arrayContainingInAnyOrder("bar", "hidden"));
 
         // open and hidden
         options = IndicesOptions.fromOptions(false, true, true, false, true);
@@ -984,9 +973,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(indexBuilder("testXXX").state(State.OPEN))
             .put(indexBuilder("testXXY").state(State.OPEN))
             .put(indexBuilder("testXYY").state(State.OPEN))
-            .put(indexBuilder("-testXYZ").state(State.OPEN))
-            .put(indexBuilder("-testXZZ").state(State.OPEN))
-            .put(indexBuilder("-testYYY").state(State.OPEN))
             .put(indexBuilder("testYYY").state(State.OPEN))
             .put(indexBuilder("testYYX").state(State.OPEN))
             .build();
@@ -1006,19 +992,13 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             equalTo(newHashSet("testYYY", "testYYX"))
         );
 
-        assertThat(
-            newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "-testX*")),
-            equalTo(newHashSet("-testXYZ", "-testXZZ"))
-        );
+        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "-testX*")), empty());
+
+        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "testXXY", "-testX*")), empty());
 
         assertThat(
-            newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "testXXY", "-testX*")),
-            equalTo(newHashSet("testXXY", "-testXYZ", "-testXZZ"))
-        );
-
-        assertThat(
-            newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "*", "--testX*")),
-            equalTo(newHashSet("testXXX", "testXXY", "testXYY", "testYYX", "testYYY", "-testYYY"))
+            newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "*", "-testX*")),
+            equalTo(newHashSet("testYYX", "testYYY"))
         );
 
         assertThat(
@@ -1033,7 +1013,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         assertThat(
             newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "testXXX", "testXXY", "testYYY", "-testYYY")),
-            equalTo(newHashSet("testXXX", "testXXY", "testYYY", "-testYYY"))
+            equalTo(newHashSet("testXXX", "testXXY"))
         );
 
         assertThat(
@@ -1043,16 +1023,13 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         assertThat(
             newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "-testXXX", "*testY*", "-testYYY")),
-            equalTo(newHashSet("testYYX", "-testYYY"))
+            equalTo(newHashSet("testYYX"))
         );
 
         String[] indexNames = indexNameExpressionResolver.concreteIndexNames(project, IndicesOptions.lenientExpandOpen(), "-doesnotexist");
         assertEquals(0, indexNames.length);
 
-        assertThat(
-            newHashSet(indexNameExpressionResolver.concreteIndexNames(project, IndicesOptions.lenientExpandOpen(), "-*")),
-            equalTo(newHashSet("-testXYZ", "-testXZZ", "-testYYY"))
-        );
+        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(project, IndicesOptions.lenientExpandOpen(), "-*")), empty());
 
         assertThat(
             newHashSet(
@@ -1065,11 +1042,48 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                     "-testXXY"
                 )
             ),
-            equalTo(newHashSet("testXXX", "testXYY", "testXXY"))
+            equalTo(newHashSet("testXXX", "testXYY"))
         );
 
         indexNames = indexNameExpressionResolver.concreteIndexNames(project, IndicesOptions.lenientExpandOpen(), "*", "-*");
         assertEquals(0, indexNames.length);
+    }
+
+    public void testNegationOnItsOwnIsInvalid() {
+        final var project = ProjectMetadata.builder(randomUniqueProjectId()).put(indexBuilder("testXXX").state(State.OPEN)).build();
+
+        final var context = new IndexNameExpressionResolver.Context(
+            project,
+            IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, randomBoolean()),
+            SystemIndexAccessLevel.NONE
+        );
+
+        final List<String[]> expressionsList = List.of(
+            new String[] { "-" },
+            new String[] { "*", "-" },
+            new String[] { "testXXX", "-" },
+            new String[] { "*", "-", "testXXX" },
+            new String[] { "-", "-" },
+            new String[] { "-", "_all" },
+            new String[] { "-testXXX", "-" },
+            new String[] { "*", "-testXXX", "-" }
+        );
+
+        for (var expressions : expressionsList) {
+            expectThrows(
+                InvalidIndexNameException.class,
+                containsString("Invalid index name [], exclusion cannot be empty"),
+                () -> indexNameExpressionResolver.concreteIndexNames(context, expressions)
+            );
+        }
+
+        // _all is special only when it is used on its own. If combined with other expressions, it becomes invalid
+        // because we don't allow index name begin with '_'.
+        expectThrows(
+            InvalidIndexNameException.class,
+            containsString("Invalid index name [_all], must not start with '_'."),
+            () -> indexNameExpressionResolver.concreteIndexNames(context, "_all", "-")
+        );
     }
 
     public void testConcreteIndicesWildcardAndAliases() {
@@ -1596,7 +1610,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertArrayEquals(new String[] { "test-0" }, strings);
     }
 
-    public void testResolveExpressions() {
+    public void testResolveExpressionsIgnoringRemotes() {
         ProjectMetadata project = ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID)
             .put(indexBuilder("test-0").state(State.OPEN).putAlias(AliasMetadata.builder("alias-0").filter("{ \"term\": \"foo\"}")))
             .put(indexBuilder("test-1").state(State.OPEN).putAlias(AliasMetadata.builder("alias-1")))
@@ -1604,7 +1618,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         assertEquals(
             Set.of(new ResolvedExpression("alias-0", DATA), new ResolvedExpression("alias-1", DATA)),
-            indexNameExpressionResolver.resolveExpressions(project, "alias-*")
+            indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(project, "alias-*")
         );
         assertEquals(
             Set.of(
@@ -1612,7 +1626,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 new ResolvedExpression("alias-0", DATA),
                 new ResolvedExpression("alias-1", DATA)
             ),
-            indexNameExpressionResolver.resolveExpressions(project, "test-0", "alias-*")
+            indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(project, "test-0", "alias-*")
         );
         assertEquals(
             Set.of(
@@ -1621,11 +1635,11 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 new ResolvedExpression("alias-0", DATA),
                 new ResolvedExpression("alias-1", DATA)
             ),
-            indexNameExpressionResolver.resolveExpressions(project, "test-*", "alias-*")
+            indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(project, "test-*", "alias-*")
         );
         assertEquals(
             Set.of(new ResolvedExpression("test-1", DATA), new ResolvedExpression("alias-1", DATA)),
-            indexNameExpressionResolver.resolveExpressions(project, "*-1")
+            indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(project, "*-1")
         );
     }
 
@@ -1667,9 +1681,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                     .putAlias(AliasMetadata.builder("test-alias-non-filtering"))
             )
             .build();
-        Set<ResolvedExpression> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(project, "test-*");
+        Set<ResolvedExpression> resolvedExpressions = indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(project, "test-*");
 
-        String[] strings = indexNameExpressionResolver.indexAliases(project, "test-0", x -> true, x -> true, true, resolvedExpressions);
+        String[] strings = indexNameExpressionResolver.allIndexAliases(project, "test-0", resolvedExpressions);
         Arrays.sort(strings);
         assertArrayEquals(new String[] { "test-alias-0", "test-alias-1", "test-alias-non-filtering" }, strings);
 
@@ -1677,7 +1691,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             project,
             "test-0",
             x -> x.alias().equals("test-alias-1"),
-            x -> false,
+            (x, y) -> randomBoolean(),
             true,
             resolvedExpressions
         );
@@ -1701,80 +1715,155 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         projectBuilder.put("logs_baz2", dataStreamName2, null, null);
         ProjectMetadata project = projectBuilder.build();
         {
-            // Only resolve aliases with with that refer to dataStreamName1
-            Set<ResolvedExpression> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(project, "l*");
+            // Only resolve aliases that refer to dataStreamName1
+            Set<ResolvedExpression> resolvedExpressions = indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(project, "l*");
             String index = backingIndex1.getIndex().getName();
-            String[] result = indexNameExpressionResolver.indexAliases(project, index, x -> true, x -> true, true, resolvedExpressions);
+            String[] result = indexNameExpressionResolver.allIndexAliases(project, index, resolvedExpressions);
             assertThat(result, arrayContainingInAnyOrder("logs_foo", "logs", "logs_bar"));
         }
         {
-            // Only resolve aliases with with that refer to dataStreamName2
-            Set<ResolvedExpression> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(project, "l*");
+            // Only resolve aliases that refer to dataStreamName2
+            Set<ResolvedExpression> resolvedExpressions = indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(project, "l*");
             String index = backingIndex2.getIndex().getName();
-            String[] result = indexNameExpressionResolver.indexAliases(project, index, x -> true, x -> true, true, resolvedExpressions);
+            String[] result = indexNameExpressionResolver.allIndexAliases(project, index, resolvedExpressions);
             assertThat(result, arrayContainingInAnyOrder("logs_baz", "logs_baz2"));
         }
         {
             // Null is returned, because skipping identity check and resolvedExpressions contains the backing index name
-            Set<ResolvedExpression> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(project, "l*");
+            Set<ResolvedExpression> resolvedExpressions = indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(project, "l*");
             String index = backingIndex2.getIndex().getName();
-            String[] result = indexNameExpressionResolver.indexAliases(project, index, x -> true, x -> true, false, resolvedExpressions);
+            String[] result = indexNameExpressionResolver.indexAliases(
+                project,
+                index,
+                x -> randomBoolean(),
+                (x, y) -> true,
+                false,
+                resolvedExpressions
+            );
             assertThat(result, nullValue());
         }
         {
             // Null is returned, because the wildcard expands to a list of aliases containing an unfiltered alias for dataStreamName1
-            Set<ResolvedExpression> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(project, "l*");
+            Set<ResolvedExpression> resolvedExpressions = indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(project, "l*");
             String index = backingIndex1.getIndex().getName();
-            String[] result = indexNameExpressionResolver.indexAliases(
-                project,
-                index,
-                x -> true,
-                DataStreamAlias::filteringRequired,
-                true,
-                resolvedExpressions
-            );
+            String[] result = indexNameExpressionResolver.filteringAliases(project, index, resolvedExpressions);
             assertThat(result, nullValue());
         }
         {
             // Null is returned, because an unfiltered alias is targeting the same data stream
-            Set<ResolvedExpression> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(project, "logs_bar", "logs");
-            String index = backingIndex1.getIndex().getName();
-            String[] result = indexNameExpressionResolver.indexAliases(
+            Set<ResolvedExpression> resolvedExpressions = indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(
                 project,
-                index,
-                x -> true,
-                DataStreamAlias::filteringRequired,
-                true,
-                resolvedExpressions
+                "logs_bar",
+                "logs"
             );
+            String index = backingIndex1.getIndex().getName();
+            String[] result = indexNameExpressionResolver.filteringAliases(project, index, resolvedExpressions);
+            assertThat(result, nullValue());
+        }
+        {
+            // Null is returned because we target the data stream name and skipIdentity is false
+            Set<ResolvedExpression> resolvedExpressions = indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(
+                project,
+                dataStreamName1,
+                "logs"
+            );
+            String index = backingIndex1.getIndex().getName();
+            String[] result = indexNameExpressionResolver.filteringAliases(project, index, resolvedExpressions);
             assertThat(result, nullValue());
         }
         {
             // The filtered alias is returned because although we target the data stream name, skipIdentity is true
-            Set<ResolvedExpression> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(project, dataStreamName1, "logs");
+            Set<ResolvedExpression> resolvedExpressions = indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(
+                project,
+                dataStreamName1,
+                "logs"
+            );
             String index = backingIndex1.getIndex().getName();
             String[] result = indexNameExpressionResolver.indexAliases(
                 project,
                 index,
                 x -> true,
-                DataStreamAlias::filteringRequired,
+                (alias, isData) -> alias.filteringRequired() && isData,
                 true,
                 resolvedExpressions
             );
             assertThat(result, arrayContainingInAnyOrder("logs"));
         }
+    }
+
+    public void testIndexAliasesDataStreamFailureStoreAndAliases() {
+        final String dataStreamName1 = "logs-foobar";
+        final String dataStreamName2 = "logs-barbaz";
+        IndexMetadata backingIndex1 = createBackingIndex(dataStreamName1, 1).build();
+        IndexMetadata failureIndex1 = createFailureStore(dataStreamName1, 2).build();
+        IndexMetadata backingIndex2 = createBackingIndex(dataStreamName2, 1).build();
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID)
+            .put(backingIndex1, false)
+            .put(backingIndex2, false)
+            .put(failureIndex1, false)
+            .put(newInstance(dataStreamName1, List.of(backingIndex1.getIndex()), List.of(failureIndex1.getIndex())))
+            .put(newInstance(dataStreamName2, List.of(backingIndex2.getIndex())));
+        projectBuilder.put("logs_foo", dataStreamName1, null, "{ \"term\": \"foo\"}");
+        projectBuilder.put("logs", dataStreamName1, null, "{ \"term\": \"logs\"}");
+        projectBuilder.put("logs_bar", dataStreamName1, null, null);
+        projectBuilder.put("logs_baz", dataStreamName2, null, "{ \"term\": \"logs\"}");
+        projectBuilder.put("logs_baz2", dataStreamName2, null, null);
+        ProjectMetadata project = projectBuilder.build();
         {
-            // Null is returned because we target the data stream name and skipIdentity is false
-            Set<ResolvedExpression> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(project, dataStreamName1, "logs");
-            String index = backingIndex1.getIndex().getName();
+            // Resolving the failure component with a backing index should return null
+            Set<ResolvedExpression> resolvedExpressions = indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(
+                project,
+                "l*::failures"
+            );
+            String index = randomBoolean() ? backingIndex1.getIndex().getName() : backingIndex2.getIndex().getName();
+            String[] result = indexNameExpressionResolver.allIndexAliases(project, index, resolvedExpressions);
+            assertThat(result, nullValue());
+        }
+        {
+            // Only resolve aliases that refer to dataStreamName1 failure store
+            Set<ResolvedExpression> resolvedExpressions = indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(
+                project,
+                "l*::failures"
+            );
+            String index = failureIndex1.getIndex().getName();
+            String[] result = indexNameExpressionResolver.allIndexAliases(project, index, resolvedExpressions);
+            assertThat(result, arrayContainingInAnyOrder("logs_foo::failures", "logs::failures", "logs_bar::failures"));
+        }
+        {
+            // Null is returned, because we perform the identity check and resolvedExpressions contains the failure index name
+            Set<ResolvedExpression> resolvedExpressions = indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(
+                project,
+                "l*::failures"
+            );
+            String index = failureIndex1.getIndex().getName();
             String[] result = indexNameExpressionResolver.indexAliases(
                 project,
                 index,
                 x -> true,
-                DataStreamAlias::filteringRequired,
+                (x, y) -> true,
                 false,
                 resolvedExpressions
             );
+            assertThat(result, nullValue());
+        }
+        {
+            // Null is returned, because the wildcard expands to a list of aliases containing an unfiltered alias for dataStreamName1
+            Set<ResolvedExpression> resolvedExpressions = indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(
+                project,
+                "l*::failures"
+            );
+            String index = failureIndex1.getIndex().getName();
+            String[] result = indexNameExpressionResolver.filteringAliases(project, index, resolvedExpressions);
+            assertThat(result, nullValue());
+        }
+        {
+            // Null is returned because we target the failure store of the data stream
+            Set<ResolvedExpression> resolvedExpressions = indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(
+                project,
+                "logs::failures"
+            );
+            String index = failureIndex1.getIndex().getName();
+            String[] result = indexNameExpressionResolver.filteringAliases(project, index, resolvedExpressions);
             assertThat(result, nullValue());
         }
     }
@@ -1789,15 +1878,22 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .build();
 
         Set<ResolvedExpression> resolvedExpressions = resolvedExpressionsSet("test-0", "test-alias");
-        String[] aliases = indexNameExpressionResolver.indexAliases(project, "test-0", x -> true, x -> true, false, resolvedExpressions);
+        String[] aliases = indexNameExpressionResolver.indexAliases(
+            project,
+            "test-0",
+            x -> true,
+            (x, y) -> true,
+            false,
+            resolvedExpressions
+        );
         assertNull(aliases);
-        aliases = indexNameExpressionResolver.indexAliases(project, "test-0", x -> true, x -> true, true, resolvedExpressions);
+        aliases = indexNameExpressionResolver.indexAliases(project, "test-0", x -> true, (x, y) -> true, true, resolvedExpressions);
         assertArrayEquals(new String[] { "test-alias" }, aliases);
 
         resolvedExpressions = Collections.singleton(new ResolvedExpression("other-alias"));
-        aliases = indexNameExpressionResolver.indexAliases(project, "test-0", x -> true, x -> true, false, resolvedExpressions);
+        aliases = indexNameExpressionResolver.indexAliases(project, "test-0", x -> true, (x, y) -> true, false, resolvedExpressions);
         assertArrayEquals(new String[] { "other-alias" }, aliases);
-        aliases = indexNameExpressionResolver.indexAliases(project, "test-0", x -> true, x -> true, true, resolvedExpressions);
+        aliases = indexNameExpressionResolver.indexAliases(project, "test-0", x -> true, (x, y) -> true, true, resolvedExpressions);
         assertArrayEquals(new String[] { "other-alias" }, aliases);
     }
 
@@ -1810,14 +1906,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             )
             .build();
 
-        String[] strings = indexNameExpressionResolver.indexAliases(
-            project,
-            "test-0",
-            x -> true,
-            x -> true,
-            true,
-            resolvedExpressionsSet("test-0", "test-alias")
-        );
+        String[] strings = indexNameExpressionResolver.allIndexAliases(project, "test-0", resolvedExpressionsSet("test-0", "test-alias"));
         Arrays.sort(strings);
         assertArrayEquals(new String[] { "test-alias" }, strings);
         IndicesRequest request = new IndicesRequest() {
@@ -1889,12 +1978,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                     .putAlias(AliasMetadata.builder("test-alias").writeIndex(testZeroWriteIndex ? randomFrom(false, null) : true))
             )
             .build();
-        String[] strings = indexNameExpressionResolver.indexAliases(
+        String[] strings = indexNameExpressionResolver.allIndexAliases(
             project,
             "test-0",
-            x -> true,
-            x -> true,
-            true,
             resolvedExpressionsSet("test-0", "test-1", "test-alias")
         );
         Arrays.sort(strings);
@@ -1927,14 +2013,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         ProjectMetadata project = ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID)
             .put(indexBuilder("test-0").state(State.OPEN).putAlias(AliasMetadata.builder("test-alias").writeIndex(false)))
             .build();
-        String[] strings = indexNameExpressionResolver.indexAliases(
-            project,
-            "test-0",
-            x -> true,
-            x -> true,
-            true,
-            resolvedExpressionsSet("test-0", "test-alias")
-        );
+        String[] strings = indexNameExpressionResolver.allIndexAliases(project, "test-0", resolvedExpressionsSet("test-0", "test-alias"));
         Arrays.sort(strings);
         assertArrayEquals(new String[] { "test-alias" }, strings);
         DocWriteRequest<?> request = randomFrom(
@@ -1961,12 +2040,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(indexBuilder("test-0").state(State.OPEN).putAlias(AliasMetadata.builder("test-alias").writeIndex(randomFrom(false, null))))
             .put(indexBuilder("test-1").state(State.OPEN).putAlias(AliasMetadata.builder("test-alias").writeIndex(randomFrom(false, null))))
             .build();
-        String[] strings = indexNameExpressionResolver.indexAliases(
+        String[] strings = indexNameExpressionResolver.allIndexAliases(
             project,
             "test-0",
-            x -> true,
-            x -> true,
-            true,
             Set.of(new ResolvedExpression("test-0"), new ResolvedExpression("test-1"), new ResolvedExpression("test-alias"))
         );
         Arrays.sort(strings);
@@ -2002,12 +2078,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                     .putAlias(AliasMetadata.builder("test-alias").writeIndex(randomFrom(test0WriteIndex == false, null)))
             )
             .build();
-        String[] strings = indexNameExpressionResolver.indexAliases(
+        String[] strings = indexNameExpressionResolver.allIndexAliases(
             project,
             "test-0",
-            x -> true,
-            x -> true,
-            true,
             resolvedExpressionsSet("test-0", "test-1", "test-alias")
         );
         Arrays.sort(strings);
@@ -2279,7 +2352,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                     .putAlias(AliasMetadata.builder("test-alias"))
             )
             .put(
-                indexBuilder("index", Settings.builder().put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), true).build()).state(State.OPEN)
+                indexBuilder("index", Settings.builder().put("index.search.throttled", true).build()).state(State.OPEN)
                     .putAlias(AliasMetadata.builder("test-alias2"))
             )
             .put(
@@ -2340,7 +2413,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 new IndicesOptions(
                     IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
                     IndicesOptions.WildcardOptions.DEFAULT,
-                    IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(true).build()
+                    IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(true).build(),
+                    IndicesOptions.CrossProjectModeOptions.DEFAULT
                 ),
                 "ind*",
                 "test-index"
@@ -3288,6 +3362,11 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .build(),
             IndicesOptions.strictExpand(),
             now,
+            false,
+            false,
+            false,
+            false,
+            false,
             SystemIndexAccessLevel.NONE,
             Predicates.never(),
             Predicates.never()
@@ -3327,16 +3406,29 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertEquals(resolved, "older-date-2020-12");
     }
 
+    private IndexNameExpressionResolver.Context makeRandomContext(IndicesOptions options, boolean allowRemotes) {
+        ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId()).build();
+        return new IndexNameExpressionResolver.Context(
+            project,
+            options,
+            System.currentTimeMillis(),
+            false,
+            false,
+            false,
+            false,
+            allowRemotes,
+            SystemIndexAccessLevel.NONE,
+            Predicates.always(),
+            Predicates.never()
+        );
+    }
+
     public void testRemoteIndex() {
         ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId()).build();
 
         {
             IndicesOptions options = IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
-            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
-                project,
-                options,
-                SystemIndexAccessLevel.NONE
-            );
+            IndexNameExpressionResolver.Context context = makeRandomContext(options, false);
             IllegalArgumentException iae = expectThrows(
                 IllegalArgumentException.class,
                 () -> indexNameExpressionResolver.concreteIndexNames(context, "cluster:index", "local")
@@ -3354,23 +3446,31 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             IndicesOptions options = IndicesOptions.fromOptions(true, true, randomBoolean(), randomBoolean(), randomBoolean());
-            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
-                project,
-                options,
-                SystemIndexAccessLevel.NONE
-            );
+            IndexNameExpressionResolver.Context context = makeRandomContext(options, true);
             String[] indexNames = indexNameExpressionResolver.concreteIndexNames(context, "cluster:index", "local");
             assertEquals(0, indexNames.length);
+        }
+        {
+            IndicesOptions options = IndicesOptions.fromOptions(true, true, randomBoolean(), randomBoolean(), randomBoolean());
+            IndexNameExpressionResolver.Context context = makeRandomContext(options, false);
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> indexNameExpressionResolver.concreteIndexNames(context, "cluster:index", "local")
+            );
+            assertEquals(
+                "Cross-cluster calls are not supported in this context but remote indices were requested: [cluster:index]",
+                iae.getMessage()
+            );
         }
     }
 
     public void testResolveWriteIndexAbstraction() {
-        ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(
             List.of(new Tuple<>("logs-foobar", 1)),
             List.of("my-index")
         );
-        ProjectMetadata finalState = ProjectMetadata.builder(state.metadata().getProject())
-            .put(IndexMetadata.builder(state.getMetadata().getProject().index("my-index")).putAlias(new AliasMetadata.Builder("my-alias")))
+        ProjectMetadata finalProject = ProjectMetadata.builder(project)
+            .put(IndexMetadata.builder(project.index("my-index")).putAlias(new AliasMetadata.Builder("my-alias")))
             .build();
         Function<String, List<DocWriteRequest<?>>> docWriteRequestsForName = (name) -> List.of(
             new IndexRequest(name).opType(DocWriteRequest.OpType.INDEX),
@@ -3380,40 +3480,38 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         );
         for (DocWriteRequest<?> request : docWriteRequestsForName.apply("logs-foobar")) {
             if (request.opType() == DocWriteRequest.OpType.CREATE) {
-                IndexAbstraction result = indexNameExpressionResolver.resolveWriteIndexAbstraction(finalState, request);
+                IndexAbstraction result = indexNameExpressionResolver.resolveWriteIndexAbstraction(finalProject, request);
                 assertThat(result.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
                 assertThat(result.getName(), equalTo("logs-foobar"));
             } else {
                 IndexNotFoundException infe = expectThrows(
                     IndexNotFoundException.class,
-                    () -> indexNameExpressionResolver.resolveWriteIndexAbstraction(finalState, request)
+                    () -> indexNameExpressionResolver.resolveWriteIndexAbstraction(finalProject, request)
                 );
                 assertThat(infe.toString(), containsString("logs-foobar"));
                 assertThat(infe.getMetadataKeys().contains(IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY), is(true));
             }
         }
         for (DocWriteRequest<?> request : docWriteRequestsForName.apply("my-index")) {
-            IndexAbstraction result = indexNameExpressionResolver.resolveWriteIndexAbstraction(finalState, request);
+            IndexAbstraction result = indexNameExpressionResolver.resolveWriteIndexAbstraction(finalProject, request);
             assertThat(result.getName(), equalTo("my-index"));
             assertThat(result.getType(), equalTo(IndexAbstraction.Type.CONCRETE_INDEX));
         }
         for (DocWriteRequest<?> request : docWriteRequestsForName.apply("my-alias")) {
-            IndexAbstraction result = indexNameExpressionResolver.resolveWriteIndexAbstraction(finalState, request);
+            IndexAbstraction result = indexNameExpressionResolver.resolveWriteIndexAbstraction(finalProject, request);
             assertThat(result.getName(), equalTo("my-alias"));
             assertThat(result.getType(), equalTo(IndexAbstraction.Type.ALIAS));
         }
     }
 
     public void testResolveWriteIndexAbstractionNoWriteIndexForAlias() {
-        ClusterState state1 = DataStreamTestHelper.getClusterStateWithDataStreams(
+        ProjectMetadata project1 = DataStreamTestHelper.getProjectWithDataStreams(
             List.of(new Tuple<>("logs-foobar", 1)),
             List.of("my-index", "my-index2")
         );
-        ProjectMetadata project2 = ProjectMetadata.builder(state1.getMetadata().getProject())
-            .put(IndexMetadata.builder(state1.getMetadata().getProject().index("my-index")).putAlias(new AliasMetadata.Builder("my-alias")))
-            .put(
-                IndexMetadata.builder(state1.getMetadata().getProject().index("my-index2")).putAlias(new AliasMetadata.Builder("my-alias"))
-            )
+        ProjectMetadata project2 = ProjectMetadata.builder(project1)
+            .put(IndexMetadata.builder(project1.index("my-index")).putAlias(new AliasMetadata.Builder("my-alias")))
+            .put(IndexMetadata.builder(project1.index("my-index2")).putAlias(new AliasMetadata.Builder("my-alias")))
             .build();
 
         DocWriteRequest<?> request = new IndexRequest("my-alias");
@@ -3431,18 +3529,16 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testResolveWriteIndexAbstractionMissing() {
-        ProjectMetadata project = DataStreamTestHelper.getClusterStateWithDataStreams(
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(
             List.of(new Tuple<>("logs-foobar", 1)),
             List.of("my-index")
-        ).getMetadata().getProject();
+        );
         DocWriteRequest<?> request = new IndexRequest("logs-my-index");
         expectThrows(IndexNotFoundException.class, () -> indexNameExpressionResolver.resolveWriteIndexAbstraction(project, request));
     }
 
     public void testResolveWriteIndexAbstractionMultipleMatches() {
-        ProjectMetadata project = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(), List.of("logs-foo", "logs-bar"))
-            .getMetadata()
-            .getProject();
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(List.of(), List.of("logs-foo", "logs-bar"));
         DocWriteRequest<?> request = mock(DocWriteRequest.class);
         when(request.index()).thenReturn("logs-*");
         when(request.indicesOptions()).thenReturn(IndicesOptions.lenientExpandOpen());

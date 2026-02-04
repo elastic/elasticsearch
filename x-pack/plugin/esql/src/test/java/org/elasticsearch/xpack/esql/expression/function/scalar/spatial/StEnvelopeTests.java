@@ -11,11 +11,12 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.WrapLongitude;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -36,26 +37,25 @@ public class StEnvelopeTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        String expectedGeo = "StEnvelopeFromWKBGeoEvaluator[field=Attribute[channel=0]]";
-        String expectedCartesian = "StEnvelopeFromWKBEvaluator[field=Attribute[channel=0]]";
+        String expected = "StEnvelopeFromWKBEvaluator[wkbBlock=Attribute[channel=0]]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
-        TestCaseSupplier.forUnaryGeoPoint(suppliers, expectedGeo, GEO_SHAPE, StEnvelopeTests::valueOfGeo, List.of());
-        TestCaseSupplier.forUnaryCartesianPoint(
-            suppliers,
-            expectedCartesian,
-            CARTESIAN_SHAPE,
-            StEnvelopeTests::valueOfCartesian,
-            List.of()
+        TestCaseSupplier.forUnaryGeoPoint(suppliers, expected, GEO_SHAPE, StEnvelopeTests::valueOfGeo, List.of());
+        TestCaseSupplier.forUnaryCartesianPoint(suppliers, expected, CARTESIAN_SHAPE, StEnvelopeTests::valueOfCartesian, List.of());
+        TestCaseSupplier.forUnaryGeoShape(suppliers, expected, GEO_SHAPE, StEnvelopeTests::valueOfGeo, List.of());
+        TestCaseSupplier.forUnaryCartesianShape(suppliers, expected, CARTESIAN_SHAPE, StEnvelopeTests::valueOfCartesian, List.of());
+        return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);
+    }
+
+    private static BytesRef quantize(Rectangle bbox, SpatialCoordinateTypes type) {
+        long encodedMin = type.pointAsLong(bbox.getMinX(), bbox.getMinY());
+        long encodedMax = type.pointAsLong(bbox.getMaxX(), bbox.getMaxY());
+        Rectangle quantized = new Rectangle(
+            type.decodeX(encodedMin),
+            type.decodeX(encodedMax),
+            type.decodeY(encodedMax),
+            type.decodeY(encodedMin)
         );
-        TestCaseSupplier.forUnaryGeoShape(suppliers, expectedGeo, GEO_SHAPE, StEnvelopeTests::valueOfGeo, List.of());
-        TestCaseSupplier.forUnaryCartesianShape(
-            suppliers,
-            expectedCartesian,
-            CARTESIAN_SHAPE,
-            StEnvelopeTests::valueOfCartesian,
-            List.of()
-        );
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(false, suppliers);
+        return type.asWkb(quantized);
     }
 
     private static BytesRef valueOfGeo(BytesRef wkb) {
@@ -68,20 +68,18 @@ public class StEnvelopeTests extends AbstractScalarFunctionTestCase {
 
     private static BytesRef valueOf(BytesRef wkb, boolean geo) {
         var geometry = UNSPECIFIED.wkbToGeometry(wkb);
-        if (geometry instanceof Point) {
-            return wkb;
-        }
         var envelope = geo
             ? SpatialEnvelopeVisitor.visitGeo(geometry, WrapLongitude.WRAP)
             : SpatialEnvelopeVisitor.visitCartesian(geometry);
         if (envelope.isPresent()) {
-            return UNSPECIFIED.asWkb(envelope.get());
+            SpatialCoordinateTypes type = geo ? SpatialCoordinateTypes.GEO : SpatialCoordinateTypes.CARTESIAN;
+            return quantize(envelope.get(), type);
         }
         throw new IllegalArgumentException("Geometry is empty");
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new StEnvelope(source, args.get(0));
+        return new StEnvelope(source, args.getFirst());
     }
 }

@@ -9,7 +9,7 @@
 
 package org.elasticsearch.health.node;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -18,40 +18,51 @@ import org.elasticsearch.core.Nullable;
 import java.io.IOException;
 import java.util.Map;
 
+import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.health.node.DataStreamLifecycleHealthInfo.NO_DSL_ERRORS;
+import static org.elasticsearch.health.node.FileSettingsHealthInfo.INDETERMINATE;
 
 /**
  * This class wraps all the data returned by the health node.
- * @param diskInfoByNode A Map of node id to DiskHealthInfo for that node
- * @param dslHealthInfo The data stream lifecycle health information
+ *
+ * @param diskInfoByNode         A Map of node id to DiskHealthInfo for that node
+ * @param dslHealthInfo          The data stream lifecycle health information
  * @param repositoriesInfoByNode A Map of node id to RepositoriesHealthInfo for that node
+ * @param fileSettingsHealthInfo The file-based settings health information
  */
 public record HealthInfo(
     Map<String, DiskHealthInfo> diskInfoByNode,
     @Nullable DataStreamLifecycleHealthInfo dslHealthInfo,
-    Map<String, RepositoriesHealthInfo> repositoriesInfoByNode
+    Map<String, RepositoriesHealthInfo> repositoriesInfoByNode,
+    FileSettingsHealthInfo fileSettingsHealthInfo
 ) implements Writeable {
 
-    public static final HealthInfo EMPTY_HEALTH_INFO = new HealthInfo(Map.of(), NO_DSL_ERRORS, Map.of());
+    public static final HealthInfo EMPTY_HEALTH_INFO = new HealthInfo(Map.of(), NO_DSL_ERRORS, Map.of(), INDETERMINATE);
+
+    private static final TransportVersion FILE_SETTINGS_HEALTH_INFO = TransportVersion.fromName("file_settings_health_info");
+
+    public HealthInfo {
+        requireNonNull(fileSettingsHealthInfo);
+    }
 
     public HealthInfo(StreamInput input) throws IOException {
         this(
             input.readMap(DiskHealthInfo::new),
-            input.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)
-                ? input.readOptionalWriteable(DataStreamLifecycleHealthInfo::new)
-                : null,
-            input.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0) ? input.readMap(RepositoriesHealthInfo::new) : Map.of()
+            input.readOptionalWriteable(DataStreamLifecycleHealthInfo::new),
+            input.readMap(RepositoriesHealthInfo::new),
+            input.getTransportVersion().supports(FILE_SETTINGS_HEALTH_INFO)
+                ? input.readOptionalWriteable(FileSettingsHealthInfo::new)
+                : INDETERMINATE
         );
     }
 
     @Override
     public void writeTo(StreamOutput output) throws IOException {
         output.writeMap(diskInfoByNode, StreamOutput::writeWriteable);
-        if (output.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            output.writeOptionalWriteable(dslHealthInfo);
-        }
-        if (output.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            output.writeMap(repositoriesInfoByNode, StreamOutput::writeWriteable);
+        output.writeOptionalWriteable(dslHealthInfo);
+        output.writeMap(repositoriesInfoByNode, StreamOutput::writeWriteable);
+        if (output.getTransportVersion().supports(FILE_SETTINGS_HEALTH_INFO)) {
+            output.writeOptionalWriteable(fileSettingsHealthInfo);
         }
     }
 }

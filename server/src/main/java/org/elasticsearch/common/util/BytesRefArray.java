@@ -20,6 +20,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 
 /**
  * Compact serializable container for ByteRefs
@@ -76,7 +77,7 @@ public final class BytesRefArray implements Accountable, Releasable, Writeable {
         }
     }
 
-    private BytesRefArray(LongArray startOffsets, ByteArray bytes, long size, BigArrays bigArrays) {
+    public BytesRefArray(LongArray startOffsets, ByteArray bytes, long size, BigArrays bigArrays) {
         this.bytes = bytes;
         this.startOffsets = startOffsets;
         this.size = size;
@@ -134,6 +135,40 @@ public final class BytesRefArray implements Accountable, Releasable, Writeable {
         other.size = 0;
 
         return b;
+    }
+
+    /**
+     * Creates a deep copy of the given BytesRefArray.
+     */
+    public static BytesRefArray deepCopy(BytesRefArray other) {
+        LongArray startOffsets = null;
+        ByteArray bytes = null;
+        BytesRefArray result = null;
+        try {
+            startOffsets = other.bigArrays.newLongArray(other.startOffsets.size());
+            for (long i = 0; i < other.startOffsets.size(); i++) {
+                startOffsets.set(i, other.startOffsets.get(i));
+            }
+            bytes = other.bigArrays.newByteArray(other.bytes.size());
+            BytesRefIterator it = other.bytes.iterator();
+            BytesRef ref;
+            long pos = 0;
+            try {
+                while ((ref = it.next()) != null) {
+                    bytes.set(pos, ref.bytes, ref.offset, ref.length);
+                    pos += ref.length;
+                }
+            } catch (IOException e) {
+                assert false : new AssertionError("BytesRefIterator should not throw IOException", e);
+                throw new UncheckedIOException(e);
+            }
+            result = new BytesRefArray(startOffsets, bytes, other.size, other.bigArrays);
+            return result;
+        } finally {
+            if (result == null) {
+                Releasables.closeExpectNoException(startOffsets, bytes);
+            }
+        }
     }
 
     @Override

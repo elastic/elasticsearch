@@ -114,10 +114,7 @@ public class ApiKeyAuthenticatorTests extends AbstractAuthenticatorTests {
         assertSingleSuccessAuthMetric(
             telemetryPlugin,
             SecurityMetricType.AUTHC_API_KEY,
-            Map.ofEntries(
-                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
-                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value())
-            )
+            Map.ofEntries(Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()))
         );
 
         // verify that there were no failures recorded
@@ -128,10 +125,7 @@ public class ApiKeyAuthenticatorTests extends AbstractAuthenticatorTests {
             telemetryPlugin,
             SecurityMetricType.AUTHC_API_KEY,
             executionTimeInNanos,
-            Map.ofEntries(
-                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
-                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value())
-            )
+            Map.ofEntries(Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()))
         );
     }
 
@@ -175,11 +169,7 @@ public class ApiKeyAuthenticatorTests extends AbstractAuthenticatorTests {
             assertSingleFailedAuthMetric(
                 telemetryPlugin,
                 SecurityMetricType.AUTHC_API_KEY,
-                Map.ofEntries(
-                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
-                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()),
-                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_AUTHC_FAILURE_REASON, "terminated API key auth")
-                )
+                Map.ofEntries(Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()))
             );
         } else {
             var authResult = future.actionGet();
@@ -187,11 +177,7 @@ public class ApiKeyAuthenticatorTests extends AbstractAuthenticatorTests {
             assertSingleFailedAuthMetric(
                 telemetryPlugin,
                 SecurityMetricType.AUTHC_API_KEY,
-                Map.ofEntries(
-                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
-                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()),
-                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_AUTHC_FAILURE_REASON, "unsuccessful API key auth")
-                )
+                Map.ofEntries(Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()))
             );
         }
 
@@ -203,10 +189,7 @@ public class ApiKeyAuthenticatorTests extends AbstractAuthenticatorTests {
             telemetryPlugin,
             SecurityMetricType.AUTHC_API_KEY,
             executionTimeInNanos,
-            Map.ofEntries(
-                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
-                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value())
-            )
+            Map.ofEntries(Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()))
         );
     }
 
@@ -241,11 +224,7 @@ public class ApiKeyAuthenticatorTests extends AbstractAuthenticatorTests {
         assertSingleFailedAuthMetric(
             telemetryPlugin,
             SecurityMetricType.AUTHC_API_KEY,
-            Map.ofEntries(
-                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
-                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()),
-                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_AUTHC_FAILURE_REASON, "API key auth exception")
-            )
+            Map.ofEntries(Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()))
         );
 
         // verify that there were no successes recorded
@@ -256,10 +235,7 @@ public class ApiKeyAuthenticatorTests extends AbstractAuthenticatorTests {
             telemetryPlugin,
             SecurityMetricType.AUTHC_API_KEY,
             executionTimeInNanos,
-            Map.ofEntries(
-                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
-                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value())
-            )
+            Map.ofEntries(Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()))
         );
     }
 

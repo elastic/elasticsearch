@@ -7,14 +7,14 @@
 
 package org.elasticsearch.xpack.core.security.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-public abstract class GrantRequest extends ActionRequest {
+public abstract class GrantRequest extends LegacyActionRequest {
     protected final Grant grant;
 
     public GrantRequest() {

@@ -15,6 +15,7 @@ import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileFilter;
 import java.io.FilenameFilter;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
@@ -53,6 +54,8 @@ import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.CompletionHandler;
 import java.nio.channels.DatagramChannel;
+import java.nio.channels.SelectableChannel;
+import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
@@ -95,6 +98,24 @@ import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
 
+/**
+ * Contains one "check" method for each distinct JDK method we want to instrument.
+ * <p>
+ * Methods starting with {@code check$} (with the dollar sign) follow a strict naming convention
+ * that allows them to be matched up directly against the corresponding target method or constructor
+ * by {@code InstrumentationService}.
+ * The naming convention uses dollar signs as separators,
+ * which works nicely because JCL methods don't use dollar signs.
+ * <p>
+ * Methods not starting with {@code check$} (for example, {@link #checkPathToRealPath})
+ * are processed by {@code DynamicInstrumentation} and follow a different convention.
+ * They are matched up with the appropriate implementation classes at runtime
+ * once we know what they are.
+ * <p>
+ * Some of these methods have a {@code throws} clause.
+ * The rule is that the check method should not throw a checked exception
+ * unless that exception is also thrown by the instrumented method under the same circumstances.
+ */
 @SuppressWarnings("unused") // Called from instrumentation code inserted by the Entitlements agent
 public interface EntitlementChecker {
 
@@ -129,6 +150,10 @@ public interface EntitlementChecker {
     void check$java_net_URLClassLoader$(Class<?> callerClass, String name, URL[] urls, ClassLoader parent);
 
     void check$java_net_URLClassLoader$(Class<?> callerClass, String name, URL[] urls, ClassLoader parent, URLStreamHandlerFactory factory);
+
+    void check$java_net_URLClassLoader$$newInstance(Class<?> callerClass, URL[] urls, ClassLoader parent);
+
+    void check$java_net_URLClassLoader$$newInstance(Class<?> callerClass, URL[] urls);
 
     void check$java_security_SecureClassLoader$(Class<?> callerClass);
 
@@ -260,7 +285,7 @@ public interface EntitlementChecker {
 
     void check$java_net_DatagramSocket$bind(Class<?> callerClass, DatagramSocket that, SocketAddress addr);
 
-    void check$java_net_DatagramSocket$connect(Class<?> callerClass, DatagramSocket that, InetAddress addr);
+    void check$java_net_DatagramSocket$connect(Class<?> callerClass, DatagramSocket that, InetAddress addr, int port);
 
     void check$java_net_DatagramSocket$connect(Class<?> callerClass, DatagramSocket that, SocketAddress addr);
 
@@ -388,6 +413,7 @@ public interface EntitlementChecker {
 
     void check$sun_net_www_protocol_ftp_FtpURLConnection$getOutputStream(Class<?> callerClass, java.net.URLConnection that);
 
+    // removed in JDK 24
     void check$sun_net_www_protocol_http_HttpURLConnection$$openConnectionCheckRedirects(Class<?> callerClass, java.net.URLConnection c);
 
     void check$sun_net_www_protocol_http_HttpURLConnection$connect(Class<?> callerClass, java.net.HttpURLConnection that);
@@ -518,10 +544,7 @@ public interface EntitlementChecker {
         Class<?>[] classes
     );
 
-    void check$sun_net_www_protocol_https_AbstractDelegateHttpsURLConnection$connect(
-        Class<?> callerClass,
-        javax.net.ssl.HttpsURLConnection that
-    );
+    void check$sun_net_www_protocol_https_AbstractDelegateHttpsURLConnection$connect(Class<?> callerClass, java.net.HttpURLConnection that);
 
     void check$sun_net_www_protocol_mailto_MailToURLConnection$connect(Class<?> callerClass, java.net.URLConnection that);
 
@@ -587,6 +610,16 @@ public interface EntitlementChecker {
      * (not instrumentable).
      */
 
+    void check$java_nio_channels_spi_AbstractSelectableChannel$register(
+        Class<?> callerClass,
+        SelectableChannel that,
+        Selector sel,
+        int ops,
+        Object att
+    );
+
+    void check$java_nio_channels_SelectableChannel$register(Class<?> callerClass, SelectableChannel that, Selector sel, int ops);
+
     // bind
 
     void check$java_nio_channels_AsynchronousServerSocketChannel$bind(
@@ -609,6 +642,12 @@ public interface EntitlementChecker {
     void check$java_nio_channels_ServerSocketChannel$bind(Class<?> callerClass, ServerSocketChannel that, SocketAddress local);
 
     void check$sun_nio_ch_ServerSocketChannelImpl$bind(Class<?> callerClass, ServerSocketChannel that, SocketAddress local, int backlog);
+
+    void check$java_nio_channels_SocketChannel$$open(Class<?> callerClass);
+
+    void check$java_nio_channels_SocketChannel$$open(Class<?> callerClass, java.net.ProtocolFamily family);
+
+    void check$java_nio_channels_SocketChannel$$open(Class<?> callerClass, SocketAddress remote);
 
     void check$sun_nio_ch_SocketChannelImpl$bind(Class<?> callerClass, SocketChannel that, SocketAddress local);
 
@@ -656,6 +695,18 @@ public interface EntitlementChecker {
 
     // provider methods (dynamic)
     void checkSelectorProviderInheritedChannel(Class<?> callerClass, SelectorProvider that);
+
+    void checkSelectorProviderOpenDatagramChannel(Class<?> callerClass, SelectorProvider that);
+
+    void checkSelectorProviderOpenDatagramChannel(Class<?> callerClass, SelectorProvider that, java.net.ProtocolFamily family);
+
+    void checkSelectorProviderOpenServerSocketChannel(Class<?> callerClass, SelectorProvider that);
+
+    void checkSelectorProviderOpenServerSocketChannel(Class<?> callerClass, SelectorProvider that, java.net.ProtocolFamily family);
+
+    void checkSelectorProviderOpenSocketChannel(Class<?> callerClass, SelectorProvider that);
+
+    void checkSelectorProviderOpenSocketChannel(Class<?> callerClass, SelectorProvider that, java.net.ProtocolFamily family);
 
     /// /////////////////
     //
@@ -739,6 +790,8 @@ public interface EntitlementChecker {
     void check$java_io_File$canWrite(Class<?> callerClass, File file);
 
     void check$java_io_File$createNewFile(Class<?> callerClass, File file);
+
+    void check$java_io_File$$createTempFile(Class<?> callerClass, String prefix, String suffix);
 
     void check$java_io_File$$createTempFile(Class<?> callerClass, String prefix, String suffix, File directory);
 
@@ -1206,7 +1259,14 @@ public interface EntitlementChecker {
     void checkType(Class<?> callerClass, FileStore that);
 
     // path
-    void checkPathToRealPath(Class<?> callerClass, Path that, LinkOption... options);
+
+    /**
+     * From {@link Path#toRealPath(LinkOption...)}...
+     *
+     * @throws  IOException
+     *          if the file does not exist or an I/O error occurs
+     */
+    void checkPathToRealPath(Class<?> callerClass, Path that, LinkOption... options) throws IOException;
 
     void checkPathRegister(Class<?> callerClass, Path that, WatchService watcher, WatchEvent.Kind<?>... events);
 
@@ -1237,6 +1297,34 @@ public interface EntitlementChecker {
     void check$sun_net_www_protocol_file_FileURLConnection$getLastModified(Class<?> callerClass, java.net.URLConnection that);
 
     void check$sun_net_www_protocol_file_FileURLConnection$getInputStream(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$java_net_JarURLConnection$getManifest(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$java_net_JarURLConnection$getJarEntry(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$java_net_JarURLConnection$getAttributes(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$java_net_JarURLConnection$getMainAttributes(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$java_net_JarURLConnection$getCertificates(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getJarFile(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getJarEntry(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$connect(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getInputStream(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getContentLength(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getContentLengthLong(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getContent(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getContentType(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getHeaderField(Class<?> callerClass, java.net.JarURLConnection that, String name);
 
     ////////////////////
     //

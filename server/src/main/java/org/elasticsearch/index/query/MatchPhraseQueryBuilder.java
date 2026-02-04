@@ -12,7 +12,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -127,6 +126,11 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         }
         this.zeroTermsQuery = zeroTermsQuery;
         return this;
+    }
+
+    public MatchPhraseQueryBuilder zeroTermsQuery(String zeroTermsQueryString) {
+        ZeroTermsQueryOption zeroTermsQueryOption = ZeroTermsQueryOption.readFromString(zeroTermsQueryString);
+        return zeroTermsQuery(zeroTermsQueryOption);
     }
 
     public ZeroTermsQueryOption zeroTermsQuery() {
@@ -288,6 +292,6 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

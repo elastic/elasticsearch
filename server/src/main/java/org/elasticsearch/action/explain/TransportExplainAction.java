@@ -46,7 +46,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Set;
-import java.util.concurrent.Executor;
 import java.util.function.LongSupplier;
 
 /**
@@ -102,9 +101,24 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
             super.doExecute(task, request, l);
         });
 
+        // Set cluster alias to null because this request targets a single shard and thus there cannot be any multi-cluster resource
+        // conflicts. This is also consistent with the cluster alias value set downstream in the SearchExecutionContext used in this
+        // code path.
+        // Set CCS minimize round-trips to false because this transport implementation runs coordinator rewrite only on the local cluster.
         assert request.query() != null;
         LongSupplier timeProvider = () -> request.nowInMillis;
-        Rewriteable.rewriteAndFetch(request.query(), searchService.getRewriteContext(timeProvider, resolvedIndices, null), rewriteListener);
+        Rewriteable.rewriteAndFetch(
+            request.query(),
+            searchService.getRewriteContext(
+                timeProvider,
+                clusterService.state().getMinTransportVersion(),
+                null,
+                resolvedIndices,
+                null,
+                false
+            ),
+            rewriteListener
+        );
     }
 
     @Override
@@ -114,7 +128,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
 
     @Override
     protected void resolveRequest(ProjectState state, InternalRequest request) {
-        final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(
+        final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(
             state.metadata(),
             request.request().index()
         );
@@ -183,13 +197,5 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     protected ShardIterator shards(ProjectState state, InternalRequest request) {
         return clusterService.operationRouting()
             .getShards(state, request.concreteIndex(), request.request().id(), request.request().routing(), request.request().preference());
-    }
-
-    @Override
-    protected Executor getExecutor(ExplainRequest request, ShardId shardId) {
-        IndexService indexService = searchService.getIndicesService().indexServiceSafe(shardId.getIndex());
-        return indexService.getIndexSettings().isSearchThrottled()
-            ? threadPool.executor(ThreadPool.Names.SEARCH_THROTTLED)
-            : super.getExecutor(request, shardId);
     }
 }

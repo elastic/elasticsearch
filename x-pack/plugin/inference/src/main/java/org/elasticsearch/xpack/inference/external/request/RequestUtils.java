@@ -22,7 +22,19 @@ import java.net.URISyntaxException;
 public class RequestUtils {
 
     public static Header createAuthBearerHeader(SecureString apiKey) {
-        return new BasicHeader(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey.toString());
+        return new BasicHeader(HttpHeaders.AUTHORIZATION, bearerToken(apiKey.toString()));
+    }
+
+    public static String bearerToken(String apiKey) {
+        return "Bearer " + apiKey;
+    }
+
+    public static Header createAuthApiKeyHeader(SecureString apiKey) {
+        return new BasicHeader(HttpHeaders.AUTHORIZATION, apiKey(apiKey.toString()));
+    }
+
+    public static String apiKey(String apiKey) {
+        return "ApiKey " + apiKey;
     }
 
     public static URI buildUri(URI accountUri, String service, CheckedSupplier<URI, URISyntaxException> uriBuilder) {
@@ -32,6 +44,10 @@ public class RequestUtils {
             // using bad request here so that potentially sensitive URL information does not get logged
             throw new ElasticsearchStatusException(Strings.format("Failed to construct %s URL", service), RestStatus.BAD_REQUEST, e);
         }
+    }
+
+    public static URI buildUri(String service, CheckedSupplier<URI, URISyntaxException> uriBuilder) {
+        return buildUri(null, service, uriBuilder);
     }
 
     private RequestUtils() {}

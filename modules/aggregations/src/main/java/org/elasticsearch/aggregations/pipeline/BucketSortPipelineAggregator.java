@@ -48,9 +48,8 @@ public class BucketSortPipelineAggregator extends PipelineAggregator {
 
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
-        @SuppressWarnings({ "rawtypes", "unchecked" })
-        InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg =
-            (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
+        InternalMultiBucketAggregation<InternalMultiBucketAggregation<?, ?>, InternalMultiBucketAggregation.InternalBucket> originalAgg =
+            asMultiBucketAggregation(aggregation);
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
         int bucketsCount = buckets.size();
         int currentSize = size == null ? bucketsCount : size;

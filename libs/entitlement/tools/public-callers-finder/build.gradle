@@ -1,9 +1,10 @@
+import org.elasticsearch.gradle.OS
+
 plugins {
   id 'application'
 }
 
 apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.publish'
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /asm-.*/, to: 'asm'
@@ -41,19 +42,45 @@ application {
   ]
 }
 
+configurations {
+  dumpMethods
+}
+
+def instrumentedMethodsDump = project.layout.buildDirectory.file('instrumented-methods.dump').get().asFile
+
+tasks.named("run").configure {
+  dependsOn 'dumpInstrumentedMethods'
+  systemProperty 'es.entitlements.dump', instrumentedMethodsDump
+  executable = "${buildParams.runtimeJavaHome.get()}/bin/java" + (OS.current() == OS.WINDOWS ? '.exe' : '')
+}
+
+tasks.register('dumpInstrumentedMethods', JavaExec) {
+  classpath = configurations.dumpMethods
+  mainClass = 'org.elasticsearch.entitlement.initialization.DynamicInstrumentationUtils'
+  systemProperty 'es.entitlements.dump', instrumentedMethodsDump
+}
+
 repositories {
   mavenCentral()
 }
 
 dependencies {
-  compileOnly(project(':libs:core'))
-  implementation 'org.ow2.asm:asm:9.7.1'
-  implementation 'org.ow2.asm:asm-util:9.7.1'
+  implementation(project(':libs:core'))
+  implementation 'org.ow2.asm:asm:9.9'
+  implementation 'org.ow2.asm:asm-util:9.9'
   implementation(project(':libs:entitlement:tools:common'))
+
+  dumpMethods testArtifact(project(':libs:entitlement'))
+
+  testImplementation project(":test:framework")
 }
 
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
+}
+
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.tsv'
 }
 
 tasks.named("thirdPartyAudit").configure {

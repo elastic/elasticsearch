@@ -5,7 +5,7 @@ mapped_pages:
 
 # smartcn_stop token filter [analysis-smartcn_stop]
 
-The `smartcn_stop` token filter filters out stopwords defined by `smartcn` analyzer (`_smartcn_`), and any other custom stopwords specified by the user. This filter only supports the predefined `_smartcn_` stopwords list. If you want to use a different predefined list, then use the [`stop` token filter](/reference/data-analysis/text-analysis/analysis-stop-tokenfilter.md) instead.
+The `smartcn_stop` token filter filters out stopwords defined by `smartcn` analyzer (`_smartcn_`), and any other custom stopwords specified by the user. This filter only supports the predefined `_smartcn_` stopwords list. If you want to use a different predefined list, then use the [`stop` token filter](/reference/text-analysis/analysis-stop-tokenfilter.md) instead.
 
 ```console
 PUT smartcn_example

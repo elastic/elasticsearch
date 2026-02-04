@@ -746,16 +746,16 @@ public class Cache<K, V> {
      *
      * @return the current cache statistics
      */
-    public CacheStats stats() {
-        return new CacheStats(this.hits.sum(), misses.sum(), evictions.sum());
+    public Stats stats() {
+        return new Stats(this.hits.sum(), misses.sum(), evictions.sum());
     }
 
-    public static class CacheStats {
+    public static class Stats {
         private final long hits;
         private final long misses;
         private final long evictions;
 
-        public CacheStats(long hits, long misses, long evictions) {
+        public Stats(long hits, long misses, long evictions) {
             this.hits = hits;
             this.misses = misses;
             this.evictions = evictions;

@@ -31,6 +31,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.ReferenceDocs.MACHINE_LEARNING_SETTINGS;
 import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.simulateRequest;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -949,6 +950,34 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         assertThat(
             EntityUtils.toString(ex.getResponse().getEntity()),
             containsString("Could not start deployment because there are not enough resources to provide all requested allocations")
+        );
+
+        Response response = getTrainedModelStats(modelId);
+        assertThat(EntityUtils.toString(response.getEntity()), not(containsString("deployment_stats")));
+    }
+
+    public void testStartDeployment_ModelTooBig() throws IOException {
+        String modelId = "test_start_deployment_too_big_model";
+        // Create a model with memory requirements that exceed available node native memory
+        long perDeploymentMemoryBytes = ByteSizeValue.ofGb(100).getBytes();
+        long perAllocationMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
+        createPassThroughModel(modelId, perDeploymentMemoryBytes, perAllocationMemoryBytes);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+
+        ResponseException ex = expectThrows(
+            ResponseException.class,
+            () -> startDeployment(modelId, modelId, AllocationStatus.State.STARTED, 1, 1, Priority.NORMAL)
+        );
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(429));
+        assertThat(
+            EntityUtils.toString(ex.getResponse().getEntity()),
+            containsString(
+                Strings.format(
+                    "If you can, consider setting `xpack.ml.use_auto_machine_memory_percent` to true: [%s]",
+                    MACHINE_LEARNING_SETTINGS
+                )
+            )
         );
 
         Response response = getTrainedModelStats(modelId);

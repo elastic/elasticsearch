@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
@@ -18,6 +16,7 @@ import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
@@ -49,6 +48,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -714,8 +714,19 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             }
 
             public void applyMetadata(Metadata.Builder metadataBuilder) {
-                additionalIndices.keySet().forEach(imd -> metadataBuilder.put(imd, false));
-                metadataBuilder.put(updatedDataStream);
+                @FixForMultiProject
+                final ProjectId projectId = ProjectId.DEFAULT;
+                ProjectMetadata.Builder projectBuilder = metadataBuilder.getProject(projectId);
+                if (projectBuilder == null) {
+                    projectBuilder = ProjectMetadata.builder(projectId);
+                    metadataBuilder.put(projectBuilder);
+                }
+                applyProjectMetadata(projectBuilder);
+            }
+
+            public void applyProjectMetadata(ProjectMetadata.Builder projectBuilder) {
+                additionalIndices.keySet().forEach(imd -> projectBuilder.put(imd, false));
+                projectBuilder.put(updatedDataStream);
             }
 
             public void applySize(Map<String, Long> builder, RoutingTable updatedRoutingTable) {
@@ -895,9 +906,14 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         private static Metadata removeNodeLockFilters(Metadata metadata) {
-            Metadata.Builder builder = Metadata.builder(metadata);
-            metadata.getProject()
-                .stream()
+            @FixForMultiProject
+            final ProjectMetadata updatedProject = removeNodeLockFilters(metadata.getProject());
+            return Metadata.builder(metadata).put(updatedProject).build();
+        }
+
+        private static ProjectMetadata removeNodeLockFilters(ProjectMetadata project) {
+            ProjectMetadata.Builder builder = ProjectMetadata.builder(project);
+            project.stream()
                 .filter(AllocationState::isNodeLocked)
                 .map(AllocationState::removeNodeLockFilters)
                 .forEach(imd -> builder.put(imd, false));
@@ -941,7 +957,12 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                     extraShardSizes,
                     Map.of(),
                     Map.of(),
-                    Map.of()
+                    Map.of(),
+                    Map.of(),
+                    Map.of(),
+                    Map.of(),
+                    Map.of(),
+                    Set.of()
                 );
                 this.delegate = info;
             }
@@ -997,8 +1018,6 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
     public static class ReactiveReason implements AutoscalingDeciderResult.Reason {
 
         static final int MAX_AMOUNT_OF_SHARDS = 512;
-        private static final TransportVersion SHARD_IDS_OUTPUT_VERSION = TransportVersions.V_8_4_0;
-        private static final TransportVersion UNASSIGNED_NODE_DECISIONS_OUTPUT_VERSION = TransportVersions.V_8_9_X;
 
         private final String reason;
         private final long unassigned;
@@ -1034,20 +1053,10 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             this.reason = in.readString();
             this.unassigned = in.readLong();
             this.assigned = in.readLong();
-            if (in.getTransportVersion().onOrAfter(SHARD_IDS_OUTPUT_VERSION)) {
-                unassignedShardIds = Collections.unmodifiableSortedSet(new TreeSet<>(in.readCollectionAsSet(ShardId::new)));
-                assignedShardIds = Collections.unmodifiableSortedSet(new TreeSet<>(in.readCollectionAsSet(ShardId::new)));
-            } else {
-                unassignedShardIds = Collections.emptySortedSet();
-                assignedShardIds = Collections.emptySortedSet();
-            }
-            if (in.getTransportVersion().onOrAfter(UNASSIGNED_NODE_DECISIONS_OUTPUT_VERSION)) {
-                unassignedNodeDecisions = in.readMap(ShardId::new, NodeDecisions::new);
-                assignedNodeDecisions = in.readMap(ShardId::new, NodeDecisions::new);
-            } else {
-                unassignedNodeDecisions = Map.of();
-                assignedNodeDecisions = Map.of();
-            }
+            unassignedShardIds = Collections.unmodifiableSortedSet(new TreeSet<>(in.readCollectionAsSet(ShardId::new)));
+            assignedShardIds = Collections.unmodifiableSortedSet(new TreeSet<>(in.readCollectionAsSet(ShardId::new)));
+            unassignedNodeDecisions = in.readMap(ShardId::new, NodeDecisions::new);
+            assignedNodeDecisions = in.readMap(ShardId::new, NodeDecisions::new);
         }
 
         @Override
@@ -1089,14 +1098,10 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             out.writeString(reason);
             out.writeLong(unassigned);
             out.writeLong(assigned);
-            if (out.getTransportVersion().onOrAfter(SHARD_IDS_OUTPUT_VERSION)) {
-                out.writeCollection(unassignedShardIds);
-                out.writeCollection(assignedShardIds);
-            }
-            if (out.getTransportVersion().onOrAfter(UNASSIGNED_NODE_DECISIONS_OUTPUT_VERSION)) {
-                out.writeMap(unassignedNodeDecisions);
-                out.writeMap(assignedNodeDecisions);
-            }
+            out.writeCollection(unassignedShardIds);
+            out.writeCollection(assignedShardIds);
+            out.writeMap(unassignedNodeDecisions);
+            out.writeMap(assignedNodeDecisions);
         }
 
         @Override

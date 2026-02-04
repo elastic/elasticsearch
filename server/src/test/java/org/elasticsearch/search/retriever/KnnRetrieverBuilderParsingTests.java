@@ -52,6 +52,7 @@ public class KnnRetrieverBuilderParsingTests extends AbstractXContentTestCase<Kn
         float[] vector = randomVector(dim);
         int k = randomIntBetween(1, 100);
         int numCands = randomIntBetween(k + 20, 1000);
+        Float visitPercentage = randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true);
         Float similarity = randomBoolean() ? null : randomFloat();
         RescoreVectorBuilder rescoreVectorBuilder = randomBoolean()
             ? null
@@ -63,6 +64,7 @@ public class KnnRetrieverBuilderParsingTests extends AbstractXContentTestCase<Kn
             null,
             k,
             numCands,
+            visitPercentage,
             rescoreVectorBuilder,
             similarity
         );

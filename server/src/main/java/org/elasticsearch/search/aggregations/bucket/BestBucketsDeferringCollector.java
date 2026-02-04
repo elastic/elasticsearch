@@ -12,13 +12,13 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongHash;
@@ -163,7 +163,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         boolean needsScores = scoreMode().needsScores();
         Weight weight = null;
         if (needsScores) {
-            Query query = isGlobal ? new MatchAllDocsQuery() : topLevelQuery;
+            Query query = isGlobal ? Queries.ALL_DOCS_INSTANCE : topLevelQuery;
             weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE, 1f);
         }
 

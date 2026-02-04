@@ -10,7 +10,7 @@
 package org.elasticsearch.logsdb.datageneration;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.logsdb.datageneration.matchers.source.SourceMatcher;
+import org.elasticsearch.datageneration.matchers.source.SourceMatcher;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -27,6 +27,7 @@ public class SourceMatcherTests extends ESTestCase {
         );
 
         var sut = new SourceMatcher(
+            Map.of(),
             XContentBuilder.builder(XContentType.JSON.xContent()).startObject().endObject(),
             Settings.builder(),
             XContentBuilder.builder(XContentType.JSON.xContent()).startObject().endObject(),
@@ -49,6 +50,7 @@ public class SourceMatcherTests extends ESTestCase {
         );
 
         var sut = new SourceMatcher(
+            Map.of(),
             XContentBuilder.builder(XContentType.JSON.xContent()).startObject().endObject(),
             Settings.builder(),
             XContentBuilder.builder(XContentType.JSON.xContent()).startObject().endObject(),
@@ -77,7 +79,7 @@ public class SourceMatcherTests extends ESTestCase {
         mapping.endObject();
         mapping.endObject();
 
-        var sut = new SourceMatcher(mapping, Settings.builder(), mapping, Settings.builder(), values, values, false);
+        var sut = new SourceMatcher(Map.of(), mapping, Settings.builder(), mapping, Settings.builder(), values, values, false);
         assertTrue(sut.match().isMatch());
     }
 
@@ -102,7 +104,7 @@ public class SourceMatcherTests extends ESTestCase {
         mapping.endObject();
         mapping.endObject();
 
-        var sut = new SourceMatcher(mapping, Settings.builder(), mapping, Settings.builder(), actual, expected, false);
+        var sut = new SourceMatcher(Map.of(), mapping, Settings.builder(), mapping, Settings.builder(), actual, expected, false);
         assertFalse(sut.match().isMatch());
     }
 
@@ -119,7 +121,7 @@ public class SourceMatcherTests extends ESTestCase {
         mapping.endObject();
         mapping.endObject();
 
-        var sut = new SourceMatcher(mapping, Settings.builder(), mapping, Settings.builder(), actual, expected, false);
+        var sut = new SourceMatcher(Map.of(), mapping, Settings.builder(), mapping, Settings.builder(), actual, expected, false);
         assertTrue(sut.match().isMatch());
     }
 
@@ -136,7 +138,74 @@ public class SourceMatcherTests extends ESTestCase {
         mapping.endObject();
         mapping.endObject();
 
-        var sut = new SourceMatcher(mapping, Settings.builder(), mapping, Settings.builder(), actual, expected, false);
+        var sut = new SourceMatcher(Map.of(), mapping, Settings.builder(), mapping, Settings.builder(), actual, expected, false);
         assertFalse(sut.match().isMatch());
+    }
+
+    public void testCoercedNumberField() throws IOException {
+
+        // Parsing non-ascii digit strings only works for `long` mappings.
+        List<Map<String, Object>> expected = List.of(Map.of("field", List.of("꧕", "123")));
+        List<Map<String, Object>> actual = List.of(Map.of("field", List.of(5, 123)));
+
+        var mapping = XContentBuilder.builder(XContentType.JSON.xContent());
+        mapping.startObject();
+        mapping.startObject("_doc");
+        {
+            mapping.startObject("field").field("type", "long").endObject();
+        }
+        mapping.endObject();
+        mapping.endObject();
+
+        var sut = new SourceMatcher(Map.of(), mapping, Settings.builder(), mapping, Settings.builder(), actual, expected, false);
+        assertTrue(sut.match().isMatch());
+    }
+
+    public void testNullValueIntegerNumericMatcherCastsType() throws IOException {
+        String type = randomFrom("byte", "short", "integer", "long");
+        int nullValue = 51;
+        List<Map<String, Object>> actual = List.of(Map.of("field", List.of(5, nullValue, "")));
+        List<Map<String, Object>> expected = List.of(Map.of("field", List.of(5, nullValue, nullValue)));
+
+        var mapping = XContentBuilder.builder(XContentType.JSON.xContent());
+        mapping.startObject();
+        mapping.startObject("_doc");
+        {
+            mapping.startObject("field");
+            {
+                mapping.field("type", type);
+                mapping.field("null_value", nullValue);
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+        mapping.endObject();
+
+        var sut = new SourceMatcher(Map.of(), mapping, Settings.builder(), mapping, Settings.builder(), actual, expected, false);
+        assertTrue(sut.match().isMatch());
+    }
+
+    public void testNullValueFloatingPointNumericMatcherCastsType() throws IOException {
+        String type = randomFrom("float", "double");
+        double nullValue = 51.123;
+        List<Map<String, Object>> actual = List.of(Map.of("field", List.of(5, nullValue, "")));
+        List<Map<String, Object>> expected = List.of(Map.of("field", List.of(5, nullValue, nullValue)));
+
+        var mapping = XContentBuilder.builder(XContentType.JSON.xContent());
+        mapping.startObject();
+        mapping.startObject("_doc");
+        {
+            mapping.startObject("field");
+            {
+                mapping.field("type", type);
+                mapping.field("null_value", nullValue);
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+        mapping.endObject();
+
+        var sut = new SourceMatcher(Map.of(), mapping, Settings.builder(), mapping, Settings.builder(), actual, expected, false);
+        assertTrue(sut.match().isMatch());
     }
 }

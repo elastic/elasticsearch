@@ -16,7 +16,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.MapperService;
@@ -74,10 +74,9 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
         long fromSeqNo,
         long toSeqNo,
         boolean requiredFullRange,
-        boolean accessStats,
-        IndexVersion indexVersionCreated
+        boolean accessStats
     ) throws IOException {
-        super(mapperService, engineSearcher, searchBatchSize, fromSeqNo, toSeqNo, requiredFullRange, accessStats, indexVersionCreated);
+        super(mapperService, engineSearcher, searchBatchSize, fromSeqNo, toSeqNo, requiredFullRange, accessStats);
         // a MapperService#updateMapping(...) of empty index may not have been invoked and then mappingLookup is empty
         assert engineSearcher.getDirectoryReader().maxDoc() == 0 || mapperService.mappingLookup().isSourceSynthetic()
             : "either an empty index or synthetic source must be enabled for proper functionality.";
@@ -85,7 +84,10 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
         this.maxMemorySizeInBytes = maxMemorySizeInBytes > 0 ? maxMemorySizeInBytes : 1;
         this.sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
         Set<String> storedFields = sourceLoader.requiredStoredFields();
-        this.storedFieldLoader = StoredFieldLoader.create(false, storedFields);
+        String defaultCodec = EngineConfig.INDEX_CODEC_SETTING.get(mapperService.getIndexSettings().getSettings());
+        // zstd best compression stores upto 2048 docs in a block, so it is likely that in this case docs are co-located in same block:
+        boolean forceSequentialReader = CodecService.BEST_COMPRESSION_CODEC.equals(defaultCodec);
+        this.storedFieldLoader = StoredFieldLoader.create(false, storedFields, forceSequentialReader);
         this.lastSeenSeqNo = fromSeqNo - 1;
     }
 
@@ -201,6 +203,10 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
                     if (record.isTombstone()) {
                         continue;
                     }
+                    if (record.hasRecoverySourceSize() == false && skipDocsWithNullSource()) {
+                        assert requiredFullRange == false : "source not found for seqno=" + record.seqNo();
+                        continue;
+                    }
                     int docID = record.docID();
                     if (docID >= docBase + maxDoc) {
                         break;
@@ -215,7 +221,7 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
                 int[] nextDocIdArray = nextDocIds.toArray();
                 leafFieldLoader = storedFieldLoader.getLoader(leafReaderContext, nextDocIdArray);
                 leafSourceLoader = sourceLoader.leaf(leafReaderContext.reader(), nextDocIdArray);
-                setNextSourceMetadataReader(leafReaderContext);
+                setNextSyntheticFieldsReader(leafReaderContext);
             }
             int segmentDocID = docRecord.docID() - docBase;
             leafFieldLoader.advanceTo(segmentDocID);
@@ -237,7 +243,7 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
             return new Translog.NoOp(docRecord.seqNo(), docRecord.primaryTerm(), "null");
         } else if (docRecord.isTombstone()) {
             assert assertDocSoftDeleted(context.reader(), segmentDocID) : "Delete op but soft_deletes field is not set [" + docRecord + "]";
-            return new Translog.Delete(fieldLoader.id(), docRecord.seqNo(), docRecord.primaryTerm(), docRecord.version());
+            return new Translog.Delete(overrideId(fieldLoader.id()), docRecord.seqNo(), docRecord.primaryTerm(), docRecord.version());
         } else {
             if (docRecord.hasRecoverySourceSize() == false) {
                 // TODO: Callers should ask for the range that source should be retained. Thus we should always
@@ -246,18 +252,18 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
                     throw new MissingHistoryOperationsException(
                         "source not found for seqno=" + docRecord.seqNo() + " from_seqno=" + fromSeqNo + " to_seqno=" + toSeqNo
                     );
-                } else {
+                } else if (skipDocsWithNullSource()) {
                     skippedOperations++;
                     return null;
                 }
             }
-            var sourceBytes = addSourceMetadata(sourceLoader.source(fieldLoader, segmentDocID).internalSourceRef(), segmentDocID);
+            var source = addSyntheticFields(sourceLoader.source(fieldLoader, segmentDocID), segmentDocID);
             return new Translog.Index(
-                fieldLoader.id(),
+                overrideId(fieldLoader.id()),
                 docRecord.seqNo(),
                 docRecord.primaryTerm(),
                 docRecord.version(),
-                sourceBytes,
+                source != null ? source.internalSourceRef() : null,
                 fieldLoader.routing(),
                 -1 // autogenerated timestamp
             );

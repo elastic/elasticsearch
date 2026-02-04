@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
-import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 
 public final class PruneEmptyPlans extends OptimizerRules.OptimizerRule<UnaryPlan> {
 
     public static LogicalPlan skipPlan(UnaryPlan plan) {
-        return new LocalRelation(plan.source(), plan.output(), LocalSupplier.EMPTY);
+        return new LocalRelation(plan.source(), plan.output(), EmptyLocalSupplier.EMPTY);
     }
 
     @Override

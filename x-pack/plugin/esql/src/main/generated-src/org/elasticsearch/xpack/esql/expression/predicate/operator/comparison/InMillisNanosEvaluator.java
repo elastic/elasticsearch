@@ -7,10 +7,14 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
+// begin generated imports
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -21,12 +25,15 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Arrays;
 import java.util.BitSet;
+// end generated imports
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link In}.
  * This class is generated. Edit {@code X-InEvaluator.java.st} instead.
  */
 public class InMillisNanosEvaluator implements EvalOperator.ExpressionEvaluator {
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(InMillisNanosEvaluator.class);
+
     private final Source source;
 
     private final EvalOperator.ExpressionEvaluator lhs;
@@ -146,18 +153,23 @@ public class InMillisNanosEvaluator implements EvalOperator.ExpressionEvaluator 
     }
 
     @Override
+    public long baseRamBytesUsed() {
+        long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+        baseRamBytesUsed += lhs.baseRamBytesUsed();
+        for (EvalOperator.ExpressionEvaluator r : rhs) {
+            baseRamBytesUsed += r.baseRamBytesUsed();
+        }
+        return baseRamBytesUsed;
+    }
+
+    @Override
     public void close() {
         Releasables.closeExpectNoException(lhs, () -> Releasables.close(rhs));
     }
 
     private Warnings warnings() {
         if (warnings == null) {
-            this.warnings = Warnings.createWarnings(
-                driverContext.warningsMode(),
-                source.source().getLineNumber(),
-                source.source().getColumnNumber(),
-                source.text()
-            );
+            this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
         }
         return warnings;
     }

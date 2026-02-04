@@ -21,7 +21,7 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
+import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.plugins.Plugin;
 
 import java.util.Arrays;
@@ -68,12 +68,10 @@ public final class MockIndexEventListener {
     }
 
     public static class TestEventListener implements IndexEventListener {
-        private volatile IndexEventListener delegate = new IndexEventListener() {
-        };
+        private volatile IndexEventListener delegate = new IndexEventListener() {};
 
         public void setNewDelegate(IndexEventListener listener) {
-            delegate = listener == null ? new IndexEventListener() {
-            } : listener;
+            delegate = listener == null ? new IndexEventListener() {} : listener;
         }
 
         @Override

@@ -1,0 +1,15 @@
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+
+dependencies {
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(':server')))
+  testImplementation(project(':x-pack:plugin:inference:qa:test-service-plugin'))
+  testImplementation project(':modules:reindex')
+  testImplementation project(':modules:mapper-extras')
+  clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
+}
+
+tasks.named('yamlRestTest') {
+  usesDefaultDistribution("to be triaged")
+}
+

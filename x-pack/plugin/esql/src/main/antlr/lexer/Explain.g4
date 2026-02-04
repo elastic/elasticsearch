@@ -9,12 +9,12 @@ lexer grammar Explain;
 //
 // Explain
 //
-EXPLAIN : 'explain'           -> pushMode(EXPLAIN_MODE);
-
+DEV_EXPLAIN : {this.isDevVersion()}? 'explain'           -> pushMode(EXPLAIN_MODE);
 
 mode EXPLAIN_MODE;
-EXPLAIN_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET), pushMode(DEFAULT_MODE);
+EXPLAIN_LP : LP -> type(LP), pushMode(DEFAULT_MODE);
 EXPLAIN_PIPE : PIPE -> type(PIPE), popMode;
+
 EXPLAIN_WS : WS -> channel(HIDDEN);
 EXPLAIN_LINE_COMMENT : LINE_COMMENT -> channel(HIDDEN);
 EXPLAIN_MULTILINE_COMMENT : MULTILINE_COMMENT -> channel(HIDDEN);

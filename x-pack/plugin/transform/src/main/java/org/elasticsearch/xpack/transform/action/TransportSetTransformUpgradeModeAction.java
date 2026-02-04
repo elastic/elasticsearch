@@ -77,8 +77,10 @@ public class TransportSetTransformUpgradeModeAction extends AbstractTransportSet
     @Override
     protected ClusterState createUpdatedState(SetUpgradeModeActionRequest request, ClusterState state) {
         var updatedTransformMetadata = TransformMetadata.getTransformMetadata(state).builder().upgradeMode(request.enabled()).build();
-        var updatedClusterMetadata = state.metadata().copyAndUpdate(b -> b.putCustom(TransformMetadata.TYPE, updatedTransformMetadata));
-        return state.copyAndUpdate(b -> b.metadata(updatedClusterMetadata));
+        return state.copyAndUpdateProject(
+            state.metadata().getProject().id(),
+            b -> b.putCustom(TransformMetadata.TYPE, updatedTransformMetadata)
+        );
     }
 
     @Override
@@ -131,7 +133,7 @@ public class TransportSetTransformUpgradeModeAction extends AbstractTransportSet
 
         // chain each call one at a time
         // because that is what we are doing for ML, and that is all that is supported in the persistentTasksClusterService (for now)
-        SubscribableListener<PersistentTasksCustomMetadata.PersistentTask<?>> chainListener = SubscribableListener.newSucceeded(null);
+        SubscribableListener<PersistentTasksCustomMetadata.PersistentTask<?>> chainListener = SubscribableListener.nullSuccess();
         for (var task : transformTasks) {
             @FixForMultiProject
             final var projectId = Metadata.DEFAULT_PROJECT_ID;
@@ -187,12 +189,15 @@ public class TransportSetTransformUpgradeModeAction extends AbstractTransportSet
 
     private void waitForTransformsToRestart(SetUpgradeModeActionRequest request, ActionListener<AcknowledgedResponse> listener) {
         logger.info("Disabling upgrade mode for Transforms, must wait for tasks to not have AWAITING_UPGRADE assignment");
-        persistentTasksService.waitForPersistentTasksCondition(
-            persistentTasksCustomMetadata -> persistentTasksCustomMetadata.tasks()
+        @FixForMultiProject
+        final var projectId = Metadata.DEFAULT_PROJECT_ID;
+        persistentTasksService.waitForPersistentTasksCondition(projectId, persistentTasksCustomMetadata -> {
+            if (persistentTasksCustomMetadata == null) {
+                return true;
+            }
+            return persistentTasksCustomMetadata.tasks()
                 .stream()
-                .noneMatch(t -> isTransformTask(t) && t.getAssignment().equals(AWAITING_UPGRADE)),
-            request.ackTimeout(),
-            listener.delegateFailureAndWrap((d, r) -> d.onResponse(AcknowledgedResponse.TRUE))
-        );
+                .noneMatch(t -> isTransformTask(t) && t.getAssignment().equals(AWAITING_UPGRADE));
+        }, request.ackTimeout(), listener.delegateFailureAndWrap((d, r) -> d.onResponse(AcknowledgedResponse.TRUE)));
     }
 }

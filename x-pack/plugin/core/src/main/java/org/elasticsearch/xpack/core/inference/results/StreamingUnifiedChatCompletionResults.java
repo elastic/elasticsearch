@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -14,8 +15,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xpack.core.inference.DequeUtils;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -23,6 +26,8 @@ import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Flow;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
 import static org.elasticsearch.xpack.core.inference.DequeUtils.dequeEquals;
@@ -32,9 +37,7 @@ import static org.elasticsearch.xpack.core.inference.DequeUtils.readDeque;
 /**
  * Chat Completion results that only contain a Flow.Publisher.
  */
-public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends InferenceServiceResults.Result> publisher)
-    implements
-        InferenceServiceResults {
+public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publisher) implements InferenceServiceResults {
 
     public static final String NAME = "chat_completion_chunk";
     public static final String MODEL_FIELD = "model";
@@ -55,7 +58,68 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends Inf
     public static final String COMPLETION_TOKENS_FIELD = "completion_tokens";
     public static final String TOTAL_TOKENS_FIELD = "total_tokens";
     public static final String PROMPT_TOKENS_FIELD = "prompt_tokens";
+    public static final String PROMPT_TOKENS_DETAILS_FIELD = "prompt_tokens_details";
+    public static final String CACHED_TOKENS_FIELD = "cached_tokens";
     public static final String TYPE_FIELD = "type";
+
+    private static final TransportVersion INFERENCE_CACHED_TOKENS = TransportVersion.fromName("inference_cached_tokens");
+
+    /**
+     * OpenAI Spec only returns one result at a time, and Chat Completion adheres to that spec as much as possible.
+     * So we will insert a buffer in between the upstream data and the downstream client so that we only send one request at a time.
+     */
+    public StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publisher) {
+        Deque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> buffer = new LinkedBlockingDeque<>();
+        AtomicBoolean onComplete = new AtomicBoolean();
+        this.publisher = downstream -> {
+            publisher.subscribe(new Flow.Subscriber<>() {
+                @Override
+                public void onSubscribe(Flow.Subscription subscription) {
+                    downstream.onSubscribe(new Flow.Subscription() {
+                        @Override
+                        public void request(long n) {
+                            var nextItem = buffer.poll();
+                            if (nextItem != null) {
+                                downstream.onNext(new Results(DequeUtils.of(nextItem)));
+                            } else if (onComplete.get()) {
+                                downstream.onComplete();
+                            } else {
+                                subscription.request(n);
+                            }
+                        }
+
+                        @Override
+                        public void cancel() {
+                            subscription.cancel();
+                        }
+                    });
+                }
+
+                @Override
+                public void onNext(Results item) {
+                    var chunks = item.chunks();
+                    var firstItem = chunks.poll();
+                    chunks.forEach(buffer::offer);
+                    downstream.onNext(new Results(DequeUtils.of(firstItem)));
+                }
+
+                @Override
+                public void onError(Throwable throwable) {
+                    downstream.onError(throwable);
+                }
+
+                @Override
+                public void onComplete() {
+                    // only complete if the buffer is empty, so that the client has a chance to drain the buffer
+                    if (onComplete.compareAndSet(false, true)) {
+                        if (buffer.isEmpty()) {
+                            downstream.onComplete();
+                        }
+                    }
+                }
+            });
+        };
+    }
 
     @Override
     public boolean isStreaming() {
@@ -124,15 +188,16 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends Inf
                 chunk((b, p) -> b.field(ID_FIELD, id)),
                 choices != null ? ChunkedToXContentHelper.array(CHOICES_FIELD, choices.iterator(), params) : Collections.emptyIterator(),
                 chunk((b, p) -> b.field(MODEL_FIELD, model).field(OBJECT_FIELD, object)),
-                usage != null
-                    ? chunk(
-                        (b, p) -> b.startObject(USAGE_FIELD)
-                            .field(COMPLETION_TOKENS_FIELD, usage.completionTokens())
-                            .field(PROMPT_TOKENS_FIELD, usage.promptTokens())
-                            .field(TOTAL_TOKENS_FIELD, usage.totalTokens())
-                            .endObject()
-                    )
-                    : Collections.emptyIterator(),
+                usage != null ? chunk((b, p) -> {
+                    var builder = b.startObject(USAGE_FIELD)
+                        .field(COMPLETION_TOKENS_FIELD, usage.completionTokens())
+                        .field(PROMPT_TOKENS_FIELD, usage.promptTokens())
+                        .field(TOTAL_TOKENS_FIELD, usage.totalTokens());
+                    if (usage.cachedTokens() != null) {
+                        builder.startObject(PROMPT_TOKENS_DETAILS_FIELD).field(CACHED_TOKENS_FIELD, usage.cachedTokens()).endObject();
+                    }
+                    return builder.endObject();
+                }) : Collections.emptyIterator(),
                 ChunkedToXContentHelper.endObject()
             );
         }
@@ -301,9 +366,18 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends Inf
             }
         }
 
-        public record Usage(int completionTokens, int promptTokens, int totalTokens) implements Writeable {
+        public record Usage(int completionTokens, int promptTokens, int totalTokens, @Nullable Integer cachedTokens) implements Writeable {
+            public Usage(int completionTokens, int promptTokens, int totalTokens) {
+                this(completionTokens, promptTokens, totalTokens, null);
+            }
+
             private Usage(StreamInput in) throws IOException {
-                this(in.readInt(), in.readInt(), in.readInt());
+                this(
+                    in.readInt(),
+                    in.readInt(),
+                    in.readInt(),
+                    in.getTransportVersion().supports(INFERENCE_CACHED_TOKENS) ? in.readOptionalInt() : null
+                );
             }
 
             @Override
@@ -311,6 +385,9 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends Inf
                 out.writeInt(completionTokens);
                 out.writeInt(promptTokens);
                 out.writeInt(totalTokens);
+                if (out.getTransportVersion().supports(INFERENCE_CACHED_TOKENS)) {
+                    out.writeOptionalInt(cachedTokens);
+                }
             }
         }
 

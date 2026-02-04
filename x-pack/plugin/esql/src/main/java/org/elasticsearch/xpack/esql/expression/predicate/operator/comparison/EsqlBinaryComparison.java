@@ -13,6 +13,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
@@ -20,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
@@ -45,19 +48,23 @@ import java.math.BigInteger;
 import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.HOUR_MINUTE_SECOND;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateWithTypeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
@@ -65,6 +72,8 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
     implements
         EvaluatorMapper,
         TranslationAware.SingleValueTranslationAware {
+
+    private static final Logger logger = LogManager.getLogger(EsqlBinaryComparison.class);
 
     private final Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap;
 
@@ -223,6 +232,23 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
 
         // Our type is always boolean, so figure out the evaluator type from the inputs
         DataType commonType = commonType(left().dataType(), right().dataType());
+
+        // if you reached this point, it means that the types were not compatible, which should have been caught by the type resolution
+        // verification step, so this should never happen in practice. We are throwing an exception in this case to get more information
+        // about the failure, if it does happen.
+        // see also https://github.com/elastic/elasticsearch/issues/141267
+        if (commonType == null) {
+            throw new EsqlIllegalArgumentException(
+                "Cannot compare incompatible types ["
+                    + left().dataType().typeName()
+                    + "] and ["
+                    + right().dataType().typeName()
+                    + "] "
+                    + "with operator ["
+                    + functionType.symbol()
+                    + "]"
+            );
+        }
         if (commonType.isNumeric()) {
             lhs = Cast.cast(source(), left().dataType(), commonType, toEvaluator.apply(left()));
             rhs = Cast.cast(source(), right().dataType(), commonType, toEvaluator.apply(right()));
@@ -321,16 +347,22 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
     }
 
     @Override
-    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
-        if (right().foldable()) {
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        if (right() instanceof Literal lit) {
+            // Multi-valued literals are not supported going further. This also makes sure that we are handling multi-valued literals with
+            // a "warning" header, as well (see EqualsKeywordsEvaluator, for example, where lhs and rhs are both dealt with equally when
+            // it comes to multi-value handling).
+            if (lit.value() instanceof Collection<?>) {
+                return Translatable.NO;
+            }
             if (pushdownPredicates.isPushableFieldAttribute(left())) {
-                return true;
+                return Translatable.YES;
             }
             if (LucenePushdownPredicates.isPushableMetadataAttribute(left())) {
-                return this instanceof Equals || this instanceof NotEquals;
+                return this instanceof Equals || this instanceof NotEquals ? Translatable.YES : Translatable.NO;
             }
         }
-        return false;
+        return Translatable.NO;
     }
 
     /**
@@ -349,7 +381,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
      *  input to the operation.
      */
     @Override
-    public Query asQuery(TranslatorHandler handler) {
+    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         Check.isTrue(
             right().foldable(),
             "Line {}:{}: Comparisons against fields are not (currently) supported; offender [{}] in [{}]",
@@ -371,9 +403,19 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
     private Query translate(TranslatorHandler handler) {
         TypedAttribute attribute = LucenePushdownPredicates.checkIsPushableAttribute(left());
         String name = handler.nameOf(attribute);
-        Object value = valueOf(FoldContext.small() /* TODO remove me */, right());
+        Object value = literalValueOf(right());
         String format = null;
         boolean isDateLiteralComparison = false;
+
+        logger.trace(
+            "Translating binary comparison with right: [{}<{}>], left: [{}<{}>], attribute: [{}<{}>]",
+            right(),
+            right().dataType(),
+            left(),
+            left().dataType(),
+            attribute,
+            attribute.dataType()
+        );
 
         // TODO: This type coersion layer is copied directly from the QL counterpart code. It's probably not necessary or desireable
         // in the ESQL version. We should instead do the type conversions using our casting functions.
@@ -382,7 +424,12 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         if (value instanceof ZonedDateTime || value instanceof OffsetTime) {
             DateFormatter formatter;
             if (value instanceof ZonedDateTime) {
-                formatter = DEFAULT_DATE_TIME_FORMATTER;
+                // NB: we check the data type of right here because value is the RHS value
+                formatter = switch (right().dataType()) {
+                    case DATETIME -> DEFAULT_DATE_TIME_FORMATTER;
+                    case DATE_NANOS -> DEFAULT_DATE_NANOS_FORMATTER;
+                    default -> throw new EsqlIllegalArgumentException("Found date value in non-date type comparison");
+                };
                 // RangeQueryBuilder accepts an Object as its parameter, but it will call .toString() on the ZonedDateTime instance
                 // which can have a slightly different format depending on the ZoneId used to create the ZonedDateTime
                 // Since RangeQueryBuilder can handle date as String as well, we'll format it as String and provide the format as well.
@@ -408,10 +455,14 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         }
 
         ZoneId zoneId = null;
-        if (DataType.isDateTime(attribute.dataType())) {
+        if (attribute.dataType() == DATETIME) {
             zoneId = zoneId();
-            value = dateTimeToString((Long) value);
+            value = dateWithTypeToString((Long) value, right().dataType());
             format = DEFAULT_DATE_TIME_FORMATTER.pattern();
+        } else if (attribute.dataType() == DATE_NANOS) {
+            zoneId = zoneId();
+            value = dateWithTypeToString((Long) value, right().dataType());
+            format = DEFAULT_DATE_NANOS_FORMATTER.pattern();
         }
         if (this instanceof GreaterThan) {
             return new RangeQuery(source(), name, value, false, null, false, format, zoneId);
@@ -452,7 +503,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         if ((left() instanceof FieldAttribute) == false || left().dataType().isNumeric() == false) {
             return null;
         }
-        Object value = valueOf(FoldContext.small() /* TODO remove me */, right());
+        Object value = literalValueOf(right());
 
         // Comparisons with multi-values always return null in ESQL.
         if (value instanceof List<?>) {

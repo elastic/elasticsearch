@@ -20,7 +20,6 @@ import reactor.core.scheduler.Schedulers;
 import reactor.netty.resources.ConnectionProvider;
 import reactor.netty.resources.LoopResources;
 
-import com.azure.core.http.HttpClient;
 import com.azure.core.http.HttpMethod;
 import com.azure.core.http.HttpPipelineCallContext;
 import com.azure.core.http.HttpPipelineNextPolicy;
@@ -43,7 +42,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.repositories.azure.executors.PrivilegedExecutor;
 import org.elasticsearch.repositories.azure.executors.ReactorScheduledExecutorService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -52,7 +50,6 @@ import org.elasticsearch.transport.netty4.NettyAllocator;
 import java.net.URL;
 import java.time.Duration;
 import java.util.Optional;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
 
@@ -111,6 +108,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     private final ConnectionProvider connectionProvider;
     private final ByteBufAllocator byteBufAllocator;
     private final LoopResources nioLoopResources;
+    private final int multipartUploadMaxConcurrency;
     private volatile boolean closed = false;
 
     AzureClientProvider(
@@ -118,7 +116,8 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         String reactorExecutorName,
         EventLoopGroup eventLoopGroup,
         ConnectionProvider connectionProvider,
-        ByteBufAllocator byteBufAllocator
+        ByteBufAllocator byteBufAllocator,
+        int multipartUploadMaxConcurrency
     ) {
         this.threadPool = threadPool;
         this.reactorExecutorName = reactorExecutorName;
@@ -129,6 +128,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         // hence we need to use the same instance across all the client instances
         // to avoid creating multiple connection pools.
         this.nioLoopResources = useNative -> eventLoopGroup;
+        this.multipartUploadMaxConcurrency = multipartUploadMaxConcurrency;
     }
 
     static int eventLoopThreadsFromSettings(Settings settings) {
@@ -140,10 +140,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         // Most of the code that needs special permissions (i.e. jackson serializers generation) is executed
         // in the event loop executor. That's the reason why we should provide an executor that allows the
         // execution of privileged code
-        final EventLoopGroup eventLoopGroup = new NioEventLoopGroup(
-            eventLoopThreadsFromSettings(settings),
-            new PrivilegedExecutor(eventLoopExecutor)
-        );
+        final EventLoopGroup eventLoopGroup = new NioEventLoopGroup(eventLoopThreadsFromSettings(settings), eventLoopExecutor);
 
         final TimeValue openConnectionTimeout = OPEN_CONNECTION_TIMEOUT.get(settings);
         final TimeValue maxIdleTime = MAX_IDLE_TIME.get(settings);
@@ -157,7 +154,14 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
         // Just to verify that this executor exists
         threadPool.executor(REPOSITORY_THREAD_POOL_NAME);
-        return new AzureClientProvider(threadPool, REPOSITORY_THREAD_POOL_NAME, eventLoopGroup, provider, NettyAllocator.getAllocator());
+        return new AzureClientProvider(
+            threadPool,
+            REPOSITORY_THREAD_POOL_NAME,
+            eventLoopGroup,
+            provider,
+            NettyAllocator.getAllocator(),
+            threadPool.info(REPOSITORY_THREAD_POOL_NAME).getMax()
+        );
     }
 
     AzureBlobServiceClient createClient(
@@ -179,11 +183,15 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             .runOn(nioLoopResources)
             .option(ChannelOption.ALLOCATOR, byteBufAllocator);
 
-        final HttpClient httpClient = new NettyAsyncHttpClientBuilder(nettyHttpClient).disableBufferCopy(true).proxy(proxyOptions).build();
+        final NettyAsyncHttpClientBuilder httpClientBuilder = new NettyAsyncHttpClientBuilder(nettyHttpClient).disableBufferCopy(true)
+            .proxy(proxyOptions);
+        if (settings.getReadTimeout().equals(TimeValue.MINUS_ONE) == false) {
+            httpClientBuilder.readTimeout(Duration.ofMillis(settings.getReadTimeout().millis()));
+        }
 
         final String connectionString = settings.getConnectString();
         BlobServiceClientBuilder builder = new BlobServiceClientBuilder().connectionString(connectionString)
-            .httpClient(httpClient)
+            .httpClient(httpClientBuilder.build())
             .retryOptions(retryOptions);
 
         if (settings.hasCredentials() == false) {
@@ -210,24 +218,14 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             builder.endpoint(secondaryUri);
         }
 
-        BlobServiceClient blobServiceClient = SocketAccess.doPrivilegedException(builder::buildClient);
-        BlobServiceAsyncClient asyncClient = SocketAccess.doPrivilegedException(builder::buildAsyncClient);
+        BlobServiceClient blobServiceClient = builder.buildClient();
+        BlobServiceAsyncClient asyncClient = builder.buildAsyncClient();
         return new AzureBlobServiceClient(blobServiceClient, asyncClient, settings.getMaxRetries(), byteBufAllocator);
     }
 
     @Override
     protected void doStart() {
-        ReactorScheduledExecutorService executorService = new ReactorScheduledExecutorService(threadPool, reactorExecutorName) {
-            @Override
-            protected Runnable decorateRunnable(Runnable command) {
-                return () -> SocketAccess.doPrivilegedVoidException(command::run);
-            }
-
-            @Override
-            protected <V> Callable<V> decorateCallable(Callable<V> callable) {
-                return () -> SocketAccess.doPrivilegedException(callable::call);
-            }
-        };
+        ReactorScheduledExecutorService executorService = new ReactorScheduledExecutorService(threadPool, reactorExecutorName);
 
         // The only way to configure the schedulers used by the SDK is to inject a new global factory. This is a bit ugly...
         // See https://github.com/Azure/azure-sdk-for-java/issues/17272 for a feature request to avoid this need.
@@ -264,6 +262,10 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
     @Override
     protected void doClose() {}
+
+    public int getMultipartUploadMaxConcurrency() {
+        return multipartUploadMaxConcurrency;
+    }
 
     // visible for testing
     ConnectionProvider getConnectionProvider() {

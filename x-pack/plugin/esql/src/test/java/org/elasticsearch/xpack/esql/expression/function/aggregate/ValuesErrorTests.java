@@ -32,6 +32,31 @@ public class ValuesErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> "any type except unsigned_long"));
+        return equalTo(
+            typeErrorMessage(
+                false,
+                validPerPosition,
+                signature,
+                (v, p) -> "any type except counter types, dense_vector, "
+                    + "aggregate_metric_double, tdigest, histogram, exponential_histogram, or date_range"
+            )
+        );
+    }
+
+    @Override
+    protected void assertCheckedSignatures(Set<List<DataType>> invalidSignatureSamples) {
+        assertThat(
+            invalidSignatureSamples,
+            equalTo(
+                Set.of(
+                    List.of(DataType.DENSE_VECTOR),
+                    List.of(DataType.EXPONENTIAL_HISTOGRAM),
+                    List.of(DataType.AGGREGATE_METRIC_DOUBLE),
+                    List.of(DataType.TDIGEST),
+                    List.of(DataType.HISTOGRAM),
+                    List.of(DataType.NULL)
+                )
+            )
+        );
     }
 }

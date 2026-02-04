@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -44,9 +44,8 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
 }
 
-tasks.named("check").configure {
-  // also execute the QA tests when testing the plugin
-  dependsOn 'qa:gce:check'
+esplugin.bundleSpec.from('config/discovery-gce') {
+  into 'config'
 }
 
 tasks.named("test").configure {

@@ -24,6 +24,7 @@ import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -39,7 +40,6 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -55,11 +55,18 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
 
     private static final String ESQL_TEST_EXECUTOR = "esql_test_executor";
 
-    protected abstract Operator.OperatorFactory simpleWithMode(AggregatorMode mode);
+    protected abstract Operator.OperatorFactory simpleWithMode(SimpleOptions options, AggregatorMode mode);
+
+    /**
+     * Calls {@link #simpleWithMode(SimpleOptions, AggregatorMode)} with the default options.
+     */
+    protected final Operator.OperatorFactory simpleWithMode(AggregatorMode mode) {
+        return simpleWithMode(SimpleOptions.DEFAULT, mode);
+    }
 
     @Override
-    protected final Operator.OperatorFactory simple() {
-        return simpleWithMode(AggregatorMode.SINGLE);
+    protected final Operator.OperatorFactory simple(SimpleOptions options) {
+        return simpleWithMode(options, AggregatorMode.SINGLE);
     }
 
     public final void testInitialFinal() {
@@ -75,7 +82,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                 new TestResultPageSinkOperator(page -> results.add(page))
             )
         ) {
-            runDriver(d);
+            new TestDriverRunner().run(d);
         }
         assertSimpleOutput(origInput, results);
         assertDriverContext(driverContext);
@@ -95,7 +102,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                 new TestResultPageSinkOperator(results::add)
             )
         ) {
-            runDriver(d);
+            new TestDriverRunner().run(d);
         }
         assertSimpleOutput(origInput, results);
         assertDriverContext(driverContext);
@@ -119,7 +126,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                 new TestResultPageSinkOperator(page -> results.add(page))
             )
         ) {
-            runDriver(d);
+            new TestDriverRunner().run(d);
         }
         assertSimpleOutput(origInput, results);
         assertDriverContext(driverContext);
@@ -146,7 +153,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                 new TestResultPageSinkOperator(results::add)
             )
         ) {
-            runDriver(d);
+            new TestDriverRunner().run(d);
         }
         assertSimpleOutput(origInput, results);
         assertDriverContext(driverContext);
@@ -242,7 +249,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                         simpleWithMode(AggregatorMode.INTERMEDIATE).get(driver1Context),
                         intermediateOperatorItr.next()
                     ),
-                    new ExchangeSinkOperator(sinkExchanger.createExchangeSink(() -> {}), Function.identity())
+                    new ExchangeSinkOperator(sinkExchanger.createExchangeSink(() -> {}))
                 )
             );
         }

@@ -9,9 +9,10 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -22,6 +23,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -35,42 +37,55 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
     private static final String INFERENCE_ID_FIELD = "inference_id";
     private static final String SEARCH_INFERENCE_ID_FIELD = "search_inference_id";
     private static final String SOURCE_FIELDS_FIELD = "source_fields";
+    static final String CHUNKING_SETTINGS_FIELD = "chunking_settings";
+
+    private static final TransportVersion SEMANTIC_TEXT_CHUNKING_CONFIG = TransportVersion.fromName("semantic_text_chunking_config");
 
     private final String name;
     private final String inferenceId;
     private final String searchInferenceId;
     private final String[] sourceFields;
+    private final Map<String, Object> chunkingSettings;
 
-    public InferenceFieldMetadata(String name, String inferenceId, String[] sourceFields) {
-        this(name, inferenceId, inferenceId, sourceFields);
+    public InferenceFieldMetadata(String name, String inferenceId, String[] sourceFields, Map<String, Object> chunkingSettings) {
+        this(name, inferenceId, inferenceId, sourceFields, chunkingSettings);
     }
 
-    public InferenceFieldMetadata(String name, String inferenceId, String searchInferenceId, String[] sourceFields) {
+    public InferenceFieldMetadata(
+        String name,
+        String inferenceId,
+        String searchInferenceId,
+        String[] sourceFields,
+        Map<String, Object> chunkingSettings
+    ) {
         this.name = Objects.requireNonNull(name);
         this.inferenceId = Objects.requireNonNull(inferenceId);
         this.searchInferenceId = Objects.requireNonNull(searchInferenceId);
         this.sourceFields = Objects.requireNonNull(sourceFields);
+        this.chunkingSettings = chunkingSettings != null ? Map.copyOf(chunkingSettings) : null;
     }
 
     public InferenceFieldMetadata(StreamInput input) throws IOException {
         this.name = input.readString();
         this.inferenceId = input.readString();
-        if (input.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            this.searchInferenceId = input.readString();
-        } else {
-            this.searchInferenceId = this.inferenceId;
-        }
+        this.searchInferenceId = input.readString();
         this.sourceFields = input.readStringArray();
+        if (input.getTransportVersion().supports(SEMANTIC_TEXT_CHUNKING_CONFIG)) {
+            this.chunkingSettings = input.readGenericMap();
+        } else {
+            this.chunkingSettings = null;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeString(inferenceId);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeString(searchInferenceId);
-        }
+        out.writeString(searchInferenceId);
         out.writeStringArray(sourceFields);
+        if (out.getTransportVersion().supports(SEMANTIC_TEXT_CHUNKING_CONFIG)) {
+            out.writeGenericMap(chunkingSettings);
+        }
     }
 
     @Override
@@ -81,14 +96,20 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         return Objects.equals(name, that.name)
             && Objects.equals(inferenceId, that.inferenceId)
             && Objects.equals(searchInferenceId, that.searchInferenceId)
-            && Arrays.equals(sourceFields, that.sourceFields);
+            && Arrays.equals(sourceFields, that.sourceFields)
+            && Objects.equals(chunkingSettings, that.chunkingSettings);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(name, inferenceId, searchInferenceId);
+        int result = Objects.hash(name, inferenceId, searchInferenceId, chunkingSettings);
         result = 31 * result + Arrays.hashCode(sourceFields);
         return result;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 
     public String getName() {
@@ -107,6 +128,10 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         return sourceFields;
     }
 
+    public Map<String, Object> getChunkingSettings() {
+        return chunkingSettings;
+    }
+
     public static Diff<InferenceFieldMetadata> readDiffFrom(StreamInput in) throws IOException {
         return SimpleDiffable.readDiffFrom(InferenceFieldMetadata::new, in);
     }
@@ -119,6 +144,11 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
             builder.field(SEARCH_INFERENCE_ID_FIELD, searchInferenceId);
         }
         builder.array(SOURCE_FIELDS_FIELD, sourceFields);
+        if (chunkingSettings != null) {
+            builder.startObject(CHUNKING_SETTINGS_FIELD);
+            builder.mapContents(chunkingSettings);
+            builder.endObject();
+        }
         return builder.endObject();
     }
 
@@ -131,6 +161,7 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         String currentFieldName = null;
         String inferenceId = null;
         String searchInferenceId = null;
+        Map<String, Object> chunkingSettings = null;
         List<String> inputFields = new ArrayList<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -151,6 +182,8 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
                         }
                     }
                 }
+            } else if (CHUNKING_SETTINGS_FIELD.equals(currentFieldName)) {
+                chunkingSettings = parser.map();
             } else {
                 parser.skipChildren();
             }
@@ -159,7 +192,8 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
             name,
             inferenceId,
             searchInferenceId == null ? inferenceId : searchInferenceId,
-            inputFields.toArray(String[]::new)
+            inputFields.toArray(String[]::new),
+            chunkingSettings
         );
     }
 }

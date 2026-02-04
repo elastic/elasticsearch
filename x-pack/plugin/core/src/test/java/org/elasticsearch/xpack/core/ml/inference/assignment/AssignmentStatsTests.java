@@ -214,6 +214,12 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
         assertThat(stats.getFailureCount(), equalTo(0L));
     }
 
+    public void testCopyConstructor() {
+        AssignmentStats original = randomDeploymentStats();
+        AssignmentStats copy = new AssignmentStats(original);
+        assertThat(copy, equalTo(original));
+    }
+
     @Override
     protected Writeable.Reader<AssignmentStats> instanceReader() {
         return AssignmentStats::new;

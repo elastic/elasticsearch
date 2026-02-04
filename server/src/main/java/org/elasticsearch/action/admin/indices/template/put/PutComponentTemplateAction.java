@@ -79,6 +79,18 @@ public class PutComponentTemplateAction extends ActionType<AcknowledgedResponse>
             if (componentTemplate == null) {
                 validationException = addValidationError("a component template is required", validationException);
             }
+            if (componentTemplate.createdDateMillis().isPresent()) {
+                validationException = addValidationError(
+                    "Provided a template property which is managed by the system: created_date_millis",
+                    validationException
+                );
+            }
+            if (componentTemplate.modifiedDateMillis().isPresent()) {
+                validationException = addValidationError(
+                    "Provided a template property which is managed by the system: modified_date_millis",
+                    validationException
+                );
+            }
             return validationException;
         }
 

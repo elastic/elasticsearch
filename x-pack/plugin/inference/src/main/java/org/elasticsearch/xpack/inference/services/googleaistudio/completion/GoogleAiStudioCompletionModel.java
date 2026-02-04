@@ -14,9 +14,9 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.inference.external.request.googleaistudio.GoogleAiStudioUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioModel;
+import org.elasticsearch.xpack.inference.services.googleaistudio.request.GoogleAiStudioUtils;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.net.URI;
@@ -46,7 +46,7 @@ public class GoogleAiStudioCompletionModel extends GoogleAiStudioModel {
         );
     }
 
-    // Should only be used directly for testing
+    // Should be used directly only for testing
     GoogleAiStudioCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
@@ -55,11 +55,11 @@ public class GoogleAiStudioCompletionModel extends GoogleAiStudioModel {
         TaskSettings taskSettings,
         @Nullable DefaultSecretSettings secrets
     ) {
-        super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
-            new ModelSecrets(secrets),
-            serviceSettings
-        );
+        this(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+    }
+
+    public GoogleAiStudioCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets, (GoogleAiStudioCompletionServiceSettings) modelConfigurations.getServiceSettings());
     }
 
     public URI uri(boolean streaming) {

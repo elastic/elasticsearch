@@ -295,4 +295,8 @@ public class TrainedModelStatsService {
         }
         return null;
     }
+
+    public void clearQueue() {
+        statsQueue.clear();
+    }
 }

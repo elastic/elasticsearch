@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ccr.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -191,9 +190,7 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
             followIndexNamePattern = in.readOptionalString();
             settings = Settings.readSettingsFromStream(in);
             parameters = new FollowParameters(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
-                leaderIndexExclusionPatterns = in.readStringCollectionAsList();
-            }
+            leaderIndexExclusionPatterns = in.readStringCollectionAsList();
         }
 
         @Override
@@ -205,9 +202,7 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
             out.writeOptionalString(followIndexNamePattern);
             settings.writeTo(out);
             parameters.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
-                out.writeStringCollection(leaderIndexExclusionPatterns);
-            }
+            out.writeStringCollection(leaderIndexExclusionPatterns);
         }
 
         @Override

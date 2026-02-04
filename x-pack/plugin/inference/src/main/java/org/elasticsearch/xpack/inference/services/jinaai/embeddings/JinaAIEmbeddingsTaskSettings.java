@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.inference.services.jinaai.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,12 +18,14 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.inference.services.jinaai.JinaAIService.VALID_INPUT_TYPE_VALUES;
 
 /**
  * Defines the task settings for the JinaAI text embeddings service.
@@ -36,11 +36,10 @@ public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
     public static final String NAME = "jinaai_embeddings_task_settings";
     public static final JinaAIEmbeddingsTaskSettings EMPTY_SETTINGS = new JinaAIEmbeddingsTaskSettings((InputType) null);
     static final String INPUT_TYPE = "input_type";
-    static final EnumSet<InputType> VALID_REQUEST_VALUES = EnumSet.of(
-        InputType.INGEST,
-        InputType.SEARCH,
-        InputType.CLASSIFICATION,
-        InputType.CLUSTERING
+    static final String LATE_CHUNKING = "late_chunking";
+
+    protected static final TransportVersion JINA_AI_CONFIGURABLE_LATE_CHUNKING = TransportVersion.fromName(
+        "jina_ai_configurable_late_chunking"
     );
 
     public static JinaAIEmbeddingsTaskSettings fromMap(Map<String, Object> map) {
@@ -55,49 +54,50 @@ public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
             INPUT_TYPE,
             ModelConfigurations.TASK_SETTINGS,
             InputType::fromString,
-            VALID_REQUEST_VALUES,
+            VALID_INPUT_TYPE_VALUES,
             validationException
         );
+
+        Boolean lateChunking = extractOptionalBoolean(map, LATE_CHUNKING, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
-
-        return new JinaAIEmbeddingsTaskSettings(inputType);
+        if (inputType == null && lateChunking == null) {
+            return EMPTY_SETTINGS;
+        } else {
+            return new JinaAIEmbeddingsTaskSettings(inputType, lateChunking);
+        }
     }
 
     /**
      * Creates a new {@link JinaAIEmbeddingsTaskSettings} by preferring non-null fields from the provided parameters.
      * For the input type, preference is given to requestInputType if it is not null and not UNSPECIFIED.
      * Then preference is given to the requestTaskSettings and finally to originalSettings even if the value is null.
-     *
+     * <br>
      * Similarly, for the truncation field preference is given to requestTaskSettings if it is not null and then to
      * originalSettings.
      * @param originalSettings the settings stored as part of the inference entity configuration
      * @param requestTaskSettings the settings passed in within the task_settings field of the request
-     * @param requestInputType the input type passed in the request parameters
      * @return a constructed {@link JinaAIEmbeddingsTaskSettings}
      */
     public static JinaAIEmbeddingsTaskSettings of(
         JinaAIEmbeddingsTaskSettings originalSettings,
-        JinaAIEmbeddingsTaskSettings requestTaskSettings,
-        InputType requestInputType
+        JinaAIEmbeddingsTaskSettings requestTaskSettings
     ) {
-        var inputTypeToUse = getValidInputType(originalSettings, requestTaskSettings, requestInputType);
+        var inputTypeToUse = getValidInputType(originalSettings, requestTaskSettings);
+        var lateChunkingToUse = requestTaskSettings.lateChunking != null ? requestTaskSettings.lateChunking : originalSettings.lateChunking;
 
-        return new JinaAIEmbeddingsTaskSettings(inputTypeToUse);
+        return new JinaAIEmbeddingsTaskSettings(inputTypeToUse, lateChunkingToUse);
     }
 
     private static InputType getValidInputType(
         JinaAIEmbeddingsTaskSettings originalSettings,
-        JinaAIEmbeddingsTaskSettings requestTaskSettings,
-        InputType requestInputType
+        JinaAIEmbeddingsTaskSettings requestTaskSettings
     ) {
         InputType inputTypeToUse = originalSettings.inputType;
 
-        if (VALID_REQUEST_VALUES.contains(requestInputType)) {
-            inputTypeToUse = requestInputType;
-        } else if (requestTaskSettings.inputType != null) {
+        if (requestTaskSettings.inputType != null) {
             inputTypeToUse = requestTaskSettings.inputType;
         }
 
@@ -105,14 +105,28 @@ public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
     }
 
     private final InputType inputType;
+    private final Boolean lateChunking;
 
     public JinaAIEmbeddingsTaskSettings(StreamInput in) throws IOException {
-        this(in.readOptionalEnum(InputType.class));
+        this.inputType = in.readOptionalEnum(InputType.class);
+
+        if (in.getTransportVersion().supports(JINA_AI_CONFIGURABLE_LATE_CHUNKING)) {
+            this.lateChunking = in.readOptionalBoolean();
+        } else {
+            this.lateChunking = null;
+        }
+    }
+
+    public JinaAIEmbeddingsTaskSettings(@Nullable InputType inputType, Boolean lateChunking) {
+        validateInputType(inputType);
+        this.inputType = inputType;
+        this.lateChunking = lateChunking;
     }
 
     public JinaAIEmbeddingsTaskSettings(@Nullable InputType inputType) {
         validateInputType(inputType);
         this.inputType = inputType;
+        this.lateChunking = null;
     }
 
     private static void validateInputType(InputType inputType) {
@@ -120,12 +134,12 @@ public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
             return;
         }
 
-        assert VALID_REQUEST_VALUES.contains(inputType) : invalidInputTypeMessage(inputType);
+        assert VALID_INPUT_TYPE_VALUES.contains(inputType) : invalidInputTypeMessage(inputType);
     }
 
     @Override
     public boolean isEmpty() {
-        return inputType == null;
+        return inputType == null && lateChunking == null;
     }
 
     @Override
@@ -133,6 +147,10 @@ public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
         builder.startObject();
         if (inputType != null) {
             builder.field(INPUT_TYPE, inputType);
+        }
+
+        if (lateChunking != null) {
+            builder.field(LATE_CHUNKING, lateChunking);
         }
 
         builder.endObject();
@@ -143,6 +161,10 @@ public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
         return inputType;
     }
 
+    public Boolean getLateChunking() {
+        return lateChunking;
+    }
+
     @Override
     public String getWriteableName() {
         return NAME;
@@ -150,12 +172,16 @@ public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.JINA_AI_INTEGRATION_ADDED;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalEnum(inputType);
+
+        if (out.getTransportVersion().supports(JINA_AI_CONFIGURABLE_LATE_CHUNKING)) {
+            out.writeOptionalBoolean(lateChunking);
+        }
     }
 
     @Override
@@ -163,21 +189,17 @@ public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         JinaAIEmbeddingsTaskSettings that = (JinaAIEmbeddingsTaskSettings) o;
-        return Objects.equals(inputType, that.inputType);
+        return Objects.equals(inputType, that.inputType) && Objects.equals(lateChunking, that.lateChunking);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(inputType);
-    }
-
-    public static String invalidInputTypeMessage(InputType inputType) {
-        return Strings.format("received invalid input type value [%s]", inputType.toString());
+        return Objects.hash(inputType, lateChunking);
     }
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
         JinaAIEmbeddingsTaskSettings updatedSettings = JinaAIEmbeddingsTaskSettings.fromMap(new HashMap<>(newSettings));
-        return of(this, updatedSettings, updatedSettings.inputType != null ? updatedSettings.inputType : this.inputType);
+        return of(this, updatedSettings);
     }
 }

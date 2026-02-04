@@ -47,6 +47,14 @@ public class PluginShutdownService implements ClusterStateListener {
     }
 
     /**
+     * Return if the current node is requested to shut down
+     */
+    public static boolean isLocalNodeShutdown(final ClusterState clusterState) {
+        String localNodeId = clusterState.nodes().getLocalNodeId();
+        return localNodeId != null && shutdownNodes(clusterState).contains(localNodeId);
+    }
+
+    /**
      * Return all nodes shutting down with the given shutdown types from the given cluster state
      */
     public static Set<String> shutdownTypeNodes(final ClusterState clusterState, final SingleNodeShutdownMetadata.Type... shutdownTypes) {

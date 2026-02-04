@@ -13,10 +13,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -28,13 +29,13 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,11 +43,13 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class TestSparseInferenceServiceExtension implements InferenceServiceExtension {
+
     @Override
     public List<Factory> getInferenceServiceFactories() {
-        return List.of(TestInferenceService::new);
+        return List.of(TestInferenceService::new, TestAlternateSparseInferenceService::new);
     }
 
     public static class TestSparseModel extends Model {
@@ -58,16 +61,40 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         }
     }
 
-    public static class TestInferenceService extends AbstractTestInferenceService {
+    public static class TestInferenceService extends AbstractSparseTestInferenceService {
         public static final String NAME = "test_service";
+
+        public TestInferenceService(InferenceServiceFactoryContext inferenceServiceFactoryContext) {}
+
+        @Override
+        protected String testServiceName() {
+            return NAME;
+        }
+    }
+
+    /**
+     * A second sparse service allows testing updates from one service to another.
+     */
+    public static class TestAlternateSparseInferenceService extends AbstractSparseTestInferenceService {
+        public static final String NAME = "alternate_sparse_embedding_test_service";
+
+        public TestAlternateSparseInferenceService(InferenceServiceFactoryContext inferenceServiceFactoryContext) {}
+
+        @Override
+        protected String testServiceName() {
+            return NAME;
+        }
+    }
+
+    abstract static class AbstractSparseTestInferenceService extends AbstractTestInferenceService {
 
         private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.SPARSE_EMBEDDING);
 
-        public TestInferenceService(InferenceServiceExtension.InferenceServiceFactoryContext context) {}
+        protected abstract String testServiceName();
 
         @Override
         public String name() {
-            return NAME;
+            return testServiceName();
         }
 
         @Override
@@ -90,7 +117,7 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
 
         @Override
         public InferenceServiceConfiguration getConfiguration() {
-            return Configuration.get();
+            return new Configuration(testServiceName()).get();
         }
 
         @Override
@@ -102,6 +129,8 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         public void infer(
             Model model,
             @Nullable String query,
+            @Nullable Boolean returnDocuments,
+            @Nullable Integer topN,
             List<String> input,
             boolean stream,
             Map<String, Object> taskSettings,
@@ -109,6 +138,10 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             TimeValue timeout,
             ActionListener<InferenceServiceResults> listener
         ) {
+            if (Objects.equals(((TestTaskSettings) model.getTaskSettings()).shouldFailValidation(), Boolean.TRUE)) {
+                listener.onFailure(new RuntimeException("validation call intentionally failed based on task settings"));
+                return;
+            }
             switch (model.getConfigurations().getTaskType()) {
                 case ANY, SPARSE_EMBEDDING -> listener.onResponse(makeResults(input));
                 default -> listener.onFailure(
@@ -131,10 +164,25 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         }
 
         @Override
+        public void embeddingInfer(
+            Model model,
+            EmbeddingRequest request,
+            TimeValue timeout,
+            ActionListener<InferenceServiceResults> listener
+        ) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
+                    RestStatus.BAD_REQUEST
+                )
+            );
+        }
+
+        @Override
         public void chunkedInfer(
             Model model,
             @Nullable String query,
-            List<String> input,
+            List<ChunkInferenceInput> input,
             Map<String, Object> taskSettings,
             InputType inputType,
             TimeValue timeout,
@@ -163,18 +211,20 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             return new SparseEmbeddingResults(embeddings);
         }
 
-        private List<ChunkedInference> makeChunkedResults(List<String> input) {
+        private List<ChunkedInference> makeChunkedResults(List<ChunkInferenceInput> inputs) {
             List<ChunkedInference> results = new ArrayList<>();
-            for (int i = 0; i < input.size(); i++) {
-                var tokens = new ArrayList<WeightedToken>();
-                for (int j = 0; j < 5; j++) {
-                    tokens.add(new WeightedToken("feature_" + j, generateEmbedding(input.get(i), j)));
-                }
-                results.add(
-                    new ChunkedInferenceEmbedding(
-                        List.of(new SparseEmbeddingResults.Chunk(tokens, new ChunkedInference.TextOffset(0, input.get(i).length())))
-                    )
-                );
+            for (ChunkInferenceInput chunkInferenceInput : inputs) {
+                List<ChunkedInput> chunkedInput = chunkInputs(chunkInferenceInput);
+                List<SparseEmbeddingResults.Chunk> chunks = chunkedInput.stream().map(c -> {
+                    var tokens = new ArrayList<WeightedToken>();
+                    for (int i = 0; i < 5; i++) {
+                        tokens.add(new WeightedToken("feature_" + i, generateEmbedding(c.input(), i)));
+                    }
+                    var embeddings = new SparseEmbeddingResults.Embedding(tokens, false);
+                    return new SparseEmbeddingResults.Chunk(embeddings, new ChunkedInference.TextOffset(c.startOffset(), c.endOffset()));
+                }).toList();
+                ChunkedInferenceEmbedding chunkedInferenceEmbedding = new ChunkedInferenceEmbedding(chunks);
+                results.add(chunkedInferenceEmbedding);
             }
             return results;
         }
@@ -185,44 +235,49 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
 
         private static float generateEmbedding(String input, int position) {
             // Ensure non-negative and non-zero values for features
-            return Math.abs(input.hashCode()) + 1 + position;
+            int hash = input.hashCode();
+            int absHash = (hash == Integer.MIN_VALUE) ? Integer.MAX_VALUE : Math.abs(hash);
+            return absHash + 1.0f + position;
         }
 
         public static class Configuration {
-            public static InferenceServiceConfiguration get() {
-                return configuration.getOrCompute();
+
+            private final String serviceName;
+
+            Configuration(String serviceName) {
+                this.serviceName = Objects.requireNonNull(serviceName);
             }
 
-            private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
-                () -> {
-                    var configurationMap = new HashMap<String, SettingsConfiguration>();
+            InferenceServiceConfiguration get() {
+                var configurationMap = new HashMap<String, SettingsConfiguration>();
 
-                    configurationMap.put(
-                        "model",
-                        new SettingsConfiguration.Builder(EnumSet.of(TaskType.SPARSE_EMBEDDING)).setDescription("")
-                            .setLabel("Model")
-                            .setRequired(true)
-                            .setSensitive(false)
-                            .setType(SettingsConfigurationFieldType.STRING)
-                            .build()
-                    );
+                configurationMap.put(
+                    "model",
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.SPARSE_EMBEDDING)).setDescription("")
+                        .setLabel("Model")
+                        .setRequired(true)
+                        .setSensitive(false)
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .build()
+                );
 
-                    configurationMap.put(
-                        "hidden_field",
-                        new SettingsConfiguration.Builder(EnumSet.of(TaskType.SPARSE_EMBEDDING)).setDescription("")
-                            .setLabel("Hidden Field")
-                            .setRequired(true)
-                            .setSensitive(false)
-                            .setType(SettingsConfigurationFieldType.STRING)
-                            .build()
-                    );
+                configurationMap.put(
+                    "hidden_field",
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.SPARSE_EMBEDDING)).setDescription("")
+                        .setLabel("Hidden Field")
+                        .setRequired(true)
+                        .setSensitive(false)
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .build()
+                );
 
-                    return new InferenceServiceConfiguration.Builder().setService(NAME)
-                        .setTaskTypes(supportedTaskTypes)
-                        .setConfigurations(configurationMap)
-                        .build();
-                }
-            );
+                return new InferenceServiceConfiguration.Builder().setService(serviceName)
+                    .setName(serviceName)
+                    .setTaskTypes(supportedTaskTypes)
+                    .setConfigurations(configurationMap)
+                    .build();
+            }
+
         }
     }
 
@@ -233,10 +288,13 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         public static TestServiceSettings fromMap(Map<String, Object> map) {
             ValidationException validationException = new ValidationException();
 
-            String model = (String) map.remove("model");
+            String model = (String) map.remove("model_id");
 
             if (model == null) {
-                validationException.addValidationError("missing model");
+                model = (String) map.remove("model");
+                if (model == null) {
+                    validationException.addValidationError("missing model");
+                }
             }
 
             String hiddenField = (String) map.remove("hidden_field");

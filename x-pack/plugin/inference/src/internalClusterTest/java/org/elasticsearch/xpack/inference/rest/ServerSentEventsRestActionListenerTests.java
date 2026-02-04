@@ -45,12 +45,12 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.XContentFormattedException;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
-import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventField;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
 
 import java.io.IOException;
@@ -76,6 +76,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 1)
+@ESTestCase.WithoutEntitlements // due to dependency issue ES-12435
 public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
     private static final String INFERENCE_ROUTE = "/_inference";
     private static final String REQUEST_COUNT = "request_count";
@@ -195,11 +196,6 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
         }
 
         @Override
-        public List<? extends InferenceResults> transformToLegacyFormat() {
-            return List.of();
-        }
-
-        @Override
         public Map<String, Object> asMap() {
             return Map.of();
         }
@@ -284,11 +280,6 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
         }
 
         @Override
-        public List<? extends InferenceResults> transformToLegacyFormat() {
-            return List.of();
-        }
-
-        @Override
         public Map<String, Object> asMap() {
             return Map.of();
         }
@@ -363,9 +354,8 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
         private void collect(String str) throws IOException {
             sseParser.parse(str.getBytes(StandardCharsets.UTF_8))
                 .stream()
-                .filter(event -> event.name() == ServerSentEventField.DATA)
-                .filter(ServerSentEvent::hasValue)
-                .map(ServerSentEvent::value)
+                .filter(ServerSentEvent::hasData)
+                .map(ServerSentEvent::data)
                 .forEach(stringsVerified::offer);
         }
     }

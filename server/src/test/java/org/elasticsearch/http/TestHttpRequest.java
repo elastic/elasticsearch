@@ -20,21 +20,46 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-class TestHttpRequest implements HttpRequest {
+public class TestHttpRequest implements HttpRequest {
 
     private final Supplier<HttpVersion> version;
     private final RestRequest.Method method;
     private final String uri;
-    private final HashMap<String, List<String>> headers = new HashMap<>();
+    private final Map<String, List<String>> headers;
+    private final HttpBody body;
 
-    TestHttpRequest(Supplier<HttpVersion> versionSupplier, RestRequest.Method method, String uri) {
+    public TestHttpRequest(
+        Supplier<HttpVersion> versionSupplier,
+        RestRequest.Method method,
+        String uri,
+        Map<String, List<String>> headers,
+        HttpBody body
+    ) {
         this.version = versionSupplier;
         this.method = method;
         this.uri = uri;
+        this.headers = headers;
+        this.body = body;
     }
 
-    TestHttpRequest(HttpVersion version, RestRequest.Method method, String uri) {
+    public TestHttpRequest(RestRequest.Method method, String uri, Map<String, List<String>> headers, HttpBody body) {
+        this(() -> HttpVersion.HTTP_1_1, method, uri, headers, body);
+    }
+
+    public TestHttpRequest(RestRequest.Method method, String uri, Map<String, List<String>> headers, BytesReference body) {
+        this(() -> HttpVersion.HTTP_1_1, method, uri, headers, HttpBody.fromBytesReference(body));
+    }
+
+    public TestHttpRequest(Supplier<HttpVersion> versionSupplier, RestRequest.Method method, String uri) {
+        this(versionSupplier, method, uri, new HashMap<>(), HttpBody.empty());
+    }
+
+    public TestHttpRequest(HttpVersion version, RestRequest.Method method, String uri) {
         this(() -> version, method, uri);
+    }
+
+    public TestHttpRequest(HttpVersion version, RestRequest.Method method, String uri, Map<String, List<String>> headers) {
+        this(() -> version, method, uri, headers, HttpBody.empty());
     }
 
     @Override
@@ -49,7 +74,12 @@ class TestHttpRequest implements HttpRequest {
 
     @Override
     public HttpBody body() {
-        return HttpBody.empty();
+        return body;
+    }
+
+    @Override
+    public void setBody(HttpBody body) {
+        throw new IllegalStateException("not allowed");
     }
 
     @Override
@@ -70,6 +100,11 @@ class TestHttpRequest implements HttpRequest {
     @Override
     public HttpRequest removeHeader(String header) {
         throw new UnsupportedOperationException("Do not support removing header on test request.");
+    }
+
+    @Override
+    public boolean hasContent() {
+        return body.isEmpty() == false;
     }
 
     @Override

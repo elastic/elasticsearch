@@ -11,6 +11,7 @@ import com.wdtinc.mapbox_vector_tile.build.MvtLayerProps;
 
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.geo.GeoBoundingBox;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStream;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -44,6 +46,7 @@ import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuild
 import org.elasticsearch.search.aggregations.metrics.InternalGeoBounds;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder.MetricsAggregationBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -89,9 +92,13 @@ public class RestVectorTileAction extends BaseRestHandler {
     static final String LABEL_POSITION_FIELD_NAME = INTERNAL_AGG_PREFIX + "label_position";
 
     private final SearchUsageHolder searchUsageHolder;
+    private final Settings settings;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
-    public RestVectorTileAction(SearchUsageHolder searchUsageHolder) {
+    public RestVectorTileAction(SearchUsageHolder searchUsageHolder, Settings settings) {
         this.searchUsageHolder = searchUsageHolder;
+        this.settings = settings;
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
     }
 
     @Override
@@ -106,10 +113,23 @@ public class RestVectorTileAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+        boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
+
         // This will allow to cancel the search request if the http channel is closed
         final RestCancellableNodeClient cancellableNodeClient = new RestCancellableNodeClient(client, restRequest.getHttpChannel());
         final VectorTileRequest request = VectorTileRequest.parseRestRequest(restRequest, searchUsageHolder::updateUsage);
         final SearchRequestBuilder searchRequestBuilder = searchRequestBuilder(cancellableNodeClient, request);
+
+        if (crossProjectEnabled && request.allowsCrossProject()) {
+            searchRequestBuilder.setIndicesOptions(
+                IndicesOptions.builder(searchRequestBuilder.request().indicesOptions())
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .build()
+            );
+        } else if (crossProjectEnabled == false && request.getProjectRouting() != null) {
+            throw new IllegalArgumentException("Unknown key for a VALUE_STRING in [project_routing]");
+        }
+
         return channel -> searchRequestBuilder.execute(new RestResponseListener<>(channel) {
 
             @Override
@@ -280,10 +300,10 @@ public class RestVectorTileAction extends BaseRestHandler {
         for (SortBuilder<?> sortBuilder : request.getSortBuilders()) {
             searchRequestBuilder.addSort(sortBuilder);
         }
+        searchRequestBuilder.request().setProjectRouting(request.getProjectRouting());
         return searchRequestBuilder;
     }
 
-    @SuppressWarnings("unchecked")
     private static VectorTile.Tile.Layer.Builder buildHitsLayer(SearchHit[] hits, VectorTileRequest request, FeatureFactory featureFactory)
         throws IOException {
         final VectorTile.Tile.Layer.Builder hitsLayerBuilder = VectorTileUtils.createLayerBuilder(HITS_LAYER, request.getExtent());

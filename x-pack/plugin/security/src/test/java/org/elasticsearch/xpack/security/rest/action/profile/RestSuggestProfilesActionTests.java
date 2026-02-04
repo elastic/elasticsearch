@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.rest.action.profile;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -33,7 +34,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -54,7 +54,7 @@ public class RestSuggestProfilesActionTests extends RestActionTestCase {
         verifyingClient.setExecuteLocallyVerifier(((actionType, actionRequest) -> {
             assertThat(actionRequest, instanceOf(SuggestProfilesRequest.class));
             requestHolder.set((SuggestProfilesRequest) actionRequest);
-            return mock(SuggestProfilesResponse.class);
+            return new SuggestProfilesResponse(new SuggestProfilesResponse.ProfileHit[0], 0, new TotalHits(0, TotalHits.Relation.EQUAL_TO));
         }));
     }
 

@@ -49,6 +49,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -116,7 +117,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
             int numNodes = randomIntBetween(1, 10);
             for (int i = 0; i < numNodes; i++) {
-                discoNodes.add(newNode("node_" + i, VersionUtils.randomVersion(random()), IndexVersionUtils.randomVersion()));
+                discoNodes.add(newNode("node_" + i, VersionUtils.randomVersion(), IndexVersionUtils.randomVersion()));
             }
             ProjectMetadata.Builder metadata = ProjectMetadata.builder(projectId);
             for (String index : allIndices) {
@@ -135,6 +136,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 mockClusterService(clusterState),
                 transportService,
                 TestProjectResolvers.singleProject(projectId),
+                coordinatorRewriteContextProvider(),
                 newRandomParentTask(),
                 randomFieldCapRequest(withFilter),
                 OriginalIndices.NONE,
@@ -187,7 +189,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
             int numNodes = randomIntBetween(2, 10);
             for (int i = 0; i < numNodes; i++) {
-                discoNodes.add(newNode("node_" + i, VersionUtils.randomVersion(random()), IndexVersionUtils.randomVersion()));
+                discoNodes.add(newNode("node_" + i, VersionUtils.randomVersion(), IndexVersionUtils.randomVersion()));
             }
             ProjectMetadata.Builder metadata = ProjectMetadata.builder(projectId);
             for (String index : allIndices) {
@@ -206,6 +208,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 mockClusterService(clusterState),
                 transportService,
                 TestProjectResolvers.singleProject(projectId),
+                coordinatorRewriteContextProvider(),
                 newRandomParentTask(),
                 randomFieldCapRequest(withFilter),
                 OriginalIndices.NONE,
@@ -309,7 +312,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
             int numNodes = randomIntBetween(1, 10);
             for (int i = 0; i < numNodes; i++) {
-                discoNodes.add(newNode("node_" + i, VersionUtils.randomVersion(random()), IndexVersionUtils.randomVersion()));
+                discoNodes.add(newNode("node_" + i, VersionUtils.randomVersion(), IndexVersionUtils.randomVersion()));
             }
             ProjectMetadata.Builder metadata = ProjectMetadata.builder(projectId);
             for (String index : allIndices) {
@@ -328,6 +331,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 mockClusterService(clusterState),
                 transportService,
                 TestProjectResolvers.singleProject(projectId),
+                coordinatorRewriteContextProvider(),
                 newRandomParentTask(),
                 randomFieldCapRequest(withFilter),
                 OriginalIndices.NONE,
@@ -433,7 +437,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
             int numNodes = randomIntBetween(1, 10);
             for (int i = 0; i < numNodes; i++) {
-                discoNodes.add(newNode("node_" + i, VersionUtils.randomVersion(random()), IndexVersionUtils.randomVersion()));
+                discoNodes.add(newNode("node_" + i, VersionUtils.randomVersion(), IndexVersionUtils.randomVersion()));
             }
             ProjectMetadata.Builder metadata = ProjectMetadata.builder(projectId);
             for (String index : allIndices) {
@@ -452,6 +456,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 mockClusterService(clusterState),
                 transportService,
                 TestProjectResolvers.singleProject(projectId),
+                coordinatorRewriteContextProvider(),
                 newRandomParentTask(),
                 randomFieldCapRequest(withFilter),
                 OriginalIndices.NONE,
@@ -531,7 +536,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
             int numNodes = randomIntBetween(1, 10);
             for (int i = 0; i < numNodes; i++) {
-                discoNodes.add(newNode("node_" + i, VersionUtils.randomVersion(random()), IndexVersionUtils.randomVersion()));
+                discoNodes.add(newNode("node_" + i, VersionUtils.randomVersion(), IndexVersionUtils.randomVersion()));
             }
             ProjectMetadata.Builder metadata = ProjectMetadata.builder(projectId);
             for (String index : allIndices) {
@@ -550,6 +555,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 mockClusterService(clusterState),
                 transportService,
                 TestProjectResolvers.singleProject(projectId),
+                coordinatorRewriteContextProvider(),
                 newRandomParentTask(),
                 randomFieldCapRequest(withFilter),
                 OriginalIndices.NONE,
@@ -624,7 +630,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
             int numNodes = randomIntBetween(1, 10);
             for (int i = 0; i < numNodes; i++) {
-                discoNodes.add(newNode("node_" + i, VersionUtils.randomVersion(random()), IndexVersionUtils.randomVersion()));
+                discoNodes.add(newNode("node_" + i, VersionUtils.randomVersion(), IndexVersionUtils.randomVersion()));
             }
             ProjectMetadata.Builder metadata = ProjectMetadata.builder(projectId);
             for (String index : allIndices) {
@@ -642,6 +648,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 mockClusterService(clusterState),
                 transportService,
                 TestProjectResolvers.singleProject(projectId),
+                coordinatorRewriteContextProvider(),
                 newRandomParentTask(),
                 randomFieldCapRequest(withFilter),
                 OriginalIndices.NONE,
@@ -991,7 +998,8 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(settings),
             EmptyClusterInfoService.INSTANCE,
-            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
         return applyStartedShardsUntilNoChange(clusterState, allocationService);
     }
@@ -1031,5 +1039,9 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
         final OperationRouting operationRouting = new OperationRouting(Settings.EMPTY, clusterSettings);
         when(clusterService.operationRouting()).thenReturn(operationRouting);
         return clusterService;
+    }
+
+    static CoordinatorRewriteContextProvider coordinatorRewriteContextProvider() {
+        return mock(CoordinatorRewriteContextProvider.class);
     }
 }

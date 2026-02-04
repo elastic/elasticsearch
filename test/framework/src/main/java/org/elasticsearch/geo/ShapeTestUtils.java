@@ -21,6 +21,7 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.utils.GeometryPointCountVisitor;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;

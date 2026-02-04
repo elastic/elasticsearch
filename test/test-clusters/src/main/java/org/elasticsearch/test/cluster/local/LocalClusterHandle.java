@@ -15,6 +15,7 @@ import org.elasticsearch.test.cluster.MutableSettingsProvider;
 import org.elasticsearch.test.cluster.util.Version;
 
 import java.io.InputStream;
+import java.nio.file.Path;
 import java.util.List;
 
 public interface LocalClusterHandle extends ClusterHandle {
@@ -107,6 +108,11 @@ public interface LocalClusterHandle extends ClusterHandle {
      * Returns an {@link InputStream} for the given node log.
      */
     InputStream getNodeLog(int index, LogType logType);
+
+    /**
+     * Returns the {@link Path} to the given node's config directory.
+     */
+    Path getNodeConfigPath(int index);
 
     /**
      * Writes secure settings to the relevant secure config file on each node. Use this method if you are dynamically updating secure

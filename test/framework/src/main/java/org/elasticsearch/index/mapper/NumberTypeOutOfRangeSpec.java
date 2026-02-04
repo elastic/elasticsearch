@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 
 public class NumberTypeOutOfRangeSpec {
 
@@ -34,7 +35,7 @@ public class NumberTypeOutOfRangeSpec {
 
     public void write(XContentBuilder b) throws IOException {
         if (value instanceof BigInteger) {
-            b.rawField("field", new ByteArrayInputStream(value.toString().getBytes("UTF-8")), XContentType.JSON);
+            b.rawField("field", new ByteArrayInputStream(value.toString().getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
         } else {
             b.field("field", value);
         }

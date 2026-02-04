@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -38,6 +39,7 @@ public class TransportPutAnalyticsCollectionAction extends TransportMasterNodeAc
     PutAnalyticsCollectionAction.Response> {
 
     private final AnalyticsCollectionService analyticsCollectionService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportPutAnalyticsCollectionAction(
@@ -46,7 +48,8 @@ public class TransportPutAnalyticsCollectionAction extends TransportMasterNodeAc
         ThreadPool threadPool,
         ActionFilters actionFilters,
         AnalyticsCollectionService analyticsCollectionService,
-        FeatureService featureService
+        FeatureService featureService,
+        ProjectResolver projectResolver
     ) {
         super(
             PutAnalyticsCollectionAction.NAME,
@@ -59,11 +62,12 @@ public class TransportPutAnalyticsCollectionAction extends TransportMasterNodeAc
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.analyticsCollectionService = analyticsCollectionService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected ClusterBlockException checkBlock(PutAnalyticsCollectionAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override

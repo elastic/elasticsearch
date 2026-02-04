@@ -123,6 +123,7 @@ public class Netty4HttpContentSizeHandler extends ChannelInboundHandlerAdapter {
                 isContinueExpected = true;
             } else {
                 ctx.writeAndFlush(EXPECTATION_FAILED_CLOSE.retainedDuplicate()).addListener(ChannelFutureListener.CLOSE);
+                ctx.read();
                 return;
             }
         }
@@ -136,6 +137,7 @@ public class Netty4HttpContentSizeHandler extends ChannelInboundHandlerAdapter {
                 decoder.reset();
             }
             ctx.writeAndFlush(TOO_LARGE.retainedDuplicate()).addListener(ChannelFutureListener.CLOSE_ON_FAILURE);
+            ctx.read();
         } else {
             ignoreContent = false;
             currentContentLength = 0;
@@ -150,11 +152,13 @@ public class Netty4HttpContentSizeHandler extends ChannelInboundHandlerAdapter {
     private void handleContent(ChannelHandlerContext ctx, HttpContent msg) {
         if (ignoreContent) {
             msg.release();
+            ctx.read();
         } else {
             currentContentLength += msg.content().readableBytes();
             if (currentContentLength > maxContentLength) {
                 msg.release();
                 ctx.writeAndFlush(TOO_LARGE_CLOSE.retainedDuplicate()).addListener(ChannelFutureListener.CLOSE);
+                ctx.read();
             } else {
                 ctx.fireChannelRead(msg);
             }

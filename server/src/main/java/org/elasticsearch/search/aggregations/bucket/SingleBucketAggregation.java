@@ -10,13 +10,12 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.HasAggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 
 /**
  * A single bucket aggregation
  */
-public interface SingleBucketAggregation extends Aggregation, HasAggregations {
+public interface SingleBucketAggregation extends Aggregation {
 
     /**
      * @return  The number of documents in this bucket
@@ -26,6 +25,5 @@ public interface SingleBucketAggregation extends Aggregation, HasAggregations {
     /**
      * @return  The sub-aggregations of this bucket
      */
-    @Override
     InternalAggregations getAggregations();
 }

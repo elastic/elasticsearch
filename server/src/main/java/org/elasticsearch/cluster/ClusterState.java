@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -55,7 +54,6 @@ import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
@@ -159,6 +157,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
     public static final long UNKNOWN_VERSION = -1;
 
+    private static final TransportVersion MULTI_PROJECT = TransportVersion.fromName("multi_project");
+
     /**
      * Monotonically increasing on (and therefore uniquely identifies) <i>committed</i> states. However sometimes a state is created/applied
      * without committing it, for instance to add a {@link NoMasterBlockService#getNoMasterBlock}.
@@ -241,29 +241,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         assert assertConsistentRoutingNodes(routingTable, nodes, routingNodes);
         assert assertConsistentProjectState(routingTable, metadata);
         this.minVersions = blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
-            ? new CompatibilityVersions(TransportVersions.MINIMUM_COMPATIBLE, Map.of()) // empty map because cluster state is unknown
+            ? new CompatibilityVersions(TransportVersion.minimumCompatible(), Map.of()) // empty map because cluster state is unknown
             : CompatibilityVersions.minimumVersions(compatibilityVersions.values());
-
-        assert compatibilityVersions.isEmpty()
-            || blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
-            || assertEventIngestedIsUnknownInMixedClusters(metadata, this.minVersions);
-    }
-
-    private boolean assertEventIngestedIsUnknownInMixedClusters(Metadata metadata, CompatibilityVersions compatibilityVersions) {
-        if (compatibilityVersions.transportVersion().before(TransportVersions.V_8_15_0)
-            && metadata != null
-            && metadata.getTotalNumberOfIndices() > 0) {
-            for (IndexMetadata indexMetadata : metadata.indicesAllProjects()) {
-                assert indexMetadata.getEventIngestedRange() == IndexLongFieldRange.UNKNOWN
-                    : "event.ingested range should be UNKNOWN but is "
-                        + indexMetadata.getEventIngestedRange()
-                        + " for index: "
-                        + indexMetadata.getIndex()
-                        + " minTransportVersion: "
-                        + compatibilityVersions.transportVersion();
-            }
-        }
-        return true;
     }
 
     private static boolean assertConsistentRoutingNodes(
@@ -350,6 +329,28 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             .anyMatch(e -> e.systemIndexMappingsVersion().equals(minVersions.systemIndexMappingsVersion()) == false);
     }
 
+    /**
+     * @return the minimum {@link TransportVersion} that will be used for all future intra-cluster node-to-node communications. This value
+     *         only ever increases, so if {@code v.onOrAfter(cs.getMinTransportVersion())} is true once then it will remain true in the
+     *         future.
+     * <p>
+     * There are some subtle exceptions:
+     * <ul>
+     * <li>The "only ever increases" property is handled by the master node using the in-memory (ephemeral) part of the
+     *     {@link ClusterState} only, so in theory a full restart of a mixed-version cluster may lose that state and allow some nodes to see
+     *     this value decrease. For this to happen in practice requires some fairly unlucky timing during the initial master election. We
+     *     tell users not to do this: if something breaks during a rolling upgrade then they should upgrade all remaining nodes to continue.
+     *     But we do not enforce it.
+     * <li>The "used for all node-to-node communications" is false in a disordered upgrade (an upgrade to a semantically-newer but
+     *     chronologically-older version) because for each connection between such nodes we will use {@link
+     *     TransportVersion#bestKnownVersion} to pick a transport version which is known by both endpoints. We tell users not to do
+     *     disordered upgrades too, but do not enforce it.
+     * </ul>
+     * <p>
+     * Note also that node-to-node communications which are not <i>intra-cluster</i> (i.e. they are not between nodes in the same cluster)
+     * may sometimes use an earlier {@link TransportVersion} than this value. This includes remote-cluster communication, and communication
+     * with nodes that are just starting up or otherwise are attempting to join this cluster.
+     */
     public TransportVersion getMinTransportVersion() {
         return this.minVersions.transportVersion();
     }
@@ -851,13 +852,13 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 }
                 builder.endObject();
             }
-            if (blocks().noIndexBlockAllProjects() == false) {
+            if (blocks().noProjectHasAProjectBlock() == false) {
                 builder.startArray("projects");
             }
             return builder;
         };
         final ToXContent after = (builder, params) -> {
-            if (blocks().noIndexBlockAllProjects() == false) {
+            if (blocks().noProjectHasAProjectBlock() == false) {
                 builder.endArray();
             }
             return builder.endObject();
@@ -865,7 +866,10 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         return chunkedSection(
             true,
             before,
-            Iterators.map(metadata().projects().keySet().iterator(), projectId -> new Tuple<>(projectId, blocks().indices(projectId))),
+            Iterators.map(
+                metadata().projects().keySet().iterator(),
+                projectId -> new Tuple<>(projectId, blocks().projectBlocks(projectId))
+            ),
             ClusterState::projectBlocksXContent,
             after
         );
@@ -907,19 +911,37 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         );
     }
 
-    private static Iterator<ToXContent> projectBlocksXContent(Tuple<ProjectId, Map<String, Set<ClusterBlock>>> entry) {
-        return chunkedSection(
-            entry.v2().isEmpty() == false,
-            (builder, params) -> builder.startObject().field("id", entry.v1()).startObject("indices"),
-            entry.v2().entrySet().iterator(),
-            e -> Iterators.single((builder, params) -> {
-                builder.startObject(e.getKey());
-                for (ClusterBlock block : e.getValue()) {
+    private static Iterator<ToXContent> projectBlocksXContent(Tuple<ProjectId, ClusterBlocks.ProjectBlocks> entry) {
+        final var projectId = entry.v1();
+        final var projectBlocks = entry.v2();
+        if (projectBlocks.isEmpty()) {
+            return Collections.emptyIterator();
+        }
+        return Iterators.concat(
+            Iterators.single((builder, params) -> builder.startObject().field("id", projectId)),
+            // write project global blocks in one chunk
+            projectBlocks.projectGlobals().isEmpty() ? Collections.emptyIterator() : Iterators.single((builder, params) -> {
+                builder.startObject("project_globals");
+                for (ClusterBlock block : projectBlocks.projectGlobals()) {
                     block.toXContent(builder, params);
                 }
                 return builder.endObject();
             }),
-            (builder, params) -> builder.endObject().endObject()
+            // write index blocks for the project
+            projectBlocks.indices().isEmpty()
+                ? Collections.emptyIterator()
+                : Iterators.concat(
+                    Iterators.single((builder, params) -> builder.startObject("indices")),
+                    Iterators.flatMap(projectBlocks.indices().entrySet().iterator(), indexBlocks -> Iterators.single((builder, params) -> {
+                        builder.startObject(indexBlocks.getKey());
+                        for (ClusterBlock block : indexBlocks.getValue()) {
+                            block.toXContent(builder, params);
+                        }
+                        return builder.endObject();
+                    })),
+                    Iterators.single((builder, params) -> builder.endObject())
+                ),
+            Iterators.single((builder, params) -> builder.endObject())
         );
     }
 
@@ -961,6 +983,10 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         return copyAndUpdate(builder -> builder.metadata(metadata().copyAndUpdate(updater)));
     }
 
+    public ClusterState copyAndUpdateProject(ProjectId projectId, Consumer<ProjectMetadata.Builder> updater) {
+        return copyAndUpdate(builder -> builder.metadata(metadata.copyAndUpdateProject(projectId, updater)));
+    }
+
     @SuppressForbidden(reason = "directly reading ClusterState#clusterFeatures")
     private static Map<String, Set<String>> getNodeFeatures(ClusterFeatures features) {
         return features.nodeFeatures();
@@ -1000,7 +1026,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         public Builder(ClusterName clusterName) {
             this.compatibilityVersions = new HashMap<>();
             this.nodeFeatures = new HashMap<>();
-            customs = ImmutableOpenMap.builder();
+            this.customs = ImmutableOpenMap.builder();
             this.clusterName = clusterName;
         }
 
@@ -1244,7 +1270,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         builder.version = in.readLong();
         builder.uuid = in.readString();
         builder.metadata = Metadata.readFrom(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+        if (in.getTransportVersion().supports(MULTI_PROJECT)) {
             builder.routingTable = GlobalRoutingTable.readFrom(in);
         } else {
             final RoutingTable rt = RoutingTable.readFrom(in);
@@ -1270,7 +1296,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         out.writeLong(version);
         out.writeString(stateUUID);
         metadata.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+        if (out.getTransportVersion().supports(MULTI_PROJECT)) {
             routingTable.writeTo(out);
         } else {
             routingTable.getRoutingTable().writeTo(out);
@@ -1283,7 +1309,6 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
     }
 
     private static class ClusterStateDiff implements Diff<ClusterState> {
-
         private final long toVersion;
 
         private final String fromUuid;

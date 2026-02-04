@@ -1,0 +1,1 @@
+CEF:0|security|threatmanager|1.0|100|message is padded|10|spt=1232 msg=This has both in-spec escaped whitespace\t \r\n characters, MAGICHERE

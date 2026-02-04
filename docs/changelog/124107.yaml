@@ -1,6 +1,0 @@
-pr: 124107
-summary: Avoid hoarding cluster state references during rollover
-area: Indices APIs
-type: bug
-issues:
- - 123893

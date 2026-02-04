@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 
 import java.io.IOException;
@@ -24,10 +23,6 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
     public static final Factory FACTORY = new Factory();
 
     public static class Bucket extends InternalRange.Bucket {
-
-        public Bucket(String key, double from, double to, long docCount, List<InternalAggregation> aggregations, DocValueFormat formatter) {
-            super(key, from, to, docCount, InternalAggregations.from(aggregations), formatter);
-        }
 
         public Bucket(String key, double from, double to, long docCount, InternalAggregations aggregations, DocValueFormat formatter) {
             super(key, from, to, docCount, aggregations, formatter);

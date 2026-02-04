@@ -14,8 +14,11 @@ import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.WarningsHandler;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -37,6 +40,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
@@ -50,7 +54,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 @TestCaseOrdering(AbstractUpgradeCompatibilityTestCase.TestCaseOrdering.class)
-public abstract class AbstractUpgradeCompatibilityTestCase extends ESRestTestCase {
+public class AbstractUpgradeCompatibilityTestCase extends ESRestTestCase {
 
     protected static final Version VERSION_MINUS_2 = fromString(System.getProperty("tests.minimum.index.compatible"));
     protected static final Version VERSION_MINUS_1 = fromString(System.getProperty("tests.minimum.wire.compatible"));
@@ -75,17 +79,9 @@ public abstract class AbstractUpgradeCompatibilityTestCase extends ESRestTestCas
     private static boolean upgradeFailed = false;
 
     private final Version clusterVersion;
-    private final String indexCreatedVersion;
-    private final Consumer<List<String>> warningsConsumer;
 
-    public AbstractUpgradeCompatibilityTestCase(
-        @Name("cluster") Version clusterVersion,
-        String indexCreatedVersion,
-        Consumer<List<String>> warningsConsumer
-    ) {
+    public AbstractUpgradeCompatibilityTestCase(@Name("cluster") Version clusterVersion) {
         this.clusterVersion = clusterVersion;
-        this.indexCreatedVersion = indexCreatedVersion;
-        this.warningsConsumer = warningsConsumer;
     }
 
     @ParametersFactory
@@ -131,7 +127,7 @@ public abstract class AbstractUpgradeCompatibilityTestCase extends ESRestTestCas
         assumeFalse("Cluster upgrade failed", upgradeFailed);
     }
 
-    protected static Version clusterVersion() throws Exception {
+    private static Version clusterVersion() throws Exception {
         var response = assertOK(client().performRequest(new Request("GET", "/")));
         var responseBody = createFromResponse(response);
         var version = Version.fromString(responseBody.evaluate("version.number").toString());
@@ -151,48 +147,136 @@ public abstract class AbstractUpgradeCompatibilityTestCase extends ESRestTestCas
         }
     }
 
-    protected final void verifyCompatibility(String version, Consumer<List<String>> warningsConsumer) throws Exception {
-        final String repository = "repository";
-        final String snapshot = "snapshot";
-        final String index = "index";
-        final int numDocs = 5;
+    /**
+     * This method executes in two phases. For cluster in version Current-1, restores and mounts an index snapshot and performs assertions.
+     * For cluster in version Current, asserts the previously restored/mounted index exists in the upgraded setup.
+     *
+     * @param extension  The snapshot suffix in resources covering different scenarios.
+     * @throws Exception
+     */
+    protected final void verifyCompatibility(String extension) throws Exception {
+        final String repository = "repository_" + extension;
+        final String index = "index_" + extension;
+        final String indexMount = index + "_" + repository;
+        final int numDocs = 1;
 
         String repositoryPath = REPOSITORY_PATH.getRoot().getPath();
 
         if (VERSION_MINUS_1.equals(clusterVersion())) {
             assertEquals(VERSION_MINUS_1, clusterVersion());
-            assertTrue(getIndices(client()).isEmpty());
-
-            // Copy a snapshot of an index with 5 documents
-            copySnapshotFromResources(repositoryPath, version);
-            registerRepository(client(), repository, FsRepository.TYPE, true, Settings.builder().put("location", repositoryPath).build());
-            recover(client(), repository, snapshot, index, warningsConsumer);
-
-            assertTrue(getIndices(client()).contains(index));
-            assertDocCount(client(), index, numDocs);
-
-            return;
+            restoreMountAndAssertSnapshot(extension, repository, repositoryPath, index, indexMount, numDocs, o -> {});
         }
 
         if (VERSION_CURRENT.equals(clusterVersion())) {
             assertEquals(VERSION_CURRENT, clusterVersion());
             assertTrue(getIndices(client()).contains(index));
             assertDocCount(client(), index, numDocs);
+
+            assertTrue(getIndices(client()).contains(indexMount));
+            assertDocCount(client(), indexMount, numDocs);
         }
     }
 
-    protected abstract void recover(
-        RestClient restClient,
+    /**
+     * This method executes in two phases. For cluster in version Current-1 it does not do anything. For cluster in version Current,
+     * restores and mounts an index snapshot and performs assertions. The test is performed only for the Current cluster.
+     *
+     * @param extension  The snapshot suffix in resources covering different scenarios.
+     * @throws Exception
+     */
+    protected final void verifyCompatibilityNoUpgrade(String extension) throws Exception {
+        verifyCompatibilityNoUpgrade(extension, o -> {});
+    }
+
+    protected final void verifyCompatibilityNoUpgrade(String extension, Consumer<List<String>> warningsConsumer) throws Exception {
+
+        if (VERSION_CURRENT.equals(clusterVersion())) {
+            String repository = "repository_" + extension;
+            String index = "index_" + extension;
+            String indexMount = index + "_" + repository;
+            int numDocs = 1;
+
+            assertEquals(VERSION_CURRENT, clusterVersion());
+            String repositoryPath = REPOSITORY_PATH.getRoot().getPath();
+            restoreMountAndAssertSnapshot(extension, repository, repositoryPath, index, indexMount, numDocs, warningsConsumer);
+        }
+    }
+
+    private void restoreMountAndAssertSnapshot(
+        String extension,
         String repository,
-        String snapshot,
+        String repositoryPath,
         String index,
+        String indexMount,
+        int numDocs,
         Consumer<List<String>> warningsConsumer
-    ) throws Exception;
+    ) throws Exception {
+        copySnapshotFromResources(repositoryPath, extension);
+        registerRepository(client(), repository, FsRepository.TYPE, true, Settings.builder().put("location", repositoryPath).build());
+
+        restore(client(), repository, index, warningsConsumer);
+        mount(client(), repository, index, indexMount, o -> {});
+
+        assertTrue(getIndices(client()).contains(index));
+        assertDocCount(client(), index, numDocs);
+        assertPhraseQuery(client(), index, "Elasticsearch Doc");
+
+        assertTrue(getIndices(client()).contains(indexMount));
+    }
+
+    private static void assertPhraseQuery(RestClient client, String indexName, String phrase) throws IOException {
+        var request = new Request("GET", "/" + indexName + "/_search");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+        request.setJsonEntity(Strings.format("""
+            {
+              "query": {
+                "match": {
+                  "content": "%s"
+                }
+              }
+            }""", phrase));
+        Response response = client.performRequest(request);
+        Map<String, Object> map = responseAsMap(response);
+        int hits = ((List<?>) ((Map<?, ?>) map.get("hits")).get("hits")).size();
+        assertEquals("expected 1  documents but it was a different number", 1, hits);
+    }
 
     private static String getIndices(RestClient client) throws IOException {
         final Request request = new Request("GET", "_cat/indices");
         Response response = client.performRequest(request);
         return EntityUtils.toString(response.getEntity());
+    }
+
+    private void restore(RestClient client, String repository, String index, Consumer<List<String>> warningsConsumer) throws Exception {
+        var request = new Request("POST", "/_snapshot/" + repository + "/snapshot/_restore");
+        request.addParameter("wait_for_completion", "true");
+        request.setJsonEntity(Strings.format("""
+            {
+              "indices": "%s",
+              "include_global_state": false,
+              "rename_pattern": "(.+)",
+              "include_aliases": false
+            }""", index));
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+        Response response = client.performRequest(request);
+        assertOK(response);
+        warningsConsumer.accept(response.getWarnings());
+    }
+
+    private void mount(RestClient client, String repository, String index, String indexMount, Consumer<List<String>> warningsConsumer)
+        throws Exception {
+        var request = new Request("POST", "/_snapshot/" + repository + "/snapshot/_mount");
+        request.addParameter("wait_for_completion", "true");
+        request.addParameter("storage", "full_copy");
+        request.setJsonEntity(Strings.format("""
+             {
+              "index": "%s",
+              "renamed_index": "%s"
+            }""", index, indexMount));
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+        Response response = client.performRequest(request);
+        assertOK(response);
+        warningsConsumer.accept(response.getWarnings());
     }
 
     private static void copySnapshotFromResources(String repositoryPath, String version) throws IOException, URISyntaxException {
@@ -225,7 +309,29 @@ public abstract class AbstractUpgradeCompatibilityTestCase extends ESRestTestCas
         }
     }
 
-    public final void testArchiveIndex() throws Exception {
-        verifyCompatibility(indexCreatedVersion, warningsConsumer);
+    protected static final class TestSnapshotCases {
+        // Index created in vES_5 - Basic mapping
+        public static final String ES_VERSION_5 = "5";
+
+        // Index created in vES_5 - Custom-Analyzer - standard token filter
+        public static final String ES_VERSION_5_STANDARD_TOKEN_FILTER = "5_standard_token_filter";
+
+        // Index created in vES_6 - Basic mapping
+        public static final String ES_VERSION_6 = "6";
+
+        // Index created in vES_6 - Custom-Analyzer - standard token filter
+        public static final String ES_VERSION_6_STANDARD_TOKEN_FILTER = "6_standard_token_filter";
+
+        // Index created in vES_6 - upgraded to vES_7 LuceneCodec80
+        public static final String ES_VERSION_6_LUCENE_CODEC_80 = "lucene_80";
+
+        // Index created in vES_6 - upgraded to vES_7 LuceneCodec84
+        public static final String ES_VERSION_6_LUCENE_CODEC_84 = "lucene_84";
+
+        // Index created in vES_6 - upgraded to vES_7 LuceneCodec86
+        public static final String ES_VERSION_6_LUCENE_CODEC_86 = "lucene_86";
+
+        // Index created in vES_6 - upgraded to vES_7 LuceneCodec87
+        public static final String ES_VERSION_6_LUCENE_CODEC_87 = "lucene_87";
     }
 }

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.elastic.completion;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -35,8 +34,7 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
     ) {
         var originalModelServiceSettings = model.getServiceSettings();
         var overriddenServiceSettings = new ElasticInferenceServiceCompletionServiceSettings(
-            Objects.requireNonNullElse(request.model(), originalModelServiceSettings.modelId()),
-            originalModelServiceSettings.rateLimitSettings()
+            Objects.requireNonNullElse(request.model(), originalModelServiceSettings.modelId())
         );
 
         return new ElasticInferenceServiceCompletionModel(model, overriddenServiceSettings);
@@ -79,19 +77,29 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
         TaskType taskType,
         String service,
         ElasticInferenceServiceCompletionServiceSettings serviceSettings,
-        @Nullable TaskSettings taskSettings,
-        @Nullable SecretSettings secretSettings,
+        TaskSettings taskSettings,
+        SecretSettings secretSettings,
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents
+    ) {
+        this(
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelSecrets(secretSettings),
+            elasticInferenceServiceComponents
+        );
+    }
+
+    public ElasticInferenceServiceCompletionModel(
+        ModelConfigurations modelConfigurations,
+        ModelSecrets modelSecrets,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
-            new ModelSecrets(secretSettings),
-            serviceSettings,
+            modelConfigurations,
+            modelSecrets,
+            (ElasticInferenceServiceCompletionServiceSettings) modelConfigurations.getServiceSettings(),
             elasticInferenceServiceComponents
         );
-
         this.uri = createUri();
-
     }
 
     @Override

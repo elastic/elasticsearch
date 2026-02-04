@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -24,28 +24,28 @@ public class AsyncBranchingStepTests extends AbstractStepTestCase<AsyncBranching
 
     public void testPredicateNextStepChange() throws InterruptedException {
         String indexName = randomAlphaOfLength(5);
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(
-                Metadata.builder()
-                    .put(IndexMetadata.builder(indexName).settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0))
-            )
+        final var indexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
             .build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
         StepKey stepKey = new StepKey(randomAlphaOfLength(5), randomAlphaOfLength(5), BranchingStep.NAME);
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(6), randomAlphaOfLength(6), BranchingStep.NAME);
         StepKey nextSkipKey = new StepKey(randomAlphaOfLength(7), randomAlphaOfLength(7), BranchingStep.NAME);
         {
-            AsyncBranchingStep step = new AsyncBranchingStep(stepKey, nextStepKey, nextSkipKey, (i, c, l) -> l.onResponse(true), client);
+            AsyncBranchingStep step = new AsyncBranchingStep(stepKey, nextStepKey, nextSkipKey, (p, i, l) -> l.onResponse(true), client);
             expectThrows(IllegalStateException.class, step::getNextStepKey);
             CountDownLatch latch = new CountDownLatch(1);
-            step.performAction(state.metadata().getProject().index(indexName), state, null, new Listener(latch));
+            step.performAction(indexMetadata, state, null, new Listener(latch));
             assertTrue(latch.await(5, TimeUnit.SECONDS));
             assertThat(step.getNextStepKey(), equalTo(step.getNextStepKeyOnTrue()));
         }
         {
-            AsyncBranchingStep step = new AsyncBranchingStep(stepKey, nextStepKey, nextSkipKey, (i, c, l) -> l.onResponse(false), client);
+            AsyncBranchingStep step = new AsyncBranchingStep(stepKey, nextStepKey, nextSkipKey, (p, i, l) -> l.onResponse(false), client);
             expectThrows(IllegalStateException.class, step::getNextStepKey);
             CountDownLatch latch = new CountDownLatch(1);
-            step.performAction(state.metadata().getProject().index(indexName), state, null, new Listener(latch));
+            step.performAction(indexMetadata, state, null, new Listener(latch));
             assertTrue(latch.await(5, TimeUnit.SECONDS));
             assertThat(step.getNextStepKey(), equalTo(step.getNextStepKeyOnFalse()));
         }
@@ -56,7 +56,7 @@ public class AsyncBranchingStepTests extends AbstractStepTestCase<AsyncBranching
         StepKey stepKey = new StepKey(randomAlphaOfLength(5), randomAlphaOfLength(5), BranchingStep.NAME);
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(6), randomAlphaOfLength(6), BranchingStep.NAME);
         StepKey nextSkipKey = new StepKey(randomAlphaOfLength(7), randomAlphaOfLength(7), BranchingStep.NAME);
-        return new AsyncBranchingStep(stepKey, nextStepKey, nextSkipKey, (i, c, l) -> l.onResponse(randomBoolean()), client);
+        return new AsyncBranchingStep(stepKey, nextStepKey, nextSkipKey, (p, i, l) -> l.onResponse(randomBoolean()), client);
     }
 
     @Override
@@ -64,7 +64,7 @@ public class AsyncBranchingStepTests extends AbstractStepTestCase<AsyncBranching
         StepKey key = instance.getKey();
         StepKey nextStepKey = instance.getNextStepKeyOnFalse();
         StepKey nextSkipStepKey = instance.getNextStepKeyOnTrue();
-        TriConsumer<IndexMetadata, ClusterState, ActionListener<Boolean>> asyncPredicate = instance.getAsyncPredicate();
+        TriConsumer<ProjectId, IndexMetadata, ActionListener<Boolean>> asyncPredicate = instance.getAsyncPredicate();
 
         switch (between(0, 2)) {
             case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));

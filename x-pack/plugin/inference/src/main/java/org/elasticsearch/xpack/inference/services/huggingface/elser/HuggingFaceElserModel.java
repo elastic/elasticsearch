@@ -12,9 +12,9 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.huggingface.HuggingFaceActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
+import org.elasticsearch.xpack.inference.services.huggingface.action.HuggingFaceActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.util.Map;
@@ -37,18 +37,22 @@ public class HuggingFaceElserModel extends HuggingFaceModel {
         );
     }
 
-    HuggingFaceElserModel(
+    public HuggingFaceElserModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
         HuggingFaceElserServiceSettings serviceSettings,
         @Nullable DefaultSecretSettings secretSettings
     ) {
+        this(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings), new ModelSecrets(secretSettings));
+    }
+
+    public HuggingFaceElserModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings),
-            new ModelSecrets(secretSettings),
-            serviceSettings,
-            secretSettings
+            modelConfigurations,
+            modelSecrets,
+            (HuggingFaceElserServiceSettings) modelConfigurations.getServiceSettings(),
+            (DefaultSecretSettings) modelSecrets.getSecretSettings()
         );
     }
 

@@ -178,9 +178,9 @@ public class QueryStringIT extends ESIntegTestCase {
             Exception.class,
             prepareSearch("test").setQuery(queryStringQuery("f4:\"eggplant parmesan\"").lenient(false))
         );
-        IllegalStateException ise = (IllegalStateException) ExceptionsHelper.unwrap(exc, IllegalStateException.class);
-        assertNotNull(ise);
-        assertThat(ise.getMessage(), containsString("field:[f4] was indexed without position data; cannot run PhraseQuery"));
+        IllegalArgumentException iae = (IllegalArgumentException) ExceptionsHelper.unwrap(exc, IllegalArgumentException.class);
+        assertNotNull(iae);
+        assertThat(iae.getMessage(), containsString("field:[f4] was indexed without position data; cannot run PhraseQuery"));
     }
 
     public void testBooleanStrictQuery() throws Exception {

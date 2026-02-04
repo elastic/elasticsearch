@@ -39,7 +39,7 @@ public class LogsIndexModeFullClusterRestartIT extends ParameterizedFullClusterR
         Version oldVersion = Version.fromString(OLD_CLUSTER_VERSION);
         var cluster = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .version(Version.fromString(OLD_CLUSTER_VERSION))
+            .version(OLD_CLUSTER_VERSION, isOldClusterDetachedVersion())
             .module("constant-keyword")
             .module("data-streams")
             .module("mapper-extras")
@@ -48,7 +48,7 @@ public class LogsIndexModeFullClusterRestartIT extends ParameterizedFullClusterR
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial");
 
-        if (oldVersion.before(Version.fromString("9.1.0"))) {
+        if (oldVersion.before(Version.fromString("8.18.0"))) {
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
         }

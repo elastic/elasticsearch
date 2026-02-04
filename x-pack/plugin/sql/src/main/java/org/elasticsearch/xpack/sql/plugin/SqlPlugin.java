@@ -6,12 +6,9 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -26,6 +23,7 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
@@ -84,7 +82,8 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
         return createComponents(
             services.client(),
             services.environment().settings(),
-            services.clusterService(),
+            services.clusterService().getClusterName().value(),
+            services.linkedProjectConfigService(),
             services.namedWriteableRegistry()
         );
     }
@@ -95,13 +94,14 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
     Collection<Object> createComponents(
         Client client,
         Settings settings,
-        ClusterService clusterService,
+        String clusterName,
+        LinkedProjectConfigService linkedProjectConfigService,
         NamedWriteableRegistry namedWriteableRegistry
     ) {
-        RemoteClusterResolver remoteClusterResolver = new RemoteClusterResolver(settings, clusterService.getClusterSettings());
+        RemoteClusterResolver remoteClusterResolver = new RemoteClusterResolver(settings, linkedProjectConfigService);
         IndexResolver indexResolver = new IndexResolver(
             client,
-            clusterService.getClusterName().value(),
+            clusterName,
             SqlDataTypeRegistry.INSTANCE,
             remoteClusterResolver::remoteClusters
         );
@@ -122,8 +122,8 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
     ) {
 
         return Arrays.asList(
-            new RestSqlQueryAction(),
-            new RestSqlTranslateAction(),
+            new RestSqlQueryAction(settings),
+            new RestSqlTranslateAction(settings),
             new RestSqlClearCursorAction(),
             new RestSqlStatsAction(),
             new RestSqlAsyncGetResultsAction(),
@@ -133,17 +133,17 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        var usageAction = new ActionHandler<>(XPackUsageFeatureAction.SQL, SqlUsageTransportAction.class);
-        var infoAction = new ActionHandler<>(XPackInfoFeatureAction.SQL, SqlInfoTransportAction.class);
+    public List<ActionHandler> getActions() {
+        var usageAction = new ActionHandler(XPackUsageFeatureAction.SQL, SqlUsageTransportAction.class);
+        var infoAction = new ActionHandler(XPackInfoFeatureAction.SQL, SqlInfoTransportAction.class);
 
         return Arrays.asList(
-            new ActionHandler<>(SqlQueryAction.INSTANCE, TransportSqlQueryAction.class),
-            new ActionHandler<>(SqlTranslateAction.INSTANCE, TransportSqlTranslateAction.class),
-            new ActionHandler<>(SqlClearCursorAction.INSTANCE, TransportSqlClearCursorAction.class),
-            new ActionHandler<>(SqlStatsAction.INSTANCE, TransportSqlStatsAction.class),
-            new ActionHandler<>(SqlAsyncGetResultsAction.INSTANCE, TransportSqlAsyncGetResultsAction.class),
-            new ActionHandler<>(SqlAsyncGetStatusAction.INSTANCE, TransportSqlAsyncGetStatusAction.class),
+            new ActionHandler(SqlQueryAction.INSTANCE, TransportSqlQueryAction.class),
+            new ActionHandler(SqlTranslateAction.INSTANCE, TransportSqlTranslateAction.class),
+            new ActionHandler(SqlClearCursorAction.INSTANCE, TransportSqlClearCursorAction.class),
+            new ActionHandler(SqlStatsAction.INSTANCE, TransportSqlStatsAction.class),
+            new ActionHandler(SqlAsyncGetResultsAction.INSTANCE, TransportSqlAsyncGetResultsAction.class),
+            new ActionHandler(SqlAsyncGetStatusAction.INSTANCE, TransportSqlAsyncGetStatusAction.class),
             usageAction,
             infoAction
         );

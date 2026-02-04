@@ -21,7 +21,7 @@ public class PrometheusFeatures implements FeatureSpecification {
     public static final NodeFeature PROMETHEUS_PLUGIN = new NodeFeature("prometheus_plugin");
 
     @Override
-    public Set<NodeFeature> getFeatures() {
+    public Set<NodeFeature> getTestFeatures() {
         if (PrometheusPlugin.PROMETHEUS_FEATURE_FLAG.isEnabled()) {
             return Set.of(PROMETHEUS_PLUGIN);
         } else {

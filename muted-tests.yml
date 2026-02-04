@@ -353,6 +353,9 @@ tests:
 - class: org.elasticsearch.compute.operator.topn.TopNOomRaceTests
   method: testRace {repeats = 50}
   issue: https://github.com/elastic/elasticsearch/issues/141773
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
+  issue: https://github.com/elastic/elasticsearch/issues/141794
 
 # Examples:
 #

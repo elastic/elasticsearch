@@ -1265,7 +1265,12 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
               "job_id": "test-job",
               "indices": ["remote-1:src"]
             }""");
-        assertNull(datafeedConfig.validateNoCrossProjectWhenCrossProjectIsDisabled(new CrossProjectModeDecider(Settings.EMPTY), null));
+        assertNull(
+            datafeedConfig.validateNoCrossProjectWhenCrossProjectIsDisabled(
+                new CrossProjectModeDecider(Settings.EMPTY),
+                (org.elasticsearch.action.ActionRequestValidationException) null
+            )
+        );
     }
 
     private DatafeedConfig createDatafeedConfigFromString(String json) throws IOException {

@@ -194,7 +194,13 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
                 for (int i = 0; i < totalResults; i++) {
                     results.add(new RankedDocsResults.RankedDoc(i, Float.parseFloat(input.get(i)), input.get(i)));
                 }
-                return new RankedDocsResults(results.stream().sorted(Comparator.reverseOrder()).toList());
+
+                var sortedResultsStream = results.stream().sorted(Comparator.reverseOrder());
+                if (taskSettings.topN != null) {
+                    sortedResultsStream = sortedResultsStream.limit(taskSettings.topN);
+                }
+
+                return new RankedDocsResults(sortedResultsStream.toList());
             } catch (NumberFormatException ex) {
                 return makeResultFromTextInput(input, taskSettings);
             }
@@ -216,6 +222,10 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             }
             // Ensure result are sorted by descending score
             results.sort((a, b) -> -Float.compare(a.relevanceScore(), b.relevanceScore()));
+            if (taskSettings.topN != null && taskSettings.topN < results.size()) {
+                results = results.subList(0, taskSettings.topN);
+            }
+
             return new RankedDocsResults(results);
         }
 
@@ -257,7 +267,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         }
     }
 
-    public record TestTaskSettings(boolean shouldFailValidation, boolean useTextLength, float minScore, float resultDiff)
+    public record TestTaskSettings(boolean shouldFailValidation, boolean useTextLength, float minScore, float resultDiff, Integer topN)
         implements
             TaskSettings {
 
@@ -285,11 +295,16 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
                 resultDiff = Float.parseFloat(map.remove("result_diff").toString());
             }
 
-            return new TestTaskSettings(shouldFailValidation, useTextLength, minScore, resultDiff);
+            Integer topN = null;
+            if (map.containsKey("top_n")) {
+                topN = Integer.parseInt(map.remove("top_n").toString());
+            }
+
+            return new TestTaskSettings(shouldFailValidation, useTextLength, minScore, resultDiff, topN);
         }
 
         public TestTaskSettings(StreamInput in) throws IOException {
-            this(in.readBoolean(), in.readBoolean(), in.readFloat(), in.readFloat());
+            this(in.readBoolean(), in.readBoolean(), in.readFloat(), in.readFloat(), in.readOptionalInt());
         }
 
         @Override
@@ -303,14 +318,19 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             out.writeBoolean(useTextLength);
             out.writeFloat(minScore);
             out.writeFloat(resultDiff);
+            out.writeOptionalInt(topN);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            builder.field("should_fail_validation", shouldFailValidation);
             builder.field("use_text_length", useTextLength);
             builder.field("min_score", minScore);
             builder.field("result_diff", resultDiff);
+            if (topN != null) {
+                builder.field("top_n", topN);
+            }
             builder.endObject();
             return builder;
         }
@@ -332,7 +352,8 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
                 newSettingsMap.containsKey("should_fail_validation") ? newSettingsObject.shouldFailValidation() : shouldFailValidation,
                 newSettingsMap.containsKey("use_text_length") ? newSettingsObject.useTextLength() : useTextLength,
                 newSettingsMap.containsKey("min_score") ? newSettingsObject.minScore() : minScore,
-                newSettingsMap.containsKey("result_diff") ? newSettingsObject.resultDiff() : resultDiff
+                newSettingsMap.containsKey("result_diff") ? newSettingsObject.resultDiff() : resultDiff,
+                newSettingsMap.containsKey("top_n") ? newSettingsObject.topN() : topN
             );
         }
     }

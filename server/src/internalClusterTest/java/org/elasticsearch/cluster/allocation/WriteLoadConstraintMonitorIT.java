@@ -12,6 +12,8 @@ package org.elasticsearch.cluster.allocation;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.admin.cluster.node.usage.NodeUsageStatsForThreadPoolsAction;
 import org.elasticsearch.action.admin.cluster.node.usage.TransportNodeUsageStatsForThreadPoolsAction;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
+import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -22,11 +24,13 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -41,6 +45,7 @@ import org.junit.After;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -52,9 +57,12 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
 
     private static final Set<String> NOT_PREFERRED_NODES = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
+    private static boolean ALLOCATION_DISABLED = false;
+
     @After
-    public void clearThrottleAndNotPreferredNodes() {
+    public void clearNotPreferredNodesAndAllocationDisabled() {
         NOT_PREFERRED_NODES.clear();
+        ALLOCATION_DISABLED = false;
     }
 
     @Override
@@ -162,114 +170,93 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
         );
     }
 
-    @TestLogging(
-        value = "org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor:TRACE",
-        reason = "so we can see what the monitor is doing"
-    )
     public void testAllocatorDoesNotMoveShardsToNotPreferredNode() {
-        final long queueLatencyThresholdMillis = randomLongBetween(50_000, 100_000);
-        final Settings settings = enabledWriteLoadDeciderSettings(queueLatencyThresholdMillis);
+        final Settings settings = Settings.builder()
+            .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 0.0f)
+            .put(BalancedShardsAllocator.WRITE_LOAD_BALANCE_FACTOR_SETTING.getKey(), 0.0f)
+            .put(BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey(), 0.0f)
+            .build();
+
         internalCluster().startMasterOnlyNode(settings);
 
         /* set up a node that has a few indices, hotspot it against a not preferred node,
         and see that it doesn't move any shards onto it */
-        final String sourceHotspotNode = internalCluster().startDataOnlyNode(settings);
-        final String sourceHotspotNodeID = getNodeId(sourceHotspotNode);
+        final String sourceNode = internalCluster().startDataOnlyNode(settings);
+        final String sourceNodeId = getNodeId(sourceNode);
 
-        final var indexName = randomIdentifier();
-        createIndex(indexName, 1, 0);
-        ensureGreen(indexName);
+        final int numberOfNodes = randomIntBetween(5, 20);
+        final int numberOfIndices = numberOfNodes * 2;
+        final int numberOfNotPreferredNodes = randomIntBetween(2, numberOfNodes - 2);
 
-        final var indexName2 = randomIdentifier();
-        createIndex(indexName2, 1, 0);
-        ensureGreen(indexName2);
+        Set<String> indexNames = new HashSet<>(numberOfIndices);
+        for (int i = 0; i < numberOfIndices; i++) {
+            final var indexName = randomIdentifier();
+            indexNames.add(indexName);
+            createIndex(indexName, 1, 1);
+        }
 
         // check that the indices are on the only source hotspot node, beforehand
-        final ClusterStateResponse clusterState = safeGet(
+        ClusterStateResponse clusterState = safeGet(
             internalCluster().client().admin().cluster().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT))
         );
-        assertEquals(
-            sourceHotspotNodeID,
-            clusterState.getState().routingTable(ProjectId.DEFAULT).index(indexName).shard(0).primaryShard().currentNodeId()
-        );
-        assertEquals(
-            sourceHotspotNodeID,
-            clusterState.getState().routingTable(ProjectId.DEFAULT).index(indexName2).shard(0).primaryShard().currentNodeId()
-        );
+        for (String indexName : indexNames) {
+            assertEquals(
+                sourceNodeId,
+                clusterState.getState().routingTable(ProjectId.DEFAULT).index(indexName).shard(0).primaryShard().currentNodeId()
+            );
+        }
 
-        final long version = clusterState.getState().version();
+        // turn off allocation, and add a bunch of nodes
+        ALLOCATION_DISABLED = true;
+        List<String> nodeNames = internalCluster().startDataOnlyNodes(numberOfNodes, settings);
+        Set<String> nodeIds = new HashSet<>(nodeNames.stream().map(nodeName -> getNodeId(nodeName)).collect(Collectors.toSet()));
+        Set<String> notPreferredNodeIds = new HashSet<>(randomSubsetOf(numberOfNotPreferredNodes, nodeIds));
+        Set<String> preferredNodeIds = Sets.difference(nodeIds, notPreferredNodeIds);
+        Set<String> preferredAndSourceNodeIDS = Sets.union(preferredNodeIds, Set.of(sourceNodeId));
 
-        // create a node that is not preferred, and check that hotspotting doesn't move to it
-        final String destNotPreferredNode = internalCluster().startDataOnlyNode(settings);
-        final String destNotPreferredNodeID = getNodeId(destNotPreferredNode);
-        NOT_PREFERRED_NODES.add(destNotPreferredNodeID);
+        // check that all the shards are still assigned to the source node
+        clusterState = safeGet(internalCluster().client().admin().cluster().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)));
+        for (String indexName : indexNames) {
+            assertEquals(
+                sourceNodeId,
+                clusterState.getState().routingTable(ProjectId.DEFAULT).index(indexName).shard(0).primaryShard().currentNodeId()
+            );
+        }
 
-        simulateHotSpottingOnNode(sourceHotspotNode, queueLatencyThresholdMillis);
+        // set up not preferred nodes, then turn back on allocation
+        for (String nodeId : notPreferredNodeIds) {
+            NOT_PREFERRED_NODES.add(nodeId);
+        }
+        ALLOCATION_DISABLED = false;
 
-        MockLog.awaitLogger(
-            ESIntegTestCase::refreshClusterInfo,
-            WriteLoadConstraintMonitor.class,
-            new MockLog.SeenEventExpectation(
-                "hot spot detected message",
-                WriteLoadConstraintMonitor.class.getCanonicalName(),
-                Level.DEBUG,
-                Strings.format("""
-                    Nodes [[%s]] are hot-spotting, of 2 total ingest nodes. Reroute for hot-spotting has never previously been called. \
-                    Previously hot-spotting nodes are [0 nodes]. The write thread pool queue latency threshold is [%s]. \
-                    Triggering reroute.
-                    """, sourceHotspotNodeID, TimeValue.timeValueMillis(queueLatencyThresholdMillis))
-            )
-        );
-
-        // wait for cluster state verion bump
-        awaitClusterState(state -> state.getVersion() > version);
-
-        // check the shards remain on the hotspot node
-        final ClusterStateResponse clusterStateLater = safeGet(
-            internalCluster().client().admin().cluster().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT))
-        );
-        var routingTableLater = clusterStateLater.getState().routingTable(ProjectId.DEFAULT);
-        assertEquals(sourceHotspotNodeID, routingTableLater.index(indexName).shard(0).primaryShard().currentNodeId());
-        assertEquals(sourceHotspotNodeID, routingTableLater.index(indexName2).shard(0).primaryShard().currentNodeId());
-
-        /* Check the same test setup will move the shards off a hotspot, when the not preferred preference
-        is cleared. Start over by clearing the hotspot and running the write load monitor. Then clear the
-        not preferred setting, set the hotspot, and then see that the shards move.*/
-        MockTransportService.getInstance(sourceHotspotNode).clearAllRules();
-        MockLog.awaitLogger(
-            ESIntegTestCase::refreshClusterInfo,
-            WriteLoadConstraintMonitor.class,
-            new MockLog.SeenEventExpectation(
-                "Skipping reroute message",
-                WriteLoadConstraintMonitor.class.getCanonicalName(),
-                Level.TRACE,
-                "No hot-spotting write nodes detected"
-            )
+        // run reroute
+        safeGet(
+            client().execute(TransportClusterRerouteAction.TYPE, new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
         );
 
-        simulateHotSpottingOnNode(sourceHotspotNode, queueLatencyThresholdMillis);
-        clearThrottleAndNotPreferredNodes();
+        // wait for green on every index (replica has been distributed)
+        for (String indexName : indexNames) {
+            ensureGreen(indexName);
+        }
 
-        MockLog.awaitLogger(
-            ESIntegTestCase::refreshClusterInfo,
-            WriteLoadConstraintMonitor.class,
-            new MockLog.SeenEventExpectation(
-                "hot spot detected message",
-                WriteLoadConstraintMonitor.class.getCanonicalName(),
-                Level.DEBUG,
-                Strings.format("""
-                    Nodes [[%s]] are hot-spotting, of 2 total ingest nodes. Reroute for hot-spotting was last called [*] ago. \
-                    Previously hot-spotting nodes are [0 nodes]. The write thread pool queue latency threshold is [%s]. \
-                    Triggering reroute.
-                    """, sourceHotspotNodeID, TimeValue.timeValueMillis(queueLatencyThresholdMillis))
-            )
-        );
+        // check that all of the shards are on the source/preferred nodes
+        clusterState = safeGet(internalCluster().client().admin().cluster().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)));
+        var projectRoutingTable = clusterState.getState().routingTable(ProjectId.DEFAULT);
+        int countOnPreferred = 0;
+        for (String indexName : indexNames) {
+            var shardRoutingTable = projectRoutingTable.index(indexName).shard(0);
+            String primaryNodeId = shardRoutingTable.primaryShard().currentNodeId();
+            String secondaryNodeId = shardRoutingTable.replicaShards().get(0).currentNodeId();
+            assertTrue("Not preferred nodes should not have any shards", notPreferredNodeIds.contains(primaryNodeId) == false);
+            assertTrue("Not preferred nodes should not have any shards", notPreferredNodeIds.contains(secondaryNodeId) == false);
+            assertTrue("Preferred nodes or source should have all the shards", preferredAndSourceNodeIDS.contains(primaryNodeId));
+            assertTrue("Preferred nodes or source should have all the shards", preferredAndSourceNodeIDS.contains(secondaryNodeId));
+            if (preferredNodeIds.contains(primaryNodeId) || preferredNodeIds.contains(secondaryNodeId)) {
+                countOnPreferred++;
+            }
+        }
 
-        awaitClusterState(state -> {
-            var routingTable = state.routingTable(ProjectId.DEFAULT);
-            return routingTable.index(indexName).shard(0).primaryShard().currentNodeId() == destNotPreferredNodeID
-                || routingTable.index(indexName2).shard(0).primaryShard().currentNodeId() == destNotPreferredNodeID;
-        });
+        assertTrue("At least half of the shards should be moved off the source node", countOnPreferred > numberOfIndices / 2.0);
     }
 
     private void simulateHotSpottingOnNode(String nodeName, long queueLatencyThresholdMillis) {
@@ -345,6 +332,15 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
                     Set<String> nodeIds = NOT_PREFERRED_NODES;
                     if (nodeIds.contains(node.nodeId())) {
                         return Decision.NOT_PREFERRED;
+                    } else {
+                        return Decision.YES;
+                    }
+                }
+            }, new AllocationDecider() {
+                @Override
+                public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                    if (ALLOCATION_DISABLED) {
+                        return Decision.NO;
                     } else {
                         return Decision.YES;
                     }

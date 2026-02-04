@@ -28,46 +28,46 @@ public class PlanTelemetryManager {
     private final LongCounter settingsCounterAll;
     private final LongCounter linkedProjectsHistogram;
 
-    public static String ESQL_PREFIX = "es.esql.";
-    public static String FEATURES_PREFIX = "commands.";
-    public static String FUNCTIONS_PREFIX = "functions.";
-    public static String SETTINGS_PREFIX = "settings.";
-
     /**
      * Number of times a command is used.
      * If the command is used N times in a single query, this counter will be incremented by N
      */
-    public static final String FEATURE_METRICS_ALL = ESQL_PREFIX + FEATURES_PREFIX + "usages.total";
+    public static final String FEATURE_METRICS_ALL = "es.esql.commands.usages.total";
 
     /**
      * Queries that use a command.
      * If a query uses a command N times, this will still be incremented by one only
      */
-    public static final String FEATURE_METRICS = ESQL_PREFIX + FEATURES_PREFIX + "queries.total";
+    public static final String FEATURE_METRICS = "es.esql.commands.queries.total";
 
     /**
      * Number of times a function is used.
      * If the function is used N times in a single query, this counter will be incremented by N
      */
-    public static final String FUNCTION_METRICS_ALL = ESQL_PREFIX + FUNCTIONS_PREFIX + "usages.total";
+    public static final String FUNCTION_METRICS_ALL = "es.esql.functions.usages.total";
 
     /**
-     * Queries that use a command.
-     * If a query uses a command N times, this will still be incremented by one only
+     * Queries that use a function.
+     * If a query uses a function N times, this will still be incremented by one only
      */
-    public static final String FUNCTION_METRICS = ESQL_PREFIX + FUNCTIONS_PREFIX + "queries.total";
+    public static final String FUNCTION_METRICS = "es.esql.functions.queries.total";
 
     /**
      * Number of times a setting is used.
      * If the setting is used N times in a single query, this counter will be incremented by N
      */
-    public static final String SETTING_METRICS_ALL = ESQL_PREFIX + SETTINGS_PREFIX + "usages.total";
+    public static final String SETTING_METRICS_ALL = "es.esql.settings.usages.total";
 
     /**
      * Queries that use a setting.
      * If a query uses a setting N times, this will still be incremented by one only
      */
-    public static final String SETTING_METRICS = ESQL_PREFIX + SETTINGS_PREFIX + "queries.total";
+    public static final String SETTING_METRICS = "es.esql.settings.queries.total";
+
+    /**
+     * Histogram of linked projects per ES|QL query.
+     */
+    public static final String LINKED_PROJECTS_HISTOGRAM = "es.esql.linked_projects.histogram";
 
     public static final String FEATURE_NAME = "feature_name";
 
@@ -96,7 +96,7 @@ public class PlanTelemetryManager {
         );
         settingsCounterAll = meterRegistry.registerLongCounter(SETTING_METRICS_ALL, "ESQL settings, total usage", "unit");
         linkedProjectsHistogram = meterRegistry.registerLongCounter(
-            ESQL_PREFIX + "linked_projects.histogram",
+            LINKED_PROJECTS_HISTOGRAM,
             "Histogram of linked projects per esql query",
             "unit"
         );

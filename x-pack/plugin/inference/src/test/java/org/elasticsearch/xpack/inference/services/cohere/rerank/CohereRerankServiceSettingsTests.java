@@ -11,14 +11,17 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
+import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.net.URI;
@@ -26,13 +29,70 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
+import static org.hamcrest.Matchers.is;
 
 public class CohereRerankServiceSettingsTests extends AbstractBWCWireSerializationTestCase<CohereRerankServiceSettings> {
 
     private static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = TransportVersion.fromName("ml_inference_cohere_api_version");
+    private static final String TEST_URL = "https://www.test.com";
+    private static final String INITIAL_TEST_URL = "https://www.initial-test.com";
+    private static final String TEST_MODEL_ID = "test-model-id";
+    private static final String INITIAL_TEST_MODEL_ID = "initial-test-model-id";
+    private static final int TEST_RATE_LIMIT = 20;
+    private static final int INITIAL_TEST_RATE_LIMIT = 30;
+    private static final CohereServiceSettings.CohereApiVersion TEST_INITIAL_COHERE_API_VERSION = CohereServiceSettings.CohereApiVersion.V1;
+    private static final CohereServiceSettings.CohereApiVersion TEST_COHERE_API_VERSION = CohereServiceSettings.CohereApiVersion.V2;
 
     public static CohereRerankServiceSettings createRandom() {
         return createRandom(randomFrom(new RateLimitSettings[] { null, RateLimitSettingsTests.createRandom() }));
+    }
+
+    public void testUpdateServiceSettings_AllFields_Success() {
+        HashMap<String, Object> settingsMap = new HashMap<>(
+            Map.of(
+                ServiceFields.URL,
+                TEST_URL,
+                ServiceFields.MODEL_ID,
+                TEST_MODEL_ID,
+                CohereServiceSettings.API_VERSION,
+                TEST_COHERE_API_VERSION.toString(),
+                RateLimitSettings.FIELD_NAME,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT))
+            )
+        );
+
+        var serviceSettings = new CohereRerankServiceSettings(
+            INITIAL_TEST_URL,
+            INITIAL_TEST_MODEL_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT),
+            TEST_INITIAL_COHERE_API_VERSION
+        ).updateServiceSettings(settingsMap, TaskType.RERANK);
+
+        MatcherAssert.assertThat(
+            serviceSettings,
+            is(new CohereRerankServiceSettings(TEST_URL, TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT), TEST_COHERE_API_VERSION))
+        );
+    }
+
+    public void testUpdateServiceSettings_EmptyMap_Success() {
+        var serviceSettings = new CohereRerankServiceSettings(
+            INITIAL_TEST_URL,
+            INITIAL_TEST_MODEL_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT),
+            TEST_INITIAL_COHERE_API_VERSION
+        ).updateServiceSettings(new HashMap<>(), TaskType.RERANK);
+
+        MatcherAssert.assertThat(
+            serviceSettings,
+            is(
+                new CohereRerankServiceSettings(
+                    INITIAL_TEST_URL,
+                    INITIAL_TEST_MODEL_ID,
+                    new RateLimitSettings(INITIAL_TEST_RATE_LIMIT),
+                    TEST_INITIAL_COHERE_API_VERSION
+                )
+            )
+        );
     }
 
     public static CohereRerankServiceSettings createRandom(@Nullable RateLimitSettings rateLimitSettings) {

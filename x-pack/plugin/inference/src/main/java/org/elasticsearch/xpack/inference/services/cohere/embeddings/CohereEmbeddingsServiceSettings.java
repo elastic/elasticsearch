@@ -155,7 +155,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
     @Override
     public CohereEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
         var validationException = new ValidationException();
-        var commonServiceSettings = CohereServiceSettings.fromMap(serviceSettings, ConfigurationParseContext.PERSISTENT);
+        var commonServiceSettings = this.commonSettings.updateServiceSettings(serviceSettings, taskType);
 
         var extractedEmbeddingType = extractOptionalEnum(
             serviceSettings,

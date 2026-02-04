@@ -13,6 +13,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -37,6 +38,21 @@ import static org.hamcrest.Matchers.is;
 public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTestCase<CohereServiceSettings> {
 
     private static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = TransportVersion.fromName("ml_inference_cohere_api_version");
+    private static final String TEST_URL = "https://www.test.com";
+    private static final String INITIAL_TEST_URL = "https://www.initial-test.com";
+    private static final String TEST_MODEL_ID = "test-model-id";
+    private static final String TEST_LEGACY_MODEL_ID = "legacy-test-model-id";
+    private static final String INITIAL_TEST_MODEL_ID = "initial-test-model-id";
+    private static final int TEST_RATE_LIMIT = 20;
+    private static final int INITIAL_TEST_RATE_LIMIT = 30;
+    private static final int TEST_DIMENSIONS = 1536;
+    private static final int INITIAL_TEST_DIMENSIONS = 3072;
+    private static final int TEST_MAX_INPUT_TOKENS = 512;
+    private static final int INITIAL_TEST_MAX_INPUT_TOKENS = 1024;
+    private static final SimilarityMeasure TEST_SIMILARITY_MEASURE = SimilarityMeasure.COSINE;
+    private static final SimilarityMeasure INITIAL_TEST_SIMILARITY_MEASURE = SimilarityMeasure.DOT_PRODUCT;
+    private static final CohereServiceSettings.CohereApiVersion TEST_INITIAL_COHERE_API_VERSION = CohereServiceSettings.CohereApiVersion.V1;
+    private static final CohereServiceSettings.CohereApiVersion TEST_COHERE_API_VERSION = CohereServiceSettings.CohereApiVersion.V2;
 
     public static CohereServiceSettings createRandomWithNonNullUrl() {
         return createRandom(randomAlphaOfLength(15));
@@ -68,6 +84,127 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
             model,
             RateLimitSettingsTests.createRandom(),
             randomFrom(CohereServiceSettings.CohereApiVersion.values())
+        );
+    }
+
+    public void testUpdateServiceSettings_AllFields_Success() {
+        HashMap<String, Object> settingsMap = createSettingsMap(TEST_MODEL_ID, null, TEST_COHERE_API_VERSION);
+
+        var serviceSettings = createInitialCohereServiceSettings(INITIAL_TEST_MODEL_ID).updateServiceSettings(
+            settingsMap,
+            TaskType.TEXT_EMBEDDING
+        );
+
+        MatcherAssert.assertThat(serviceSettings, is(createExpectedCohereServiceSettings(TEST_MODEL_ID, TEST_COHERE_API_VERSION)));
+    }
+
+    public void testUpdateServiceSettings_AllFields_OldModelId_Success() {
+        HashMap<String, Object> settingsMap = createSettingsMap(null, TEST_LEGACY_MODEL_ID, TEST_COHERE_API_VERSION);
+
+        var serviceSettings = createInitialCohereServiceSettings(INITIAL_TEST_MODEL_ID).updateServiceSettings(
+            settingsMap,
+            TaskType.TEXT_EMBEDDING
+        );
+
+        MatcherAssert.assertThat(serviceSettings, is(createExpectedCohereServiceSettings(TEST_LEGACY_MODEL_ID, TEST_COHERE_API_VERSION)));
+    }
+
+    public void testUpdateServiceSettings_AllFields_BothNewAndOldModelIds_Success() {
+        HashMap<String, Object> settingsMap = createSettingsMap(TEST_MODEL_ID, TEST_LEGACY_MODEL_ID, TEST_COHERE_API_VERSION);
+
+        var serviceSettings = createInitialCohereServiceSettings(INITIAL_TEST_MODEL_ID).updateServiceSettings(
+            settingsMap,
+            TaskType.TEXT_EMBEDDING
+        );
+
+        MatcherAssert.assertThat(serviceSettings, is(createExpectedCohereServiceSettings(TEST_MODEL_ID, TEST_COHERE_API_VERSION)));
+    }
+
+    public void testUpdateServiceSettings_ApiVersionV2_NoModelIds_ThrowsException() {
+        HashMap<String, Object> settingsMap = createSettingsMap(null, null, TEST_COHERE_API_VERSION);
+
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> createInitialCohereServiceSettings(null).updateServiceSettings(settingsMap, TaskType.TEXT_EMBEDDING)
+        );
+
+        MatcherAssert.assertThat(
+            thrownException.getMessage(),
+            is("Validation Failed: 1: The [service_settings.model_id] field is required for the Cohere V2 API.;")
+        );
+    }
+
+    public void testUpdateServiceSettings_ApiVersionV1_NoModelIds_Success() {
+        HashMap<String, Object> settingsMap = createSettingsMap(null, null, TEST_INITIAL_COHERE_API_VERSION);
+
+        var serviceSettings = createInitialCohereServiceSettings(null).updateServiceSettings(settingsMap, TaskType.TEXT_EMBEDDING);
+
+        MatcherAssert.assertThat(serviceSettings, is(createExpectedCohereServiceSettings(null, TEST_INITIAL_COHERE_API_VERSION)));
+    }
+
+    public void testUpdateServiceSettings_EmptyMap_Success() {
+        var serviceSettings = createInitialCohereServiceSettings(INITIAL_TEST_MODEL_ID).updateServiceSettings(
+            new HashMap<>(),
+            TaskType.TEXT_EMBEDDING
+        );
+
+        MatcherAssert.assertThat(serviceSettings, is(createInitialCohereServiceSettings(INITIAL_TEST_MODEL_ID)));
+    }
+
+    private static HashMap<String, Object> createSettingsMap(
+        String modelId,
+        String oldModelId,
+        CohereServiceSettings.CohereApiVersion apiVersion
+    ) {
+        HashMap<String, Object> resultMap = new HashMap<>(
+            Map.of(
+                ServiceFields.URL,
+                TEST_URL,
+                ServiceFields.SIMILARITY,
+                TEST_SIMILARITY_MEASURE.toString(),
+                ServiceFields.DIMENSIONS,
+                TEST_DIMENSIONS,
+                ServiceFields.MAX_INPUT_TOKENS,
+                TEST_MAX_INPUT_TOKENS,
+                CohereServiceSettings.API_VERSION,
+                apiVersion.toString(),
+                RateLimitSettings.FIELD_NAME,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT))
+            )
+        );
+        if (modelId != null) {
+            resultMap.put(ServiceFields.MODEL_ID, modelId);
+        }
+        if (oldModelId != null) {
+            resultMap.put(CohereServiceSettings.OLD_MODEL_ID_FIELD, oldModelId);
+        }
+        return resultMap;
+    }
+
+    private static CohereServiceSettings createInitialCohereServiceSettings(String modelId) {
+        return new CohereServiceSettings(
+            INITIAL_TEST_URL,
+            INITIAL_TEST_SIMILARITY_MEASURE,
+            INITIAL_TEST_DIMENSIONS,
+            INITIAL_TEST_MAX_INPUT_TOKENS,
+            modelId,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT),
+            TEST_INITIAL_COHERE_API_VERSION
+        );
+    }
+
+    private static CohereServiceSettings createExpectedCohereServiceSettings(
+        String modelId,
+        CohereServiceSettings.CohereApiVersion apiVersion
+    ) {
+        return new CohereServiceSettings(
+            TEST_URL,
+            TEST_SIMILARITY_MEASURE,
+            TEST_DIMENSIONS,
+            TEST_MAX_INPUT_TOKENS,
+            modelId,
+            new RateLimitSettings(TEST_RATE_LIMIT),
+            apiVersion
         );
     }
 

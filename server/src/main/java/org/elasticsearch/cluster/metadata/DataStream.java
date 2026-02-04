@@ -1224,7 +1224,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         TimeValue effectiveRetention,
         boolean failureStore
     ) {
-        return getIndicesPastRetention(indexMetadataSupplier, nowSupplier, effectiveRetention, failureStore == false, failureStore);
+        return getIndicesPastRetention(
+            indexMetadataSupplier,
+            nowSupplier,
+            effectiveRetention,
+            failureStore ? DatastreamIndexTypes.FAILURE_INDICES : DatastreamIndexTypes.BACKING_INDICES
+        );
     }
 
     /**
@@ -1238,25 +1243,24 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         LongSupplier nowSupplier,
         TimeValue effectiveRetention
     ) {
-        return getIndicesPastRetention(indexMetadataSupplier, nowSupplier, effectiveRetention, true, true);
+        return getIndicesPastRetention(indexMetadataSupplier, nowSupplier, effectiveRetention, DatastreamIndexTypes.ALL);
     }
 
     private List<Index> getIndicesPastRetention(
         Function<String, IndexMetadata> indexMetadataSupplier,
         LongSupplier nowSupplier,
         TimeValue effectiveRetention,
-        boolean includeBackingIndices,
-        boolean includeFailureStore
+        DatastreamIndexTypes types
     ) {
-        if (effectiveRetention == null || (includeBackingIndices == false && includeFailureStore == false)) {
+        if (effectiveRetention == null) {
             return List.of();
         }
 
         List<Index> indices = new ArrayList<>();
-        if (includeBackingIndices) {
+        if (types == DatastreamIndexTypes.ALL || types == DatastreamIndexTypes.BACKING_INDICES) {
             indices.addAll(getDataStreamIndices(false).getIndices());
         }
-        if (includeFailureStore) {
+        if (types == DatastreamIndexTypes.ALL || types == DatastreamIndexTypes.FAILURE_INDICES) {
             indices.addAll(getDataStreamIndices(true).getIndices());
         }
 
@@ -2199,4 +2203,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             super(message);
         }
     }
+
+    private enum DatastreamIndexTypes {
+        BACKING_INDICES,
+        FAILURE_INDICES,
+        ALL
+    }
+
 }

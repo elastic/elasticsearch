@@ -2099,6 +2099,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(orderNames(topN), contains("emp_no"));
         var filter = as(topN.child(), Filter.class);
         as(filter.child(), EsRelation.class);
+        assertWarnings(
+            "Line 3:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
+                + "add another SORT after the LOOKUP JOIN if order is required"
+        );
     }
 
     /**
@@ -2206,6 +2210,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         join = as(limit7300Before.child(), Join.class);
         var limit = asLimit(join.left(), 7300, false);
         as(limit.child(), LocalRelation.class);
+        assertWarnings(
+            "Line 5:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
+                + "add another SORT after the LOOKUP JOIN if order is required"
+        );
     }
 
     /**
@@ -2368,6 +2376,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var join = as(limit.child(), Join.class);
         var topN = as(join.left(), TopN.class);
         var row = as(topN.child(), LocalRelation.class);
+        assertWarnings(
+            "No limit defined, adding default limit of [1000]",
+            "Line 2:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
+                + "add another SORT after the LOOKUP JOIN if order is required"
+        );
     }
 
     /**
@@ -2420,6 +2433,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var topN = as(join.left(), TopN.class);
         assertThat(topN.limit().fold(FoldContext.small()), is(20));
         var row = as(topN.child(), EsRelation.class);
+        assertWarnings(
+            "Line 2:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
+                + "add another SORT after the LOOKUP JOIN if order is required"
+        );
     }
 
     /**
@@ -8978,6 +8995,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         VerificationException e = expectThrows(VerificationException.class, () -> plan(query));
         assertThat(e.getMessage(), containsString("line 2:5: Unbounded SORT not supported yet [SORT y] please add a LIMIT"));
+        assertWarnings(
+            "No limit defined, adding default limit of [1000]",
+            "Line 2:5: SORT is followed by a LOOKUP JOIN which does not preserve order; "
+                + "add another SORT after the LOOKUP JOIN if order is required"
+        );
     }
 
     public void testUnboundedSortWithMvExpandAndFilter() {
@@ -9008,6 +9030,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         VerificationException e = expectThrows(VerificationException.class, () -> plan(query));
         assertThat(e.getMessage(), containsString("line 5:3: Unbounded SORT not supported yet [SORT foo] please add a LIMIT"));
+        assertWarnings(
+            "No limit defined, adding default limit of [1000]",
+            "Line 5:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
+                + "add another SORT after the LOOKUP JOIN if order is required"
+        );
     }
 
     public void testUnboundedSortExpandFilter() {
@@ -11156,6 +11183,77 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var mvAvgAlias = mvAvgEval.fields().getFirst();
         assertThat(mvAvgAlias.child(), instanceOf(MvAvg.class));
         as(leftEval.child(), EsRelation.class);
+    }
+
+    /**
+     * SORT followed by LOOKUP JOIN should warn because the order is lost.
+     */
+    public void testWarnSortBeforeLookupJoin() {
+        var plan = optimizedPlan("""
+            FROM test
+            | EVAL language_code = languages
+            | SORT emp_no
+            | LOOKUP JOIN languages_lookup ON language_code
+            """);
+
+        as(plan, Limit.class);
+        assertWarnings(
+            "No limit defined, adding default limit of [1000]",
+            "Line 3:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
+                + "add another SORT after the LOOKUP JOIN if order is required"
+        );
+    }
+
+    /**
+     * SORT followed by LOOKUP JOIN followed by another SORT should NOT warn
+     * because the final SORT restores order.
+     */
+    public void testNoWarnSortBeforeLookupJoinWithSortAfter() {
+        var plan = optimizedPlan("""
+            FROM test
+            | EVAL language_code = languages
+            | SORT emp_no
+            | LOOKUP JOIN languages_lookup ON language_code
+            | SORT first_name
+            """);
+
+        as(plan, TopN.class);
+        // Only the default limit warning, no sort order warning
+        assertWarnings("No limit defined, adding default limit of [1000]");
+    }
+
+    /**
+     * LOOKUP JOIN without a preceding SORT should NOT warn.
+     */
+    public void testNoWarnLookupJoinWithoutSort() {
+        var plan = optimizedPlan("""
+            FROM test
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            """);
+
+        as(plan, Limit.class);
+        // Only the default limit warning, no sort order warning
+        assertWarnings("No limit defined, adding default limit of [1000]");
+    }
+
+    /**
+     * TopN (which includes SORT) followed by LOOKUP JOIN should warn.
+     */
+    public void testWarnTopNBeforeLookupJoin() {
+        var plan = optimizedPlan("""
+            FROM test
+            | EVAL language_code = languages
+            | SORT emp_no
+            | LIMIT 10
+            | LOOKUP JOIN languages_lookup ON language_code
+            """);
+
+        as(plan, Limit.class);
+        assertWarnings(
+            "Line 3:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
+                + "add another SORT after the LOOKUP JOIN if order is required"
+        );
     }
 
     public void testTranslateMetricsWithAliasToDimensionInGroup() {

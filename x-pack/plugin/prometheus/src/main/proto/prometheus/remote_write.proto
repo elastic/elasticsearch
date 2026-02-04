@@ -1,0 +1,32 @@
+syntax = "proto3";
+package prometheus;
+
+option java_package = "org.elasticsearch.xpack.prometheus.proto";
+option java_outer_classname = "RemoteWriteProtos";
+
+message WriteRequest {
+  repeated TimeSeries timeseries = 1;
+  // Cortex uses this field to determine the source of the write request.
+  // We reserve it to avoid any compatibility issues.
+  reserved  2;
+
+  // Prometheus uses this field to send metadata, but this is
+  // omitted from v1 of the spec as it is experimental.
+  reserved  3;
+}
+
+message TimeSeries {
+  repeated Label labels   = 1;
+  repeated Sample samples = 2;
+}
+
+message Label {
+  string name  = 1;
+  string value = 2;
+}
+
+message Sample {
+  double value    = 1;
+  int64 timestamp = 2;
+}
+

@@ -50,7 +50,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
     private final Function<SortedNumericLongValues, SortedNumericLongValues> converter;
     private final NumericType targetNumericType;
 
-    private boolean isMatchTailQuery = false;
+    private boolean alwaysMatchTailQuery = false;
 
     public LongValuesComparatorSource(
         IndexNumericFieldData indexFieldData,
@@ -82,7 +82,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
     }
 
     public void setMatchTailQuery() {
-        this.isMatchTailQuery = true;
+        this.alwaysMatchTailQuery = true;
     }
 
     private SortedNumericLongValues loadDocValues(LeafReaderContext context) {
@@ -125,7 +125,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                     @Override
                     protected XNumericComparator<Long>.CompetitiveDISIBuilder buildCompetitiveDISIBuilder(LeafReaderContext context)
                         throws IOException {
-                        if (isMatchTailQuery == false || segmentSortedByDescTimestamp(context) == false) {
+                        if (alwaysMatchTailQuery == false || segmentSortedByDescTimestamp(context) == false) {
                             return super.buildCompetitiveDISIBuilder(context);
                         }
                         int maxDoc = context.reader().maxDoc();

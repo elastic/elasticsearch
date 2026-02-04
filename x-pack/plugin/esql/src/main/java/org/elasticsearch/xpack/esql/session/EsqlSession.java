@@ -392,6 +392,7 @@ public class EsqlSession {
                 optimizedPlan,
                 configuration,
                 foldContext,
+                minimumVersion,
                 planRunner,
                 executionInfo,
                 request,
@@ -407,6 +408,7 @@ public class EsqlSession {
         LogicalPlan optimizedPlan,
         Configuration configuration,
         FoldContext foldContext,
+        TransportVersion minimumVersion,
         PlanRunner runner,
         EsqlExecutionInfo executionInfo,
         EsqlQueryRequest request,
@@ -446,6 +448,7 @@ public class EsqlSession {
                 runner,
                 configuration,
                 foldContext,
+                minimumVersion,
                 planTimeProfile
             ).approximate(listener);
         } else {

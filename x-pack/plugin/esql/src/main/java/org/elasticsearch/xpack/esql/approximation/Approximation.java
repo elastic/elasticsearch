@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.approximation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.data.LongBlock;
@@ -52,6 +53,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -326,6 +329,7 @@ public class Approximation {
     private final Function<LogicalPlan, PhysicalPlan> toPhysicalPlan;
     private final Configuration configuration;
     private final FoldContext foldContext;
+    private final TransportVersion minimumVersion;
     private final PlanTimeProfile planTimeProfile;
 
     private final SetOnce<Long> sourceRowCount;
@@ -339,6 +343,7 @@ public class Approximation {
         EsqlSession.PlanRunner runner,
         Configuration configuration,
         FoldContext foldContext,
+        TransportVersion minimumVersion,
         PlanTimeProfile planTimeProfile
     ) {
         this.logicalPlan = logicalPlan;
@@ -349,6 +354,7 @@ public class Approximation {
         this.runner = runner;
         this.configuration = configuration;
         this.foldContext = foldContext;
+        this.minimumVersion = minimumVersion;
         this.planTimeProfile = planTimeProfile;
 
         sourceRowCount = new SetOnce<>();
@@ -762,7 +768,7 @@ public class Approximation {
         // is rewritten to AVG::double = SUM::double / COUNT::long.
         Map<NameId, NamedExpression> uncorrectedExpressions = new HashMap<>();
 
-        LogicalPlan approximatePlan = logicalPlan.transformUp(plan -> {
+        LogicalPlan approximationPlan = logicalPlan.transformUp(plan -> {
             if (plan instanceof LeafPlan) {
                 // The leaf plan should be appended by a SAMPLE.
                 return new Sample(Source.EMPTY, Literal.fromDouble(Source.EMPTY, sampleProbability), plan);
@@ -785,7 +791,7 @@ public class Approximation {
         });
 
         // Add the confidence intervals for all fields with buckets.
-        approximatePlan = new Eval(Source.EMPTY, approximatePlan, getConfidenceIntervals(fieldBuckets));
+        approximationPlan = new Eval(Source.EMPTY, approximationPlan, getConfidenceIntervals(fieldBuckets));
 
         // Drop all bucket fields and uncorrected fields from the output.
         Set<Attribute> dropAttributes = Stream.concat(
@@ -793,14 +799,27 @@ public class Approximation {
             uncorrectedExpressions.values().stream()
         ).map(NamedExpression::toAttribute).collect(Collectors.toSet());
 
-        List<Attribute> keepAttributes = new ArrayList<>(approximatePlan.output());
+        List<Attribute> keepAttributes = new ArrayList<>(approximationPlan.output());
         keepAttributes.removeAll(dropAttributes);
-        approximatePlan = new Project(Source.EMPTY, approximatePlan, keepAttributes);
+        approximationPlan = new Project(Source.EMPTY, approximationPlan, keepAttributes);
+        approximationPlan = optimize(approximationPlan);
+        logger.debug("approximation plan (after:\n{}", approximationPlan);
+        return approximationPlan;
+    }
 
-        approximatePlan.setOptimized();
-        // TODO: maybe use pruning
-        logger.debug("approximation plan:\n{}", approximatePlan);
-        return approximatePlan;
+    /**
+     * Optimizes the given logical plan, mostly to prune unnecessary columns.
+     * <p>
+     * Only the operator optimizations are applied, which are safe to rerun any time.
+     */
+    private LogicalPlan optimize(LogicalPlan plan) {
+        LogicalPlanOptimizer optimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, foldContext, minimumVersion)) {
+            @Override
+            protected List<Batch<LogicalPlan>> batches() {
+                return List.of(operators());
+            }
+        };
+        return optimizer.optimize(plan);
     }
 
     /**

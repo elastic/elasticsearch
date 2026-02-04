@@ -515,6 +515,7 @@ public class ApproximationTests extends ESTestCase {
             runner,
             EsqlTestUtils.TEST_CFG,
             FoldContext.small(),
+            TransportVersion.current(),
             new PlanTimeProfile()
         );
     }

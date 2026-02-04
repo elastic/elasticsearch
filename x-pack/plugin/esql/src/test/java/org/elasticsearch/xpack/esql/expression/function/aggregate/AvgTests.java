@@ -116,11 +116,17 @@ public class AvgTests extends AbstractAggregationTestCase {
                     }
                     case EXPONENTIAL_HISTOGRAM -> {
                         var expHisto = (ExponentialHistogram) fieldData.get(0);
-                        yield expHisto.valueCount() == 0 ? null : expHisto.sum() / expHisto.valueCount();
+                        if (expHisto.valueCount() == 0) {
+                            yield null;
+                        }
+                        yield expHisto.sum() / expHisto.valueCount();
                     }
                     case TDIGEST -> {
                         var tDigest = (TDigestHolder) fieldData.get(0);
-                        yield tDigest.getValueCount() == 0 ? null : tDigest.getSum() / tDigest.getValueCount();
+                        if (tDigest.getValueCount() == 0) {
+                            yield null;
+                        }
+                        yield tDigest.getSum() / tDigest.getValueCount();
                     }
                     default -> {
                         double value = ((Number) fieldData.get(0)).doubleValue();
@@ -142,20 +148,26 @@ public class AvgTests extends AbstractAggregationTestCase {
                         double sum = fieldData.stream()
                             .mapToDouble(v -> ((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) v).sum())
                             .sum();
-                        double count = fieldData.stream()
-                            .mapToInt(v -> ((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) v).count())
+                        long count = fieldData.stream()
+                            .mapToLong(v -> ((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) v).count())
                             .sum();
-                        yield count == 0 ? null : sum / count;
+                        yield sum / count;
                     }
                     case EXPONENTIAL_HISTOGRAM -> {
                         double sum = fieldData.stream().mapToDouble(v -> ((ExponentialHistogram) v).sum()).sum();
                         double count = fieldData.stream().mapToLong(v -> ((ExponentialHistogram) v).valueCount()).sum();
-                        yield count == 0 ? null : sum / count;
+                        if (count == 0) {
+                            yield null;
+                        }
+                        yield sum / count;
                     }
                     case TDIGEST -> {
                         double sum = fieldData.stream().mapToDouble(v -> ((TDigestHolder) v).getSum()).sum();
                         double count = fieldData.stream().mapToLong(v -> ((TDigestHolder) v).getValueCount()).sum();
-                        yield count == 0 ? null : sum / count;
+                        if (count == 0) {
+                            yield null;
+                        }
+                        yield sum / count;
                     }
                     default -> throw new IllegalStateException("Unexpected value: " + fieldTypedData.type());
                 };

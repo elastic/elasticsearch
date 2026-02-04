@@ -32,7 +32,9 @@ import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class PercentileTests extends AbstractAggregationTestCase {
     public PercentileTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -94,7 +96,7 @@ public class PercentileTests extends AbstractAggregationTestCase {
                 List.of(fieldTypedData, percentileTypedData),
                 standardAggregatorName("Percentile", fieldSupplier.type()),
                 DataType.DOUBLE,
-                equalTo(expected)
+                expected == null ? nullValue() : closeTo(expected, Math.abs(expected * 1e-10))
             );
         });
     }

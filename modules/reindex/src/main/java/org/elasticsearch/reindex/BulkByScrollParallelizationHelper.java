@@ -126,7 +126,6 @@ class BulkByScrollParallelizationHelper {
             );
         } else {
             setWorkerCount(request, task, configuredSlices);
-
             listener.onResponse(null);
         }
     }
@@ -161,6 +160,7 @@ class BulkByScrollParallelizationHelper {
         Request request,
         ActionListener<BulkByScrollResponse> listener
     ) {
+
         LeaderBulkByScrollTaskState worker = task.getLeaderState();
         int totalSlices = worker.getSlices();
         TaskId parentTaskId = new TaskId(localNodeId, task.getId());

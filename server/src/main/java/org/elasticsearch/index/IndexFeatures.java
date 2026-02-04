@@ -39,6 +39,10 @@ public class IndexFeatures implements FeatureSpecification {
         "index.shadowing_dimensions_and_metrics_is_valid_in_non_tsdb"
     );
 
+    private static final NodeFeature CONSTANT_FIELD_TYPE_NORMALIZED_WILDCARD_QUERY_SUPPORT = new NodeFeature(
+        "constant_field_type.normalized_wildcard_query_support"
+    );
+
     @Override
     public Set<NodeFeature> getTestFeatures() {
         return Set.of(
@@ -48,7 +52,7 @@ public class IndexFeatures implements FeatureSpecification {
             THROW_EXCEPTION_ON_INDEX_CREATION_IF_UNSUPPORTED_VALUE_TYPE_IN_ALIAS,
             SHADOWING_DIMENSIONS_AND_METRICS_IS_VALID_IN_NON_TSDB,
             InferenceMetadataFieldsMapper.INFERENCE_FIELDS_GET_VIA_SOURCE_INCLUDES,
-            ConstantFieldType.NORMALIZED_WILDCARD_QUERY_SUPPORT
+            CONSTANT_FIELD_TYPE_NORMALIZED_WILDCARD_QUERY_SUPPORT
         );
     }
 }

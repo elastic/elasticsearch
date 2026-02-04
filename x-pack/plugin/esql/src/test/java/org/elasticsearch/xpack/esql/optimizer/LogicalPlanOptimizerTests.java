@@ -11047,6 +11047,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         as(agg.child(), LocalRelation.class);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/141879")
     public void testTranslateMetricsWithAliasToDimensionInGroup() {
         var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery("""
             TS k8s |

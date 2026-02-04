@@ -1719,6 +1719,10 @@ public class EsqlCapabilities {
         HISTOGRAM_RELEASE_VERSION,
 
         /**
+         * Support for running the Count aggregation on t-digest and exponential histogram types
+         */
+        COUNT_OF_HISTOGRAM_TYPES,
+        /**
          * Fix for <a href="https://github.com/elastic/elasticsearch/issues/140670">140670</a>,
          * this allows for type conversion functions with no further computation to be
          * evaluated inside default wrapping _over_time functions.
@@ -1781,6 +1785,11 @@ public class EsqlCapabilities {
          * BooleanSimplification will simplify the original and duplicate filters, so they'll be pushed down again...
          */
         LOOKUP_JOIN_SEMANTIC_FILTER_DEDUP,
+
+        /**
+         * Warning when SORT is followed by LOOKUP JOIN which does not preserve order.
+         */
+        LOOKUP_JOIN_SORT_WARNING,
 
         /**
          * Temporarily forbid the use of an explicit or implicit LIMIT before INLINE STATS.
@@ -1873,7 +1882,13 @@ public class EsqlCapabilities {
         /**
          * Support for PromQL time() function.
          */
-        PROMQL_TIME(PROMQL_COMMAND_V0.isEnabled()),
+        PROMQL_TIME,
+
+        /**
+         * Queries for unmapped fields return no data instead of an error.
+         * Also filters out nulls from results.
+         */
+        PROMQL_UNMAPPED_FIELDS_FILTER_NULLS,
 
         /**
          * KNN function adds support for k and visit_percentage options
@@ -2036,6 +2051,16 @@ public class EsqlCapabilities {
          * Support for requesting the "_size" metadata field when the mapper-size plugin is enabled.
          */
         METADATA_SIZE_FIELD,
+
+        /**
+         * Support for configuring T-Digest elasticsearch field as a time series metric.
+         */
+        TDIGEST_TIME_SERIES_METRIC,
+
+        /**
+         * Fix bug with TS command where you can't group on aliases (i.e. `by c = cluster`)
+         */
+        TS_COMMAND_GROUP_ON_ALIASES,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

@@ -32,7 +32,7 @@ import java.nio.ByteOrder;
  * This aggregator calculates the centroid of a set of shapes (geo_shape or cartesian_shape).
  * Unlike the point-based centroid, this needs to track the dimensional shape type and weight
  * to correctly handle polygons (weighted by area), lines (weighted by length), and points (weight 1).
- * When shapes of different dimensions are combined, only the highest dimension contributes.
+ * When shapes of different dimensional types are combined, only the highest dimensional type contributes.
  */
 abstract class CentroidShapeAggregator {
     public static ShapeCentroidState initSingle() {
@@ -177,7 +177,7 @@ abstract class CentroidShapeAggregator {
 
         /**
          * Add a coordinate with weight and shape type, respecting dimensional priority.
-         * When mixing shapes of different dimensions, only the highest dimension contributes.
+         * When mixing shapes of different dimensional types, only the highest dimensional type contributes.
          */
         public void add(double x, double dx, double y, double dy, double weight, DimensionalShapeType shapeType) {
             if (Double.isFinite(x) == false || Double.isFinite(y) == false || Double.isFinite(weight) == false || weight <= 0) {

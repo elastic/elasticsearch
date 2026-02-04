@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.settings.ClusterSettings;
 
 import java.util.Arrays;
 import java.util.Comparator;
@@ -34,20 +33,6 @@ public interface ShardRelocationOrder {
      */
     interface Ordering {
         Iterator<ShardRouting> order(RoutingAllocation allocation, String nodeId);
-    }
-
-    /**
-     * A factory method to create a ShardRelocationOrder
-     */
-    interface Factory {
-        ShardRelocationOrder create(ClusterSettings clusterSettings);
-    }
-
-    class DefaultFactory implements Factory {
-        @Override
-        public ShardRelocationOrder create(ClusterSettings clusterSettings) {
-            return new DefaultOrder();
-        }
     }
 
     class DefaultOrder implements ShardRelocationOrder {

@@ -82,7 +82,7 @@ public interface ClusterPlugin {
         return null;
     }
 
-    default ShardRelocationOrder.Factory getShardRelocationOrderFactory() {
+    default ShardRelocationOrder getShardRelocationOrder(ClusterSettings clusterSettings) {
         return null;
     }
 

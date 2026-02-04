@@ -167,7 +167,7 @@ public class ClusterModule extends AbstractModule {
             balancerSettings,
             clusterService.getClusterSettings()
         );
-        final var shardRelocationOrder = getShardRelocationOrderFactory(clusterPlugins).create(clusterService.getClusterSettings());
+        final var shardRelocationOrder = getShardRelocationOrder(clusterPlugins, clusterService.getClusterSettings());
         var nodeAllocationStatsAndWeightsCalculator = new NodeAllocationStatsAndWeightsCalculator(
             writeLoadForecaster,
             balancingWeightsFactory
@@ -250,14 +250,15 @@ public class ClusterModule extends AbstractModule {
         };
     }
 
-    static ShardRelocationOrder.Factory getShardRelocationOrderFactory(List<ClusterPlugin> clusterPlugins) {
-        final var strategies = clusterPlugins.stream().map(ClusterPlugin::getShardRelocationOrderFactory).filter(Objects::nonNull).toList();
+    static ShardRelocationOrder getShardRelocationOrder(List<ClusterPlugin> clusterPlugins, ClusterSettings clusterSettings) {
+        final var strategies = clusterPlugins.stream()
+            .map(pl -> pl.getShardRelocationOrder(clusterSettings))
+            .filter(Objects::nonNull)
+            .toList();
         return switch (strategies.size()) {
-            case 0 -> new ShardRelocationOrder.DefaultFactory();
+            case 0 -> new ShardRelocationOrder.DefaultOrder();
             case 1 -> strategies.get(0);
-            default -> throw new IllegalArgumentException(
-                "multiple plugins define shard relocation order factories, which is not permitted"
-            );
+            default -> throw new IllegalArgumentException("multiple plugins define a shard relocation order, which is not permitted");
         };
     }
 

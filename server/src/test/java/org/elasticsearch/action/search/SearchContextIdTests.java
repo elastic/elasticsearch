@@ -158,6 +158,6 @@ public class SearchContextIdTests extends ESTestCase {
         NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.emptyList());
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SearchContextId.decode(registry, id));
-        assertThat(e.getMessage(), equalTo("unknown transport version [" + unknownTransportId + "]"));
+        assertThat(e.getMessage(), equalTo("unknown transport version [" + unknownTransportId + "] reading search context id"));
     }
 }

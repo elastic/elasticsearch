@@ -481,7 +481,7 @@ public class HistogramUnionStateTests extends ESTestCase {
                 assertThat(copy.compression(), equalTo(42.0));
 
                 // Mutate the copy to ensure that the original is unaffected
-                try(RandomState randomState = randomState()) {
+                try (RandomState randomState = randomState()) {
                     copy.add(randomState.unionState());
                 }
 

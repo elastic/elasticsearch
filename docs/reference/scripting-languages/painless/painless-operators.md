@@ -25,7 +25,6 @@ Painless organizes operators into five functional categories based on their purp
 :::
 Double-click to expand the image.
 
-
 ```mermaid
 graph TB
     A["Painless Operators"]
@@ -70,6 +69,54 @@ graph TB
     class B1,C1,D1,E1,F1 descBox
     class B2,C2,D2,E2,F2 exampleBox
 ```
+
+
+
+```mermaid
+graph TB
+    A["Painless Operators"]
+
+    B["General"]
+    C["Numeric"]
+    D["Boolean"]
+    E["Reference"]
+    F["Array"]
+
+    B1["Control expression flow and value assignment"]
+    C1["Mathematical operations and bit manipulation"]
+    D1["Boolean logic and conditional evaluation"]
+    E1["Object interaction and safe data access"]
+    F1["Array manipulation and element access"]
+
+    B2["Precedence ( ) Function Call ( ) Cast ( ) Conditional ? : Elvis ?: Assignment = Compound Assignment $="]
+    C2["Post/Pre Increment ++ Post/Pre Decrement -- Unary +/- Bitwise Not ~ Multiplication * Division / Remainder % Addition + Subtraction - Shift <<, >>, >>> Bitwise And & Bitwise Xor ^ Bitwise Or |"]
+    D2["Boolean Not ! Comparison >, >=, <, <= Instanceof instanceof Equality ==, != Identity ===, !== Boolean Xor ^ Boolean And && Boolean Or ||"]
+    E2["Method Call . ( ) Field Access . Null Safe ?. New Instance new ( ) String Concatenation + List/Map Init [ ], [ : ] List/Map Access [ ]"]
+    F2["Array Init [ ] { } Array Access [ ] Array Length .length New Array new [ ]"]
+
+    A --> B & C & D & E & F
+    B --> B1
+    C --> C1
+    D --> D1
+    E --> E1
+    F --> F1
+    B1 --> B2
+    C1 --> C2
+    D1 --> D2
+    E1 --> E2
+    F1 --> F2
+    
+    classDef rootNode fill:#0B64DD,stroke:#101C3F,stroke-width:2px,color:#fff
+    classDef categoryBox fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#343741
+    classDef descBox fill:#48EFCF,stroke:#343741,stroke-width:2px,color:#343741
+    classDef exampleBox fill:#f5f7fa,stroke:#343741,stroke-width:2px,color:#343741
+
+    class A rootNode
+    class B,C,D,E,F categoryBox
+    class B1,C1,D1,E1,F1 descBox
+    class B2,C2,D2,E2,F2 exampleBox
+```
+
 
 
 ### General operators

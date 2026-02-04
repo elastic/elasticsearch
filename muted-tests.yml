@@ -371,6 +371,9 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=esql/50_index_patterns/disjoint_mappings}
   issue: https://github.com/elastic/elasticsearch/issues/141856
+- class: org.elasticsearch.xpack.diskbbq.DirectIOIT
+  method: testDirectIONotUsed {p0=bbq_disk}
+  issue: https://github.com/elastic/elasticsearch/issues/141863
 
 # Examples:
 #

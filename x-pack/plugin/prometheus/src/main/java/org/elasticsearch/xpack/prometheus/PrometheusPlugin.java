@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.prometheus;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
@@ -33,9 +31,7 @@ public class PrometheusPlugin extends Plugin {
         Setting.Property.Dynamic
     );
 
-    private static final Logger logger = LogManager.getLogger(PrometheusPlugin.class);
-
-    private final SetOnce<PrometheusIndexTemplateRegistry> registry = new SetOnce<>();
+    private final SetOnce<PrometheusIndexTemplateRegistry> indexTemplateRegistry = new SetOnce<>();
     private final boolean enabled;
 
     public PrometheusPlugin(Settings settings) {
@@ -44,10 +40,9 @@ public class PrometheusPlugin extends Plugin {
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        logger.info("Prometheus plugin is {}", enabled ? "enabled" : "disabled");
         Settings settings = services.environment().settings();
         ClusterService clusterService = services.clusterService();
-        registry.set(
+        indexTemplateRegistry.set(
             new PrometheusIndexTemplateRegistry(
                 settings,
                 clusterService,
@@ -57,7 +52,7 @@ public class PrometheusPlugin extends Plugin {
             )
         );
         if (enabled) {
-            PrometheusIndexTemplateRegistry registryInstance = registry.get();
+            PrometheusIndexTemplateRegistry registryInstance = indexTemplateRegistry.get();
             registryInstance.setEnabled(PROMETHEUS_REGISTRY_ENABLED.get(settings));
             registryInstance.initialize();
         }
@@ -66,8 +61,8 @@ public class PrometheusPlugin extends Plugin {
 
     @Override
     public void close() {
-        if (registry.get() != null) {
-            registry.get().close();
+        if (indexTemplateRegistry.get() != null) {
+            indexTemplateRegistry.get().close();
         }
     }
 

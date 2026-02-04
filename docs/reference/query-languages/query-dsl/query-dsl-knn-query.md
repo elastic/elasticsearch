@@ -81,7 +81,7 @@ PUT my-image-index
 :   (Optional, object) Query vector builder. A configuration object indicating how to build a query_vector before executing the request. You must provide either a `query_vector_builder` or `query_vector`, but not both.
 
     **Parameters for `query_vector_builder`**:
-    `lookup`
+    `lookup` {applies_to}`stack: ga 9.4`
     :   (Optional, object) Build the query vector by looking up an existing document's vector.
 
         **Parameters for `lookup`**:
@@ -364,10 +364,12 @@ Knn search using query vectors over `semantic_text` fields is also supported,
 with no change to the API.
 
 ## Knn query with vector lookup
+```{applies_to}
+stack: ga 9.4+
 
 Elasticsearch supports knn queries with a vector that is stored within an index.
 
-Here is an example utilizing lookup.
+Here is an example utilizing lookup. It gets the document with id `vector_doc_0` from index `some_vector_index` and uses the field `vector_field` as the query vector for the `knn` search.
 ```js
 {
   "query": {

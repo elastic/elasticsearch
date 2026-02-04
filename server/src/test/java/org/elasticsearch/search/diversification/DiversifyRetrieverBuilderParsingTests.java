@@ -9,9 +9,7 @@
 
 package org.elasticsearch.search.diversification;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
@@ -22,7 +20,6 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.usage.SearchUsage;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
@@ -31,10 +28,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class DiversifyRetrieverBuilderParsingTests extends AbstractXContentTestCase<DiversifyRetrieverBuilder> {
-    private static final TransportVersion QUERY_VECTOR_BASE64 = TransportVersion.fromName("knn_query_vector_base64");
     private List<NamedXContentRegistry.Entry> xContentRegistryEntries;
 
     @Before
@@ -94,28 +89,6 @@ public class DiversifyRetrieverBuilderParsingTests extends AbstractXContentTestC
             )
         );
         return new NamedXContentRegistry(entries);
-    }
-
-    @Override
-    protected void assertEqualInstances(DiversifyRetrieverBuilder expectedInstance, DiversifyRetrieverBuilder newInstance) {
-        if (TransportVersion.current().supports(QUERY_VECTOR_BASE64) == false) {
-            super.assertEqualInstances(expectedInstance, newInstance);
-            return;
-        }
-
-        try {
-            super.assertEqualInstances(expectedInstance, newInstance);
-        } catch (AssertionError e) {
-            try {
-                assertToXContentEquivalent(
-                    XContentHelper.toXContent(expectedInstance, XContentType.JSON, false),
-                    XContentHelper.toXContent(newInstance, XContentType.JSON, false),
-                    XContentType.JSON
-                );
-            } catch (IOException ioException) {
-                throw new AssertionError(ioException);
-            }
-        }
     }
 
     private VectorData getRandomQueryVector() {

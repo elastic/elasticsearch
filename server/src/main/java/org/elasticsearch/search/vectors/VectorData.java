@@ -163,20 +163,27 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
         return stringVector;
     }
 
+    @Override
     public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
+        if (this == obj) return true;
         if (obj instanceof VectorData other) {
-            return Arrays.equals(floatVector, other.floatVector)
-                && Arrays.equals(byteVector, other.byteVector)
-                && Objects.equals(stringVector, other.stringVector);
+            if (Arrays.equals(floatVector, other.floatVector) == false) {
+                return false;
+            }
+            return Objects.equals(canonicalString(), other.canonicalString());
         }
         return false;
     }
 
+    @Override
     public int hashCode() {
-        return Objects.hash(Arrays.hashCode(floatVector), Arrays.hashCode(byteVector), stringVector);
+        if (floatVector != null) return Arrays.hashCode(floatVector);
+        return canonicalString().hashCode();
+    }
+
+    private String canonicalString() {
+        if (byteVector != null) return HexFormat.of().formatHex(byteVector);
+        return stringVector;
     }
 
     public static VectorData parseXContent(XContentParser parser) throws IOException {
@@ -271,7 +278,9 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
 
         // Fall back to hex if available (downstream will handle dimension mismatch)
         if (hexBytes != null) {
-            return VectorData.fromBytes(hexBytes);
+            throw new IllegalArgumentException(
+                "The query vector has a different number of dimensions [" + hexBytes.length + "] than the document vectors [" + dims + "]."
+            );
         }
 
         // base64 was parsed but doesn't match dimensions

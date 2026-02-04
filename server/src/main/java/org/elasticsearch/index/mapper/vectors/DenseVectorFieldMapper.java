@@ -2740,13 +2740,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (queryVector == null || queryVector.isStringVector() == false) {
                 return queryVector;
             }
-            VectorData decoded = VectorData.decodeQueryVector(queryVector.stringVector(), element.elementType(), dims);
-            int queryDims = decoded.isFloat() ? decoded.asFloatVector().length : decoded.asByteVector().length;
-            element.checkDimensions(dims, queryDims);
-            if (decoded.isFloat()) {
-                element.checkVectorBounds(decoded.asFloatVector());
-            }
-            return decoded;
+            return VectorData.decodeQueryVector(queryVector.stringVector(), element.elementType(), dims);
         }
 
         public Query createExactKnnQuery(VectorData queryVector, Float vectorSimilarity) {

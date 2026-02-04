@@ -17,7 +17,6 @@ import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
@@ -36,11 +35,9 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.AbstractBuilderTestCase;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -48,9 +45,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.HexFormat;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -66,7 +61,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCase<KnnVectorQueryBuilder> {
-    private static final TransportVersion QUERY_VECTOR_BASE64 = TransportVersion.fromName("knn_query_vector_base64");
     private static final String VECTOR_FIELD = "vector";
     private static final String VECTOR_ALIAS_FIELD = "vector_alias";
     protected static final Set<String> QUANTIZED_INDEX_TYPES = Set.of(
@@ -192,89 +186,6 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         }
 
         return new RescoreVectorBuilder((rescoreVectorAllowZero && randomBoolean()) ? 0f : randomFloatBetween(1.0f, 10.0f, false));
-    }
-
-    @Override
-    public void testFromXContent() throws IOException {
-        if (TransportVersion.current().supports(QUERY_VECTOR_BASE64) == false) {
-            super.testFromXContent();
-            return;
-        }
-
-        for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
-            KnnVectorQueryBuilder testQuery = createTestQueryBuilder();
-            XContentType xContentType = randomFrom(XContentType.values());
-            BytesReference shuffledXContent = toShuffledXContent(
-                testQuery,
-                xContentType,
-                ToXContent.EMPTY_PARAMS,
-                randomBoolean(),
-                shuffleProtectedFields()
-            );
-            try (var parser = createParser(xContentType.xContent(), shuffledXContent)) {
-                assertParsedQueryAllowingBase64(parser, testQuery);
-            }
-            for (Map.Entry<String, KnnVectorQueryBuilder> alternateVersion : getAlternateVersions().entrySet()) {
-                String queryAsString = alternateVersion.getKey();
-                try (var parser = createParser(XContentType.JSON.xContent(), queryAsString)) {
-                    assertParsedQueryAllowingBase64(parser, alternateVersion.getValue());
-                }
-            }
-        }
-    }
-
-    private void assertParsedQueryAllowingBase64(XContentParser parser, KnnVectorQueryBuilder expectedQuery) throws IOException {
-        QueryBuilder newQuery = parseQuery(parser);
-        assertNotSame(newQuery, expectedQuery);
-        assertThat(newQuery, instanceOf(KnnVectorQueryBuilder.class));
-        KnnVectorQueryBuilder parsedQuery = (KnnVectorQueryBuilder) newQuery;
-
-        if (expectedQuery.equals(parsedQuery)) {
-            assertEquals(expectedQuery.hashCode(), parsedQuery.hashCode());
-            return;
-        }
-
-        if (elementType() != DenseVectorFieldMapper.ElementType.BYTE && elementType() != DenseVectorFieldMapper.ElementType.BIT) {
-            assertEquals(expectedQuery, parsedQuery);
-            assertEquals(expectedQuery.hashCode(), parsedQuery.hashCode());
-            return;
-        }
-
-        assertKnnVectorQueryBuilderEqualsAllowingEncodedByteVector(expectedQuery, parsedQuery);
-    }
-
-    private void assertKnnVectorQueryBuilderEqualsAllowingEncodedByteVector(
-        KnnVectorQueryBuilder expectedQuery,
-        KnnVectorQueryBuilder parsedQuery
-    ) {
-        assertEquals(expectedQuery.getFieldName(), parsedQuery.getFieldName());
-        assertEquals(expectedQuery.k(), parsedQuery.k());
-        assertEquals(expectedQuery.numCands(), parsedQuery.numCands());
-        assertEquals(expectedQuery.visitPercentage(), parsedQuery.visitPercentage());
-        assertEquals(expectedQuery.filterQueries(), parsedQuery.filterQueries());
-        assertEquals(expectedQuery.getVectorSimilarity(), parsedQuery.getVectorSimilarity());
-        assertEquals(expectedQuery.queryVectorBuilder(), parsedQuery.queryVectorBuilder());
-        assertEquals(expectedQuery.rescoreVectorBuilder(), parsedQuery.rescoreVectorBuilder());
-        assertEquals(expectedQuery.isAutoPrefilteringEnabled(), parsedQuery.isAutoPrefilteringEnabled());
-        assertEquals(expectedQuery.boost(), parsedQuery.boost(), 0f);
-        assertEquals(expectedQuery.queryName(), parsedQuery.queryName());
-
-        String expectedHex = toHexString(expectedQuery.queryVector());
-        String parsedHex = toHexString(parsedQuery.queryVector());
-        assertEquals(expectedHex, parsedHex);
-    }
-
-    private static String toHexString(VectorData vectorData) {
-        if (vectorData == null) {
-            return null;
-        }
-        if (vectorData.stringVector() != null) {
-            return vectorData.stringVector();
-        }
-        if (vectorData.byteVector() != null) {
-            return HexFormat.of().formatHex(vectorData.byteVector());
-        }
-        throw new AssertionError("expected a byte or encoded vector");
     }
 
     @Override

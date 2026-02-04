@@ -17,8 +17,10 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.action.ActionListener;
@@ -36,6 +38,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -84,6 +87,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.LongSupplier;
@@ -219,7 +223,8 @@ final class DefaultSearchContext extends SearchContext {
                 request::nowInMillis,
                 shardTarget.getClusterAlias(),
                 request.getRuntimeMappings(),
-                request.source() == null ? null : request.source().size()
+                request.source() == null ? null : request.source().size(),
+                indexShard.shardSearchStats()
             );
             queryBoost = request.indexBoost();
             this.lowLevelCancellation = lowLevelCancellation;
@@ -771,6 +776,33 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public Query query() {
         return this.query;
+    }
+
+    @Override
+    public Query rewrittenQuery() {
+        Query query = super.rewrittenQuery();
+        maybeMarkAsMatchTail();
+        return query;
+    }
+
+    private void maybeMarkAsMatchTail() {
+        if (rewriteQuery instanceof MatchAllDocsQuery == false || this.searchAfter() != null || this.size == 0) {
+            return;
+        }
+        if (indexService.getIndexSettings().getIndexSortConfig().containsDescendingTimestampSort() == false) {
+            return;
+        }
+        SortAndFormats sort = sort();
+        if (sort == null) {
+            return;
+        }
+        SortField primarySort = sort.sort.getSort()[0];
+        if (primarySort.getReverse() || Objects.equals(primarySort.getField(), "@timestamp") == false) {
+            return;
+        }
+        if (primarySort.getComparatorSource() instanceof LongValuesComparatorSource source) {
+            source.setMatchTailQuery();
+        }
     }
 
     @Override

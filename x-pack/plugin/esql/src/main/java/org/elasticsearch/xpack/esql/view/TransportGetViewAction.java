@@ -66,9 +66,7 @@ public class TransportGetViewAction extends TransportLocalProjectMetadataAction<
         List<String> missing = new ArrayList<>();
         String[] names = request.indices();
         // TODO currently doesn't support multi-target when security is off
-        if (names == null
-            || names.length == 0
-            || (names.length == 1 && (Metadata.ALL.equals(names[0]) || Regex.isMatchAllPattern(names[0])))) {
+        if (names == null || names.length == 0 || (names.length == 1 && Regex.isMatchAllPattern(names[0]))) {
             views = viewService.getMetadata(projectId).views().values();
         } else if (names != IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY) {
             for (String name : names) {

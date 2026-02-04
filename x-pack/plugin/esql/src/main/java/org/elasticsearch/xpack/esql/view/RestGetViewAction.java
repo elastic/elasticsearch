@@ -40,7 +40,7 @@ public class RestGetViewAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         GetViewAction.Request req = new GetViewAction.Request(RestUtils.getMasterNodeTimeout(request));
         var requestedViews = Strings.splitStringByCommaToArray(request.param("name"));
-        req.indices(requestedViews.length == 0 ? new String[] { Metadata.ALL } : requestedViews);
+        req.indices(requestedViews.length == 0 ? new String[] { "*" } : requestedViews);
 
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
             GetViewAction.INSTANCE,

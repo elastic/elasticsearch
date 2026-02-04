@@ -48,10 +48,7 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AbstractWireSeria
         settingsMap.put(AzureOpenAiServiceFields.RESOURCE_NAME, TEST_RESOURCE_NAME);
         settingsMap.put(AzureOpenAiServiceFields.DEPLOYMENT_ID, TEST_DEPLOYMENT_ID);
         settingsMap.put(AzureOpenAiServiceFields.API_VERSION, TEST_API_VERSION);
-        settingsMap.put(
-            RateLimitSettings.FIELD_NAME,
-            new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT))
-        );
+        settingsMap.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT)));
         return settingsMap;
     }
 

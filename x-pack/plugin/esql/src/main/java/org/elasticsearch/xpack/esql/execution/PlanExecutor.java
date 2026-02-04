@@ -92,6 +92,7 @@ public class PlanExecutor {
             functionRegistry,
             mapper,
             verifier,
+            metrics,
             planTelemetry,
             indicesExpressionGrouper,
             services.projectResolver().getProjectMetadata(services.clusterService().state()),

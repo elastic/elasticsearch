@@ -659,10 +659,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         });
     }
 
-    private static <T> Map<String, T> parseComposableTemplates(
-        TemplateUtils.TemplateParser<T> templateParser,
-        IndexTemplateConfig... config
-    ) {
+    private static <T> Map<String, T> parseTemplates(TemplateUtils.TemplateParser<T> templateParser, IndexTemplateConfig... config) {
         return Arrays.stream(config).collect(Collectors.toUnmodifiableMap(IndexTemplateConfig::getTemplateName, indexTemplateConfig -> {
             try {
                 return indexTemplateConfig.load(templateParser);
@@ -679,7 +676,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      * Note: Despite being static, do not use this in a static context to guarantee that SPI implementations are properly loaded.
      */
     protected static Map<String, ComposableIndexTemplate> parseComposableTemplates(IndexTemplateConfig... config) {
-        return parseComposableTemplates(ComposableIndexTemplate::parse, config);
+        return parseTemplates(ComposableIndexTemplate::parse, config);
     }
 
     /**
@@ -689,7 +686,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      * Note: Despite being static, do not use this in a static context to guarantee that SPI implementations are properly loaded.
      */
     protected static Map<String, ComponentTemplate> parseComponentTemplates(IndexTemplateConfig... config) {
-        return parseComposableTemplates(ComponentTemplate::parse, config);
+        return parseTemplates(ComponentTemplate::parse, config);
     }
 
     private void addIngestPipelinesIfMissing(ProjectMetadata project) {

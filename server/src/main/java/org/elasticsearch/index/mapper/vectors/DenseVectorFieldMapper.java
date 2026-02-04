@@ -2869,7 +2869,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         public boolean needsRescore(Float rescoreOversample) {
-            return getElementType().supportsRescore() && rescoreOversample != null && rescoreOversample > 1 && isQuantized();
+            return getElementType().supportsRescore() && rescoreOversample != null && rescoreOversample >= 1 && isQuantized();
         }
 
         private boolean isQuantized() {

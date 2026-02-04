@@ -228,7 +228,7 @@ public class DfsPhase {
         ContextIndexSearcher searcher,
         String nestedPath
     ) throws IOException {
-        int docsToCollect = oversample != null && oversample > 1 ? (int) Math.ceil(k * oversample) : k;
+        int docsToCollect = oversample != null && oversample >= 1 ? (int) Math.ceil(k * oversample) : k;
         CollectorManager<? extends Collector, TopDocs> topDocsCollectorManager = new TopScoreDocCollectorManager(
             docsToCollect,
             null,

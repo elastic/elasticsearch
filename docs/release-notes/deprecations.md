@@ -17,9 +17,6 @@ To give you insight into what deprecated features you’re using, {{es}}:
 % ## Next version [elasticsearch-nextversion-deprecations]
 
 ## 9.3.0 [elasticsearch-9.3.0-deprecations]
-```{applies_to}
-stack: ga 9.3.0
-```
 
 ILM:
 * Add deprecation notice for `max_size` rollover condition [#135765](https://github.com/elastic/elasticsearch/pull/135765) (issue: [#130737](https://github.com/elastic/elasticsearch/issues/130737))

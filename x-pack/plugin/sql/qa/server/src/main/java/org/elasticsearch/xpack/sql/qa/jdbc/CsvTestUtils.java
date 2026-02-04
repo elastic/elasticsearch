@@ -80,8 +80,7 @@ public final class CsvTestUtils {
                 throw new UnsupportedOperationException();
             }
         };
-        return new CsvConnection(tableReader, csvProperties, "") {
-        };
+        return new CsvConnection(tableReader, csvProperties, "") {};
     }
 
     private static Tuple<String, String> extractColumnTypesAndStripCli(String schema, String expectedResults) throws IOException {

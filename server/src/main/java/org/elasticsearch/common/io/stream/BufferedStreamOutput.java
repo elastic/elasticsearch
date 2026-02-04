@@ -227,7 +227,7 @@ public class BufferedStreamOutput extends StreamOutput {
         if (25 <= Integer.numberOfLeadingZeros(i)) {
             writeByte((byte) i);
         } else if (MAX_VINT_BYTES <= capacity()) {
-            position += putMultiByteVInt(buffer, i, position);
+            position = putMultiByteVInt(buffer, i, position);
         } else {
             writeVIntWithBoundsChecks(i);
         }
@@ -246,9 +246,9 @@ public class BufferedStreamOutput extends StreamOutput {
     public void writeVIntArray(int[] values) throws IOException {
         int position = this.position;
         if ((values.length + 1) * MAX_VINT_BYTES <= endPosition - position) {
-            position += putVInt(buffer, values.length, position);
+            position = putVInt(buffer, values.length, position);
             for (var value : values) {
-                position += putVInt(buffer, value, position);
+                position = putVInt(buffer, value, position);
             }
             this.position = position;
         } else {
@@ -264,7 +264,7 @@ public class BufferedStreamOutput extends StreamOutput {
         int lastSafePosition = this.endPosition - MAX_VINT_BYTES;
         while (i < values.length) {
             while (i < values.length && position <= lastSafePosition) {
-                position += putVInt(buffer, values[i++], position);
+                position = putVInt(buffer, values[i++], position);
             }
             this.position = position;
             while (capacity() < MAX_VINT_BYTES && i < values.length) {
@@ -364,7 +364,7 @@ public class BufferedStreamOutput extends StreamOutput {
         final int charCount = str.length();
         int position = this.position;
         if (MAX_VINT_BYTES + charCount * MAX_CHAR_BYTES <= endPosition - position) {
-            position += putVInt(buffer, charCount, position);
+            position = putVInt(buffer, charCount, position);
             for (int i = 0; i < charCount; i++) {
                 position = putCharUtf8(buffer, str.charAt(i), position);
             }
@@ -383,7 +383,7 @@ public class BufferedStreamOutput extends StreamOutput {
             int position = this.position;
             if (1 + MAX_VINT_BYTES + charCount * MAX_CHAR_BYTES <= endPosition - position) {
                 buffer[position++] = (byte) 1;
-                position += putVInt(buffer, charCount, position);
+                position = putVInt(buffer, charCount, position);
                 for (int i = 0; i < charCount; i++) {
                     position = putCharUtf8(buffer, str.charAt(i), position);
                 }
@@ -401,7 +401,7 @@ public class BufferedStreamOutput extends StreamOutput {
         int position = this.position;
         if (1 + MAX_VINT_BYTES + charCount * MAX_CHAR_BYTES <= endPosition - position) {
             buffer[position++] = (byte) 0;
-            position += putVInt(buffer, charCount, position);
+            position = putVInt(buffer, charCount, position);
             for (int i = 0; i < charCount; i++) {
                 position = putCharUtf8(buffer, str.charAt(i), position);
             }

@@ -1,8 +1,11 @@
 setup:
   - requires:
-      cluster_features: ["gte_v8.5.0"]
-      reason: metric params only on time series indices introduced in 8.5.0
-
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ deprecate_default_metric_in_aggregate_metric_double ]
+      test_runner_features: capabilities
+      reason: "Default metric is deprecated in aggregate metric double fields since 9.4"
   - do:
       indices.create:
         index: test_rollup
@@ -24,7 +27,6 @@ setup:
               metric:
                 type: aggregate_metric_double
                 metrics: [ min, max, sum, value_count ]
-                default_metric: max
                 time_series_metric: gauge
 
   - do:
@@ -73,14 +75,9 @@ setup:
               metric:
                 type: aggregate_metric_double
                 metrics: [ min, max, value_count ]
-                default_metric: max
 
 ---
 aggregate_metric on standard index:
-  - requires:
-      cluster_features: ["gte_v8.5.0"]
-      reason: aggregate_metric_double field caps changed in 8.5.0
-
   - do:
       field_caps:
         index: test_aggregate_metric
@@ -92,10 +89,6 @@ aggregate_metric on standard index:
 
 ---
 aggregate_metric on standard index conflict with double:
-  - requires:
-      cluster_features: ["gte_v8.5.0"]
-      reason: aggregate_metric_double field caps changed in 8.5.0
-
   - do:
       indices.create:
         index: test_double
@@ -120,10 +113,6 @@ aggregate_metric on standard index conflict with double:
 ---
 # Test field_caps on a rollup index
 field caps on rollup indices:
-  - requires:
-      cluster_features: ["gte_v8.5.0"]
-      reason: metric params only on time series indices introduced in 8.5.0
-
   - do:
       field_caps:
         index: test_rollup
@@ -143,10 +132,6 @@ field caps on rollup indices:
 ---
 # Test field_caps on time-series index (mix of raw and rollup indices)
 field caps on time series indices:
-  - requires:
-      cluster_features: ["gte_v8.5.0"]
-      reason: metric params only on time series indices introduced in 8.5.0
-
   - do:
       field_caps:
         index: [ test_time_series, test_rollup ]
@@ -174,10 +159,6 @@ field caps on time series indices:
 ---
 # Test field_caps on mixed standard and time-series (mix of raw and rollup) indices
 field caps on all indices:
-  - requires:
-      cluster_features: ["gte_v8.5.0"]
-      reason: metric params only on time series indices introduced in 8.5.0
-
   - do:
       field_caps:
         index: [ test_time_series, test_rollup, test_non_time_series ]

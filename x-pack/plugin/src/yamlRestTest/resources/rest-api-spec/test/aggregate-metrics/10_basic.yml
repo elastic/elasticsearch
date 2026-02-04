@@ -1,9 +1,15 @@
 ---
-"Test exists query on aggregate metric field":
+setup:
   - requires:
-      cluster_features: ["gte_v7.11.0"]
-      reason: "Aggregate metric fields have been added in 7.11"
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ deprecate_default_metric_in_aggregate_metric_double ]
+      test_runner_features: capabilities
+      reason: "Default metric is deprecated in aggregate metric double fields since 9.4"
 
+---
+"Test exists query on aggregate metric field":
   - do:
       indices.create:
         index:  aggregate_metric_test
@@ -13,7 +19,6 @@
               metric:
                 type: aggregate_metric_double
                 metrics: [min, max]
-                default_metric: max
 
   - do:
       index:
@@ -57,10 +62,6 @@
 
 ---
 "Test term query on aggregate metric field":
-  - requires:
-      cluster_features: ["gte_v7.11.0"]
-      reason: "Aggregate metric fields have been added in 7.11"
-
   - do:
       indices.create:
         index:  test
@@ -70,7 +71,6 @@
               metric:
                 type: aggregate_metric_double
                 metrics: [min, max]
-                default_metric: max
 
   - do:
       index:
@@ -133,10 +133,6 @@
 
 ---
 "Test range query on aggregate metric field":
-  - requires:
-      cluster_features: ["gte_v7.11.0"]
-      reason: "Aggregate metric fields have been added in 7.11"
-
   - do:
       indices.create:
         index:  test
@@ -146,7 +142,6 @@
               metric:
                 type: aggregate_metric_double
                 metrics: [min, max]
-                default_metric: max
 
   - do:
       index:
@@ -210,10 +205,6 @@
 
 ---
 "Sort":
-  - requires:
-      cluster_features: ["gte_v7.11.0"]
-      reason: "Aggregate metric fields have been added in 7.11"
-
   - do:
       indices.create:
         index:  test
@@ -223,7 +214,6 @@
               metric:
                 type: aggregate_metric_double
                 metrics: [min, max]
-                default_metric: max
 
   - do:
       index:
@@ -293,9 +283,6 @@
 
 ---
 "Test fields api":
-  - requires:
-      cluster_features: "gte_v8.4.0"
-      reason: "Breaking change introduced in 8.4.0"
   - do:
       indices.create:
         index:  test
@@ -305,7 +292,6 @@
               metric:
                 type: aggregate_metric_double
                 metrics: [min, max, sum, value_count]
-                default_metric: sum
 
   - do:
       index:
@@ -353,8 +339,6 @@
 ---
 "deprecated use of multi-fields":
   - requires:
-      cluster_features: ["gte_v8.14.0"]
-      reason: "deprecation added in 8.14"
       test_runner_features: warnings
 
   - do:
@@ -367,3 +351,19 @@
             properties:
               aggregated: { "type": "aggregate_metric_double", "metrics": ["max"], "default_metric": "max", "fields": {"keyword": {"type": "keyword"}} }
 
+---
+"deprecated use of default metric":
+  - requires:
+      test_runner_features: warnings
+  - do:
+      warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              metric:
+                type: aggregate_metric_double
+                metrics: [ min, max, sum, value_count ]
+                default_metric: max

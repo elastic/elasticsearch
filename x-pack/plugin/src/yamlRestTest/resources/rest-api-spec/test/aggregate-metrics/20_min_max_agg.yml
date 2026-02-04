@@ -3,6 +3,14 @@
 ###############################################################################################################
 
 setup:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ deprecate_default_metric_in_aggregate_metric_double ]
+      test_runner_features: capabilities
+      reason: "Default metric is deprecated in aggregate metric double fields since 9.4"
+
   - do:
       indices.create:
         index:  aggregate_metric_test
@@ -11,8 +19,7 @@ setup:
             properties:
               metric:
                 type: aggregate_metric_double
-                metrics: [min, max]
-                default_metric: max
+                metrics: [min, max, sum, value_count]
 
   - do:
       bulk:
@@ -31,10 +38,6 @@ setup:
           - '{"metric": {"min": -100, "max": -40} }'
 ---
 "Test min_max aggs":
-  - requires:
-      cluster_features: ["gte_v7.11.0"]
-      reason: "Aggregate metric fields have been added in 7.11"
-
   - do:
       search:
         index: aggregate_metric_test
@@ -55,10 +58,6 @@ setup:
 
 ---
 "Test min_max aggs with query":
-  - requires:
-      cluster_features: ["gte_v7.11.0"]
-      reason: "Aggregate metric fields have been added in 7.11"
-
   - do:
       search:
         index: aggregate_metric_test

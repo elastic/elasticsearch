@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.transform.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -46,7 +44,6 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.core.Strings.format;
 
 public class TransportValidateTransformAction extends HandledTransportAction<Request, Response> {
-    private static final Logger log = LogManager.getLogger(TransportValidateTransformAction.class);
     private final Client client;
     private final ClusterService clusterService;
     private final TransportService transportService;

@@ -162,6 +162,22 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         Builder.checkHistogramIntervalIsPositive(histogramAggregation);
     }
 
+    public ElasticsearchException validateNoCrossProjectWhenCrossProjectIsDisabled(
+        CrossProjectModeDecider crossProjectModeDecider,
+        ElasticsearchException validationException
+    ) {
+        if (crossProjectModeDecider.crossProjectEnabled() == false) {
+            // When cross-project is disabled, check if indices have cross-project mode enabled
+            if (indicesOptions != null && indicesOptions.crossProjectModeOptions().resolveIndexExpression()) {
+                validationException = new ElasticsearchStatusException(
+                    "Cross-project search is not enabled for Datafeeds",
+                    RestStatus.FORBIDDEN
+                );
+            }
+        }
+        return validationException;
+    }
+
     private static ObjectParser<Builder, Void> createParser(boolean ignoreUnknownFields) {
         ObjectParser<Builder, Void> parser = new ObjectParser<>("datafeed_config", ignoreUnknownFields, Builder::new);
 
@@ -1111,10 +1127,13 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED;
             }
 
+<<<<<<< enhancement/cps-datafeeds-1
             if (indicesOptions.crossProjectModeOptions().resolveIndexExpression() && DATAFEED_CROSS_PROJECT.isEnabled() == false) {
                 throw new ElasticsearchStatusException("Cross-project search is not enabled for Datafeeds", RestStatus.FORBIDDEN);
             }
 
+=======
+>>>>>>> ml-cps-integration
             return new DatafeedConfig(
                 id,
                 jobId,

@@ -116,4 +116,36 @@ public class ExponentialHistogramAggregatorsRegistrar {
             true
         );
     }
+
+    public static void registerPercentileRanksAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(
+            PercentileRanksAggregationBuilder.REGISTRY_KEY,
+            ExponentialHistogramValuesSourceType.EXPONENTIAL_HISTOGRAM,
+            (name, config, context, parent, percents, percentilesConfig, keyed, formatter, metadata) -> {
+                if (percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
+                    double compression = ((PercentilesConfig.TDigest) percentilesConfig).getCompression();
+                    TDigestExecutionHint executionHint = ((PercentilesConfig.TDigest) percentilesConfig).getExecutionHint(context);
+                    return new ExponentialHistogramPercentileRanksAggregator(
+                        name,
+                        config,
+                        context,
+                        parent,
+                        percents,
+                        compression,
+                        executionHint,
+                        keyed,
+                        formatter,
+                        metadata
+                    );
+
+                }
+                throw new IllegalArgumentException(
+                    "Percentiles algorithm "
+                        + percentilesConfig.getMethod().toString()
+                        + " must not be used with exponential_histogram field"
+                );
+            },
+            true
+        );
+    }
 }

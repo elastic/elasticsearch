@@ -178,3 +178,24 @@ setup:
   - lte: { aggregations.percentiles_agg.values.75\.0: 2730.7 }
   - gte: { aggregations.percentiles_agg.values.95\.0: 10922.6 }
   - lte: { aggregations.percentiles_agg.values.95\.0: 10922.7 }
+
+---
+"Percentile ranks aggregation":
+  - do:
+      search:
+        index: test_exponential_histogram
+        size: 0
+        body:
+          aggs:
+            percentile_ranks_agg:
+              percentile_ranks:
+                field: histo
+                values: [0, 100, 1000, 5000]
+
+  - match: { hits.total.value: 5 }
+  - match:
+     aggregations.percentile_ranks_agg.values:
+       0.0: 26.82926829268293
+       100.0: 65.85365853658537
+       1000.0: 70.73170731707317
+       5000.0: 78.04878048780488

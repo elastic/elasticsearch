@@ -48,7 +48,13 @@ public class PrometheusPlugin extends Plugin {
         Settings settings = services.environment().settings();
         ClusterService clusterService = services.clusterService();
         registry.set(
-            new PrometheusIndexTemplateRegistry(settings, clusterService, services.threadPool(), services.client(), services.xContentRegistry())
+            new PrometheusIndexTemplateRegistry(
+                settings,
+                clusterService,
+                services.threadPool(),
+                services.client(),
+                services.xContentRegistry()
+            )
         );
         if (enabled) {
             PrometheusIndexTemplateRegistry registryInstance = registry.get();

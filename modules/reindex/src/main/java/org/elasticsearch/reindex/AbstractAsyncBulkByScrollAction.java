@@ -545,9 +545,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             if (nodeToRelocateTo.isPresent()) {
                 final String scrollId = asyncResponse.response().getScrollId();
                 final var workerResumeInfo = new SlicedTaskResumeInfo.ScrollWorkerResumeInfo(scrollId, worker.getStatus());
-                final SlicedTaskResumeInfo slicedTaskResumeInfo = new SlicedTaskResumeInfo(
-                    workerResumeInfo, null
-                );
+                final SlicedTaskResumeInfo slicedTaskResumeInfo = new SlicedTaskResumeInfo(workerResumeInfo, null);
 
                 // build response with resume info - don't call finishHim as it closes the scroll
                 final BulkByScrollResponse response = new BulkByScrollResponse(

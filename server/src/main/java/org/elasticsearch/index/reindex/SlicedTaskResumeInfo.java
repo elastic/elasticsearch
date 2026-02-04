@@ -24,15 +24,9 @@ import java.util.Optional;
  * Holds resume state information for a task to be resumed from a previous run. It may contain a WorkerResumeInfo which keeps the state
  * for a single worker task, or a map of SliceResumeInfo which keeps the state for each slice of a leader task.
  */
-public record SlicedTaskResumeInfo(
-    @Nullable WorkerResumeInfo worker,
-    @Nullable Map<Integer, SliceStatusInfo> slices
-) implements Writeable {
+public record SlicedTaskResumeInfo(@Nullable WorkerResumeInfo worker, @Nullable Map<Integer, SliceStatusInfo> slices) implements Writeable {
 
-    public SlicedTaskResumeInfo(
-        @Nullable WorkerResumeInfo worker,
-        @Nullable Map<Integer, SliceStatusInfo> slices
-    ) {
+    public SlicedTaskResumeInfo(@Nullable WorkerResumeInfo worker, @Nullable Map<Integer, SliceStatusInfo> slices) {
         if (worker == null && (slices == null || slices.isEmpty())) {
             throw new IllegalArgumentException("resume info requires a worker resume info or non-empty slices resume info");
         }

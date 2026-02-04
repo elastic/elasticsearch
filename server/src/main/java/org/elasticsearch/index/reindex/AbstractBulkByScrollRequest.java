@@ -500,6 +500,4 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         return this.toString();
     }
 
-
-
 }

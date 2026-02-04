@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -125,6 +126,8 @@ public class CountTests extends AbstractAggregationTestCase {
                     TDigestHolder tdigest = (TDigestHolder) data;
                     return tdigest.getValueCount();
                 }).sum();
+            } else if (fieldSupplier.type() == DataType.EXPONENTIAL_HISTOGRAM) {
+                count = fieldTypedData.multiRowData().stream().mapToLong(obj -> ((ExponentialHistogram) obj).valueCount()).sum();
             } else {
                 count = fieldTypedData.multiRowData().stream().filter(Objects::nonNull).count();
             }

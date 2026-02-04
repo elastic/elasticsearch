@@ -159,8 +159,6 @@ public class AvgTests extends AbstractAggregationTestCase {
                     }
                     default -> throw new IllegalStateException("Unexpected value: " + fieldTypedData.type());
                 };
-            } else {
-                expected = Double.NaN; // To add warnings in the next block
             }
 
             if (expected != null) {

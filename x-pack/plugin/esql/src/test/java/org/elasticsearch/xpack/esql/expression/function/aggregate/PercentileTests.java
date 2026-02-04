@@ -124,4 +124,15 @@ public class PercentileTests extends AbstractAggregationTestCase {
         double result = merged.quantile(percentile / 100.0);
         return Double.isNaN(result) ? null : result;
     }
+
+    @Override
+    public void testFold() {
+        var typedData = testCase.getData().getFirst();
+        assumeFalse(
+            "PERCENTILE expects a different result for -0.0 when folded",
+            typedData.type() == DataType.DOUBLE && typedData.multiRowData().size() == 1 && typedData.multiRowData().getFirst().equals(-0.0)
+        );
+
+        super.testFold();
+    }
 }

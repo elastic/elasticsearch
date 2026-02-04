@@ -2028,7 +2028,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             );
         }
 
-        public TestCase withWarnings(List<String> warnings) {
+        public TestCase withWarnings(Collection<String> warnings) {
             return new TestCase(
                 source,
                 configuration,

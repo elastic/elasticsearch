@@ -14,9 +14,11 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
+import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
@@ -33,8 +35,7 @@ public class WeightedAvgTests extends AbstractAggregationTestCase {
     public static Iterable<Object[]> parameters() {
         var suppliers = new ArrayList<TestCaseSupplier>();
 
-        // TODO: Restore and fix
-        /*var numberCases = Stream.of(
+        var numberCases = Stream.of(
             MultiRowTestCaseSupplier.intCases(1000, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
             // Longs currently fail on overflow
             // Restore after https://github.com/elastic/elasticsearch/issues/110437
@@ -44,9 +45,10 @@ public class WeightedAvgTests extends AbstractAggregationTestCase {
 
         for (var number : numberCases) {
             for (var weight : numberCases) {
-                suppliers.add(makeSupplier(number, weight));
+                // TODO: Restore and fix
+                // suppliers.add(makeSupplier(number, weight));
             }
-        }*/
+        }
 
         // No rows cases
         var noRowsCases = Stream.of(
@@ -133,26 +135,27 @@ public class WeightedAvgTests extends AbstractAggregationTestCase {
                     throw new IllegalArgumentException("Field and weight values must have the same size");
                 }
 
-                var weightedSum = IntStream.range(0, fieldValues.size())
-                    .mapToDouble(i -> ((Number) fieldValues.get(i)).doubleValue() * ((Number) weightValues.get(i)).doubleValue())
-                    .sum();
+                var warnings = new HashSet<String>();
+                var weightedSum = IntStream.range(0, fieldValues.size()).mapToDouble(i -> {
+                    var weightedValue = ((Number) fieldValues.get(i)).doubleValue() * ((Number) weightValues.get(i)).doubleValue();
+                    if (Double.isInfinite(weightedValue)) {
+                        warnings.add("Line 1:1: java.lang.ArithmeticException: not a finite double number: " + weightedValue);
+                        return Double.NaN;
+                    }
+                    return weightedValue;
+                }).sum();
                 var totalWeights = weightValues.stream().mapToDouble(v -> ((Number) v).doubleValue()).sum();
 
                 var expected = totalWeights == 0 ? null : weightedSum / totalWeights;
 
-                List<String> warnings = null;
-                if (expected == null) {
-                    warnings = List.of(
-                        "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
-                        "Line 1:1: java.lang.ArithmeticException: / by zero"
-                    );
-                } else if (Double.isFinite(expected) == false) {
-                    var foundText = expected < 0 ? "-Infinity" : "Infinity";
-                    warnings = List.of(
-                        "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
-                        "Line 1:1: java.lang.ArithmeticException: not a finite double number: " + foundText
-                    );
+                if (totalWeights == 0.0 && fieldValues.isEmpty() == false) {
+                    warnings.add("Line 1:1: java.lang.ArithmeticException: / by zero");
+                } else if (expected != null && Double.isFinite(expected) == false) {
                     expected = null;
+                }
+
+                if (warnings.isEmpty() == false) {
+                    warnings.add("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.");
                 }
 
                 return new TestCaseSupplier.TestCase(

@@ -194,10 +194,13 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         Object result;
         try (var aggregator = aggregator(expression, initialInputChannels(), AggregatorMode.SINGLE)) {
             for (Page inputPage : pages) {
-                try (
-                    BooleanVector noMasking = driverContext().blockFactory().newConstantBooleanVector(true, inputPage.getPositionCount())
-                ) {
-                    aggregator.processPage(inputPage, noMasking);
+                if (inputPage.getPositionCount() > 0) {
+                    try (
+                        BooleanVector noMasking = driverContext().blockFactory()
+                            .newConstantBooleanVector(true, inputPage.getPositionCount())
+                    ) {
+                        aggregator.processPage(inputPage, noMasking);
+                    }
                 }
             }
 
@@ -217,7 +220,9 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         try (var aggregator = groupingAggregator(expression, initialInputChannels(), AggregatorMode.SINGLE)) {
             var groupCount = randomIntBetween(1, 1000);
             for (Page inputPage : pages) {
-                processPageGrouping(aggregator, inputPage, groupCount);
+                if (inputPage.getPositionCount() > 0) {
+                    processPageGrouping(aggregator, inputPage, groupCount);
+                }
             }
 
             results = extractResultsFromAggregator(aggregator, PlannerUtils.toElementType(expression.dataType()), groupCount);
@@ -244,10 +249,13 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             intermediateBlocks = new Block[intermediateBlockOffset + intermediateStates + intermediateBlockExtraSize];
 
             for (Page inputPage : pages) {
-                try (
-                    BooleanVector noMasking = driverContext().blockFactory().newConstantBooleanVector(true, inputPage.getPositionCount())
-                ) {
-                    aggregator.processPage(inputPage, noMasking);
+                if (inputPage.getPositionCount() > 0) {
+                    try (
+                        BooleanVector noMasking = driverContext().blockFactory()
+                            .newConstantBooleanVector(true, inputPage.getPositionCount())
+                    ) {
+                        aggregator.processPage(inputPage, noMasking);
+                    }
                 }
             }
 

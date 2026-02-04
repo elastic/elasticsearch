@@ -275,7 +275,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 dimensions.get(),
                 new IgnoreAbove(ignoreAbove.getValue(), indexMode, indexCreatedVersion),
                 usesBinaryDocValues,
-                nullValue.get()
+                nullValue.get(),
+                context.isSourceSynthetic()
             );
             return new FlattenedFieldMapper(leafName(), ft, builderParams(this, context), this);
         }
@@ -795,8 +796,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
         private final boolean isDimension;
         private final IgnoreAbove ignoreAbove;
         private final boolean usesBinaryDocValues;
-
         private final String nullValue;
+        private final boolean isSyntheticSourceEnabled;
 
         RootFlattenedFieldType(
             String name,
@@ -806,7 +807,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
             boolean eagerGlobalOrdinals,
             IgnoreAbove ignoreAbove,
             boolean usesBinaryDocValues,
-            String nullValue
+            String nullValue,
+            boolean isSyntheticSourceEnabled
         ) {
             this(
                 name,
@@ -817,7 +819,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 Collections.emptyList(),
                 ignoreAbove,
                 usesBinaryDocValues,
-                nullValue
+                nullValue,
+                isSyntheticSourceEnabled
             );
         }
 
@@ -830,7 +833,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
             List<String> dimensions,
             IgnoreAbove ignoreAbove,
             boolean usesBinaryDocValues,
-            String nullValue
+            String nullValue,
+            boolean isSyntheticSourceEnabled
         ) {
             super(
                 name,
@@ -846,6 +850,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             this.ignoreAbove = ignoreAbove;
             this.usesBinaryDocValues = usesBinaryDocValues;
             this.nullValue = nullValue;
+            this.isSyntheticSourceEnabled = isSyntheticSourceEnabled;
         }
 
         @Override
@@ -855,6 +860,10 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (hasDocValues() && (ignoreAbove.valuesPotentiallyIgnored() == false || isSyntheticSourceEnabled)) {
+                return new RootFlattenedDocValuesBlockLoader(name(), ignoreAbove, usesBinaryDocValues);
+            }
+
             SourceValueFetcher fetcher = new SourceValueFetcher(
                 blContext.sourcePaths(name()),
                 nullValue,

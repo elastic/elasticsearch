@@ -143,7 +143,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
          */
         public abstract Query toQuery(QueryBuilder queryBuilder);
 
-        public abstract org.elasticsearch.index.IndexSettings indexSettings();
+        public abstract IndexSettings indexSettings();
 
         public abstract MappingLookup mappingLookup();
 
@@ -525,7 +525,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         @Override
-        public org.elasticsearch.index.IndexSettings indexSettings() {
+        public IndexSettings indexSettings() {
             return ctx.getIndexSettings();
         }
 

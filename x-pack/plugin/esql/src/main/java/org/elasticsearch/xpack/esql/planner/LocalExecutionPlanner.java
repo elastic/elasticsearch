@@ -841,7 +841,7 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planMetricsInfo(MetricsInfoExec metricsInfoExec, LocalExecutionPlannerContext context) {
-        // Stage 1: Extract _tsid only (cheap - from doc values)
+        // Step 1: Extract _tsid only
         FieldAttribute tsidAttr = new FieldAttribute(
             metricsInfoExec.source(),
             null,
@@ -860,7 +860,7 @@ public class LocalExecutionPlanner {
 
         PhysicalOperation tsidSource = planFieldExtractNode(tsidExtractExec, context);
 
-        // Stage 2: Dedup by _tsid - only keep one doc per time series
+        // Step 2: Dedup by _tsid
         int tsidChannel = tsidSource.layout.get(tsidAttr.id()).channel();
         PhysicalOperation dedupedSource = tsidSource.with(new DistinctByOperator.Factory(tsidChannel), tsidSource.layout);
 
@@ -879,7 +879,6 @@ public class LocalExecutionPlanner {
             true
         );
 
-        // _index
         FieldAttribute indexAttr = new FieldAttribute(
             metricsInfoExec.source(),
             null,
@@ -904,7 +903,6 @@ public class LocalExecutionPlanner {
         Layout.Builder layoutBuilder = new Layout.Builder();
         layoutBuilder.append(metricsInfoExec.output());
 
-        // Build on-demand lookup from index name to MappingLookup
         MetricsInfoOperator.MetricFieldLookup fieldLookup = createMetricFieldLookup(context.shardContexts);
 
         return sourceWithMetadata.with(

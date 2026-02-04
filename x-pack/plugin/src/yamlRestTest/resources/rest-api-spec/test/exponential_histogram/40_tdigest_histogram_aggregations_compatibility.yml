@@ -186,9 +186,12 @@ setup:
                 percents: [5, 25, 50, 75]
 
   - match: { hits.total.value: 2 }
-  - match:
-      aggregations.percentiles_agg.values:
-        5.0: 0.8999999999986692
-        25.0: 1.0083333333331896
-        50.0: 1.9999999999974785
-        75.0: 2.6666666666697565
+  # Use range comparisons to handle small numeric errors across different machines
+  - gte: { aggregations.percentiles_agg.values.5\.0: 0.899 }
+  - lte: { aggregations.percentiles_agg.values.5\.0: 0.901 }
+  - gte: { aggregations.percentiles_agg.values.25\.0: 1.007 }
+  - lte: { aggregations.percentiles_agg.values.25\.0: 1.009 }
+  - gte: { aggregations.percentiles_agg.values.50\.0: 1.999 }
+  - lte: { aggregations.percentiles_agg.values.50\.0: 2.001 }
+  - gte: { aggregations.percentiles_agg.values.75\.0: 2.665 }
+  - lte: { aggregations.percentiles_agg.values.75\.0: 2.667 }

@@ -52,7 +52,6 @@ import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.approximation.Approximation;
-import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -245,7 +244,6 @@ public class EsqlSession {
         ZoneId timeZone = request.timeZone() == null
             ? statement.setting(QuerySettings.TIME_ZONE)
             : statement.settingOrDefault(QuerySettings.TIME_ZONE, request.timeZone());
-        ApproximationSettings approximationSettings = statement.setting(QuerySettings.APPROXIMATION);
 
         Configuration configuration = new Configuration(
             timeZone,
@@ -326,7 +324,6 @@ public class EsqlSession {
                                 foldContext,
                                 minimumVersion,
                                 planTimeProfile,
-                                logicalPlanOptimizer,
                                 l
                             )
                         )
@@ -363,7 +360,6 @@ public class EsqlSession {
         FoldContext foldContext,
         TransportVersion minimumVersion,
         PlanTimeProfile planTimeProfile,
-        LogicalPlanOptimizer logicalPlanOptimizer,
         ActionListener<Result> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(
@@ -400,7 +396,6 @@ public class EsqlSession {
                 executionInfo,
                 request,
                 statement,
-                logicalPlanOptimizer,
                 physicalPlanOptimizer,
                 planTimeProfile,
                 listener
@@ -416,7 +411,6 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo,
         EsqlQueryRequest request,
         EsqlStatement statement,
-        LogicalPlanOptimizer logicalPlanOptimizer,
         PhysicalPlanOptimizer physicalPlanOptimizer,
         PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
@@ -448,14 +442,7 @@ public class EsqlSession {
                 optimizedPlan,
                 statement.setting(QuerySettings.APPROXIMATION),
                 executionInfo,
-                logicalPlanOptimizer,
-                p -> logicalPlanToPhysicalPlan(
-                    // TODO: don't run the full optimizer twice, because it may break things.
-                    optimizedPlan(p, logicalPlanOptimizer, planTimeProfile),
-                    request,
-                    physicalPlanOptimizer,
-                    planTimeProfile
-                ),
+                p -> logicalPlanToPhysicalPlan(p, request, physicalPlanOptimizer, planTimeProfile),
                 runner,
                 configuration,
                 foldContext,

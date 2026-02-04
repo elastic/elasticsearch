@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Builder for requests to bulk add a roles to the security index
@@ -37,7 +37,7 @@ public class BulkPutRoleRequestBuilder extends ActionRequestBuilder<BulkPutRoles
     );
 
     static {
-        PARSER.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> {
+        PARSER.declareNamedObjects(constructorArg(), (p, c, n) -> {
             p.nextToken();
             return ROLE_DESCRIPTOR_PARSER.parse(n, p, false);
         }, new ParseField("roles"));
@@ -56,9 +56,6 @@ public class BulkPutRoleRequestBuilder extends ActionRequestBuilder<BulkPutRoles
             )
         ) {
             List<RoleDescriptor> roles = PARSER.parse(parser, null);
-            if (roles == null || roles.isEmpty()) {
-                throw new IllegalArgumentException("request body is required: [roles]");
-            }
             request.setRoles(roles);
         }
         return this;

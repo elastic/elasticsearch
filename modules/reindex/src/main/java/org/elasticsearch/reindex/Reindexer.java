@@ -39,6 +39,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
@@ -58,6 +59,7 @@ import org.elasticsearch.script.ReindexMetadata;
 import org.elasticsearch.script.ReindexScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -69,11 +71,13 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.synchronizedList;
@@ -90,6 +94,9 @@ public class Reindexer {
     private final ScriptService scriptService;
     private final ReindexSslConfig reindexSslConfig;
     private final ReindexMetrics reindexMetrics;
+    private final TaskManager taskManager;
+    @Nullable
+    private final ReindexRelocationNodePicker relocationNodePicker;
 
     Reindexer(
         ClusterService clusterService,
@@ -98,7 +105,9 @@ public class Reindexer {
         ThreadPool threadPool,
         ScriptService scriptService,
         ReindexSslConfig reindexSslConfig,
-        @Nullable ReindexMetrics reindexMetrics
+        @Nullable ReindexMetrics reindexMetrics,
+        TaskManager taskManager,
+        @Nullable ReindexRelocationNodePicker relocationNodePicker
     ) {
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
@@ -107,20 +116,28 @@ public class Reindexer {
         this.scriptService = scriptService;
         this.reindexSslConfig = reindexSslConfig;
         this.reindexMetrics = reindexMetrics;
+        this.taskManager = Objects.requireNonNull(taskManager);
+        this.relocationNodePicker = relocationNodePicker;
     }
 
     public void initTask(BulkByScrollTask task, ReindexRequest request, ActionListener<Void> listener) {
-        BulkByScrollParallelizationHelper.initTaskState(task, request, client, listener);
+        final ActionListener<Void> initListener = listener.delegateFailure((l, v) -> {
+            initTaskForRelocationIfEnabled(task);
+            l.onResponse(v);
+        });
+        BulkByScrollParallelizationHelper.initTaskState(task, request, client, initListener);
     }
 
     public void execute(BulkByScrollTask task, ReindexRequest request, Client bulkClient, ActionListener<BulkByScrollResponse> listener) {
         long startTime = System.nanoTime();
 
+        final ActionListener<BulkByScrollResponse> listenerWithRelocations = listenerWithRelocations(task, listener);
+
         BulkByScrollParallelizationHelper.executeSlicedAction(
             task,
             request,
             ReindexAction.INSTANCE,
-            listener,
+            listenerWithRelocations,
             client,
             clusterService.localNode(),
             () -> {
@@ -136,11 +153,37 @@ public class Reindexer {
                     projectResolver.getProjectState(clusterService.state()),
                     reindexSslConfig,
                     request,
-                    wrapWithMetrics(listener, reindexMetrics, startTime, request.getRemoteInfo() != null)
+                    workerListenerWithRelocationAndMetrics(
+                        listenerWithRelocations,
+                        reindexMetrics,
+                        startTime,
+                        request.getRemoteInfo() != null
+                    )
                 );
                 searchAction.start();
             }
         );
+    }
+
+    private ActionListener<BulkByScrollResponse> workerListenerWithRelocationAndMetrics(
+        ActionListener<BulkByScrollResponse> potentiallyWrappedRelocationListener,
+        ReindexMetrics reindexMetrics,
+        long startTime,
+        boolean isRemote
+    ) {
+        if (ReindexPlugin.REINDEX_RESILIENCE_ENABLED == false || relocationNodePicker == null) {
+            return wrapWithMetrics(potentiallyWrappedRelocationListener, reindexMetrics, startTime, isRemote);
+        }
+        // todo(szy): figure out metrics, safe to assume non-finished tasks will be metric'd on relocated node...
+        // but metrics for a reindex where some subslices have finished...?
+        return potentiallyWrappedRelocationListener.delegateFailure((l, bulkByScrollResponse) -> {
+            // note: implicitly relies on TaskResumeInfo only being populated if a suitable node exists for relocating to.
+            if (bulkByScrollResponse.getTaskResumeInfo().isPresent()) {
+                l.onResponse(bulkByScrollResponse);
+                return;
+            }
+            wrapWithMetrics(l, reindexMetrics, startTime, isRemote).onResponse(bulkByScrollResponse);
+        });
     }
 
     // Visible for testing
@@ -191,6 +234,92 @@ public class Reindexer {
             long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
             metrics.recordTookTime(elapsedTime, isRemote);
         });
+    }
+
+    private ActionListener<BulkByScrollResponse> listenerWithRelocations(
+        final BulkByScrollTask task,
+        final ActionListener<BulkByScrollResponse> listener
+    ) {
+        if (ReindexPlugin.REINDEX_RESILIENCE_ENABLED == false || relocationNodePicker == null) {
+            return listener;
+        }
+        final boolean workerTaskWillBeRelocatedByParent = task.getParentTaskId().isSet();
+        if (workerTaskWillBeRelocatedByParent) {
+            return listener;
+        }
+        return listener.delegateFailure((l, bulkByScrollResponse) -> {
+            if (task.isRelocationRequested() == false) {
+                l.onResponse(bulkByScrollResponse);
+                return;
+            }
+            final Supplier<Optional<String>> nodeToRelocateToSupplier = task.isLeader()
+                ? task.getLeaderState().getNodeToRelocateToSupplier()
+                : task.getWorkerState().getNodeToRelocateToSupplier();
+            final String nodeToRelocateTo = nodeToRelocateToSupplier.get().orElse(null);
+            if (nodeToRelocateTo == null) {
+                l.onResponse(bulkByScrollResponse);
+                return;
+            }
+            // todo(szy): add relocations
+            l.onFailure(new UnsupportedOperationException("todo: implement relocation action"));
+        });
+    }
+
+    private void initTaskForRelocationIfEnabled(final BulkByScrollTask task) {
+        if (ReindexPlugin.REINDEX_RESILIENCE_ENABLED == false || relocationNodePicker == null) {
+            return;
+        }
+        // setup reindex relocation, specifically the supplier which says which node to relocate to.
+        // we have 3 states to handle:
+        // 1. leader which has >= 2 subslices: needs to be initialized with a centralized node picker. workers will fetch this and use it.
+        // 2. worker which is one of many subslices: will fetch the leader node picker and use it for relocation decisions.
+        // 3. worker which is the only slice, no leader: needs to set up its own node picker, call that, and when it's done relocate itself.
+        // n.b.
+        // - workers with a leader only need the supplier to see if there is a node to relocate to, therefore whether they should stop.
+        // - leader then relocates the entire reindex once workers have completed.
+        // - approach relies on the entire reindex (including subtasks) existing on the same node.
+        if (task.isLeader()) {
+            task.getLeaderState().setNodeToRelocateToSupplier(createNodeToRelocateToSupplier());
+        } else {
+            if (task.getParentTaskId().isSet()) {
+                task.getWorkerState().setNodeToRelocateToSupplier(getLeaderNodeToRelocatoToSupplier(task));
+            } else {
+                task.getWorkerState().setNodeToRelocateToSupplier(createNodeToRelocateToSupplier());
+            }
+        }
+    }
+
+    private Supplier<Optional<String>> createNodeToRelocateToSupplier() {
+        assert ReindexPlugin.REINDEX_RESILIENCE_ENABLED && relocationNodePicker != null
+            : "relocation node picker should be set if we ended up here";
+        final Supplier<Optional<String>> nodeToRelocateToSupplier = () -> relocationNodePicker.pickNode(
+            clusterService.state().nodes(),
+            clusterService.state().metadata().nodeShutdowns()
+        );
+        // todo(szy) reviewer comment: is there any case to be made that this shouldn't be cached, because there might not be a suitable
+        // relocation node, and subtasks continue, and then a node joins cluster and we can hand off?
+        return CachedSupplier.wrap(nodeToRelocateToSupplier); // concurrent, initialized by the first thread, all others get that result.
+    }
+
+    private Supplier<Optional<String>> getLeaderNodeToRelocatoToSupplier(final BulkByScrollTask workerTask) {
+        assert ReindexPlugin.REINDEX_RESILIENCE_ENABLED && relocationNodePicker != null
+            : "relocation node picker should be set if we ended up here";
+        assert workerTask.isWorker() && workerTask.getParentTaskId().isSet() : "task should be a worker and have a parent";
+
+        // n.b relies on reindex subtasks existing on the same node.
+        final List<BulkByScrollTask> parentTasks = taskManager.getCancellableTasks()
+            .values()
+            .stream()
+            .filter(t -> workerTask.getParentTaskId().getId() == t.getId())
+            .filter(parentTask -> {
+                assert ReindexAction.NAME.equals(parentTask.getAction()) : "parent task should be a reindex task";
+                assert parentTask instanceof BulkByScrollTask : "parent task should be a bulk-by-scroll task";
+                return parentTask instanceof BulkByScrollTask;
+            })
+            .map(BulkByScrollTask.class::cast)
+            .toList();
+        assert parentTasks.size() == 1 : "expected exactly one parent task";
+        return parentTasks.getFirst().getLeaderState().getNodeToRelocateToSupplier();
     }
 
     /**

@@ -38,6 +38,7 @@ import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ClientScrollableHitSource;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
+import org.elasticsearch.index.reindex.SlicedTaskResumeInfo;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.elasticsearch.script.CtxMap;
 import org.elasticsearch.script.Metadata;
@@ -54,6 +55,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -537,6 +539,28 @@ public abstract class AbstractAsyncBulkByScrollAction<
         }
         this.lastBatchSize = batchSize;
         this.totalBatchSizeInSingleScrollResponse.addAndGet(batchSize);
+
+        if (task.isRelocationRequested()) {
+            final Optional<String> nodeToRelocateTo = worker.getNodeToRelocateToSupplier().get();
+            if (nodeToRelocateTo.isPresent()) {
+                final String scrollId = asyncResponse.response().getScrollId();
+                final var workerResumeInfo = new SlicedTaskResumeInfo.ScrollWorkerResumeInfo(scrollId, worker.getStatus());
+                final SlicedTaskResumeInfo slicedTaskResumeInfo = new SlicedTaskResumeInfo(workerResumeInfo, null);
+
+                // build response with resume info - don't call finishHim as it closes the scroll
+                final BulkByScrollResponse response = new BulkByScrollResponse(
+                    timeValueNanos(System.nanoTime() - startTime.get()),
+                    new BulkByScrollTask.Status(List.of(), null),
+                    List.of(),
+                    List.of(),
+                    false,
+                    slicedTaskResumeInfo
+                );
+                listener.onResponse(response);
+                return;
+            }
+            // if the task has no node to relocate to, continue. it might finish before shutdown.
+        }
 
         if (asyncResponse.hasRemainingHits() == false) {
             int totalBatchSize = totalBatchSizeInSingleScrollResponse.getAndSet(0);

@@ -221,7 +221,8 @@ public class LookupFromIndexOperator extends AsyncOperator<LookupFromIndexOperat
             source,
             rightPreJoinPlan,
             joinOnConditions,
-            null, // streamingSessionId - set only by StreamingLookupFromIndexOperator
+            null, // clientToServerId - set only by StreamingLookupFromIndexOperator
+            null, // serverToClientId - set only by StreamingLookupFromIndexOperator
             false // profile - non-streaming lookup doesn't support plan output
         );
         lookupService.lookupAsync(request, parentTask, listener.map(response -> {

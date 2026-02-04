@@ -149,7 +149,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             request.source,
             request.rightPreJoinPlan,
             request.joinOnConditions,
-            request.streamingSessionId,
+            request.clientToServerId,
+            request.serverToClientId,
             request.profile
         );
     }
@@ -210,7 +211,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         private final List<MatchConfig> matchFields;
         private final PhysicalPlan rightPreJoinPlan;
         private final Expression joinOnConditions;
-        private final String streamingSessionId;
+        private final String clientToServerId;
+        private final String serverToClientId;
         private final boolean profile;
 
         Request(
@@ -223,14 +225,16 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             Source source,
             PhysicalPlan rightPreJoinPlan,
             Expression joinOnConditions,
-            String streamingSessionId,
+            String clientToServerId,
+            String serverToClientId,
             boolean profile
         ) {
             super(sessionId, index, indexPattern, matchFields.get(0).type(), inputPage, extractFields, source);
             this.matchFields = matchFields;
             this.rightPreJoinPlan = rightPreJoinPlan;
             this.joinOnConditions = joinOnConditions;
-            this.streamingSessionId = streamingSessionId;
+            this.clientToServerId = clientToServerId;
+            this.serverToClientId = serverToClientId;
             this.profile = profile;
         }
     }
@@ -247,7 +251,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         private final List<MatchConfig> matchFields;
         private final PhysicalPlan rightPreJoinPlan;
         private final Expression joinOnConditions;
-        private final String streamingSessionId;
+        private final String clientToServerId;
+        private final String serverToClientId;
         private final boolean profile;
 
         // Right now we assume that the page contains the same number of blocks as matchFields and that the blocks are in the same order
@@ -263,14 +268,16 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             Source source,
             PhysicalPlan rightPreJoinPlan,
             Expression joinOnConditions,
-            String streamingSessionId,
+            String clientToServerId,
+            String serverToClientId,
             boolean profile
         ) {
             super(sessionId, shardId, indexPattern, inputPage, toRelease, extractFields, source);
             this.matchFields = matchFields;
             this.rightPreJoinPlan = rightPreJoinPlan;
             this.joinOnConditions = joinOnConditions;
-            this.streamingSessionId = streamingSessionId;
+            this.clientToServerId = clientToServerId;
+            this.serverToClientId = serverToClientId;
             this.profile = profile;
         }
 
@@ -321,9 +328,13 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             if (in.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {
                 joinOnConditions = planIn.readOptionalNamedWriteable(Expression.class);
             }
-            String streamingSessionId = null;
+            String clientToServerId = null;
             if (in.getTransportVersion().supports(ESQL_STREAMING_LOOKUP_JOIN)) {
-                streamingSessionId = in.readOptionalString();
+                clientToServerId = in.readOptionalString();
+            }
+            String serverToClientId = null;
+            if (in.getTransportVersion().supports(ESQL_STREAMING_LOOKUP_JOIN)) {
+                serverToClientId = in.readOptionalString();
             }
             boolean profile = false;
             if (in.getTransportVersion().supports(ESQL_STREAMING_LOOKUP_JOIN)) {
@@ -340,7 +351,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 source,
                 rightPreJoinPlan,
                 joinOnConditions,
-                streamingSessionId,
+                clientToServerId,
+                serverToClientId,
                 profile
             );
             result.setParentTask(parentTaskId);
@@ -355,8 +367,12 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             return matchFields;
         }
 
-        public String getStreamingSessionId() {
-            return streamingSessionId;
+        public String getClientToServerId() {
+            return clientToServerId;
+        }
+
+        public String getServerToClientId() {
+            return serverToClientId;
         }
 
         public boolean isProfile() {
@@ -408,7 +424,10 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 }
             }
             if (out.getTransportVersion().supports(ESQL_STREAMING_LOOKUP_JOIN)) {
-                out.writeOptionalString(streamingSessionId);
+                out.writeOptionalString(clientToServerId);
+            }
+            if (out.getTransportVersion().supports(ESQL_STREAMING_LOOKUP_JOIN)) {
+                out.writeOptionalString(serverToClientId);
             }
             if (out.getTransportVersion().supports(ESQL_STREAMING_LOOKUP_JOIN)) {
                 out.writeBoolean(profile);
@@ -510,7 +529,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
     @Override
     protected void doLookup(TransportRequest request, CancellableTask task, ActionListener<AbstractLookupService.LookupResponse> listener) {
-        if (request.getStreamingSessionId() != null) {
+        if (request.getClientToServerId() != null) {
             doLookupStreaming(request, task, listener);
         } else {
             super.doLookup(request, task, listener);
@@ -547,8 +566,12 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             DiscoveryNode clientNode = determineClientNode(request, task);
 
             // Stage 1: Create BidirectionalBatchExchangeServer (creates source handler)
+            // Use explicit exchange IDs: clientToServerId is per-server unique,
+            // serverToClientId is shared across all servers
             BidirectionalBatchExchangeServer server = new BidirectionalBatchExchangeServer(
-                request.streamingSessionId,
+                request.getClientToServerId(),
+                request.getClientToServerId(),
+                request.getServerToClientId(),
                 exchangeService,
                 executor,
                 QueryPragmas.EXCHANGE_BUFFER_SIZE.getDefault(Settings.EMPTY),

@@ -73,11 +73,13 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
     private volatile boolean closing = false; // Flag to prevent recursive close if server is part of the releasable
 
     /**
-     * Create a new BidirectionalBatchExchangeServer.
+     * Create a new BidirectionalBatchExchangeServer with explicit exchange IDs.
      * This is stage 1: creates the server and source handler.
      * Call {@link #startWithOperators(DriverContext, ThreadContext, List, String, Releasable)} to complete setup.
      *
-     * @param sessionId session ID for the driver
+     * @param sessionId session ID for the driver (used for logging)
+     * @param clientToServerId explicit client-to-server exchange ID (per-server unique)
+     * @param serverToClientId explicit server-to-client exchange ID (shared across servers)
      * @param exchangeService the exchange service
      * @param executor executor for async operations
      * @param maxBufferSize maximum buffer size for exchanges
@@ -88,6 +90,8 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
      */
     public BidirectionalBatchExchangeServer(
         String sessionId,
+        String clientToServerId,
+        String serverToClientId,
         ExchangeService exchangeService,
         Executor executor,
         int maxBufferSize,
@@ -96,7 +100,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         DiscoveryNode clientNode,
         Settings settings
     ) throws Exception {
-        super(sessionId, exchangeService, executor, maxBufferSize, transportService, task, settings);
+        super(sessionId, clientToServerId, serverToClientId, exchangeService, executor, maxBufferSize, transportService, task, settings);
         this.clientNode = clientNode;
         logger.debug(
             "[LookupJoinServer] Created BidirectionalBatchExchangeServer: clientToServerId={}, serverToClientId={}, maxBufferSize={}",
@@ -431,16 +435,9 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
             "[LookupJoinServer] Connecting to client sink handler via transport for client-to-server exchange, exchangeId={}",
             clientToServerId
         );
-        connectRemoteSink(
-            clientNode,
-            clientToServerId,
-            clientToServerSourceHandler,
-            ActionListener.wrap(
-                nullValue -> logger.debug("[LookupJoinServer] Client-to-server exchange sink connection completed successfully"),
-                failure -> logger.error("[LookupJoinServer] Client-to-server exchange sink connection failed", failure)
-            ),
-            "client sink handler"
-        );
+        connectRemoteSink(clientNode, clientToServerId, clientToServerSourceHandler, ActionListener.wrap(nullValue -> {
+            logger.debug("[LookupJoinServer] Client-to-server exchange sink connection completed successfully");
+        }, failure -> logger.error("[LookupJoinServer] Client-to-server exchange sink connection failed", failure)), "client sink handler");
         // Create sink operator that writes to server-to-client exchange
         serverToClientSinkOperator = new ExchangeSinkOperator(serverToClientSink);
         ExchangeSinkOperator baseSinkOperator = serverToClientSinkOperator;

@@ -146,62 +146,60 @@ public class StreamingLookupFromIndexOperator implements Operator {
     }
 
     private void initializeClient() {
-        DiscoveryNode serverNode = determineServerNode();
-        if (serverNode == null) {
-            clientReadyListener.onFailure(new IllegalStateException("Could not determine server node for lookup"));
-            return;
-        }
-
         ExchangeService exchangeService = lookupService.getExchangeService();
 
         try {
+            // Create the server setup callback - will be called lazily when first page is sent to a server
+            BidirectionalBatchExchangeClient.ServerSetupCallback setupCallback = (
+                serverNode,
+                clientToServerId,
+                serverToClientId,
+                listener) -> {
+                planningStartNanos = System.nanoTime();
+                // Create setup request for this server
+                // clientToServerId is per-server unique, serverToClientId is shared across all servers
+                LookupFromIndexService.Request setupRequest = new LookupFromIndexService.Request(
+                    sessionId,
+                    lookupIndex,
+                    lookupIndexPattern,
+                    matchFieldsMapping.reindexedMatchFields(),
+                    new Page(0), // Empty page for setup
+                    loadFields,
+                    source,
+                    rightPreJoinPlan,
+                    joinOnConditions,
+                    clientToServerId,
+                    serverToClientId,
+                    profile
+                );
+
+                lookupService.lookupAsync(setupRequest, serverNode, parentTask, ActionListener.wrap(response -> {
+                    planningEndNanos = System.nanoTime();
+                    logger.debug("Server setup complete for node={}", serverNode.getId());
+                    listener.onResponse(response.planString());
+                }, e -> {
+                    planningEndNanos = System.nanoTime();
+                    logger.error("Server setup failed for node={}", serverNode.getId(), e);
+                    failure.set(e);
+                    listener.onFailure(e);
+                }));
+            };
+
             client = new BidirectionalBatchExchangeClient(
                 exchangeSessionId,
-                lookupService.getClusterService().getClusterName().value(),
                 exchangeService,
                 lookupService.getExecutor(),
                 exchangeBufferSize,
                 lookupService.getTransportService(),
                 parentTask,
-                serverNode,
                 ActionListener.wrap(v -> handleBatchExchangeSuccess(), this::handleBatchExchangeFailure),
-                lookupService.getSettings()
+                lookupService.getSettings(),
+                setupCallback,
+                planString -> lookupPlan = planString  // Consumer for lookup plan from server
             );
 
-            // Send setup request to server
-            LookupFromIndexService.Request setupRequest = new LookupFromIndexService.Request(
-                sessionId,
-                lookupIndex,
-                lookupIndexPattern,
-                matchFieldsMapping.reindexedMatchFields(),
-                new Page(0), // Empty page for setup
-                loadFields,
-                source,
-                rightPreJoinPlan,
-                joinOnConditions,
-                client.getSessionId(),
-                profile
-            );
-
-            planningStartNanos = System.nanoTime();
-            lookupService.lookupAsync(setupRequest, serverNode, parentTask, ActionListener.wrap(response -> {
-                planningEndNanos = System.nanoTime();
-                // Store the lookup plan from the response (if profiling is enabled)
-                lookupPlan = response.planString();
-                logger.debug("Client setup complete, connecting to server sink");
-                // Connect to server's sink to receive results and send BatchExchangeStatusRequest
-                // This starts the server's driver which processes the batches
-                client.connectToServerSink();
-                clientReadyListener.onResponse(null);
-            }, e -> {
-                planningEndNanos = System.nanoTime();
-                logger.error("Client setup failed", e);
-                failure.set(e);
-                // Notify the client of the failure to unblock its internal driver
-                // The client driver is waiting for pages from the exchange, so we need to signal failure
-                client.handleFailure("server setup", e);
-                clientReadyListener.onFailure(e);
-            }));
+            // Client is ready immediately - server setup happens lazily when first page is sent
+            clientReadyListener.onResponse(null);
         } catch (Exception e) {
             logger.error("Failed to create client", e);
             failure.set(e);
@@ -263,9 +261,17 @@ public class StreamingLookupFromIndexOperator implements Operator {
             return;
         }
 
+        // Determine which server should handle this page
+        DiscoveryNode serverNode = determineServerNode();
+        if (serverNode == null) {
+            page.releaseBlocks();
+            failure.compareAndSet(null, new IllegalStateException("Could not determine server node for lookup"));
+            return;
+        }
+
         totalInputRows += page.getPositionCount();
         long batchId = batchIdGenerator.incrementAndGet();
-        logger.trace("addInput: batchId={}, positions={}", batchId, page.getPositionCount());
+        logger.trace("addInput: batchId={}, positions={}, serverNode={}", batchId, page.getPositionCount(), serverNode.getId());
 
         // Send page synchronously - the exchange buffer holds pages until server fetches them
         // Note: BatchPage constructor calls incRef() on blocks, so we need to release the batchPage on failure
@@ -273,8 +279,8 @@ public class StreamingLookupFromIndexOperator implements Operator {
         try {
             Block[] inputBlocks = applyMatchFieldsMapping(page);
             batchPage = new BatchPage(new Page(inputBlocks), batchId, 0, true);
-            client.sendPage(batchPage);
-            logger.trace("addInput: sent batchId={} to exchange buffer", batchId);
+            client.sendPage(batchPage, serverNode);
+            logger.trace("addInput: sent batchId={} to exchange buffer for node={}", batchId, serverNode.getId());
         } catch (RuntimeException e) {
             logger.error("addInput: failed to send batchId={}: {}", batchId, e.getMessage());
             // Release the batchPage if it was created (it has incRef'd the blocks)

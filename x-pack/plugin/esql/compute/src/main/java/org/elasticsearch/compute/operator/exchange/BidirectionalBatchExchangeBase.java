@@ -49,10 +49,16 @@ abstract class BidirectionalBatchExchangeBase implements Releasable {
     }
 
     /**
-     * Base constructor for bidirectional batch exchange handlers.
+     * Base constructor for bidirectional batch exchange handlers with explicit exchange IDs.
+     *
+     * @param sessionId the session ID (used for logging and identification)
+     * @param clientToServerId the exchange ID for client-to-server communication
+     * @param serverToClientId the exchange ID for server-to-client communication
      */
     protected BidirectionalBatchExchangeBase(
         String sessionId,
+        String clientToServerId,
+        String serverToClientId,
         ExchangeService exchangeService,
         Executor executor,
         int maxBufferSize,
@@ -61,8 +67,8 @@ abstract class BidirectionalBatchExchangeBase implements Releasable {
         Settings settings
     ) {
         this.sessionId = sessionId;
-        this.clientToServerId = buildClientToServerId(sessionId);
-        this.serverToClientId = buildServerToClientId(sessionId);
+        this.clientToServerId = clientToServerId;
+        this.serverToClientId = serverToClientId;
         this.exchangeService = exchangeService;
         this.executor = executor;
         this.maxBufferSize = maxBufferSize;

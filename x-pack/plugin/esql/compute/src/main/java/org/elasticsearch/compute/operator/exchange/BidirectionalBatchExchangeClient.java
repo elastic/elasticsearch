@@ -14,12 +14,15 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.IsBlockedResult;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -39,54 +42,89 @@ import static org.elasticsearch.compute.operator.Operator.NOT_BLOCKED;
 public final class BidirectionalBatchExchangeClient extends BidirectionalBatchExchangeBase {
     private static final org.apache.logging.log4j.Logger logger = LogManager.getLogger(BidirectionalBatchExchangeClient.class);
 
-    private ExchangeSinkHandler clientToServerSinkHandler;
-    private ExchangeSink clientToServerSink;
+    /**
+     * Functional interface for server setup callback.
+     * Called when a new server connection needs to be established.
+     */
+    @FunctionalInterface
+    public interface ServerSetupCallback {
+        /**
+         * Send setup request to the server.
+         *
+         * @param serverNode the server node to connect to
+         * @param clientToServerId the per-server unique client-to-server exchange ID
+         * @param serverToClientId the shared server-to-client exchange ID
+         * @param listener called with the plan string (nullable) on success, or failure
+         */
+        void sendSetupRequest(DiscoveryNode serverNode, String clientToServerId, String serverToClientId, ActionListener<String> listener);
+    }
+
+    // Per-server state (one per server)
+    private final Map<String, ServerConnection> serverConnections = new HashMap<>();
+
+    // Shared state (single instance for all servers)
     private ExchangeSourceHandler serverToClientSourceHandler;
     private BatchSortedExchangeSource sortedSource; // Wraps ExchangeSource with sorting
+
     private final AtomicReference<Exception> failureRef = new AtomicReference<>();
     private final Object sendFinishLock = new Object(); // Synchronizes sendPage() and finish() to prevent race
-    private final DiscoveryNode serverNode; // Server node for transport connection
     private ActionListener<Void> batchExchangeStatusListener; // Listener for batch exchange status completion
-    private final SubscribableListener<Void> serverResponseListener = new SubscribableListener<>(); // Listener for server response
-    private volatile boolean requestSent = false; // Track if batch exchange status request was sent
     private volatile boolean closed = false; // Track if close() has been called (for idempotency)
     // Track batch counts to ensure all batches complete before closing
     private final AtomicInteger startedBatchCount = new AtomicInteger(0);
     private final AtomicInteger completedBatchCount = new AtomicInteger(0);
 
+    // Server setup callback - called lazily when first page is sent to a server
+    private final ServerSetupCallback serverSetupCallback;
+
+    // Callback for when lookup plan is received from server (for profiling)
+    @Nullable
+    private final java.util.function.Consumer<String> lookupPlanConsumer;
+
     /**
      * Create a new BidirectionalBatchExchangeClient.
      *
      * @param sessionId session ID for the client
-     * @param clusterName cluster name
      * @param exchangeService  the exchange service
      * @param executor         executor for async operations
      * @param maxBufferSize    maximum buffer size for exchanges
      * @param transportService transport service for transport-based remote sink
      * @param task             task for transport-based remote sink
-     * @param serverNode       server node for transport connection
      * @param batchExchangeStatusListener listener that will be called when batch exchange status is received (success or failure)
      * @param settings         settings for exchange configuration
-     * @throws Exception if initialization fails
+     * @param serverSetupCallback callback to send setup request when a new server is connected
+     * @param lookupPlanConsumer optional callback to receive lookup plan string from server setup response
      */
     public BidirectionalBatchExchangeClient(
         String sessionId,
-        String clusterName,
         ExchangeService exchangeService,
         Executor executor,
         int maxBufferSize,
         TransportService transportService,
         Task task,
-        DiscoveryNode serverNode,
         ActionListener<Void> batchExchangeStatusListener,
-        Settings settings
-    ) throws Exception {
-        super(sessionId, exchangeService, executor, maxBufferSize, transportService, task, settings);
-        this.serverNode = serverNode;
+        Settings settings,
+        ServerSetupCallback serverSetupCallback,
+        @Nullable java.util.function.Consumer<String> lookupPlanConsumer
+    ) {
+        // Client uses per-server clientToServerIds (in ServerConnection), but base class needs a value.
+        // Pass the base clientToServerId which is used as a prefix for per-server IDs.
+        super(
+            sessionId,
+            buildClientToServerId(sessionId),
+            buildServerToClientId(sessionId),
+            exchangeService,
+            executor,
+            maxBufferSize,
+            transportService,
+            task,
+            settings
+        );
         this.batchExchangeStatusListener = batchExchangeStatusListener;
+        this.serverSetupCallback = serverSetupCallback;
+        this.lookupPlanConsumer = lookupPlanConsumer;
         logger.debug(
-            "[LookupJoinClient] Created BidirectionalBatchExchangeClient: clientToServerId={}, serverToClientId={}, maxBufferSize={}",
-            clientToServerId,
+            "[LookupJoinClient] Created BidirectionalBatchExchangeClient: serverToClientId={}, maxBufferSize={}",
             serverToClientId,
             maxBufferSize
         );
@@ -94,33 +132,179 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     }
 
     /**
-     * Initialize the client exchanges.
+     * Initialize the shared client exchanges.
      * Called automatically from the constructor.
+     * Per-server client-to-server exchanges are created lazily in getOrCreateServerConnection().
      */
     private void initialize() {
-        logger.debug("[LookupJoinClient] Initializing BidirectionalBatchExchangeClient");
+        logger.debug("[LookupJoinClient] Initializing BidirectionalBatchExchangeClient (shared state only)");
 
-        // Create sink handler for client-to-server direction
-        clientToServerSinkHandler = exchangeService.createSinkHandler(clientToServerId, maxBufferSize);
-        clientToServerSink = clientToServerSinkHandler.createExchangeSink(() -> {});
-        // When handler completes (buffer finished), clean up the sink handler
-        // Handler completion fires when buffer.finish() completes (all pages consumed or drained)
-        clientToServerSinkHandler.addCompletionListener(
-            ActionListener.wrap(v -> exchangeService.finishSinkHandler(clientToServerId, null), e -> {
-                handleFailure("client-to-server exchange", e);
-                exchangeService.finishSinkHandler(clientToServerId, e);
-            })
-        );
-        logger.debug("[LookupJoinClient] Created client-to-server sink handler: exchangeId={}", clientToServerId);
-
-        // Create source handler for server-to-client direction
+        // Create source handler for server-to-client direction (shared for all servers)
         serverToClientSourceHandler = new ExchangeSourceHandler(maxBufferSize, executor);
         exchangeService.addExchangeSourceHandler(serverToClientId, serverToClientSourceHandler);
 
         // Create BatchSortedExchangeSource that wraps ExchangeSource with sorting
+        // All servers send results to the same source handler, sorted by batchId
         ExchangeSource exchangeSource = serverToClientSourceHandler.createExchangeSource();
         sortedSource = new BatchSortedExchangeSource(exchangeSource);
-        logger.debug("[LookupJoinClient] Created server-to-client sorted source: exchangeId={}", serverToClientId);
+        logger.debug("[LookupJoinClient] Created shared server-to-client sorted source: exchangeId={}", serverToClientId);
+    }
+
+    /**
+     * Get or create a server connection for the given server node.
+     * If this is the first time connecting to this server, it will:
+     * 1. Create client-to-server sink handler and sink
+     * 2. Send setup request via serverSetupCallback
+     * 3. On setup response, connect to server's sink and send batch exchange status request
+     *
+     * @param serverNode the server node to connect to
+     * @return the server connection (may still be initializing)
+     */
+    private ServerConnection getOrCreateServerConnection(DiscoveryNode serverNode) {
+        return serverConnections.computeIfAbsent(serverNode.getId(), nodeId -> {
+            ServerConnection conn = new ServerConnection(serverNode, sessionId);
+            initializeServerConnection(conn);
+            return conn;
+        });
+    }
+
+    /**
+     * Initialize a server connection: create sink handler and send setup request.
+     */
+    private void initializeServerConnection(ServerConnection conn) {
+        logger.debug(
+            "[LookupJoinClient] Initializing server connection for node={}, clientToServerId={}",
+            conn.serverNode.getId(),
+            conn.clientToServerId
+        );
+
+        // Create sink handler for client-to-server direction (per-server)
+        conn.clientToServerSinkHandler = exchangeService.createSinkHandler(conn.clientToServerId, maxBufferSize);
+        conn.clientToServerSink = conn.clientToServerSinkHandler.createExchangeSink(() -> {});
+
+        // When handler completes (buffer finished), clean up the sink handler
+        conn.clientToServerSinkHandler.addCompletionListener(
+            ActionListener.wrap(v -> exchangeService.finishSinkHandler(conn.clientToServerId, null), e -> {
+                handleFailure("client-to-server exchange for " + conn.serverNode.getId(), e);
+                exchangeService.finishSinkHandler(conn.clientToServerId, e);
+            })
+        );
+        logger.debug("[LookupJoinClient] Created client-to-server sink handler: exchangeId={}", conn.clientToServerId);
+
+        // Send setup request to server via callback
+        serverSetupCallback.sendSetupRequest(conn.serverNode, conn.clientToServerId, serverToClientId, ActionListener.wrap(planString -> {
+            try {
+                logger.debug("[LookupJoinClient] Server setup complete for node={}", conn.serverNode.getId());
+                // Pass lookup plan to consumer if provided
+                if (lookupPlanConsumer != null && planString != null) {
+                    lookupPlanConsumer.accept(planString);
+                }
+                // Connect to server's sink and send batch exchange status request
+                connectToServerSink(conn);
+                conn.setupReadyListener.onResponse(null);
+            } catch (Exception e) {
+                logger.error("[LookupJoinClient] Server setup callback failed for node={}: {}", conn.serverNode.getId(), e.getMessage());
+                handleFailure("server setup callback for " + conn.serverNode.getId(), e);
+                conn.setupReadyListener.onFailure(e);
+            }
+        }, e -> {
+            logger.error("[LookupJoinClient] Server setup failed for node={}: {}", conn.serverNode.getId(), e.getMessage());
+            handleFailure("server setup for " + conn.serverNode.getId(), e);
+            conn.setupReadyListener.onFailure(e);
+        }));
+    }
+
+    /**
+     * Connect to a server's sink handler for server-to-client exchange.
+     * This should be called after the server has created its sink handler.
+     */
+    private void connectToServerSink(ServerConnection conn) {
+        logger.debug(
+            "[LookupJoinClient] Connecting to server sink for node={}, serverToClientId={}",
+            conn.serverNode.getId(),
+            serverToClientId
+        );
+        // All servers connect to the shared serverToClientSourceHandler
+        connectRemoteSink(conn.serverNode, serverToClientId, serverToClientSourceHandler, ActionListener.wrap(nullValue -> {
+            // Success - no action needed
+        }, failure -> { handleFailure("server-to-client exchange for " + conn.serverNode.getId(), failure); }), "server sink handler");
+
+        // Send batch exchange status request
+        sendBatchExchangeStatusRequest(conn);
+    }
+
+    /**
+     * Send batch exchange status request to a specific server.
+     */
+    private void sendBatchExchangeStatusRequest(ServerConnection conn) {
+        try {
+            Transport.Connection connection = transportService.getConnection(conn.serverNode);
+            logger.debug(
+                "[LookupJoinClient] Sending batch exchange status request for node={}, exchangeId={}",
+                conn.serverNode.getId(),
+                serverToClientId
+            );
+            ExchangeService.sendBatchExchangeStatusRequest(
+                transportService,
+                connection,
+                serverToClientId,
+                executor,
+                ActionListener.<BatchExchangeStatusResponse>wrap(response -> {
+                    logger.debug(
+                        "[LookupJoinClient] Received batch exchange status response for node={}, success={}",
+                        conn.serverNode.getId(),
+                        response.isSuccess()
+                    );
+                    if (response.isSuccess()) {
+                        logger.debug("[LookupJoinClient] Completing serverResponseListener for node={} (success)", conn.serverNode.getId());
+                        conn.serverResponseListener.onResponse(null);
+                        // Only call global listener if all servers have responded
+                        checkAllServersResponded();
+                    } else {
+                        Exception failure = response.getFailure();
+                        logger.warn(
+                            "[LookupJoinClient] Batch exchange status response indicates failure for node={}: {}",
+                            conn.serverNode.getId(),
+                            failure != null ? failure.getMessage() : "unknown"
+                        );
+                        handleFailure("batch exchange status response for " + conn.serverNode.getId(), failure);
+                        conn.serverResponseListener.onResponse(null);
+                    }
+                }, failure -> {
+                    logger.error(
+                        "[LookupJoinClient] Failed to receive batch exchange status response for node={}: {}",
+                        conn.serverNode.getId(),
+                        failure.getMessage()
+                    );
+                    handleFailure("batch exchange status response (transport error) for " + conn.serverNode.getId(), failure);
+                    conn.serverResponseListener.onResponse(null);
+                })
+            );
+            conn.requestSent = true;
+            logger.debug("[LookupJoinClient] Batch exchange status request sent for node={}", conn.serverNode.getId());
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to send batch exchange status request for node [" + conn.serverNode.getId() + "]", e);
+        }
+    }
+
+    /**
+     * Check if all servers have responded successfully, and if so, call the global success listener.
+     */
+    private void checkAllServersResponded() {
+        for (ServerConnection conn : serverConnections.values()) {
+            if (conn.serverResponseListener.isDone() == false) {
+                return; // Not all servers have responded yet
+            }
+        }
+        // All servers responded - call global success listener if no failure
+        if (failureRef.get() == null && batchExchangeStatusListener != null) {
+            logger.debug("[LookupJoinClient] All servers responded successfully, calling batch exchange status listener");
+            try {
+                batchExchangeStatusListener.onResponse(null);
+            } catch (Exception e) {
+                logger.error("[LookupJoinClient] Exception in batch exchange status listener callback", e);
+            }
+        }
     }
 
     /**
@@ -190,30 +374,52 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     }
 
     /**
-     * Returns true if the client has fully finished - all batches complete AND server response was received.
-     * The server response confirms whether the server succeeded or failed.
-     * If the server failed, hasFailed() will return true and the failure can be retrieved.
+     * Returns true if the client has fully finished - all batches complete AND all server responses were received.
+     * The server responses confirm whether each server succeeded or failed.
+     * If any server failed, hasFailed() will return true and the failure can be retrieved.
      */
     public boolean isFinished() {
-        // If all sent batches have been completed and server responded, we're done.
+        // Check if all servers have responded
+        if (allServersResponded() == false) {
+            return false;
+        }
+        // If all sent batches have been completed and all servers responded, we're done.
         int started = startedBatchCount.get();
         int completed = completedBatchCount.get();
-        if (started > 0 && completed >= started && serverResponseListener.isDone()) {
+        if (started > 0 && completed >= started) {
             return true;
         }
         // Also check page cache for edge cases (e.g., no batches sent)
-        return isPageCacheDone() && serverResponseListener.isDone();
+        return isPageCacheDone();
     }
 
     /**
-     * Returns an {@link IsBlockedResult} that resolves when the server response is received.
-     * Use this to block while waiting for the server's success/failure confirmation.
+     * Check if all servers have responded.
+     */
+    private boolean allServersResponded() {
+        if (serverConnections.isEmpty()) {
+            return true; // No servers connected yet - considered done
+        }
+        for (ServerConnection conn : serverConnections.values()) {
+            if (conn.serverResponseListener.isDone() == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Returns an {@link IsBlockedResult} that resolves when all server responses are received.
+     * Use this to block while waiting for all servers' success/failure confirmation.
      */
     public IsBlockedResult waitForServerResponse() {
-        if (serverResponseListener.isDone()) {
-            return NOT_BLOCKED;
+        // Find a server that hasn't responded yet
+        for (ServerConnection conn : serverConnections.values()) {
+            if (conn.serverResponseListener.isDone() == false) {
+                return new IsBlockedResult(conn.serverResponseListener, "waiting for server response from " + conn.serverNode.getId());
+            }
         }
-        return new IsBlockedResult(serverResponseListener, "waiting for server response");
+        return NOT_BLOCKED;
     }
 
     /**
@@ -234,98 +440,18 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     }
 
     /**
-     * Send batch exchange status request to server before page communication starts.
-     * The server will reply after batch processing completes.
-     * Called internally from connectToServerSink().
-     */
-    private void sendBatchExchangeStatusRequest() {
-        try {
-            Transport.Connection connection = transportService.getConnection(serverNode);
-            logger.debug("[LookupJoinClient] Sending batch exchange status request for exchangeId={}", serverToClientId);
-            ExchangeService.sendBatchExchangeStatusRequest(
-                transportService,
-                connection,
-                serverToClientId,
-                executor,
-                ActionListener.<BatchExchangeStatusResponse>wrap(response -> {
-                    logger.debug(
-                        "[LookupJoinClient] Received batch exchange status response for exchangeId={}, success={}",
-                        serverToClientId,
-                        response.isSuccess()
-                    );
-                    if (response.isSuccess()) {
-                        // Success path: complete listener first, then call callback
-                        logger.debug("[LookupJoinClient] Completing serverResponseListener (success path)");
-                        serverResponseListener.onResponse(null);
-                        logger.debug("[LookupJoinClient] Batch exchange completed successfully");
-                        if (batchExchangeStatusListener != null) {
-                            logger.debug("[LookupJoinClient] Calling batch exchange status listener onResponse (success)");
-                            try {
-                                batchExchangeStatusListener.onResponse(null);
-                                logger.debug("[LookupJoinClient] Batch exchange status listener onResponse completed");
-                            } catch (Exception e) {
-                                logger.error("[LookupJoinClient] Exception in batch exchange status listener callback", e);
-                            }
-                        }
-                    } else {
-                        // Failure path: call handleFailure FIRST to propagate failure to operator,
-                        // THEN complete listener. This prevents race where isFinished() returns true
-                        // before the failure is set in the operator.
-                        Exception failure = response.getFailure();
-                        logger.warn(
-                            "[LookupJoinClient] Batch exchange status response indicates failure: {}",
-                            failure != null ? failure.getMessage() : "unknown"
-                        );
-                        handleFailure("batch exchange status response", failure);
-                        logger.debug("[LookupJoinClient] Completing serverResponseListener (failure path, after handleFailure)");
-                        serverResponseListener.onResponse(null);
-                    }
-                }, failure -> {
-                    // Transport failure path: call handleFailure FIRST, then complete listener
-                    logger.error(
-                        "[LookupJoinClient] Failed to receive batch exchange status response for exchangeId={}: {}",
-                        serverToClientId,
-                        failure.getMessage()
-                    );
-                    handleFailure("batch exchange status response (transport error)", failure);
-                    logger.debug("[LookupJoinClient] Completing serverResponseListener (transport failure path, after handleFailure)");
-                    serverResponseListener.onResponse(null);
-                })
-            );
-            requestSent = true; // Mark that request was sent
-            logger.debug("[LookupJoinClient] Batch exchange status request sent for exchangeId={}", serverToClientId);
-        } catch (Exception e) {
-            throw new IllegalStateException("Failed to send batch exchange status request for exchange [" + serverToClientId + "]", e);
-        }
-    }
-
-    /**
-     * Connect to the server's sink handler for server-to-client exchange.
-     * This should be called after the server has created its sink handler.
-     * Uses transport for error propagation.
-     * Also sends batch exchange status request before page communication starts.
-     */
-    public void connectToServerSink() {
-        // Use transport-based remote sink for error propagation
-        logger.debug("[LookupJoinClient] Connecting to server sink handler via transport for server-to-client exchange");
-        connectRemoteSink(serverNode, serverToClientId, serverToClientSourceHandler, ActionListener.wrap(nullValue -> {
-            // Success - no action needed
-        }, failure -> { handleFailure("server-to-client exchange", failure); }), "server sink handler");
-
-        // Send batch exchange status request before page communication starts
-        sendBatchExchangeStatusRequest();
-    }
-
-    /**
-     * Send a BatchPage to the server for processing.
+     * Send a BatchPage to a specific server for processing.
+     * The server connection will be lazily initialized if this is the first page sent to this server.
      * The batchId should be monotonically increasing for each call.
      * Currently, only single-page batches are supported, so isLastPageInBatch must always be true.
+     *
+     * @param batchPage the batch page to send
+     * @param serverNode the server node to send the page to
      */
-    public void sendPage(BatchPage batchPage) {
+    public void sendPage(BatchPage batchPage, DiscoveryNode serverNode) {
         synchronized (sendFinishLock) {
             checkFailure();
             // Currently only single-page batches are supported
-            //
             if (batchPage.isLastPageInBatch() == false) {
                 throw new IllegalArgumentException(
                     "Multi-page batches are not yet supported. Received page for batch "
@@ -335,9 +461,11 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                         + ")"
                 );
             }
+            // Get or create the server connection (lazily initializes if needed)
+            ServerConnection conn = getOrCreateServerConnection(serverNode);
             // Track the number of batches that have been sent
             startedBatchCount.incrementAndGet();
-            clientToServerSink.addPage(batchPage);
+            conn.clientToServerSink.addPage(batchPage);
         }
     }
 
@@ -345,12 +473,14 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
      * Send a marker page to signal batch completion for an empty batch.
      *
      * @param batchId the batch ID
+     * @param serverNode the server node to send the marker to
      */
-    public void sendBatchMarker(long batchId) {
+    public void sendBatchMarker(long batchId, DiscoveryNode serverNode) {
         synchronized (sendFinishLock) {
             checkFailure();
+            ServerConnection conn = getOrCreateServerConnection(serverNode);
             BatchPage marker = BatchPage.createMarker(batchId, 0);
-            clientToServerSink.addPage(marker);
+            conn.clientToServerSink.addPage(marker);
         }
     }
 
@@ -364,13 +494,19 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     }
 
     /**
-     * Finish the client-to-server exchange (no more batches will be sent).
+     * Finish all client-to-server exchanges (no more batches will be sent to any server).
      */
     public void finish() {
         synchronized (sendFinishLock) {
-            if (clientToServerSink != null && clientToServerSink.isFinished() == false) {
-                logger.debug("[LookupJoinClient] Finishing client-to-server exchange (no more batches will be sent)");
-                clientToServerSink.finish();
+            for (ServerConnection conn : serverConnections.values()) {
+                if (conn.clientToServerSink != null && conn.clientToServerSink.isFinished() == false && conn.finished == false) {
+                    logger.debug(
+                        "[LookupJoinClient] Finishing client-to-server exchange for node={} (no more batches will be sent)",
+                        conn.serverNode.getId()
+                    );
+                    conn.clientToServerSink.finish();
+                    conn.finished = true;
+                }
             }
         }
     }
@@ -444,50 +580,61 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         closed = true;
         logger.debug("[LookupJoinClient] Closing BidirectionalBatchExchangeClient");
 
-        // Finish client-to-server exchange FIRST to signal the server that no more batches will be sent
-        // This allows the server driver to finish and send the response
+        // Finish all client-to-server exchanges FIRST to signal servers that no more batches will be sent
+        // This allows the server drivers to finish and send responses
         try {
             finish();
         } catch (Exception e) {
             logger.error("[LookupJoinClient] Error calling finish()", e);
         }
 
-        // Always drain the sink handler's buffer to release any pages, including late pages
-        // that were added after the handler "completed" (race condition).
-        // We call onFailure() directly on the handler because finishSinkHandler() might have
-        // already removed the handler from ExchangeService via the completion listener.
-        try {
-            if (clientToServerSinkHandler != null) {
-                Exception failure = failureRef.get();
-                if (failure != null) {
-                    logger.debug("[LookupJoinClient] Draining sink handler buffer due to failure: {}", failure.getMessage());
-                } else {
-                    logger.debug("[LookupJoinClient] Draining sink handler buffer during close");
+        // Drain all sink handler buffers to release any pages
+        for (ServerConnection conn : serverConnections.values()) {
+            try {
+                if (conn.clientToServerSinkHandler != null) {
+                    logger.debug("[LookupJoinClient] Draining sink handler buffer for node={}", conn.serverNode.getId());
+                    conn.clientToServerSinkHandler.onFailure(new TaskCancelledException("client closed"));
                 }
-                // onFailure() calls buffer.finish(true) which drains all pages
-                clientToServerSinkHandler.onFailure(new TaskCancelledException("client closed"));
+            } catch (Exception e) {
+                logger.error("[LookupJoinClient] Error draining sink handler for node={}", conn.serverNode.getId(), e);
             }
-        } catch (Exception e) {
-            logger.error("[LookupJoinClient] Error draining sink handler", e);
         }
 
-        // Wait for server response - this ensures the server has finished processing
-        // and sent all pages (including marker pages) before we close the source.
-        if (requestSent) {
+        // Wait for all server responses - this ensures all servers have finished processing
+        for (ServerConnection conn : serverConnections.values()) {
+            // First: wait for setup to complete (success or failure) so requestSent has its final value
             try {
-                logger.debug("[LookupJoinClient] Waiting for server response before closing: isDone={}", serverResponseListener.isDone());
-                if (serverResponseListener.isDone() == false) {
-                    PlainActionFuture<Void> waitFuture = new PlainActionFuture<>();
-                    serverResponseListener.addListener(waitFuture);
-                    waitFuture.actionGet(TimeValue.timeValueSeconds(30));
+                if (conn.setupReadyListener.isDone() == false) {
+                    logger.debug("[LookupJoinClient] Waiting for setup completion for node={}", conn.serverNode.getId());
+                    PlainActionFuture<Void> setupFuture = new PlainActionFuture<>();
+                    conn.setupReadyListener.addListener(setupFuture);
+                    setupFuture.actionGet(TimeValue.timeValueSeconds(30));
                 }
-                logger.debug("[LookupJoinClient] Server response received, server has finished processing");
             } catch (Exception e) {
-                logger.warn(
-                    "[LookupJoinClient] Timeout or exception waiting for server response - server may not have finished processing",
-                    e
-                );
-                // Proceed with close to avoid hanging - timeout could be due to network issues or server failure
+                logger.warn("[LookupJoinClient] Timeout or exception waiting for setup completion for node={}", conn.serverNode.getId(), e);
+            }
+
+            // Then: if request was sent, wait for server response
+            if (conn.requestSent) {
+                try {
+                    logger.debug(
+                        "[LookupJoinClient] Waiting for server response from node={}, isDone={}",
+                        conn.serverNode.getId(),
+                        conn.serverResponseListener.isDone()
+                    );
+                    if (conn.serverResponseListener.isDone() == false) {
+                        PlainActionFuture<Void> waitFuture = new PlainActionFuture<>();
+                        conn.serverResponseListener.addListener(waitFuture);
+                        waitFuture.actionGet(TimeValue.timeValueSeconds(30));
+                    }
+                    logger.debug("[LookupJoinClient] Server response received from node={}", conn.serverNode.getId());
+                } catch (Exception e) {
+                    logger.warn(
+                        "[LookupJoinClient] Timeout or exception waiting for server response from node={} - server may not have finished",
+                        conn.serverNode.getId(),
+                        e
+                    );
+                }
             }
         }
 
@@ -498,7 +645,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
             logger.warn("[LookupJoinClient] Closing with incomplete batches: started={}, completed={}", started, completed);
         }
 
-        // Finish the server-to-client source handler to signal completion
+        // Finish the shared server-to-client source handler to signal completion
         if (serverToClientSourceHandler != null) {
             logger.debug("[LookupJoinClient] Finishing server-to-client source handler");
             serverToClientSourceHandler.finishEarly(true, ActionListener.noop());
@@ -517,5 +664,27 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         }
 
         logger.debug("[LookupJoinClient] BidirectionalBatchExchangeClient closed");
+    }
+
+    /**
+     * Holds per-server state for client-to-server exchange.
+     * Each server has its own sink handler and sink for sending pages,
+     * but all servers share the same server-to-client source handler for receiving results.
+     */
+    private static class ServerConnection {
+        final DiscoveryNode serverNode;
+        final String clientToServerId;
+        ExchangeSinkHandler clientToServerSinkHandler;
+        ExchangeSink clientToServerSink;
+        final SubscribableListener<Void> serverResponseListener = new SubscribableListener<>();
+        final SubscribableListener<Void> setupReadyListener = new SubscribableListener<>();
+        volatile boolean requestSent = false;
+        volatile boolean finished = false;
+
+        ServerConnection(DiscoveryNode serverNode, String sessionId) {
+            this.serverNode = serverNode;
+            // Each server gets a unique clientToServerId based on session and node
+            this.clientToServerId = BidirectionalBatchExchangeBase.buildClientToServerId(sessionId) + "/" + serverNode.getId();
+        }
     }
 }

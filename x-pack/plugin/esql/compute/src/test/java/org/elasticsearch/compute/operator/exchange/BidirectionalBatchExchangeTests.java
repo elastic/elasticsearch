@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -217,7 +218,8 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             logger.info("[TEST] Number of batches to send: {}", numBatches);
 
             // Client sends all batches upfront
-            sendAllBatchesUpfront(client, batches, batchesSent);
+            DiscoveryNode serverNode = infra.serverTransportService().getLocalNode();
+            sendAllBatchesUpfront(client, batches, batchesSent, serverNode);
 
             // Poll for all result pages and mark batches as complete
             for (int batchId = 0; batchId < numBatches; batchId++) {
@@ -323,7 +325,8 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
 
             // Client sends NO pages - send a marker batch to represent "no data"
             logger.info("[TEST-CLIENT] Sending no pages, sending marker batch");
-            client.sendBatchMarker(0);
+            DiscoveryNode serverNode = infra.serverTransportService().getLocalNode();
+            client.sendBatchMarker(0, serverNode);
 
             // Poll for the response marker from the server
             logger.info("[TEST-CLIENT] Polling for response marker");
@@ -431,8 +434,9 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             // Try to send a page with isLastPageInBatch=false (multi-page batch)
             // This should throw an IllegalArgumentException because only single-page batches are supported
             logger.info("[TEST] About to call sendPage with isLastPageInBatch=false");
+            DiscoveryNode serverNode = infra.serverTransportService().getLocalNode();
             IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> {
-                client.sendPage(new BatchPage(page, 0, 0, false));  // isLastPageInBatch=false
+                client.sendPage(new BatchPage(page, 0, 0, false), serverNode);  // isLastPageInBatch=false
             });
             logger.info("[TEST] Caught expected IllegalArgumentException: {}", error.getMessage());
 
@@ -528,17 +532,22 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
     ) throws Exception {
         logger.info("[TEST-CLIENT] Creating BidirectionalBatchExchangeClient with sessionId={}", sessionId);
         Task mockTask = mock(Task.class);
+        // Test callback that immediately succeeds - server is set up manually in tests
+        BidirectionalBatchExchangeClient.ServerSetupCallback testCallback = (serverNode, clientToServerId, serverToClientId, listener) -> {
+            logger.debug("[TEST] ServerSetupCallback called for node={}", serverNode.getId());
+            listener.onResponse("test-plan");
+        };
         BidirectionalBatchExchangeClient client = new BidirectionalBatchExchangeClient(
             sessionId,
-            "test-cluster",
             infra.clientExchangeService(),
             threadPool.executor(ThreadPool.Names.SEARCH),
             10,
             infra.clientTransportService(),
             mockTask,
-            infra.serverTransportService().getLocalNode(),
             batchExchangeStatusListener,
-            SINGLE_CLIENT_SETTINGS
+            SINGLE_CLIENT_SETTINGS,
+            testCallback,
+            null // lookupPlanConsumer
         );
         logger.info("[TEST-CLIENT] Client initialized successfully");
 
@@ -621,7 +630,8 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
                 }
 
                 // Send the batch pages to the server
-                sendBatchFromPages(client, batchPages, batchId, batchesSent);
+                DiscoveryNode serverNode = infra.serverTransportService().getLocalNode();
+                sendBatchFromPages(client, batchPages, batchId, batchesSent, serverNode);
 
                 // Poll for result pages until we receive the last page of this batch
                 boolean batchComplete = false;
@@ -802,9 +812,8 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             throw new AssertionError("Interrupted while waiting for server to initialize", e);
         }
 
-        // NOW client can safely connect to server sink (sink handler exists)
-        // This will also send the batch exchange status request, which the server will wait for internally
-        client.connectToServerSink();
+        // Client will connect to server sink lazily when first page is sent
+        // The connection happens automatically in getOrCreateServerConnection()
 
         return serverThread;
     }
@@ -963,8 +972,12 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
                 EvalOperator addOneOperator = createAddOneOperator(driverContext);
 
                 // Stage 1: Create BidirectionalBatchExchangeServer
+                String clientToServerId = BidirectionalBatchExchangeBase.buildClientToServerId(sessionId);
+                String serverToClientId = BidirectionalBatchExchangeBase.buildServerToClientId(sessionId);
                 BidirectionalBatchExchangeServer server = new BidirectionalBatchExchangeServer(
                     sessionId,
+                    clientToServerId,
+                    serverToClientId,
                     infra.serverExchangeService(),
                     threadPool.executor(ThreadPool.Names.SEARCH),
                     10,
@@ -1066,10 +1079,15 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
     /**
      * Send all batches upfront from a list of batches.
      */
-    private void sendAllBatchesUpfront(BidirectionalBatchExchangeClient client, List<List<Page>> batches, AtomicInteger batchesSent) {
+    private void sendAllBatchesUpfront(
+        BidirectionalBatchExchangeClient client,
+        List<List<Page>> batches,
+        AtomicInteger batchesSent,
+        DiscoveryNode serverNode
+    ) {
         for (int batchId = 0; batchId < batches.size(); batchId++) {
             List<Page> batchPages = batches.get(batchId);
-            sendBatchFromPages(client, batchPages, batchId, batchesSent);
+            sendBatchFromPages(client, batchPages, batchId, batchesSent, serverNode);
         }
     }
 
@@ -1080,11 +1098,12 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
         BidirectionalBatchExchangeClient client,
         List<Page> batchPages,
         int batchId,
-        AtomicInteger batchesSent
+        AtomicInteger batchesSent,
+        DiscoveryNode serverNode
     ) {
         if (batchPages.isEmpty()) {
             logger.debug("[TEST-CLIENT] Sending empty batch marker for batchId={}", batchId);
-            client.sendBatchMarker(batchId);
+            client.sendBatchMarker(batchId, serverNode);
         } else {
             for (int pageIdx = 0; pageIdx < batchPages.size(); pageIdx++) {
                 Page page = batchPages.get(pageIdx);
@@ -1097,7 +1116,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
                     isLastPageInBatch,
                     page.getPositionCount()
                 );
-                client.sendPage(new BatchPage(page, batchId, pageIdx, isLastPageInBatch));
+                client.sendPage(new BatchPage(page, batchId, pageIdx, isLastPageInBatch), serverNode);
             }
         }
         batchesSent.incrementAndGet();

@@ -507,8 +507,7 @@ public class JsonXContentGenerator implements XContentGenerator {
             generator.writeUTF8String(sourceBytes, 0, sourceBytes.length);  // Fast path: direct write
         } else {
             // Slow path: parse and convert format
-            try (XContentParser parser = contentType.xContent()
-                .createParser(XContentParserConfiguration.EMPTY, sourceBytes)) {
+            try (XContentParser parser = contentType.xContent().createParser(XContentParserConfiguration.EMPTY, sourceBytes)) {
                 copyCurrentStructure(parser);
             }
         }

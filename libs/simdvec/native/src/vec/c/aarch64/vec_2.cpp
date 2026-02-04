@@ -256,7 +256,6 @@ EXPORT void vec_dot_int1_int4_bulk_offsets_2(
     dot_int1_int4_inner_bulk<array_mapper>(a, query, length, pitch, offsets, count, results);
 }
 
-
 #ifdef __clang__
 #pragma clang attribute pop
 #elif __GNUC__

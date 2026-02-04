@@ -18,9 +18,6 @@
 #include "vec_common.h"
 #include "amd64/amd64_vec_common.h"
 
-#include <emmintrin.h>
-#include <immintrin.h>
-
 #ifndef STRIDE_BYTES_LEN
 #define STRIDE_BYTES_LEN sizeof(__m256i) // Must be a power of 2
 #endif
@@ -28,109 +25,6 @@
 #ifndef STRIDE
 #define STRIDE(size, num) STRIDE_BYTES_LEN / size * num
 #endif
-
-#ifdef _MSC_VER
-#include <intrin.h>
-#elif __clang__
-#include <x86intrin.h>
-#elif __GNUC__
-#include <x86intrin.h>
-#endif
-
-// Multi-platform CPUID "intrinsic"; it takes as input a "functionNumber" (or "leaf", the eax registry). "Subleaf"
-// is always 0. Output is stored in the passed output parameter: output[0] = eax, output[1] = ebx, output[2] = ecx,
-// output[3] = edx
-static inline void cpuid(int output[4], int functionNumber) {
-#if defined(__GNUC__) || defined(__clang__)
-    // use inline assembly, Gnu/AT&T syntax
-    int a, b, c, d;
-    __asm("cpuid" : "=a"(a), "=b"(b), "=c"(c), "=d"(d) : "a"(functionNumber), "c"(0) : );
-    output[0] = a;
-    output[1] = b;
-    output[2] = c;
-    output[3] = d;
-
-#elif defined (_MSC_VER)
-    __cpuidex(output, functionNumber, 0);
-#else
-   #error Unsupported compiler
-#endif
-}
-
-// Multi-platform XGETBV "intrinsic"
-static inline int64_t xgetbv(int ctr) {
-#if defined(__GNUC__) || defined(__clang__)
-    // use inline assembly, Gnu/AT&T syntax
-    uint32_t a, d;
-    __asm("xgetbv" : "=a"(a),"=d"(d) : "c"(ctr) : );
-    return a | (((uint64_t) d) << 32);
-
-#elif (defined (_MSC_FULL_VER) && _MSC_FULL_VER >= 160040000) || (defined (__INTEL_COMPILER) && __INTEL_COMPILER >= 1200)
-    // Microsoft or Intel compiler supporting _xgetbv intrinsic
-    return _xgetbv(ctr);
-
-#else
-   #error Unsupported compiler
-#endif
-}
-
-// Utility function to horizontally add 8 32-bit integers
-static inline int32_t hsum_i32_8(const __m256i a) {
-    const __m128i sum128 = _mm_add_epi32(_mm256_castsi256_si128(a), _mm256_extractf128_si256(a, 1));
-    const __m128i hi64 = _mm_unpackhi_epi64(sum128, sum128);
-    const __m128i sum64 = _mm_add_epi32(hi64, sum128);
-    const __m128i hi32  = _mm_shuffle_epi32(sum64, _MM_SHUFFLE(2, 3, 0, 1));
-    return _mm_cvtsi128_si32(_mm_add_epi32(sum64, hi32));
-}
-
-// Utility function to horizontally add 4 64-bit integers
-static inline int64_t hsum_i64_4(const __m256i a) {
-    const __m128i sum128 = _mm_add_epi64(_mm256_castsi256_si128(a), _mm256_extractf128_si256(a, 1));
-    const __m128i hi64 = _mm_unpackhi_epi64(sum128, sum128);
-    const __m128i sum64 = _mm_add_epi64(hi64, sum128);
-    return _mm_cvtsi128_si64(sum64);
-}
-
-EXPORT int vec_caps() {
-    int cpuInfo[4] = {-1};
-    // Calling CPUID function 0x0 as the function_id argument
-    // gets the number of the highest valid function ID.
-    cpuid(cpuInfo, 0);
-    int functionIds = cpuInfo[0];
-    if (functionIds == 0) {
-        // No CPUID functions
-        return 0;
-    }
-    // call CPUID function 0x1 for feature flags
-    cpuid(cpuInfo, 1);
-    int hasOsXsave = (cpuInfo[2] & (1 << 27)) != 0;
-    int avxEnabledInOS = hasOsXsave && ((xgetbv(0) & 6) == 6);
-    if (functionIds >= 7) {
-        // call CPUID function 0x7 for AVX2/512 flags
-        cpuid(cpuInfo, 7);
-        int ebx = cpuInfo[1];
-        int ecx = cpuInfo[2];
-        // AVX2 flag is the 5th bit
-        // https://github.com/llvm/llvm-project/blob/50598f0ff44f3a4e75706f8c53f3380fe7faa896/clang/lib/Headers/cpuid.h#L148
-        // We assume that all processors that have AVX2 also have FMA3
-        int avx2 = (ebx & 0x00000020) != 0;
-
-        // AVX512F
-        // https://github.com/llvm/llvm-project/blob/50598f0ff44f3a4e75706f8c53f3380fe7faa896/clang/lib/Headers/cpuid.h#L155
-        int avx512 = (ebx & 0x00010000) != 0;
-        // AVX512VNNI (ECX register)
-        int avx512_vnni = (ecx & 0x00000800) != 0;
-        // AVX512VPOPCNTDQ (ECX register)
-        int avx512_vpopcntdq = (ecx & 0x00004000) != 0;
-        if (avx512 && avx512_vnni && avx512_vpopcntdq) {
-            return avxEnabledInOS ? 2 : -2;
-        }
-        if (avx2) {
-            return avxEnabledInOS ? 1 : -1;
-        }
-    }
-    return 0;
-}
 
 static inline int32_t dot7u_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
     const __m256i ones = _mm256_set1_epi16(1);
@@ -153,7 +47,7 @@ static inline int32_t dot7u_inner(const int8_t* a, const int8_t* b, const int32_
     }
 
     // reduce (horizontally add all)
-    return hsum_i32_8(acc1);
+    return mm256_reduce_epi32<_mm_add_epi32>(acc1);
 }
 
 EXPORT int32_t vec_dot7u(const int8_t* a, const int8_t* b, const int32_t dims) {
@@ -259,7 +153,7 @@ static inline int32_t sqr7u_inner(const int8_t* a, const int8_t* b, const int32_
     }
 
     // reduce (accumulate all)
-    return hsum_i32_8(acc1);
+    return mm256_reduce_epi32<_mm_add_epi32>(acc1);
 }
 
 EXPORT int32_t vec_sqr7u(const int8_t* a, const int8_t* b, const int32_t dims) {
@@ -309,23 +203,6 @@ EXPORT void vec_sqr7u_bulk_offsets(
 
 // --- single precision floats
 
-// Horizontally add 8 float32 elements in a __m256 register
-static inline f32_t hsum_f32_8(const __m256 v) {
-    // First, add the low and high 128-bit lanes
-    __m128 low  = _mm256_castps256_ps128(v);      // lower 128 bits
-    __m128 high = _mm256_extractf128_ps(v, 1);    // upper 128 bits
-    __m128 sum128 = _mm_add_ps(low, high);        // sum 8 floats → 4 floats
-
-    // Then do horizontal sum within 128-bit lane
-    __m128 shuf = _mm_movehdup_ps(sum128);        // duplicate odd-index elements
-    __m128 sums = _mm_add_ps(sum128, shuf);       // add pairs
-
-    shuf = _mm_movehl_ps(shuf, sums);             // move high pair to low
-    sums = _mm_add_ss(sums, shuf);                // add final two elements
-
-    return _mm_cvtss_f32(sums);
-}
-
 // const f32_t* a  pointer to the first float vector
 // const f32_t* b  pointer to the second float vector
 // const int32_t elementCount  the number of floating point elements
@@ -346,7 +223,7 @@ EXPORT f32_t vec_dotf32(const f32_t* a, const f32_t* b, const int32_t elementCou
 
     // Combine all partial sums
     __m256 total_sum = _mm256_add_ps(_mm256_add_ps(acc0, acc1), _mm256_add_ps(acc2, acc3));
-    f32_t result = hsum_f32_8(total_sum);
+    f32_t result = mm256_reduce_ps<_mm_add_ps>(total_sum);
 
     for (; i < elementCount; ++i) {
         result += a[i] * b[i];
@@ -390,10 +267,10 @@ static inline void dotf32_inner_bulk(
             sum3 = _mm256_fmadd_ps(_mm256_loadu_ps(a3 + i), bi, sum3);
         }
 
-        f32_t result0 = hsum_f32_8(sum0);
-        f32_t result1 = hsum_f32_8(sum1);
-        f32_t result2 = hsum_f32_8(sum2);
-        f32_t result3 = hsum_f32_8(sum3);
+        f32_t result0 = mm256_reduce_ps<_mm_add_ps>(sum0);
+        f32_t result1 = mm256_reduce_ps<_mm_add_ps>(sum1);
+        f32_t result2 = mm256_reduce_ps<_mm_add_ps>(sum2);
+        f32_t result3 = mm256_reduce_ps<_mm_add_ps>(sum3);
 
         // dimensions tail
         for (; i < dims; i++) {
@@ -456,7 +333,7 @@ EXPORT f32_t vec_sqrf32(const f32_t* a, const f32_t* b, const int32_t elementCou
 
     // reduce all partial sums
     __m256 total_sum = _mm256_add_ps(_mm256_add_ps(sum0, sum1), _mm256_add_ps(sum2, sum3));
-    f32_t result = hsum_f32_8(total_sum);
+    f32_t result = mm256_reduce_ps<_mm_add_ps>(total_sum);
 
     for (; i < elementCount; ++i) {
         f32_t diff = a[i] - b[i];
@@ -506,10 +383,10 @@ static inline void sqrf32_inner_bulk(
             sum3 = _mm256_fmadd_ps(d3, d3, sum3);
         }
 
-        f32_t result0 = hsum_f32_8(sum0);
-        f32_t result1 = hsum_f32_8(sum1);
-        f32_t result2 = hsum_f32_8(sum2);
-        f32_t result3 = hsum_f32_8(sum3);
+        f32_t result0 = mm256_reduce_ps<_mm_add_ps>(sum0);
+        f32_t result1 = mm256_reduce_ps<_mm_add_ps>(sum1);
+        f32_t result2 = mm256_reduce_ps<_mm_add_ps>(sum2);
+        f32_t result3 = mm256_reduce_ps<_mm_add_ps>(sum3);
 
         // dimensions tail
         for (; i < dims; i++) {
@@ -607,10 +484,10 @@ static inline int64_t dot_int1_int4_inner(const int8_t* a, const int8_t* query, 
         acc3 = _mm256_add_epi64(acc3, _mm256_sad_epu8(local, _mm256_setzero_si256()));
     }
 
-    int64_t subRet0 = hsum_i64_4(acc0);
-    int64_t subRet1 = hsum_i64_4(acc1);
-    int64_t subRet2 = hsum_i64_4(acc2);
-    int64_t subRet3 = hsum_i64_4(acc3);
+    int64_t subRet0 = mm256_reduce_epi64<_mm_add_epi64>(acc0);
+    int64_t subRet1 = mm256_reduce_epi64<_mm_add_epi64>(acc1);
+    int64_t subRet2 = mm256_reduce_epi64<_mm_add_epi64>(acc2);
+    int64_t subRet3 = mm256_reduce_epi64<_mm_add_epi64>(acc3);
 
     upperBound = length & ~(sizeof(int32_t) - 1);
     for (; r < upperBound; r += sizeof(int32_t)) {
@@ -646,6 +523,16 @@ EXPORT int64_t vec_dot_int1_int4(
     return dot_int1_int4_inner(a_ptr, query_ptr, length);
 }
 
+EXPORT int64_t vec_dot_int2_int4(
+    const int8_t* a_ptr,
+    const int8_t* query_ptr,
+    const int32_t length
+) {
+    int64_t lower = dot_int1_int4_inner(a_ptr, query_ptr, length/2);
+    int64_t upper = dot_int1_int4_inner(a_ptr + length/2, query_ptr, length/2);
+    return lower + (upper << 1);
+}
+
 template <int64_t(*mapper)(const int32_t, const int32_t*)>
 static inline void dot_int1_int4_inner_bulk(
     const int8_t* a,
@@ -664,7 +551,7 @@ static inline void dot_int1_int4_inner_bulk(
     const int8_t* a2 = safe_mapper_offset<int8_t, 2, mapper>(a, pitch, offsets, count);
     const int8_t* a3 = safe_mapper_offset<int8_t, 3, mapper>(a, pitch, offsets, count);
 
-    // Process a batch of 2 vectors at a time, after instructing the CPU to
+    // Process a batch of 4 vectors at a time, after instructing the CPU to
     // prefetch the next batch.
     // Prefetching multiple memory locations while computing keeps the CPU
     // execution units busy.
@@ -715,4 +602,73 @@ EXPORT void vec_dot_int1_int4_bulk_offsets(
     const int32_t count,
     f32_t* results) {
     dot_int1_int4_inner_bulk<array_mapper>(a, query, length, pitch, offsets, count, results);
+}
+
+template <int64_t(*mapper)(const int32_t, const int32_t*)>
+static inline void dot_int2_int4_inner_bulk(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results
+) {
+    const int lines_to_fetch = length / CACHE_LINE_SIZE + 1;
+    const int bit_length = length/2;
+    int c = 0;
+
+    const int8_t* a0 = safe_mapper_offset<int8_t, 0, mapper>(a, pitch, offsets, count);
+    const int8_t* a1 = safe_mapper_offset<int8_t, 1, mapper>(a, pitch, offsets, count);
+
+    // Process a batch of 2 vectors at a time, after instructing the CPU to
+    // prefetch the next batch.
+    // Prefetching multiple memory locations while computing keeps the CPU
+    // execution units busy.
+    for (; c + 3 < count; c += 2) {
+        const int8_t* next_a0 = a + mapper(c + 2, offsets) * pitch;
+        const int8_t* next_a1 = a + mapper(c + 3, offsets) * pitch;
+
+        prefetch(next_a0, lines_to_fetch);
+        prefetch(next_a1, lines_to_fetch);
+
+        int64_t lower0 = dot_int1_int4_inner(a0, query, bit_length);
+        int64_t lower1 = dot_int1_int4_inner(a1, query, bit_length);
+        int64_t upper0 = dot_int1_int4_inner(a0 + bit_length, query, bit_length);
+        int64_t upper1 = dot_int1_int4_inner(a1 + bit_length, query, bit_length);
+
+        results[c + 0] = (f32_t)(lower0 + (upper0 << 1));
+        results[c + 1] = (f32_t)(lower1 + (upper1 << 1));
+
+        a0 = next_a0;
+        a1 = next_a1;
+    }
+
+    // Tail-handling: remaining vectors
+    for (; c < count; c++) {
+        const int8_t* a0 = a + mapper(c, offsets) * pitch;
+        int64_t lower = dot_int1_int4_inner(a0, query, length/2);
+        int64_t upper = dot_int1_int4_inner(a0 + length/2, query, length/2);
+        results[c] = (f32_t)(lower + (upper << 1));
+    }
+}
+
+EXPORT void vec_dot_int2_int4_bulk(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t count,
+    f32_t* results) {
+    dot_int2_int4_inner_bulk<identity_mapper>(a, query, length, length, NULL, count, results);
+}
+
+EXPORT void vec_dot_int2_int4_bulk_offsets(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results) {
+    dot_int2_int4_inner_bulk<array_mapper>(a, query, length, pitch, offsets, count, results);
 }

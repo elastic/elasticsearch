@@ -9,7 +9,6 @@
 
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.internal-test-artifact'
 
 dependencies {
   api project(':libs:core')

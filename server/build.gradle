@@ -78,10 +78,6 @@ dependencies {
     // tests use the locally compiled version of server
     exclude group: 'org.elasticsearch', module: 'server'
   }
-  testImplementation(testArtifact(project(":libs:exponential-histogram"))) {
-    // The test framework is manually included with excludes above
-    exclude group: 'org.elasticsearch.test', module: 'framework'
-  }
 
   internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'server'

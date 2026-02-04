@@ -33,8 +33,8 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
     private final String leafName;
     private final boolean usesBinaryDocValues;
 
-    private DocValuesFieldValues docValues = NO_VALUES;
-    private List<Object> ignoredValues = List.of();
+    protected DocValuesFieldValues docValues = NO_VALUES;
+    protected List<Object> ignoredValues = List.of();
 
     /**
      * Build a loader for flattened fields from either binary or sorted set doc values.
@@ -107,12 +107,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         return docValues.count() > 0 || ignoredValues.isEmpty() == false;
     }
 
-    @Override
-    public void write(XContentBuilder b) throws IOException {
-        if (docValues.count() == 0 && ignoredValues.isEmpty()) {
-            return;
-        }
-
+    protected FlattenedFieldSyntheticWriterHelper getWriter() {
         FlattenedFieldSyntheticWriterHelper.SortedKeyedValues sortedKeyedValues = docValues.getValues();
         if (ignoredValues.isEmpty() == false) {
             var ignoredValuesSet = new TreeSet<BytesRef>();
@@ -122,7 +117,16 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
             ignoredValues = List.of();
             sortedKeyedValues = new DocValuesWithIgnoredSortedKeyedValues(sortedKeyedValues, ignoredValuesSet);
         }
-        var writer = new FlattenedFieldSyntheticWriterHelper(sortedKeyedValues);
+        return new FlattenedFieldSyntheticWriterHelper(sortedKeyedValues);
+    }
+
+    @Override
+    public void write(XContentBuilder b) throws IOException {
+        if (docValues.count() == 0 && ignoredValues.isEmpty()) {
+            return;
+        }
+
+        var writer = getWriter();
 
         b.startObject(leafName);
         writer.write(b);
@@ -134,7 +138,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         ignoredValues = List.of();
     }
 
-    private interface DocValuesFieldValues {
+    protected interface DocValuesFieldValues {
         int count();
 
         FlattenedFieldSyntheticWriterHelper.SortedKeyedValues getValues();

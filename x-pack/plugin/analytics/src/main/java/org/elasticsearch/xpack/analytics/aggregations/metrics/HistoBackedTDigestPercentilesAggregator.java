@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.analytics.aggregations.metrics;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.metrics.HistogramUnionState;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
 import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
@@ -38,7 +38,7 @@ public class HistoBackedTDigestPercentilesAggregator extends AbstractHistoBacked
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        TDigestState state = getState(owningBucketOrdinal);
+        HistogramUnionState state = getState(owningBucketOrdinal);
         if (state == null) {
             return buildEmptyAggregation();
         } else {
@@ -48,7 +48,7 @@ public class HistoBackedTDigestPercentilesAggregator extends AbstractHistoBacked
 
     @Override
     public double metric(String name, long bucketOrd) {
-        TDigestState state = getState(bucketOrd);
+        HistogramUnionState state = getState(bucketOrd);
         if (state == null) {
             return Double.NaN;
         } else {
@@ -58,7 +58,7 @@ public class HistoBackedTDigestPercentilesAggregator extends AbstractHistoBacked
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        TDigestState state = TDigestState.createWithoutCircuitBreaking(compression, executionHint);
+        HistogramUnionState state = HistogramUnionState.create(HistogramUnionState.NOOP_BREAKER, executionHint, compression);
         return new InternalTDigestPercentiles(name, keys, state, keyed, formatter, metadata());
     }
 }

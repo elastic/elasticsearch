@@ -82,7 +82,9 @@ Double-click to expand the image.
 ```mermaid
 flowchart TD
   A[Painless Scripts] --> B[Dev Tools Console]
+  link B "docs-content://explore-analyze/query-filter/tools/console.md" _blank
   A --> C[Ingest Pipelines]
+  link C "https://www.elastic.co/docs/manage-data/ingest/transform-enrich/ingest-pipelines" "Elasticsearch Ingest Pipelines"
   A --> D[Update API]
   A --> E[Search Queries]
   A --> F[Runtime Fields]

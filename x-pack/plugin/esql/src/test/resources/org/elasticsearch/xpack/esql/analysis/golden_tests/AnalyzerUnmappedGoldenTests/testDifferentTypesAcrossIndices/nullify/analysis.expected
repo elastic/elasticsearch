@@ -1,3 +1,4 @@
 Limit[1000[INTEGER],false,false]
-\_Project[[!@timestamp, message{f}#0]]
-  \_EsRelation[sample_data,sample_data_ts_long][!@timestamp, client_ip{f}#1, event_duration{f}#2, message{f}#0]
+\_Project[[!@timestamp, message{f}#0, does_not_exist{r}#1]]
+  \_Eval[[null[NULL] AS does_not_exist#1]]
+    \_EsRelation[sample_data,sample_data_ts_long][!@timestamp, client_ip{f}#2, event_duration{f}#3, message{f}#0]

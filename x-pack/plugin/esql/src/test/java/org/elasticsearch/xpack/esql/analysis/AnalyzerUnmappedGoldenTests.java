@@ -356,6 +356,8 @@ public class AnalyzerUnmappedGoldenTests extends GoldenTestCase {
             """);
     }
 
+    // TODO add one for text
+
     public void testTimeSeriesFirstOverTimeUnmapped() throws Exception {
         runTests("""
             TS k8s
@@ -381,14 +383,14 @@ public class AnalyzerUnmappedGoldenTests extends GoldenTestCase {
         runTests("""
             FROM sample_data, partial_mapping_sample_data
             | EVAL x = COALESCE(unmapped_message, "missing")
-            | KEEP @timestamp, x
+            | KEEP @timestamp, x, does_not_exist
             """);
     }
 
     public void testDifferentTypesAcrossIndices() throws Exception {
         runTests("""
             FROM sample_data, sample_data_ts_long
-            | KEEP @timestamp, message
+            | KEEP @timestamp, message, does_not_exist
             """);
     }
 
@@ -396,7 +398,7 @@ public class AnalyzerUnmappedGoldenTests extends GoldenTestCase {
         runTests("""
             FROM sample_data, sample_data_ts_long
             | EVAL ts = @timestamp::STRING
-            | KEEP ts, message
+            | KEEP ts, message, does_not_exist
             """);
     }
 

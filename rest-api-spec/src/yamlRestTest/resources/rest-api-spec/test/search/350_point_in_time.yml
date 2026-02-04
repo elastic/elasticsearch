@@ -268,3 +268,17 @@ setup:
       close_point_in_time:
         body:
           id: "$point_in_time_id"
+
+---
+"delete invalid PIT returns error":
+  - requires:
+      cluster_features: ["closing_invalid_pit_id"]
+      reason: "support returning a useful error was added in 9.4.0"
+
+  - do:
+      catch: /illegal_argument_exception/
+      close_point_in_time:
+        body:
+          # this is an PIT created with an older Elasticsearch version
+          # that cannot exist on this version
+          id: "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADa"

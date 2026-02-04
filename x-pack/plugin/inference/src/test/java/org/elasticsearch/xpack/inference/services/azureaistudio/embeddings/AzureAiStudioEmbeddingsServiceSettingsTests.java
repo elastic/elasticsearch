@@ -13,6 +13,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -25,7 +26,6 @@ import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioEnd
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProvider;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
-import org.hamcrest.CoreMatchers;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -39,15 +39,108 @@ import static org.hamcrest.Matchers.is;
 
 public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializationTestCase<
     AzureAiStudioEmbeddingsServiceSettings> {
+    private static final String TEST_TARGET = "http://sometarget.local";
+    private static final String INITIAL_TEST_TARGET = "http://initialtarget.local";
+    private static final AzureAiStudioProvider TEST_PROVIDER = AzureAiStudioProvider.OPENAI;
+    private static final AzureAiStudioProvider INITIAL_TEST_PROVIDER = AzureAiStudioProvider.MISTRAL;
+    private static final AzureAiStudioEndpointType TEST_ENDPOINT_TYPE = AzureAiStudioEndpointType.TOKEN;
+    private static final AzureAiStudioEndpointType INITIAL_TEST_ENDPOINT_TYPE = AzureAiStudioEndpointType.REALTIME;
+    private static final int TEST_RATE_LIMIT = 20;
+    private static final int INITIAL_TEST_RATE_LIMIT = 30;
+    private static final int TEST_DIMENSIONS = 1536;
+    private static final int INITIAL_TEST_DIMENSIONS = 3072;
+    private static final int TEST_MAX_INPUT_TOKENS = 512;
+    private static final int INITIAL_TEST_MAX_INPUT_TOKENS = 1024;
+    private static final SimilarityMeasure TEST_SIMILARITY_MEASURE = SimilarityMeasure.COSINE;
+    private static final SimilarityMeasure INITIAL_SIMILARITY_MEASURE = SimilarityMeasure.DOT_PRODUCT;
+
+    public void testUpdateServiceSettings_AllFields_Success() {
+        var settingsMap = createRequestSettingsMap(
+            TEST_TARGET,
+            TEST_PROVIDER.toString(),
+            TEST_ENDPOINT_TYPE.toString(),
+            TEST_DIMENSIONS,
+            null,
+            TEST_MAX_INPUT_TOKENS,
+            TEST_SIMILARITY_MEASURE
+        );
+        settingsMap.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT)));
+        var serviceSettings = new AzureAiStudioEmbeddingsServiceSettings(
+            INITIAL_TEST_TARGET,
+            INITIAL_TEST_PROVIDER,
+            INITIAL_TEST_ENDPOINT_TYPE,
+            INITIAL_TEST_DIMENSIONS,
+            false,
+            INITIAL_TEST_MAX_INPUT_TOKENS,
+            INITIAL_SIMILARITY_MEASURE,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        ).updateServiceSettings(settingsMap, TaskType.TEXT_EMBEDDING);
+
+        MatcherAssert.assertThat(
+            serviceSettings,
+            is(
+                new AzureAiStudioEmbeddingsServiceSettings(
+                    TEST_TARGET,
+                    TEST_PROVIDER,
+                    TEST_ENDPOINT_TYPE,
+                    TEST_DIMENSIONS,
+                    true,
+                    TEST_MAX_INPUT_TOKENS,
+                    TEST_SIMILARITY_MEASURE,
+                    new RateLimitSettings(TEST_RATE_LIMIT)
+                )
+            )
+        );
+    }
+
+    public void testUpdateServiceSettings_EmptyMap_DimensionsSetByUserTrue_Success() {
+        testUpdateServiceSettings_EmptyMap_Success(false);
+    }
+
+    public void testUpdateServiceSettings_EmptyMap_DimensionsSetByUserFalse_Success() {
+        testUpdateServiceSettings_EmptyMap_Success(true);
+    }
+
+    private static void testUpdateServiceSettings_EmptyMap_Success(boolean dimensionsSetByUser) {
+        var serviceSettings = new AzureAiStudioEmbeddingsServiceSettings(
+            INITIAL_TEST_TARGET,
+            INITIAL_TEST_PROVIDER,
+            INITIAL_TEST_ENDPOINT_TYPE,
+            INITIAL_TEST_DIMENSIONS,
+            dimensionsSetByUser,
+            INITIAL_TEST_MAX_INPUT_TOKENS,
+            INITIAL_SIMILARITY_MEASURE,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        ).updateServiceSettings(new HashMap<>(), TaskType.TEXT_EMBEDDING);
+
+        MatcherAssert.assertThat(
+            serviceSettings,
+            is(
+                new AzureAiStudioEmbeddingsServiceSettings(
+                    INITIAL_TEST_TARGET,
+                    INITIAL_TEST_PROVIDER,
+                    INITIAL_TEST_ENDPOINT_TYPE,
+                    INITIAL_TEST_DIMENSIONS,
+                    dimensionsSetByUser,
+                    INITIAL_TEST_MAX_INPUT_TOKENS,
+                    INITIAL_SIMILARITY_MEASURE,
+                    new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+                )
+            )
+        );
+    }
 
     public void testFromMap_Request_CreatesSettingsCorrectly() {
-        var target = "http://sometarget.local";
-        var provider = "openai";
-        var endpointType = "token";
-        var dims = 1536;
-        var maxInputTokens = 512;
         var serviceSettings = AzureAiStudioEmbeddingsServiceSettings.fromMap(
-            createRequestSettingsMap(target, provider, endpointType, dims, null, maxInputTokens, SimilarityMeasure.COSINE),
+            createRequestSettingsMap(
+                TEST_TARGET,
+                TEST_PROVIDER.toString(),
+                TEST_ENDPOINT_TYPE.toString(),
+                TEST_DIMENSIONS,
+                null,
+                TEST_MAX_INPUT_TOKENS,
+                TEST_SIMILARITY_MEASURE
+            ),
             ConfigurationParseContext.REQUEST
         );
 
@@ -55,13 +148,13 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
             serviceSettings,
             is(
                 new AzureAiStudioEmbeddingsServiceSettings(
-                    target,
-                    AzureAiStudioProvider.OPENAI,
-                    AzureAiStudioEndpointType.TOKEN,
-                    dims,
+                    TEST_TARGET,
+                    TEST_PROVIDER,
+                    TEST_ENDPOINT_TYPE,
+                    TEST_DIMENSIONS,
                     true,
-                    maxInputTokens,
-                    SimilarityMeasure.COSINE,
+                    TEST_MAX_INPUT_TOKENS,
+                    TEST_SIMILARITY_MEASURE,
                     null
                 )
             )
@@ -69,13 +162,16 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
     }
 
     public void testFromMap_RequestWithRateLimit_CreatesSettingsCorrectly() {
-        var target = "http://sometarget.local";
-        var provider = "openai";
-        var endpointType = "token";
-        var dims = 1536;
-        var maxInputTokens = 512;
-        var settingsMap = createRequestSettingsMap(target, provider, endpointType, dims, null, maxInputTokens, SimilarityMeasure.COSINE);
-        settingsMap.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 3)));
+        var settingsMap = createRequestSettingsMap(
+            TEST_TARGET,
+            TEST_PROVIDER.toString(),
+            TEST_ENDPOINT_TYPE.toString(),
+            TEST_DIMENSIONS,
+            null,
+            TEST_MAX_INPUT_TOKENS,
+            TEST_SIMILARITY_MEASURE
+        );
+        settingsMap.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT)));
 
         var serviceSettings = AzureAiStudioEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST);
 
@@ -83,38 +179,42 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
             serviceSettings,
             is(
                 new AzureAiStudioEmbeddingsServiceSettings(
-                    target,
-                    AzureAiStudioProvider.OPENAI,
-                    AzureAiStudioEndpointType.TOKEN,
-                    dims,
+                    TEST_TARGET,
+                    TEST_PROVIDER,
+                    TEST_ENDPOINT_TYPE,
+                    TEST_DIMENSIONS,
                     true,
-                    maxInputTokens,
-                    SimilarityMeasure.COSINE,
-                    new RateLimitSettings(3)
+                    TEST_MAX_INPUT_TOKENS,
+                    TEST_SIMILARITY_MEASURE,
+                    new RateLimitSettings(TEST_RATE_LIMIT)
                 )
             )
         );
     }
 
     public void testFromMap_Request_DimensionsSetByUser_IsFalse_WhenDimensionsAreNotPresent() {
-        var target = "http://sometarget.local";
-        var provider = "openai";
-        var endpointType = "token";
-        var maxInputTokens = 512;
-        var settingsMap = createRequestSettingsMap(target, provider, endpointType, null, null, maxInputTokens, SimilarityMeasure.COSINE);
+        var settingsMap = createRequestSettingsMap(
+            TEST_TARGET,
+            TEST_PROVIDER.toString(),
+            TEST_ENDPOINT_TYPE.toString(),
+            null,
+            null,
+            TEST_MAX_INPUT_TOKENS,
+            TEST_SIMILARITY_MEASURE
+        );
         var serviceSettings = AzureAiStudioEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST);
 
         assertThat(
             serviceSettings,
             is(
                 new AzureAiStudioEmbeddingsServiceSettings(
-                    target,
-                    AzureAiStudioProvider.OPENAI,
-                    AzureAiStudioEndpointType.TOKEN,
+                    TEST_TARGET,
+                    TEST_PROVIDER,
+                    TEST_ENDPOINT_TYPE,
                     null,
                     false,
-                    maxInputTokens,
-                    SimilarityMeasure.COSINE,
+                    TEST_MAX_INPUT_TOKENS,
+                    TEST_SIMILARITY_MEASURE,
                     null
                 )
             )
@@ -122,12 +222,15 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
     }
 
     public void testFromMap_Request_DimensionsSetByUser_ShouldThrowWhenPresent() {
-        var target = "http://sometarget.local";
-        var provider = "openai";
-        var endpointType = "token";
-        var maxInputTokens = 512;
-
-        var settingsMap = createRequestSettingsMap(target, provider, endpointType, null, true, maxInputTokens, SimilarityMeasure.COSINE);
+        var settingsMap = createRequestSettingsMap(
+            TEST_TARGET,
+            TEST_PROVIDER.toString(),
+            TEST_ENDPOINT_TYPE.toString(),
+            null,
+            true,
+            TEST_MAX_INPUT_TOKENS,
+            TEST_SIMILARITY_MEASURE
+        );
 
         var thrownException = expectThrows(
             ValidationException.class,
@@ -146,26 +249,28 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
     }
 
     public void testFromMap_Persistent_CreatesSettingsCorrectly() {
-        var target = "http://sometarget.local";
-        var provider = "openai";
-        var endpointType = "token";
-        var dims = 1536;
-        var maxInputTokens = 512;
-
-        var settingsMap = createRequestSettingsMap(target, provider, endpointType, dims, false, maxInputTokens, SimilarityMeasure.COSINE);
+        var settingsMap = createRequestSettingsMap(
+            TEST_TARGET,
+            TEST_PROVIDER.toString(),
+            TEST_ENDPOINT_TYPE.toString(),
+            TEST_DIMENSIONS,
+            false,
+            TEST_MAX_INPUT_TOKENS,
+            TEST_SIMILARITY_MEASURE
+        );
         var serviceSettings = AzureAiStudioEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.PERSISTENT);
 
         assertThat(
             serviceSettings,
             is(
                 new AzureAiStudioEmbeddingsServiceSettings(
-                    target,
-                    AzureAiStudioProvider.OPENAI,
-                    AzureAiStudioEndpointType.TOKEN,
-                    dims,
+                    TEST_TARGET,
+                    TEST_PROVIDER,
+                    TEST_ENDPOINT_TYPE,
+                    TEST_DIMENSIONS,
                     false,
-                    maxInputTokens,
-                    SimilarityMeasure.COSINE,
+                    TEST_MAX_INPUT_TOKENS,
+                    TEST_SIMILARITY_MEASURE,
                     null
                 )
             )
@@ -173,12 +278,17 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
     }
 
     public void testFromMap_ThrowsException_WhenDimensionsAreZero() {
-        var target = "http://sometarget.local";
-        var provider = "openai";
-        var endpointType = "token";
         var dimensions = 0;
 
-        var settingsMap = createRequestSettingsMap(target, provider, endpointType, dimensions, true, null, SimilarityMeasure.COSINE);
+        var settingsMap = createRequestSettingsMap(
+            TEST_TARGET,
+            TEST_PROVIDER.toString(),
+            TEST_ENDPOINT_TYPE.toString(),
+            dimensions,
+            true,
+            null,
+            TEST_SIMILARITY_MEASURE
+        );
 
         var thrownException = expectThrows(
             ValidationException.class,
@@ -192,12 +302,17 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
     }
 
     public void testFromMap_ThrowsException_WhenDimensionsAreNegative() {
-        var target = "http://sometarget.local";
-        var provider = "openai";
-        var endpointType = "token";
         var dimensions = randomNegativeInt();
 
-        var settingsMap = createRequestSettingsMap(target, provider, endpointType, dimensions, true, null, SimilarityMeasure.COSINE);
+        var settingsMap = createRequestSettingsMap(
+            TEST_TARGET,
+            TEST_PROVIDER.toString(),
+            TEST_ENDPOINT_TYPE.toString(),
+            dimensions,
+            true,
+            null,
+            TEST_SIMILARITY_MEASURE
+        );
 
         var thrownException = expectThrows(
             ValidationException.class,
@@ -216,12 +331,17 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
     }
 
     public void testFromMap_ThrowsException_WhenMaxInputTokensAreZero() {
-        var target = "http://sometarget.local";
-        var provider = "openai";
-        var endpointType = "token";
         var maxInputTokens = 0;
 
-        var settingsMap = createRequestSettingsMap(target, provider, endpointType, null, true, maxInputTokens, SimilarityMeasure.COSINE);
+        var settingsMap = createRequestSettingsMap(
+            TEST_TARGET,
+            TEST_PROVIDER.toString(),
+            TEST_ENDPOINT_TYPE.toString(),
+            null,
+            true,
+            maxInputTokens,
+            TEST_SIMILARITY_MEASURE
+        );
 
         var thrownException = expectThrows(
             ValidationException.class,
@@ -235,12 +355,17 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
     }
 
     public void testFromMap_ThrowsException_WhenMaxInputTokensAreNegative() {
-        var target = "http://sometarget.local";
-        var provider = "openai";
-        var endpointType = "token";
         var maxInputTokens = randomNegativeInt();
 
-        var settingsMap = createRequestSettingsMap(target, provider, endpointType, null, true, maxInputTokens, SimilarityMeasure.COSINE);
+        var settingsMap = createRequestSettingsMap(
+            TEST_TARGET,
+            TEST_PROVIDER.toString(),
+            TEST_ENDPOINT_TYPE.toString(),
+            null,
+            true,
+            maxInputTokens,
+            TEST_SIMILARITY_MEASURE
+        );
 
         var thrownException = expectThrows(
             ValidationException.class,
@@ -259,45 +384,42 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
     }
 
     public void testFromMap_PersistentContext_DoesNotThrowException_WhenDimensionsIsNull() {
-        var target = "http://sometarget.local";
-        var provider = "openai";
-        var endpointType = "token";
-
-        var settingsMap = createRequestSettingsMap(target, provider, endpointType, null, true, null, null);
+        var settingsMap = createRequestSettingsMap(
+            TEST_TARGET,
+            TEST_PROVIDER.toString(),
+            TEST_ENDPOINT_TYPE.toString(),
+            null,
+            true,
+            null,
+            null
+        );
         var serviceSettings = AzureAiStudioEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.PERSISTENT);
 
         assertThat(
             serviceSettings,
-            is(
-                new AzureAiStudioEmbeddingsServiceSettings(
-                    target,
-                    AzureAiStudioProvider.OPENAI,
-                    AzureAiStudioEndpointType.TOKEN,
-                    null,
-                    true,
-                    null,
-                    null,
-                    null
-                )
-            )
+            is(new AzureAiStudioEmbeddingsServiceSettings(TEST_TARGET, TEST_PROVIDER, TEST_ENDPOINT_TYPE, null, true, null, null, null))
         );
     }
 
     public void testFromMap_PersistentContext_DoesNotThrowException_WhenSimilarityIsPresent() {
-        var target = "http://sometarget.local";
-        var provider = "openai";
-        var endpointType = "token";
-
-        var settingsMap = createRequestSettingsMap(target, provider, endpointType, null, true, null, SimilarityMeasure.DOT_PRODUCT);
+        var settingsMap = createRequestSettingsMap(
+            TEST_TARGET,
+            TEST_PROVIDER.toString(),
+            TEST_ENDPOINT_TYPE.toString(),
+            null,
+            true,
+            null,
+            SimilarityMeasure.DOT_PRODUCT
+        );
         var serviceSettings = AzureAiStudioEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.PERSISTENT);
 
         assertThat(
             serviceSettings,
             is(
                 new AzureAiStudioEmbeddingsServiceSettings(
-                    target,
-                    AzureAiStudioProvider.OPENAI,
-                    AzureAiStudioEndpointType.TOKEN,
+                    TEST_TARGET,
+                    TEST_PROVIDER,
+                    TEST_ENDPOINT_TYPE,
                     null,
                     true,
                     null,
@@ -309,11 +431,15 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
     }
 
     public void testFromMap_PersistentContext_ThrowsException_WhenDimensionsSetByUserIsNull() {
-        var target = "http://sometarget.local";
-        var provider = "openai";
-        var endpointType = "token";
-
-        var settingsMap = createRequestSettingsMap(target, provider, endpointType, 1, null, null, null);
+        var settingsMap = createRequestSettingsMap(
+            TEST_TARGET,
+            TEST_PROVIDER.toString(),
+            TEST_ENDPOINT_TYPE.toString(),
+            TEST_DIMENSIONS,
+            null,
+            null,
+            null
+        );
 
         var exception = expectThrows(
             ValidationException.class,
@@ -327,57 +453,86 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
     }
 
     public void testToXContent_WritesDimensionsSetByUserTrue() throws IOException {
+        boolean dimensionsSetByUser = true;
         var entity = new AzureAiStudioEmbeddingsServiceSettings(
-            "target_value",
-            AzureAiStudioProvider.OPENAI,
-            AzureAiStudioEndpointType.TOKEN,
+            TEST_TARGET,
+            TEST_PROVIDER,
+            TEST_ENDPOINT_TYPE,
             null,
-            true,
+            dimensionsSetByUser,
             null,
             null,
-            new RateLimitSettings(2)
+            new RateLimitSettings(TEST_RATE_LIMIT)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, CoreMatchers.is("""
-            {"target":"target_value","provider":"openai","endpoint_type":"token",""" + """
-            "rate_limit":{"requests_per_minute":2},"dimensions_set_by_user":true}"""));
+        assertThat(
+            xContentResult,
+            is(
+                Strings.format(
+                    """
+                        {"target":"%s","provider":"%s","endpoint_type":"%s","rate_limit":\
+                        {"requests_per_minute":%d},"dimensions_set_by_user":%b}""",
+                    TEST_TARGET,
+                    TEST_PROVIDER,
+                    TEST_ENDPOINT_TYPE,
+                    TEST_RATE_LIMIT,
+                    dimensionsSetByUser
+                )
+            )
+        );
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
+        boolean dimensionsSetByUser = false;
         var entity = new AzureAiStudioEmbeddingsServiceSettings(
-            "target_value",
-            AzureAiStudioProvider.OPENAI,
-            AzureAiStudioEndpointType.TOKEN,
-            1024,
-            false,
-            512,
-            null,
-            new RateLimitSettings(3)
+            TEST_TARGET,
+            TEST_PROVIDER,
+            TEST_ENDPOINT_TYPE,
+            TEST_DIMENSIONS,
+            dimensionsSetByUser,
+            TEST_MAX_INPUT_TOKENS,
+            TEST_SIMILARITY_MEASURE,
+            new RateLimitSettings(TEST_RATE_LIMIT)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, CoreMatchers.is("""
-            {"target":"target_value","provider":"openai","endpoint_type":"token",""" + """
-            "rate_limit":{"requests_per_minute":3},"dimensions":1024,"max_input_tokens":512,"dimensions_set_by_user":false}"""));
+        assertThat(
+            xContentResult,
+            is(
+                Strings.format(
+                    """
+                        {"target":"%s","provider":"%s","endpoint_type":"%s","rate_limit":{"requests_per_minute":%d},\
+                        "dimensions":%d,"max_input_tokens":%d,"similarity":"%s","dimensions_set_by_user":%b}""",
+                    TEST_TARGET,
+                    TEST_PROVIDER,
+                    TEST_ENDPOINT_TYPE,
+                    TEST_RATE_LIMIT,
+                    TEST_DIMENSIONS,
+                    TEST_MAX_INPUT_TOKENS,
+                    TEST_SIMILARITY_MEASURE,
+                    dimensionsSetByUser
+                )
+            )
+        );
     }
 
     public void testToFilteredXContent_WritesAllValues_ExceptDimensionsSetByUser() throws IOException {
         var entity = new AzureAiStudioEmbeddingsServiceSettings(
-            "target_value",
-            AzureAiStudioProvider.OPENAI,
-            AzureAiStudioEndpointType.TOKEN,
-            1024,
+            TEST_TARGET,
+            TEST_PROVIDER,
+            TEST_ENDPOINT_TYPE,
+            TEST_DIMENSIONS,
             false,
-            512,
-            null,
-            new RateLimitSettings(3)
+            TEST_MAX_INPUT_TOKENS,
+            TEST_SIMILARITY_MEASURE,
+            new RateLimitSettings(TEST_RATE_LIMIT)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -385,9 +540,23 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
         filteredXContent.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, CoreMatchers.is("""
-            {"target":"target_value","provider":"openai","endpoint_type":"token",""" + """
-            "rate_limit":{"requests_per_minute":3},"dimensions":1024,"max_input_tokens":512}"""));
+        assertThat(
+            xContentResult,
+            is(
+                Strings.format(
+                    """
+                        {"target":"%s","provider":"%s","endpoint_type":"%s",\
+                        "rate_limit":{"requests_per_minute":%d},"dimensions":%d,"max_input_tokens":%d,"similarity":"%s"}""",
+                    TEST_TARGET,
+                    TEST_PROVIDER,
+                    TEST_ENDPOINT_TYPE,
+                    TEST_RATE_LIMIT,
+                    TEST_DIMENSIONS,
+                    TEST_MAX_INPUT_TOKENS,
+                    TEST_SIMILARITY_MEASURE
+                )
+            )
+        );
     }
 
     public static HashMap<String, Object> createRequestSettingsMap(

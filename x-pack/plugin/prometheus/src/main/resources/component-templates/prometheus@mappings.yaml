@@ -5,7 +5,6 @@ _meta:
   managed: true
 template:
   settings:
-    index.mapping.ignore_malformed: true
     index.mapping.total_fields.limit: 10000
   mappings:
     date_detection: false

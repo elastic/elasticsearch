@@ -2,7 +2,7 @@
 
 **Supported types**
 
-| value | sort | result |
+| field | sortField | result |
 | --- | --- | --- |
 | boolean | date | boolean |
 | boolean | date_nanos | boolean |

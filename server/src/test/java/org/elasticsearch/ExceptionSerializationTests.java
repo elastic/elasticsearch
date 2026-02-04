@@ -63,6 +63,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotInPrimaryModeException;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
 import org.elasticsearch.indices.FailureIndexNotSupportedException;
+import org.elasticsearch.indices.IndexLimitExceededException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.indices.recovery.PeerRecoveryNotFound;
@@ -870,6 +871,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(183, IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus.class);
         ids.put(184, RemoteException.class);
         ids.put(185, NoMatchingProjectException.class);
+        ids.put(186, IndexLimitExceededException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

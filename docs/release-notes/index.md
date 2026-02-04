@@ -75,6 +75,58 @@ Snapshot/Restore:
 
 
 
+## 9.2.6 [elasticsearch-9.2.6-release-notes]
+
+### Features and enhancements [elasticsearch-9.2.6-features-enhancements]
+
+ES|QL:
+* `BlockSourceReader` should always apply source filtering [#136438](https://github.com/elastic/elasticsearch/pull/136438)
+
+IdentityProvider:
+* Support `LimitedRole` in idp role resolution [#140536](https://github.com/elastic/elasticsearch/pull/140536)
+
+Inference:
+* Add `max_batch_size` setting to EIS dense and sparse service settings [#141185](https://github.com/elastic/elasticsearch/pull/141185)
+
+Snapshot/Restore:
+* Retry bulk-delete items in GCS [#138951](https://github.com/elastic/elasticsearch/pull/138951) (issue: [#138364](https://github.com/elastic/elasticsearch/issues/138364))
+
+
+### Fixes [elasticsearch-9.2.6-fixes]
+
+Allocation:
+* Handle deleted source index in allocation deciders [#140699](https://github.com/elastic/elasticsearch/pull/140699) (issue: [#140630](https://github.com/elastic/elasticsearch/issues/140630))
+
+EQL:
+* Fix `_index` on missing events in CCS [#140886](https://github.com/elastic/elasticsearch/pull/140886)
+
+ES|QL:
+* Fix folding of case() function with date period and time duration [#141157](https://github.com/elastic/elasticsearch/pull/141157)
+* Use sub keyword block loader with `ignore_above` for text fields [#140622](https://github.com/elastic/elasticsearch/pull/140622)
+
+ILM:
+* Remove ILM-stopped-check before the cluster update in `migrateToDataTiersRouting` [#140892](https://github.com/elastic/elasticsearch/pull/140892) (issue: [#140885](https://github.com/elastic/elasticsearch/issues/140885))
+
+Inference:
+* [Inference API] Include rerank in supported tasks for IBM watsonx integration [#140331](https://github.com/elastic/elasticsearch/pull/140331) (issue: [#140328](https://github.com/elastic/elasticsearch/issues/140328))
+
+Machine Learning:
+* Disallow `max_number_of_allocations` > 1 for low priority model deployments [#140163](https://github.com/elastic/elasticsearch/pull/140163) (issue: [#111227](https://github.com/elastic/elasticsearch/issues/111227))
+
+Packaging:
+* Fix stderr leak in Docker ES process detection [#140701](https://github.com/elastic/elasticsearch/pull/140701)
+
+Reindex:
+* Disable `_delete_by_query` and `_update_by_query` for CCS/stateful [#140301](https://github.com/elastic/elasticsearch/pull/140301)
+
+Search:
+* Fix date fields sort formatting with missing values [#135899](https://github.com/elastic/elasticsearch/pull/135899) (issue: [#81960](https://github.com/elastic/elasticsearch/issues/81960))
+
+Snapshot/Restore:
+* Fix race condition in `CancellableRateLimitedFluxIterator` [#141323](https://github.com/elastic/elasticsearch/pull/141323)
+
+
+
 ## 9.3.0 [elasticsearch-9.3.0-release-notes]
 
 ### Highlights [elasticsearch-9.3.0-highlights]

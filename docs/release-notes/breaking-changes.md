@@ -19,6 +19,10 @@ stack: ga 9.2.5
 
 There are no breaking changes associated with this release.
 
+## 9.2.6 [elasticsearch-9.2.6-breaking-changes]
+
+There are no breaking changes associated with this release.
+
 ## 9.3.0 [elasticsearch-9.3.0-breaking-changes]
 
 Mapping:

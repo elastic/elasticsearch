@@ -116,7 +116,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
     public static final FeatureFlag DATAFEED_CROSS_PROJECT = new FeatureFlag("datafeed_cross_project");
 
-    // TODO: Before merging to main, regenerate transport version files to get a unique version ID
+    // TODO @valeriy42: Before merging to main, regenerate transport version files to get a unique version ID
     // private static final TransportVersion DATAFEED_PROJECT_ROUTING = TransportVersion.fromName("datafeed_project_routing");
     private static final TransportVersion DATAFEED_PROJECT_ROUTING = TransportVersion.fromName("index_limit_exceeded_exception");
 
@@ -1178,18 +1178,14 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 throw new ElasticsearchStatusException("Cross-project search is not enabled for Datafeeds", RestStatus.FORBIDDEN);
             }
 
-            // Validate project_routing requires CPS feature flag AND CPS mode enabled
+            // Validate project_routing requires CPS feature flag
+            // Note: CPS mode in IndicesOptions is applied at runtime via withCrossProjectModeIfEnabled()
+            // when the datafeed starts, so we don't validate it here.
             if (projectRouting != null) {
                 if (DATAFEED_CROSS_PROJECT.isEnabled() == false) {
                     throw new ElasticsearchStatusException(
                         "project_routing requires cross-project search feature to be enabled for Datafeeds",
                         RestStatus.FORBIDDEN
-                    );
-                }
-                if (indicesOptions == null || indicesOptions.resolveCrossProjectIndexExpression() == false) {
-                    throw new ElasticsearchStatusException(
-                        "project_routing requires cross-project search to be enabled in indices_options",
-                        RestStatus.BAD_REQUEST
                     );
                 }
             }

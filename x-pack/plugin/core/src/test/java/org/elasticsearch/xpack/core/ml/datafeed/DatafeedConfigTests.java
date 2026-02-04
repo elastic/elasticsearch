@@ -1069,11 +1069,6 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
         builder.setIndices(List.of("logs-*"));
         builder.setProjectRouting("_alias:prod-*");
 
-        IndicesOptions cpsIndicesOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED)
-            .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
-            .build();
-        builder.setIndicesOptions(cpsIndicesOptions);
-
         if (DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled()) {
             DatafeedConfig config = builder.build();
             assertThat(config.getProjectRouting(), equalTo("_alias:prod-*"));
@@ -1098,12 +1093,6 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
         XContentParser parser = createParser(JsonXContent.jsonXContent, json);
         DatafeedConfig.Builder builder = DatafeedConfig.LENIENT_PARSER.apply(parser, null);
 
-        // Need to set CPS mode in indicesOptions for validation to pass
-        IndicesOptions cpsIndicesOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED)
-            .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
-            .build();
-        builder.setIndicesOptions(cpsIndicesOptions);
-
         DatafeedConfig config = builder.build();
 
         assertThat(config.getProjectRouting(), equalTo("_alias:prod-*"));
@@ -1115,11 +1104,6 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
         builder.setIndices(List.of("logs-*"));
-
-        IndicesOptions cpsIndicesOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED)
-            .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
-            .build();
-        builder.setIndicesOptions(cpsIndicesOptions);
         builder.setProjectRouting("_project._region:us-*");
 
         DatafeedConfig config = builder.build();
@@ -1136,11 +1120,6 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
         builder.setIndices(List.of("logs-*"));
-
-        IndicesOptions cpsIndicesOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED)
-            .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
-            .build();
-        builder.setIndicesOptions(cpsIndicesOptions);
         builder.setProjectRouting("_alias:staging-*");
 
         DatafeedConfig original = builder.build();
@@ -1159,35 +1138,6 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
             assertThat(deserialized.getProjectRouting(), equalTo("_alias:staging-*"));
             assertThat(deserialized, equalTo(original));
         }
-    }
-
-    public void testProjectRoutingRequiresCpsEnabledInIndicesOptions() {
-        // Skip test if feature flag is disabled
-        assumeTrue("CPS feature flag must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
-
-        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
-        builder.setIndices(List.of("logs-*"));
-        builder.setProjectRouting("_alias:prod-*");
-        // Don't set CPS mode in indicesOptions - use default
-
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> builder.build());
-        assertThat(e.getMessage(), containsString("project_routing requires cross-project search to be enabled in indices_options"));
-        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-    }
-
-    public void testProjectRoutingWithExplicitNonCpsIndicesOptions() {
-        // Skip test if feature flag is disabled
-        assumeTrue("CPS feature flag must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
-
-        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
-        builder.setIndices(List.of("logs-*"));
-        builder.setProjectRouting("_alias:prod-*");
-        // Explicitly set IndicesOptions without CPS mode
-        builder.setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN);
-
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> builder.build());
-        assertThat(e.getMessage(), containsString("project_routing requires cross-project search to be enabled in indices_options"));
-        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
     }
 
     public void testProjectRoutingNullIsOptional() throws IOException {
@@ -1243,11 +1193,6 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
         builder.setIndices(List.of("logs-*"));
-
-        IndicesOptions cpsIndicesOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED)
-            .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
-            .build();
-        builder.setIndicesOptions(cpsIndicesOptions);
         builder.setProjectRouting("_alias:test-*");
 
         DatafeedConfig original = builder.build();
@@ -1258,8 +1203,6 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
         // Parse back
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         DatafeedConfig.Builder parsedBuilder = DatafeedConfig.LENIENT_PARSER.apply(parser, null);
-        // Need to set CPS mode again since it may not be fully round-tripped in all cases
-        parsedBuilder.setIndicesOptions(cpsIndicesOptions);
         DatafeedConfig parsed = parsedBuilder.build();
 
         assertThat(parsed.getProjectRouting(), equalTo(original.getProjectRouting()));

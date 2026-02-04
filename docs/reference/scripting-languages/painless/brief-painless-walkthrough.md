@@ -17,7 +17,7 @@ If you're new to Painless scripting or need step-by-step guidance, start with [H
 
 :::
 
-# A brief painless walkthrough [painless-walkthrough]
+# A brief Painless walkthrough [painless-walkthrough]
 
 To illustrate how Painless works, let’s load some hockey stats into an {{es}} index:
 

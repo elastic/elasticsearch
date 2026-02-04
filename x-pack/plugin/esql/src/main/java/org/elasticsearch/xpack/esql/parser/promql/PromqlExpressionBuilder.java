@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.parser.promql;
 
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
+import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -204,7 +205,8 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
     @Override
     public Duration visitTimeValue(TimeValueContext ctx) {
         if (ctx.NAMED_OR_POSITIONAL_PARAM() != null) {
-            QueryParam param = ExpressionBuilder.paramByNameOrPosition(ctx.NAMED_OR_POSITIONAL_PARAM(), params);
+            TerminalNode node = ctx.NAMED_OR_POSITIONAL_PARAM();
+            QueryParam param = ExpressionBuilder.paramByNameOrPosition(node, source(node), params);
             if (param == null) {
                 throw new ParsingException(
                     source(ctx.NAMED_OR_POSITIONAL_PARAM()),

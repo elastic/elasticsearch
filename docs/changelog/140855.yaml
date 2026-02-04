@@ -1,5 +1,0 @@
-pr: 140855
-summary: Use a single array for buffering rate data points
-area: ES|QL
-type: enhancement
-issues: []

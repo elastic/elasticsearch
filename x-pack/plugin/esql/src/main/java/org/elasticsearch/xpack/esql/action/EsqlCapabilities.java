@@ -281,6 +281,11 @@ public class EsqlCapabilities {
         FN_MV_CONTAINS_V1,
 
         /**
+         * support for MV_INTERSECTS function
+         */
+        FN_MV_INTERSECTS,
+
+        /**
          * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.
          */
         FUNCTIONS_SOURCE_SERIALIZATION_WARNINGS,
@@ -1171,6 +1176,16 @@ public class EsqlCapabilities {
         VIEWS_IN_CLUSTER_STATE(EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG.isEnabled()),
 
         /**
+         * Basic Views with no branching (do not need subqueries or FORK).
+         */
+        VIEWS_WITH_NO_BRANCHING(VIEWS_IN_CLUSTER_STATE.isEnabled()),
+
+        /**
+         * Views with branching (requires subqueries/FORK).
+         */
+        VIEWS_WITH_BRANCHING(VIEWS_WITH_NO_BRANCHING.isEnabled() && SUBQUERY_IN_FROM_COMMAND.isEnabled()),
+
+        /**
          * Support for the {@code leading_zeros} named parameter.
          */
         TO_IP_LEADING_ZEROS,
@@ -1466,12 +1481,6 @@ public class EsqlCapabilities {
         DECAY_FUNCTION,
 
         /**
-         * FIRST and LAST aggregate functions.
-         */
-        AGG_FIRST_LAST(Build.current().isSnapshot()),
-        AGG_FIRST_LAST_STRING(Build.current().isSnapshot()),
-
-        /**
          * Support correct counting of skipped shards.
          */
         CORRECT_SKIPPED_SHARDS_COUNT,
@@ -1645,6 +1654,13 @@ public class EsqlCapabilities {
         TS_PERMIT_TEXT_BECOMING_KEYWORD_WHEN_GROUPED_ON,
 
         /**
+         * Fix for a bug where if you queried multiple TS indices with a field
+         * mapped to different types, the original types/suggested cast sections
+         * of the return result would be empty.
+         */
+        TS_ORIGINAL_TYPES_BUG_FIXED,
+
+        /**
          * Fix management of plans with no columns
          * https://github.com/elastic/elasticsearch/issues/120272
          */
@@ -1696,6 +1712,10 @@ public class EsqlCapabilities {
          */
         HISTOGRAM_RELEASE_VERSION,
 
+        /**
+         * Support for running the Count aggregation on t-digest and exponential histogram types
+         */
+        COUNT_OF_HISTOGRAM_TYPES,
         /**
          * Fix for <a href="https://github.com/elastic/elasticsearch/issues/140670">140670</a>,
          * this allows for type conversion functions with no further computation to be
@@ -1761,6 +1781,11 @@ public class EsqlCapabilities {
         LOOKUP_JOIN_SEMANTIC_FILTER_DEDUP,
 
         /**
+         * Warning when SORT is followed by LOOKUP JOIN which does not preserve order.
+         */
+        LOOKUP_JOIN_SORT_WARNING,
+
+        /**
          * Temporarily forbid the use of an explicit or implicit LIMIT before INLINE STATS.
          */
         FORBID_LIMIT_BEFORE_INLINE_STATS(INLINE_STATS.enabled),
@@ -1808,11 +1833,14 @@ public class EsqlCapabilities {
         FULL_TEXT_FUNCTIONS_ACCEPT_NULL_FIELD,
 
         /**
-         * Support for the temporary work to eventually allow FIRST to work with null and multi-value fields, among other things.
+         * Make FIRST agg work with null and multi-value fields.
          */
-        ALL_FIRST_WITH_IP_BOOLEAN_SUPPORT(Build.current().isSnapshot()),
+        FIRST_AGG_WITH_NULL_AND_MV_SUPPORT,
 
-        ALL_LAST_WITH_IP_BOOLEAN_SUPPORT(Build.current().isSnapshot()),
+        /**
+         * Make LAST agg work with null and multi-value fields.
+         */
+        LAST_AGG_WITH_NULL_AND_MV_SUPPORT,
 
         /**
          * Allow ST_EXTENT_AGG to gracefully handle missing spatial shapes
@@ -1848,7 +1876,13 @@ public class EsqlCapabilities {
         /**
          * Support for PromQL time() function.
          */
-        PROMQL_TIME(PROMQL_COMMAND_V0.isEnabled()),
+        PROMQL_TIME,
+
+        /**
+         * Queries for unmapped fields return no data instead of an error.
+         * Also filters out nulls from results.
+         */
+        PROMQL_UNMAPPED_FIELDS_FILTER_NULLS,
 
         /**
          * KNN function adds support for k and visit_percentage options
@@ -1998,6 +2032,11 @@ public class EsqlCapabilities {
         APPROXIMATION(Build.current().isSnapshot()),
 
         /**
+         * Create a ScoreOperator only when shard contexts are available
+         */
+        FIX_SCORE_OPERATOR_PLANNING,
+
+        /**
          * Periodically emit partial aggregation results when the number of groups exceeds the threshold.
          */
         PERIODIC_EMIT_PARTIAL_AGGREGATION_RESULTS,
@@ -2006,6 +2045,22 @@ public class EsqlCapabilities {
          * Support for requesting the "_size" metadata field when the mapper-size plugin is enabled.
          */
         METADATA_SIZE_FIELD,
+
+        /**
+         * Fix for <a href="https://github.com/elastic/elasticsearch/issues/141627">141627</a>,
+         * TO_IP with leading_zeros=octal generates proper warning and returns null when given invalid input.
+         */
+        FIX_TO_IP_LEADING_ZEROS_OCTAL,
+
+        /**
+         * Support for configuring T-Digest elasticsearch field as a time series metric.
+         */
+        TDIGEST_TIME_SERIES_METRIC,
+
+        /**
+         * Fix bug with TS command where you can't group on aliases (i.e. `by c = cluster`)
+         */
+        TS_COMMAND_GROUP_ON_ALIASES,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

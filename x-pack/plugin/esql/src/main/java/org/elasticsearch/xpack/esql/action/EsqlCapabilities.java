@@ -2047,6 +2047,12 @@ public class EsqlCapabilities {
         METADATA_SIZE_FIELD,
 
         /**
+         * Fix for <a href="https://github.com/elastic/elasticsearch/issues/141627">141627</a>,
+         * TO_IP with leading_zeros=octal generates proper warning and returns null when given invalid input.
+         */
+        FIX_TO_IP_LEADING_ZEROS_OCTAL,
+
+        /**
          * Support for configuring T-Digest elasticsearch field as a time series metric.
          */
         TDIGEST_TIME_SERIES_METRIC,

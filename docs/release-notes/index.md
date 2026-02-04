@@ -1268,6 +1268,18 @@ FROM logs-*, remote:logs-* | LOOKUP JOIN clients on ip | SORT timestamp | LIMIT 
 - Multiple improvements to HNSW graph traversal and storage
 ::::
 
+::::{dropdown} Safely prevent overwriting objects in S3 repositories
+Earlier versions of Elasticsearch had a small risk of inadvertently overwriting an object in an [AWS S3 snapshot
+repository](docs-content://deploy-manage/tools/snapshot-and-restore/s3-repository.md) which, if it happened, might corrupt the
+repository contents. From version 9.2.0 onwards, Elasticsearch uses S3's [conditional write
+feature](https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html) to prevent this corruption.
+
+If you are using a snapshot repository with type `s3` backed by some storage which is not AWS S3, but which is fully S3-compatible,
+then you will also get the benefits of this corruption protection by upgrading to 9.2.0 or later. Refer to [S3-compatible
+services](docs-content://deploy-manage/tools/snapshot-and-restore/s3-repository.md#repository-s3-compatible-services) for more
+information about using Elasticsearch with S3-compatible storage services.
+::::
+
 ### Features and enhancements [elasticsearch-9.2.0-features-enhancements]
 
 Allocation:
@@ -1478,7 +1490,7 @@ Security:
 Snapshot/Restore:
 * Add extension points to remediate index metadata in during snapshot restore [#131706](https://github.com/elastic/elasticsearch/pull/131706)
 * Expose S3 connection max idle time as a setting [#125552](https://github.com/elastic/elasticsearch/pull/125552)
-* Implement `failIfAlreadyExists` in S3 repositories [#133030](https://github.com/elastic/elasticsearch/pull/133030) (issue: [#128565](https://github.com/elastic/elasticsearch/issues/128565))
+* Safely prevent overwriting objects in S3 repositories [#133030](https://github.com/elastic/elasticsearch/pull/133030) (issue: [#128565](https://github.com/elastic/elasticsearch/issues/128565))
 * Improve lost-increment message in repo analysis [#131200](https://github.com/elastic/elasticsearch/pull/131200)
 
 Store:

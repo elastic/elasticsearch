@@ -222,7 +222,10 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
                     try {
                         DataStreamLifecycle.DownsamplingRound.validateRounds(rounds);
                     } catch (Exception e) {
-                        validationException = addValidationError("template downsampling rounds are not valid: " + e.getMessage(), validationException);
+                        validationException = addValidationError(
+                            "template downsampling rounds are not valid: " + e.getMessage(),
+                            validationException
+                        );
                     }
                 }
 

@@ -51,7 +51,9 @@ public class SpatialCentroid extends SpatialAggregateFunction implements ToAggre
         returnType = { "geo_point", "cartesian_point" },
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
-        description = "Calculate the spatial centroid over a field with spatial geometry type.",
+        description = """
+            Calculate the spatial centroid over a field with spatial geometry type.
+            Supports `geo_point` and `cartesian_point`, as well as `geo_shape` and `cartesian_shape` {applies_to}`stack: preview 9.4`.""",
         type = FunctionType.AGGREGATE,
         examples = @Example(file = "spatial", tag = "st_centroid_agg-airports")
     )

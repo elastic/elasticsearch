@@ -2,6 +2,7 @@
 
 ### ST CENTROID AGG
 Calculate the spatial centroid over a field with spatial geometry type.
+Supports `geo_point` and `cartesian_point`, as well as `geo_shape` and `cartesian_shape`.
 
 ```esql
 FROM airports

@@ -39,13 +39,7 @@ public interface VectorSimilarityFunctions {
         /**
          * 4-byte float. Single vector score returns results as a float.
          */
-        FLOAT32(Float.BYTES),
-        /**
-         * 1-bit data, 4-bit queries. Single vector score returns results as a long.
-         * <p>
-         * Checks are special-cased, so {@link #bytes()} is not called
-         */
-        I1I4(Byte.BYTES);
+        FLOAT32(Float.BYTES);
 
         private final int bytes;
 
@@ -58,6 +52,34 @@ public interface VectorSimilarityFunctions {
         }
     }
 
+    /**
+     * The various flavors of BBQ indices. Single vector score returns results as a long.
+     */
+    enum BBQType {
+        /**
+         * 1-bit data, 4-bit queries
+         */
+        I1I4((byte) 1),
+        /**
+         * 2-bit data, 4-bit queries
+         */
+        I2I4((byte) 2);
+
+        private final byte dataBits;
+
+        BBQType(byte dataBits) {
+            this.dataBits = dataBits;
+        }
+
+        public byte dataBits() {
+            return dataBits;
+        }
+
+        public byte queryBits() {
+            return 4;
+        }
+    }
+
     enum Operation {
         /**
          * Scores a single vector against another.
@@ -66,7 +88,7 @@ public interface VectorSimilarityFunctions {
          * <ol>
          *     <li>First vector</li>
          *     <li>Second vector</li>
-         *     <li>Number of dimensions</li>
+         *     <li>Number of dimensions, or for bbq, the number of index bytes</li>
          * </ol>
          * Return value type is determined by the {@link DataType}.
          */
@@ -78,7 +100,7 @@ public interface VectorSimilarityFunctions {
          * <ol>
          *     <li>Multiple vectors to score {@code a}</li>
          *     <li>Single vector to score against</li>
-         *     <li>Number of dimensions</li>
+         *     <li>Number of dimensions, or for bbq, the number of index bytes</li>
          *     <li>Number of vectors in {@code a}</li>
          *     <li>Score results, as 4-byte floats</li>
          * </ol>
@@ -91,7 +113,7 @@ public interface VectorSimilarityFunctions {
          * <ol>
          *     <li>Multiple vectors to score</li>
          *     <li>Single vector to score against</li>
-         *     <li>Number of dimensions</li>
+         *     <li>Number of dimensions, or for bbq, the number of index bytes</li>
          *     <li>Number of bytes between the start of one vector and the start of the next vector in {@code a}</li>
          *     <li>Array of 4-byte ints containing indices of vectors to score in {@code a}</li>
          *     <li>Number of vectors to score</li>
@@ -102,4 +124,6 @@ public interface VectorSimilarityFunctions {
     }
 
     MethodHandle getHandle(Function function, DataType dataType, Operation operation);
+
+    MethodHandle getHandle(Function function, BBQType bbqType, Operation operation);
 }

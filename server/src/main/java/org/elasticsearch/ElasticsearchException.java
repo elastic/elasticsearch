@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
 import org.elasticsearch.indices.FailureIndexNotSupportedException;
+import org.elasticsearch.indices.IndexLimitExceededException;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.ingest.GraphStructureException;
 import org.elasticsearch.persistent.NotPersistentTaskNodeException;
@@ -78,6 +79,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
+import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.INDEX_LIMIT_EXCEEDED_EXCEPTION_VERSION;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
 import static org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter.NO_MATCHING_PROJECT_EXCEPTION_VERSION;
@@ -2041,6 +2043,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             NoMatchingProjectException::new,
             185,
             NO_MATCHING_PROJECT_EXCEPTION_VERSION
+        ),
+        INDEX_LIMIT_EXCEEDED_EXCEPTION(
+            IndexLimitExceededException.class,
+            IndexLimitExceededException::new,
+            186,
+            INDEX_LIMIT_EXCEEDED_EXCEPTION_VERSION
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

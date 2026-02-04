@@ -10308,6 +10308,21 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(tsStats.timestamp().dataType(), equalTo(DataType.DATETIME));
         LastOverTime lastOverTime = as(Alias.unwrap(tsStats.aggregates().getFirst()), LastOverTime.class);
         assertThat(lastOverTime.timestamp(), equalTo(tsStats.timestamp()));
+
+        String errorMessage = expectThrows(
+            VerificationException.class,
+            () -> logicalOptimizerWithLatestVersion.optimize(
+                metricsAnalyzer.analyze(parser.parseQuery("TS k8s | KEEP network.total_bytes_in | STATS count(*)"))
+            )
+        ).getMessage();
+        assertThat(errorMessage, containsString("count_star [count(*)] can't be used with TS command; use count on a field instead"));
+        assertThat(
+            errorMessage,
+            containsString(
+                "[STATS count(*)] requires the [@timestamp] field, which was either not present "
+                    + "in the source index, or has been dropped or renamed"
+            )
+        );
     }
 
     /**

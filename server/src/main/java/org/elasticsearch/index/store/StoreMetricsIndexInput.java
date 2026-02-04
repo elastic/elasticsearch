@@ -15,6 +15,9 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 public class StoreMetricsIndexInput extends FilterIndexInput {
     private final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder;
@@ -97,5 +100,107 @@ public class StoreMetricsIndexInput extends FilterIndexInput {
                 return result;
             }
         };
+    }
+
+    @Override
+    public void prefetch(long offset, long length) throws IOException {
+        getDelegate().prefetch(offset, length);
+    }
+
+    @Override
+    public Optional<Boolean> isLoaded() {
+        return getDelegate().isLoaded();
+    }
+
+    @Override
+    public void updateIOContext(IOContext context) throws IOException {
+        getDelegate().updateIOContext(context);
+    }
+
+    @Override
+    public void readBytes(byte[] b, int offset, int len, boolean useBuffer) throws IOException {
+        getDelegate().readBytes(b, offset, len, useBuffer);
+        metricHolder.instance().addBytesRead(len);
+    }
+
+    @Override
+    public short readShort() throws IOException {
+        short result = getDelegate().readShort();
+        metricHolder.instance().addBytesRead(2);
+        return result;
+    }
+
+    @Override
+    public int readInt() throws IOException {
+        int result = getDelegate().readInt();
+        metricHolder.instance().addBytesRead(4);
+        return result;
+    }
+
+    @Override
+    public int readVInt() throws IOException {
+        // keep as is for now due to variable length
+        return super.readVInt();
+    }
+
+    @Override
+    public int readZInt() throws IOException {
+        // keep as is for now due to variable length
+        return super.readZInt();
+    }
+
+    @Override
+    public long readLong() throws IOException {
+        long result = getDelegate().readLong();
+        metricHolder.instance().addBytesRead(8);
+        return result;
+    }
+
+    @Override
+    public void readLongs(long[] dst, int offset, int length) throws IOException {
+        getDelegate().readLongs(dst, offset, length);
+        metricHolder.instance().addBytesRead(8L * length);
+    }
+
+    @Override
+    public void readInts(int[] dst, int offset, int length) throws IOException {
+        getDelegate().readInts(dst, offset, length);
+        metricHolder.instance().addBytesRead(4L * length);
+    }
+
+    @Override
+    public void readFloats(float[] floats, int offset, int len) throws IOException {
+        getDelegate().readFloats(floats, offset, len);
+        metricHolder.instance().addBytesRead(4L * len);
+    }
+
+    @Override
+    public long readVLong() throws IOException {
+        // keep as is for now due to variable length
+        return super.readVLong();
+    }
+
+    @Override
+    public long readZLong() throws IOException {
+        // keep as is for now due to variable length
+        return super.readZLong();
+    }
+
+    @Override
+    public String readString() throws IOException {
+        // keep as is for now due to variable length
+        return super.readString();
+    }
+
+    @Override
+    public Map<String, String> readMapOfStrings() throws IOException {
+        // keep as is for now due to variable length
+        return super.readMapOfStrings();
+    }
+
+    @Override
+    public Set<String> readSetOfStrings() throws IOException {
+        // keep as is for now due to variable length
+        return super.readSetOfStrings();
     }
 }

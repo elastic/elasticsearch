@@ -27,7 +27,7 @@ public class RuleHandlerBuilder<T, R> extends VoidRuleHandlerBuilder<T> {
 
     public ClassMethodBuilder<T> elseReturn(R defaultValue) {
         registry.registerRule(
-            new EntitlementRule(methodKey, checkMethod, new EntitlementHandler.DefaultValueEntitlementHandler<>(defaultValue))
+            new EntitlementRule(methodKey, checkMethod, new DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy<>(defaultValue))
         );
         return new ClassMethodBuilder<>(registry, clazz);
     }

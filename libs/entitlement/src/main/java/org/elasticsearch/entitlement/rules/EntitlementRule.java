@@ -13,4 +13,4 @@ import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.rules.function.CheckMethod;
 import org.elasticsearch.entitlement.rules.function.VarargCall;
 
-public record EntitlementRule(MethodKey methodKey, VarargCall<CheckMethod> checkMethod, EntitlementHandler handler) {}
+public record EntitlementRule(MethodKey methodKey, VarargCall<CheckMethod> checkMethod, DeniedEntitlementStrategy strategy) {}

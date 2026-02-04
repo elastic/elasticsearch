@@ -10,7 +10,7 @@
 package org.elasticsearch.entitlement.config;
 
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
-import org.elasticsearch.entitlement.rules.EntitlementHandler;
+import org.elasticsearch.entitlement.rules.DeniedEntitlementStrategy;
 import org.elasticsearch.entitlement.rules.EntitlementRule;
 import org.elasticsearch.entitlement.rules.Policies;
 import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
@@ -34,7 +34,7 @@ public class PathInstrumentation implements InstrumentationConfig {
                     }
                 }
                 return Policies.fileReadWithLinks(path, followLinks);
-            }, new EntitlementHandler.NotEntitledEntitlementHandler())
+            }, new DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy())
         );
 
         registry.registerRule(
@@ -44,7 +44,7 @@ public class PathInstrumentation implements InstrumentationConfig {
                     Path path = (Path) args[0];
                     return Policies.fileRead(path);
                 },
-                new EntitlementHandler.NotEntitledEntitlementHandler()
+                new DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy()
             )
         );
 
@@ -59,7 +59,7 @@ public class PathInstrumentation implements InstrumentationConfig {
                     Path path = (Path) args[0];
                     return Policies.fileRead(path);
                 },
-                new EntitlementHandler.NotEntitledEntitlementHandler()
+                new DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy()
             )
         );
     }

@@ -14,7 +14,7 @@ import org.elasticsearch.entitlement.bridge.NotEntitledException;
 import org.elasticsearch.entitlement.instrumentation.EntitlementInstrumented;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
-import org.elasticsearch.entitlement.rules.EntitlementHandler;
+import org.elasticsearch.entitlement.rules.DeniedEntitlementStrategy;
 import org.elasticsearch.entitlement.runtime.registry.InstrumentationInfo;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -277,7 +277,7 @@ public final class InstrumenterImpl implements Instrumenter {
         private final boolean instrumentedMethodIsCtor;
         private final String instrumentedMethodDescriptor;
         private final String instrumentationId;
-        private final EntitlementHandler entitlementHandler;
+        private final DeniedEntitlementStrategy strategy;
 
         private boolean hasCallerSensitiveAnnotation = false;
 
@@ -288,14 +288,14 @@ public final class InstrumenterImpl implements Instrumenter {
             boolean instrumentedMethodIsCtor,
             String instrumentedMethodDescriptor,
             String instrumentationId,
-            EntitlementHandler entitlementHandler
+            DeniedEntitlementStrategy strategy
         ) {
             super(api, methodVisitor);
             this.instrumentedMethodIsStatic = instrumentedMethodIsStatic;
             this.instrumentedMethodIsCtor = instrumentedMethodIsCtor;
             this.instrumentedMethodDescriptor = instrumentedMethodDescriptor;
             this.instrumentationId = instrumentationId;
-            this.entitlementHandler = entitlementHandler;
+            this.strategy = strategy;
         }
 
         @Override
@@ -312,8 +312,10 @@ public final class InstrumenterImpl implements Instrumenter {
             pushInstrumentationId();
             pushCallerClass();
             pushArguments();
-            if (entitlementHandler instanceof EntitlementHandler.DefaultValueEntitlementHandler) {
+            if (strategy instanceof DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy) {
                 catchNotEntitled();
+            } else if (strategy instanceof DeniedEntitlementStrategy.NoopDeniedEntitlementStrategy) {
+                catchNotEntitledAndReturnEarly();
             } else {
                 invokeInstrumentationMethod();
             }
@@ -437,6 +439,25 @@ public final class InstrumenterImpl implements Instrumenter {
         }
 
         private void catchNotEntitled() {
+            wrapInstrumentationInTryCatch(() -> {
+                if (strategy instanceof DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy<?> dve) {
+                    returnConstantValue(dve.getDefaultValue());
+                } else {
+                    throw new IllegalStateException("unexpected entitlement handler type [" + strategy.getClass() + "]");
+                }
+            });
+        }
+
+        private void catchNotEntitledAndReturnEarly() {
+            wrapInstrumentationInTryCatch(() -> {
+                // Pop the exception from the stack
+                mv.visitInsn(Opcodes.POP);
+                // Return immediately, making the method a no-op
+                mv.visitInsn(Opcodes.RETURN);
+            });
+        }
+
+        private void wrapInstrumentationInTryCatch(Runnable catchHandler) {
             Label tryStart = new Label();
             Label tryEnd = new Label();
             Label catchStart = new Label();
@@ -447,11 +468,7 @@ public final class InstrumenterImpl implements Instrumenter {
             mv.visitLabel(tryEnd);
             mv.visitJumpInsn(Opcodes.GOTO, catchEnd);
             mv.visitLabel(catchStart);
-            if (entitlementHandler instanceof EntitlementHandler.DefaultValueEntitlementHandler<?> dve) {
-                returnConstantValue(dve.getDefaultValue());
-            } else {
-                throw new IllegalStateException("unexpected entitlement handler type [" + entitlementHandler.getClass() + "]");
-            }
+            catchHandler.run();
             mv.visitLabel(catchEnd);
         }
 

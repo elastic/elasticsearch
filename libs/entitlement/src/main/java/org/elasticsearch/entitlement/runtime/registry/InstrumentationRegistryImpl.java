@@ -11,7 +11,7 @@ package org.elasticsearch.entitlement.runtime.registry;
 
 import org.elasticsearch.entitlement.bridge.NotEntitledException;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
-import org.elasticsearch.entitlement.rules.EntitlementHandler;
+import org.elasticsearch.entitlement.rules.DeniedEntitlementStrategy;
 import org.elasticsearch.entitlement.rules.EntitlementRule;
 import org.elasticsearch.entitlement.rules.function.CheckMethod;
 import org.elasticsearch.entitlement.rules.function.VarargCall;
@@ -25,7 +25,7 @@ import java.util.UUID;
 public class InstrumentationRegistryImpl implements InternalInstrumentationRegistry {
     private final PolicyChecker policyChecker;
     private final Map<MethodKey, InstrumentationInfo> methodToImplementationInfo = new HashMap<>();
-    private final Map<String, EntitlementHandler> implementationIdToHandler = new HashMap<>();
+    private final Map<String, DeniedEntitlementStrategy> implementationIdToStrategy = new HashMap<>();
     private final Map<String, VarargCall<CheckMethod>> implementationIdToProvider = new HashMap<>();
 
     public InstrumentationRegistryImpl(PolicyChecker policyChecker) {
@@ -35,12 +35,12 @@ public class InstrumentationRegistryImpl implements InternalInstrumentationRegis
     @Override
     public void check$(String instrumentationId, Class<?> callingClass, Object... args) throws Exception {
         CheckMethod checkMethod = implementationIdToProvider.get(instrumentationId).call(args);
-        EntitlementHandler entitlementHandler = implementationIdToHandler.get(instrumentationId);
-        if (entitlementHandler instanceof EntitlementHandler.ExceptionEntitlementHandler exceptionHandler) {
+        DeniedEntitlementStrategy strategy = implementationIdToStrategy.get(instrumentationId);
+        if (strategy instanceof DeniedEntitlementStrategy.ExceptionDeniedEntitlementStrategy exceptionStrategy) {
             try {
                 checkMethod.check(callingClass, policyChecker);
             } catch (NotEntitledException e) {
-                throw exceptionHandler.getExceptionSupplier().apply(e);
+                throw exceptionStrategy.getExceptionSupplier().apply(e);
             }
         } else {
             checkMethod.check(callingClass, policyChecker);
@@ -54,8 +54,8 @@ public class InstrumentationRegistryImpl implements InternalInstrumentationRegis
 
     public void registerRule(EntitlementRule rule) {
         String id = UUID.randomUUID().toString();
-        methodToImplementationInfo.put(rule.methodKey(), new InstrumentationInfo(id, rule.handler()));
-        implementationIdToHandler.put(id, rule.handler());
+        methodToImplementationInfo.put(rule.methodKey(), new InstrumentationInfo(id, rule.strategy()));
+        implementationIdToStrategy.put(id, rule.strategy());
         implementationIdToProvider.put(id, rule.checkMethod());
     }
 }

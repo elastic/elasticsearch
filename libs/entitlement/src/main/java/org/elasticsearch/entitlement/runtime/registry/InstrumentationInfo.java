@@ -9,6 +9,6 @@
 
 package org.elasticsearch.entitlement.runtime.registry;
 
-import org.elasticsearch.entitlement.rules.EntitlementHandler;
+import org.elasticsearch.entitlement.rules.DeniedEntitlementStrategy;
 
-public record InstrumentationInfo(String instrumentationId, EntitlementHandler handler) {}
+public record InstrumentationInfo(String instrumentationId, DeniedEntitlementStrategy handler) {}

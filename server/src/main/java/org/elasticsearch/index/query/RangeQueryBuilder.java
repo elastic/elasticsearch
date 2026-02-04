@@ -388,13 +388,19 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                         } else {
                             throw new ParsingException(
                                 parser.getTokenLocation(),
-                                "[range] query does not support [" + currentFieldName + "]"
+                                ParsingErrorHelper.unsupportedFieldMessage("range", currentFieldName, 
+                                    ParsingErrorHelper.CommonFields.RANGE_QUERY_FIELDS)
                             );
                         }
                     }
                 }
             } else if (token.isValue()) {
-                throw new ParsingException(parser.getTokenLocation(), "[range] query does not support [" + currentFieldName + "]");
+                String suggestion = ParsingErrorHelper.getJsonStructureSuggestion(token, "range query field");
+                String errorMsg = ParsingErrorHelper.unsupportedFieldMessage("range", currentFieldName, null);
+                if (suggestion != null) {
+                    errorMsg = errorMsg + ". " + suggestion;
+                }
+                throw new ParsingException(parser.getTokenLocation(), errorMsg);
             }
         }
 

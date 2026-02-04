@@ -9,11 +9,11 @@
 package org.elasticsearch.gradle.internal;
 
 import org.gradle.api.DefaultTask;
+import org.gradle.api.internal.file.FileOperations;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.OutputDirectory;
-import org.gradle.api.tasks.PathSensitive;
-import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.initialization.layout.BuildLayout;
 import org.gradle.internal.file.Chmod;
 
 import java.io.File;
@@ -42,15 +42,20 @@ public class EmptyDirTask extends DefaultTask {
         throw new UnsupportedOperationException();
     }
 
+    @Inject
+    public BuildLayout getBuildLayout() {
+        throw new UnsupportedOperationException();
+    }
+
     @OutputDirectory
-    @PathSensitive(PathSensitivity.RELATIVE)
     public File getDir() {
         return dir;
     }
 
     @Input
     public String getDirPath() {
-        return dir.getPath();
+        // ensure @Input is stable by returning path relative to root project
+        return getBuildLayout().getRootDirectory().toPath().relativize(dir.toPath()).toString();
     }
 
     /**

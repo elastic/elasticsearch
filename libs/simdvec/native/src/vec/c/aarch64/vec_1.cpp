@@ -253,6 +253,87 @@ EXPORT void vec_sqr7u_bulk_offsets(
     sqr7u_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 
+// --- byte vectors
+
+EXPORT f32_t vec_dotByte(const int8_t* a, const int8_t* b, const int32_t elementCount) {
+    int32_t result = 0;
+    for (int i=0; i<elementCount; i++) {
+        result += a[i] * b[i];
+    }
+    return (f32_t)result;
+}
+
+template <int64_t(*mapper)(int32_t, const int32_t*)>
+static inline void dotByte_inner_bulk(
+    const int8_t* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results
+) {
+    for (int c=0; c<count; c++) {
+        const int8_t* a0 = a + mapper(c, offsets) * pitch;
+        results[c] = vec_dotByte(a0, b, dims);
+    }
+}
+
+EXPORT void vec_dotByte_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
+    dotByte_inner_bulk<identity_mapper>(a, b, dims, dims, NULL, count, results);
+}
+
+EXPORT void vec_dotByte_bulk_offsets(
+    const int8_t* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results) {
+    dotByte_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
+}
+
+EXPORT f32_t vec_sqrByte(const int8_t* a, const int8_t* b, const int32_t elementCount) {
+    int32_t result = 0;
+    for (int i=0; i<elementCount; i++) {
+        int diff = a[i] - b[i];
+        result += diff * diff;
+    }
+    return (f32_t)result;
+}
+
+template <int64_t(*mapper)(int32_t, const int32_t*)>
+static inline void sqrByte_inner_bulk(
+    const int8_t* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results
+) {
+    for (int c=0; c<count; c++) {
+        const int8_t* a0 = a + mapper(c, offsets) * pitch;
+        results[c] = vec_sqrByte(a0, b, dims);
+    }
+}
+
+EXPORT void vec_sqrByte_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
+    sqrByte_inner_bulk<identity_mapper>(a, b, dims, dims, NULL, count, results);
+}
+
+EXPORT void vec_sqrByte_bulk_offsets(
+    const int8_t* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results) {
+    sqrByte_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
+}
+
 // --- single precision floats
 
 // const f32_t* a  pointer to the first float vector

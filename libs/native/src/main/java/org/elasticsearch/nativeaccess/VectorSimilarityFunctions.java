@@ -37,6 +37,10 @@ public interface VectorSimilarityFunctions {
          */
         INT7(Byte.BYTES),
         /**
+         * 1-byte int. Single vector score returns results as a float.
+         */
+        BYTE(Byte.BYTES),
+        /**
          * 4-byte float. Single vector score returns results as a float.
          */
         FLOAT32(Float.BYTES);

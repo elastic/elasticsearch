@@ -366,6 +366,7 @@ with no change to the API.
 ## Knn query with vector lookup
 ```{applies_to}
 stack: ga 9.4+
+```
 
 Elasticsearch supports knn queries with a vector that is stored within an index.
 

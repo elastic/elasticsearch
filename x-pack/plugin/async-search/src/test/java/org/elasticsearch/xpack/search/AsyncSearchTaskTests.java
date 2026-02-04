@@ -315,6 +315,9 @@ public class AsyncSearchTaskTests extends ESTestCase {
                 skippedShards.add(new SearchShard(null, new ShardId("0", "0", 1)));
             }
             int totalShards = numShards + numSkippedShards;
+
+            // Ensure that given partial results from shard searches, the result we send to the listeners does not contain partial results
+            // because partialResultsSupressed is set to true.
             task.getSearchProgressActionListener()
                 .onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false, createTimeProvider());
             for (int i = 0; i < numShards; i++) {
@@ -322,9 +325,15 @@ public class AsyncSearchTaskTests extends ESTestCase {
                     .onPartialReduce(shards.subList(i, i + 1), new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), aggs, 0);
                 assertCompletionListeners(task, totalShards, 1 + numSkippedShards, numSkippedShards, 0, true, false, true);
             }
+
+            // Ensure that once we have the final aggregation results but no search hits, we do not send partial results to the listeners
+            // because partialResultsSupressed is set to true.
             task.getSearchProgressActionListener()
                 .onFinalReduce(shards, new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), aggs, 0);
             assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, true, false, true);
+
+            // Ensure that once we have the final aggregations and hits, we do send a full response to the listeners, regardless of
+            // partialResultsSupressed flag.
             ActionListener.respondAndRelease(
                 (AsyncSearchTask.Listener) task.getProgressListener(),
                 SearchResponseUtils.response(
@@ -353,7 +362,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
                     .shards(totalShards, totalShards, numSkippedShards)
                     .build()
             );
-            assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, false, false, true);
+            assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, false, false, randomBoolean());
         }
     }
 

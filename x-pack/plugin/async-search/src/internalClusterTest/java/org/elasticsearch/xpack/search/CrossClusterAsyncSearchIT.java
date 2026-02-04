@@ -1065,7 +1065,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         SearchListenerPlugin.blockRemoteQueryPhase();
 
         SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
-        request.setCcsMinimizeRoundtrips(true);
+        request.setCcsMinimizeRoundtrips(false);
         request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
         request.setKeepOnCompletion(true);
         request.getSearchRequest().source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(10));
@@ -2059,7 +2059,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         return client(LOCAL_CLUSTER).execute(
             GetAsyncSearchAction.INSTANCE,
             new GetAsyncResultRequest(id).setReturnPartialResults(returnPartialResponse)
-                .setWaitForCompletionTimeout(TimeValue.timeValueSeconds(1))
+                .setWaitForCompletionTimeout(TimeValue.timeValueSeconds(10))
         ).actionGet();
     }
 

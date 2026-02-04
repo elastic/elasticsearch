@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.QuadFunction;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
@@ -185,26 +186,4 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
         }));
     }
 
-    /**
-     * Represents a function that accepts four arguments and produces a result.
-     *
-     * @param <S> the type of the first argument
-     * @param <T> the type of the second argument
-     * @param <U> the type of the third argument
-     * @param <V> the type of the fourth argument
-     * @param <R> the return type
-     */
-    @FunctionalInterface
-    public interface QuadFunction<S, T, U, V, R> {
-        /**
-         * Applies this function to the given arguments.
-         *
-         * @param s the first function argument
-         * @param t the second function argument
-         * @param u the third function argument
-         * @param v the fourth function argument
-         * @return the result
-         */
-        R apply(S s, T t, U u, V v);
-    }
 }

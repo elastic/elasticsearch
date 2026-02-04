@@ -24,7 +24,7 @@ public class PrometheusPlugin extends Plugin {
 
     public static final FeatureFlag PROMETHEUS_FEATURE_FLAG = new FeatureFlag("prometheus");
 
-    // PROMETHEUS_REGISTRY_ENABLED controls enabling the index template registry.
+    // Controls enabling the index template registry.
     // This setting will be ignored if the plugin is disabled.
     static final Setting<Boolean> PROMETHEUS_REGISTRY_ENABLED = Setting.boolSetting(
         "xpack.prometheus.registry.enabled",

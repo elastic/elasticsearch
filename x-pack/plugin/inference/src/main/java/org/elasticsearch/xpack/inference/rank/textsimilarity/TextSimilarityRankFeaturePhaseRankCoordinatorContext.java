@@ -82,12 +82,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
                     }
                     l2.onResponse(originalScores);
                 } else {
-                    final float[] scores;
-                    if (resolvedChunkScorerConfig != null) {
-                        scores = extractScoresFromRankedChunks(rankedDocs, featureDocs);
-                    } else {
-                        scores = extractScoresFromRankedDocs(rankedDocs);
-                    }
+                    final float[] scores = extractScoresFromRankedDocs(rankedDocs, featureDocs);
 
                     // Ensure we get exactly as many final scores as the number of docs we passed, otherwise we may return incorrect results
                     if (scores.length != featureDocs.length) {
@@ -202,32 +197,28 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         );
     }
 
-    float[] extractScoresFromRankedDocs(List<RankedDocsResults.RankedDoc> rankedDocs) {
-        float[] scores = new float[rankedDocs.size()];
-        for (RankedDocsResults.RankedDoc rankedDoc : rankedDocs) {
-            scores[rankedDoc.index()] = rankedDoc.relevanceScore();
-        }
-        return scores;
-    }
-
-    float[] extractScoresFromRankedChunks(List<RankedDocsResults.RankedDoc> rankedDocs, RankFeatureDoc[] featureDocs) {
+    static float[] extractScoresFromRankedDocs(List<RankedDocsResults.RankedDoc> rankedDocs, RankFeatureDoc[] featureDocs) {
         float[] scores = new float[featureDocs.length];
         boolean[] hasScore = new boolean[featureDocs.length];
 
-        // We need to correlate the index/doc values of each RankedDoc in correlation with its associated RankFeatureDoc.
-        // TODO: Optimize this
-        int[] rankedDocToFeatureDoc = Arrays.stream(featureDocs)
-            .flatMapToInt(
-                doc -> java.util.stream.IntStream.generate(() -> Arrays.asList(featureDocs).indexOf(doc)).limit(doc.featureData.size())
-            )
-            .limit(rankedDocs.size())
-            .toArray();
+        // Feature docs can be composed of multiple features (when chunking is applied, for instance), each of which is transformed into a
+        // separate ranked doc by the reranker service. Build a data structure that allows us to map the ranked doc index to the feature
+        // doc index. An array-backed list works for this purpose. The list index serves as the ranked doc index and the value serves as the
+        // feature doc index.
+        List<Integer> rankedDocToFeatureDoc = new ArrayList<>();
+        for (int i = 0; i < featureDocs.length; i++) {
+            RankFeatureDoc featureDoc = featureDocs[i];
+            for (int j = 0; j < featureDoc.featureData.size(); j++) {
+                rankedDocToFeatureDoc.add(i);
+            }
+        }
 
         for (RankedDocsResults.RankedDoc rankedDoc : rankedDocs) {
-            int docId = rankedDocToFeatureDoc[rankedDoc.index()];
+            int featureDocIndex = rankedDocToFeatureDoc.get(rankedDoc.index());
             float score = rankedDoc.relevanceScore();
-            scores[docId] = hasScore[docId] == false ? score : Math.max(scores[docId], score);
-            hasScore[docId] = true;
+
+            scores[featureDocIndex] = hasScore[featureDocIndex] == false ? score : Math.max(scores[featureDocIndex], score);
+            hasScore[featureDocIndex] = true;
         }
 
         float[] result = new float[featureDocs.length];

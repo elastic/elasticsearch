@@ -119,8 +119,7 @@ public class DocumentParserContextTests extends ESTestCase {
             .endObject()
             .endObject()
             .endObject();
-        var documentMapper = new MapperServiceTestCase() {
-        }.createDocumentMapper(mapping);
+        var documentMapper = new MapperServiceTestCase() {}.createDocumentMapper(mapping);
         var parserContext = new TestDocumentParserContext(documentMapper.mappers(), null);
         parserContext.path().add("foo");
 

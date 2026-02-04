@@ -203,8 +203,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     private void initMapping() throws IOException {
-        mapperService = new MapperServiceTestCase() {
-        }.createMapperService(MapperServiceTestCase.mapping(b -> {
+        mapperService = new MapperServiceTestCase() {}.createMapperService(MapperServiceTestCase.mapping(b -> {
             fieldExamples(b, "key", "integer");
             fieldExamples(b, "int", "integer");
             fieldExamples(b, "short", "short");
@@ -1466,8 +1465,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     public void testWithNulls() throws IOException {
-        mapperService = new MapperServiceTestCase() {
-        }.createMapperService(MapperServiceTestCase.mapping(b -> {
+        mapperService = new MapperServiceTestCase() {}.createMapperService(MapperServiceTestCase.mapping(b -> {
             fieldExamples(b, "i", "integer");
             fieldExamples(b, "j", "long");
             fieldExamples(b, "d", "double");

@@ -11,7 +11,6 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 
 import java.util.Set;

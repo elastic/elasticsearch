@@ -2,6 +2,7 @@ setup:
   - requires:
       cluster_features: ["gte_v8.5.0"]
       reason: "rollup renamed to downsample in 8.5.0"
+      test_runner_features: allowed_warnings
 
   - do:
       indices.create:
@@ -305,6 +306,8 @@ setup:
       reason: _tsid hashing introduced in 8.13
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test
         target_index: test-downsample
@@ -686,6 +689,8 @@ setup:
           index.blocks.write: true
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: no-metric-index
         target_index: test-downsample-no-metric
@@ -777,6 +782,8 @@ setup:
           index.blocks.write: true
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: no-metric-no-label-index
         target_index: test-downsample-no-metric-no-label
@@ -814,6 +821,8 @@ setup:
       reason: _tsid hashing introduced in 8.13
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test
         target_index: test-downsample
@@ -824,6 +833,8 @@ setup:
   - is_true: acknowledged
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-downsample
         target_index: test-downsample-2
@@ -891,6 +902,8 @@ setup:
   - match: { hits.hits.2._source._doc_count: 2 }
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-downsample
         target_index: test-downsample-3
@@ -907,6 +920,8 @@ setup:
       reason: "Rollup of rollups introduced in 8.5.0"
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test
         target_index: test-downsample
@@ -957,6 +972,8 @@ setup:
       reason: Last value sampling method was added in 9.3
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test
         target_index: test-downsample-default
@@ -1016,6 +1033,8 @@ setup:
       reason: _tsid hashing introduced in 8.13
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-histogram
         target_index: test-downsample-histogram
@@ -1173,6 +1192,8 @@ setup:
   - is_true: acknowledged
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-timestamp
         target_index: test-downsample-timestamp
@@ -1276,6 +1297,8 @@ setup:
   - is_true: acknowledged
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-timestamp
         target_index: test-downsample-timestamp
@@ -1379,6 +1402,8 @@ setup:
   - is_true: acknowledged
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-timestamp-daily
         target_index: test-downsample-timestamp-hourly
@@ -1431,6 +1456,8 @@ setup:
       reason: _tsid hashing introduced in 8.13
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-object
         target_index: test-downsample-object
@@ -1499,6 +1526,8 @@ setup:
       reason: _tsid hashing introduced in 8.13
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-empty-missing
         target_index: test-downsample-empty-missing
@@ -1621,6 +1650,8 @@ setup:
           index.blocks.write: true
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-label-ignore-above
         target_index: test-downsample-label-ignore-above
@@ -1741,6 +1772,8 @@ setup:
           index.blocks.write: true
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-empty-dim
         target_index: test-empty-dim-downsample
@@ -1824,6 +1857,8 @@ setup:
           index.blocks.write: true
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-empty-dim-routing
         target_index: test-empty-dim-routing-downsample

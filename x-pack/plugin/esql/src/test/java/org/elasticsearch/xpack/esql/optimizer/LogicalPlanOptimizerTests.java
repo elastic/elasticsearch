@@ -11046,4 +11046,66 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.names(agg.groupings()), contains("a"));
         as(agg.child(), LocalRelation.class);
     }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/141879")
+    public void testTranslateMetricsWithAliasToDimensionInGroup() {
+        var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery("""
+            TS k8s |
+            STATS max(max_over_time(network.bytes_in)) by p = pod, bucket(@timestamp, 1 minute)
+            """)));
+
+        // Project[[max(max_over_time(network.bytes_in)){r}#420, pod{r}#426, bucket(@timestamp, 1 minute){r}#418]]
+        var project = as(plan, Project.class);
+        // Eval[[UNPACKDIMENSION(group_pod_$1{r}#454) AS pod#426]]
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        var unpackAlias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(unpackAlias.name(), equalTo("pod"));
+        var unpack = as(unpackAlias.child(), UnpackDimension.class);
+        var unpackField = as(unpack.field(), ReferenceAttribute.class);
+        assertThat(unpackField.name(), equalTo("group_pod_$1"));
+        // Limit[1000000[INTEGER],false,false]
+        var limit = as(eval.child(), Limit.class);
+        // Aggregate[[pack_pod_$1{r}#453,
+        // bucket(@timestamp, 1 minute){r}#418],
+        // [MAX(MAXOVERTIME_$1{r}#451,true[BOOLEAN],PT0S[TIME_DURATION]) AS max(max_over_time(network.bytes_in))#420,
+        // pack_pod_$1{r}#453 AS group_pod_$1#454,
+        // bucket(@timestamp, 1 minute){r}#418 AS bucket(@timestamp, 1 minute)#418]]
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertThat(aggregate.groupings(), hasSize(2));
+        assertThat(aggregate.aggregates(), hasSize(3));
+        as(Alias.unwrap(aggregate.aggregates().get(0)), Max.class);
+        var podAlias = as(aggregate.aggregates().get(1), Alias.class);
+        var podAttribute = as(podAlias.child(), ReferenceAttribute.class);
+        assertThat(podAttribute.name(), equalTo("pack_pod_$1"));
+        assertThat(aggregate.groupings().get(0), is(podAttribute));
+        var bucket = as(Alias.unwrap(aggregate.aggregates().get(2)), ReferenceAttribute.class);
+        assertThat(aggregate.groupings().get(1), is(bucket));
+
+        // Eval[[PACKDIMENSION(pod{r}#452) AS pack_pod_$1#453]]
+        var eval2 = as(aggregate.child(), Eval.class);
+        assertThat(eval2.fields(), hasSize(1));
+        var packAlias = as(eval2.fields().getFirst(), Alias.class);
+        assertThat(packAlias.name(), equalTo("pack_pod_$1"));
+        var pack = as(packAlias.child(), PackDimension.class);
+        var packField = as(pack.field(), ReferenceAttribute.class);
+        assertThat(packField.name(), equalTo("pod"));
+
+        // TimeSeriesAggregate[[_tsid{m}#450,
+        // bucket(@timestamp, 1 minute){r}#418],
+        // [MAX(network.bytes_in{f}#438,true[BOOLEAN],PT0S[TIME_DURATION]) AS MAXOVERTIME_$1#451,
+        // DIMENSIONVALUES(pod{f}#426,true[BOOLEAN],PT0S[TIME_DURATION]) AS pod#452,
+        // bucket(@timestamp, 1 minute){r}#418],
+        // BUCKET(@timestamp{f}#424,PT1M[TIME_DURATION]),@timestamp{f}#424]
+        var timeSeriesAggregate = as(eval2.child(), TimeSeriesAggregate.class);
+        assertThat(timeSeriesAggregate.groupings(), hasSize(2));
+        assertThat(timeSeriesAggregate.aggregates(), hasSize(3));
+        var dimensionValues = as(Alias.unwrap(timeSeriesAggregate.aggregates().get(1)), DimensionValues.class);
+        assertThat(Expressions.attribute(dimensionValues.field()).name(), equalTo("pod"));
+
+        // Eval[[BUCKET(@timestamp{f}#424,PT1M[TIME_DURATION]) AS bucket(@timestamp, 1 minute)#418]]
+        var eval3 = as(timeSeriesAggregate.child(), Eval.class);
+        // EsRelation[k8s][@timestamp{f}#424, client.ip{f}#428, cluster{f}#425, ..]
+        as(eval3.child(), EsRelation.class);
+    }
 }

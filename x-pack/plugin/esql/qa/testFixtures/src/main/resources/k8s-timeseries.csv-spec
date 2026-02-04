@@ -1113,3 +1113,29 @@ min:double | std_dev:double | pod:keyword
 715.0      | 208.6955678    | three
 602.0      | 375.7757842    | two
 ;
+
+GroupingOnScalarFunction
+required_capability: ts_command_v0
+required_capability: ts_command_group_on_aliases
+TS k8s
+| STATS m = max(max_over_time(network.cost)) by pod = to_upper(pod), bucket = bucket(@timestamp,5minute)
+| sort bucket, pod
+;
+
+m:double | pod:keyword | bucket:datetime
+11.0     | ONE         | 2024-05-10T00:00:00.000Z
+12.125   | THREE       | 2024-05-10T00:00:00.000Z
+12.375   | TWO         | 2024-05-10T00:00:00.000Z
+12.375   | ONE         | 2024-05-10T00:05:00.000Z
+11.5     | THREE       | 2024-05-10T00:05:00.000Z
+12.5     | TWO         | 2024-05-10T00:05:00.000Z
+11.875   | ONE         | 2024-05-10T00:10:00.000Z
+11.625   | THREE       | 2024-05-10T00:10:00.000Z
+7.75     | TWO         | 2024-05-10T00:10:00.000Z
+12.125   | ONE         | 2024-05-10T00:15:00.000Z
+12.375   | THREE       | 2024-05-10T00:15:00.000Z
+11.5     | TWO         | 2024-05-10T00:15:00.000Z
+11.875   | ONE         | 2024-05-10T00:20:00.000Z
+10.875   | THREE       | 2024-05-10T00:20:00.000Z
+10.75    | TWO         | 2024-05-10T00:20:00.000Z
+;

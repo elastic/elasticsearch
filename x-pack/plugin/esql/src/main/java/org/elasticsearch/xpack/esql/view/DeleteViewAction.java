@@ -30,7 +30,7 @@ public class DeleteViewAction extends ActionType<AcknowledgedResponse> {
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.builder()
         .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
-        .wildcardOptions(IndicesOptions.WildcardOptions.builder().allowEmptyExpressions(true).resolveViews(true).build())
+        .wildcardOptions(IndicesOptions.WildcardOptions.builder().resolveViews(true).build())
         .build();
 
     private DeleteViewAction() {

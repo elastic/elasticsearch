@@ -37,7 +37,7 @@ The reference documentation includes the following resources:
 
 * [**Language specification:**](/reference/scripting-languages/painless/painless-language-specification.md) syntax, operators, data types, and compilation semantics
 * [**Contexts:**](/reference/scripting-languages/painless/painless-contexts.md) Execution environments, available variables, and context-specific APIs  
-* [**API examples:**](/reference/scripting-languages/painless/painless-api-examples.md) Examples of how to run the Painless execute API to build and test scripts.
-* **Debugging & Troubleshooting:** Debugging techniques, common errors, and solutions
+* [**API examples:**](/reference/scripting-languages/painless/painless-api-examples.md) Examples of how to run the Painless execute API to build and test scripts
+* [**Debugging:**](docs-content://explore-analyze/scripting/painless-debugging.md) Debugging techniques, common errors, and solutions
 
 For step-by-step tutorials and real-world examples, refer to [How to write Painless scripts](docs-content://explore-analyze/scripting/modules-scripting-using.md) and [Painless script tutorials](docs-content://explore-analyze/scripting/common-script-uses.md) in the Explore and Analyze section.

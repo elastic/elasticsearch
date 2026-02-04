@@ -122,10 +122,8 @@ public final class ShardBulkSplitHelper {
                 for (BulkItemResponse bulkItemResponse : responseTuple.v1().getResponses()) {
                     itemResponsesById.put(bulkItemResponse.getItemId(), bulkItemResponse);
                 }
-                failed.addAndGet(responseTuple.v1().getShardInfo().getFailed());
-                successful.addAndGet(responseTuple.v1().getShardInfo().getSuccessful());
-                total.addAndGet(responseTuple.v1().getShardInfo().getTotal());
-                Collections.addAll(failures, responseTuple.v1().getShardInfo().getFailures());
+                successful.addAndGet(1);
+                total.addAndGet(1);
             }
         });
         BulkItemRequest[] originalItemRequests = originalRequest.items();

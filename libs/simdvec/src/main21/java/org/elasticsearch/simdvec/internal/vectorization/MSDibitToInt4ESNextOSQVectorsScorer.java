@@ -398,7 +398,20 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
             }
         }
         if (limit < bulkSize) {
-            // TODO
+            // missing vectors to score
+            maxScore = scoreTailIndividually(
+                queryAdditionalCorrection,
+                similarityFunction,
+                centroidDp,
+                scores,
+                bulkSize,
+                limit,
+                offset,
+                ay,
+                ly,
+                y1,
+                maxScore
+            );
         }
         in.seek(offset + 16L * bulkSize);
         return maxScore;

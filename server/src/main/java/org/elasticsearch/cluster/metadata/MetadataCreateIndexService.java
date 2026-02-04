@@ -155,6 +155,7 @@ public class MetadataCreateIndexService {
     public static final Setting<Integer> CLUSTER_MAX_INDICES_PER_PROJECT_SETTING = Setting.intSetting(
         "cluster.max_indices_per_project",
         Integer.MAX_VALUE,
+        0,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

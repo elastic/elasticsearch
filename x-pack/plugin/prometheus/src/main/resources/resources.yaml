@@ -3,6 +3,6 @@
 # to be updated on Elasticsearch upgrade.
 version: 1
 component-templates:
-  - prometheus@mappings
+  - metrics-prometheus@mappings
 index-templates:
   - metrics-prometheus@template

@@ -30,24 +30,16 @@ import static org.hamcrest.Matchers.containsString;
 
 public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
 
-    private final VectorSimilarityFunctions.DataType type;
-    private final byte indexBits;
-    private static final byte queryBits = 4;
+    private final VectorSimilarityFunctions.BBQType type;
 
     private final byte maxQueryValue;
     private final byte maxIndexValue;
 
-    public JDKVectorLibraryInt4Tests(
-        VectorSimilarityFunctions.DataType type,
-        byte indexBits,
-        VectorSimilarityFunctions.Function function,
-        int size
-    ) {
+    public JDKVectorLibraryInt4Tests(VectorSimilarityFunctions.BBQType type, VectorSimilarityFunctions.Function function, int size) {
         super(function, size);
         this.type = type;
-        this.indexBits = indexBits;
-        this.maxQueryValue = (1 << queryBits) - 1;
-        this.maxIndexValue = (byte) ((1 << indexBits) - 1);
+        this.maxQueryValue = (byte) ((1 << type.queryBits()) - 1);
+        this.maxIndexValue = (byte) ((1 << type.dataBits()) - 1);
     }
 
     @ParametersFactory
@@ -59,12 +51,10 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
         baseParams.removeIf(os -> os[0] == VectorSimilarityFunctions.Function.SQUARE_DISTANCE);
 
         // duplicate for int1 & int2
-        return () -> Stream.concat(
-            baseParams.stream()
-                .map(os -> CollectionUtils.concatLists(List.of(VectorSimilarityFunctions.DataType.I1I4, (byte) 1), Arrays.asList(os))),
-            baseParams.stream()
-                .map(os -> CollectionUtils.concatLists(List.of(VectorSimilarityFunctions.DataType.I2I4, (byte) 2), Arrays.asList(os)))
-        ).map(List::toArray).iterator();
+        return () -> Stream.of(VectorSimilarityFunctions.BBQType.values())
+            .flatMap(bbq -> baseParams.stream().map(os -> CollectionUtils.concatLists(List.of(bbq), Arrays.asList(os))))
+            .map(List::toArray)
+            .iterator();
     }
 
     @BeforeClass
@@ -82,8 +72,8 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
         final int dims = size;
         final int numVecs = randomIntBetween(2, 101);
 
-        final int indexVectorBytes = numBytes(dims, indexBits);
-        final int queryVectorBytes = numBytes(dims, queryBits);
+        final int indexVectorBytes = numBytes(dims, type.dataBits());
+        final int queryVectorBytes = numBytes(dims, type.queryBits());
 
         var unpackedIndexVectors = new byte[numVecs][dims];
         var unpackedQueryVectors = new byte[numVecs][dims];
@@ -99,8 +89,8 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
             randomBytesBetween(unpackedIndexVectors[i], (byte) 0, maxIndexValue);
             randomBytesBetween(unpackedQueryVectors[i], (byte) 0, maxQueryValue);
 
-            pack(unpackedIndexVectors[i], indexVectors[i], indexBits);
-            pack(unpackedQueryVectors[i], queryVectors[i], queryBits);
+            pack(unpackedIndexVectors[i], indexVectors[i], type.dataBits());
+            pack(unpackedQueryVectors[i], queryVectors[i], type.queryBits());
 
             MemorySegment.copy(indexVectors[i], 0, indexSegment, ValueLayout.JAVA_BYTE, (long) i * indexVectorBytes, indexVectorBytes);
             MemorySegment.copy(queryVectors[i], 0, querySegment, ValueLayout.JAVA_BYTE, (long) i * queryVectorBytes, queryVectorBytes);
@@ -154,12 +144,12 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
         return new TestOffsets(offsets, offsetsSegment);
     }
 
-    static TestData createTestData(final int numVecs, final int dims, final byte indexBits, final long extraData) {
-        final byte maxQueryValue = (1 << queryBits) - 1;
-        final byte maxIndexValue = (byte) ((1 << indexBits) - 1);
+    static TestData createTestData(final int numVecs, final int dims, final VectorSimilarityFunctions.BBQType type, final long extraData) {
+        final byte maxIndexValue = (byte) ((1 << type.dataBits()) - 1);
+        final byte maxQueryValue = (byte) ((1 << type.queryBits()) - 1);
 
-        final int indexVectorBytes = numBytes(dims, indexBits);
-        final int queryVectorBytes = numBytes(dims, queryBits);
+        final int indexVectorBytes = numBytes(dims, type.dataBits());
+        final int queryVectorBytes = numBytes(dims, type.queryBits());
 
         var unpackedIndexVectors = new byte[numVecs][dims];
         var unpackedQueryVector = new byte[dims];
@@ -174,12 +164,12 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
         var querySegment = arena.allocate(queryVectorBytes);
 
         randomBytesBetween(unpackedQueryVector, (byte) 0, maxQueryValue);
-        pack(unpackedQueryVector, queryVector, queryBits);
+        pack(unpackedQueryVector, queryVector, type.queryBits());
         MemorySegment.copy(queryVector, 0, querySegment, ValueLayout.JAVA_BYTE, 0L, queryVectorBytes);
 
         for (int i = 0; i < numVecs; i++) {
             randomBytesBetween(unpackedIndexVectors[i], (byte) 0, maxIndexValue);
-            pack(unpackedIndexVectors[i], indexVectors[i], indexBits);
+            pack(unpackedIndexVectors[i], indexVectors[i], type.dataBits());
             MemorySegment.copy(indexVectors[i], 0, indexSegment, ValueLayout.JAVA_BYTE, (long) i * indexLineLength, indexVectorBytes);
         }
 
@@ -194,15 +184,15 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
         );
     }
 
-    static TestData createTestData(final int numVecs, final int dims, final byte indexBits) {
-        return createTestData(numVecs, dims, indexBits, 0);
+    static TestData createTestData(final int numVecs, final int dims, final VectorSimilarityFunctions.BBQType type) {
+        return createTestData(numVecs, dims, type, 0);
     }
 
     public void testInt4Bulk() {
         assumeTrue(notSupportedMsg(), supported());
 
         final int numVecs = randomIntBetween(2, 101);
-        final TestData testData = createTestData(numVecs, size, indexBits);
+        final TestData testData = createTestData(numVecs, size, type);
 
         float[] expectedScores = new float[numVecs];
         scalarSimilarityBulk(testData.unpackedQueryVector, testData.unpackedIndexVectors, expectedScores);
@@ -228,7 +218,7 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
         assumeTrue(notSupportedMsg(), supported());
 
         final int numVecs = randomIntBetween(2, 101);
-        final TestData testData = createTestData(numVecs, size, indexBits);
+        final TestData testData = createTestData(numVecs, size, type);
         final TestOffsets testOffsets = createTestOffsets(numVecs);
 
         float[] expectedScores = new float[numVecs];
@@ -253,7 +243,7 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
 
         final int numVecs = randomIntBetween(2, 101);
 
-        final TestData testData = createTestData(numVecs, size, indexBits, Float.BYTES);
+        final TestData testData = createTestData(numVecs, size, type, Float.BYTES);
         final TestOffsets testOffsets = createTestOffsets(numVecs);
 
         float[] expectedScores = new float[numVecs];
@@ -280,7 +270,7 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
 
         final int numVecs = randomIntBetween(2, 101);
 
-        final TestData testData = createTestData(numVecs, size, indexBits);
+        final TestData testData = createTestData(numVecs, size, type);
         final TestOffsets testOffsets = createTestOffsets(numVecs);
 
         float[] expectedScores = new float[numVecs];

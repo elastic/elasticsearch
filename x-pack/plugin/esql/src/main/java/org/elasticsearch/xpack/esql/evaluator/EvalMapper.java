@@ -84,12 +84,15 @@ public final class EvalMapper {
                 }
             });
         }
+
         for (ExpressionMapper em : MAPPERS) {
             if (em.typeToken.isInstance(exp)) {
                 return em.map(foldCtx, exp, layout, shardContexts);
             }
         }
-        throw new QlIllegalArgumentException("Unsupported expression [{}]", exp);
+
+        // Corrected error: use String.format or plain concatenation
+        throw new QlIllegalArgumentException("Unsupported expression [" + exp + "]");
     }
 
     static class BooleanLogic extends ExpressionMapper<BinaryLogic> {

@@ -35,7 +35,7 @@ Painless scripts are parsed and compiled using the [ANTLR4](https://www.antlr.or
 
 ```mermaid
 flowchart LR
-    A[Painless Script] --> B[ANTLR4 & ASM parsing & compilation]
+    A[Painless Script] --> B[ANTLR4 & ASM<br/>parsing & compilation]
     B --> C[JVM Bytecode] 
     C --> D[Standard JVM execution]
     

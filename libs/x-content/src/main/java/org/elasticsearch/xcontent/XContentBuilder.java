@@ -1231,6 +1231,17 @@ public final class XContentBuilder implements Closeable, Flushable {
     }
 
     /**
+     * Writes source as a value. It will be converted to the appropriate type in case the source content type
+     * is not the same as the builder content type, otherwise it will be copied as is
+     *
+     * @param sourceString raw source as a string
+     */
+    public XContentBuilder rawSource(String sourceString) throws IOException {
+        generator.writeSource(sourceString);
+        return this;
+    }
+
+    /**
      * Copies current event from parser into this builder.
      * The difference with {@link XContentBuilder#copyCurrentStructure(XContentParser)}
      * is that this method does not copy sub-objects as a single entity.

@@ -18,11 +18,11 @@ setup:
           - '{"index": {}}'
           - '{"metric": {"sum": 10000.45, "value_count": 100} }'
           - '{"index": {}}'
-          - '{"metric": {"sum": 60, "value_count": 20} }'
+          - '{"metric": {"sum": 60, "value_count": 3} }'
           - '{"index": {}}'
           - '{"metric": {"sum": -400.50, "value_count": 1000} }'
           - '{"index": {}}'
-          - '{"metric": {"sum": 1, "value_count": 20} }'
+          - '{"metric": {"sum": 80, "value_count": 4} }'
           - '{"index": {}}'
           - '{"metric": {"sum": -100, "value_count": 40} }'
 ---
@@ -42,13 +42,17 @@ setup:
                 field: metric
 
   - match: { hits.total.value: 5 }
-  - match: { aggregations.sum_agg.value: 9560.95}
+  - match: { aggregations.sum_agg.value: 9639.95}
 
 ---
 "Test sum agg with query":
   - requires:
-      cluster_features: ["gte_v7.11.0"]
-      reason: "Aggregate metric fields have been added in 7.11"
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ aggregate_metric_double_defaults_to_average ]
+      test_runner_features: capabilities
+      reason: "Aggregate metric double fields use average as default since 9.4"
 
   - do:
       search:
@@ -65,4 +69,4 @@ setup:
                 field: metric
 
   - match: { hits.total.value: 2 }
-  - match: { aggregations.sum_agg.value: 61}
+  - match: { aggregations.sum_agg.value: 140}

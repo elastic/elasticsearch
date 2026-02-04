@@ -47,8 +47,12 @@ setup:
 ---
 "Test avg agg with query":
   - requires:
-      cluster_features: ["gte_v7.11.0"]
-      reason: "Aggregate metric fields have been added in 7.11"
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ aggregate_metric_double_defaults_to_average ]
+      test_runner_features: capabilities
+      reason: "Aggregate metric double fields use average as default since 9.4"
 
   - do:
       search:
@@ -56,9 +60,10 @@ setup:
         size: 0
         body:
           query:
-            term:
+            range:
               metric:
-                value: 20
+                gte: 2
+                lte: 3
           aggs:
             avg_agg:
               avg:

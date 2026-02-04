@@ -58,8 +58,12 @@
 ---
 "Test term query on aggregate metric field":
   - requires:
-      cluster_features: ["gte_v7.11.0"]
-      reason: "Aggregate metric fields have been added in 7.11"
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ aggregate_metric_double_defaults_to_average ]
+      test_runner_features: capabilities
+      reason: "Aggregate metric double fields use average as default since 9.4"
 
   - do:
       indices.create:
@@ -69,7 +73,7 @@
             properties:
               metric:
                 type: aggregate_metric_double
-                metrics: [min, max]
+                metrics: [min, max, sum, value_count]
                 default_metric: max
 
   - do:
@@ -80,6 +84,8 @@
           metric:
             min: 18.2
             max: 100
+            sum: 10000
+            value_count: 10
         refresh: true
 
   - do:
@@ -90,6 +96,8 @@
           metric:
             min: 50
             max: 1000
+            sum: 10000
+            value_count: 100
         refresh: true
 
   - do:
@@ -103,7 +111,7 @@
 
   - match: { hits.total.value: 1 }
   - length: { hits.hits: 1 }
-  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.0._id: "1" }
 
   - do:
       search:
@@ -116,7 +124,7 @@
 
   - match: { hits.total.value: 1 }
   - length: { hits.hits: 1 }
-  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._id: "2" }
 
 
   - do:
@@ -134,8 +142,12 @@
 ---
 "Test range query on aggregate metric field":
   - requires:
-      cluster_features: ["gte_v7.11.0"]
-      reason: "Aggregate metric fields have been added in 7.11"
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ aggregate_metric_double_defaults_to_average ]
+      test_runner_features: capabilities
+      reason: "Aggregate metric double fields use average as default since 9.4"
 
   - do:
       indices.create:
@@ -145,7 +157,7 @@
             properties:
               metric:
                 type: aggregate_metric_double
-                metrics: [min, max]
+                metrics: [min, max, sum, value_count]
                 default_metric: max
 
   - do:
@@ -156,6 +168,8 @@
           metric:
             min: 18.2
             max: 100
+            sum: 10000
+            value_count: 10
         refresh: true
 
   - do:
@@ -166,6 +180,8 @@
           metric:
             min: 50
             max: 1000
+            sum: 10000
+            value_count: 100
         refresh: true
 
   - do:
@@ -180,7 +196,7 @@
 
   - match: { hits.total.value: 1 }
   - length: { hits.hits: 1 }
-  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.0._id: "1" }
 
   - do:
       search:
@@ -194,7 +210,7 @@
 
   - match: { hits.total.value: 1 }
   - length: { hits.hits: 1 }
-  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._id: "2" }
 
   - do:
       search:

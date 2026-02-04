@@ -203,8 +203,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 supportsTDigestField(),
                 supportsHistogramDataType(),
                 supportsBFloat16ElementType(),
-                supportsTDigestFieldAsMetric(),
-                supportsAmdAvgMetric()
+                supportsTDigestFieldAsMetric()
             );
             return null;
         });
@@ -370,13 +369,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected boolean supportsBFloat16ElementType() {
         return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT.capabilityName()));
-    }
-
-    protected boolean supportsAmdAvgMetric() {
-        return RestEsqlTestCase.hasCapabilities(
-            client(),
-            List.of(EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_AVG_AS_DEFAULT_METRIC.capabilityName())
-        );
     }
 
     protected void doTest() throws Throwable {

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -45,11 +46,8 @@ public class SumTests extends AbstractAggregationTestCase {
             // MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
             MultiRowTestCaseSupplier.aggregateMetricDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE),
             MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100),
-            MultiRowTestCaseSupplier.tdigestCases(1, 100)
-
-            // Doubles currently return +/-Infinity on overflow.
-            // Restore after https://github.com/elastic/elasticsearch/issues/111026
-            // MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true)
+            MultiRowTestCaseSupplier.tdigestCases(1, 100),
+            MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true)
         ).flatMap(List::stream).map(SumTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         suppliers.addAll(
@@ -119,23 +117,37 @@ public class SumTests extends AbstractAggregationTestCase {
                 expected = switch (type) {
                     case INTEGER -> data.stream().mapToLong(v -> (int) v).sum();
                     case LONG -> data.stream().mapToLong(v -> (long) v).reduce(0L, Math::addExact);
-                    case DOUBLE -> {
-                        var value = data.stream().mapToDouble(v -> (double) v).sum();
-
-                        if (Double.isInfinite(value) || Double.isNaN(value)) {
-                            yield null;
-                        }
-
-                        yield value;
-                    }
+                    case DOUBLE -> data.stream().mapToDouble(v -> (double) v).sum();
                     case AGGREGATE_METRIC_DOUBLE -> data.stream()
                         .mapToDouble(v -> ((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) v).sum())
                         .sum();
-                    case EXPONENTIAL_HISTOGRAM -> data.stream().mapToDouble(obj -> ((ExponentialHistogram) obj).sum()).sum();
-                    case TDIGEST -> data.stream().mapToDouble(obj -> ((TDigestHolder) obj).getSum()).sum();
+                    case EXPONENTIAL_HISTOGRAM -> {
+                        var sums = data.stream()
+                            .map(obj -> (ExponentialHistogram) obj)
+                            .filter(obj -> obj.valueCount() > 0)
+                            .mapToDouble(ExponentialHistogram::sum)
+                            .toArray();
+                        yield sums.length == 0 ? null : Arrays.stream(sums).sum();
+                    }
+                    case TDIGEST -> {
+                        var sums = data.stream()
+                            .map(obj -> (TDigestHolder) obj)
+                            .filter(obj -> obj.getValueCount() > 0)
+                            .mapToDouble(TDigestHolder::getSum)
+                            .toArray();
+                        yield sums.length == 0 ? null : Arrays.stream(sums).sum();
+                    }
                     default -> throw new IllegalStateException("Unexpected value: " + fieldTypedData.type());
                 };
             }
+
+            // Doubles currently return +/-Infinity on overflow.
+            // After https://github.com/elastic/elasticsearch/issues/111026,
+            // replace it with an "if + expected = null"
+            assumeFalse(
+                "Sums of doubles may return infinity in their current implementation",
+                expected instanceof Double d && Double.isFinite(d) == false
+            );
 
             var returnType = type.isWholeNumber() == false || type == UNSIGNED_LONG ? DataType.DOUBLE : DataType.LONG;
 

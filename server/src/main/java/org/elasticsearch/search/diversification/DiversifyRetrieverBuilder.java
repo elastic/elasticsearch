@@ -40,6 +40,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -523,6 +524,19 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
                 return new VectorData(unboxedByteArray(boxedByteArray));
             }
             default -> {
+            }
+        }
+
+        // could be an array list... let's make sure
+        if (fieldValue instanceof ArrayList<?> asArrayList && asArrayList.isEmpty() == false) {
+            Object firstElement = asArrayList.getFirst();
+            if (firstElement instanceof Float asFloat) {
+                var asFloatArray = asArrayList.toArray(new Float[0]);
+                return new VectorData(unboxedFloatArray(asFloatArray));
+            }
+            if (firstElement instanceof Byte) {
+                var asByteArray = asArrayList.toArray(new Byte[0]);
+                return new VectorData(unboxedByteArray(asByteArray));
             }
         }
 

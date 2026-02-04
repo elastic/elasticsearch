@@ -40,7 +40,7 @@ public class ScoreScriptTests extends ESSingleNodeTestCase {
         contexts.put(ScoreScript.CONTEXT, whitelists);
         PainlessScriptEngine service = new PainlessScriptEngine(Settings.EMPTY, contexts);
 
-        SearchExecutionContext searchExecutionContext = index.newSearchExecutionContext(0, 0, null, () -> 0, null, emptyMap());
+        SearchExecutionContext searchExecutionContext = index.newSearchExecutionContext(0, 0, null, () -> 0, null, emptyMap(), null, null);
 
         ScoreScript.Factory factory = service.compile(null, "1.2", ScoreScript.CONTEXT, Collections.emptyMap());
         ScoreScript.LeafFactory ss = factory.newFactory(Collections.emptyMap(), searchExecutionContext.lookup());

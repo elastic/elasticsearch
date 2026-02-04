@@ -12,6 +12,18 @@ If you are migrating from a version prior to version 9.0, you must first upgrade
 
 % ## Next version [elasticsearch-nextversion-breaking-changes]
 
+## 9.3.0 [elasticsearch-9.3.0-breaking-changes]
+```{applies_to}
+stack: ga 9.3.0
+```
+
+Mapping:
+* Implement native synthetic source for normalized keywords [#136915](https://github.com/elastic/elasticsearch/pull/136915)
+
+Search:
+* Disable cross-cluster functionality for `_fleet/_fleet_msearch` [#136703](https://github.com/elastic/elasticsearch/pull/136703)
+* Disable cross-cluster functionality for `_fleet/_fleet_search` [#136039](https://github.com/elastic/elasticsearch/pull/136039)
+
 ## 9.2.5 [elasticsearch-9.2.5-breaking-changes]
 ```{applies_to}
 stack: ga 9.2.5

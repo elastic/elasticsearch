@@ -298,7 +298,7 @@ s:keyword | ip:ip
 ;
 
 convertFromStringLeadingZerosInvalidIpAddress
-required_capability: to_ip_leading_zeros
+required_capability: fix_to_ip_leading_zeros_octal
 ROW 
   input = "192.400.168.1"
 | EVAL octal = TO_IP(input, {"leading_zeros":"octal"})

@@ -25,8 +25,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.SourceOperatorTestCase;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.hamcrest.Matcher;
@@ -179,7 +179,7 @@ public class TimeSeriesSourceOperatorTests extends SourceOperatorTestCase {
             TimeValue.timeValueNanos(1),
             () -> {}
         );
-        OperatorTestCase.runDriver(driver);
+        new TestDriverRunner().run(driver);
         // assertThat(lastSliceIndex.get(), equalTo(numShards * 3 - 1));
     }
 }

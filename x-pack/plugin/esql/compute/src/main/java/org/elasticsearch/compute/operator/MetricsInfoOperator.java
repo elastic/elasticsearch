@@ -23,38 +23,47 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Operator for METRICS_INFO command.
- * The METRICS_INFO command returns one row per metric that matches all conditions and attaches metadata to it.
- * In cases where the same metric is defined with different properties in different indices, the same metric may appear twice in the output.
+ * Operator for the ESQL {@code METRICS_INFO} command.
  * <p>
- * This operator expects deduplicated input (one row per _tsid) from upstream DistinctByOperator.
- * It directly aggregates metrics during addInput() without tracking _tsid.
- * <p>
- * Output columns:
- * - metric_name: keyword (single-valued)
- * - data_stream: keyword (multi-valued) - data streams that have this metric with this unit
- * - unit: keyword (single-valued for this row, can be null)
- * - metric_type: keyword (multi-valued if conflicts within data streams)
- * - field_type: keyword (multi-valued if conflicts within data streams)
- * - dimension_fields: keyword (multi-valued) - union of all dimension keys
+ * Returns one row per metric that matches all conditions and attaches metadata to it.
+ * Expects deduplicated input (one row per {@code _tsid}) from upstream {@link DistinctByOperator}.
+ * Aggregates metrics during {@link #addInput(Page)} without tracking {@code _tsid}.
+ *
+ * <h2>Output columns</h2>
+ * <ul>
+ *   <li>{@code metric_name} – keyword (single-valued)</li>
+ *   <li>{@code data_stream} – keyword (multi-valued); indices/data streams that have this metric</li>
+ *   <li>{@code unit} – keyword (multi-valued if different backing indices have different units; may be null)</li>
+ *   <li>{@code metric_type} – keyword (multi-valued if conflicts within data streams)</li>
+ *   <li>{@code field_type} – keyword (multi-valued if conflicts within data streams)</li>
+ *   <li>{@code dimension_fields} – keyword (multi-valued); union of all dimension keys</li>
+ * </ul>
  */
 public class MetricsInfoOperator implements Operator {
 
     /**
-     * Functional interface for looking up metric field metadata on-demand.
-     * This allows the operator to query mapping information without depending on index mapper classes.
+     * Looks up metric field metadata on demand.
+     * Allows the operator to query mapping information without depending on index mapper classes.
      */
     @FunctionalInterface
     public interface MetricFieldLookup {
         /**
-         * Look up metric field info for a given index and field name.
+         * Looks up metric field info for a given index and field name.
+         *
          * @param indexName the index name
          * @param fieldName the field name (metric name)
-         * @return MetricFieldInfo if the field is a metric, null otherwise
+         * @return {@link MetricFieldInfo} if the field is a metric, {@code null} otherwise
          */
         MetricFieldInfo lookup(String indexName, String fieldName);
     }
 
+    /**
+     * Factory for creating {@link MetricsInfoOperator} instances.
+     *
+     * @param fieldLookup          on-demand lookup for metric field metadata
+     * @param metadataSourceChannel channel index for {@code _timeseries_metadata} block
+     * @param indexChannel         channel index for {@code _index} block
+     */
     public record Factory(MetricFieldLookup fieldLookup, int metadataSourceChannel, int indexChannel) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
@@ -67,21 +76,23 @@ public class MetricsInfoOperator implements Operator {
         }
     }
 
-    /**
-     * Key for grouping metrics: (metric_name, unit).
-     * Metrics with same name but different units are separate rows.
-     */
-    private record MetricKey(String name, String unit) {}
-
     private final BlockFactory blockFactory;
     private final MetricFieldLookup fieldLookup;
     private final int metadataSourceChannel;
     private final int indexChannel;
 
-    private final Map<MetricKey, MetricInfo> metricsByKey = new LinkedHashMap<>();
+    private final Map<String, MetricInfo> metricsByKey = new LinkedHashMap<>();
     private boolean finished = false;
     private boolean outputProduced = false;
 
+    /**
+     * Creates a METRICS_INFO operator.
+     *
+     * @param blockFactory         factory for building output blocks
+     * @param fieldLookup          on-demand lookup for metric field metadata
+     * @param metadataSourceChannel channel index for {@code _timeseries_metadata} block (-1 if absent)
+     * @param indexChannel         channel index for {@code _index} block (-1 if absent)
+     */
     public MetricsInfoOperator(BlockFactory blockFactory, MetricFieldLookup fieldLookup, int metadataSourceChannel, int indexChannel) {
         this.blockFactory = blockFactory;
         this.fieldLookup = fieldLookup;
@@ -131,10 +142,12 @@ public class MetricsInfoOperator implements Operator {
             } else {
                 MetricFieldInfo fieldInfo = fieldLookup.lookup(indexName, key);
                 if (fieldInfo != null) {
-                    MetricKey metricKey = new MetricKey(fieldInfo.name(), fieldInfo.unit());
-                    MetricInfo info = metricsByKey.computeIfAbsent(metricKey, k -> new MetricInfo(k.name(), k.unit()));
+                    MetricInfo info = metricsByKey.computeIfAbsent(fieldInfo.name(), MetricInfo::new);
 
                     info.dataStreams.add(indexName);
+                    if (fieldInfo.unit() != null) {
+                        info.units.add(fieldInfo.unit());
+                    }
                     if (fieldInfo.fieldType() != null) {
                         info.fieldTypes.add(fieldInfo.fieldType());
                     }
@@ -216,14 +229,10 @@ public class MetricsInfoOperator implements Operator {
                 blocks[1] = dsBuilder.build();
             }
 
-            // Build unit column (single-valued keyword, can be null)
+            // Build unit column (multi-valued if different backing indices have different units)
             try (BytesRefBlock.Builder unitBuilder = blockFactory.newBytesRefBlockBuilder(rowCount)) {
                 for (MetricInfo metric : metrics) {
-                    if (metric.unit == null) {
-                        unitBuilder.appendNull();
-                    } else {
-                        unitBuilder.appendBytesRef(new BytesRef(metric.unit));
-                    }
+                    appendMultiValued(unitBuilder, metric.units);
                 }
                 blocks[2] = unitBuilder.build();
             }
@@ -275,15 +284,14 @@ public class MetricsInfoOperator implements Operator {
 
     private static class MetricInfo {
         final String name;
-        final String unit;
+        final Set<String> units = new HashSet<>();
         final Set<String> dataStreams = new HashSet<>();
         final Set<String> metricTypes = new HashSet<>();
         final Set<String> fieldTypes = new HashSet<>();
         final Set<String> dimensionFieldKeys = new HashSet<>();
 
-        MetricInfo(String name, String unit) {
+        MetricInfo(String name) {
             this.name = name;
-            this.unit = unit;
         }
     }
 

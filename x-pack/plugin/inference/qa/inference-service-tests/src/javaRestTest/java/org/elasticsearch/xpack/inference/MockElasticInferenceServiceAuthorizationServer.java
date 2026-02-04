@@ -74,12 +74,10 @@ public class MockElasticInferenceServiceAuthorizationServer implements TestRule 
      */
     public void enqueuePreconfiguredEndpointResponseWithRequestReceivedCallback(AtomicBoolean requestReceived) {
         var authResponseBody = getEisElserAuthorizationResponse(getUrl()).responseJson();
-        webServer.enqueue(
-            new MockResponse().setResponseCode(200).setBody((MockRequest request) -> {
-                requestReceived.set(true);
-                return authResponseBody;
-            })
-        );
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody((MockRequest request) -> {
+            requestReceived.set(true);
+            return authResponseBody;
+        }));
     }
 
     public void enqueueAuthorizeAllModelsResponse() {

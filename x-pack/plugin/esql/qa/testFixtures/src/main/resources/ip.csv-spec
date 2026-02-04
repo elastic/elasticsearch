@@ -297,6 +297,23 @@ s:keyword | ip:ip
 // end::to_ip_leading_zeros_octal-result[]
 ;
 
+convertFromStringLeadingZerosInvalidIpAddress
+required_capability: fix_to_ip_leading_zeros_octal
+ROW 
+  input = "192.400.168.1"
+| EVAL octal = TO_IP(input, {"leading_zeros":"octal"})
+| EVAL decimal = TO_IP(input, {"leading_zeros":"decimal"})
+| EVAL reject = TO_IP(input, {"leading_zeros":"reject"})
+;
+warningRegex:evaluation of \[TO_IP\(input, \{\\\"leading_zeros\\\":\\\"octal\\\"\}\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:evaluation of \[TO_IP\(input, \{\\\"leading_zeros\\\":\\\"decimal\\\"\}\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:evaluation of \[TO_IP\(input, \{\\\"leading_zeros\\\":\\\"reject\\\"\}\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: '192.400.168.1' is not an IP string literal.
+
+input:keyword | octal:ip | decimal:ip | reject:ip
+192.400.168.1 | null     | null       | null
+;
+
 convertFromStringFancy
 required_capability: to_ip_leading_zeros
 FROM logs

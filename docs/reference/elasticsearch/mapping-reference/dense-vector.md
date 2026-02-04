@@ -328,11 +328,6 @@ PUT my-bbq-disk-index
 
 When indexing `float` vectors, the current default index type is `bbq_hnsw` for vectors with greater than or equal to 384 dimensions, otherwise it's `int8_hnsw`.
 
-
-:::{note}
-In {{stack}} 9.0, dense vector fields are always indexed as `int8_hnsw`.
-:::
-
 Quantized vectors can use [oversampling and rescoring](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) to improve accuracy on approximate kNN search results.
 
 ::::{note}

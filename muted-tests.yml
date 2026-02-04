@@ -368,6 +368,9 @@ tests:
 - class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
   method: testOptionalLengthReaderSparseToLengthValues
   issue: https://github.com/elastic/elasticsearch/issues/141853
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=esql/50_index_patterns/disjoint_mappings}
+  issue: https://github.com/elastic/elasticsearch/issues/141856
 
 # Examples:
 #

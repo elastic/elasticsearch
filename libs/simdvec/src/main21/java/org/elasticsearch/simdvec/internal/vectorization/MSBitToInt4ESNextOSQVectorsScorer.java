@@ -412,7 +412,8 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
                             queryAdditionalCorrection,
                             similarityFunction,
                             centroidDp,
-                            scoresSegment
+                            scoresSegment,
+                            bulkSize
                         );
                     } else {
                         try (var arena = Arena.ofConfined()) {

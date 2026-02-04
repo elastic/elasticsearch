@@ -81,7 +81,7 @@ Double-click to expand the image.
 
 ```mermaid
 flowchart TD
-  A[Painless Scripts] --> B[Dev Tools Console]
+  A[Painless Scripts] --> B[Dev Tools Console <a href='http://google.com'>test link</a>]]
   link B "docs-content://explore-analyze/query-filter/tools/console.md" _blank
   A --> C[Ingest Pipelines]
   link C "https://www.elastic.co/docs/manage-data/ingest/transform-enrich/ingest-pipelines" "Elasticsearch Ingest Pipelines"

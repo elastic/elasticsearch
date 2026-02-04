@@ -613,11 +613,16 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             List<Operator> intermediateOperators = lookupQueryPlan.operators();
 
             // Stage 2: Start batch processing with the operators
-            startServerWithOperators(server, lookupQueryPlan, intermediateOperators, serverReleasables);
-
-            // Server is ready - send response with optional plan string
-            // Response will be released by the transport layer after sending
-            listener.onResponse(new LookupResponse(List.of(), blockFactory, planString));
+            // The response will be sent after the remote sink connection is ready
+            // This ensures the client doesn't send pages before the server can receive them
+            startServerWithOperators(
+                server,
+                lookupQueryPlan,
+                intermediateOperators,
+                serverReleasables,
+                ActionListener.wrap(listener::onResponse, listener::onFailure),
+                planString
+            );
             started = true;
         } catch (Exception e) {
             listener.onFailure(e);
@@ -660,19 +665,32 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     /**
      * Starts the exchange server with the generated operators.
      * This method can be overridden in tests to capture the plan without actually starting the server.
+     *
+     * @param server the exchange server
+     * @param lookupQueryPlan the lookup query plan
+     * @param intermediateOperators the operators to execute
+     * @param releasables resources to release when done
+     * @param responseListener listener to call when server is ready (remote sink connected)
+     * @param planString optional plan string for profiling
      */
     protected void startServerWithOperators(
         BidirectionalBatchExchangeServer server,
         LookupQueryPlan lookupQueryPlan,
         List<Operator> intermediateOperators,
-        Releasable releasables
+        Releasable releasables,
+        ActionListener<LookupResponse> responseListener,
+        @Nullable String planString
     ) throws Exception {
         server.startWithOperators(
             lookupQueryPlan.driverContext(),
             transportService.getThreadPool().getThreadContext(),
             intermediateOperators,
             clusterService.getClusterName().value(),
-            releasables
+            releasables,
+            ActionListener.wrap(
+                ignored -> responseListener.onResponse(new LookupResponse(List.of(), blockFactory, planString)),
+                responseListener::onFailure
+            )
         );
     }
 

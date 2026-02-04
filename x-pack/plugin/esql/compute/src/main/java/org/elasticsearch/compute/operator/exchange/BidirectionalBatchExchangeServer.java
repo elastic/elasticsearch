@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
@@ -71,11 +72,12 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
                                                                                        // should be closed when driver finishes or server
                                                                                        // closes
     private volatile boolean closing = false; // Flag to prevent recursive close if server is part of the releasable
+    private final SubscribableListener<Void> remoteSinkReady = new SubscribableListener<>(); // Signals when remote sink connection is ready
 
     /**
      * Create a new BidirectionalBatchExchangeServer with explicit exchange IDs.
      * This is stage 1: creates the server and source handler.
-     * Call {@link #startWithOperators(DriverContext, ThreadContext, List, String, Releasable)} to complete setup.
+     * Call {@link #startWithOperators(DriverContext, ThreadContext, List, String, Releasable, ActionListener)} to complete setup.
      *
      * @param sessionId session ID for the driver (used for logging)
      * @param clientToServerId explicit client-to-server exchange ID (per-server unique)
@@ -132,6 +134,8 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
      * @param threadContext thread context for starting the driver
      * @param intermediateOperators intermediate operators to execute
      * @param clusterName cluster name
+     * @param releasable releasable resources
+     * @param readyListener listener called when the server is ready to receive pages (remote sink connected)
      * @throws Exception if starting fails
      */
     public void startWithOperators(
@@ -139,9 +143,11 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         ThreadContext threadContext,
         List<Operator> intermediateOperators,
         String clusterName,
-        Releasable releasable
+        Releasable releasable,
+        ActionListener<Void> readyListener
     ) throws Exception {
         startBatchProcessing(driverContext, threadContext, intermediateOperators, clusterName, TimeValue.timeValueSeconds(1), releasable);
+        remoteSinkReady.addListener(readyListener);
     }
 
     /**
@@ -437,7 +443,15 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         );
         connectRemoteSink(clientNode, clientToServerId, clientToServerSourceHandler, ActionListener.wrap(nullValue -> {
             logger.debug("[LookupJoinServer] Client-to-server exchange sink connection completed successfully");
-        }, failure -> logger.error("[LookupJoinServer] Client-to-server exchange sink connection failed", failure)), "client sink handler");
+        }, failure -> { logger.error("[LookupJoinServer] Client-to-server exchange sink connection failed", failure); }),
+            "client sink handler"
+        );
+        // Signal that the remote sink has been added to the source handler.
+        // At this point, outstandingSinks >= 1, so the buffer won't report isFinished() = true
+        // until the actual fetch completes. This prevents the race where the driver starts
+        // before the fetch is registered.
+        remoteSinkReady.onResponse(null);
+        logger.debug("[LookupJoinServer] Remote sink added, signaling ready");
         // Create sink operator that writes to server-to-client exchange
         serverToClientSinkOperator = new ExchangeSinkOperator(serverToClientSink);
         ExchangeSinkOperator baseSinkOperator = serverToClientSinkOperator;

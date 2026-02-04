@@ -74,6 +74,11 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     private final AtomicInteger startedBatchCount = new AtomicInteger(0);
     private final AtomicInteger completedBatchCount = new AtomicInteger(0);
 
+    // Track pending server connections to prevent finishing client-to-server exchanges prematurely
+    // This ensures servers can't finish before all server connections are established
+    private final AtomicInteger pendingServerConnections = new AtomicInteger(0);
+    private volatile boolean finishRequested = false;
+
     // Server setup callback - called lazily when first page is sent to a server
     private final ServerSetupCallback serverSetupCallback;
 
@@ -162,6 +167,9 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
      */
     private ServerConnection getOrCreateServerConnection(DiscoveryNode serverNode) {
         return serverConnections.computeIfAbsent(serverNode.getId(), nodeId -> {
+            // Increment pending connections to prevent finishing client-to-server exchanges
+            // until this connection is fully established (addRemoteSink called)
+            pendingServerConnections.incrementAndGet();
             ServerConnection conn = new ServerConnection(serverNode, sessionId);
             initializeServerConnection(conn);
             return conn;
@@ -204,11 +212,27 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                 conn.setupReadyListener.onResponse(null);
             } catch (Exception e) {
                 logger.error("[LookupJoinClient] Server setup callback failed for node={}: {}", conn.serverNode.getId(), e.getMessage());
+                // Decrement pending connections so finish() can proceed
+                int remaining = pendingServerConnections.decrementAndGet();
+                logger.debug("[LookupJoinClient] Server setup callback failed, remaining pending={}", remaining);
+                if (remaining == 0 && finishRequested) {
+                    synchronized (sendFinishLock) {
+                        doFinish();
+                    }
+                }
                 handleFailure("server setup callback for " + conn.serverNode.getId(), e);
                 conn.setupReadyListener.onFailure(e);
             }
         }, e -> {
             logger.error("[LookupJoinClient] Server setup failed for node={}: {}", conn.serverNode.getId(), e.getMessage());
+            // Decrement pending connections so finish() can proceed
+            int remaining = pendingServerConnections.decrementAndGet();
+            logger.debug("[LookupJoinClient] Server setup failed, remaining pending={}", remaining);
+            if (remaining == 0 && finishRequested) {
+                synchronized (sendFinishLock) {
+                    doFinish();
+                }
+            }
             handleFailure("server setup for " + conn.serverNode.getId(), e);
             conn.setupReadyListener.onFailure(e);
         }));
@@ -228,6 +252,22 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         connectRemoteSink(conn.serverNode, serverToClientId, serverToClientSourceHandler, ActionListener.wrap(nullValue -> {
             // Success - no action needed
         }, failure -> { handleFailure("server-to-client exchange for " + conn.serverNode.getId(), failure); }), "server sink handler");
+
+        // Connection is now established (addRemoteSink was called synchronously in connectRemoteSink)
+        // Decrement pending connections and check if finish was requested
+        int remaining = pendingServerConnections.decrementAndGet();
+        logger.debug(
+            "[LookupJoinClient] Server connection established for node={}, remaining pending={}",
+            conn.serverNode.getId(),
+            remaining
+        );
+        if (remaining == 0 && finishRequested) {
+            // All connections established and finish was requested - now we can finish
+            logger.debug("[LookupJoinClient] All pending connections established, executing deferred finish");
+            synchronized (sendFinishLock) {
+                doFinish();
+            }
+        }
 
         // Send batch exchange status request
         sendBatchExchangeStatusRequest(conn);
@@ -329,6 +369,15 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
      */
     public boolean hasFailed() {
         return failureRef.get() != null;
+    }
+
+    /**
+     * Get the number of server connections established.
+     * Used for testing to verify multi-server distribution.
+     * @return the number of distinct servers this client has connected to
+     */
+    public int getServerConnectionCount() {
+        return serverConnections.size();
     }
 
     /**
@@ -495,18 +544,42 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
 
     /**
      * Finish all client-to-server exchanges (no more batches will be sent to any server).
+     * <p>
+     * If there are pending server connections (setup request sent but connection not yet established),
+     * this method will defer finishing until all connections are established. This prevents servers
+     * from finishing prematurely, which would cause the server-to-client exchange to close before
+     * all server connections are added.
      */
     public void finish() {
         synchronized (sendFinishLock) {
-            for (ServerConnection conn : serverConnections.values()) {
-                if (conn.clientToServerSink != null && conn.clientToServerSink.isFinished() == false && conn.finished == false) {
-                    logger.debug(
-                        "[LookupJoinClient] Finishing client-to-server exchange for node={} (no more batches will be sent)",
-                        conn.serverNode.getId()
-                    );
-                    conn.clientToServerSink.finish();
-                    conn.finished = true;
-                }
+            finishRequested = true;
+            if (pendingServerConnections.get() > 0) {
+                // Don't finish yet - wait for all pending connections to be established
+                // The last connection to establish will call doFinish()
+                logger.debug("[LookupJoinClient] Deferring finish, pending server connections={}", pendingServerConnections.get());
+                return;
+            }
+            doFinish();
+        }
+    }
+
+    /**
+     * Actually finish all client-to-server exchanges.
+     * Called from finish() when no connections are pending, or from connectToServerSink() when
+     * the last pending connection is established and finish was previously requested.
+     * <p>
+     * MUST be called while holding sendFinishLock.
+     */
+    private void doFinish() {
+        assert Thread.holdsLock(sendFinishLock) : "doFinish must be called while holding sendFinishLock";
+        for (ServerConnection conn : serverConnections.values()) {
+            if (conn.clientToServerSink != null && conn.clientToServerSink.isFinished() == false && conn.finished == false) {
+                logger.debug(
+                    "[LookupJoinClient] Finishing client-to-server exchange for node={} (no more batches will be sent)",
+                    conn.serverNode.getId()
+                );
+                conn.clientToServerSink.finish();
+                conn.finished = true;
             }
         }
     }

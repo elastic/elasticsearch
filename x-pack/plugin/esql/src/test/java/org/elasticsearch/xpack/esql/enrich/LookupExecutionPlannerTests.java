@@ -135,11 +135,15 @@ public class LookupExecutionPlannerTests extends ESTestCase {
             BidirectionalBatchExchangeServer server,
             LookupQueryPlan lookupQueryPlan,
             List<Operator> intermediateOperators,
-            Releasable releasables
+            Releasable releasables,
+            ActionListener<LookupResponse> responseListener,
+            String planString
         ) {
             // Capture the plan instead of starting the server
             this.capturedPlan = lookupQueryPlan;
             // Don't call super - we don't want to actually start the server in tests
+            // Signal ready immediately for test purposes
+            responseListener.onResponse(new LookupResponse(List.of(), blockFactory, planString));
         }
 
         @Override

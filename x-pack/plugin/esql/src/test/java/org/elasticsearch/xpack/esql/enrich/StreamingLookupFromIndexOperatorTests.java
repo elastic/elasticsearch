@@ -17,15 +17,30 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -49,29 +64,32 @@ import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.indices.CrankyCircuitBreakerService;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.test.transport.MockTransport;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -81,9 +99,11 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.plan.PlanWritables;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -103,7 +123,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -119,38 +138,39 @@ import static org.mockito.Mockito.mock;
     reason = "debugging streaming lookup performance"
 )
 public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
+    private static final String MULTI_NODE = "multiNode";
+    private static final String SINGLE_NODE = "singleNode";
     private static final int LOOKUP_SIZE = 1000;
     private static final int LESS_THAN_VALUE = 40;
     private final ThreadPool threadPool = threadPool();
     private final Directory lookupIndexDirectory = newDirectory();
     private final List<Releasable> releasables = new ArrayList<>();
     private final boolean applyRightFilterAsJoinOnFilter;
+    private final boolean useMultiNode;
     private int numberOfJoinColumns;
     private EsqlBinaryComparison.BinaryComparisonOperation operation;
 
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
-        List<Object[]> operations = new ArrayList<>();
-        operations.add(new Object[] { null });
+        List<Object[]> params = new ArrayList<>();
+        params.add(new Object[] { null, MULTI_NODE });
+        params.add(new Object[] { null, SINGLE_NODE });
         if (EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()) {
             for (EsqlBinaryComparison.BinaryComparisonOperation operation : EsqlBinaryComparison.BinaryComparisonOperation.values()) {
                 // we skip NEQ because there are too many matches and the test can timeout
                 if (operation != EsqlBinaryComparison.BinaryComparisonOperation.NEQ) {
-                    operations.add(new Object[] { operation });
+                    params.add(new Object[] { operation, MULTI_NODE });
+                    params.add(new Object[] { operation, SINGLE_NODE });
                 }
             }
         }
-
-        // Add 100 instances of GTE (temporary to test failing scenario)
-        // for (int i = 0; i < 100; i++) {
-        // operations.add(new Object[] { EsqlBinaryComparison.BinaryComparisonOperation.GTE });
-        // }
-        return operations;
+        return params;
     }
 
-    public StreamingLookupFromIndexOperatorTests(EsqlBinaryComparison.BinaryComparisonOperation operation) {
+    public StreamingLookupFromIndexOperatorTests(EsqlBinaryComparison.BinaryComparisonOperation operation, String nodeMode) {
         super();
         this.operation = operation;
+        this.useMultiNode = MULTI_NODE.equals(nodeMode);
         this.applyRightFilterAsJoinOnFilter = randomBoolean();
     }
 
@@ -347,49 +367,159 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
         return matchesPattern("StreamingLookupOperator\\[index=idx\\]");
     }
 
+    private static final int NUM_SERVER_NODES = 2;
+
     private LookupFromIndexService lookupService(DriverContext mainContext) {
-        boolean beCranky = mainContext.bigArrays().breakerService() instanceof CrankyCircuitBreakerService;
-        DiscoveryNode localNode = DiscoveryNodeUtils.create("node", "node");
+        if (useMultiNode == false) {
+            return lookupServiceSingleNode(mainContext);
+        }
+        // Create client (coordinator) transport service
+        MockTransportService clientTransport = newMockTransportService("client");
+        releasables.add(clientTransport);
+
+        // Create server transport services (data nodes with shard replicas)
+        List<MockTransportService> serverTransports = new ArrayList<>();
+        for (int i = 0; i < NUM_SERVER_NODES; i++) {
+            MockTransportService serverTransport = newMockTransportService("node_" + i);
+            serverTransports.add(serverTransport);
+            releasables.add(serverTransport);
+        }
+
+        // Connect all transport services bidirectionally (client <-> servers only, no server-to-server)
+        for (MockTransportService serverTransport : serverTransports) {
+            AbstractSimpleTransportTestCase.connectToNode(clientTransport, serverTransport.getLocalNode());
+            AbstractSimpleTransportTestCase.connectToNode(serverTransport, clientTransport.getLocalNode());
+        }
+
+        // Build cluster state with server nodes having shards, client node does NOT have shard
         var builtInClusterSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         builtInClusterSettings.addAll(EsqlFlags.ALL_ESQL_FLAGS_SETTINGS);
         ClusterService clusterService = ClusterServiceUtils.createClusterService(
             threadPool,
-            localNode,
+            clientTransport.getLocalNode(),
             Settings.builder()
                 .put(BlockFactory.LOCAL_BREAKER_OVER_RESERVED_SIZE_SETTING, ByteSizeValue.ofKb(0))
                 .put(BlockFactory.LOCAL_BREAKER_OVER_RESERVED_MAX_SIZE_SETTING, ByteSizeValue.ofKb(0))
                 .build(),
             new ClusterSettings(Settings.EMPTY, builtInClusterSettings)
         );
+        releasables.add(clusterService::stop);
+
+        final var projectId = randomProjectIdOrDefault();
+        // Create cluster state with actual server nodes having shard replicas
+        // Client node does NOT have shard - this forces routing to rotate through server nodes
+        ClusterState clusterState = buildClusterStateWithNodes(
+            projectId,
+            "idx",
+            clientTransport.getLocalNode(),
+            serverTransports.stream().map(MockTransportService::getLocalNode).toList()
+        );
+        ClusterServiceUtils.setState(clusterService, clusterState);
+
+        // Use non-cranky breaker for exchange services - cranky breaker should NOT affect transport deserialization
+        // The cranky tests are meant to test operator-level circuit breaking, not transport layer failures
+        BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+
         IndicesService indicesService = mock(IndicesService.class);
         IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
-        releasables.add(clusterService::stop);
-        final var projectId = randomProjectIdOrDefault();
-        ClusterServiceUtils.setState(clusterService, ClusterStateCreationUtils.state(projectId, "idx", 1, 1));
-        if (beCranky) {
-            // Building a cranky lookup for randomized failure testing
+
+        // Create LookupFromIndexService on each server to handle incoming requests
+        // Each server needs its own ExchangeService and LookupFromIndexService
+        for (MockTransportService serverTransport : serverTransports) {
+            ExchangeService serverExchangeService = new ExchangeService(Settings.EMPTY, threadPool, ThreadPool.Names.SEARCH, blockFactory);
+            serverExchangeService.registerTransportHandler(serverTransport);
+            releasables.add(serverExchangeService);
+
+            // Create a cluster service for the server (uses same cluster state)
+            ClusterService serverClusterService = ClusterServiceUtils.createClusterService(
+                threadPool,
+                serverTransport.getLocalNode(),
+                Settings.builder()
+                    .put(BlockFactory.LOCAL_BREAKER_OVER_RESERVED_SIZE_SETTING, ByteSizeValue.ofKb(0))
+                    .put(BlockFactory.LOCAL_BREAKER_OVER_RESERVED_MAX_SIZE_SETTING, ByteSizeValue.ofKb(0))
+                    .build(),
+                new ClusterSettings(Settings.EMPTY, builtInClusterSettings)
+            );
+            ClusterServiceUtils.setState(serverClusterService, clusterService.state());
+            releasables.add(serverClusterService::stop);
+
+            // Create LookupFromIndexService on server - this registers the transport handler
+            new LookupFromIndexService(
+                serverClusterService,
+                indicesService,
+                lookupShardContextFactory(),
+                serverTransport,
+                indexNameExpressionResolver,
+                bigArrays,
+                blockFactory,
+                TestProjectResolvers.singleProject(projectId),
+                serverExchangeService
+            );
         }
-        // For cranky tests, use a separate cranky context (original behavior) to properly handle random failures
-        // For circuit breaking tests and normal tests, use mainContext to share the limited breaker
-        BigArrays bigArrays;
-        BlockFactory blockFactory;
-        if (beCranky) {
-            DriverContext ctx = crankyDriverContext();
-            bigArrays = ctx.bigArrays();
-            blockFactory = ctx.blockFactory();
-        } else {
-            bigArrays = mainContext.bigArrays();
-            blockFactory = mainContext.blockFactory();
-        }
-        TransportService transportService = transportService(clusterService);
-        ExchangeService exchangeService = new ExchangeService(Settings.EMPTY, threadPool, ThreadPool.Names.SEARCH, blockFactory);
-        exchangeService.registerTransportHandler(transportService);
-        releasables.add(exchangeService);
+
+        // Create client ExchangeService and LookupFromIndexService
+        ExchangeService clientExchangeService = new ExchangeService(Settings.EMPTY, threadPool, ThreadPool.Names.SEARCH, blockFactory);
+        clientExchangeService.registerTransportHandler(clientTransport);
+        releasables.add(clientExchangeService);
+
         return new LookupFromIndexService(
             clusterService,
             indicesService,
             lookupShardContextFactory(),
-            transportService,
+            clientTransport,
+            indexNameExpressionResolver,
+            bigArrays,
+            blockFactory,
+            TestProjectResolvers.singleProject(projectId),
+            clientExchangeService
+        );
+    }
+
+    /**
+     * Create a LookupFromIndexService for single-node mode where the local node has the lookup index.
+     */
+    private LookupFromIndexService lookupServiceSingleNode(DriverContext mainContext) {
+        // Create single transport service - this node has the lookup index
+        MockTransportService localTransport = newMockTransportService("local");
+        releasables.add(localTransport);
+
+        // Build cluster state with local node having the shard
+        var builtInClusterSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        builtInClusterSettings.addAll(EsqlFlags.ALL_ESQL_FLAGS_SETTINGS);
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(
+            threadPool,
+            localTransport.getLocalNode(),
+            Settings.builder()
+                .put(BlockFactory.LOCAL_BREAKER_OVER_RESERVED_SIZE_SETTING, ByteSizeValue.ofKb(0))
+                .put(BlockFactory.LOCAL_BREAKER_OVER_RESERVED_MAX_SIZE_SETTING, ByteSizeValue.ofKb(0))
+                .build(),
+            new ClusterSettings(Settings.EMPTY, builtInClusterSettings)
+        );
+        releasables.add(clusterService::stop);
+
+        final var projectId = randomProjectIdOrDefault();
+        // Create cluster state where the local node has the shard
+        ClusterState clusterState = buildClusterStateForSingleNode(projectId, "idx", localTransport.getLocalNode());
+        ClusterServiceUtils.setState(clusterService, clusterState);
+
+        // Use non-cranky breaker for exchange services
+        BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+
+        IndicesService indicesService = mock(IndicesService.class);
+        IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
+
+        // Create ExchangeService and LookupFromIndexService on the local node
+        ExchangeService exchangeService = new ExchangeService(Settings.EMPTY, threadPool, ThreadPool.Names.SEARCH, blockFactory);
+        exchangeService.registerTransportHandler(localTransport);
+        releasables.add(exchangeService);
+
+        return new LookupFromIndexService(
+            clusterService,
+            indicesService,
+            lookupShardContextFactory(),
+            localTransport,
             indexNameExpressionResolver,
             bigArrays,
             blockFactory,
@@ -412,21 +542,156 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
         );
     }
 
-    private TransportService transportService(ClusterService clusterService) {
-        MockTransport mockTransport = new MockTransport();
-        releasables.add(mockTransport);
-        TransportService transportService = mockTransport.createTransportService(
-            Settings.EMPTY,
+    private MockTransportService newMockTransportService(String nodeName) {
+        List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>(ClusterModule.getNamedWriteables());
+        // Add ESQL-specific named writeables for transport serialization
+        namedWriteables.addAll(ExpressionWritables.getNamedWriteables());
+        namedWriteables.addAll(PlanWritables.getNamedWriteables());
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
+        // Use node name in settings so it shows up in node info
+        Settings nodeSettings = Settings.builder().put("node.name", nodeName).build();
+        MockTransportService service = MockTransportService.createNewService(
+            nodeSettings,
+            MockTransportService.newMockTransport(nodeSettings, TransportVersion.current(), threadPool, namedWriteableRegistry),
+            VersionInformation.CURRENT,
             threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundAddress -> clusterService.localNode(),
-            clusterService.getClusterSettings(),
-            Set.of()
+            null,
+            Collections.emptySet()
         );
-        releasables.add(transportService);
-        transportService.start();
-        transportService.acceptIncomingRequests();
-        return transportService;
+        service.getTaskManager().setTaskCancellationService(new TaskCancellationService(service));
+        service.start();
+        service.acceptIncomingRequests();
+        return service;
+    }
+
+    /**
+     * Build a cluster state with the actual nodes from our transport services.
+     * The index has 1 shard with replicas on all server nodes. The client node does NOT have a copy.
+     */
+    private ClusterState buildClusterStateWithNodes(
+        ProjectId projectId,
+        String indexName,
+        DiscoveryNode clientNode,
+        List<DiscoveryNode> serverNodes
+    ) {
+        // Build DiscoveryNodes with all nodes, client as local
+        DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
+        nodesBuilder.add(clientNode);
+        nodesBuilder.localNodeId(clientNode.getId());
+        nodesBuilder.masterNodeId(serverNodes.get(0).getId()); // First server is master
+        for (DiscoveryNode serverNode : serverNodes) {
+            nodesBuilder.add(serverNode);
+        }
+
+        // Create index metadata with 1 shard and N replicas
+        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, serverNodes.size() - 1)
+            )
+            .build();
+
+        // Build shard routing - primary on first server, replicas on others
+        ShardId shardId = new ShardId(indexMetadata.getIndex(), 0);
+        IndexShardRoutingTable.Builder shardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
+
+        // Primary shard on first server node
+        ShardRouting primaryRouting = ShardRouting.newUnassigned(
+            shardId,
+            true, // primary
+            org.elasticsearch.cluster.routing.RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
+            ShardRouting.Role.DEFAULT
+        ).initialize(serverNodes.get(0).getId(), null, 0).moveToStarted(0);
+        shardRoutingBuilder.addShard(primaryRouting);
+
+        // Replica shards on remaining server nodes
+        for (int i = 1; i < serverNodes.size(); i++) {
+            ShardRouting replicaRouting = ShardRouting.newUnassigned(
+                shardId,
+                false, // replica
+                org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource.INSTANCE,
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
+                ShardRouting.Role.DEFAULT
+            ).initialize(serverNodes.get(i).getId(), null, 0).moveToStarted(0);
+            shardRoutingBuilder.addShard(replicaRouting);
+        }
+
+        // Build routing table
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex())
+            .addIndexShard(shardRoutingBuilder)
+            .build();
+        RoutingTable routingTable = RoutingTable.builder().add(indexRoutingTable).build();
+
+        // Build project metadata
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId);
+        projectMetadataBuilder.put(indexMetadata, false);
+
+        // Build metadata
+        Metadata metadata = Metadata.builder().put(projectMetadataBuilder).generateClusterUuidIfNeeded().build();
+
+        // Build and return cluster state
+        return ClusterState.builder(new ClusterName("test"))
+            .nodes(nodesBuilder)
+            .metadata(metadata)
+            .routingTable(GlobalRoutingTable.builder().put(projectId, routingTable).build())
+            .build();
+    }
+
+    /**
+     * Build a cluster state for single-node mode where the local node has the shard.
+     */
+    private ClusterState buildClusterStateForSingleNode(ProjectId projectId, String indexName, DiscoveryNode localNode) {
+        // Single node is local and master
+        DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
+        nodesBuilder.add(localNode);
+        nodesBuilder.localNodeId(localNode.getId());
+        nodesBuilder.masterNodeId(localNode.getId());
+
+        // Create index metadata with 1 shard and 0 replicas
+        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            )
+            .build();
+
+        // Build shard routing - primary on local node
+        ShardId shardId = new ShardId(indexMetadata.getIndex(), 0);
+        IndexShardRoutingTable.Builder shardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
+
+        ShardRouting primaryRouting = ShardRouting.newUnassigned(
+            shardId,
+            true, // primary
+            org.elasticsearch.cluster.routing.RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
+            ShardRouting.Role.DEFAULT
+        ).initialize(localNode.getId(), null, 0).moveToStarted(0);
+        shardRoutingBuilder.addShard(primaryRouting);
+
+        // Build routing table
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex())
+            .addIndexShard(shardRoutingBuilder)
+            .build();
+        RoutingTable routingTable = RoutingTable.builder().add(indexRoutingTable).build();
+
+        // Build project metadata
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId);
+        projectMetadataBuilder.put(indexMetadata, false);
+
+        // Build metadata
+        Metadata metadata = Metadata.builder().put(projectMetadataBuilder).generateClusterUuidIfNeeded().build();
+
+        // Build and return cluster state
+        return ClusterState.builder(new ClusterName("test"))
+            .nodes(nodesBuilder)
+            .metadata(metadata)
+            .routingTable(GlobalRoutingTable.builder().put(projectId, routingTable).build())
+            .build();
     }
 
     private AbstractLookupService.LookupShardContextFactory lookupShardContextFactory() {
@@ -496,7 +761,8 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
      */
     private void testCircuitBreakingWithLowMemory() {
         DriverContext inputFactoryContext = driverContext();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(inputFactoryContext.blockFactory(), between(1, 10)));
+        // Use at least 10 rows to ensure memory usage exceeds the 100-byte limit
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(inputFactoryContext.blockFactory(), between(10, 20)));
         Operator.OperatorFactory factory = simple();
 
         // Use very low memory - should definitely break

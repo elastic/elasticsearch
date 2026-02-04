@@ -20,13 +20,21 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
- * The source of a document.  Note that, while objects returned from {@link #source()}
- * and {@link #internalSourceRef()} are immutable, objects implementing this interface
- * may not be immutable themselves.
+ * A read-only view of a document's source.
+ *
+ * <p>This interface provides access to source content as either bytes or a parsed map.
+ * A {@code Source} instance represents a stable snapshot of a particular document's
+ * data.
+ *
+ * <p>Note: The Map returned by {@link #source()} may or may not be immutable.
+ * Use {@link #withMutations(Consumer)} for any mutations on the Map returned by {@link #source()}.
  */
 public interface Source {
 
@@ -36,9 +44,12 @@ public interface Source {
     XContentType sourceContentType();
 
     /**
-     * A map representation of the source
-     * <p>
-     * Important: This can lose precision on numbers with a decimal point. It
+     * A map representation of the source.
+     *
+     * <p><b>IMPORTANT</b>: The returned map may be immutable. To modify the source,
+     * use {@link #withMutations(java.util.function.Consumer)} instead.
+     *
+     * <p>This can lose precision on numbers with a decimal point. It
      * converts numbers like {@code "n": 1234.567} to a {@code double} which
      * only has 52 bits of precision in the mantissa. This will come up most
      * frequently when folks write nanosecond precision dates as a decimal
@@ -55,6 +66,37 @@ public interface Source {
      * Apply a filter to this source, returning a new Source
      */
     Source filter(SourceFilter sourceFilter);
+
+    /**
+     * Returns a new Source with mutations applied to the map.
+     *
+     * <p>Use this when you need to add, remove, or update fields on a map that may or may
+     * not be mutable.
+     *
+     * <p><b>WARNING</b>: If the underlying source map is already a {@link java.util.HashMap}
+     * (including {@link java.util.LinkedHashMap}), the original map will be mutated directly
+     * rather than copied. This is intentional for performance, but callers should be aware
+     * that the original Source's map may be modified as a side effect.
+     *
+     * <pre>
+     *   Source modified = source.withMutations(map -&gt; map.put("field", "value"));
+     * </pre>
+     *
+     * @param mutator a function that modifies the map
+     * @return a new Source with the mutations applied. There is no guarantee about the mutability of the returned value's source() map.
+     */
+    default Source withMutations(java.util.function.Consumer<Map<String, Object>> mutator) {
+        Map<String, Object> map = source();
+        if (map == null) {
+            map = new LinkedHashMap<>();
+        } else if (map instanceof HashMap == false) {
+            // bit of a hack to test for mutability...there aren't great options
+            map = new LinkedHashMap<>(map);
+        }
+
+        mutator.accept(map);
+        return Source.fromMap(map, sourceContentType());
+    }
 
     /**
      * For the provided path, return its value in the source.

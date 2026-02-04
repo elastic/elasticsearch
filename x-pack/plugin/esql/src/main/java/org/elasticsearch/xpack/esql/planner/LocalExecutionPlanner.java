@@ -864,8 +864,7 @@ public class LocalExecutionPlanner {
         int tsidChannel = tsidSource.layout.get(tsidAttr.id()).channel();
         PhysicalOperation dedupedSource = tsidSource.with(new DistinctByOperator.Factory(tsidChannel), tsidSource.layout);
 
-        // Stage 3: Extract expensive fields only for deduplicated docs
-        // _timeseries metadata (dimensions + metrics) from synthetic source
+        // Step 3: Extract _timeseries metadata (dimensions + metrics) from synthetic source
         FieldAttribute metadataSourceAttr = new FieldAttribute(
             metricsInfoExec.source(),
             null,

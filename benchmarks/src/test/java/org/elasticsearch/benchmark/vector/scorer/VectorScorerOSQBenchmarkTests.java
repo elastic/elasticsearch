@@ -20,7 +20,8 @@ import org.openjdk.jmh.annotations.Param;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
-import java.util.stream.Stream;
+
+import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 
 public class VectorScorerOSQBenchmarkTests extends ESTestCase {
 
@@ -120,16 +121,12 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
 
             return () -> Arrays.stream(dims)
                 .map(Integer::parseInt)
-                .flatMap(d -> Arrays.stream(bits).map(Integer::parseInt).map(b -> List.of(d, b)))
-                .flatMap(params -> Arrays.stream(VectorScorerOSQBenchmark.DirectoryType.values()).map(dir -> concat(params, dir)))
-                .flatMap(params -> Arrays.stream(VectorSimilarityFunction.values()).map(f -> concat(params, f).toArray()))
+                .flatMap(d -> Arrays.stream(bits).map(Integer::parseInt).map(b -> List.<Object>of(d, b)))
+                .flatMap(params -> Arrays.stream(VectorScorerOSQBenchmark.DirectoryType.values()).map(dir -> appendToCopy(params, dir)))
+                .flatMap(params -> Arrays.stream(VectorSimilarityFunction.values()).map(f -> appendToCopy(params, f).toArray()))
                 .iterator();
         } catch (NoSuchFieldException e) {
             throw new AssertionError(e);
         }
-    }
-
-    private static <T> List<Object> concat(List<T> params, Object another) {
-        return Stream.concat(params.stream(), Stream.of(another)).toList();
     }
 }

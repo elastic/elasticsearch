@@ -116,9 +116,11 @@ public final class JdkVectorLibrary implements VectorLibrary {
                             case INT7 -> "7u";
                             case FLOAT32 -> "f32";
                             case I1I4 -> "_int1_int4";
+                            case I2I4 -> "_int2_int4";
                         };
 
-                        if (type == DataType.I1I4 && f == Function.SQUARE_DISTANCE) continue;   // not implemented yet
+                        // not implemented yet...
+                        if ((type == DataType.I1I4 || type == DataType.I2I4) && f == Function.SQUARE_DISTANCE) continue;
 
                         for (Operation op : Operation.values()) {
                             String opName = switch (op) {
@@ -131,7 +133,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                 case SINGLE -> switch (type) {
                                     case INT7 -> intSingle;
                                     case FLOAT32 -> floatSingle;
-                                    case I1I4 -> longSingle;
+                                    case I1I4, I2I4 -> longSingle;
                                 };
                                 case BULK -> bulk;
                                 case BULK_OFFSETS -> bulkOffsets;
@@ -289,6 +291,19 @@ public final class JdkVectorLibrary implements VectorLibrary {
             return true;
         }
 
+        static boolean checkI2I4Bulk(
+            MemorySegment dataset,
+            MemorySegment query,
+            int datasetVectorLengthInBytes,
+            int count,
+            MemorySegment result
+        ) {
+            Objects.checkFromIndexSize(0, datasetVectorLengthInBytes * count, (int) dataset.byteSize());
+            Objects.checkFromIndexSize(0, datasetVectorLengthInBytes * 2L, (int) query.byteSize());
+            Objects.checkFromIndexSize(0, count * Float.BYTES, (int) result.byteSize());
+            return true;
+        }
+
         static boolean checkBulkOffsets(
             int elementSize,
             MemorySegment a,
@@ -305,6 +320,18 @@ public final class JdkVectorLibrary implements VectorLibrary {
         }
 
         static boolean checkI1I4BulkOffsets(
+            MemorySegment a,
+            MemorySegment b,
+            int length,
+            int pitch,
+            MemorySegment offsets,
+            int count,
+            MemorySegment result
+        ) {
+            return true;
+        }
+
+        static boolean checkI2I4BulkOffsets(
             MemorySegment a,
             MemorySegment b,
             int length,
@@ -371,6 +398,23 @@ public final class JdkVectorLibrary implements VectorLibrary {
             Objects.checkFromIndexSize(0, length * 4L, (int) query.byteSize());
             Objects.checkFromIndexSize(0, length, (int) a.byteSize());
             return callSingleDistanceLong(dotI1I4Handle, a, query, length);
+        }
+
+        private static final MethodHandle dotI2I4Handle = HANDLES.get(
+            new OperationSignature(Function.DOT_PRODUCT, DataType.I2I4, Operation.SINGLE)
+        );
+
+        /**
+         * Computes the dot product of a given int4 vector with a give int2 vector (2 bits per element).
+         *
+         * @param a      address of the int2 vector
+         * @param query  address of the int4 vector
+         * @param length the vector dimensions
+         */
+        static long dotProductI2I4(MemorySegment a, MemorySegment query, int length) {
+            Objects.checkFromIndexSize(0, length * 2, (int) query.byteSize());
+            Objects.checkFromIndexSize(0, length, (int) a.byteSize());
+            return callSingleDistanceLong(dotI2I4Handle, a, query, length);
         }
 
         private static void checkByteSize(MemorySegment a, MemorySegment b) {
@@ -534,16 +578,28 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                         case SQUARE_DISTANCE -> throw new UnsupportedOperationException("Not implemented");
                                     };
                                 }
+                                case I2I4 -> {
+                                    MethodType type = MethodType.methodType(
+                                        long.class,
+                                        MemorySegment.class,
+                                        MemorySegment.class,
+                                        int.class
+                                    );
+                                    yield switch (op.getKey().function()) {
+                                        case DOT_PRODUCT -> lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProductI2I4", type);
+                                        case SQUARE_DISTANCE -> throw new UnsupportedOperationException("Not implemented");
+                                    };
+                                }
                             };
 
                             handlesWithChecks.put(op.getKey(), handleWithChecks);
                         }
                         case BULK -> {
                             MethodHandle handleWithChecks = switch (op.getKey().dataType()) {
-                                case I1I4 -> {
+                                case I1I4, I2I4 -> {
                                     MethodHandle checkMethod = lookup.findStatic(
                                         JdkVectorSimilarityFunctions.class,
-                                        "checkI1I4Bulk",
+                                        "check" + op.getKey().dataType() + "Bulk",
                                         MethodType.methodType(
                                             boolean.class,
                                             MemorySegment.class,
@@ -585,10 +641,10 @@ public final class JdkVectorLibrary implements VectorLibrary {
                         }
                         case BULK_OFFSETS -> {
                             MethodHandle handleWithChecks = switch (op.getKey().dataType()) {
-                                case I1I4 -> {
+                                case I1I4, I2I4 -> {
                                     MethodHandle checkMethod = lookup.findStatic(
                                         JdkVectorSimilarityFunctions.class,
-                                        "checkI1I4BulkOffsets",
+                                        "check" + op.getKey().dataType() + "BulkOffsets",
                                         MethodType.methodType(
                                             boolean.class,
                                             MemorySegment.class,

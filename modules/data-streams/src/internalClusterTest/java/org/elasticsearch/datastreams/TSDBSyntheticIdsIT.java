@@ -132,7 +132,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             () -> createIndex(
                 indexName,
                 indexSettings(1, 0).put(IndexSettings.MODE.getKey(), randomNonTsdbIndexMode)
-                    .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true)
+                    .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
                     .build()
             )
         );
@@ -140,7 +140,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             exception.getMessage(),
             containsString(
                 "The setting ["
-                    + IndexSettings.USE_SYNTHETIC_ID.getKey()
+                    + IndexSettings.SYNTHETIC_ID.getKey()
                     + "] is only permitted when [index.mode] is set to [TIME_SERIES]. Current mode: ["
                     + randomNonTsdbIndexMode.getName().toUpperCase(Locale.ROOT)
                     + "]."
@@ -165,7 +165,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                 indexName,
                 indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                     .put("index.routing_path", "hostname")
-                    .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true)
+                    .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
                     .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomNonDefaultCodec)
                     .build()
             )
@@ -174,7 +174,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             exception.getMessage(),
             containsString(
                 "The setting ["
-                    + IndexSettings.USE_SYNTHETIC_ID.getKey()
+                    + IndexSettings.SYNTHETIC_ID.getKey()
                     + "] is only permitted when [index.codec] is set to [default]. Current mode: ["
                     + randomNonDefaultCodec
                     + "]."
@@ -1211,7 +1211,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     private static void putDataStreamTemplate(String indexPattern, int primaries, int replicas, Settings extraSettings) throws IOException {
         final var settings = indexSettings(primaries, replicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
-            .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true);
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true);
         if (randomBoolean()) {
             settings.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC);
             settings.put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), randomBoolean());

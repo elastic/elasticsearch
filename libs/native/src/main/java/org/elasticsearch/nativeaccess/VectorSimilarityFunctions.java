@@ -45,7 +45,13 @@ public interface VectorSimilarityFunctions {
          * <p>
          * Checks are special-cased, so {@link #bytes()} is not called
          */
-        I1I4(Byte.BYTES);
+        I1I4(Byte.BYTES),
+        /**
+         * 2-bit data, 4-bit queries. Single vector score returns results as a long.
+         * <p>
+         * Checks are special-cased, so {@link #bytes()} is not called
+         */
+        I2I4(Byte.BYTES);
 
         private final int bytes;
 
@@ -66,7 +72,7 @@ public interface VectorSimilarityFunctions {
          * <ol>
          *     <li>First vector</li>
          *     <li>Second vector</li>
-         *     <li>Number of dimensions</li>
+         *     <li>Number of dimensions, or for bbq, the number of index bytes</li>
          * </ol>
          * Return value type is determined by the {@link DataType}.
          */
@@ -78,7 +84,7 @@ public interface VectorSimilarityFunctions {
          * <ol>
          *     <li>Multiple vectors to score {@code a}</li>
          *     <li>Single vector to score against</li>
-         *     <li>Number of dimensions</li>
+         *     <li>Number of dimensions, or for bbq, the number of index bytes</li>
          *     <li>Number of vectors in {@code a}</li>
          *     <li>Score results, as 4-byte floats</li>
          * </ol>
@@ -91,7 +97,7 @@ public interface VectorSimilarityFunctions {
          * <ol>
          *     <li>Multiple vectors to score</li>
          *     <li>Single vector to score against</li>
-         *     <li>Number of dimensions</li>
+         *     <li>Number of dimensions, or for bbq, the number of index bytes</li>
          *     <li>Number of bytes between the start of one vector and the start of the next vector in {@code a}</li>
          *     <li>Array of 4-byte ints containing indices of vectors to score in {@code a}</li>
          *     <li>Number of vectors to score</li>

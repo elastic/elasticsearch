@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -33,6 +35,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -61,6 +64,7 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.core.ClientHelper.assertNoAuthorizationHeader;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGGREGATIONS_COMPOSITE_AGG_DATE_HISTOGRAM_SORT;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGGREGATIONS_COMPOSITE_AGG_DATE_HISTOGRAM_SOURCE_MISSING_BUCKET;
@@ -109,6 +113,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
      * aggregations
      */
     public static final String DOC_COUNT = "doc_count";
+
+    public static final FeatureFlag DATAFEED_CROSS_PROJECT = new FeatureFlag("datafeed_cross_project");
 
     // Accessing `Job.ID` here causes an NPE in tests as a DatafeedConfig parser is referenced in the Job parser
     public static final ParseField JOB_ID = new ParseField("job_id");
@@ -343,6 +349,35 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
      */
     public static String documentId(String datafeedId) {
         return TYPE + "-" + datafeedId;
+    }
+
+    public ActionRequestValidationException validateNoCrossProjectWhenCrossProjectIsDisabled(
+        CrossProjectModeDecider crossProjectModeDecider,
+        ActionRequestValidationException validationException
+    ) {
+        if (crossProjectModeDecider.crossProjectEnabled()) {
+            return validateNoCrossProjectWhenCrossProjectFeatureIsDisabled(DATAFEED_CROSS_PROJECT.isEnabled(), validationException);
+        }
+        return validationException;
+    }
+
+    // visible for testing
+    // remove both this and validateNoCrossProjectWhenCrossProjectIsDisabled when the feature is launched
+    ActionRequestValidationException validateNoCrossProjectWhenCrossProjectFeatureIsDisabled(
+        boolean featureEnabled,
+        ActionRequestValidationException validationException
+    ) {
+        if (featureEnabled == false) {
+            // verify there are no remote indices
+            var remoteIndices = RemoteClusterAware.getRemoteIndexExpressions(getIndices().toArray(new String[0]));
+            if (remoteIndices.isEmpty() == false) {
+                validationException = addValidationError(
+                    "Cross-project calls are not supported, but remote indices were requested: " + remoteIndices,
+                    validationException
+                );
+            }
+        }
+        return validationException;
     }
 
     public String getId() {
@@ -1090,6 +1125,10 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             setDefaultQueryDelay();
             if (indicesOptions == null) {
                 indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED;
+            }
+
+            if (indicesOptions.crossProjectModeOptions().resolveIndexExpression() && DATAFEED_CROSS_PROJECT.isEnabled() == false) {
+                throw new ElasticsearchStatusException("Cross-project search is not enabled for Datafeeds", RestStatus.FORBIDDEN);
             }
 
             return new DatafeedConfig(

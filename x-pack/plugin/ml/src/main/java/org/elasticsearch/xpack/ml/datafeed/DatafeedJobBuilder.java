@@ -109,6 +109,18 @@ public class DatafeedJobBuilder {
             return;
         }
 
+        // if we had created a datafeed when the feature flag was enabled, but we disabled the feature flag
+        // then verify that this datafeed does not use CPS features
+        var validationException = datafeedConfig.validateNoCrossProjectWhenCrossProjectIsDisabled(
+            crossProjectModeDecider,
+            (org.elasticsearch.action.ActionRequestValidationException) null
+        );
+
+        if (validationException != null) {
+            listener.onFailure(validationException);
+            return;
+        }
+
         ActionListener<DataExtractorFactory> dataExtractorFactoryHandler = ActionListener.wrap(dataExtractorFactory -> {
             TimeValue frequency = getFrequencyOrDefault(datafeedConfig, job, xContentRegistry);
             TimeValue queryDelay = datafeedConfig.getQueryDelay();
@@ -143,9 +155,13 @@ public class DatafeedJobBuilder {
             listener.onFailure(e);
         });
 
+        // Apply cross-project search mode to IndicesOptions before creating the factory
+        DatafeedConfig effectiveDatafeedConfig = DatafeedConfig.withCrossProjectModeIfEnabled(datafeedConfig, crossProjectModeDecider);
+
         DataExtractorFactory.create(
             parentTaskAssigningClient,
-            DatafeedConfig.withCrossProjectModeIfEnabled(datafeedConfig, crossProjectModeDecider),
+            effectiveDatafeedConfig,
+            null,
             job,
             xContentRegistry,
             timingStatsReporter,

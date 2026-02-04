@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -71,8 +70,8 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
         this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
     }
 
-    public static AggregatedSearchRequestBuilder requestBuilder(Client client, String[] indices, IndicesOptions indicesOptions) {
-        return (searchSourceBuilder) -> {
+    public static AggregatedSearchRequestBuilder requestBuilder(Client client, String[] indices) {
+        return (searchSourceBuilder, indicesOptions) -> {
             SearchRequest searchRequest = new SearchRequest().indices(indices)
                 .indicesOptions(indicesOptions)
                 .allowPartialSearchResults(false)

@@ -157,6 +157,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             // This is important because it means the datafeed search will fail if the user
             // requesting the preview doesn't have permission to search the relevant indices.
             DatafeedConfig previewDatafeedConfig = previewDatafeedBuilder.build();
+            // Apply cross-project search mode to IndicesOptions before creating the factory
             DatafeedConfig effectiveDatafeedConfig = DatafeedConfig.withCrossProjectModeIfEnabled(
                 previewDatafeedConfig,
                 crossProjectModeDecider

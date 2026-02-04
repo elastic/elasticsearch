@@ -631,7 +631,7 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
             centroidDp,
             scoresSegment
         );
-        in.seek(offset + 14L * bulkSize);
+        in.seek(offset + 16L * bulkSize);
         return maxScore;
     }
 }

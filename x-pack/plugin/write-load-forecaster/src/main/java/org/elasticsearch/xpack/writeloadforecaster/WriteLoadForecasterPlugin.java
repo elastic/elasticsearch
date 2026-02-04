@@ -38,6 +38,12 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
         Setting.Property.IndexScope
     );
 
+    public static final Setting<Boolean> WRITE_LOAD_FORECASTER_ENABLED_SETTING = Setting.boolSetting(
+        "index.write_load_forecast.enabled",
+        true,
+        Setting.Property.NodeScope
+    );
+
     public WriteLoadForecasterPlugin() {}
 
     protected boolean hasValidLicense() {
@@ -55,6 +61,7 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
         Settings settings,
         ClusterSettings clusterSettings
     ) {
-        return List.of(new LicensedWriteLoadForecaster(this::hasValidLicense, threadPool, settings, clusterSettings));
+        final boolean enabled = WRITE_LOAD_FORECASTER_ENABLED_SETTING.get(settings);
+        return enabled ? List.of(new LicensedWriteLoadForecaster(this::hasValidLicense, threadPool, settings, clusterSettings)) : List.of();
     }
 }

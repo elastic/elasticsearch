@@ -15,8 +15,8 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.test.MixWithIncrement;
 
 import java.util.List;
@@ -70,11 +70,9 @@ public class SampleLongAggregatorFunctionTests extends AggregatorFunctionTestCas
         // Repeat 1000x, count how often each number is sampled.
         int[] sampledCounts = new int[N];
         for (int iteration = 0; iteration < 1000; iteration++) {
-            List<Page> input = CannedSourceOperator.collectPages(
-                new SequenceLongBlockSourceOperator(driverContext().blockFactory(), LongStream.range(0, N))
-            );
-            List<Page> results = drive(operatorFactory.get(driverContext()), input.iterator(), driverContext());
-            for (Page page : results) {
+            var runner = new TestDriverRunner().builder(driverContext());
+            runner.input(new SequenceLongBlockSourceOperator(runner.blockFactory(), LongStream.range(0, N)));
+            for (Page page : runner.run(operatorFactory)) {
                 LongBlock block = page.getBlock(0);
                 for (int i = 0; i < block.getTotalValueCount(); i++) {
                     sampledCounts[(int) block.getLong(i)]++;

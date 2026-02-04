@@ -359,15 +359,15 @@ tests:
 - class: org.elasticsearch.xpack.ccr.CcrTimeSeriesDataStreamsIT
   method: testCrossClusterReplicationForTSDBWithSyntheticId
   issue: https://github.com/elastic/elasticsearch/issues/141796
-- class: org.elasticsearch.index.codec.vectors.diskbbq.PreconditionerTests
-  method: testRandomProviderConfigurations
-  issue: https://github.com/elastic/elasticsearch/issues/141748
 - class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
   method: testOptionalLengthReaderSparseToLengthValues
   issue: https://github.com/elastic/elasticsearch/issues/141853
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=esql/50_index_patterns/disjoint_mappings}
   issue: https://github.com/elastic/elasticsearch/issues/141856
+- class: org.elasticsearch.xpack.diskbbq.DirectIOIT
+  method: testDirectIONotUsed {p0=bbq_disk}
+  issue: https://github.com/elastic/elasticsearch/issues/141863
 
 # Examples:
 #

@@ -4334,6 +4334,7 @@ public class AnalyzerTests extends ESTestCase {
         CompletionFunction completionFunction = as(alias.child(), CompletionFunction.class);
         assertThat(completionFunction.prompt(), equalTo(string("Translate this text in French")));
         assertThat(completionFunction.inferenceId(), equalTo(string("completion-inference-id")));
+        assertThat(completionFunction.taskSettings(), equalTo(new MapExpression(Source.EMPTY, List.of())));
         assertThat(completionFunction.taskType(), equalTo(org.elasticsearch.inference.TaskType.COMPLETION));
     }
 
@@ -4354,6 +4355,7 @@ public class AnalyzerTests extends ESTestCase {
         CompletionFunction completionFunction = as(alias.child(), CompletionFunction.class);
         assertThat(completionFunction.prompt(), equalTo(string("Translate this text")));
         assertThat(completionFunction.inferenceId(), equalTo(string("completion-inference-id")));
+        assertThat(completionFunction.taskSettings(), equalTo(new MapExpression(Source.EMPTY, List.of())));
     }
 
     public void testFoldableCompletionWithFoldableExpressionTransformedToEval() {

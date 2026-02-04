@@ -662,8 +662,7 @@ public abstract class AbstractStreamTests extends ESTestCase {
         final int length = randomIntBetween(1, 1024);
         StreamInput delegate = getStreamInput(BytesReference.fromByteBuffer(ByteBuffer.wrap(new byte[length])));
 
-        FilterStreamInput filterInputStream = new FilterStreamInput(delegate) {
-        };
+        FilterStreamInput filterInputStream = new FilterStreamInput(delegate) {};
         assertEquals(filterInputStream.available(), length);
 
         // read some bytes

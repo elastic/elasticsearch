@@ -183,6 +183,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public QuerySetting visitSetCommand(EsqlBaseParser.SetCommandContext ctx) {
         var field = visitSetField(ctx.setField());
+        context.telemetry().setting(field.name());
         return new QuerySetting(source(ctx), field);
     }
 
@@ -1141,7 +1142,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (optionsMap.isEmpty() == false) {
             throw new ParsingException(
                 source(ctx),
-                "Inavalid option [{}] in RERANK, expected one of [{}]",
+                "Invalid option [{}] in RERANK, expected one of [{}]",
                 optionsMap.keySet().stream().findAny().get(),
                 rerank.validOptionNames()
             );
@@ -1190,10 +1191,23 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             completion = applyInferenceId(completion, inferenceId);
         }
 
+        Expression taskSettings = optionsMap.remove(Completion.TASK_SETTINGS_OPTION_NAME);
+        if (taskSettings != null) {
+            if (taskSettings instanceof MapExpression == false) {
+                throw new ParsingException(
+                    taskSettings.source(),
+                    "Option [{}] must be a map, found [{}]",
+                    Completion.TASK_SETTINGS_OPTION_NAME,
+                    taskSettings.source().text()
+                );
+            }
+            completion = completion.withTaskSettings((MapExpression) taskSettings);
+        }
+
         if (optionsMap.isEmpty() == false) {
             throw new ParsingException(
                 source(ctx),
-                "Inavalid option [{}] in COMPLETION, expected one of [{}]",
+                "Invalid option [{}] in COMPLETION, expected one of [{}]",
                 optionsMap.keySet().stream().findAny().get(),
                 completion.validOptionNames()
             );

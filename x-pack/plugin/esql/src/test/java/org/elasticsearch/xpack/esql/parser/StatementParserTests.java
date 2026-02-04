@@ -3801,6 +3801,83 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(plan.rowLimit(), equalTo(Literal.integer(EMPTY, customRowLimit)));
     }
 
+    public void testCompletionWithTaskSettings() {
+        var plan = as(
+            processingCommand(
+                "COMPLETION prompt_field WITH { \"inference_id\" : \"inferenceID\", \"task_settings\": {\"temperature\": 0.5 } }"
+            ),
+            Completion.class
+        );
+
+        assertThat(plan.prompt(), equalToIgnoringIds(attribute("prompt_field")));
+        assertThat(plan.inferenceId(), equalTo(literalString("inferenceID")));
+        assertThat(plan.targetField(), equalToIgnoringIds(attribute("completion")));
+        assertThat(plan.rowLimit(), equalTo(integer(100)));
+
+        MapExpression taskSettings = plan.taskSettings();
+        assertThat(taskSettings.get("temperature"), equalTo(Literal.fromDouble(null, 0.5)));
+    }
+
+    public void testCompletionWithEmptyTaskSettings() {
+        var plan = as(
+            processingCommand("COMPLETION prompt_field WITH { \"inference_id\" : \"inferenceID\", \"task_settings\": {} }"),
+            Completion.class
+        );
+
+        assertThat(plan.prompt(), equalToIgnoringIds(attribute("prompt_field")));
+        assertThat(plan.inferenceId(), equalTo(literalString("inferenceID")));
+        assertThat(plan.taskSettings(), equalTo(new MapExpression(Source.EMPTY, List.of())));
+    }
+
+    public void testCompletionWithMultipleTaskSettings() {
+        var plan = as(
+            processingCommand(
+                "COMPLETION prompt_field WITH { \"inference_id\" : \"inferenceID\", "
+                    + "\"task_settings\": {\"foo\": \"bar\", \"baz\": \"qux\"} }"
+            ),
+            Completion.class
+        );
+
+        MapExpression taskSettings = plan.taskSettings();
+        assertThat(taskSettings.get("foo"), equalTo(literalString("bar")));
+        assertThat(taskSettings.get("baz"), equalTo(literalString("qux")));
+    }
+
+    public void testCompletionWithNestedTaskSettings() {
+        var plan = as(
+            processingCommand(
+                "COMPLETION prompt_field WITH { \"inference_id\" : \"inferenceID\", "
+                    + "\"task_settings\": {\"nested_map\": {\"foo\": \"bar\"}} }"
+            ),
+            Completion.class
+        );
+
+        MapExpression taskSettings = plan.taskSettings();
+        MapExpression nestedMap = (MapExpression) taskSettings.get("nested_map");
+        assertThat(nestedMap.get("foo"), equalTo(literalString("bar")));
+    }
+
+    public void testCompletionInvalidTaskSettingsType() {
+        expectError(
+            "FROM foo* | COMPLETION prompt WITH { \"inference_id\": \"inferenceId\", \"task_settings\": 3 }",
+            "Option [task_settings] must be a map, found [3]"
+        );
+    }
+
+    public void testCompletionTaskSettingsNull() {
+        expectError(
+            "FROM foo* | COMPLETION prompt WITH { \"inference_id\": \"inferenceId\", \"task_settings\": null }",
+            "Invalid named parameter [\"task_settings\":null], NULL is not supported"
+        );
+    }
+
+    public void testCompletionTaskSettingsNotAMap() {
+        expectError(
+            "FROM foo* | COMPLETION prompt WITH { \"inference_id\": \"inferenceId\", \"task_settings\": \"not_a_valid_map\" }",
+            "Option [task_settings] must be a map, found [\"not_a_valid_map\"]"
+        );
+    }
+
     public void testRerankCommandDisabled() {
         Settings settings = Settings.builder().put(InferenceSettings.RERANK_ENABLED_SETTING.getKey(), false).build();
 
@@ -3818,7 +3895,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         expectError(
             "FROM foo* | RERANK \"query text\" ON title WITH { \"inference_id\": \"inferenceId\", \"unknown_option\": 3 }",
-            "line 1:42: Inavalid option [unknown_option] in RERANK, expected one of [[inference_id]]"
+            "line 1:42: Invalid option [unknown_option] in RERANK, expected one of [[inference_id]]"
         );
         expectError("FROM foo* | RERANK ON title WITH inferenceId", "line 1:20: extraneous input 'ON' expecting {QUOTED_STRING");
         expectError("FROM foo* | RERANK \"query text\" WITH inferenceId", "line 1:33: mismatched input 'WITH' expecting 'on'");
@@ -3929,7 +4006,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         expectError(
             "FROM foo* | COMPLETION prompt WITH { \"inference_id\": \"inferenceId\", \"unknown_option\": 3 }",
-            "line 1:31: Inavalid option [unknown_option] in COMPLETION, expected one of [[inference_id]]"
+            "line 1:31: Invalid option [unknown_option] in COMPLETION, expected one of [[inference_id, task_settings]]"
         );
 
         expectError("FROM foo* | COMPLETION WITH inferenceId", "line 1:24: extraneous input 'WITH' expecting {");

@@ -99,7 +99,7 @@ setup:
         rest_total_hits_as_int: true
         body: >
           {
-            "query": { "kql": { "query": "keyword_field:fo*" } }
+            "query": { "kql": { "query": "const_keyword_field:fo*" } }
           }
 
   - match: { hits.total: 3 }
@@ -113,7 +113,7 @@ setup:
         rest_total_hits_as_int: true
         body: >
           {
-            "query": { "kql": { "query": "keyword_field:bu*" } }
+            "query": { "kql": { "query": "const_keyword_field:bu*" } }
           }
 
   - match: { hits.total: 0 }

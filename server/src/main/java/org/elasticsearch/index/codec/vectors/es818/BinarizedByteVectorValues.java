@@ -21,9 +21,9 @@ package org.elasticsearch.index.codec.vectors.es818;
 
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.search.VectorScorer;
-import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 
@@ -83,6 +83,6 @@ abstract class BinarizedByteVectorValues extends ByteVectorValues {
     float getCentroidDP() throws IOException {
         // this only gets executed on-merge
         float[] centroid = getCentroid();
-        return VectorUtil.dotProduct(centroid, centroid);
+        return ESVectorUtil.dotProduct(centroid, centroid);
     }
 }

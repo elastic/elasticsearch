@@ -2052,6 +2052,11 @@ public class EsqlCapabilities {
          */
         TDIGEST_TIME_SERIES_METRIC,
 
+        /**
+         * Support for the METRICS_INFO command.
+         */
+        METRICS_INFO_COMMAND,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

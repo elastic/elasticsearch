@@ -13,11 +13,12 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -25,6 +26,10 @@ import java.util.Set;
  * Operator for METRICS_INFO command.
  * The METRICS_INFO command returns one row per metric that matches all conditions and attaches metadata to it.
  * In cases where the same metric is defined with different properties in different indices, the same metric may appear twice in the output.
+ * <p>
+ * This operator expects deduplicated input (one row per _tsid) from upstream DistinctByOperator.
+ * It directly aggregates metrics during addInput() without tracking _tsid.
+ * <p>
  * Output columns:
  * - metric_name: keyword (single-valued)
  * - data_stream: keyword (multi-valued) - data streams that have this metric with this unit
@@ -35,29 +40,53 @@ import java.util.Set;
  */
 public class MetricsInfoOperator implements Operator {
 
-    public record Factory(List<MetricFieldInfo> metricFields, Set<String> dimensionFields) implements OperatorFactory {
+    /**
+     * Functional interface for looking up metric field metadata on-demand.
+     * This allows the operator to query mapping information without depending on index mapper classes.
+     */
+    @FunctionalInterface
+    public interface MetricFieldLookup {
+        /**
+         * Look up metric field info for a given index and field name.
+         * @param indexName the index name
+         * @param fieldName the field name (metric name)
+         * @return MetricFieldInfo if the field is a metric, null otherwise
+         */
+        MetricFieldInfo lookup(String indexName, String fieldName);
+    }
+
+    public record Factory(MetricFieldLookup fieldLookup, int metadataSourceChannel, int indexChannel) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new MetricsInfoOperator(driverContext.blockFactory(), metricFields, dimensionFields);
+            return new MetricsInfoOperator(driverContext.blockFactory(), fieldLookup, metadataSourceChannel, indexChannel);
         }
 
         @Override
         public String describe() {
-            return "MetricsInfoOperator[metricFields=" + metricFields.size() + "]";
+            return "MetricsInfoOperator[metadataSourceChannel=" + metadataSourceChannel + ", indexChannel=" + indexChannel + "]";
         }
     }
 
-    private final BlockFactory blockFactory;
-    private final List<MetricFieldInfo> metricFields;
-    private final Set<String> dimensionFields;
+    /**
+     * Key for grouping metrics: (metric_name, unit).
+     * Metrics with same name but different units are separate rows.
+     */
+    private record MetricKey(String name, String unit) {}
 
+    private final BlockFactory blockFactory;
+    private final MetricFieldLookup fieldLookup;
+    private final int metadataSourceChannel;
+    private final int indexChannel;
+
+    private final Map<MetricKey, MetricInfo> metricsByKey = new LinkedHashMap<>();
     private boolean finished = false;
     private boolean outputProduced = false;
 
-    public MetricsInfoOperator(BlockFactory blockFactory, List<MetricFieldInfo> metricFields, Set<String> dimensionFields) {
+    public MetricsInfoOperator(BlockFactory blockFactory, MetricFieldLookup fieldLookup, int metadataSourceChannel, int indexChannel) {
         this.blockFactory = blockFactory;
-        this.metricFields = metricFields;
-        this.dimensionFields = dimensionFields;
+        this.fieldLookup = fieldLookup;
+        this.metadataSourceChannel = metadataSourceChannel;
+        this.indexChannel = indexChannel;
     }
 
     @Override
@@ -67,8 +96,64 @@ public class MetricsInfoOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
-        // No per-document processing needed. Data comes from shard contexts at planning time
+        BytesRefBlock metadataSource = metadataSourceChannel >= 0 ? (BytesRefBlock) page.getBlock(metadataSourceChannel) : null;
+        BytesRefBlock indexBlock = indexChannel >= 0 ? (BytesRefBlock) page.getBlock(indexChannel) : null;
+
+        BytesRef indexScratch = new BytesRef();
+
+        for (int p = 0; p < page.getPositionCount(); p++) {
+            if (metadataSource == null || metadataSource.isNull(p)) {
+                continue;
+            }
+            if (indexBlock == null || indexBlock.isNull(p)) {
+                continue;
+            }
+
+            String indexName = indexBlock.getBytesRef(p, indexScratch).utf8ToString();
+            Map<String, Object> metadataMap = parseMetadataSource(metadataSource, p);
+            if (metadataMap == null) {
+                continue;
+            }
+
+            collectAndAggregateFields(metadataMap, null, indexName, new HashSet<>());
+        }
+
         page.releaseBlocks();
+    }
+
+    @SuppressWarnings("unchecked")
+    private void collectAndAggregateFields(Map<String, Object> map, String prefix, String indexName, Set<String> dimensionKeys) {
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            String key = prefix == null ? entry.getKey() : prefix + "." + entry.getKey();
+            Object value = entry.getValue();
+            if (value instanceof Map<?, ?> nested) {
+                collectAndAggregateFields((Map<String, Object>) nested, key, indexName, dimensionKeys);
+            } else {
+                MetricFieldInfo fieldInfo = fieldLookup.lookup(indexName, key);
+                if (fieldInfo != null) {
+                    MetricKey metricKey = new MetricKey(fieldInfo.name(), fieldInfo.unit());
+                    MetricInfo info = metricsByKey.computeIfAbsent(metricKey, k -> new MetricInfo(k.name(), k.unit()));
+
+                    info.dataStreams.add(indexName);
+                    if (fieldInfo.fieldType() != null) {
+                        info.fieldTypes.add(fieldInfo.fieldType());
+                    }
+                    if (fieldInfo.metricType() != null) {
+                        info.metricTypes.add(fieldInfo.metricType());
+                    }
+                } else {
+                    dimensionKeys.add(key);
+                }
+            }
+        }
+
+        if (prefix == null && dimensionKeys.isEmpty() == false) {
+            for (MetricInfo info : metricsByKey.values()) {
+                if (info.dataStreams.contains(indexName)) {
+                    info.dimensionFieldKeys.addAll(dimensionKeys);
+                }
+            }
+        }
     }
 
     @Override
@@ -89,7 +174,7 @@ public class MetricsInfoOperator implements Operator {
 
         outputProduced = true;
 
-        if (metricFields.isEmpty()) {
+        if (metricsByKey.isEmpty()) {
             return createEmptyPage();
         }
 
@@ -110,28 +195,7 @@ public class MetricsInfoOperator implements Operator {
     }
 
     private Page createOutputPage() {
-        record MetricKey(String name, String unit) {}
-
-        Map<MetricKey, MetricInfo> metricsByKey = new LinkedHashMap<>();
-        for (MetricFieldInfo fieldInfo : metricFields) {
-            MetricKey key = new MetricKey(fieldInfo.name(), fieldInfo.unit());
-            MetricInfo info = metricsByKey.computeIfAbsent(key, k -> new MetricInfo(k.name(), k.unit()));
-
-            if (fieldInfo.indexName() != null) {
-                info.dataStreams.add(fieldInfo.indexName());
-            }
-
-            if (fieldInfo.fieldType() != null) {
-                info.fieldTypes.add(fieldInfo.fieldType());
-            }
-            if (fieldInfo.metricType() != null) {
-                info.metricTypes.add(fieldInfo.metricType());
-            }
-
-            info.dimensionFieldKeys.addAll(dimensionFields);
-        }
-
-        List<MetricInfo> metrics = new ArrayList<>(metricsByKey.values());
+        ArrayList<MetricInfo> metrics = new ArrayList<>(metricsByKey.values());
         int rowCount = metrics.size();
 
         Block[] blocks = new Block[6];
@@ -144,7 +208,7 @@ public class MetricsInfoOperator implements Operator {
                 blocks[0] = nameBuilder.build();
             }
 
-            // Build data_stream column (multi-valued keyword) - data streams that have this metric with this unit
+            // Build data_stream column (multi-valued keyword)
             try (BytesRefBlock.Builder dsBuilder = blockFactory.newBytesRefBlockBuilder(rowCount)) {
                 for (MetricInfo metric : metrics) {
                     appendMultiValued(dsBuilder, metric.dataStreams);
@@ -180,7 +244,7 @@ public class MetricsInfoOperator implements Operator {
                 blocks[4] = ftBuilder.build();
             }
 
-            // Build dimension_fields column (multi-valued keyword) - union of all dimension keys
+            // Build dimension_fields column (multi-valued keyword)
             try (BytesRefBlock.Builder dfBuilder = blockFactory.newBytesRefBlockBuilder(rowCount)) {
                 for (MetricInfo metric : metrics) {
                     appendMultiValued(dfBuilder, metric.dimensionFieldKeys);
@@ -223,12 +287,27 @@ public class MetricsInfoOperator implements Operator {
         }
     }
 
+    private Map<String, Object> parseMetadataSource(BytesRefBlock metadataSource, int position) {
+        if (metadataSource == null || metadataSource.isNull(position)) {
+            return null;
+        }
+        BytesRef bytes = metadataSource.getBytesRef(position, new BytesRef());
+        try (
+            var parser = XContentType.JSON.xContent()
+                .createParser(XContentParserConfiguration.EMPTY, bytes.bytes, bytes.offset, bytes.length)
+        ) {
+            parser.nextToken();
+            return parser.mapOrdered();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     @Override
     public void close() {}
 
     @Override
     public String toString() {
-        return "MetricsInfoOperator[metrics=" + metricFields.size() + "]";
+        return "MetricsInfoOperator[]";
     }
-
 }

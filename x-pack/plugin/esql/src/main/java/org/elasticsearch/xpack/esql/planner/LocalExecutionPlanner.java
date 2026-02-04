@@ -26,6 +26,7 @@ import org.elasticsearch.compute.lucene.TimeSeriesSourceOperator;
 import org.elasticsearch.compute.operator.ChangePointOperator;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.ColumnLoadOperator;
+import org.elasticsearch.compute.operator.DistinctByOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -65,11 +66,11 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.Node;
@@ -89,6 +90,8 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
@@ -141,7 +144,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -838,75 +841,105 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planMetricsInfo(MetricsInfoExec metricsInfoExec, LocalExecutionPlannerContext context) {
-        PhysicalOperation source = plan(metricsInfoExec.child(), context);
+        // Stage 1: Extract _tsid only (cheap - from doc values)
+        FieldAttribute tsidAttr = new FieldAttribute(
+            metricsInfoExec.source(),
+            null,
+            null,
+            MetadataAttribute.TSID_FIELD,
+            new EsField(MetadataAttribute.TSID_FIELD, DataType.TSID_DATA_TYPE, Map.of(), false, EsField.TimeSeriesFieldType.NONE),
+            true
+        );
+
+        FieldExtractExec tsidExtractExec = new FieldExtractExec(
+            metricsInfoExec.source(),
+            metricsInfoExec.child(),
+            List.of(tsidAttr),
+            MappedFieldType.FieldExtractPreference.DOC_VALUES
+        );
+
+        PhysicalOperation tsidSource = planFieldExtractNode(tsidExtractExec, context);
+
+        // Stage 2: Dedup by _tsid - only keep one doc per time series
+        int tsidChannel = tsidSource.layout.get(tsidAttr.id()).channel();
+        PhysicalOperation dedupedSource = tsidSource.with(new DistinctByOperator.Factory(tsidChannel), tsidSource.layout);
+
+        // Stage 3: Extract expensive fields only for deduplicated docs
+        // _timeseries metadata (dimensions + metrics) from synthetic source
+        FieldAttribute metadataSourceAttr = new FieldAttribute(
+            metricsInfoExec.source(),
+            null,
+            null,
+            "_timeseries_metadata",
+            new FunctionEsField(
+                new EsField(SourceFieldMapper.NAME, DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.DIMENSION),
+                DataType.KEYWORD,
+                new BlockLoaderFunctionConfig.JustFunction(BlockLoaderFunctionConfig.Function.TIME_SERIES_METRICS_AND_DIMENSIONS)
+            ),
+            true
+        );
+
+        // _index
+        FieldAttribute indexAttr = new FieldAttribute(
+            metricsInfoExec.source(),
+            null,
+            null,
+            MetadataAttribute.INDEX,
+            new EsField(MetadataAttribute.INDEX, DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE),
+            true
+        );
+
+        FieldExtractExec metadataExtractExec = new FieldExtractExec(
+            metricsInfoExec.source(),
+            tsidExtractExec,
+            List.of(metadataSourceAttr, indexAttr),
+            MappedFieldType.FieldExtractPreference.NONE
+        );
+
+        PhysicalOperation sourceWithMetadata = physicalOperationProviders.fieldExtractPhysicalOperation(metadataExtractExec, dedupedSource);
+
+        int metadataSourceChannel = sourceWithMetadata.layout.get(metadataSourceAttr.id()).channel();
+        int indexChannel = sourceWithMetadata.layout.get(indexAttr.id()).channel();
 
         Layout.Builder layoutBuilder = new Layout.Builder();
         layoutBuilder.append(metricsInfoExec.output());
 
-        List<MetricFieldInfo> metricFieldInfos = getMetricFields(context.shardContexts);
-        Set<String> dimensionFields = getDimensionFields(context.shardContexts);
+        // Build on-demand lookup from index name to MappingLookup
+        MetricsInfoOperator.MetricFieldLookup fieldLookup = createMetricFieldLookup(context.shardContexts);
 
-        return source.with(new MetricsInfoOperator.Factory(metricFieldInfos, dimensionFields), layoutBuilder.build());
+        return sourceWithMetadata.with(
+            new MetricsInfoOperator.Factory(fieldLookup, metadataSourceChannel, indexChannel),
+            layoutBuilder.build()
+        );
     }
 
-    private static List<MetricFieldInfo> getMetricFields(IndexedByShardId<? extends ShardContext> shardContexts) {
-        record MetricFieldInfoKey(String name, String indexName, String fieldType, String metricType, String unit) {}
-
-        Set<MetricFieldInfoKey> seenFields = new LinkedHashSet<>();
-        List<MetricFieldInfo> metricFieldInfos = new ArrayList<>();
-
+    private static MetricsInfoOperator.MetricFieldLookup createMetricFieldLookup(IndexedByShardId<? extends ShardContext> shardContexts) {
+        Map<String, MappingLookup> mappingsByIndex = new HashMap<>();
         for (ShardContext shard : shardContexts.iterable()) {
-            if (shard.indexSettings().getMode() != IndexMode.TIME_SERIES) {
-                continue;
-            }
-            String indexName = shard.indexSettings().getIndex().getName();
-            MappingLookup mappingLookup = shard.mappingLookup();
-            for (Mapper mapper : mappingLookup.fieldMappers()) {
-                if (mapper instanceof FieldMapper fieldMapper) {
-                    MappedFieldType fieldType = fieldMapper.fieldType();
-                    TimeSeriesParams.MetricType tsMetricType = fieldType.getMetricType();
-                    if (tsMetricType == null) {
-                        continue;
-                    }
-                    String name = fieldType.name();
-                    String unit = fieldType.meta().get("unit");
-                    if (unit == null || unit.isBlank()) {
-                        unit = null;
-                    }
-                    String metricType = tsMetricType.toString();
-                    String fieldTypeName = fieldType.typeName();
-                    MetricFieldInfoKey key = new MetricFieldInfoKey(name, indexName, fieldTypeName, metricType, unit);
-                    if (seenFields.add(key)) {
-                        metricFieldInfos.add(new MetricFieldInfo(name, indexName, fieldTypeName, metricType, unit));
-                    }
-                }
+            if (shard.indexSettings().getMode() == IndexMode.TIME_SERIES) {
+                mappingsByIndex.putIfAbsent(shard.indexSettings().getIndex().getName(), shard.mappingLookup());
             }
         }
-        return metricFieldInfos;
-    }
 
-    private static Set<String> getDimensionFields(IndexedByShardId<? extends ShardContext> shardContexts) {
-        Set<String> dimensionFields = new LinkedHashSet<>();
-        for (ShardContext shard : shardContexts.iterable()) {
-            if (shard.indexSettings().getMode() != IndexMode.TIME_SERIES) {
-                continue;
+        return (indexName, fieldName) -> {
+            MappingLookup mappingLookup = mappingsByIndex.get(indexName);
+            if (mappingLookup == null) {
+                return null;
             }
-            List<String> fromSettings = shard.indexSettings().getIndexMetadata().getTimeSeriesDimensions();
-            if (fromSettings != null && fromSettings.isEmpty() == false) {
-                dimensionFields.addAll(fromSettings);
-                continue;
+            MappedFieldType fieldType = mappingLookup.getFieldType(fieldName);
+            if (fieldType == null) {
+                return null;
             }
-            MappingLookup mappingLookup = shard.mappingLookup();
-            for (Mapper mapper : mappingLookup.fieldMappers()) {
-                if (mapper instanceof FieldMapper fieldMapper) {
-                    MappedFieldType fieldType = fieldMapper.fieldType();
-                    if (fieldType.isDimension()) {
-                        dimensionFields.add(fieldType.name());
-                    }
-                }
+            TimeSeriesParams.MetricType tsMetricType = fieldType.getMetricType();
+            if (tsMetricType == null) {
+                return null;
             }
-        }
-        return dimensionFields;
+            String unit = fieldType.meta().get("unit");
+            if (unit != null && unit.isBlank()) {
+                unit = null;
+            }
+            return new MetricFieldInfo(fieldName, indexName, fieldType.typeName(), tsMetricType.toString(), unit);
+        };
     }
 
     private PhysicalOperation planShow(ShowExec showExec) {

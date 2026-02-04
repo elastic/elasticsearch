@@ -117,15 +117,15 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
                         for (DataType type : DataType.values()) {
                             String typeName = switch (type) {
-                                case INT7 -> "7u";
-                                case BYTE -> "Byte";
+                                case INT7U -> "i7u";
+                                case INT8 -> "i8";
                                 case FLOAT32 -> "f32";
                             };
 
                             FunctionDescriptor descriptor = switch (op) {
                                 case SINGLE -> switch (type) {
-                                    case INT7 -> intSingle;
-                                    case BYTE, FLOAT32 -> floatSingle;
+                                    case INT7U -> intSingle;
+                                    case INT8, FLOAT32 -> floatSingle;
                                 };
                                 case BULK -> bulk;
                                 case BULK_OFFSETS -> bulkOffsets;
@@ -140,8 +140,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
                             if (f == Function.SQUARE_DISTANCE) continue;
 
                             String typeName = switch (type) {
-                                case I1I4 -> "_int1_int4";
-                                case I2I4 -> "_int2_int4";
+                                case D1Q4 -> "i1i4";
+                                case D2Q4 -> "i2i4";
                             };
 
                             FunctionDescriptor descriptor = switch (op) {
@@ -310,7 +310,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
         }
 
         private static final MethodHandle dot7uHandle = HANDLES.get(
-            new OperationSignature<>(Function.DOT_PRODUCT, DataType.INT7, Operation.SINGLE)
+            new OperationSignature<>(Function.DOT_PRODUCT, DataType.INT7U, Operation.SINGLE)
         );
 
         static int dotProduct7u(MemorySegment a, MemorySegment b, int length) {
@@ -320,7 +320,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
         }
 
         private static final MethodHandle square7uHandle = HANDLES.get(
-            new OperationSignature<>(Function.SQUARE_DISTANCE, DataType.INT7, Operation.SINGLE)
+            new OperationSignature<>(Function.SQUARE_DISTANCE, DataType.INT7U, Operation.SINGLE)
         );
 
         static int squareDistance7u(MemorySegment a, MemorySegment b, int length) {
@@ -330,7 +330,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
         }
 
         private static final MethodHandle dotByteHandle = HANDLES.get(
-            new OperationSignature<>(Function.DOT_PRODUCT, DataType.BYTE, Operation.SINGLE)
+            new OperationSignature<>(Function.DOT_PRODUCT, DataType.INT8, Operation.SINGLE)
         );
 
         static float dotProductByte(MemorySegment a, MemorySegment b, int elementCount) {
@@ -340,7 +340,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
         }
 
         private static final MethodHandle squareByteHandle = HANDLES.get(
-            new OperationSignature<>(Function.SQUARE_DISTANCE, DataType.BYTE, Operation.SINGLE)
+            new OperationSignature<>(Function.SQUARE_DISTANCE, DataType.INT8, Operation.SINGLE)
         );
 
         static float squareDistanceByte(MemorySegment a, MemorySegment b, int elementCount) {
@@ -370,7 +370,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
         }
 
         private static final MethodHandle dotI1I4Handle = HANDLES.get(
-            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.I1I4, Operation.SINGLE)
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D1Q4, Operation.SINGLE)
         );
 
         /**
@@ -387,7 +387,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
         }
 
         private static final MethodHandle dotI2I4Handle = HANDLES.get(
-            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.I2I4, Operation.SINGLE)
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D2Q4, Operation.SINGLE)
         );
 
         /**
@@ -434,11 +434,11 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                     MethodType type = null;
 
                                     switch (dt) {
-                                        case INT7:
+                                        case INT7U:
                                             type = MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, int.class);
                                             checkMethod += "7u";
                                             break;
-                                        case BYTE:
+                                        case INT8:
                                             type = MethodType.methodType(float.class, MemorySegment.class, MemorySegment.class, int.class);
                                             checkMethod += "Byte";
                                             break;

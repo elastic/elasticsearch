@@ -23,11 +23,11 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
 import static org.hamcrest.Matchers.containsString;
 
-public class JDKVectorLibraryByteTests extends VectorSimilarityFunctionsTests {
+public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
 
     final float delta;
 
-    public JDKVectorLibraryByteTests(VectorSimilarityFunctions.Function function, int size) {
+    public JDKVectorLibraryInt8Tests(VectorSimilarityFunctions.Function function, int size) {
         super(function, size);
         this.delta = 1e-5f * size; // scale the delta with the size
     }
@@ -214,7 +214,7 @@ public class JDKVectorLibraryByteTests extends VectorSimilarityFunctionsTests {
         try {
             return (float) getVectorDistance().getHandle(
                 function,
-                VectorSimilarityFunctions.DataType.BYTE,
+                VectorSimilarityFunctions.DataType.INT8,
                 VectorSimilarityFunctions.Operation.SINGLE
             ).invokeExact(a, b, length);
         } catch (Throwable t) {
@@ -224,7 +224,7 @@ public class JDKVectorLibraryByteTests extends VectorSimilarityFunctionsTests {
 
     void similarityBulk(MemorySegment a, MemorySegment b, int dims, int count, MemorySegment result) {
         try {
-            getVectorDistance().getHandle(function, VectorSimilarityFunctions.DataType.BYTE, VectorSimilarityFunctions.Operation.BULK)
+            getVectorDistance().getHandle(function, VectorSimilarityFunctions.DataType.INT8, VectorSimilarityFunctions.Operation.BULK)
                 .invokeExact(a, b, dims, count, result);
         } catch (Throwable t) {
             throw rethrow(t);
@@ -243,7 +243,7 @@ public class JDKVectorLibraryByteTests extends VectorSimilarityFunctionsTests {
         try {
             getVectorDistance().getHandle(
                 function,
-                VectorSimilarityFunctions.DataType.BYTE,
+                VectorSimilarityFunctions.DataType.INT8,
                 VectorSimilarityFunctions.Operation.BULK_OFFSETS
             ).invokeExact(a, b, dims, pitch, offsets, count, result);
         } catch (Throwable t) {
@@ -260,15 +260,15 @@ public class JDKVectorLibraryByteTests extends VectorSimilarityFunctionsTests {
 
     void scalarSimilarityBulk(byte[] query, byte[][] data, float[] scores) {
         switch (function) {
-            case DOT_PRODUCT -> bulkScalar(JDKVectorLibraryByteTests::dotProductScalar, query, data, scores);
-            case SQUARE_DISTANCE -> bulkScalar(JDKVectorLibraryByteTests::squareDistanceScalar, query, data, scores);
+            case DOT_PRODUCT -> bulkScalar(JDKVectorLibraryInt8Tests::dotProductScalar, query, data, scores);
+            case SQUARE_DISTANCE -> bulkScalar(JDKVectorLibraryInt8Tests::squareDistanceScalar, query, data, scores);
         }
     }
 
     void scalarSimilarityBulkWithOffsets(byte[] query, byte[][] data, int[] offsets, float[] scores) {
         switch (function) {
-            case DOT_PRODUCT -> bulkWithOffsetsScalar(JDKVectorLibraryByteTests::dotProductScalar, query, data, offsets, scores);
-            case SQUARE_DISTANCE -> bulkWithOffsetsScalar(JDKVectorLibraryByteTests::squareDistanceScalar, query, data, offsets, scores);
+            case DOT_PRODUCT -> bulkWithOffsetsScalar(JDKVectorLibraryInt8Tests::dotProductScalar, query, data, offsets, scores);
+            case SQUARE_DISTANCE -> bulkWithOffsetsScalar(JDKVectorLibraryInt8Tests::squareDistanceScalar, query, data, offsets, scores);
         }
     }
 

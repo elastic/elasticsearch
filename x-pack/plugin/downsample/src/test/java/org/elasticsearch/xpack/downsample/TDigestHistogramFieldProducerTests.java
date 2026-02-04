@@ -24,8 +24,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class TDigestHistogramFieldProducerTests extends ESTestCase {
 
-    public void testLastValueProducer() throws IOException {
-        var producer = TDigestHistogramFieldProducer.create("my-histogram", DownsampleConfig.SamplingMethod.LAST_VALUE);
+    public void testLastValueProducerForLegacyHistogram() throws IOException {
+        var producer = TDigestHistogramFieldProducer.createForLegacyHistogram("my-histogram", DownsampleConfig.SamplingMethod.LAST_VALUE);
         assertTrue(producer.isEmpty());
         assertEquals("my-histogram", producer.name());
 
@@ -46,8 +46,8 @@ public class TDigestHistogramFieldProducerTests extends ESTestCase {
         assertThat(content, equalTo("{\"my-histogram\":{\"counts\":[1,2],\"values\":[1.0,2.0]}}"));
     }
 
-    public void testAggregateProducer() throws IOException {
-        var producer = TDigestHistogramFieldProducer.create("my-histogram", DownsampleConfig.SamplingMethod.AGGREGATE);
+    public void testAggregateProducerForLegacyHistogram() throws IOException {
+        var producer = TDigestHistogramFieldProducer.createForLegacyHistogram("my-histogram", DownsampleConfig.SamplingMethod.AGGREGATE);
         assertTrue(producer.isEmpty());
         assertEquals("my-histogram", producer.name());
 
@@ -66,6 +66,50 @@ public class TDigestHistogramFieldProducerTests extends ESTestCase {
         builder.endObject();
         var content = Strings.toString(builder);
         assertThat(content, equalTo("{\"my-histogram\":{\"counts\":[4,2,4],\"values\":[1.0,2.0,4.0]}}"));
+    }
+
+    public void testLastValueProducerForTDigest() throws IOException {
+        var producer = TDigestHistogramFieldProducer.createForTDigest("my-histogram", DownsampleConfig.SamplingMethod.LAST_VALUE);
+        assertTrue(producer.isEmpty());
+        assertEquals("my-histogram", producer.name());
+
+        var docValues = createValuesInstance(
+            IntArrayList.from(1, 2),
+            new HistogramValue[] {
+                histogram(new double[] { 1, 2 }, new long[] { 1, 2 }),
+                histogram(new double[] { 1, 4 }, new long[] { 3, 4 }) }
+        );
+        producer.collect(docValues, IntArrayList.from(1, 2));
+        assertFalse(producer.isEmpty());
+
+        var builder = new XContentBuilder(XContentType.JSON.xContent(), new ByteArrayOutputStream());
+        builder.startObject();
+        producer.write(builder);
+        builder.endObject();
+        var content = Strings.toString(builder);
+        assertThat(content, equalTo("{\"my-histogram\":{\"counts\":[1,2],\"centroids\":[1.0,2.0]}}"));
+    }
+
+    public void testAggregateProducerForTDigest() throws IOException {
+        var producer = TDigestHistogramFieldProducer.createForTDigest("my-histogram", DownsampleConfig.SamplingMethod.AGGREGATE);
+        assertTrue(producer.isEmpty());
+        assertEquals("my-histogram", producer.name());
+
+        var docValues = createValuesInstance(
+            IntArrayList.from(1, 2),
+            new HistogramValue[] {
+                histogram(new double[] { 1, 2 }, new long[] { 1, 2 }),
+                histogram(new double[] { 1, 4 }, new long[] { 3, 4 }) }
+        );
+        producer.collect(docValues, IntArrayList.from(1, 2));
+        assertFalse(producer.isEmpty());
+
+        var builder = new XContentBuilder(XContentType.JSON.xContent(), new ByteArrayOutputStream());
+        builder.startObject();
+        producer.write(builder);
+        builder.endObject();
+        var content = Strings.toString(builder);
+        assertThat(content, equalTo("{\"my-histogram\":{\"counts\":[4,2,4],\"centroids\":[1.0,2.0,4.0]}}"));
     }
 
     HistogramValues createValuesInstance(IntArrayList docIdBuffer, HistogramValue[] values) {

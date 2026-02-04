@@ -808,9 +808,16 @@ public class Approximation {
     }
 
     /**
-     * Optimizes the given logical plan, mostly to prune unnecessary columns.
+     * Optimizes the plan by running just the operator optimizations. These
+     * should be safe to rerun any time. This is primarily to prune unnecessary
+     * columns generated in the approximation plan.
      * <p>
-     * Only the operator optimizations are applied, which are safe to rerun any time.
+     * These unnecessary columns are generated in various ways, for example:
+     * - STATS AVG(x): the AVG is rewritten via a surrogate to SUM and COUNT.
+     *   Both the corrected and uncorrected sum and count column are generated,
+     *   but the corrected ones aren't needed for AVG(x) = SUM(x)/COUNT().
+     * - STATS x=COUNT() | EVAL x=TO_STRING(x): bucket columns are generated
+     *   for the numeric count, but are not needed after the string conversion.
      */
     private LogicalPlan optimize(LogicalPlan plan) {
         LogicalPlanOptimizer optimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, foldContext, minimumVersion)) {
@@ -859,9 +866,15 @@ public class Approximation {
         // TODO: use theoretically non-conflicting names.
         Alias bucketIdField = new Alias(Source.EMPTY, "$bucket_id", bucketIds);
 
+        // The aggregate functions in the approximation plan.
         List<NamedExpression> aggregates = new ArrayList<>();
 
-        List<Alias> sampleCorrections = new ArrayList<>();
+        // List of expressions that must be evaluated after the sampled aggregation.
+        // These consist of:
+        // - sample corrections (to correct counts/sums for sampling)
+        // - replace zero counts by NULLs (for confidence interval computation)
+        // - exact total row count if COUNT(*) is used (to avoid sampling errors there)
+        List<Alias> evals = new ArrayList<>();
 
         for (NamedExpression aggOrKey : aggregate.aggregates()) {
             if ((aggOrKey instanceof Alias alias && alias.child() instanceof AggregateFunction) == false) {
@@ -875,13 +888,11 @@ public class Approximation {
 
             // If the query is preserving all rows, and the aggregation function is
             // counting all rows, we know the exact result without sampling.
-            // TODO: COUNT("foobar"), which counts all rows, should also be detected,
-            // see https://github.com/elastic/elasticsearch/issues/141424
             if (aggFn.equals(COUNT_ALL_ROWS)
                 && aggregate.groupings().isEmpty()
                 && queryProperties.canDecreaseRowCount == false
                 && queryProperties.canIncreaseRowCount == false) {
-                sampleCorrections.add(aggAlias.replaceChild(Literal.fromLong(Source.EMPTY, sourceRowCount.get())));
+                evals.add(aggAlias.replaceChild(Literal.fromLong(Source.EMPTY, sourceRowCount.get())));
                 continue;
             }
 
@@ -894,7 +905,7 @@ public class Approximation {
                 uncorrectedExpressions.put(aggAlias.id(), uncorrectedAggAlias);
 
                 Expression correctedAgg = correctForSampling(uncorrectedAggAlias.toAttribute(), sampleProbability);
-                sampleCorrections.add(aggAlias.replaceChild(correctedAgg));
+                evals.add(aggAlias.replaceChild(correctedAgg));
             }
 
             if (SUPPORTED_SINGLE_VALUED_AGGS.contains(aggFn.getClass())) {
@@ -938,7 +949,7 @@ public class Approximation {
 
                             Expression correctedBucket = correctForSampling(uncorrectedBucket, sampleProbability / BUCKET_COUNT);
                             Alias correctedBucketAlias = bucketAlias.replaceChild(correctedBucket);
-                            sampleCorrections.add(correctedBucketAlias);
+                            evals.add(correctedBucketAlias);
                             buckets.add(correctedBucketAlias);
                         }
                     }
@@ -964,7 +975,7 @@ public class Approximation {
                 Literal.integer(Source.EMPTY, MIN_ROW_COUNT_FOR_RESULT_INCLUSION)
             )
         );
-        plan = new Eval(Source.EMPTY, plan, sampleCorrections);
+        plan = new Eval(Source.EMPTY, plan, evals);
 
         List<Attribute> keepAttributes = new ArrayList<>(plan.output());
         keepAttributes.remove(sampleSize.toAttribute());

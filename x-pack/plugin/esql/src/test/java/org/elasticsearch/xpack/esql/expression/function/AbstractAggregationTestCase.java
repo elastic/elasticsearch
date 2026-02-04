@@ -610,6 +610,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         }
 
         // Run agg surrogates twice
+        // This simulates the double aggs surrogation in LogicalPlanOptimizer
         for (int i = 0; i < 2; i++) {
             expression = expression.transformUp(AggregateFunction.class, agg -> {
                 if (agg instanceof SurrogateExpression se) {

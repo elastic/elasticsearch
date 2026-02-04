@@ -1863,6 +1863,12 @@ public class EsqlCapabilities {
         RATE_FIX_RESETS_MULTIPLE_SEGMENTS,
 
         /**
+         * Fix for <a href="https://github.com/elastic/elasticsearch/issues/141627">141627</a>,
+         * TO_IP with leading_zeros=octal generates proper warning and returns null when given invalid input.
+         */
+        FIX_TO_IP_LEADING_ZEROS_OCTAL,
+
+        /**
          * Fix bug with TS command where you can't group on aliases (i.e. `by c = cluster`)
          */
         TS_COMMAND_GROUP_ON_ALIASES,

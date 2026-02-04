@@ -25,9 +25,6 @@ Infra/Logging:
 * Add deprecation lenient booleans usage for analysis boolean setting (3rd party plugins) and boolean system properties. [#137885](https://github.com/elastic/elasticsearch/pull/137885) (issue: [#128993](https://github.com/elastic/elasticsearch/issues/128993))
 
 ## 9.2.5 [elasticsearch-9.2.5-deprecations]
-```{applies_to}
-stack: ga 9.2.5
-```
 
 There are no deprecations associated with this release.
 

@@ -17,6 +17,7 @@ import org.apache.kerby.kerberos.kerb.server.SimpleKdcServer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -55,7 +56,7 @@ public class SimpleKdcLdapServer {
     // KDC properties
     private String transport = ESTestCase.randomFrom("TCP", "UDP");
     private int kdcPort = 0;
-    private String host = InetAddress.getLoopbackAddress().getHostAddress();
+    private String host = NetworkAddress.format(InetAddress.getLoopbackAddress());
     private String realm;
     private boolean krb5DebugBackupConfigValue;
 
@@ -145,7 +146,7 @@ public class SimpleKdcLdapServer {
         String backendConf = KdcConfigKey.KDC_IDENTITY_BACKEND.getPropertyKey()
             + " = org.apache.kerby.kerberos.kdc.identitybackend.LdapIdentityBackend\n"
             + "host="
-            + InetAddress.getLoopbackAddress().getHostAddress()
+            + host
             + "\n"
             + "port="
             + ldapPort

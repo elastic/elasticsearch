@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -93,7 +94,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
         );
         assertThat(e.getMessage(), containsString("connect_exception"));
 
-        String loopback = InetAddress.getByName("localhost").toString().contains(":") ? "[::1]" : "127.0.0.1";
+        String loopback = InetAddresses.toUriString(InetAddress.getByName("localhost"));
         assertThat(e.getMessage(), containsString("[" + loopback + ":9876]"));
     }
 

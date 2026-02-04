@@ -12,6 +12,7 @@ import com.unboundid.ldap.sdk.SearchResult;
 import com.unboundid.ldap.sdk.SearchScope;
 
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
@@ -41,7 +42,7 @@ public class SimpleKdcLdapServerTests extends KerberosTestCase {
         assertTrue(Files.exists(workDir.resolve("p1p2.keytab")));
         try (
             LDAPConnection ldapConn = LdapUtils.privilegedConnect(
-                () -> new LDAPConnection(InetAddress.getLoopbackAddress().getHostAddress(), simpleKdcLdapServer.getLdapListenPort())
+                () -> new LDAPConnection(NetworkAddress.format(InetAddress.getLoopbackAddress()), simpleKdcLdapServer.getLdapListenPort())
             );
         ) {
             assertThat(ldapConn.isConnected(), is(true));

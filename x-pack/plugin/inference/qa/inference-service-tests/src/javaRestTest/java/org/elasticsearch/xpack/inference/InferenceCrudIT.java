@@ -36,6 +36,8 @@ import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.inference.TaskType.CHAT_COMPLETION;
+import static org.elasticsearch.inference.TaskType.COMPLETION;
 import static org.elasticsearch.inference.TaskType.EMBEDDING;
 import static org.elasticsearch.inference.TaskType.RERANK;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
@@ -522,6 +524,89 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
             () -> updateEndpoint("sparse_embedding_model", updateConfig(TEXT_EMBEDDING, randomAlphaOfLength(10), randomIntBetween(1, 10)))
         );
         assertThat(e.getMessage(), containsString("Task type must match the task type of the existing endpoint"));
+    }
+
+    public void testUpdateSparseEmbeddingEndpointWithFailedValidation() throws IOException {
+        putModel("sparse_embedding_model", mockSparseServiceModelConfig(), SPARSE_EMBEDDING);
+        var originalModel = getModel("sparse_embedding_model");
+        var e = expectThrows(
+            ResponseException.class,
+            () -> updateEndpoint("sparse_embedding_model", updateConfigWithFailedValidationFlag(SPARSE_EMBEDDING))
+        );
+        assertThat(e.getMessage(), containsString("validation call intentionally failed based on task settings"));
+        var modelAfterUpdate = getModel("sparse_embedding_model");
+        // if validation fails, the model should remain unchanged
+        assertThat(modelAfterUpdate, is(originalModel));
+    }
+
+    public void testUpdateTextEmbeddingEndpointWithFailedValidation() throws IOException {
+        putModel("text_embedding_model", mockTextEmbeddingServiceModelConfig(), TEXT_EMBEDDING);
+        var originalModel = getModel("text_embedding_model");
+        var e = expectThrows(
+            ResponseException.class,
+            () -> updateEndpoint("text_embedding_model", updateConfigWithFailedValidationFlag(TEXT_EMBEDDING))
+        );
+        assertThat(e.getMessage(), containsString("validation call intentionally failed based on task settings"));
+        var modelAfterUpdate = getModel("text_embedding_model");
+        // if validation fails, the model should remain unchanged
+        assertThat(modelAfterUpdate, is(originalModel));
+    }
+
+    public void testUpdateRerankEndpointWithFailedValidation() throws IOException {
+        putModel("rerank_model", mockRerankServiceModelConfig(), RERANK);
+        var originalModel = getModel("rerank_model");
+        var e = expectThrows(ResponseException.class, () -> updateEndpoint("rerank_model", updateConfigWithFailedValidationFlag(RERANK)));
+        assertThat(e.getMessage(), containsString("validation call intentionally failed based on task settings"));
+        var modelAfterUpdate = getModel("rerank_model");
+        // if validation fails, the model should remain unchanged
+        assertThat(modelAfterUpdate, is(originalModel));
+    }
+
+    public void testUpdateCompletionEndpointWithFailedValidation() throws IOException {
+        putModel("completion_model", mockCompletionServiceModelConfig(COMPLETION, "completion_test_service"), COMPLETION);
+        var originalModel = getModel("completion_model");
+        var e = expectThrows(
+            ResponseException.class,
+            () -> updateEndpoint("completion_model", updateConfigWithFailedValidationFlag(COMPLETION))
+        );
+        assertThat(e.getMessage(), containsString("validation call intentionally failed based on task settings"));
+        var modelAfterUpdate = getModel("completion_model");
+        // if validation fails, the model should remain unchanged
+        assertThat(modelAfterUpdate, is(originalModel));
+    }
+
+    public void testUpdateStreamingCompletionEndpointWithFailedValidation() throws IOException {
+        putModel(
+            "streaming_completion_model",
+            mockCompletionServiceModelConfig(COMPLETION, "streaming_completion_test_service"),
+            COMPLETION
+        );
+        var originalModel = getModel("streaming_completion_model");
+        var e = expectThrows(
+            ResponseException.class,
+            () -> updateEndpoint("streaming_completion_model", updateConfigWithFailedValidationFlag(COMPLETION))
+        );
+        assertThat(e.getMessage(), containsString("validation call intentionally failed based on task settings"));
+        var modelAfterUpdate = getModel("streaming_completion_model");
+        // if validation fails, the model should remain unchanged
+        assertThat(modelAfterUpdate, is(originalModel));
+    }
+
+    public void testUpdateStreamingChatCompletionEndpointWithFailedValidation() throws IOException {
+        putModel(
+            "streaming_chat_completion_model",
+            mockCompletionServiceModelConfig(CHAT_COMPLETION, "streaming_completion_test_service"),
+            CHAT_COMPLETION
+        );
+        var originalModel = getModel("streaming_chat_completion_model");
+        var e = expectThrows(
+            ResponseException.class,
+            () -> updateEndpoint("streaming_chat_completion_model", updateConfigWithFailedValidationFlag(CHAT_COMPLETION))
+        );
+        assertThat(e.getMessage(), containsString("validation call intentionally failed based on task settings"));
+        var modelAfterUpdate = getModel("streaming_chat_completion_model");
+        // if validation fails, the model should remain unchanged
+        assertThat(modelAfterUpdate, is(originalModel));
     }
 
     public void testUpdateEndpointWithTaskTypeInURL() throws IOException {

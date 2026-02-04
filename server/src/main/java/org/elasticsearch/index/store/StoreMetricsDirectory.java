@@ -24,7 +24,7 @@ public class StoreMetricsDirectory extends ByteSizeDirectory {
 
     @Override
     public IndexInput openInput(String name, IOContext context) throws IOException {
-        return new StoreMetricsIndexInput(name, super.openInput(name, context), metricHolder.singleThreaded());
+        return StoreMetricsIndexInput.create(name, super.openInput(name, context), metricHolder.singleThreaded());
     }
 
     @Override

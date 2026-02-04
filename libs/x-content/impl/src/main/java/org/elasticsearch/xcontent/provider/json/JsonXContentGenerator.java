@@ -507,8 +507,7 @@ public class JsonXContentGenerator implements XContentGenerator {
             generator.writeRawValue(sourceString);  // Fast path: direct write
         } else {
             // Slow path: parse and convert format
-            try (XContentParser parser = contentType.xContent()
-                .createParser(XContentParserConfiguration.EMPTY, sourceString)) {
+            try (XContentParser parser = contentType.xContent().createParser(XContentParserConfiguration.EMPTY, sourceString)) {
                 copyCurrentStructure(parser);
             }
         }

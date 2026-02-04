@@ -93,6 +93,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
                 scalar.dims = dims;
                 scalar.bits = bits;
                 scalar.directoryType = directoryType;
+                scalar.similarityFunction = similarityFunction;
                 scalar.setup(new Random(seed));
 
                 float[] expected = scalar.bulkScore();
@@ -101,6 +102,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
                 vectorized.dims = dims;
                 vectorized.bits = bits;
                 vectorized.directoryType = directoryType;
+                vectorized.similarityFunction = similarityFunction;
                 vectorized.setup(new Random(seed));
 
                 float[] result = vectorized.bulkScore();

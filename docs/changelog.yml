@@ -2,17 +2,33 @@
 # This file configures the valid values for changelog fields using the pivot structure.
 # Place this file as `changelog.yml` in the `docs/` directory
 
-# Available products (optional - if not specified, all products from products.yml are allowed)
+# Products configuration (optional)
+# If not specified, all products from products.yml are allowed
 products:
-  - elasticsearch
-  - cloud-serverless
-  # Add more products as needed
+  # List of available product IDs (empty = all from products.yml)
+  available:
+    - elasticsearch
+    - cloud-serverless
+  # Default products when --products not specified
+  # default:
+  #   - product: elasticsearch
+  #     lifecycle: ga
+
+# Extraction configuration
+# Controls automatic extraction of information from PR descriptions
+extract:
+  # Auto-extract release notes from PR descriptions (default: true)
+  # Can be overridden by CLI --no-extract-release-notes
+  release_notes: true
+  # Auto-extract issues from PR body (default: true)
+  # Looks for patterns like "Fixes #123", "Closes #456", etc.
+  issues: true
 
 # Available lifecycle values (strongly typed: preview, beta, ga)
-# lifecycles:
-#   - preview
-#   - beta
-#   - ga
+lifecycles:
+  - preview
+  - beta
+  - ga
 
 # Pivot configuration for types, subtypes, and areas with label mappings.
 # By default we render entries grouped by type > subtype > area.
@@ -30,13 +46,13 @@ pivot:
     breaking-change:
       labels: ">breaking"
       subtypes:
-      #   api: ">api-breaking"
-      #   behavioral: ">behavioral-breaking"
-      #   configuration: ">config-breaking"
-      #   dependency: ">dependency-breaking"
-      #   subscription: ">subscription-breaking"
-      #   plugin: ">plugin-breaking"
-      #   security: ">security-breaking"
+        api: 
+        behavioral: 
+        configuration: 
+        dependency: 
+        subscription: 
+        plugin: 
+        security: 
         other: ">breaking-java"
     # Simple string form: labels as comma-separated string
     bug-fix: ">bug"
@@ -44,9 +60,9 @@ pivot:
     docs: ">docs, documentation"
     enhancement: "release_note:enhancement, >enhancement"
     feature: ">feature"
-    # known-issue: "release_note:known-issue" 
+    known-issue:
     regression: ">regression"
-    # security: "release_note:security"
+    security: 
     other: ">upgrade"
 
   # Area definitions with labels
@@ -190,3 +206,24 @@ block:
           - Watcher
         types:
           - docs
+
+# Bundle configuration (profiles and defaults)
+# bundle:
+  # Input directory containing changelog YAML files
+  # directory: docs/changelog
+  # Output directory for bundled changelog files
+  # output_directory: docs/releases
+  # Whether to resolve (copy contents) by default
+  # resolve: true
+
+  # Named bundle profiles for different release scenarios
+  # profiles:
+    # Example: Elasticsearch release profile
+    # elasticsearch-release:
+    #   products: "elasticsearch {version} {lifecycle}"
+    #   output: "elasticsearch-{version}.yaml"
+
+    # Example: Serverless release profile
+    # serverless-release:
+    #   products: "cloud-serverless {version} *"
+    #   output: "serverless-{version}.yaml"

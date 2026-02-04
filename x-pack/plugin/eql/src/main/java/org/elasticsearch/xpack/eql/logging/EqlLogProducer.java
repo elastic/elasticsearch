@@ -10,18 +10,17 @@ package org.elasticsearch.xpack.eql.logging;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.action.ActionLoggerProducer;
 import org.elasticsearch.index.ActionLoggingFields;
-import org.elasticsearch.logging.Level;
 
 public class EqlLogProducer implements ActionLoggerProducer<EqlLogContext> {
 
     public static final String LOGGER_NAME = "eql.actionlog";
 
     @Override
-    public ESLogMessage produce(Level level, EqlLogContext context, ActionLoggingFields additionalFields) {
-        ESLogMessage msg = produceCommon(level, context, additionalFields);
-        msg.with("query", context.getQuery());
-        msg.with("indices", context.getIndices());
-        msg.with("hits", context.getHits());
+    public ESLogMessage produce(EqlLogContext context, ActionLoggingFields additionalFields) {
+        ESLogMessage msg = produceCommon(context, additionalFields);
+        msg.field("query", context.getQuery());
+        msg.field("indices", context.getIndices());
+        msg.field("hits", context.getHits());
         return msg;
     }
 

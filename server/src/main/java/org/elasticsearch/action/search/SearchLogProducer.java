@@ -43,13 +43,13 @@ public class SearchLogProducer implements ActionLoggerProducer<SearchLogContext>
     }
 
     @Override
-    public ESLogMessage produce(Level level, SearchLogContext context, ActionLoggingFields additionalFields) {
-        ESLogMessage msg = produceCommon(level, context, additionalFields);
-        msg.with("query", context.getQuery());
-        msg.with("indices", context.getIndices());
-        msg.with("hits", context.getHits());
+    public ESLogMessage produce(SearchLogContext context, ActionLoggingFields additionalFields) {
+        ESLogMessage msg = produceCommon(context, additionalFields);
+        msg.field("query", context.getQuery());
+        msg.field("indices", context.getIndices());
+        msg.field("hits", context.getHits());
         if (context.isSystemSearch(systemChecker)) {
-            msg.with("is_system", true);
+            msg.field("is_system", true);
         }
         return msg;
     }

@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit;
  * @param <Context> Specific logger context
  */
 public interface ActionLoggerProducer<Context extends ActionLoggerContext> {
-    ESLogMessage produce(Level level, Context context, ActionLoggingFields additionalFields);
+    ESLogMessage produce(Context context, ActionLoggingFields additionalFields);
 
     default Level logLevel(Context context, Level defaultLevel) {
         return defaultLevel;
@@ -33,18 +33,18 @@ public interface ActionLoggerProducer<Context extends ActionLoggerContext> {
     /**
      * Produces a {@link ESLogMessage} with common fields.
      */
-    default ESLogMessage produceCommon(Level level, Context context, ActionLoggingFields additionalFields) {
+    default ESLogMessage produceCommon(Context context, ActionLoggingFields additionalFields) {
         var fields = new ESLogMessage();
-        additionalFields.logFields().forEach(fields::with);
-        fields.with("x_opaque_id", context.getOpaqueId());
+        fields.withFields(additionalFields.logFields());
+        fields.field("x_opaque_id", context.getOpaqueId());
         long tookInNanos = context.getTookInNanos();
-        fields.with("took", tookInNanos);
-        fields.with("took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos));
-        fields.with("success", context.isSuccess());
-        fields.with("type", context.getType());
+        fields.field("took", tookInNanos);
+        fields.field("took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos));
+        fields.field("success", context.isSuccess());
+        fields.field("type", context.getType());
         if (context.isSuccess() == false) {
-            fields.with("error.type", context.getErrorType());
-            fields.with("error.message", context.getErrorMessage());
+            fields.field("error.type", context.getErrorType());
+            fields.field("error.message", context.getErrorMessage());
         }
         return fields;
     }

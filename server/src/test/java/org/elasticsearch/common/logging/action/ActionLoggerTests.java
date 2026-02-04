@@ -76,7 +76,7 @@ public class ActionLoggerTests extends ESTestCase {
         ESLogMessage randomMessage = randomMessage();
 
         when(producer.logLevel(context, Level.INFO)).thenReturn(level);
-        when(producer.produce(level, context, loggingFields)).thenReturn(randomMessage);
+        when(producer.produce(context, loggingFields)).thenReturn(randomMessage);
 
         actionLogger.logAction(context);
 
@@ -101,7 +101,7 @@ public class ActionLoggerTests extends ESTestCase {
         ESLogMessage randomMessage = randomMessage();
 
         when(producer.logLevel(context, Level.INFO)).thenReturn(level);
-        when(producer.produce(level, context, loggingFields)).thenReturn(randomMessage);
+        when(producer.produce(context, loggingFields)).thenReturn(randomMessage);
 
         actionLogger.logAction(context);
 

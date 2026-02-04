@@ -10,9 +10,10 @@
 package org.elasticsearch.test;
 
 import org.apache.logging.log4j.core.LogEvent;
-import org.apache.logging.log4j.message.MapMessage;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.action.search.SearchLogProducer.SEARCH_LOGGER_LOG_SYSTEM;
@@ -58,12 +59,13 @@ public class ActionLoggingUtils {
         updateClusterSettings(builder);
     }
 
-    @SuppressWarnings("unchecked")
     public static Map<String, String> getMessageData(LogEvent event) {
         assertNotNull(event);
-        assertThat(event.getMessage(), instanceOf(MapMessage.class));
-
-        return ((MapMessage<?, String>) event.getMessage()).getData();
+        assertThat(event.getMessage(), instanceOf(ESLogMessage.class));
+        ESLogMessage message = (ESLogMessage) event.getMessage();
+        HashMap<String, String> map = new HashMap<>();
+        message.getData().forEach((k, v) -> map.put(k, v.toString()));
+        return map;
     }
 
     public static void assertMessageSuccess(Map<String, String> message, String type, String query) {

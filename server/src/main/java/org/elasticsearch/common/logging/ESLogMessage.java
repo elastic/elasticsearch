@@ -54,11 +54,13 @@ public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
     }
 
     public ESLogMessage field(String key, Object value) {
-        super.with(key, value);
+        if (value != null) {
+            super.with(key, value);
+        }
         return this;
     }
 
-    public ESLogMessage withFields(Map<String, Object> prepareMap) {
+    public ESLogMessage withFields(Map<String, ?> prepareMap) {
         prepareMap.forEach(this::field);
         return this;
     }

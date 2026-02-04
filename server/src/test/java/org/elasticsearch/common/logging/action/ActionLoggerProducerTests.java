@@ -11,7 +11,6 @@ package org.elasticsearch.common.logging.action;
 
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.index.ActionLoggingFields;
-import org.elasticsearch.logging.Level;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -30,8 +29,8 @@ public class ActionLoggerProducerTests extends ESTestCase {
     public void setup() {
         producer = new ActionLoggerProducer<>() {
             @Override
-            public ESLogMessage produce(Level level, ActionLoggerContext ctx, ActionLoggingFields additionalFields) {
-                return produceCommon(level, ctx, additionalFields);
+            public ESLogMessage produce(ActionLoggerContext ctx, ActionLoggingFields additionalFields) {
+                return produceCommon(ctx, additionalFields);
             }
 
             @Override
@@ -68,7 +67,7 @@ public class ActionLoggerProducerTests extends ESTestCase {
     }
 
     public void testSuccess() {
-        ESLogMessage message = producer.produce(Level.INFO, makeSuccessContext(), makeFields());
+        ESLogMessage message = producer.produce(makeSuccessContext(), makeFields());
 
         assertThat(message.get("x_opaque_id"), equalTo("test_task"));
         assertThat(message.get("took"), equalTo("1000000"));
@@ -81,7 +80,7 @@ public class ActionLoggerProducerTests extends ESTestCase {
     }
 
     public void testProduceCommonFailure() {
-        ESLogMessage message = producer.produce(Level.INFO, makeFailContext(), makeFields());
+        ESLogMessage message = producer.produce(makeFailContext(), makeFields());
 
         assertThat(message.get("x_opaque_id"), equalTo("test_task2"));
         assertThat(message.get("took"), equalTo("1000"));

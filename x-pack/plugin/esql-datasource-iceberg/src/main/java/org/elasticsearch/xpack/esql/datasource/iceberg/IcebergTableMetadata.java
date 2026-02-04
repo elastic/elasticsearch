@@ -164,9 +164,7 @@ public class IcebergTableMetadata implements ExternalSourceMetadata {
         if (o == null || getClass() != o.getClass()) return false;
         IcebergTableMetadata that = (IcebergTableMetadata) o;
         // Compare schema by structure (sameSchema) rather than object identity
-        return Objects.equals(tablePath, that.tablePath)
-            && schema.sameSchema(that.schema)
-            && Objects.equals(sourceType, that.sourceType);
+        return Objects.equals(tablePath, that.tablePath) && schema.sameSchema(that.schema) && Objects.equals(sourceType, that.sourceType);
     }
 
     @Override

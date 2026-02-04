@@ -2051,13 +2051,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             IndexLimitExceededException::new,
             186,
             INDEX_LIMIT_EXCEEDED_EXCEPTION_VERSION
-        );
         ),
-        STALE_REQUEST_EXCEPTION(
-            StaleRequestException.class,
-            StaleRequestException::new,
-            187,
-            STALE_REQUEST_EXCEPTION_VERSION);
+        STALE_REQUEST_EXCEPTION(StaleRequestException.class, StaleRequestException::new, 187, STALE_REQUEST_EXCEPTION_VERSION);
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

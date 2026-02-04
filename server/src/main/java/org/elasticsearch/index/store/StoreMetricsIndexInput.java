@@ -20,9 +20,17 @@ import java.util.Optional;
 import java.util.Set;
 
 public class StoreMetricsIndexInput extends FilterIndexInput {
-    private final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder;
+    final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder;
 
-    public StoreMetricsIndexInput(String resourceDescription, IndexInput in, PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder) {
+    public static IndexInput create(String resourceDescription, IndexInput in, PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder) {
+        if (in instanceof RandomAccessInput) {
+            return new RandomAccessIndexInput(resourceDescription, in, metricHolder);
+        } else {
+            return new StoreMetricsIndexInput(resourceDescription, in, metricHolder);
+        }
+    }
+
+    private StoreMetricsIndexInput(String resourceDescription, IndexInput in, PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder) {
         super(resourceDescription, in);
         this.metricHolder = metricHolder;
     }
@@ -40,23 +48,23 @@ public class StoreMetricsIndexInput extends FilterIndexInput {
         metricHolder.instance().addBytesRead(len);
     }
 
+    IndexInput createCopy(String resourceDescription, IndexInput in, PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder) {
+        return new StoreMetricsIndexInput(resourceDescription, in, metricHolder);
+    }
+
     @Override
     public IndexInput clone() {
-        return new StoreMetricsIndexInput(toString(), in.clone(), metricHolder.singleThreaded());
+        return createCopy(toString(), in.clone(), metricHolder.singleThreaded());
     }
 
     @Override
     public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
-        return new StoreMetricsIndexInput(sliceDescription, super.slice(sliceDescription, offset, length), metricHolder.singleThreaded());
+        return createCopy(sliceDescription, super.slice(sliceDescription, offset, length), metricHolder.singleThreaded());
     }
 
     @Override
     public IndexInput slice(String sliceDescription, long offset, long length, IOContext context) throws IOException {
-        return new StoreMetricsIndexInput(
-            sliceDescription,
-            super.slice(sliceDescription, offset, length, context),
-            metricHolder.singleThreaded()
-        );
+        return createCopy(sliceDescription, super.slice(sliceDescription, offset, length, context), metricHolder.singleThreaded());
     }
 
     @Override
@@ -202,5 +210,62 @@ public class StoreMetricsIndexInput extends FilterIndexInput {
     public Set<String> readSetOfStrings() throws IOException {
         // keep as is for now due to variable length
         return super.readSetOfStrings();
+    }
+
+    private static class RandomAccessIndexInput extends StoreMetricsIndexInput implements RandomAccessInput {
+        private final RandomAccessInput delegate;
+
+        private RandomAccessIndexInput(
+            String resourceDescription,
+            IndexInput in,
+            PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder
+        ) {
+            super(resourceDescription, in, metricHolder);
+            assert in instanceof RandomAccessInput;
+            this.delegate = (RandomAccessInput) in;
+        }
+
+        @Override
+        IndexInput createCopy(String resourceDescription, IndexInput in, PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder) {
+            return new RandomAccessIndexInput(resourceDescription, in, metricHolder);
+        }
+
+        @Override
+        public RandomAccessInput randomAccessSlice(long offset, long length) throws IOException {
+            return super.randomAccessSlice(offset, length);
+        }
+
+        @Override
+        public long length() {
+            return delegate.length();
+        }
+
+        @Override
+        public byte readByte(long pos) throws IOException {
+            byte result = delegate.readByte(pos);
+            metricHolder.instance().addBytesRead(1);
+            return result;
+        }
+
+        @Override
+        public short readShort(long pos) throws IOException {
+            short result = delegate.readShort(pos);
+            metricHolder.instance().addBytesRead(2);
+            return result;
+        }
+
+        @Override
+        public int readInt(long pos) throws IOException {
+            int result = delegate.readInt(pos);
+            metricHolder.instance().addBytesRead(4);
+            return result;
+        }
+
+        @Override
+        public long readLong(long pos) throws IOException {
+            long result = delegate.readLong(pos);
+            metricHolder.instance().addBytesRead(8);
+            return result;
+        }
     }
 }

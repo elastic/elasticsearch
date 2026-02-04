@@ -12,6 +12,7 @@ package org.elasticsearch.index.store;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 
@@ -19,12 +20,13 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
 
 public class StoreMetricsIndexInputTests extends ESTestCase {
 
     public void testReadByteUpdatesMetrics() throws Exception {
         PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
-        StoreMetricsIndexInput indexInput = new StoreMetricsIndexInput("test", mock(IndexInput.class), metricHolder);
+        IndexInput indexInput = StoreMetricsIndexInput.create("test", mock(IndexInput.class), metricHolder);
 
         assertEquals(0, metricHolder.instance().getBytesRead());
         indexInput.readByte();
@@ -38,7 +40,7 @@ public class StoreMetricsIndexInputTests extends ESTestCase {
     public void testCopyMetricBeforeUsageCopyDoesNotChange() throws IOException {
         PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
         var snapshot = metricHolder.instance().copy();
-        StoreMetricsIndexInput indexInput = new StoreMetricsIndexInput("test", mock(IndexInput.class), metricHolder);
+        IndexInput indexInput = StoreMetricsIndexInput.create("test", mock(IndexInput.class), metricHolder);
 
         assertEquals(0, metricHolder.instance().getBytesRead());
         assertEquals(0, snapshot.getBytesRead());
@@ -49,7 +51,7 @@ public class StoreMetricsIndexInputTests extends ESTestCase {
 
     public void testThreadIsolationOnMetrics() throws Exception {
         PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
-        StoreMetricsIndexInput indexInput = new StoreMetricsIndexInput("test", mock(IndexInput.class), metricHolder);
+        IndexInput indexInput = StoreMetricsIndexInput.create("test", mock(IndexInput.class), metricHolder);
 
         assertEquals(0, metricHolder.instance().getBytesRead());
         indexInput.readByte();
@@ -77,7 +79,7 @@ public class StoreMetricsIndexInputTests extends ESTestCase {
         IndexInput mockIndexInput = mock(IndexInput.class);
         when(mockIndexInput.clone()).thenReturn(mockIndexInput);
         when(mockIndexInput.slice(anyString(), anyLong(), anyLong())).thenReturn(mockIndexInput);
-        StoreMetricsIndexInput indexInput = new StoreMetricsIndexInput("test", mockIndexInput, metricHolder);
+        IndexInput indexInput = StoreMetricsIndexInput.create("test", mockIndexInput, metricHolder);
 
         try {
             IndexInput sliceInput = indexInput.slice("slice", 0, 100);
@@ -100,7 +102,7 @@ public class StoreMetricsIndexInputTests extends ESTestCase {
         IndexInput mockIndexInput = mock(IndexInput.class);
         RandomAccessInput mockRandomAccessInput = mock(RandomAccessInput.class);
         when(mockIndexInput.randomAccessSlice(anyLong(), anyLong())).thenReturn(mockRandomAccessInput);
-        StoreMetricsIndexInput indexInput = new StoreMetricsIndexInput("test", mockIndexInput, metricHolder);
+        IndexInput indexInput = StoreMetricsIndexInput.create("test", mockIndexInput, metricHolder);
 
         RandomAccessInput randomAccessInput = indexInput.randomAccessSlice(0, 1000);
 
@@ -120,7 +122,7 @@ public class StoreMetricsIndexInputTests extends ESTestCase {
         IndexInput mockIndexInput = mock(IndexInput.class);
         RandomAccessInput mockRandomAccessInput = mock(RandomAccessInput.class);
         when(mockIndexInput.randomAccessSlice(anyLong(), anyLong())).thenReturn(mockRandomAccessInput);
-        StoreMetricsIndexInput indexInput = new StoreMetricsIndexInput("test", mockIndexInput, metricHolder);
+        IndexInput indexInput = StoreMetricsIndexInput.create("test", mockIndexInput, metricHolder);
 
         RandomAccessInput randomAccessInput = indexInput.randomAccessSlice(0, 1000);
 
@@ -143,5 +145,16 @@ public class StoreMetricsIndexInputTests extends ESTestCase {
 
         // Back in the original thread, metrics should be unchanged
         assertEquals(1, metricHolder.instance().getBytesRead());
+    }
+
+    public void testCreate() {
+        PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
+        IndexInput mockIndexInput = mock(IndexInput.class);
+        IndexInput decorated = StoreMetricsIndexInput.create("test", mockIndexInput, metricHolder);
+        assertThat(decorated, Matchers.not(Matchers.instanceOf(RandomAccessInput.class)));
+
+        IndexInput mockRandomInput = mock(IndexInput.class, withSettings().extraInterfaces(RandomAccessInput.class));
+        IndexInput decoratedRandom = StoreMetricsIndexInput.create("test", mockRandomInput, metricHolder);
+        assertThat(decoratedRandom, Matchers.instanceOf(RandomAccessInput.class));
     }
 }

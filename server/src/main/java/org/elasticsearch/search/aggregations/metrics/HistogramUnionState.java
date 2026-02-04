@@ -127,7 +127,7 @@ public class HistogramUnionState implements Releasable, Accountable {
         if (otherState.tDigestState != null) {
             return wrap(otherState.breaker, TDigestState.createUsingParamsFrom(otherState.tDigestState));
         } else {
-            return createWithEmptyTDigest(otherState.breaker, otherState.tdigestInitParams, otherState.exponentialHistogramState);
+            return createWithEmptyTDigest(otherState.breaker, otherState.tdigestInitParams, null);
         }
     }
 
@@ -164,6 +164,8 @@ public class HistogramUnionState implements Releasable, Accountable {
     }
 
     public void add(HistogramUnionState other) {
+        long previousSize = size();
+        long otherSize = other.size();
         if (other.exponentialHistogramState != null) {
             getOrInitializeExponentialHistogramState().addWithoutUpscaling(other.exponentialHistogramState.histogram());
             invalidateCachedCombinedState();

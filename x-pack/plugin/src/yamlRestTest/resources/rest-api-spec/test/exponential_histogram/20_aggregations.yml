@@ -149,3 +149,25 @@ setup:
 
   - match: { hits.total.value: 5 }
   - match: { aggregations.max_agg.value: 13000.0 }
+
+---
+"Percentiles aggregation":
+  - do:
+      search:
+        index: test_exponential_histogram
+        size: 0
+        body:
+          aggs:
+            percentiles_agg:
+              percentiles:
+                field: histo
+                percents: [5, 25, 50, 75, 95]
+
+  - match: { hits.total.value: 5 }
+  - match:
+     aggregations.percentiles_agg.values:
+       5.0: -798.1634409365165
+       25.0: 0.0
+       50.0: 6.399999999993667
+       75.0: 2730.66666666983
+       95.0: 10922.666666679323

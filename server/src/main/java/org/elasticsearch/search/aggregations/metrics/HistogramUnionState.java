@@ -164,8 +164,6 @@ public class HistogramUnionState implements Releasable, Accountable {
     }
 
     public void add(HistogramUnionState other) {
-        long previousSize = size();
-        long otherSize = other.size();
         if (other.exponentialHistogramState != null) {
             getOrInitializeExponentialHistogramState().addWithoutUpscaling(other.exponentialHistogramState.histogram());
             invalidateCachedCombinedState();

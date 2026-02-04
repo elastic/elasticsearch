@@ -111,7 +111,10 @@ public class DatafeedJobBuilder {
 
         // if we had created a datafeed when the feature flag was enabled, but we disabled the feature flag
         // then verify that this datafeed does not use CPS features
-        var validationException = datafeedConfig.validateNoCrossProjectWhenCrossProjectIsDisabled(crossProjectModeDecider, (org.elasticsearch.action.ActionRequestValidationException) null);
+        var validationException = datafeedConfig.validateNoCrossProjectWhenCrossProjectIsDisabled(
+            crossProjectModeDecider,
+            (org.elasticsearch.action.ActionRequestValidationException) null
+        );
 
         if (validationException != null) {
             listener.onFailure(validationException);

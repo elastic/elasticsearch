@@ -124,8 +124,11 @@ public class MixedbreadServiceTests extends InferenceServiceTestCase {
                 modelListener
             );
 
+            var rerankModel = (MixedbreadRerankModel) modelListener.actionGet();
+
+            assertThat(rerankModel.getSecretSettings().apiKey().toString(), is(apiKey));
             assertRerankModelSettings(
-                modelListener.actionGet(),
+                rerankModel,
                 modelName,
                 new RateLimitSettings(requestsPerMinute),
                 apiKey,
@@ -148,6 +151,9 @@ public class MixedbreadServiceTests extends InferenceServiceTestCase {
                 modelListener
             );
 
+            var rerankModel = (MixedbreadRerankModel) modelListener.actionGet();
+
+            assertThat(rerankModel.getSecretSettings().apiKey().toString(), is(apiKey));
             assertRerankModelSettings(
                 modelListener.actionGet(),
                 modelName,
@@ -180,6 +186,7 @@ public class MixedbreadServiceTests extends InferenceServiceTestCase {
                 persistedConfig.secrets()
             );
 
+            assertThat(model.getSecretSettings().apiKey().toString(), is(apiKey));
             assertRerankModelSettings(
                 model,
                 modelName,
@@ -204,6 +211,7 @@ public class MixedbreadServiceTests extends InferenceServiceTestCase {
                 persistedConfig.secrets()
             );
 
+            assertThat(model.getSecretSettings().apiKey().toString(), is(apiKey));
             assertRerankModelSettings(
                 model,
                 modelName,
@@ -820,8 +828,6 @@ public class MixedbreadServiceTests extends InferenceServiceTestCase {
         assertThat(model.uri().toString(), is(url));
         assertThat(model.getServiceSettings().modelId(), is(modelName));
         assertThat(model.rateLimitSettings(), is(rateLimitSettings));
-
-        assertThat(model.apiKey().toString(), is(apiKey));
     }
 
     private MixedbreadService createMixedbreadService() {

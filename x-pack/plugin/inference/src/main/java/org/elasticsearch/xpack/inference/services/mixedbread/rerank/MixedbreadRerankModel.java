@@ -98,7 +98,7 @@ public class MixedbreadRerankModel extends MixedbreadModel {
 
     @Override
     public DefaultSecretSettings getSecretSettings() {
-        return (DefaultSecretSettings) super.getSecretSettings();
+        return super.getSecretSettings();
     }
 
     /**

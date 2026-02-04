@@ -63,7 +63,7 @@ public class MixedbreadRerankRequest implements Request {
         httpPost.setEntity(byteEntity);
 
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
-        httpPost.setHeader(createAuthBearerHeader(model.apiKey()));
+        httpPost.setHeader(createAuthBearerHeader(model.getSecretSettings().apiKey()));
 
         return new HttpRequest(httpPost, getInferenceEntityId());
     }

@@ -96,6 +96,7 @@ public class CountTests extends AbstractAggregationTestCase {
                         dataType == DataType.DENSE_VECTOR ? "DenseVectorCount" : "Count",
                         DataType.LONG,
                         // AGGREGATE_METRIC_DOUBLE currently returns null instead of 0
+                        // Remove this check after https://github.com/elastic/elasticsearch/issues/141852
                         dataType == DataType.AGGREGATE_METRIC_DOUBLE ? nullValue() : equalTo(0L)
                     )
                 )

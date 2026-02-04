@@ -1127,13 +1127,10 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED;
             }
 
-<<<<<<< enhancement/cps-datafeeds-1
             if (indicesOptions.crossProjectModeOptions().resolveIndexExpression() && DATAFEED_CROSS_PROJECT.isEnabled() == false) {
                 throw new ElasticsearchStatusException("Cross-project search is not enabled for Datafeeds", RestStatus.FORBIDDEN);
             }
 
-=======
->>>>>>> ml-cps-integration
             return new DatafeedConfig(
                 id,
                 jobId,

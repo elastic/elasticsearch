@@ -271,15 +271,6 @@ public final class BlockUtils {
         };
     }
 
-    public static Block asBlock(BlockFactory blockFactory, ElementType elementType, List<Object> values) {
-        try (var wrapper = BlockUtils.wrapperFor(blockFactory, elementType, values.size())) {
-            for (Object value : values) {
-                wrapper.accept(value);
-            }
-            return wrapper.builder().build();
-        }
-    }
-
     /**
      * Returned by {@link #toJavaObject} for "doc" type blocks.
      */

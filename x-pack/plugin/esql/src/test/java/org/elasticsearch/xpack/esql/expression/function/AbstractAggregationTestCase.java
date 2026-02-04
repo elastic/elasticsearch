@@ -370,7 +370,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                 if (data.isMultiRow()) {
                     blocksByField.put(
                         field,
-                        BlockUtils.asBlock(
+                        BlockTestUtils.asBlock(
                             driverContext().blockFactory(),
                             PlannerUtils.toElementType(field.dataType()),
                             data.multiRowData()

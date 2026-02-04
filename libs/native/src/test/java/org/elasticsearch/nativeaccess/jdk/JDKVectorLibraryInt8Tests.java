@@ -69,7 +69,7 @@ public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
             var nativeSeg1 = segment.asSlice((long) first * dims, dims);
             var nativeSeg2 = segment.asSlice((long) second * dims, dims);
 
-            float expected = scalarSimilarity(values[first], values[second]);
+            int expected = scalarSimilarity(values[first], values[second]);
             assertEquals(expected, similarity(nativeSeg1, nativeSeg2, dims), delta);
             if (supportsHeapSegments()) {
                 var heapSeg1 = MemorySegment.ofArray(values[first]);
@@ -210,9 +210,9 @@ public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
     }
 
-    float similarity(MemorySegment a, MemorySegment b, int length) {
+    int similarity(MemorySegment a, MemorySegment b, int length) {
         try {
-            return (float) getVectorDistance().getHandle(
+            return (int) getVectorDistance().getHandle(
                 function,
                 VectorSimilarityFunctions.DataType.INT8,
                 VectorSimilarityFunctions.Operation.SINGLE
@@ -251,7 +251,7 @@ public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
         }
     }
 
-    float scalarSimilarity(byte[] a, byte[] b) {
+    int scalarSimilarity(byte[] a, byte[] b) {
         return switch (function) {
             case DOT_PRODUCT -> dotProductScalar(a, b);
             case SQUARE_DISTANCE -> squareDistanceScalar(a, b);
@@ -273,7 +273,7 @@ public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
     }
 
     /** Computes the dot product of the given vectors a and b. */
-    static float dotProductScalar(byte[] a, byte[] b) {
+    static int dotProductScalar(byte[] a, byte[] b) {
         int res = 0;
         for (int i = 0; i < a.length; i++) {
             res += a[i] * b[i];
@@ -282,7 +282,7 @@ public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
     }
 
     /** Computes the dot product of the given vectors a and b. */
-    static float squareDistanceScalar(byte[] a, byte[] b) {
+    static int squareDistanceScalar(byte[] a, byte[] b) {
         int squareSum = 0;
         for (int i = 0; i < a.length; i++) {
             int diff = a[i] - b[i];

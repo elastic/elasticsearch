@@ -124,8 +124,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
                             FunctionDescriptor descriptor = switch (op) {
                                 case SINGLE -> switch (type) {
-                                    case INT7U -> intSingle;
-                                    case INT8, FLOAT32 -> floatSingle;
+                                    case INT7U, INT8 -> intSingle;
+                                    case FLOAT32 -> floatSingle;
                                 };
                                 case BULK -> bulk;
                                 case BULK_OFFSETS -> bulkOffsets;
@@ -309,44 +309,44 @@ public final class JdkVectorLibrary implements VectorLibrary {
             return true;
         }
 
-        private static final MethodHandle dot7uHandle = HANDLES.get(
+        private static final MethodHandle dotI7uHandle = HANDLES.get(
             new OperationSignature<>(Function.DOT_PRODUCT, DataType.INT7U, Operation.SINGLE)
         );
 
-        static int dotProduct7u(MemorySegment a, MemorySegment b, int length) {
+        static int dotProductI7u(MemorySegment a, MemorySegment b, int length) {
             checkByteSize(a, b);
             Objects.checkFromIndexSize(0, length, (int) a.byteSize());
-            return callSingleDistanceInt(dot7uHandle, a, b, length);
+            return callSingleDistanceInt(dotI7uHandle, a, b, length);
         }
 
-        private static final MethodHandle square7uHandle = HANDLES.get(
+        private static final MethodHandle squareI7uHandle = HANDLES.get(
             new OperationSignature<>(Function.SQUARE_DISTANCE, DataType.INT7U, Operation.SINGLE)
         );
 
-        static int squareDistance7u(MemorySegment a, MemorySegment b, int length) {
+        static int squareDistanceI7u(MemorySegment a, MemorySegment b, int length) {
             checkByteSize(a, b);
             Objects.checkFromIndexSize(0, length, (int) a.byteSize());
-            return callSingleDistanceInt(square7uHandle, a, b, length);
+            return callSingleDistanceInt(squareI7uHandle, a, b, length);
         }
 
-        private static final MethodHandle dotByteHandle = HANDLES.get(
+        private static final MethodHandle dotI8Handle = HANDLES.get(
             new OperationSignature<>(Function.DOT_PRODUCT, DataType.INT8, Operation.SINGLE)
         );
 
-        static float dotProductByte(MemorySegment a, MemorySegment b, int elementCount) {
+        static int dotProductI8(MemorySegment a, MemorySegment b, int elementCount) {
             checkByteSize(a, b);
             Objects.checkFromIndexSize(0, elementCount, (int) a.byteSize());
-            return callSingleDistanceFloat(dotByteHandle, a, b, elementCount);
+            return callSingleDistanceInt(dotI8Handle, a, b, elementCount);
         }
 
-        private static final MethodHandle squareByteHandle = HANDLES.get(
+        private static final MethodHandle squareI8Handle = HANDLES.get(
             new OperationSignature<>(Function.SQUARE_DISTANCE, DataType.INT8, Operation.SINGLE)
         );
 
-        static float squareDistanceByte(MemorySegment a, MemorySegment b, int elementCount) {
+        static int squareDistanceI8(MemorySegment a, MemorySegment b, int elementCount) {
             checkByteSize(a, b);
             Objects.checkFromIndexSize(0, elementCount, (int) a.byteSize());
-            return callSingleDistanceFloat(squareByteHandle, a, b, elementCount);
+            return callSingleDistanceInt(squareI8Handle, a, b, elementCount);
         }
 
         private static final MethodHandle dotF32Handle = HANDLES.get(
@@ -369,7 +369,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             return callSingleDistanceFloat(squareF32Handle, a, b, elementCount);
         }
 
-        private static final MethodHandle dotI1I4Handle = HANDLES.get(
+        private static final MethodHandle dotD1Q4Handle = HANDLES.get(
             new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D1Q4, Operation.SINGLE)
         );
 
@@ -380,13 +380,13 @@ public final class JdkVectorLibrary implements VectorLibrary {
          * @param query  address of the int4 vector
          * @param length the vector dimensions
          */
-        static long dotProductI1I4(MemorySegment a, MemorySegment query, int length) {
+        static long dotProductD1Q4(MemorySegment a, MemorySegment query, int length) {
             Objects.checkFromIndexSize(0, length * 4L, (int) query.byteSize());
             Objects.checkFromIndexSize(0, length, (int) a.byteSize());
-            return callSingleDistanceLong(dotI1I4Handle, a, query, length);
+            return callSingleDistanceLong(dotD1Q4Handle, a, query, length);
         }
 
-        private static final MethodHandle dotI2I4Handle = HANDLES.get(
+        private static final MethodHandle dotD2Q4Handle = HANDLES.get(
             new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D2Q4, Operation.SINGLE)
         );
 
@@ -397,10 +397,10 @@ public final class JdkVectorLibrary implements VectorLibrary {
          * @param query  address of the int4 vector
          * @param length the vector dimensions
          */
-        static long dotProductI2I4(MemorySegment a, MemorySegment query, int length) {
+        static long dotProductD2Q4(MemorySegment a, MemorySegment query, int length) {
             Objects.checkFromIndexSize(0, length * 2, (int) query.byteSize());
             Objects.checkFromIndexSize(0, length, (int) a.byteSize());
-            return callSingleDistanceLong(dotI2I4Handle, a, query, length);
+            return callSingleDistanceLong(dotD2Q4Handle, a, query, length);
         }
 
         private static void checkByteSize(MemorySegment a, MemorySegment b) {
@@ -436,11 +436,11 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                     switch (dt) {
                                         case INT7U:
                                             type = MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, int.class);
-                                            checkMethod += "7u";
+                                            checkMethod += "I7u";
                                             break;
                                         case INT8:
-                                            type = MethodType.methodType(float.class, MemorySegment.class, MemorySegment.class, int.class);
-                                            checkMethod += "Byte";
+                                            type = MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, int.class);
+                                            checkMethod += "I8";
                                             break;
                                         case FLOAT32:
                                             type = MethodType.methodType(float.class, MemorySegment.class, MemorySegment.class, int.class);

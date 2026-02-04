@@ -203,12 +203,12 @@ EXPORT void vec_sqri7u_bulk_offsets(
 
 // --- byte vectors
 
-EXPORT f32_t vec_doti8(const int8_t* a, const int8_t* b, const int32_t elementCount) {
+EXPORT int32_t vec_doti8(const int8_t* a, const int8_t* b, const int32_t elementCount) {
     int32_t result = 0;
     for (int i=0; i<elementCount; i++) {
         result += a[i] * b[i];
     }
-    return (f32_t)result;
+    return result;
 }
 
 template <int64_t(*mapper)(int32_t, const int32_t*)>
@@ -223,7 +223,7 @@ static inline void doti8_inner_bulk(
 ) {
     for (int c=0; c<count; c++) {
         const int8_t* a0 = a + mapper(c, offsets) * pitch;
-        results[c] = vec_doti8(a0, b, dims);
+        results[c] = (f32_t)vec_doti8(a0, b, dims);
     }
 }
 
@@ -242,13 +242,13 @@ EXPORT void vec_doti8_bulk_offsets(
     doti8_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 
-EXPORT f32_t vec_sqri8(const int8_t* a, const int8_t* b, const int32_t elementCount) {
+EXPORT int32_t vec_sqri8(const int8_t* a, const int8_t* b, const int32_t elementCount) {
     int32_t result = 0;
     for (int i=0; i<elementCount; i++) {
         int diff = a[i] - b[i];
         result += diff * diff;
     }
-    return (f32_t)result;
+    return result;
 }
 
 template <int64_t(*mapper)(int32_t, const int32_t*)>

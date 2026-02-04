@@ -121,18 +121,18 @@ public class VectorScorerInt8OperationBenchmark {
     }
 
     @Benchmark
-    public float nativeWithNativeSeg() {
+    public int nativeWithNativeSeg() {
         try {
-            return (float) nativeImpl.invokeExact(nativeSegA, nativeSegB, size);
+            return (int) nativeImpl.invokeExact(nativeSegA, nativeSegB, size);
         } catch (Throwable t) {
             throw rethrow(t);
         }
     }
 
     @Benchmark
-    public float nativeWithHeapSeg() {
+    public int nativeWithHeapSeg() {
         try {
-            return (float) nativeImpl.invokeExact(heapSegA, heapSegB, size);
+            return (int) nativeImpl.invokeExact(heapSegA, heapSegB, size);
         } catch (Throwable t) {
             throw rethrow(t);
         }

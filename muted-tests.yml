@@ -359,6 +359,9 @@ tests:
 - class: org.elasticsearch.xpack.ccr.CcrTimeSeriesDataStreamsIT
   method: testCrossClusterReplicationForTSDBWithSyntheticId
   issue: https://github.com/elastic/elasticsearch/issues/141796
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=search.vectors/41_knn_search_bbq_hnsw/Vector rescoring has same scoring as exact search for kNN section}
+  issue: https://github.com/elastic/elasticsearch/issues/141842
 
 # Examples:
 #

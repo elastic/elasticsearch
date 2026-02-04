@@ -10,6 +10,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregati
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.PercentileRanksAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.exponentialhistogram.aggregations.bucket.histogra
 import org.elasticsearch.xpack.exponentialhistogram.aggregations.metrics.ExponentialHistogramAvgAggregator;
 import org.elasticsearch.xpack.exponentialhistogram.aggregations.metrics.ExponentialHistogramMaxAggregator;
 import org.elasticsearch.xpack.exponentialhistogram.aggregations.metrics.ExponentialHistogramMinAggregator;
+import org.elasticsearch.xpack.exponentialhistogram.aggregations.metrics.ExponentialHistogramPercentileRanksAggregator;
 import org.elasticsearch.xpack.exponentialhistogram.aggregations.metrics.ExponentialHistogramPercentilesAggregator;
 import org.elasticsearch.xpack.exponentialhistogram.aggregations.metrics.ExponentialHistogramSumAggregator;
 import org.elasticsearch.xpack.exponentialhistogram.aggregations.metrics.ExponentialHistogramValueCountAggregator;

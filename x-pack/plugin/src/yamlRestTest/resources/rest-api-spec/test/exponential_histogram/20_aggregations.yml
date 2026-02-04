@@ -181,6 +181,9 @@ setup:
 
 ---
 "Percentile ranks aggregation":
+  - requires:
+      cluster_features: [ "search.exponential_histogram_querydsl_percentile_ranks" ]
+      reason: exponential_histogram percentile_ranks aggregations was introduced
   - do:
       search:
         index: test_exponential_histogram

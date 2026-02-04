@@ -21,7 +21,6 @@ import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
 import org.apache.lucene.util.packed.DirectWriter;
 import org.apache.lucene.util.packed.PackedInts;
@@ -44,6 +43,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;

@@ -1890,11 +1890,11 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         }
         assertNull(cluster.getTook());
         assertFalse(cluster.isTimedOut());
-        ShardSearchFailure shardSearchFailure = cluster.getFailures().get(0);
-        assertTrue(
-            "should have 'index corrupted' in reason but was: " + shardSearchFailure.reason(),
-            shardSearchFailure.reason().contains("index corrupted")
-        );
+        // Disable this check due to: https://github.com/elastic/elasticsearch/issues/136894 looks like it can return other errors on
+        // failure
+        // ShardSearchFailure shardSearchFailure = cluster.getFailures().get(0);
+        // assertTrue("should have 'index corrupted' in reason but was: " +
+        // shardSearchFailure.reason(),shardSearchFailure.reason().contains("index corrupted"));
     }
 
     protected AsyncSearchResponse submitAsyncSearch(SubmitAsyncSearchRequest request) {

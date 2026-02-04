@@ -2,5 +2,5 @@
 
 **Description**
 
-This function calculates the earliest occurrence of the search field (the first parameter), where sorting order is determined by the sort field (the second parameter). Both fields support null, single-valued, and multi-valued input. If the earliest sort field value appears in multiple documents, this function is allowed to return any corresponding search field value. Null values of the sort field always sort last.
+This function calculates the earliest occurrence of the search field (the first parameter), where sorting order is determined by the sort field (the second parameter). This sorting order is always ascending and null values always sort last. Both fields support null, single-valued, and multi-valued input. If the earliest sort field value appears in multiple documents, this function is allowed to return any corresponding search field value.
 

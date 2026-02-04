@@ -1,7 +1,11 @@
 aggregate_double_metric with time series mappings:
   - requires:
-      cluster_features: ["gte_v7.16.0"]
-      reason: introduced in 7.16.0
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ deprecate_default_metric_in_aggregate_metric_double ]
+      test_runner_features: capabilities
+      reason: "Default metric is deprecated in aggregate metric double fields since 9.4"
 
   - do:
       indices.create:
@@ -28,20 +32,14 @@ aggregate_double_metric with time series mappings:
                             tx:
                               type: aggregate_metric_double
                               metrics: [min, max, sum, value_count]
-                              default_metric: max
                               time_series_metric: gauge
                             rx:
                               type: aggregate_metric_double
                               metrics: [min, max, sum, value_count]
-                              default_metric: max
                               time_series_metric: gauge
 
 ---
 aggregate_double_metric with wrong time series mappings:
-  - requires:
-      cluster_features: ["gte_v7.16.0"]
-      reason: introduced in 7.16.0
-
   - do:
       catch: /Unknown value \[histogram\] for field \[time_series_metric\] \- accepted values are \[gauge\]/
       indices.create:
@@ -68,20 +66,14 @@ aggregate_double_metric with wrong time series mappings:
                           tx:
                             type: aggregate_metric_double
                             metrics: [min, max, sum, value_count]
-                            default_metric: max
                             time_series_metric: gauge
                           rx:
                             type: aggregate_metric_double
                             metrics: [min, max, sum, value_count]
-                            default_metric: max
                             time_series_metric: histogram
 
 ---
 "Field caps with tsdb":
-  - requires:
-      cluster_features: ["gte_v8.8.0"]
-      reason: "Field caps fix in 8.9"
-
   - do:
       indices.create:
         index: tsdb-fieldcap

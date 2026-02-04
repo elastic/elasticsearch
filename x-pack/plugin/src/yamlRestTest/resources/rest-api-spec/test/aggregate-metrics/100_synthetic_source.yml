@@ -1,14 +1,15 @@
 setup:
   - requires:
       cluster_features: [ "mapper.source.mode_from_index_setting" ]
-      reason: "Source mode configured through index setting"
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ deprecate_default_metric_in_aggregate_metric_double ]
+      test_runner_features: capabilities
+      reason: "Default metric is deprecated in aggregate metric double fields since 9.4"
 
 ---
 aggregate_metric_double:
-  - requires:
-      cluster_features: ["gte_v8.5.0"]
-      reason: synthetic source support added  in 8.5.0
-
   - do:
       indices.create:
         index: test
@@ -21,7 +22,6 @@ aggregate_metric_double:
               metric:
                 type: aggregate_metric_double
                 metrics: [min, max, value_count]
-                default_metric: max
 
   - do:
       index:
@@ -73,7 +73,6 @@ aggregate_metric_double with ignore_malformed:
               metric:
                 type: aggregate_metric_double
                 metrics: [min, max, value_count]
-                default_metric: max
                 ignore_malformed: true
 
   - do:

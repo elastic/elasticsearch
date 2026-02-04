@@ -1,4 +1,11 @@
 setup:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ deprecate_default_metric_in_aggregate_metric_double ]
+      test_runner_features: capabilities
+      reason: "Default metric is deprecated in aggregate metric double fields since 9.4"
   - do:
       indices.create:
         index:  aggregate_metric_test
@@ -8,7 +15,6 @@ setup:
               metric:
                 type: aggregate_metric_double
                 metrics: [sum, value_count]
-                default_metric: value_count
 
   - do:
       bulk:
@@ -27,10 +33,6 @@ setup:
           - '{"metric": {"sum": -100, "value_count": 40} }'
 ---
 "Test value_count agg":
-  - requires:
-      cluster_features: ["gte_v7.11.0"]
-      reason: "Aggregate metric fields have been added in 7.11"
-
   - do:
       search:
         index: aggregate_metric_test
@@ -46,10 +48,6 @@ setup:
 
 ---
 "Test value_count agg with query":
-  - requires:
-      cluster_features: ["gte_v7.11.0"]
-      reason: "Aggregate metric fields have been added in 7.11"
-
   - do:
       search:
         index: aggregate_metric_test

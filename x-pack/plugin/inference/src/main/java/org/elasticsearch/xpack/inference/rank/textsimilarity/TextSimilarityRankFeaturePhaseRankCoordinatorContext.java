@@ -215,6 +215,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         boolean[] hasScore = new boolean[featureDocs.length];
 
         // We need to correlate the index/doc values of each RankedDoc in correlation with its associated RankFeatureDoc.
+        // TODO: Optimize this
         int[] rankedDocToFeatureDoc = Arrays.stream(featureDocs)
             .flatMapToInt(
                 doc -> java.util.stream.IntStream.generate(() -> Arrays.asList(featureDocs).indexOf(doc)).limit(doc.featureData.size())

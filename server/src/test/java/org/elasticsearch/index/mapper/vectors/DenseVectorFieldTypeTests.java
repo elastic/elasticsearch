@@ -17,6 +17,7 @@ import org.apache.lucene.search.join.DiversifyingChildrenFloatKnnVectorQuery;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -140,6 +141,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         options.add(
             new DenseVectorFieldMapper.BBQIVFIndexOptions(
                 randomIntBetween(MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER),
+                randomIntBetween(0, MAX_VECTORS_PER_CLUSTER * ES920DiskBBQVectorsFormat.DEFAULT_FLAT_VECTOR_THRESHOLD_MULTIPLIER),
                 randomFloatBetween(0.0f, 100.0f, true),
                 randomBoolean(),
                 randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector()),

@@ -82,6 +82,7 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
     // useful when searching with 'efSearch' type parameters instead of requiring a specific ratio.
     public static final float DYNAMIC_VISIT_RATIO = 0.0f;
     public static final int DEFAULT_VECTORS_PER_CLUSTER = 384;
+    public static final int DEFAULT_FLAT_VECTOR_THRESHOLD_MULTIPLIER = 3;
     public static final int MIN_VECTORS_PER_CLUSTER = 64;
     public static final int MAX_VECTORS_PER_CLUSTER = 1 << 16; // 65536
     public static final int DEFAULT_CENTROIDS_PER_PARENT_CLUSTER = 16;
@@ -94,9 +95,18 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
     private final boolean useDirectIO;
     private final TaskExecutor mergeExec;
     private final int numMergeWorkers;
+    private final int flatVectorThreshold;
 
     public ES920DiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster) {
-        this(vectorPerCluster, centroidsPerParentCluster, DenseVectorFieldMapper.ElementType.FLOAT, false, null, 1);
+        this(
+            vectorPerCluster,
+            centroidsPerParentCluster,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            false,
+            null,
+            1,
+            vectorPerCluster * DEFAULT_FLAT_VECTOR_THRESHOLD_MULTIPLIER
+        );
     }
 
     public ES920DiskBBQVectorsFormat(
@@ -106,6 +116,26 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
         boolean useDirectIO,
         ExecutorService mergingExecutorService,
         int maxMergingWorkers
+    ) {
+        this(
+            vectorPerCluster,
+            centroidsPerParentCluster,
+            elementType,
+            useDirectIO,
+            mergingExecutorService,
+            maxMergingWorkers,
+            vectorPerCluster * DEFAULT_FLAT_VECTOR_THRESHOLD_MULTIPLIER
+        );
+    }
+
+    public ES920DiskBBQVectorsFormat(
+        int vectorPerCluster,
+        int centroidsPerParentCluster,
+        DenseVectorFieldMapper.ElementType elementType,
+        boolean useDirectIO,
+        ExecutorService mergingExecutorService,
+        int maxMergingWorkers,
+        int flatVectorThreshold
     ) {
         super(NAME);
         if (vectorPerCluster < MIN_VECTORS_PER_CLUSTER || vectorPerCluster > MAX_VECTORS_PER_CLUSTER) {
@@ -128,6 +158,9 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
                     + centroidsPerParentCluster
             );
         }
+        if (flatVectorThreshold < 0) {
+            throw new IllegalArgumentException("flatVectorThreshold must be >= 0, got: " + flatVectorThreshold);
+        }
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
         this.rawVectorFormat = switch (elementType) {
@@ -138,6 +171,7 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
         this.useDirectIO = useDirectIO;
         this.mergeExec = mergingExecutorService == null ? null : new TaskExecutor(mergingExecutorService);
         this.numMergeWorkers = maxMergingWorkers;
+        this.flatVectorThreshold = flatVectorThreshold;
     }
 
     /** Constructs a format using the given graph construction parameters and scalar quantization. */
@@ -155,7 +189,8 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
             vectorPerCluster,
             centroidsPerParentCluster,
             mergeExec,
-            numMergeWorkers
+            numMergeWorkers,
+            flatVectorThreshold
         );
     }
 
@@ -170,7 +205,8 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
             centroidsPerParentCluster,
             VERSION_START,
             mergeExec,
-            numMergeWorkers
+            numMergeWorkers,
+            flatVectorThreshold
         );
     }
 

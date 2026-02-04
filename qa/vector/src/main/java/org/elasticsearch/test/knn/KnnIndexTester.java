@@ -154,6 +154,10 @@ public class KnnIndexTester {
                     "IVF index type only supports 1, 2 or 4 bits quantization, but got: " + quantizeBits
                 );
             };
+            // Use flatVectorThreshold from config, or default to vectorPerCluster * 3 if not specified (-1)
+            int flatVectorThreshold = args.flatVectorThreshold() >= 0
+                ? args.flatVectorThreshold()
+                : args.ivfClusterSize() * ESNextDiskBBQVectorsFormat.DEFAULT_FLAT_VECTOR_THRESHOLD_MULTIPLIER;
             format = new ESNextDiskBBQVectorsFormat(
                 encoding,
                 args.ivfClusterSize(),
@@ -163,7 +167,8 @@ public class KnnIndexTester {
                 exec,
                 exec != null ? args.numMergeWorkers() : 1,
                 args.doPrecondition(),
-                args.preconditioningBlockDims()
+                args.preconditioningBlockDims(),
+                flatVectorThreshold
             );
         } else if (args.indexType() == IndexType.GPU_HNSW) {
             if (quantizeBits == 32) {

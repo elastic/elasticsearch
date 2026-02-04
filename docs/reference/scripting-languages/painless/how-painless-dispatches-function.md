@@ -28,8 +28,8 @@ Before diving into the dispatch process, here a brief definition of the main con
 :width: 250px
 :::
 
-<!--
-:::{diagram} mermaid
+
+```mermaid
 flowchart TD
     A[s.foo#40;a, b#41;] --> B[Receiver: type of 's']
     B --> C[Name: method 'foo']
@@ -41,8 +41,8 @@ flowchart TD
     style C fill:#F5F7FA,stroke:#101C3F,color:#101C3F
     style D fill:#F5F7FA,stroke:#101C3F,color:#101C3F
     style E fill:#02BCB7,color:#fff
-:::
--->
+```
+
 
 
 ## Why method dispatch matters

@@ -392,8 +392,10 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
         // we overwrite this method so the search client can modify the index names by prefixing them with the
         // remote cluster name before sending the requests
+        @Override
         public ClientYamlTestResponse callApi(
             String apiName,
+            String method,
             Map<String, String> params,
             HttpEntity entity,
             Map<String, String> headers,

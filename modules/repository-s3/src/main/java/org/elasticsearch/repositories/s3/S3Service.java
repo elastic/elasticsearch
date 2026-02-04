@@ -333,10 +333,8 @@ class S3Service extends AbstractLifecycleComponent {
     static ClientOverrideConfiguration buildConfiguration(S3ClientSettings clientSettings, boolean isStateless) {
         ClientOverrideConfiguration.Builder clientOverrideConfiguration = ClientOverrideConfiguration.builder();
         final var build = Build.current();
-        clientOverrideConfiguration.putAdvancedOption(
-            SdkAdvancedClientOption.USER_AGENT_PREFIX,
-            "elasticsearch/" + ("default".equals(build.flavor()) ? build.version() : build.flavor())
-        );
+        final var version = "default".equals(build.flavor()) ? build.version() : build.flavor(); // "serverless" in serverless
+        clientOverrideConfiguration.putAdvancedOption(SdkAdvancedClientOption.USER_AGENT_PREFIX, "elasticsearch/" + version);
         clientOverrideConfiguration.putAdvancedOption(SdkAdvancedClientOption.SIGNER, signer);
         var retryStrategyBuilder = AwsRetryStrategy.standardRetryStrategy()
             .toBuilder()

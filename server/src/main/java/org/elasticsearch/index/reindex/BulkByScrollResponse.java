@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -21,21 +22,27 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
-import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
 
 /**
  * Response used for actions that index many documents using a scroll request.
  */
 public class BulkByScrollResponse extends ActionResponse implements ToXContentFragment {
+
+    private static final TransportVersion BULK_BY_SCROLL_RESUME_INFO = TransportVersion.fromName("bulk_by_scroll_resume_info");
+
     private final TimeValue took;
     private final BulkByScrollTask.Status status;
     private final List<Failure> bulkFailures;
     private final List<ScrollableHitSource.SearchFailure> searchFailures;
     private boolean timedOut;
+    @Nullable
+    private final SlicedTaskResumeInfo slicedTaskResumeInfo;
 
     static final String TOOK_FIELD = "took";
     static final String TIMED_OUT_FIELD = "timed_out";
@@ -47,6 +54,9 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         bulkFailures = in.readCollectionAsList(Failure::new);
         searchFailures = in.readCollectionAsList(ScrollableHitSource.SearchFailure::new);
         timedOut = in.readBoolean();
+        slicedTaskResumeInfo = in.getTransportVersion().supports(BULK_BY_SCROLL_RESUME_INFO)
+            ? in.readOptionalWriteable(SlicedTaskResumeInfo::new)
+            : null;
     }
 
     public BulkByScrollResponse(
@@ -56,11 +66,23 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         List<ScrollableHitSource.SearchFailure> searchFailures,
         boolean timedOut
     ) {
+        this(took, Objects.requireNonNull(status, "Null status not supported"), bulkFailures, searchFailures, timedOut, null);
+    }
+
+    public BulkByScrollResponse(
+        TimeValue took,
+        BulkByScrollTask.Status status,
+        List<Failure> bulkFailures,
+        List<ScrollableHitSource.SearchFailure> searchFailures,
+        boolean timedOut,
+        @Nullable SlicedTaskResumeInfo slicedTaskResumeInfo
+    ) {
         this.took = took;
-        this.status = requireNonNull(status, "Null status not supported");
+        this.status = status;
         this.bulkFailures = bulkFailures;
         this.searchFailures = searchFailures;
         this.timedOut = timedOut;
+        this.slicedTaskResumeInfo = slicedTaskResumeInfo;
     }
 
     public BulkByScrollResponse(Iterable<BulkByScrollResponse> toMerge, @Nullable String reasonCancelled) {
@@ -77,6 +99,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         }
         took = timeValueNanos(mergedTook);
         status = new BulkByScrollTask.Status(statuses, reasonCancelled);
+        slicedTaskResumeInfo = null;
     }
 
     public TimeValue getTook() {
@@ -157,6 +180,13 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         return timedOut;
     }
 
+    /**
+     * Resume info for relocation, or null if this is a final response.
+     */
+    public Optional<SlicedTaskResumeInfo> getTaskResumeInfo() {
+        return Optional.ofNullable(slicedTaskResumeInfo);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeTimeValue(took);
@@ -164,6 +194,9 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         out.writeCollection(bulkFailures);
         out.writeCollection(searchFailures);
         out.writeBoolean(timedOut);
+        if (out.getTransportVersion().supports(BULK_BY_SCROLL_RESUME_INFO)) {
+            out.writeOptionalWriteable(slicedTaskResumeInfo);
+        }
     }
 
     @Override
@@ -193,6 +226,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         status.innerToString(builder);
         builder.append(",bulk_failures=").append(getBulkFailures().subList(0, min(3, getBulkFailures().size())));
         builder.append(",search_failures=").append(getSearchFailures().subList(0, min(3, getSearchFailures().size())));
+        builder.append(",resume_info=").append(slicedTaskResumeInfo);
         return builder.append(']').toString();
     }
 }

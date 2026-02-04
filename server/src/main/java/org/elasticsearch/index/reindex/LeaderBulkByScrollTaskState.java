@@ -9,13 +9,20 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 import static java.util.Collections.unmodifiableList;
 
@@ -35,12 +42,14 @@ public class LeaderBulkByScrollTaskState {
      * How many subtasks are still running
      */
     private final AtomicInteger runningSubtasks;
+    private final SetOnce<Supplier<Optional<String>>> nodeToRelocateToSupplier;
 
     public LeaderBulkByScrollTaskState(BulkByScrollTask task, int slices) {
         this.task = task;
         this.slices = slices;
         results = new AtomicArray<>(slices);
         runningSubtasks = new AtomicInteger(slices);
+        this.nodeToRelocateToSupplier = new SetOnce<>();
     }
 
     /**
@@ -105,10 +114,26 @@ public class LeaderBulkByScrollTaskState {
         // TODO cancel when a slice fails?
     }
 
+    public void setNodeToRelocateToSupplier(Supplier<Optional<String>> nodeToRelocateToSupplier) {
+        this.nodeToRelocateToSupplier.set(Objects.requireNonNull(nodeToRelocateToSupplier));
+    }
+
+    public Supplier<Optional<String>> getNodeToRelocateToSupplier() {
+        return Objects.requireNonNull(nodeToRelocateToSupplier.get(), "Node to relocate to supplier not set");
+    }
+
     private void recordSliceCompletionAndRespondIfAllDone(ActionListener<BulkByScrollResponse> listener) {
         if (runningSubtasks.decrementAndGet() != 0) {
             return;
         }
+
+        if (task.isRelocationRequested()) {
+            final Optional<String> eligibleNodeToRelocateTo = getNodeToRelocateToSupplier().get();
+            if (eligibleNodeToRelocateTo.map(ignored -> relocationCompletedListener(listener)).orElse(false)) {
+                return;
+            }
+        }
+
         List<BulkByScrollResponse> responses = new ArrayList<>(results.length());
         Exception exception = null;
         for (Result t : results.asList()) {
@@ -129,6 +154,47 @@ public class LeaderBulkByScrollTaskState {
         } else {
             listener.onFailure(exception);
         }
+    }
+
+    private boolean relocationCompletedListener(final ActionListener<BulkByScrollResponse> listener) {
+        final Map<Integer, SlicedTaskResumeInfo.SliceStatusInfo> sliceResumeInfoMap = new HashMap<>();
+        boolean allJobsCompletedTheforeNoNeedForRelocation = true;
+        for (final Result result : results.asList()) {
+            final var sliceStatusInfo = getSliceStatusInfo(result);
+            if (sliceStatusInfo.result() == null) {
+                allJobsCompletedTheforeNoNeedForRelocation = false;
+            }
+            sliceResumeInfoMap.put(result.sliceId, sliceStatusInfo);
+        }
+        if (allJobsCompletedTheforeNoNeedForRelocation) {
+            return false;
+        }
+        final var resumeInfo = new SlicedTaskResumeInfo(null, sliceResumeInfoMap);
+        listener.onResponse(
+            new BulkByScrollResponse(
+                TimeValue.MINUS_ONE,
+                new BulkByScrollTask.Status(List.of(), null),
+                List.of(),
+                List.of(),
+                false,
+                resumeInfo
+            )
+        );
+        return true;
+    }
+
+    private static SlicedTaskResumeInfo.SliceStatusInfo getSliceStatusInfo(final Result result) {
+        final var workerResumeInfo = Optional.ofNullable(result.response)
+            .flatMap(BulkByScrollResponse::getTaskResumeInfo)
+            .flatMap(slicedTaskResumeInfo -> {
+                assert slicedTaskResumeInfo.worker() != null : "if taskResumeInfo present, worker should have resume info";
+                assert slicedTaskResumeInfo.slices() == null : "if taskResumeInfo present, worker shouldn't have slices";
+                return slicedTaskResumeInfo.getWorker();
+            })
+            .orElse(null);
+        // even if we have slice failure(s), still relocate and run other slices to completion (current functionality without relocations)
+        final var workerResult = workerResumeInfo == null ? new SlicedTaskResumeInfo.WorkerResult(result.response, result.failure) : null;
+        return new SlicedTaskResumeInfo.SliceStatusInfo(result.sliceId, workerResumeInfo, workerResult);
     }
 
     private static final class Result {

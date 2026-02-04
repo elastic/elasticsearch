@@ -11,6 +11,7 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 
 import java.util.Set;
 
@@ -44,7 +45,8 @@ public class IndexFeatures implements FeatureSpecification {
             SYNONYMS_SET_LENIENT_ON_NON_EXISTING,
             THROW_EXCEPTION_FOR_UNKNOWN_TOKEN_IN_REST_INDEX_PUT_ALIAS_ACTION,
             THROW_EXCEPTION_ON_INDEX_CREATION_IF_UNSUPPORTED_VALUE_TYPE_IN_ALIAS,
-            SHADOWING_DIMENSIONS_AND_METRICS_IS_VALID_IN_NON_TSDB
+            SHADOWING_DIMENSIONS_AND_METRICS_IS_VALID_IN_NON_TSDB,
+            InferenceMetadataFieldsMapper.INFERENCE_FIELDS_GET_VIA_SOURCE_INCLUDES
         );
     }
 }

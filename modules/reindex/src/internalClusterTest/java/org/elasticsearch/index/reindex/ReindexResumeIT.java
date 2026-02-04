@@ -13,6 +13,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.reindex.TransportReindexAction;
@@ -80,12 +81,7 @@ public class ReindexResumeIT extends ESIntegTestCase {
             .setDestIndex(destIndex)
             .setSourceBatchSize(batchSize)
             .setRefresh(true)
-            .setResumeInfo(
-                new AbstractBulkByScrollRequest.ResumeInfo(
-                    new AbstractBulkByScrollRequest.ScrollWorkerResumeInfo(scrollId, startTime, randomStats),
-                    null
-                )
-            );
+            .setResumeInfo(new ResumeInfo(new ScrollWorkerResumeInfo(scrollId, startTime, randomStats), null));
         BulkByScrollResponse response = client().execute(ReindexAction.INSTANCE, request).actionGet();
 
         // total should equal to total hits from the search
@@ -153,12 +149,7 @@ public class ReindexResumeIT extends ESIntegTestCase {
                     RemoteInfo.DEFAULT_CONNECT_TIMEOUT
                 )
             )
-            .setResumeInfo(
-                new AbstractBulkByScrollRequest.ResumeInfo(
-                    new AbstractBulkByScrollRequest.ScrollWorkerResumeInfo(scrollId, startTime, randomStats),
-                    null
-                )
-            );
+            .setResumeInfo(new ResumeInfo(new ScrollWorkerResumeInfo(scrollId, startTime, randomStats), null));
         BulkByScrollResponse response = client().execute(ReindexAction.INSTANCE, request).actionGet();
 
         // total should equal to total hits from the search

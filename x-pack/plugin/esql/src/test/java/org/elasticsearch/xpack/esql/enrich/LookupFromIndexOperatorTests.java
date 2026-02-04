@@ -447,8 +447,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
 
     private AbstractLookupService.LookupShardContextFactory lookupShardContextFactory() {
         return shardId -> {
-            MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {
-            };
+            MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
             String suffix = (operation == null) ? "" : ("_right");
             StringBuilder props = new StringBuilder();
             props.append(String.format(Locale.ROOT, "\"match0%s\": { \"type\": \"long\" }", suffix));

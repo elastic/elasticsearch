@@ -10,11 +10,13 @@ package org.elasticsearch.index.fielddata.fieldcomparator;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.Pruning;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.time.DateUtils;
@@ -29,12 +31,14 @@ import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.lucene.comparators.XLongComparator;
+import org.elasticsearch.lucene.comparators.XNumericComparator;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.function.Function;
 
 /**
@@ -45,6 +49,8 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
     final IndexNumericFieldData indexFieldData;
     private final Function<SortedNumericLongValues, SortedNumericLongValues> converter;
     private final NumericType targetNumericType;
+
+    private boolean alwaysMatchTailQuery = false;
 
     public LongValuesComparatorSource(
         IndexNumericFieldData indexFieldData,
@@ -73,6 +79,10 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
     @Override
     public SortField.Type reducedType() {
         return SortField.Type.LONG;
+    }
+
+    public void setMatchTailQuery() {
+        this.alwaysMatchTailQuery = true;
     }
 
     private SortedNumericLongValues loadDocValues(LeafReaderContext context) {
@@ -110,6 +120,27 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                     @Override
                     protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
                         return wrap(getLongValues(context, lMissingValue), maxDoc);
+                    }
+
+                    @Override
+                    protected XNumericComparator<Long>.CompetitiveDISIBuilder buildCompetitiveDISIBuilder(LeafReaderContext context)
+                        throws IOException {
+                        if (alwaysMatchTailQuery == false || segmentSortedByDescTimestamp(context) == false) {
+                            return super.buildCompetitiveDISIBuilder(context);
+                        }
+                        int maxDoc = context.reader().maxDoc();
+                        int start = context.reader().numDocs() - numHits - 1;
+                        return new CompetitiveDISIBuilder(this) {
+                            @Override
+                            protected int docCount() {
+                                return maxDoc; // missing values are never competitive
+                            }
+
+                            @Override
+                            protected void doUpdateCompetitiveIterator() throws IOException {
+                                this.competitiveIterator.update(DocIdSetIterator.range(start, maxDoc));
+                            }
+                        };
                     }
                 };
             }
@@ -207,5 +238,42 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                 throw new UnsupportedOperationException();
             }
         };
+    }
+
+    // Checks that the current segment is either directly sorted by descending timestamp,
+    // or that it is sorted by host.name and then timestamp, where host.name has either no
+    // values or only a single value, so timestamp is effectively the primary sort.
+    private static boolean segmentSortedByDescTimestamp(LeafReaderContext context) throws IOException {
+        Sort sort = context.reader().getMetaData().sort();
+        if (sort == null) {
+            return false;
+        }
+        for (SortField sortField : sort.getSort()) {
+            if ("@timestamp".equals(sortField.getField())) {
+                if (sortField.getMissingValue() != null) {
+                    long missingValue = (long) sortField.getMissingValue();
+                    if (missingValue != Long.MIN_VALUE) {
+                        return false;
+                    }
+                }
+                return sortField.getReverse();
+            }
+            if (isHostNameSingletonInSegment(context, sortField)) {
+                continue;
+            }
+            return false;
+        }
+        return false;
+    }
+
+    private static boolean isHostNameSingletonInSegment(LeafReaderContext context, SortField sortField) throws IOException {
+        if (Objects.equals(sortField.getField(), "host.name") == false) {
+            return false;
+        }
+        SortedSetDocValues ssdv = context.reader().getSortedSetDocValues("host.name");
+        if (ssdv == null) {
+            return true;
+        }
+        return (ssdv.getValueCount() == 1);
     }
 }

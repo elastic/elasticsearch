@@ -65,7 +65,18 @@
       },
       "h": {
         "type": "list",
-        "description": "Comma-separated list of column names to display"
+        "description": "Comma-separated list of column names to display",
+        "options": [
+          "breaker",
+          "estimated",
+          "estimated_bytes",
+          "limit",
+          "limit_bytes",
+          "node_id",
+          "node_name",
+          "overhead",
+          "tripped"
+        ]
       },
       "help": {
         "type": "boolean",

@@ -896,6 +896,127 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         }
     }
 
+    public void testOptionalLengthReaderDenseToLengthValues() throws Exception {
+        final String timestampField = "@timestamp";
+        final String binaryFixedField = "binary_variable";
+        final String binaryVariableField = "binary_fixed";
+        final int binaryFixedLength = randomIntBetween(0, 100);
+        long currentTimestamp = 1704067200000L;
+
+        var config = getTimeSeriesIndexWriterConfig(null, timestampField);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            List<BytesRef> binaryFixedValues = new ArrayList<>();
+            List<BytesRef> binaryVariableValues = new ArrayList<>();
+            int numDocs = 256 + random().nextInt(8096);
+
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                long timestamp = currentTimestamp;
+                // Index sorting doesn't work with NumericDocValuesField:
+                d.add(SortedNumericDocValuesField.indexedField(timestampField, timestamp));
+
+                binaryFixedValues.add(new BytesRef(randomAlphaOfLength(binaryFixedLength)));
+                binaryVariableValues.add(new BytesRef(randomAlphaOfLength(between(0, 100))));
+                d.add(new BinaryDocValuesField(binaryFixedField, binaryFixedValues.getLast()));
+                d.add(new BinaryDocValuesField(binaryVariableField, binaryVariableValues.getLast()));
+
+                iw.addDocument(d);
+                if (i % 100 == 0) {
+                    iw.commit();
+                }
+                if (i < numDocs - 1) {
+                    currentTimestamp += 1000L;
+                }
+            }
+            iw.commit();
+
+            try (var reader = DirectoryReader.open(iw)) {
+                for (var leaf : reader.leaves()) {
+                    var binaryFixedDV = getDenseBinaryValues(leaf.reader(), binaryFixedField);
+                    var binaryVariableDV = getDenseBinaryValues(leaf.reader(), binaryVariableField);
+
+                    NumericDocValues fixedLengthReader = binaryFixedDV.toLengthValues();
+                    NumericDocValues variableLengthReader = binaryVariableDV.toLengthValues();
+
+                    int maxDoc = leaf.reader().maxDoc();
+                    for (int i = 0; i < maxDoc; i++) {
+                        assertTrue(fixedLengthReader.advanceExact(i));
+                        assertEquals(binaryFixedLength, fixedLengthReader.longValue());
+
+                        assertTrue(variableLengthReader.advanceExact(i));
+                        assertEquals(binaryVariableValues.removeLast().length, variableLengthReader.longValue());
+                    }
+                }
+            }
+        }
+    }
+
+    public void testOptionalLengthReaderSparseToLengthValues() throws Exception {
+        final String timestampField = "@timestamp";
+        final String binaryFixedField = "binary_variable";
+        final String binaryVariableField = "binary_fixed";
+        final int binaryFixedLength = randomIntBetween(0, 100);
+        long currentTimestamp = 1704067200000L;
+
+        var config = getTimeSeriesIndexWriterConfig(null, timestampField);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            List<BytesRef> binaryFixedValues = new ArrayList<>();
+            List<BytesRef> binaryVariableValues = new ArrayList<>();
+            int numDocs = 256 + random().nextInt(8096);
+
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                long timestamp = currentTimestamp;
+                // Index sorting doesn't work with NumericDocValuesField:
+                d.add(SortedNumericDocValuesField.indexedField(timestampField, timestamp));
+
+                if (randomBoolean()) {
+                    binaryFixedValues.add(new BytesRef(randomAlphaOfLength(binaryFixedLength)));
+                    binaryVariableValues.add(new BytesRef(randomAlphaOfLength(between(0, 100))));
+                    d.add(new BinaryDocValuesField(binaryFixedField, binaryFixedValues.getLast()));
+                    d.add(new BinaryDocValuesField(binaryVariableField, binaryVariableValues.getLast()));
+                } else {
+                    binaryFixedValues.add(null);
+                    binaryVariableValues.add(null);
+                }
+
+                iw.addDocument(d);
+                if (i % 100 == 0) {
+                    iw.commit();
+                }
+                if (i < numDocs - 1) {
+                    currentTimestamp += 1000L;
+                }
+            }
+            iw.commit();
+
+            try (var reader = DirectoryReader.open(iw)) {
+                for (var leaf : reader.leaves()) {
+                    var binaryFixedDV = getSparseBinaryValues(leaf.reader(), binaryFixedField);
+                    var binaryVariableDV = getSparseBinaryValues(leaf.reader(), binaryVariableField);
+
+                    NumericDocValues fixedLengthReader = binaryFixedDV.toLengthValues();
+                    NumericDocValues variableLengthReader = binaryVariableDV.toLengthValues();
+
+                    int maxDoc = leaf.reader().maxDoc();
+                    for (int i = 0; i < maxDoc; i++) {
+                        BytesRef expectedVariableLength = binaryVariableValues.removeLast();
+                        if (expectedVariableLength == null) {
+                            assertFalse(fixedLengthReader.advanceExact(i));
+                            assertFalse(variableLengthReader.advanceExact(i));
+                        } else {
+                            assertTrue(fixedLengthReader.advanceExact(i));
+                            assertEquals(binaryFixedLength, fixedLengthReader.longValue());
+
+                            assertTrue(variableLengthReader.advanceExact(i));
+                            assertEquals(expectedVariableLength.length, variableLengthReader.longValue());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     public void testOptionalLengthReaderDense() throws Exception {
         final String timestampField = "@timestamp";
         final String binaryFixedField = "binary_variable";

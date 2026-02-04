@@ -196,7 +196,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         if (bytesNeeded > remainingBytesInPage) {
             super.writeVInt(i);
         } else {
-            this.currentOffset = currentOffset + StreamOutputHelper.putMultiByteVInt(this.currentBufferPool, i, currentOffset);
+            this.currentOffset = StreamOutputHelper.putMultiByteVInt(this.currentBufferPool, i, currentOffset);
         }
     }
 

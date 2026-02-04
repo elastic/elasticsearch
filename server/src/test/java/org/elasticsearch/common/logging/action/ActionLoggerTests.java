@@ -10,6 +10,7 @@
 package org.elasticsearch.common.logging.action;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -19,8 +20,6 @@ import org.elasticsearch.logging.Level;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
-
-import java.util.Map;
 
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
@@ -55,8 +54,8 @@ public class ActionLoggerTests extends ESTestCase {
         actionLogger = new ActionLogger<>(loggerName, clusterSettings, producer, writerProvider, fieldProvider);
     }
 
-    private ActionLogMessage randomMessage(Level level) {
-        return new ActionLogMessage(level, Map.of(randomAlphaOfLength(5), randomAlphaOfLength(5)));
+    private ESLogMessage randomMessage() {
+        return new ESLogMessage().with(randomAlphaOfLength(5), randomAlphaOfLength(5));
     }
 
     private Level randomLogLevel() {
@@ -74,14 +73,14 @@ public class ActionLoggerTests extends ESTestCase {
         TestContext context = new TestContext(100);
 
         var level = randomLogLevel();
-        ActionLogMessage randomMessage = randomMessage(level);
+        ESLogMessage randomMessage = randomMessage();
 
         when(producer.logLevel(context, Level.INFO)).thenReturn(level);
         when(producer.produce(level, context, loggingFields)).thenReturn(randomMessage);
 
         actionLogger.logAction(context);
 
-        verify(writer).write(randomMessage);
+        verify(writer).write(level, randomMessage);
         verify(producer).logLevel(context, Level.INFO);
     }
 
@@ -99,14 +98,14 @@ public class ActionLoggerTests extends ESTestCase {
 
         TestContext context = new TestContext(TimeValue.timeValueMillis(150).nanos());
         var level = randomLogLevel();
-        ActionLogMessage randomMessage = randomMessage(level);
+        ESLogMessage randomMessage = randomMessage();
 
         when(producer.logLevel(context, Level.INFO)).thenReturn(level);
         when(producer.produce(level, context, loggingFields)).thenReturn(randomMessage);
 
         actionLogger.logAction(context);
 
-        verify(writer).write(randomMessage);
+        verify(writer).write(level, randomMessage);
         verify(producer).logLevel(context, Level.INFO);
     }
 

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.common.logging.action;
 
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.index.ActionLoggingFields;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.test.ESTestCase;
@@ -17,6 +18,7 @@ import org.junit.Before;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -28,7 +30,7 @@ public class ActionLoggerProducerTests extends ESTestCase {
     public void setup() {
         producer = new ActionLoggerProducer<>() {
             @Override
-            public ActionLogMessage produce(Level level, ActionLoggerContext ctx, ActionLoggingFields additionalFields) {
+            public ESLogMessage produce(Level level, ActionLoggerContext ctx, ActionLoggingFields additionalFields) {
                 return produceCommon(level, ctx, additionalFields);
             }
 
@@ -66,28 +68,28 @@ public class ActionLoggerProducerTests extends ESTestCase {
     }
 
     public void testSuccess() {
-        ActionLogMessage message = producer.produce(Level.INFO, makeSuccessContext(), makeFields());
+        ESLogMessage message = producer.produce(Level.INFO, makeSuccessContext(), makeFields());
 
-        assertEquals("test_task", message.get("x_opaque_id"));
-        assertEquals("1000000", message.get("took"));
-        assertEquals(String.valueOf(TimeUnit.NANOSECONDS.toMillis(1_000_000L)), message.get("took_millis"));
-        assertEquals("true", message.get("success"));
-        assertEquals("testType", message.get("type"));
-        assertEquals("bar", message.get("foo"));
-        assertFalse(message.containsKey("error.type"));
-        assertFalse(message.containsKey("error.message"));
+        assertThat(message.get("x_opaque_id"), equalTo("test_task"));
+        assertThat(message.get("took"), equalTo("1000000"));
+        assertThat(message.get("took_millis"), equalTo(String.valueOf(TimeUnit.NANOSECONDS.toMillis(1_000_000L))));
+        assertThat(message.get("success"), equalTo("true"));
+        assertThat(message.get("type"), equalTo("testType"));
+        assertThat(message.get("foo"), equalTo("bar"));
+        assertNull(message.get("error.type"));
+        assertNull(message.get("error.message"));
     }
 
     public void testProduceCommonFailure() {
-        ActionLogMessage message = producer.produce(Level.INFO, makeFailContext(), makeFields());
+        ESLogMessage message = producer.produce(Level.INFO, makeFailContext(), makeFields());
 
-        assertEquals("test_task2", message.get("x_opaque_id"));
-        assertEquals("1000", message.get("took"));
-        assertEquals(String.valueOf(TimeUnit.NANOSECONDS.toMillis(1_000L)), message.get("took_millis"));
-        assertEquals("false", message.get("success"));
-        assertEquals("failType", message.get("type"));
-        assertEquals("SomeError", message.get("error.type"));
-        assertEquals("Something went wrong", message.get("error.message"));
-        assertEquals("bar", message.get("foo"));
+        assertThat(message.get("x_opaque_id"), equalTo("test_task2"));
+        assertThat(message.get("took"), equalTo("1000"));
+        assertThat(message.get("took_millis"), equalTo(String.valueOf(TimeUnit.NANOSECONDS.toMillis(1_000L))));
+        assertThat(message.get("success"), equalTo("false"));
+        assertThat(message.get("type"), equalTo("failType"));
+        assertThat(message.get("error.type"), equalTo("SomeError"));
+        assertThat(message.get("error.message"), equalTo("Something went wrong"));
+        assertThat(message.get("foo"), equalTo("bar"));
     }
 }

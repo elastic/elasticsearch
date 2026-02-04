@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.sql.logging;
 
-import org.elasticsearch.common.logging.action.ActionLogMessage;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.action.ActionLoggerProducer;
 import org.elasticsearch.index.ActionLoggingFields;
 import org.elasticsearch.logging.Level;
@@ -17,10 +17,10 @@ public class SqlLogProducer implements ActionLoggerProducer<SqlLogContext> {
     public static final String LOGGER_NAME = "sql.actionlog";
 
     @Override
-    public ActionLogMessage produce(Level level, SqlLogContext context, ActionLoggingFields additionalFields) {
-        ActionLogMessage msg = produceCommon(level, context, additionalFields);
-        msg.put("query", context.getQuery());
-        msg.put("rows", context.getRows());
+    public ESLogMessage produce(Level level, SqlLogContext context, ActionLoggingFields additionalFields) {
+        ESLogMessage msg = produceCommon(level, context, additionalFields);
+        msg.with("query", context.getQuery());
+        msg.with("rows", context.getRows());
         return msg;
     }
 

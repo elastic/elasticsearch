@@ -115,7 +115,7 @@ public class ActionLogger<Context extends ActionLoggerContext> {
         }
         var event = producer.produce(level, context, additionalFields);
         if (event != null) {
-            writer.write(event);
+            writer.write(level, event);
         }
     }
 

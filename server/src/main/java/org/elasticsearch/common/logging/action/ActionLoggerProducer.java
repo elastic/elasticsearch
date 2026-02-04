@@ -9,6 +9,7 @@
 
 package org.elasticsearch.common.logging.action;
 
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.index.ActionLoggingFields;
 import org.elasticsearch.logging.Level;
 
@@ -21,7 +22,7 @@ import java.util.concurrent.TimeUnit;
  * @param <Context> Specific logger context
  */
 public interface ActionLoggerProducer<Context extends ActionLoggerContext> {
-    ActionLogMessage produce(Level level, Context context, ActionLoggingFields additionalFields);
+    ESLogMessage produce(Level level, Context context, ActionLoggingFields additionalFields);
 
     default Level logLevel(Context context, Level defaultLevel) {
         return defaultLevel;
@@ -30,19 +31,20 @@ public interface ActionLoggerProducer<Context extends ActionLoggerContext> {
     String loggerName();
 
     /**
-     * Produces a {@link ActionLogMessage} with common fields.
+     * Produces a {@link ESLogMessage} with common fields.
      */
-    default ActionLogMessage produceCommon(Level level, Context context, ActionLoggingFields additionalFields) {
-        var fields = new ActionLogMessage(level, additionalFields.logFields());
-        fields.put("x_opaque_id", context.getOpaqueId());
+    default ESLogMessage produceCommon(Level level, Context context, ActionLoggingFields additionalFields) {
+        var fields = new ESLogMessage();
+        additionalFields.logFields().forEach(fields::with);
+        fields.with("x_opaque_id", context.getOpaqueId());
         long tookInNanos = context.getTookInNanos();
-        fields.put("took", tookInNanos);
-        fields.put("took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos));
-        fields.put("success", context.isSuccess());
-        fields.put("type", context.getType());
+        fields.with("took", tookInNanos);
+        fields.with("took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos));
+        fields.with("success", context.isSuccess());
+        fields.with("type", context.getType());
         if (context.isSuccess() == false) {
-            fields.put("error.type", context.getErrorType());
-            fields.put("error.message", context.getErrorMessage());
+            fields.with("error.type", context.getErrorType());
+            fields.with("error.message", context.getErrorMessage());
         }
         return fields;
     }

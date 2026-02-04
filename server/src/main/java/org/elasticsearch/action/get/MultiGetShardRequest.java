@@ -30,7 +30,7 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
     private String preference;
     private boolean realtime;
     private boolean refresh;
-    private SplitShardCountSummary splitShardCountSummary = SplitShardCountSummary.UNSET;
+    private final SplitShardCountSummary splitShardCountSummary;
 
     List<Integer> locations;
     List<MultiGetRequest.Item> items;
@@ -43,7 +43,7 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
      */
     private boolean forceSyntheticSource;
 
-    MultiGetShardRequest(MultiGetRequest multiGetRequest, String index, int shardId) {
+    MultiGetShardRequest(MultiGetRequest multiGetRequest, String index, int shardId, SplitShardCountSummary splitShardCountSummary) {
         super(index);
         this.shardId = shardId;
         locations = new ArrayList<>();
@@ -52,10 +52,6 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
         realtime = multiGetRequest.realtime;
         refresh = multiGetRequest.refresh;
         forceSyntheticSource = multiGetRequest.isForceSyntheticSource();
-    }
-
-    MultiGetShardRequest(MultiGetRequest multiGetRequest, String index, int shardId, SplitShardCountSummary splitShardCountSummary) {
-        this(multiGetRequest, index, shardId);
         this.splitShardCountSummary = splitShardCountSummary;
     }
 
@@ -97,6 +93,8 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
         forceSyntheticSource = in.readBoolean();
         if (in.getTransportVersion().supports(SPLIT_SHARD_COUNT_SUMMARY)) {
             this.splitShardCountSummary = new SplitShardCountSummary(in);
+        } else {
+            splitShardCountSummary = SplitShardCountSummary.UNSET;
         }
     }
 
@@ -182,10 +180,6 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
 
     public SplitShardCountSummary getSplitShardCountSummary() {
         return splitShardCountSummary;
-    }
-
-    public void setSplitShardCountSummary(SplitShardCountSummary splitShardCountSummary) {
-        this.splitShardCountSummary = splitShardCountSummary;
     }
 
     @Override

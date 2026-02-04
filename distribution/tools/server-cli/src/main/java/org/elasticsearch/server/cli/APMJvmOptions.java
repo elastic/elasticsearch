@@ -137,13 +137,23 @@ class APMJvmOptions {
      */
     static List<String> apmJvmOptions(Settings settings, @Nullable SecureSettings secrets, Path logsDir, Path tmpdir) throws UserException,
         IOException {
-        final Path agentJar = findAgentJar();
+        boolean tracingEnabled = settings.getAsBoolean("telemetry.tracing.enabled", false);
+        boolean metricsEnabled = settings.getAsBoolean("telemetry.metrics.enabled", false);
+        boolean agentMetricsEnabled = settings.getAsBoolean("telemetry.otel.metrics.enabled", false) == false;
+        boolean attachAgent = tracingEnabled || (metricsEnabled && agentMetricsEnabled);
 
-        if (agentJar == null) {
+        final Path agentJar = findAgentJar(System.getProperty("user.dir"));
+
+        if (attachAgent == false || agentJar == null) {
             return List.of();
         }
 
         final Map<String, String> propertiesMap = extractApmSettings(settings);
+
+        if (metricsEnabled == false || agentMetricsEnabled == false) {
+            propertiesMap.put("metrics_interval", "0s");
+            propertiesMap.put("disable_metrics", "*");
+        }
 
         // Configures a log file to write to. Don't disable writing to a log file,
         // as the agent will then require extra Security Manager permissions when

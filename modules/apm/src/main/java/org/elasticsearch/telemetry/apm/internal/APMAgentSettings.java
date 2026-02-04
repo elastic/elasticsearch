@@ -299,6 +299,13 @@ public class APMAgentSettings {
         NodeScope
     );
 
+    public static final Setting<Boolean> TELEMETRY_OTEL_METRICS_ENABLED_SETTING = Setting.boolSetting(
+        TELEMETRY_SETTING_PREFIX + "otel.metrics.enabled",
+        false,
+        OperatorDynamic,
+        NodeScope
+    );
+
     public static final Setting<SecureString> TELEMETRY_SECRET_TOKEN_SETTING = SecureSetting.secureString(
         TELEMETRY_SETTING_PREFIX + "secret_token",
         null

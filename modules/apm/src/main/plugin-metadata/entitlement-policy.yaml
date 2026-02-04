@@ -83,3 +83,25 @@ org.elasticsearch.telemetry.apm:
         - elastic.apm.application_packages
         - elastic.apm.stack_trace_limit
         - elastic.apm.span_stack_trace_min_duration
+  - files:
+      - path: "/proc/self/cgroup"
+        mode: read
+        platform: linux
+      - path: "/sys/fs/cgroup"
+        mode: read
+        platform: linux
+
+io.opentelemetry.sdk.metrics:
+  - manage_threads
+
+io.opentelemetry.exporter.sender.jdk.internal:
+  - outbound_network
+
+io.opentelemetry.instrumentation.runtime_telemetry_java17:
+  - manage_threads
+
+io.opentelemetry.instrumentation.runtime_telemetry_java8:
+  - manage_threads
+
+io.opentelemetry.sdk.common:
+  - manage_threads

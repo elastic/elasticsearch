@@ -338,6 +338,30 @@ tests:
 - class: org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingServiceTests
   method: testExpiredModelsAreEvictedBeforeLoading
   issue: https://github.com/elastic/elasticsearch/issues/141589
+- class: org.elasticsearch.upgrades.TSDBSyntheticIdUpgradeIT
+  method: testRollingUpgrade {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/141734
+- class: org.elasticsearch.xpack.ccr.CcrTimeSeriesDataStreamsIT
+  method: testCrossClusterReplicationForTSDB
+  issue: https://github.com/elastic/elasticsearch/issues/141737
+- class: org.elasticsearch.upgrades.TSDBSyntheticIdUpgradeIT
+  method: testRollingUpgrade {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/141749
+- class: org.elasticsearch.compute.operator.topn.TopNOomRaceTests
+  method: testRace {repeats = 85}
+  issue: https://github.com/elastic/elasticsearch/issues/141752
+- class: org.elasticsearch.compute.operator.topn.TopNOomRaceTests
+  method: testRace {repeats = 50}
+  issue: https://github.com/elastic/elasticsearch/issues/141773
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
+  issue: https://github.com/elastic/elasticsearch/issues/141794
+- class: org.elasticsearch.xpack.ccr.CcrTimeSeriesDataStreamsIT
+  method: testCrossClusterReplicationForTSDBWithSyntheticId
+  issue: https://github.com/elastic/elasticsearch/issues/141796
+- class: org.elasticsearch.index.codec.vectors.diskbbq.PreconditionerTests
+  method: testRandomProviderConfigurations
+  issue: https://github.com/elastic/elasticsearch/issues/141748
 
 # Examples:
 #

@@ -2159,7 +2159,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 searcher,
                 request::nowInMillis,
                 request.getClusterAlias(),
-                request.getRuntimeMappings()
+                request.getRuntimeMappings(),
+                null,
+                null
             );
         }
 

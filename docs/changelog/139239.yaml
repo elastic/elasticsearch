@@ -1,5 +1,0 @@
-pr: 139239
-summary: "[DiskBBQ] Add concurrency on KMeansLocal"
-area: Vector Search
-type: enhancement
-issues: []

@@ -118,9 +118,7 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
             sb.append(values[i]);
         }
 
-        sb.append(", ... (")
-            .append(length - MAX_DESCRIPTION_ITEMS)
-            .append(" more)]");
+        sb.append(", ... (").append(length - MAX_DESCRIPTION_ITEMS).append(" more)]");
 
         return sb.toString();
     }

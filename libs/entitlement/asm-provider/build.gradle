@@ -13,6 +13,7 @@ dependencies {
   compileOnly project(':libs:entitlement')
   compileOnly project(':libs:core')
   compileOnly project(':libs:logging')
+  compileOnly project(':libs:entitlement:bridge')
   implementation 'org.ow2.asm:asm:9.9'
   implementation 'org.ow2.asm:asm-util:9.9'
   implementation 'org.ow2.asm:asm-tree:9.9'

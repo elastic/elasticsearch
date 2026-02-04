@@ -33,6 +33,9 @@ import static fixture.aws.AwsCredentialsUtils.ANY_REGION;
 import static fixture.aws.AwsCredentialsUtils.checkAuthorization;
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
 import static fixture.aws.AwsFixtureUtils.getLocalFixtureAddress;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.startsWith;
 
 public class S3HttpFixture extends ExternalResource {
 
@@ -70,6 +73,7 @@ public class S3HttpFixture extends ExternalResource {
             @Override
             public void handle(final HttpExchange exchange) throws IOException {
                 try {
+                    assertThat(exchange.getRequestHeaders().get("user-agent"), contains(startsWith("elasticsearch/")));
                     if (checkAuthorization(authorizationPredicate, exchange)) {
                         super.handle(exchange);
                     }

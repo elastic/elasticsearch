@@ -124,6 +124,20 @@ public class ClientYamlTestExecutionContext {
      */
     public ClientYamlTestResponse callApi(
         String apiName,
+        Map<String, String> params,
+        List<Map<String, Object>> bodies,
+        Map<String, String> headers,
+        NodeSelector nodeSelector
+    ) throws IOException {
+        return callApi(apiName, null, params, bodies, headers, nodeSelector);
+    }
+
+    /**
+     * Calls an elasticsearch api with the parameters and request body provided as arguments.
+     * Saves the obtained response in the execution context.
+     */
+    public ClientYamlTestResponse callApi(
+        String apiName,
         String method,
         Map<String, String> params,
         List<Map<String, Object>> bodies,

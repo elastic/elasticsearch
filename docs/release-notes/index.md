@@ -20,64 +20,17 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
-## 9.2.5 [elasticsearch-9.2.5-release-notes]
-```{applies_to}
-stack: ga 9.2.5
-```
-
-### Features and enhancements [elasticsearch-9.2.5-features-enhancements]
-
-ES|QL:
-* `BlockSourceReader` should always apply source filtering [#136438](https://github.com/elastic/elasticsearch/pull/136438)
-
-IdentityProvider:
-* Support `LimitedRole` in idp role resolution [#140536](https://github.com/elastic/elasticsearch/pull/140536)
-
-Inference:
-* Add `max_batch_size` setting to EIS dense and sparse service settings [#141185](https://github.com/elastic/elasticsearch/pull/141185)
-
-Snapshot/Restore:
-* Retry bulk-delete items in GCS [#138951](https://github.com/elastic/elasticsearch/pull/138951) (issue: [#138364](https://github.com/elastic/elasticsearch/issues/138364))
-
-
-### Fixes [elasticsearch-9.2.5-fixes]
-
-Allocation:
-* Handle deleted source index in allocation deciders [#140699](https://github.com/elastic/elasticsearch/pull/140699) (issue: [#140630](https://github.com/elastic/elasticsearch/issues/140630))
-
-EQL:
-* Fix `_index` on missing events in CCS [#140886](https://github.com/elastic/elasticsearch/pull/140886)
-
-ES|QL:
-* Fix folding of case() function with date period and time duration [#141157](https://github.com/elastic/elasticsearch/pull/141157)
-* Use sub keyword block loader with `ignore_above` for text fields [#140622](https://github.com/elastic/elasticsearch/pull/140622)
-
-ILM:
-* Remove ILM-stopped-check before the cluster update in `migrateToDataTiersRouting` [#140892](https://github.com/elastic/elasticsearch/pull/140892) (issue: [#140885](https://github.com/elastic/elasticsearch/issues/140885))
-
-Inference:
-* [Inference API] Include rerank in supported tasks for IBM watsonx integration [#140331](https://github.com/elastic/elasticsearch/pull/140331) (issue: [#140328](https://github.com/elastic/elasticsearch/issues/140328))
-
-Machine Learning:
-* Disallow `max_number_of_allocations` > 1 for low priority model deployments [#140163](https://github.com/elastic/elasticsearch/pull/140163) (issue: [#111227](https://github.com/elastic/elasticsearch/issues/111227))
-
-Packaging:
-* Fix stderr leak in Docker ES process detection [#140701](https://github.com/elastic/elasticsearch/pull/140701)
-
-Reindex:
-* Disable `_delete_by_query` and `_update_by_query` for CCS/stateful [#140301](https://github.com/elastic/elasticsearch/pull/140301)
-
-Search:
-* Fix date fields sort formatting with missing values [#135899](https://github.com/elastic/elasticsearch/pull/135899) (issue: [#81960](https://github.com/elastic/elasticsearch/issues/81960))
-
-Snapshot/Restore:
-* Fix race condition in `CancellableRateLimitedFluxIterator` [#141323](https://github.com/elastic/elasticsearch/pull/141323)
-
-
-
 ## 9.3.0 [elasticsearch-9.3.0-release-notes]
 
 ### Highlights [elasticsearch-9.3.0-highlights]
+
+::::{dropdown} New Cloud Connect UI for self-managed installations
+Adds Cloud Connect functionality to Kibana, which allows you to use cloud solutions like AutoOps and Elastic Inference Service in your self-managed Elasticsearch clusters.
+::::
+
+::::{dropdown} Independent AI/ML model delivery
+Elastic will regularly be adding new AI/ML models from 9.3 onwards which will appear as pre-configured inference endpoints in Elasticsearch. See the [Elastic Inference Service](https://www.elastic.co/docs/explore-analyze/elastic-inference/eis) page for more details
+::::
 
 ::::{dropdown} Add CEF processor to Ingest node
 The `cef` ingest processor parses a CEF (Common Event Format) message into a structured JSON object. It follows the CEF specification to extract fields such as device vendor, device product, device version, signature ID, name, severity, and extension fields. This allows users to easily analyze and visualize CEF-formatted logs within Elasticsearch and Kibana.
@@ -251,7 +204,6 @@ ES|QL:
 * ES|QL - Remove vectors from `_source` when applicable [#138013](https://github.com/elastic/elasticsearch/pull/138013)
 * ES|QL Update CHUNK to support `chunking_settings` as optional argument [#138123](https://github.com/elastic/elasticsearch/pull/138123)
 * ES|QL completion command constant folding [#138112](https://github.com/elastic/elasticsearch/pull/138112) (issue: [#136863](https://github.com/elastic/elasticsearch/issues/136863))
-* Enable CCS tests for subqueries [#137776](https://github.com/elastic/elasticsearch/pull/137776)
 * Enable nullify and fail unmapped resolution in tech-preview [#140528](https://github.com/elastic/elasticsearch/pull/140528)
 * Enable score function in release builds [#136988](https://github.com/elastic/elasticsearch/pull/136988)
 * Enable the TEXT_EMBEDDING function in non-snapshot build [#136103](https://github.com/elastic/elasticsearch/pull/136103)
@@ -274,7 +226,6 @@ ES|QL:
 * Locale and timezone argument for `date_parse` [#136548](https://github.com/elastic/elasticsearch/pull/136548) (issue: [#132487](https://github.com/elastic/elasticsearch/issues/132487))
 * Make field fusion generic [#137382](https://github.com/elastic/elasticsearch/pull/137382)
 * Multiple patterns for grok command [#136541](https://github.com/elastic/elasticsearch/pull/136541) (issue: [#132486](https://github.com/elastic/elasticsearch/issues/132486))
-* Non-Correlated Subquery in FROM command [#135744](https://github.com/elastic/elasticsearch/pull/135744)
 * Optimize geogrid functions to read points from doc-values [#138917](https://github.com/elastic/elasticsearch/pull/138917)
 * Pull `OrderBy` followed by `InlineJoin` on top of it [#137648](https://github.com/elastic/elasticsearch/pull/137648)
 * Push down COUNT(*) BY DATE_TRUNC [#138023](https://github.com/elastic/elasticsearch/pull/138023)
@@ -591,7 +542,58 @@ Vector Search:
 * Ensure we parse `on_disk_rescore` as its valid to pass false [#141158](https://github.com/elastic/elasticsearch/pull/141158)
 * Intercept filters to knn queries [#138457](https://github.com/elastic/elasticsearch/pull/138457) (issue: [#138410](https://github.com/elastic/elasticsearch/issues/138410))
 
+## 9.2.5 [elasticsearch-9.2.5-release-notes]
+```{applies_to}
+stack: ga 9.2.5
+```
 
+### Features and enhancements [elasticsearch-9.2.5-features-enhancements]
+
+ES|QL:
+* `BlockSourceReader` should always apply source filtering [#136438](https://github.com/elastic/elasticsearch/pull/136438)
+
+IdentityProvider:
+* Support `LimitedRole` in idp role resolution [#140536](https://github.com/elastic/elasticsearch/pull/140536)
+
+Inference:
+* Add `max_batch_size` setting to EIS dense and sparse service settings [#141185](https://github.com/elastic/elasticsearch/pull/141185)
+
+Snapshot/Restore:
+* Retry bulk-delete items in GCS [#138951](https://github.com/elastic/elasticsearch/pull/138951) (issue: [#138364](https://github.com/elastic/elasticsearch/issues/138364))
+
+
+### Fixes [elasticsearch-9.2.5-fixes]
+
+Allocation:
+* Handle deleted source index in allocation deciders [#140699](https://github.com/elastic/elasticsearch/pull/140699) (issue: [#140630](https://github.com/elastic/elasticsearch/issues/140630))
+
+EQL:
+* Fix `_index` on missing events in CCS [#140886](https://github.com/elastic/elasticsearch/pull/140886)
+
+ES|QL:
+* Fix folding of case() function with date period and time duration [#141157](https://github.com/elastic/elasticsearch/pull/141157)
+* Use sub keyword block loader with `ignore_above` for text fields [#140622](https://github.com/elastic/elasticsearch/pull/140622)
+
+ILM:
+* Remove ILM-stopped-check before the cluster update in `migrateToDataTiersRouting` [#140892](https://github.com/elastic/elasticsearch/pull/140892) (issue: [#140885](https://github.com/elastic/elasticsearch/issues/140885))
+
+Inference:
+* [Inference API] Include rerank in supported tasks for IBM watsonx integration [#140331](https://github.com/elastic/elasticsearch/pull/140331) (issue: [#140328](https://github.com/elastic/elasticsearch/issues/140328))
+
+Machine Learning:
+* Disallow `max_number_of_allocations` > 1 for low priority model deployments [#140163](https://github.com/elastic/elasticsearch/pull/140163) (issue: [#111227](https://github.com/elastic/elasticsearch/issues/111227))
+
+Packaging:
+* Fix stderr leak in Docker ES process detection [#140701](https://github.com/elastic/elasticsearch/pull/140701)
+
+Reindex:
+* Disable `_delete_by_query` and `_update_by_query` for CCS/stateful [#140301](https://github.com/elastic/elasticsearch/pull/140301)
+
+Search:
+* Fix date fields sort formatting with missing values [#135899](https://github.com/elastic/elasticsearch/pull/135899) (issue: [#81960](https://github.com/elastic/elasticsearch/issues/81960))
+
+Snapshot/Restore:
+* Fix race condition in `CancellableRateLimitedFluxIterator` [#141323](https://github.com/elastic/elasticsearch/pull/141323)
 
 ## 9.1.10 [elasticsearch-9.1.10-release-notes]
 
@@ -3635,6 +3637,23 @@ Snapshot/Restore:
 * Use the system index descriptor in the snapshot blob cache cleanup task [#120937](https://github.com/elastic/elasticsearch/pull/120937) (issue: [#120518](https://github.com/elastic/elasticsearch/issues/120518))
 
 Store:
+* Do not capture `ClusterChangedEvent` in `IndicesStore` call to #onClusterStateShardsClosed [#120193](https://github.com/elastic/elasticsearch/pull/120193)
+
+Suggesters:
+* Return an empty suggestion when suggest phase times out [#122575](https://github.com/elastic/elasticsearch/pull/122575) (issue: [#122548](https://github.com/elastic/elasticsearch/issues/122548))
+
+Transform:
+* If the Transform is configured to write to an alias as its destination index, when the delete_dest_index parameter is set to true, then the Delete API will now delete the write index backing the alias [#122074](https://github.com/elastic/elasticsearch/pull/122074) (issue: [#121913](https://github.com/elastic/elasticsearch/issues/121913))
+
+Vector Search:
+* Apply default k for knn query eagerly [#118774](https://github.com/elastic/elasticsearch/pull/118774)
+* Fix `bbq_hnsw` merge file cleanup on random IO exceptions [#119691](https://github.com/elastic/elasticsearch/pull/119691) (issue: [#119392](https://github.com/elastic/elasticsearch/issues/119392))
+* Knn vector rescoring to sort score docs [#122653](https://github.com/elastic/elasticsearch/pull/122653) (issue: [#119711](https://github.com/elastic/elasticsearch/issues/119711))
+* Return appropriate error on null dims update instead of npe [#125716](https://github.com/elastic/elasticsearch/pull/125716)
+
+Watcher:
+* Watcher history index has too many indexed fields - [#117701](https://github.com/elastic/elasticsearch/pull/117701) (issue: [#71479](https://github.com/elastic/elasticsearch/issues/71479))
+
 * Do not capture `ClusterChangedEvent` in `IndicesStore` call to #onClusterStateShardsClosed [#120193](https://github.com/elastic/elasticsearch/pull/120193)
 
 Suggesters:

@@ -634,8 +634,8 @@ static inline void dot_int2_int4_inner_bulk(
 
         int64_t lower0 = dot_int1_int4_inner(a0, query, bit_length);
         int64_t lower1 = dot_int1_int4_inner(a1, query, bit_length);
-        int64_t upper0 = dot_int1_int4_inner(a0 + length/2, query, length/2);
-        int64_t upper1 = dot_int1_int4_inner(a1 + length/2, query, length/2);
+        int64_t upper0 = dot_int1_int4_inner(a0 + bit_length, query, bit_length);
+        int64_t upper1 = dot_int1_int4_inner(a1 + bit_length, query, bit_length);
 
         results[c + 0] = (f32_t)(lower0 + (upper0 << 1));
         results[c + 1] = (f32_t)(lower1 + (upper1 << 1));

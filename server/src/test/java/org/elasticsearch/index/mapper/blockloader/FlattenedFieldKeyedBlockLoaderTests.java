@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper.blockloader;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.datageneration.datasource.ASCIIStringsHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
@@ -34,11 +33,6 @@ public class FlattenedFieldKeyedBlockLoaderTests extends BlockLoaderTestCase {
                 public int generateChildFieldCount() {
                     // guarantee always at least 1 child field
                     return ESTestCase.randomIntBetween(1, request.specification().maxFieldCountPerLevel());
-                }
-
-                @Override
-                public String generateFieldName() {
-                    return randomAlphaOfLengthBetween(5, 10);
                 }
             };
         }
@@ -70,7 +64,7 @@ public class FlattenedFieldKeyedBlockLoaderTests extends BlockLoaderTestCase {
     };
 
     public FlattenedFieldKeyedBlockLoaderTests(Params params) {
-        super("flattened", List.of(FLATTENED_DATA_GENERATOR, new ASCIIStringsHandler()), params);
+        super("flattened", List.of(FLATTENED_DATA_GENERATOR), params);
     }
 
     @SuppressWarnings("unchecked")

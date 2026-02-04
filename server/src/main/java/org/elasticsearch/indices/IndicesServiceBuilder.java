@@ -88,8 +88,7 @@ public class IndicesServiceBuilder {
     MergeMetrics mergeMetrics;
     List<SearchOperationListener> searchOperationListener = List.of();
     QueryRewriteInterceptor queryRewriteInterceptor = null;
-    ActionLoggingFieldsProvider loggingFieldsProvider = (context) -> new ActionLoggingFields(context) {
-    };
+    ActionLoggingFieldsProvider loggingFieldsProvider = (context) -> new ActionLoggingFields(context) {};
     Map<String, PluggableDirectoryMetricsHolder<?>> directoryMetricHolderMap;
     ThreadLocalDirectoryMetricHolder<StoreMetrics> storeMetricsHolder;
 

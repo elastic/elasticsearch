@@ -1,8 +1,35 @@
+First doc sample-Ignore
+required_capability: first_agg_with_null_and_mv_support
+
+# This test is meant to remain ignored, and only serves as the doc sample for FIRST. This is due to the complexity of 
+# setting up a good example using ROW, that includes nulls and multi-values.
+
+// tag::first[]
+        @timestamp        |  name   | number
+"2025-11-25T00:00:00.000Z | alpha   | 1"
+"2025-11-25T00:00:01.000Z | alpha   | 2"
+"2025-11-25T00:00:02.000Z | bravo   | null"
+"2025-11-25T00:00:03.000Z | alpha   | 4"
+"2025-11-25T00:00:04.000Z | bravo   | 5"
+"2025-11-25T00:00:05.000Z | charlie | [6, 7, 8]"
+"2025-11-25T00:00:06.000Z | delta   | null"
+
+From dataset
+| STATS first_val = FIRST(number, @timestamp)
+// end::first[]
+;
+
+// tag::first-result[]
+first_val:long
+1
+// end::first-result[]
+;
+
 # ----------------------------------------------------------------------------------------------------------------------
 
-[sample for docs] Test retrieval of first long by timestamp
+Test retrieval of first long by timestamp
 required_capability: first_agg_with_null_and_mv_support
-// tag::first[]
+
 ROW row = [
   #       @timestamp        |  name   | number
   "2025-11-25T00:00:00.000Z | alpha   | ",
@@ -20,23 +47,52 @@ ROW row = [
        name = TRIM(name), 
        number = TO_LONG(number)
 | STATS first_val = FIRST(number, @timestamp)
-// end::first[]
 ;
 
 warning:Line 15:10: evaluation of [TO_LONG(number)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 15:10: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number []
 
-// tag::first-result[]
 first_val:long
 null
-// end::first-result[]
 ;
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-[sample for docs] Test retrieval of last long by timestamp
+Last doc sample-Ignore
 required_capability: last_agg_with_null_and_mv_support
+
+# This test is meant to remain ignored, and only serves as the doc sample for LAST. This is due to the complexity of 
+# setting up a good example using ROW, that includes nulls and multi-values.
+
 // tag::last[]
+        @timestamp        |  name   | number
+"2025-11-25T00:00:00.000Z | alpha   | 1"
+"2025-11-25T00:00:01.000Z | alpha   | 2"
+"2025-11-25T00:00:02.000Z | bravo   | null"
+"2025-11-25T00:00:03.000Z | alpha   | 4"
+"2025-11-25T00:00:04.000Z | bravo   | 5"
+"2025-11-25T00:00:05.000Z | charlie | [6, 7, 8]"
+"2025-11-25T00:00:06.000Z | delta   | null"
+
+From dataset
+| STATS last_val = LAST(number, @timestamp) BY name
+// end::last[]
+;
+
+// tag::last-result[]
+last_val:long   | name:keyword
+4               | alpha
+5               | bravo
+[6, 7, 8]       | charlie
+null            | delta
+// end::last-result[]
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test retrieval of last long by timestamp
+required_capability: last_agg_with_null_and_mv_support
+
 ROW row = [
   #       @timestamp        |  name   | number
   "2025-11-25T00:00:00.000Z | alpha   | ",
@@ -54,19 +110,16 @@ ROW row = [
        name = TRIM(name), 
        number = TO_LONG(number)
 | STATS last_val = LAST(number, @timestamp) BY name
-// end::last[]
 ;
 
 warning:Line 15:10: evaluation of [TO_LONG(number)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 15:10: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number []
 
-// tag::last-result[]
 last_val:long | name:keyword
 4             | alpha
 5             | bravo
 6             | charlie
 null          | delta
-// end::last-result[]
 ;
 
 # ----------------------------------------------------------------------------------------------------------------------

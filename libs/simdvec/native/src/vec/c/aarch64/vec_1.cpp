@@ -671,6 +671,16 @@ EXPORT int64_t vec_dot_int1_int4(const int8_t* a, const int8_t* query, const int
     return dot_int1_int4_inner(a, query, length);
 }
 
+EXPORT int64_t vec_dot_int2_int4(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length
+) {
+    int64_t lower = dot_int1_int4_inner(a, query, length/2);
+    int64_t upper = dot_int1_int4_inner(a + length/2, query, length/2);
+    return lower + (upper << 1);
+}
+
 template <int64_t(*mapper)(const int32_t, const int32_t*)>
 static inline void dot_int1_int4_inner_bulk(
     const int8_t* a,
@@ -808,4 +818,46 @@ EXPORT void vec_dot_int1_int4_bulk_offsets(
     const int32_t count,
     f32_t* results) {
     dot_int1_int4_inner_bulk<array_mapper>(a, query, length, pitch, offsets, count, results);
+}
+
+
+template <int64_t(*mapper)(const int32_t, const int32_t*)>
+static inline void dot_int2_int4_inner_bulk(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results
+) {
+    int c = 0;
+    int bit_length = length/2;
+    // TODO: specialised implementation
+    for (; c < count; c++) {
+        const int8_t* a0 = a + mapper(c, offsets) * pitch;
+        int64_t lower = dot_int1_int4_inner(a, query, bit_length);
+        int64_t upper = dot_int1_int4_inner(a + bit_length, query, bit_length);
+        results[c] = (f32_t)(lower + (upper << 1));
+    }
+}
+
+EXPORT void vec_dot_int2_int4_bulk(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t count,
+    f32_t* results) {
+    dot_int2_int4_inner_bulk<identity_mapper>(a, query, length, length, NULL, count, results);
+}
+
+EXPORT void vec_dot_int2_int4_bulk_offsets(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results) {
+    dot_int2_int4_inner_bulk<array_mapper>(a, query, length, pitch, offsets, count, results);
 }

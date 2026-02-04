@@ -132,8 +132,18 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         when(indexCache.query()).thenReturn(queryCache);
         when(indexService.cache()).thenReturn(indexCache);
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
-        when(indexService.newSearchExecutionContext(eq(shardId.id()), eq(shardId.id()), any(), any(), nullable(String.class), any(), any()))
-            .thenReturn(searchExecutionContext);
+        when(
+            indexService.newSearchExecutionContext(
+                eq(shardId.id()),
+                eq(shardId.id()),
+                any(),
+                any(),
+                nullable(String.class),
+                any(),
+                any(),
+                any()
+            )
+        ).thenReturn(searchExecutionContext);
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.hasNested()).thenReturn(randomBoolean());
         when(indexService.mapperService()).thenReturn(mapperService);
@@ -1016,8 +1026,18 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         when(indexCache.query()).thenReturn(queryCache);
         when(indexService.cache()).thenReturn(indexCache);
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
-        when(indexService.newSearchExecutionContext(eq(shardId.id()), eq(shardId.id()), any(), any(), nullable(String.class), any()))
-            .thenReturn(searchExecutionContext);
+        when(
+            indexService.newSearchExecutionContext(
+                eq(shardId.id()),
+                eq(shardId.id()),
+                any(),
+                any(),
+                nullable(String.class),
+                any(),
+                any(),
+                any()
+            )
+        ).thenReturn(searchExecutionContext);
         CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
         when(indexService.breakerService()).thenReturn(breakerService);
         when(breakerService.getBreaker(anyString())).thenReturn(new NoopCircuitBreaker(CircuitBreaker.REQUEST));

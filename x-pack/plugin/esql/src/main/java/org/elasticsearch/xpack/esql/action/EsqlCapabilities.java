@@ -1792,6 +1792,11 @@ public class EsqlCapabilities {
         LOOKUP_JOIN_SEMANTIC_FILTER_DEDUP,
 
         /**
+         * Warning when SORT is followed by LOOKUP JOIN which does not preserve order.
+         */
+        LOOKUP_JOIN_SORT_WARNING,
+
+        /**
          * Temporarily forbid the use of an explicit or implicit LIMIT before INLINE STATS.
          */
         FORBID_LIMIT_BEFORE_INLINE_STATS(INLINE_STATS.enabled),

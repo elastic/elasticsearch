@@ -1,3 +1,3 @@
 Limit[1000[INTEGER],false,false]
-\_Aggregate[[TBUCKET(PT1H[TIME_DURATION],@timestamp{f}#0) AS tbucket(1 hour)#1, does_not_exist{f}#2],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#3, tbucket(1 hour){r}#1, does_not_exist{f}#2]]
+\_Aggregate[[TBUCKET(PT1H[TIME_DURATION],@timestamp{f(DateEsField)}#0) AS tbucket(1 hour)#1, does_not_exist{f(PotentiallyUnmappedKeywordEsField)}#2],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#3, tbucket(1 hour){r}#1, does_not_exist{f(PotentiallyUnmappedKeywordEsField)}#2]]
   \_EsRelation[sample_data][@timestamp{f}#0, client_ip{f}#4, event_duration{f}#5, message{f}#6, does_not_exist{f}#2]

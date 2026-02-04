@@ -3,7 +3,7 @@ LimitExec[1000[INTEGER],null]
   \_ExchangeExec[[x{r}#0, $$count(*) where long > 10$count{r}#3, $$count(*) where long > 10$seen{r}#4],true]
     \_AggregateExec[[x{r}#0],[COUNT(*[KEYWORD],long{f}#1 > 10[INTEGER],PT0S[TIME_DURATION]) AS count(*) where long > 10#2, x{r}#0],INITIAL,[x{r}#0, $$count(*) where long > 10$count{r}#5, $$count(*) where long > 10$seen{r}#6],16]
       \_FieldExtractExec[long{f}#1]<[],[]>
-        \_EvalExec[[$$date$round_to$datetime{f}#7 AS x#0]]
+        \_EvalExec[[$$date$round_to$datetime{f(EsField)}#7 AS x#0]]
           \_EsQueryExec[all_types], indexMode[standard], [_doc{f}#8, $$date$round_to$datetime{f}#7], limit[], sort[] estimatedRowSize[20] queryBuilderAndTags [[QueryBuilderAndTags[query={
   "esql_single_value" : {
     "field" : "date",

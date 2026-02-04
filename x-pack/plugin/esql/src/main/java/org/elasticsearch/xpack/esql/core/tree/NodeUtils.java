@@ -62,6 +62,7 @@ public abstract class NodeUtils {
     public static String toString(Collection<?> c, Node.NodeStringFormat format) {
         return switch (format) {
             case LIMITED -> limitedToString(c);
+            // FIXME(gal, NOCOMMIT) This need to pass format to c as well
             case FULL -> unlimitedToString(c);
         };
     }

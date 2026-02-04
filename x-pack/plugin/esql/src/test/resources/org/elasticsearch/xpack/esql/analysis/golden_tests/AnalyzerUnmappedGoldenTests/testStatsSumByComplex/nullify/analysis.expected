@@ -1,4 +1,4 @@
 Limit[1000[INTEGER],false,false]
-\_Aggregate[[TODOUBLE(does_not_exist2{r}#0) + TODOUBLE(does_not_exist3{r}#1) AS s0#2, emp_no{f}#3 AS s1#4],[SUM(TODOUBLE(does_not_exist1{r}#5),true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) + s0{r}#2 + s1{r}#4 AS sum#6, s0{r}#2, s1{r}#4]]
+\_Aggregate[[TODOUBLE(does_not_exist2{r}#0) + TODOUBLE(does_not_exist3{r}#1) AS s0#2, emp_no{f(EsField)}#3 AS s1#4],[SUM(TODOUBLE(does_not_exist1{r}#5),true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) + s0{r}#2 + s1{r}#4 AS sum#6, s0{r}#2, s1{r}#4]]
   \_Eval[[null[NULL] AS does_not_exist2#0, null[NULL] AS does_not_exist3#1, null[NULL] AS does_not_exist1#5, null[NULL] AS s0#7]]
     \_EsRelation[employees][avg_worked_seconds{f}#8, birth_date{f}#9, emp_no{f}#3, first_name{f}#10, gender{f}#11, height{f}#12, height.float{f}#13, height.half_float{f}#14, height.scaled_float{f}#15, hire_date{f}#16, is_rehired{f}#17, job_positions{f}#18, languages{f}#19, languages.byte{f}#20, languages.long{f}#21, languages.short{f}#22, last_name{f}#23, salary{f}#24, salary_change{f}#25, salary_change.int{f}#26, salary_change.keyword{f}#27, salary_change.long{f}#28, still_hired{f}#29]

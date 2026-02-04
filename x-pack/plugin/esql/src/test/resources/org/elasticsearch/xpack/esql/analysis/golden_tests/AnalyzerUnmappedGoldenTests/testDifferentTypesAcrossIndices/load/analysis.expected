@@ -1,3 +1,3 @@
 Limit[1000[INTEGER],false,false]
-\_Project[[!@timestamp, message{f}#0, does_not_exist{f}#1]]
+\_Project[[!@timestamp, message{f(KeywordEsField)}#0, does_not_exist{f(PotentiallyUnmappedKeywordEsField)}#1]]
   \_EsRelation[sample_data,sample_data_ts_long][!@timestamp, client_ip{f}#2, event_duration{f}#3, message{f}#0, does_not_exist{f}#1]

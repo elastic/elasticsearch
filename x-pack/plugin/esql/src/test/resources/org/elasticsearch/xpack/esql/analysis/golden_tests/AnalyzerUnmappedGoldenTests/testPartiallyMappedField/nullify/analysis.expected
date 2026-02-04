@@ -1,4 +1,4 @@
 Limit[1000[INTEGER],false,false]
-\_Project[[@timestamp{f}#0, message{f}#1, unmapped_message{r}#2]]
+\_Project[[@timestamp{f(DateEsField)}#0, message{f(KeywordEsField)}#1, unmapped_message{r}#2]]
   \_Eval[[null[NULL] AS unmapped_message#2]]
     \_EsRelation[sample_data,partial_mapping_sample_data][@timestamp{f}#0, client_ip{f}#3, event_duration{f}#4, message{f}#1]

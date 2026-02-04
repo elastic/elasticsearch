@@ -1,3 +1,3 @@
 Limit[1000[INTEGER],false,false]
-\_Aggregate[[unmapped_message{f}#0],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#1, unmapped_message{f}#0]]
+\_Aggregate[[unmapped_message{f(PotentiallyUnmappedKeywordEsField)}#0],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#1, unmapped_message{f(PotentiallyUnmappedKeywordEsField)}#0]]
   \_EsRelation[sample_data,partial_mapping_sample_data][@timestamp{f}#2, client_ip{f}#3, event_duration{f}#4, message{f}#5, unmapped_message{f}#0]

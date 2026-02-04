@@ -271,4 +271,15 @@ public class FieldAttribute extends TypedAttribute {
     public EsField field() {
         return field;
     }
+
+    @Override
+    public String nodeString(NodeStringFormat format) {
+        return switch (format) {
+            // FIXME(gal, NOCOMMIT) unhack
+            case FULL -> Strings.format(
+                "%s{%s(%s)%s}#%s".formatted(qualifiedName(), label(), field.getWriteableName(), synthetic() ? "$" : "", id())
+            );
+            case LIMITED -> super.nodeString(format);
+        };
+    }
 }

@@ -379,7 +379,7 @@ class IndicesAndAliasesResolver {
                     // TODO: We can skip the local resolution when CPS enabled and projects filtered to empty
                     IndexComponentSelector selector = IndexComponentSelector.getByKeyOrThrow(allIndicesPatternSelector);
                     for (String authorizedIndex : authorizedIndices.all(selector)) {
-                        if (IndexAbstractionResolver.isIndexVisible(
+                        if (IndexAbstractionResolver.isIndexVisibleUnderWildcardAccess(
                             "*",
                             allIndicesPatternSelector,
                             authorizedIndex,

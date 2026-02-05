@@ -46,6 +46,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.xcontent.XContentFactory.xContentType;
+
 @SuppressWarnings("unchecked")
 public class XContentHelper {
 
@@ -603,6 +605,22 @@ public class XContentHelper {
                 builder.rawField(field, stream, xContentType);
             }
         }
+    }
+
+    public static XContentBuilder writeRawSource(BytesReference source, XContentBuilder builder) throws IOException {
+
+        Compressor compressor = CompressorFactory.compressorForUnknownXContentType(source);
+        if (compressor != null) {
+            try (InputStream compressedStreamInput = compressor.threadLocalInputStream(source.streamInput())) {
+                builder.rawSource(compressedStreamInput);
+            }
+        } else {
+            try (InputStream stream = source.streamInput()) {
+                builder.rawSource(stream);
+            }
+        }
+        return builder;
+
     }
 
     /**

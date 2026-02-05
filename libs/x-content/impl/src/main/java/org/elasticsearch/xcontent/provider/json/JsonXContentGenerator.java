@@ -498,19 +498,20 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     @Override
-    public void writeRawSource(byte[] sourceBytes) throws IOException {
-        XContentType contentType = XContentFactory.xContentType(sourceBytes);
+    public void writeRawSource(InputStream sourceStream) throws IOException {
+        XContentType contentType = XContentFactory.xContentType(sourceStream);
         if (contentType == null) {
-            throw new IllegalArgumentException("Can't write source when xcontent-type can't be guessed");
+            throw new IllegalArgumentException("Can't write raw source when its xcontent-type can't be guessed");
         }
-        if (mayWriteRawData(contentType)) {
-            generator.writeUTF8String(sourceBytes, 0, sourceBytes.length);  // Fast path: direct write
+        if (mayWriteRawData(contentType) == false) {
+            copyRawValue(sourceStream, contentType.xContent());
         } else {
-            // Slow path: parse and convert format
-            try (XContentParser parser = contentType.xContent()
-                .createParser(XContentParserConfiguration.EMPTY, sourceBytes)) {
-                copyCurrentStructure(parser);
+            if (generator.getOutputContext().getCurrentIndex() > 0) {
+                generator.writeRaw(',');
             }
+            flush();
+            Streams.copy(sourceStream, os, false);
+            writeEndRaw();
         }
     }
 

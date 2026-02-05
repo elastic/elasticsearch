@@ -1234,10 +1234,10 @@ public final class XContentBuilder implements Closeable, Flushable {
      * Writes source as a value. It will be converted to the appropriate type in case the source content type
      * is not the same as the builder content type, otherwise it will be copied as is
      *
-     * @param sourceBytes raw source as an array of bytes
+     * @param sourceStream raw source as an array of bytes
      */
-    public XContentBuilder rawSource(byte[] sourceBytes) throws IOException {
-        generator.writeRawSource(sourceBytes);
+    public XContentBuilder rawSource(InputStream sourceStream) throws IOException {
+        generator.writeRawSource(sourceStream);
         return this;
     }
 

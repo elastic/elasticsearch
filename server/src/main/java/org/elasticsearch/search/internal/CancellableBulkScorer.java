@@ -15,6 +15,7 @@ import org.apache.lucene.util.Bits;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 /**
  * A {@link BulkScorer} wrapper that runs a {@link Runnable} on a regular basis
@@ -26,12 +27,10 @@ public final class CancellableBulkScorer extends BulkScorer {
     // slow down boolean queries
     private static final int INITIAL_INTERVAL = 1 << 12;
 
-    // Lowered from 1 << 20 (1M) to 1 << 14 (~ 16K) to ensure cancellation checks happen
-    // more frequently for slow-scoring queries
     private static final int MAX_INTERVAL = 1 << 14;
 
-    // Maximum time in nanoseconds between cancellation checks (1 second).
-    private static final long MAX_TIME_BETWEEN_CHECKS_NANOS = 1_000_000_000L;
+    // Threshold for adaptive interval growth, only increase the interval if the previous batch completed faster than this.
+    private static final long INTERVAL_GROWTH_THRESHOLD_NANOS = TimeUnit.SECONDS.toNanos(1);
 
     private final BulkScorer scorer;
     private final Runnable checkCancelled;
@@ -54,7 +53,7 @@ public final class CancellableBulkScorer extends BulkScorer {
             min = scorer.score(collector, acceptDocs, min, newMax);
 
             long elapsed = System.nanoTime() - lastCheckTime;
-            if (elapsed < MAX_TIME_BETWEEN_CHECKS_NANOS) {
+            if (elapsed < INTERVAL_GROWTH_THRESHOLD_NANOS) {
                 interval = Math.min(interval << 1, MAX_INTERVAL);
             }
         }

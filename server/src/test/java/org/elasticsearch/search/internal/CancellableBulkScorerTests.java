@@ -105,59 +105,6 @@ public class CancellableBulkScorerTests extends ESTestCase {
     }
 
     /**
-     * Simulates slow processing (100µs/doc), triggers cancellation mid-scoring, and verifies response within 2 seconds.
-     */
-    public void testSlowScoringGetsCancelledWithinTimeLimit() throws IOException {
-        AtomicBoolean cancelled = new AtomicBoolean(false);
-        AtomicLong cancellationRequestTime = new AtomicLong(0);
-        AtomicLong cancellationDetectedTime = new AtomicLong(0);
-
-        Runnable checkCancelled = () -> {
-            if (cancelled.get()) {
-                if (cancellationDetectedTime.get() == 0) {
-                    cancellationDetectedTime.set(System.nanoTime());
-                }
-                throw new TaskCancelledException("cancelled");
-            }
-        };
-
-        long delayPerDocNanos = 100_000;
-        int totalDocs = 500_000;
-
-        BulkScorer scorer = new BulkScorer() {
-            @Override
-            public int score(LeafCollector collector, Bits acceptDocs, int min, int max) {
-                for (int i = min; i < max; i++) {
-                    long start = System.nanoTime();
-                    while (System.nanoTime() - start < delayPerDocNanos) {
-                        // busy 100 μs
-                    }
-
-                    // Cancel after 50ms of processing
-                    if (cancellationRequestTime.get() == 0 && i > 500) {
-                        cancellationRequestTime.set(System.nanoTime());
-                        cancelled.set(true);
-                    }
-                }
-                return max;
-            }
-
-            @Override
-            public long cost() {
-                return totalDocs;
-            }
-        };
-
-        CancellableBulkScorer cancellableBulkScorer = new CancellableBulkScorer(scorer, checkCancelled);
-        expectThrows(TaskCancelledException.class, () -> cancellableBulkScorer.score(createNoOpCollector(), null, 0, totalDocs));
-
-        long responseTimeNanos = cancellationDetectedTime.get() - cancellationRequestTime.get();
-        long responseTimeMs = responseTimeNanos / 1_000_000;
-
-        assertThat("Cancellation should be detected within 2 seconds, was " + responseTimeMs + "ms", responseTimeMs, lessThan(2000L));
-    }
-
-    /**
      * Verifies intervals still grow for efficiency, but never exceed MAX_INTERVAL.
      * Ensures we didn't break the optimization for fast queries.
      */

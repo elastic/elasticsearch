@@ -53,7 +53,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY;
-import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -150,20 +149,6 @@ public class CloneStepTests extends ESTestCase {
         Map<String, String> customMetadata = Map.of("dlm_index_to_be_force_merged", indexName);
         ProjectState projectState = createProjectStateWithRouting(indexName, 0, customMetadata, true);
         assertTrue(cloneStep.stepCompleted(index, projectState));
-    }
-
-    public void testExecuteSkipsWhenForceMergeComplete() {
-        Map<String, String> customMetadata = Map.of(
-            FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY,
-            String.valueOf(System.currentTimeMillis())
-        );
-        ProjectState projectState = createProjectState(indexName, 1, customMetadata);
-        DlmStepContext stepContext = createStepContext(projectState);
-
-        cloneStep.execute(stepContext);
-
-        // No request should be captured
-        assertThat(capturedResizeRequest.get(), is(nullValue()));
     }
 
     public void testExecuteSkipsCloneWhenIndexHasZeroReplicas() {

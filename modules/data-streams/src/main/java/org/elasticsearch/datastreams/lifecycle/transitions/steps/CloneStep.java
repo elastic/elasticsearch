@@ -40,7 +40,6 @@ import java.util.Map;
 
 import static org.apache.logging.log4j.LogManager.getLogger;
 import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY;
-import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY;
 
 /**
  * This step clones the index into a new index with 0 replicas.
@@ -84,11 +83,6 @@ public class CloneStep implements DlmStep {
 
         if (indexMetadata == null) {
             logger.warn("Index [{}] not found in project metadata, skipping clone step", indexName);
-            return;
-        }
-
-        if (isForceMergeComplete(indexMetadata)) {
-            logger.info("Skipping clone step for index [{}] as force merge is already complete", indexName);
             return;
         }
         if (indexMetadata.getNumberOfReplicas() == 0) {
@@ -180,15 +174,6 @@ public class CloneStep implements DlmStep {
         String hash = MessageDigests.toHexString(MessageDigests.sha256().digest(originalName.getBytes(StandardCharsets.UTF_8)))
             .substring(0, 8);
         return originalName + "-dlm-clone-" + hash;
-    }
-
-    /*
-     * Returns true if a value has been set for the custom index metadata field "force_merge_completed_timestamp" within the field
-     * "data_stream_lifecycle".
-     */
-    private static boolean isForceMergeComplete(IndexMetadata backingIndex) {
-        Map<String, String> customMetadata = backingIndex.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
-        return customMetadata != null && customMetadata.containsKey(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY);
     }
 
     /*

@@ -487,10 +487,11 @@ public class JsonXContentGenerator implements XContentGenerator {
         if (mayWriteRawData(xContentType) == false) {
             copyRawValue(stream, xContentType.xContent());
         } else {
-            if (generator.getOutputContext().getCurrentName() != null) {
+            JsonStreamContext outputContext = generator.getOutputContext();
+            if (outputContext.getCurrentName() != null) {
                 // If we've just started a field we'll need to add the separator
                 generator.writeRaw(':');
-            } else if (generator.getOutputContext().getCurrentIndex() > 0) {
+            } else if (outputContext.inArray() && outputContext.hasCurrentIndex()) {
                 // We may be writing an array element, check for adding separator
                 generator.writeRaw(',');
             }

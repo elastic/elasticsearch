@@ -2013,6 +2013,16 @@ public abstract class ESRestTestCase extends ESTestCase {
         return createIndex(client(), name, settings, mapping, aliases);
     }
 
+    protected static CreateIndexResponse createIndex(
+        String name,
+        Settings settings,
+        String mapping,
+        String aliases,
+        RequestOptions requestOptions
+    ) throws IOException {
+        return createIndex(client(), name, settings, mapping, aliases, requestOptions);
+    }
+
     public static CreateIndexResponse createIndex(RestClient client, String name, Settings settings, String mapping, String aliases)
         throws IOException {
         return createIndex(client::performRequest, name, settings, mapping, aliases, RequestOptions.DEFAULT);

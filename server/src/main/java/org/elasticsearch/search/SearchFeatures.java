@@ -42,6 +42,9 @@ public final class SearchFeatures implements FeatureSpecification {
     public static final NodeFeature EXPONENTIAL_HISTOGRAM_QUERYDSL_MIN_MAX = new NodeFeature(
         "search.exponential_histogram_querydsl_min_max"
     );
+    public static final NodeFeature EXPONENTIAL_HISTOGRAM_QUERYDSL_PERCENTILES = new NodeFeature(
+        "search.exponential_histogram_querydsl_percentiles"
+    );
     public static final NodeFeature CLOSING_INVALID_PIT_ID = new NodeFeature("closing_invalid_pit_id");
 
     @Override
@@ -61,6 +64,7 @@ public final class SearchFeatures implements FeatureSpecification {
             DATE_FORMAT_MISSING_AS_NULL,
             LIMIT_MAX_IDS_FEATURE,
             EXPONENTIAL_HISTOGRAM_QUERYDSL_MIN_MAX,
+            EXPONENTIAL_HISTOGRAM_QUERYDSL_PERCENTILES,
             CLOSING_INVALID_PIT_ID
         );
     }

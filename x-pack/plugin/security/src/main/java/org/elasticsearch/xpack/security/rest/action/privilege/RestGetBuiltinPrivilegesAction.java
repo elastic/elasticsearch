@@ -19,16 +19,20 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesResponseTranslator;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -40,6 +44,11 @@ public class RestGetBuiltinPrivilegesAction extends SecurityBaseRestHandler {
 
     private static final Logger logger = LogManager.getLogger(RestGetBuiltinPrivilegesAction.class);
     private final GetBuiltinPrivilegesResponseTranslator responseTranslator;
+    private final CrossProjectModeDecider crossProjectModeDecider;
+    private final Set<String> crossProjectPrivileges = Set.of(
+        ClusterPrivilegeResolver.READ_PROJECT_ROUTING.name(),
+        ClusterPrivilegeResolver.MANAGE_PROJECT_ROUTING.name()
+    );
 
     public RestGetBuiltinPrivilegesAction(
         Settings settings,
@@ -48,6 +57,7 @@ public class RestGetBuiltinPrivilegesAction extends SecurityBaseRestHandler {
     ) {
         super(settings, licenseState);
         this.responseTranslator = responseTranslator;
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
     }
 
     @Override
@@ -68,9 +78,10 @@ public class RestGetBuiltinPrivilegesAction extends SecurityBaseRestHandler {
             new RestBuilderListener<>(channel) {
                 @Override
                 public RestResponse buildResponse(GetBuiltinPrivilegesResponse response, XContentBuilder builder) throws Exception {
-                    final var translatedResponse = responseTranslator.translate(response);
+                    final GetBuiltinPrivilegesResponse translatedResponse = responseTranslator.translate(response);
+                    final String[] clusterPrivileges = maybeFilterCrossProjectPrivileges(translatedResponse.getClusterPrivileges());
                     builder.startObject();
-                    builder.array("cluster", translatedResponse.getClusterPrivileges());
+                    builder.array("cluster", clusterPrivileges);
                     builder.array("index", translatedResponse.getIndexPrivileges());
                     String[] remoteClusterPrivileges = translatedResponse.getRemoteClusterPrivileges();
                     if (remoteClusterPrivileges.length > 0) { // remote clusters are not supported in stateless mode, so hide entirely
@@ -108,5 +119,17 @@ public class RestGetBuiltinPrivilegesAction extends SecurityBaseRestHandler {
 
     private boolean shouldRestrictForServerless(RestRequest request) {
         return request.isServerlessRequest() && false == request.isOperatorRequest();
+    }
+
+    /**
+     * Filter out cross-project privileges if cross-project mode is not enabled, otherwise return original array.
+     */
+    private String[] maybeFilterCrossProjectPrivileges(String[] clusterPrivileges) {
+        if (crossProjectModeDecider.crossProjectEnabled()) {
+            return clusterPrivileges;
+        }
+        return Arrays.stream(clusterPrivileges)
+            .filter(privilege -> false == crossProjectPrivileges.contains(privilege))
+            .toArray(String[]::new);
     }
 }

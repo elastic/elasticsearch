@@ -28,7 +28,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalSecureString;
 
 public class AzureOpenAiSecretSettings implements SecretSettings {
@@ -36,10 +35,19 @@ public class AzureOpenAiSecretSettings implements SecretSettings {
     public static final String NAME = "azure_openai_secret_settings";
     public static final String API_KEY = "api_key";
     public static final String ENTRA_ID = "entra_id";
+    public static final String TENANT_ID = "tenant_id";
+    public static final String CLIENT_ID = "client_id";
+    public static final String CLIENT_SECRET = "client_secret";
 
     private final SecureString entraId;
 
     private final SecureString apiKey;
+
+    private final SecureString tenantId;
+
+    private final SecureString clientId;
+
+    private final SecureString clientSecret;
 
     public static AzureOpenAiSecretSettings fromMap(@Nullable Map<String, Object> map) {
         if (map == null) {
@@ -49,34 +57,52 @@ public class AzureOpenAiSecretSettings implements SecretSettings {
         ValidationException validationException = new ValidationException();
         SecureString secureApiToken = extractOptionalSecureString(map, API_KEY, ModelSecrets.SECRET_SETTINGS, validationException);
         SecureString secureEntraId = extractOptionalSecureString(map, ENTRA_ID, ModelSecrets.SECRET_SETTINGS, validationException);
+        SecureString tenantId = extractOptionalSecureString(map, TENANT_ID, ModelSecrets.SECRET_SETTINGS, validationException);
+        SecureString clientId = extractOptionalSecureString(map, CLIENT_ID, ModelSecrets.SECRET_SETTINGS, validationException);
+        SecureString clientSecret = extractOptionalSecureString(map, CLIENT_SECRET, ModelSecrets.SECRET_SETTINGS, validationException);
 
-        if (secureApiToken == null && secureEntraId == null) {
-            validationException.addValidationError(
-                format("[secret_settings] must have either the [%s] or the [%s] key set", API_KEY, ENTRA_ID)
-            );
-        }
-
-        if (secureApiToken != null && secureEntraId != null) {
-            validationException.addValidationError(
-                format("[secret_settings] must have only one of the [%s] or the [%s] key set", API_KEY, ENTRA_ID)
-            );
-        }
+        // if (secureApiToken == null && secureEntraId == null) {
+        // validationException.addValidationError(
+        // format("[secret_settings] must have either the [%s] or the [%s] key set", API_KEY, ENTRA_ID)
+        // );
+        // }
+        //
+        // if (secureApiToken != null && secureEntraId != null) {
+        // validationException.addValidationError(
+        // format("[secret_settings] must have only one of the [%s] or the [%s] key set", API_KEY, ENTRA_ID)
+        // );
+        // }
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new AzureOpenAiSecretSettings(secureApiToken, secureEntraId);
+        return new AzureOpenAiSecretSettings(secureApiToken, secureEntraId, tenantId, clientId, clientSecret);
     }
 
-    public AzureOpenAiSecretSettings(@Nullable SecureString apiKey, @Nullable SecureString entraId) {
+    public AzureOpenAiSecretSettings(
+        @Nullable SecureString apiKey,
+        @Nullable SecureString entraId,
+        @Nullable SecureString tenantId,
+        @Nullable SecureString clientId,
+        @Nullable SecureString clientSecret
+    ) {
         Objects.requireNonNullElse(apiKey, entraId);
         this.apiKey = apiKey;
         this.entraId = entraId;
+        this.tenantId = tenantId;
+        this.clientId = clientId;
+        this.clientSecret = clientSecret;
     }
 
     public AzureOpenAiSecretSettings(StreamInput in) throws IOException {
-        this(in.readOptionalSecureString(), in.readOptionalSecureString());
+        this(
+            in.readOptionalSecureString(),
+            in.readOptionalSecureString(),
+            in.readOptionalSecureString(),
+            in.readOptionalSecureString(),
+            in.readOptionalSecureString()
+        );
     }
 
     public SecureString apiKey() {
@@ -85,6 +111,18 @@ public class AzureOpenAiSecretSettings implements SecretSettings {
 
     public SecureString entraId() {
         return entraId;
+    }
+
+    public SecureString tenantId() {
+        return tenantId;
+    }
+
+    public SecureString clientId() {
+        return clientId;
+    }
+
+    public SecureString clientSecret() {
+        return clientSecret;
     }
 
     @Override
@@ -97,6 +135,18 @@ public class AzureOpenAiSecretSettings implements SecretSettings {
 
         if (entraId != null) {
             builder.field(ENTRA_ID, entraId.toString());
+        }
+
+        if (tenantId != null) {
+            builder.field(TENANT_ID, tenantId.toString());
+        }
+
+        if (clientId != null) {
+            builder.field(CLIENT_ID, clientId.toString());
+        }
+
+        if (clientSecret != null) {
+            builder.field(CLIENT_SECRET, clientSecret.toString());
         }
 
         builder.endObject();
@@ -117,6 +167,9 @@ public class AzureOpenAiSecretSettings implements SecretSettings {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalSecureString(apiKey);
         out.writeOptionalSecureString(entraId);
+        out.writeOptionalSecureString(tenantId);
+        out.writeOptionalSecureString(clientId);
+        out.writeOptionalSecureString(clientSecret);
     }
 
     @Override
@@ -124,12 +177,16 @@ public class AzureOpenAiSecretSettings implements SecretSettings {
         if (this == object) return true;
         if (object == null || getClass() != object.getClass()) return false;
         AzureOpenAiSecretSettings that = (AzureOpenAiSecretSettings) object;
-        return Objects.equals(entraId, that.entraId) && Objects.equals(apiKey, that.apiKey);
+        return Objects.equals(entraId, that.entraId)
+            && Objects.equals(apiKey, that.apiKey)
+            && Objects.equals(tenantId, that.tenantId)
+            && Objects.equals(clientId, that.clientId)
+            && Objects.equals(clientSecret, that.clientSecret);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(entraId, apiKey);
+        return Objects.hash(entraId, apiKey, tenantId, clientId, clientSecret);
     }
 
     @Override

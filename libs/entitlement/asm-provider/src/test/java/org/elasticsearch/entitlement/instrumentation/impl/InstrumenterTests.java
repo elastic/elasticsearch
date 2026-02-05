@@ -172,22 +172,22 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testMultipleMethods() throws Exception {
-        var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someStaticMethod", int.class));
-        var anotherVerifier = new TestVerifier(TestClassToInstrument.class.getMethod("anotherStaticMethod", int.class));
+        var verifier1 = new TestVerifier(TestClassToInstrument.class.getMethod("someStaticMethod", int.class));
+        var verifier2 = new TestVerifier(TestClassToInstrument.class.getMethod("anotherStaticMethod", int.class));
         var loader = buildInstrumentation(
             builder -> builder.on(TestClassToInstrument.class)
                 .callingVoidStatic(TestClassToInstrument::someStaticMethod, Integer.class)
-                .enforce(verifier)
+                .enforce(verifier1)
                 .elseThrowNotEntitled()
                 .callingVoidStatic(TestClassToInstrument::anotherStaticMethod, Integer.class)
-                .enforce(anotherVerifier)
+                .enforce(verifier2)
                 .elseThrowNotEntitled()
         );
 
-        verifier.assertStaticMethodThrows(loader, 123);
-        anotherVerifier.assertStaticMethodThrows(loader, 123);
-        verifier.assertCalled(1);
-        anotherVerifier.assertCalled(1);
+        verifier1.assertStaticMethodThrows(loader, 123);
+        verifier2.assertStaticMethodThrows(loader, 123);
+        verifier1.assertCalled(1);
+        verifier2.assertCalled(1);
 
     }
 
@@ -278,8 +278,15 @@ public class InstrumenterTests extends ESTestCase {
         );
 
         var counter = new AtomicInteger();
+        // Before checking is active, method should run as normal
+        verifier.setActive(false);
         verifier.assertStaticMethod(loader, counter);
-        assertEquals(0, counter.get());
+        assertEquals(1, counter.get());
+
+        // After checking is active, method should be a noop
+        verifier.setActive(true);
+        verifier.assertStaticMethod(loader, counter);
+        assertEquals(1, counter.get());
     }
 
     public void testInstanceMethodNoop() throws Exception {
@@ -293,8 +300,15 @@ public class InstrumenterTests extends ESTestCase {
 
         var instance = loader.newInstance();
         var counter = new AtomicInteger();
+        // Before checking is active, method should run as normal
+        verifier.setActive(false);
         instance.someMethodWithSideEffects(counter);
-        assertEquals(0, counter.get());
+        assertEquals(1, counter.get());
+
+        // After checking is active, method should be a noop
+        verifier.setActive(true);
+        instance.someMethodWithSideEffects(counter);
+        assertEquals(1, counter.get());
     }
 
     private static TestLoader buildInstrumentation(Consumer<EntitlementRulesBuilder> builderConsumer) throws Exception {

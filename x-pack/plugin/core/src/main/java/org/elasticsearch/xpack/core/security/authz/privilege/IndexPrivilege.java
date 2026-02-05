@@ -100,6 +100,7 @@ public final class IndexPrivilege extends Privilege {
         TransportResolveClusterAction.NAME,
         GetInferenceFieldsInternalAction.NAME // cross-cluster inference for semantic search
     );
+    // NOTE: do not add new privileges here; use read or view_index_metadata instead
     private static final Automaton DEPRECATED_READ_CROSS_CLUSTER_AUTOMATON = patterns(
         "internal:transport/proxy/indices:data/read/*",
         TransportClusterSearchShardsAction.TYPE.name(),

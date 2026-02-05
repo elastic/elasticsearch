@@ -81,25 +81,25 @@ public class ReplicationSplitHelper<
             return false;
         }
 
-            SplitShardCountSummary latestSplitSummary = SplitShardCountSummary.forIndexing(indexMetadata, primaryRequest.shardId().getId());
-            if (requestSplitSummary.equals(latestSplitSummary)) {  // no split coordination required
-                return false;
-            } else {  // check that resharding is ongoing and the latest shard count is exactly 2 times the shard count in the request
-                if (indexMetadata.getReshardingMetadata() == null
-                    || latestSplitSummary.asInt() != IndexReshardingMetadata.RESHARD_SPLIT_FACTOR * requestSplitSummary.asInt()) {
-                    if (indexMetadata.getReshardingMetadata() == null) {
-                        logger.debug("Request is stale, expected resharding metadata but none found");
-                    } else {
-                        logger.debug(
-                            "Request is stale due to concurrent reshard operation, expected shardCountSummary [{}] but found [{}]",
-                            requestSplitSummary.asInt(),
-                            latestSplitSummary.asInt()
-                        );
-                    }
-                    throw new StaleRequestException(primaryRequest.index());
+        SplitShardCountSummary latestSplitSummary = SplitShardCountSummary.forIndexing(indexMetadata, primaryRequest.shardId().getId());
+        if (requestSplitSummary.equals(latestSplitSummary)) {  // no split coordination required
+            return false;
+        } else {  // check that resharding is ongoing and the latest shard count is exactly 2 times the shard count in the request
+            if (indexMetadata.getReshardingMetadata() == null
+                || latestSplitSummary.asInt() != IndexReshardingMetadata.RESHARD_SPLIT_FACTOR * requestSplitSummary.asInt()) {
+                if (indexMetadata.getReshardingMetadata() == null) {
+                    logger.debug("Request is stale, expected resharding metadata but none found");
+                } else {
+                    logger.debug(
+                        "Request is stale due to concurrent reshard operation, expected shardCountSummary [{}] but found [{}]",
+                        requestSplitSummary.asInt(),
+                        latestSplitSummary.asInt()
+                    );
                 }
-                return true;
+                throw new StaleRequestException(primaryRequest.index());
             }
+            return true;
+        }
 
     }
 

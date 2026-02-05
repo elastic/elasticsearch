@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -30,7 +31,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
-@ESIntegTestCase.ClusterScope(numDataNodes = 1, numClientNodes = 0, scope = ESIntegTestCase.Scope.TEST)
+@ESIntegTestCase.ClusterScope(numDataNodes = 1, numClientNodes = 0)
 public class ReindexResumeIT extends ESIntegTestCase {
 
     @Override
@@ -102,6 +103,12 @@ public class ReindexResumeIT extends ESIntegTestCase {
 
         // ensure remaining docs were indexed
         assertHitCount(prepareSearch(destIndex), remainingDocs);
+        // ensure the scroll is cleared
+        assertThrows(
+            "Scroll should be cleared after remote reindexing is done",
+            SearchPhaseExecutionException.class,
+            () -> client().prepareSearchScroll(scrollId).get()
+        );
     }
 
     public void testRemoteResumeReindexFromScroll() {
@@ -170,6 +177,12 @@ public class ReindexResumeIT extends ESIntegTestCase {
 
         // ensure remaining docs were indexed
         assertHitCount(prepareSearch(destIndex), remainingDocs);
+        // ensure the scroll is cleared
+        assertThrows(
+            "Scroll should be cleared after remote reindexing is done",
+            SearchPhaseExecutionException.class,
+            () -> client().prepareSearchScroll(scrollId).get()
+        );
     }
 
     private BulkByScrollTask.Status randomStats() {

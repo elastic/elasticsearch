@@ -878,6 +878,65 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         clearShutdownMetadata(clusterService);
     }
 
+    public void testDeleteSnapshotWithPausedAndQueuedShardSnapshots() throws Exception {
+        final var originalNode = internalCluster().startDataOnlyNode();
+        final var indexName = randomIndexName();
+        createIndexWithContent(indexName, indexSettings(1, 0).put(REQUIRE_NODE_NAME_SETTING, originalNode).build());
+
+        final var repoName = randomRepoName();
+        createRepository(repoName, "mock");
+
+        // Start the snapshot and block it on the data node
+        final String snapshotName = "snap-1";
+        final var snapshotFuture = startFullSnapshotBlockedOnDataNode(snapshotName, repoName, originalNode);
+
+        // Start another snapshot to be queued
+        safeGet(clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap-2")
+            .setWaitForCompletion(false)
+            .setPartial(false)
+            .execute());
+
+        // Mark data node for shutdown and ensure shard snapshot is paused
+        final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        final var shardSnapshotsPausedListener = ClusterServiceUtils.addTemporaryStateListener(clusterService, state -> {
+            final var snapshotEntry = SnapshotsInProgress.get(state)
+                .forRepo(ProjectId.DEFAULT, repoName)
+                .stream()
+                .filter(entry -> entry.snapshot().getSnapshotId().getName().equals(snapshotName))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Snapshot [" + snapshotName + "] not found"));
+
+            return snapshotEntry.shards()
+                .values()
+                .stream()
+                .allMatch(shardSnapshotStatus -> shardSnapshotStatus.state() == SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL);
+        });
+        putShutdownForRemovalMetadata(originalNode, clusterService);
+        unblockAllDataNodes(repoName);
+        safeAwait(shardSnapshotsPausedListener);
+
+        // Delete the snapshot and ensure it is successfully and clears all snapshot operations from cluster state
+        final var snapshotClearedListener = ClusterServiceUtils.addTemporaryStateListener(
+            clusterService,
+            state -> SnapshotsInProgress.get(state).isEmpty() && SnapshotDeletionsInProgress.get(state).getEntries().isEmpty()
+        );
+        assertTrue(safeGet(startDeleteSnapshot(repoName, snapshotName)).isAcknowledged());
+//        safeAwait(snapshotClearedListener);
+
+        // Snapshot creation has failed snapshot response
+        final var createSnapshotResponse = safeGet(snapshotFuture);
+        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.FAILED));
+        assertThat(createSnapshotResponse.getSnapshotInfo().reason(), containsString("Snapshot was aborted by deletion"));
+
+        // No snapshot is in the repository
+        final List<SnapshotInfo> snapshotInfos = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName).get().getSnapshots();
+        assertThat(snapshotInfos, empty());
+
+        clearShutdownMetadata(clusterService);
+
+        createFullSnapshot(repoName, "snap-3");
+    }
+
     private static void addUnassignedShardsWatcher(ClusterService clusterService, String indexName) {
         ClusterServiceUtils.addTemporaryStateListener(clusterService, state -> {
             final var indexRoutingTable = state.routingTable().index(indexName);

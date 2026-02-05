@@ -1973,7 +1973,7 @@ public class MasterServiceTests extends ESTestCase {
             final var immediateStarvingMaxWaitTime = deterministicTaskQueue.getCurrentTimeMillis() - oldestTaskInsertionTime;
 
             assertStarvationMetrics(meterRegistry, "nonempty.time", immediateStarvingDuration, ignored -> immediateStarvingDuration);
-            assertStarvationMetrics(meterRegistry, "max_wait.time", immediateStarvingMaxWaitTime, priority -> {
+            assertStarvationMetrics(meterRegistry, "latency.time", immediateStarvingMaxWaitTime, priority -> {
                 if (priority == Priority.LANGUID) {
                     return 0L;
                 }
@@ -1997,7 +1997,7 @@ public class MasterServiceTests extends ESTestCase {
                 highStarvingDuration,
                 priority -> priority.sameOrAfter(Priority.HIGH) ? highStarvingDuration : lastTaskDuration
             );
-            assertStarvationMetrics(meterRegistry, "max_wait.time", highStarvingMaxWaitTime, priority -> {
+            assertStarvationMetrics(meterRegistry, "latency.time", highStarvingMaxWaitTime, priority -> {
                 if (priority == Priority.LANGUID || Priority.HIGH.after(priority)) {
                     return 0L;
                 }
@@ -2011,7 +2011,7 @@ public class MasterServiceTests extends ESTestCase {
             deterministicTaskQueue.runAllTasks();
 
             assertStarvationMetrics(meterRegistry, "nonempty.time", 0L, ignored -> 0L);
-            assertStarvationMetrics(meterRegistry, "max_wait.time", 0L, ignored -> 0L);
+            assertStarvationMetrics(meterRegistry, "latency.time", 0L, ignored -> 0L);
         }
     }
 

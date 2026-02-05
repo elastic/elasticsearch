@@ -208,10 +208,10 @@ public class MasterService extends AbstractLifecycleComponent {
             starvationWatcher::getNonemptyAge
         );
         registerLongGaugeMetric(
-            pendingTasksMetricName("max_wait.time"),
+            pendingTasksMetricName("latency.time"),
             "milliseconds",
             "Current max waiting time in milliseconds of a task in the master's pending task queue",
-            this::getMaxTaskWaitTimeMillis
+            this::getMaxQueueLatencyMillis
         );
 
         for (var priority : Priority.values()) {
@@ -222,10 +222,10 @@ public class MasterService extends AbstractLifecycleComponent {
                 () -> starvationWatcher.getPriorityNonemptyAge(priority)
             );
             registerLongGaugeMetric(
-                priorityPendingTasksMetricName(priority, "max_wait.time"),
+                priorityPendingTasksMetricName(priority, "latency.time"),
                 "milliseconds",
                 "Current max waiting time in milliseconds of a task in the master's pending task queue for priority " + priority,
-                () -> getMaxTaskWaitTimeMillisForPriority(priority)
+                () -> getMaxQueueLatencyMillisForPriority(priority)
             );
         }
     }
@@ -730,38 +730,30 @@ public class MasterService extends AbstractLifecycleComponent {
      * @return A zero time value if the queue is empty, otherwise the time value oldest task waiting in the queue
      */
     public TimeValue getMaxTaskWaitTime() {
-        return TimeValue.timeValueMillis(getMaxTaskWaitTimeMillis());
+        final var oldestTaskTimeMillis = allBatchesStream().mapToLong(Batch::getOldestTaskInsertionTimeMillis).min().orElse(Long.MAX_VALUE);
+
+        if (oldestTaskTimeMillis == Long.MAX_VALUE) {
+            return TimeValue.ZERO;
+        }
+
+        return TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - oldestTaskTimeMillis);
     }
 
-    private long getMaxTaskWaitTimeMillis() {
-        long oldestCreationTimeMillis = Long.MAX_VALUE;
-        for (final var priority : Priority.values()) {
-            oldestCreationTimeMillis = Math.min(oldestCreationTimeMillis, getOldestTaskCreationTimeMillis(priority));
+    private long getMaxQueueLatencyMillis() {
+        final long now = threadPool.relativeTimeInMillis();
+        long maxQueueLatencyMillis = 0L;
+        for (final var queue : queuesByPriority.values()) {
+            maxQueueLatencyMillis = Math.max(maxQueueLatencyMillis, queue.getQueueLatencyMillis(now));
         }
-        if (oldestCreationTimeMillis == Long.MAX_VALUE) {
-            return 0L;
-        }
-        return Math.max(0L, threadPool.relativeTimeInMillis() - oldestCreationTimeMillis);
+        return maxQueueLatencyMillis;
     }
 
-    private long getMaxTaskWaitTimeMillisForPriority(Priority priority) {
-        final long oldestCreationTimeMillis = getOldestTaskCreationTimeMillis(priority);
-        if (oldestCreationTimeMillis == Long.MAX_VALUE) {
-            return 0L;
-        }
-        return Math.max(0L, threadPool.relativeTimeInMillis() - oldestCreationTimeMillis);
-    }
-
-    private long getOldestTaskCreationTimeMillis(Priority priority) {
+    private long getMaxQueueLatencyMillisForPriority(Priority priority) {
         final var queue = queuesByPriority.get(priority);
         if (queue == null) {
-            return Long.MAX_VALUE;
+            return 0L;
         }
-        final var headBatch = queue.queue.peek();
-        if (headBatch == null) {
-            return Long.MAX_VALUE;
-        }
-        return headBatch.getCreationTimeMillis();
+        return queue.getQueueLatencyMillis(threadPool.relativeTimeInMillis());
     }
 
     private Stream<Batch> allBatchesStream() {
@@ -1611,6 +1603,18 @@ public class MasterService extends AbstractLifecycleComponent {
         Priority priority() {
             return priority;
         }
+
+        long getQueueLatencyMillis(long nowMillis) {
+            final Batch head = queue.peek();
+            if (head == null) {
+                return 0L;
+            }
+            final long oldestTaskInQueue = head.getOldestTaskInQueueMillis();
+            if (oldestTaskInQueue == Long.MAX_VALUE) {
+                return 0L;
+            }
+            return Math.max(0L, nowMillis - oldestTaskInQueue);
+        }
     }
 
     private interface Batch {
@@ -1638,9 +1642,16 @@ public class MasterService extends AbstractLifecycleComponent {
         Stream<PendingClusterTask> getPending(long currentTimeMillis);
 
         /**
-         * @return the earliest insertion time of the tasks in this batch if the batch is pending, or {@link Long#MAX_VALUE} otherwise.
+         * @return the earliest insertion time (in milliseconds) of pending or executing tasks in this batch,
+         * or {@link Long#MAX_VALUE} if there are no such tasks.
          */
-        long getCreationTimeMillis();
+        long getOldestTaskInsertionTimeMillis();
+
+        /**
+         * @return the earliest insertion time (in milliseconds) of the tasks in this batch's queue, or {@link Long#MAX_VALUE} otherwise.
+         * Executing tasks are not considered in this calculation.
+         */
+        long getOldestTaskInQueueMillis();
 
         /**
          * @return the name of the queue that owns this batch.
@@ -1787,6 +1798,7 @@ public class MasterService extends AbstractLifecycleComponent {
         private final ConcurrentLinkedQueue<Entry<T>> queue = new ConcurrentLinkedQueue<>();
         private final ConcurrentLinkedQueue<Entry<T>> executing = new ConcurrentLinkedQueue<>(); // executing tasks are also shown in APIs
         private final AtomicInteger queueSize = new AtomicInteger();
+        private volatile long oldestTaskInQueueMillis = Long.MAX_VALUE; // does not consider executing tasks
         private final String name;
         private final BatchConsumer<T> batchConsumer;
         private final LongSupplier insertionIndexSupplier;
@@ -1794,7 +1806,6 @@ public class MasterService extends AbstractLifecycleComponent {
         private final ClusterStateTaskExecutor<T> executor;
         private final ThreadPool threadPool;
         private final Batch processor = new Processor();
-        private volatile long batchCreationTimeMillis = Long.MAX_VALUE;
 
         BatchingTaskQueue(
             String name,
@@ -1845,7 +1856,7 @@ public class MasterService extends AbstractLifecycleComponent {
             queue.add(entry);
 
             if (queueSize.getAndIncrement() == 0) {
-                batchCreationTimeMillis = entry.insertionTimeMillis();
+                oldestTaskInQueueMillis = entry.insertionTimeMillis();
                 perPriorityQueue.execute(processor);
             }
         }
@@ -1892,7 +1903,7 @@ public class MasterService extends AbstractLifecycleComponent {
         private class Processor implements Batch {
             @Override
             public void onRejection(NotMasterException e) {
-                batchCreationTimeMillis = Long.MAX_VALUE;
+                oldestTaskInQueueMillis = Long.MAX_VALUE;
                 final var items = queueSize.getAndSet(0);
                 for (int i = 0; i < items; i++) {
                     final var entry = queue.poll();
@@ -1904,7 +1915,7 @@ public class MasterService extends AbstractLifecycleComponent {
             @Override
             public void run(ActionListener<Void> listener) {
                 assert executing.isEmpty() : executing;
-                batchCreationTimeMillis = Long.MAX_VALUE;
+                oldestTaskInQueueMillis = Long.MAX_VALUE;
                 final var entryCount = queueSize.getAndSet(0);
                 var taskCount = 0;
                 final var tasks = new ArrayList<ExecutionResult<T>>(entryCount);
@@ -1979,8 +1990,16 @@ public class MasterService extends AbstractLifecycleComponent {
             }
 
             @Override
-            public long getCreationTimeMillis() {
-                return batchCreationTimeMillis;
+            public long getOldestTaskInsertionTimeMillis() {
+                return Stream.concat(executing.stream(), queue.stream().filter(Entry::isPending))
+                    .mapToLong(Entry::insertionTimeMillis)
+                    .min()
+                    .orElse(Long.MAX_VALUE);
+            }
+
+            @Override
+            public long getOldestTaskInQueueMillis() {
+                return oldestTaskInQueueMillis;
             }
 
             @Override

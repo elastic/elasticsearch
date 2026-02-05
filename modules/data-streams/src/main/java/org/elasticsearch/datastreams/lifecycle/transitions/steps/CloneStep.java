@@ -37,7 +37,7 @@ import org.elasticsearch.index.Index;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
-import java.util.Map;
+import java.util.Optional;
 
 import static org.apache.logging.log4j.LogManager.getLogger;
 import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY;
@@ -53,24 +53,13 @@ public class CloneStep implements DlmStep {
 
     @Override
     public boolean stepCompleted(Index index, ProjectState projectState) {
+        ProjectMetadata projectMetadata = projectState.metadata();
         // the index can either be "cloned" or the original index if it had 0 replicas
-        String indexToBeForceMerged = getIndexToBeForceMerged(index.getName(), projectState);
-        if (indexToBeForceMerged == null) {
-            return false;
-        }
-        boolean cloneExists = projectState.metadata().indices().containsKey(indexToBeForceMerged);
-        if (cloneExists == false) {
-            return false;
-        }
-        IndexMetadata indexToBeForceMergedMetadata = projectState.metadata().index(indexToBeForceMerged);
-        if (indexToBeForceMergedMetadata == null) {
-            return false;
-        }
-        IndexRoutingTable indexRoutingTable = projectState.routingTable().index(indexToBeForceMerged);
-        if (indexRoutingTable == null) {
-            return false;
-        }
-        return indexRoutingTable.allPrimaryShardsActive();
+        return Optional.ofNullable(getIndexToBeForceMerged(index.getName(), projectState))
+            .map(idx -> projectMetadata.indices().containsKey(idx) ? idx : null)
+            .map(idx -> projectState.routingTable().index(idx))
+            .map(IndexRoutingTable::allPrimaryShardsActive)
+            .orElse(false);
     }
 
     @Override
@@ -187,13 +176,13 @@ public class CloneStep implements DlmStep {
         DlmStepContext stepContext,
         ActionListener<Void> listener
     ) {
+        logger.debug("DLM marking index [{}] to be force merged for source index [{}]", indexToBeForceMerged, sourceIndex);
         MarkIndexToBeForceMergedAction.Request request = new MarkIndexToBeForceMergedAction.Request(
             stepContext.projectId(),
             sourceIndex,
             indexToBeForceMerged,
             MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT
         );
-
         stepContext.client()
             .projectClient(stepContext.projectId())
             .execute(MarkIndexToBeForceMergedAction.INSTANCE, request, listener.delegateFailure((delegate, response) -> {
@@ -203,21 +192,15 @@ public class CloneStep implements DlmStep {
     }
 
     /*
-     * Returns the name of index to be force merged from the custom metadata of the index metadata of the source index.
+     * Returns the name of index to be force merged by DLM from the custom metadata of the index metadata of the source index.
      * If no such index has been marked in the custom metadata, returns null.
      */
     @Nullable
     private static String getIndexToBeForceMerged(String sourceIndex, ProjectState projectState) {
-        IndexMetadata sourceIndexMetadata = projectState.metadata().index(sourceIndex);
-        if (sourceIndexMetadata == null) {
-            return null;
-        }
-        Map<String, String> customMetadata = sourceIndexMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
-        if (customMetadata == null) {
-            return null;
-        } else {
-            return customMetadata.get(DLM_INDEX_TO_BE_MERGED_KEY);
-        }
+        return Optional.ofNullable(projectState.metadata().index(sourceIndex))
+            .map(indexMetadata -> indexMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY))
+            .map(customMetadata -> customMetadata.get(DLM_INDEX_TO_BE_MERGED_KEY))
+            .orElse(null);
     }
 
     private static void deleteCloneIndexIfExists(DlmStepContext stepContext) {

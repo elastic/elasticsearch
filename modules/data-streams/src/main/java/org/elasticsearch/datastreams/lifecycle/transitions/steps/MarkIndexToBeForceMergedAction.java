@@ -120,6 +120,10 @@ public class MarkIndexToBeForceMergedAction {
             Map<String, String> existingCustomMetadata = sourceIndexMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
             Map<String, String> customMetadata = new HashMap<>();
             if (existingCustomMetadata != null) {
+                if (indexToBeForceMerged.equals(existingCustomMetadata.get(DLM_INDEX_TO_BE_MERGED_KEY))) {
+                    // Index is already marked for force merge, no update needed
+                    return currentState;
+                }
                 customMetadata.putAll(existingCustomMetadata);
             }
             customMetadata.put(DLM_INDEX_TO_BE_MERGED_KEY, indexToBeForceMerged);

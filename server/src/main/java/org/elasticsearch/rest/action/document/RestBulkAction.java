@@ -111,10 +111,6 @@ public class RestBulkAction extends BaseRestHandler {
             Boolean defaultRequireAlias = request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false);
             boolean defaultRequireDataStream = request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false);
             bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
-            String inferenceTimeoutParam = request.param("inference_timeout");
-            if (inferenceTimeoutParam != null) {
-                bulkRequest.inferenceTimeout(request.paramAsTime("inference_timeout", null));
-            }
             bulkRequest.setRefreshPolicy(request.param("refresh"));
             bulkRequest.includeSourceOnError(RestUtils.getIncludeSourceOnError(request));
             bulkRequest.requestParamsUsed(request.params().keySet());
@@ -145,13 +141,11 @@ public class RestBulkAction extends BaseRestHandler {
             request.ensureContent();
             String waitForActiveShards = request.param("wait_for_active_shards");
             TimeValue timeout = request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT);
-            String inferenceTimeoutParam = request.param("inference_timeout");
-            TimeValue inferenceTimeout = inferenceTimeoutParam != null ? request.paramAsTime("inference_timeout", null) : null;
             String refresh = request.param("refresh");
             return new ChunkHandler(
                 allowExplicitIndex,
                 request,
-                () -> bulkHandler.newBulkRequest(waitForActiveShards, timeout, inferenceTimeout, refresh, request.params().keySet())
+                () -> bulkHandler.newBulkRequest(waitForActiveShards, timeout, refresh, request.params().keySet())
             );
         }
     }

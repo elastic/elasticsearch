@@ -97,6 +97,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
+import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BULK_TIMEOUT;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.getIndexRequestOrNull;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOriginalTextFieldName;
@@ -1105,6 +1106,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         CountDownLatch secondBatchStarted = new CountDownLatch(1);
         AtomicInteger batchCount = new AtomicInteger(0);
 
+        // Set a very short timeout via cluster setting - 50ms
         ShardBulkInferenceActionFilter filter = createFilterWithDelayedInference(
             threadPool,
             Map.of(model.getInferenceEntityId(), model),
@@ -1122,7 +1124,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                     secondBatchStarted.countDown();
                     return true; // Delay this batch (will timeout)
                 }
-            }
+            },
+            TimeValue.timeValueMillis(50)
         );
 
         CountDownLatch chainExecuted = new CountDownLatch(1);
@@ -1172,8 +1175,6 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
         BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
         request.setInferenceFieldMap(inferenceFieldMap);
-        // Set a very short timeout - 50ms
-        request.timeout(TimeValue.timeValueMillis(50));
 
         filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
 
@@ -1199,6 +1200,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         AtomicInteger inferenceCallCount = new AtomicInteger(0);
         CountDownLatch firstInferenceComplete = new CountDownLatch(1);
 
+        // Set a very short timeout via cluster setting - 50ms
         ShardBulkInferenceActionFilter filter = createFilterWithDelayedInference(
             threadPool,
             Map.of(model.getInferenceEntityId(), model),
@@ -1214,7 +1216,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 }
                 // Subsequent calls are delayed (will timeout)
                 return true;
-            }
+            },
+            TimeValue.timeValueMillis(50)
         );
 
         CountDownLatch chainExecuted = new CountDownLatch(1);
@@ -1255,7 +1258,6 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
         BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
         request.setInferenceFieldMap(inferenceFieldMap);
-        request.timeout(TimeValue.timeValueMillis(50));
 
         filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
 
@@ -1392,6 +1394,31 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         InferenceStats inferenceStats,
         InferenceDelayController delayController
     ) {
+        return createFilterWithDelayedInference(
+            threadPool,
+            modelMap,
+            indexingPressure,
+            useLegacyFormat,
+            inferenceStats,
+            delayController,
+            TimeValue.ZERO
+        );
+    }
+
+    /**
+     * Creates a filter with delayed inference support and a specific inference timeout.
+     * Uses a very small batch size (20 bytes) to ensure multiple batches are created.
+     */
+    @SuppressWarnings("unchecked")
+    private static ShardBulkInferenceActionFilter createFilterWithDelayedInference(
+        ThreadPool threadPool,
+        Map<String, StaticModel> modelMap,
+        IndexingPressure indexingPressure,
+        boolean useLegacyFormat,
+        InferenceStats inferenceStats,
+        InferenceDelayController delayController,
+        TimeValue inferenceTimeout
+    ) {
         MockLicenseState licenseState = MockLicenseState.createMock();
         when(licenseState.isAllowed(InferencePlugin.INFERENCE_API_FEATURE)).thenReturn(true);
 
@@ -1467,7 +1494,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         when(inferenceServiceRegistry.getService(any())).thenReturn(Optional.of(inferenceService));
 
         return new ShardBulkInferenceActionFilter(
-            createClusterServiceWithSmallBatchSize(useLegacyFormat),
+            createClusterServiceWithSmallBatchSizeAndTimeout(useLegacyFormat, inferenceTimeout),
             inferenceServiceRegistry,
             modelRegistry,
             licenseState,
@@ -1477,6 +1504,10 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     }
 
     private static ClusterService createClusterServiceWithSmallBatchSize(boolean useLegacyFormat) {
+        return createClusterServiceWithSmallBatchSizeAndTimeout(useLegacyFormat, TimeValue.MAX_VALUE);
+    }
+
+    private static ClusterService createClusterServiceWithSmallBatchSizeAndTimeout(boolean useLegacyFormat, TimeValue inferenceTimeout) {
         IndexMetadata indexMetadata = mock(IndexMetadata.class);
         var indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
@@ -1494,9 +1525,15 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
         // Use a very small batch size to ensure multiple batches
-        Settings settings = Settings.builder().put(INDICES_INFERENCE_BATCH_SIZE.getKey(), ByteSizeValue.ofBytes(20)).build();
+        Settings.Builder settingsBuilder = Settings.builder().put(INDICES_INFERENCE_BATCH_SIZE.getKey(), ByteSizeValue.ofBytes(20));
+        if (inferenceTimeout != null) {
+            settingsBuilder.put(INDICES_INFERENCE_BULK_TIMEOUT.getKey(), inferenceTimeout);
+        }
+        Settings settings = settingsBuilder.build();
         when(clusterService.getSettings()).thenReturn(settings);
-        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, Set.of(INDICES_INFERENCE_BATCH_SIZE)));
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(settings, Set.of(INDICES_INFERENCE_BATCH_SIZE, INDICES_INFERENCE_BULK_TIMEOUT))
+        );
         return clusterService;
     }
 
@@ -1520,7 +1557,9 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         long batchSizeInBytes = randomLongBetween(1, ByteSizeValue.ofKb(1).getBytes());
         Settings settings = Settings.builder().put(INDICES_INFERENCE_BATCH_SIZE.getKey(), ByteSizeValue.ofBytes(batchSizeInBytes)).build();
         when(clusterService.getSettings()).thenReturn(settings);
-        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, Set.of(INDICES_INFERENCE_BATCH_SIZE)));
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(settings, Set.of(INDICES_INFERENCE_BATCH_SIZE, INDICES_INFERENCE_BULK_TIMEOUT))
+        );
         return clusterService;
     }
 

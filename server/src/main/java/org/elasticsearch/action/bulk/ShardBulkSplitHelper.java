@@ -85,7 +85,6 @@ public final class ShardBulkSplitHelper {
                 requests.toArray(new BulkItemRequest[0]),
                 request.isSimulated()
             );
-            bulkShardRequest.setInferenceTimeout(request.getInferenceTimeout());
             bulkRequestsPerShard.put(shardId, bulkShardRequest);
         }
         return bulkRequestsPerShard;

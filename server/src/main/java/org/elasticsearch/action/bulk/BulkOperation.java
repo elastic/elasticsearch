@@ -415,7 +415,6 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
                 if (indexMetadata.getInferenceFields().isEmpty() == false) {
                     bulkShardRequest.setInferenceFieldMap(indexMetadata.getInferenceFields());
-                    bulkShardRequest.setInferenceTimeout(bulkRequest.inferenceTimeout());
                 }
                 bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
                 bulkShardRequest.timeout(bulkRequest.timeout());

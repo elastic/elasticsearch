@@ -99,6 +99,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     private static final Logger logger = LogManager.getLogger(ShardBulkInferenceActionFilter.class);
 
     private static final ByteSizeValue DEFAULT_BATCH_SIZE = ByteSizeValue.ofMb(1);
+    private static final TimeValue DEFAULT_BULK_TIMEOUT = TimeValue.MAX_VALUE;
 
     /**
      * Defines the cumulative size limit of input data before triggering a batch inference call.
@@ -113,6 +114,19 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         Setting.Property.OperatorDynamic
     );
 
+    /**
+     * Defines the timeout for inference operations during bulk indexing.
+     * If inference takes longer than this timeout, the affected bulk items will fail.
+     * Defaults to {@link TimeValue#MAX_VALUE} (no timeout).
+     */
+    public static final Setting<TimeValue> INDICES_INFERENCE_BULK_TIMEOUT = Setting.timeSetting(
+        "indices.inference.bulk.timeout",
+        DEFAULT_BULK_TIMEOUT,
+        TimeValue.ZERO,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private static final Object EXPLICIT_NULL = new Object();
     private static final ChunkedInference EMPTY_CHUNKED_INFERENCE = new EmptyChunkedInference();
 
@@ -123,6 +137,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     private final IndexingPressure indexingPressure;
     private final InferenceStats inferenceStats;
     private volatile long batchSizeInBytes;
+    private volatile TimeValue bulkInferenceTimeout;
 
     public ShardBulkInferenceActionFilter(
         ClusterService clusterService,
@@ -139,11 +154,17 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         this.indexingPressure = indexingPressure;
         this.inferenceStats = inferenceStats;
         this.batchSizeInBytes = INDICES_INFERENCE_BATCH_SIZE.get(clusterService.getSettings()).getBytes();
+        this.bulkInferenceTimeout = INDICES_INFERENCE_BULK_TIMEOUT.get(clusterService.getSettings());
         clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_INFERENCE_BATCH_SIZE, this::setBatchSize);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_INFERENCE_BULK_TIMEOUT, this::setBulkInferenceTimeout);
     }
 
     private void setBatchSize(ByteSizeValue newBatchSize) {
         batchSizeInBytes = newBatchSize.getBytes();
+    }
+
+    private void setBulkInferenceTimeout(TimeValue newTimeout) {
+        bulkInferenceTimeout = newTimeout;
     }
 
     @Override
@@ -279,9 +300,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             this.onCompletion = onCompletion;
             this.coordinatingIndexingPressure = coordinatingIndexingPressure;
             this.startTimeNanos = System.nanoTime();
-            // Use inference timeout if set, otherwise fall back to legacy behavior (no timeout)
-            TimeValue requestInferenceTimeout = bulkShardRequest.getInferenceTimeout();
-            this.inferenceTimeout = requestInferenceTimeout != null ? requestInferenceTimeout : TimeValue.MAX_VALUE;
+            this.inferenceTimeout = bulkInferenceTimeout;
         }
 
         /**
@@ -305,10 +324,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 return;
             }
 
-            // Check if we've already timed out before starting a new batch
             TimeValue remainingTimeout = getRemainingTimeout();
             if (remainingTimeout.equals(TimeValue.ZERO)) {
-                // Timeout expired - fail all remaining items that need inference and complete
                 failRemainingItemsOnTimeout(itemOffset);
                 onCompletion.run();
                 return;

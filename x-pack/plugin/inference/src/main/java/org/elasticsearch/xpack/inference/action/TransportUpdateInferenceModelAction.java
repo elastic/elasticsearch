@@ -206,7 +206,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
      * @param serviceName
      * @return a new object representing the updated model
      */
-    private Model combineExistingModelWithNewSettings(
+    protected Model combineExistingModelWithNewSettings(
         Model existingParsedModel,
         UpdateInferenceModelAction.Settings settingsToUpdate,
         String serviceName,
@@ -239,7 +239,8 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
             existingParsedModel.getTaskType(),
             serviceName,
             newServiceSettings,
-            newTaskSettings
+            newTaskSettings,
+            existingConfigs.getChunkingSettings()
         );
 
         return new Model(newModelConfigs, new ModelSecrets(newSecretSettings));

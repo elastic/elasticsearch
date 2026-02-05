@@ -464,9 +464,12 @@ tests:
 - class: org.elasticsearch.index.reindex.ReindexNodeShutdownIT
   method: testReindexWithShutdown
   issue: https://github.com/elastic/elasticsearch/issues/139806
-- class: org.elasticsearch.xpack.search.AsyncSearchConcurrentStatusIT
-  method: testConcurrentStatusFetchWhileTaskCloses
-  issue: https://github.com/elastic/elasticsearch/issues/138543
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=tsdb/05_dimension_and_metric_in_non_tsdb_index/can shadow dimensions}
+  issue: https://github.com/elastic/elasticsearch/issues/141868
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=tsdb/05_dimension_and_metric_in_non_tsdb_index/can shadow metrics}
+  issue: https://github.com/elastic/elasticsearch/issues/141869
 
 # Examples:
 #

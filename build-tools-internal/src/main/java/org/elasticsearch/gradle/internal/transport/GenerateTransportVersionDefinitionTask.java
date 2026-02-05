@@ -58,8 +58,15 @@ public abstract class GenerateTransportVersionDefinitionTask extends AbstractGen
     public abstract Property<String> getBackportBranches();
 
     @Override
-    protected void runGeneration(TransportVersionResourcesService resources, List<TransportVersionUpperBound> upstreamUpperBounds)
-        throws IOException {
+    protected void runGeneration(
+        TransportVersionResourcesService resources,
+        List<TransportVersionUpperBound> upstreamUpperBounds,
+        boolean onReleaseBranch
+    ) throws IOException {
+        if (onReleaseBranch) {
+            throw new IllegalArgumentException("Transport version generation cannot run on release branches");
+        }
+
         Set<String> referencedNames = TransportVersionReference.collectNames(getReferencesFiles());
         Set<String> changedDefinitionNames = resources.getChangedReferableDefinitionNames();
         String targetDefinitionName = getTargetDefinitionName(resources, referencedNames, changedDefinitionNames);

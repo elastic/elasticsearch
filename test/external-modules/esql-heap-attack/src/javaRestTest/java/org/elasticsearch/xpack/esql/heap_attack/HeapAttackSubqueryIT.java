@@ -66,17 +66,9 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
      */
     public void testManyRandomKeywordFieldsInSubqueryIntermediateResults() throws IOException {
         // 500MB random/unique keyword values trigger CBE, should not OOM
-        if (isServerless()) { // both 100 and 500 docs OOM in serverless
-            return;
-        }
         int docs = 500;
         heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true);
-        // 2 subqueries are enough to trigger CBE, confirmed where this CBE happens in ExchangeService.doFetchPageAsync,
-        // as a few big pages are loaded into the exchange buffer
-        // TODO 8 subqueries OOM, because the memory consumed by lucene is not properly tracked in ValuesSourceReaderOperator yet.
-        // Lucene90DocValuesProducer are on the top of objects list, also BlockSourceReader.scratch is not tracked by circuit breaker yet,
-        // skip 8 subqueries for now
-        for (int subquery : List.of(DEFAULT_SUBQUERIES)) {
+        for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
             assertCircuitBreaks(attempt -> buildSubqueries(subquery, "manybigfields", ""));
         }
     }
@@ -92,9 +84,8 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         }
         int docs = 500; // 500MB random/unique keyword values
         heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true);
-        // TODO skip 8 subqueries, it OOMs in CI, the same reason as sort many fields
-        for (int subquery : List.of(DEFAULT_SUBQUERIES)) {
-            assertCircuitBreaks(attempt -> buildSubqueriesWithSort(subquery, "manybigfields", " f000 ", docs));
+        for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
+            assertCircuitBreaks(attempt -> buildSubqueriesWithSort(subquery, "manybigfields", " f000 "));
         }
     }
 
@@ -121,7 +112,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         // LuceneTopNSourceOperator.NonScoringPerShardCollector is the main memory consumer,
         // MultiLeafFieldComparator seems big but it is only about 15% of the size of NonScoringPerShardCollector,
         for (int subquery : List.of(DEFAULT_SUBQUERIES)) {
-            assertCircuitBreaks(attempt -> buildSubqueriesWithSort(subquery, "manybigfields", sortKeys.toString(), docs));
+            assertCircuitBreaks(attempt -> buildSubqueriesWithSort(subquery, "manybigfields", sortKeys.toString()));
         }
     }
 
@@ -161,7 +152,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         // the sort of text field is not pushed to lucene, different from keyword, this test should CB
         // TODO 8 subqueries OOMs during ValuesSourceReaderOperator, similar to no sort case, skip it for now
         for (int subquery : List.of(DEFAULT_SUBQUERIES)) {
-            assertCircuitBreaks(attempt -> buildSubqueriesWithSort(subquery, "manybigfields", " f000 ", docs));
+            assertCircuitBreaks(attempt -> buildSubqueriesWithSort(subquery, "manybigfields", " f000 "));
         }
     }
 
@@ -184,7 +175,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         // the sort of text field is not pushed to lucene, different from keyword, this test should CB
         // TODO 8 subqueries OOMs during ValuesSourceReaderOperator, similar to no sort case, skip it for now
         for (int subquery : List.of(DEFAULT_SUBQUERIES)) {
-            assertCircuitBreaks(attempt -> buildSubqueriesWithSort(subquery, "manybigfields", sortKeys.toString(), docs));
+            assertCircuitBreaks(attempt -> buildSubqueriesWithSort(subquery, "manybigfields", sortKeys.toString()));
         }
     }
 
@@ -308,7 +299,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         int docs = 40; // 40 docs *5MB does not OOM without subquery
         heapAttackIT.initGiantTextField(docs, false, 5);
         for (int subquery : List.of(DEFAULT_SUBQUERIES)) {
-            assertCircuitBreaks(attempt -> buildSubqueriesWithSort(subquery, "bigtext", " f ", docs));
+            assertCircuitBreaks(attempt -> buildSubqueriesWithSort(subquery, "bigtext", " f "));
         }
     }
 
@@ -355,11 +346,11 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         return responseAsMap(query(query.toString(), "columns,values"));
     }
 
-    private Map<String, Object> buildSubqueriesWithSort(int subqueries, String indexName, String sortKeys, int rows) throws IOException {
+    private Map<String, Object> buildSubqueriesWithSort(int subqueries, String indexName, String sortKeys) throws IOException {
         StringBuilder query = startQuery();
         StringBuilder subquery = new StringBuilder();
         // the limit is added to avoid unbounded sort
-        subquery.append("(FROM ").append(indexName).append(" | SORT ").append(sortKeys).append(" | LIMIT ").append(rows).append(" )");
+        subquery.append("(FROM ").append(indexName).append(" | SORT ").append(sortKeys).append(" )");
         query.append("FROM ").append(subquery);
         for (int i = 1; i < subqueries; i++) {
             query.append(", ").append(subquery);

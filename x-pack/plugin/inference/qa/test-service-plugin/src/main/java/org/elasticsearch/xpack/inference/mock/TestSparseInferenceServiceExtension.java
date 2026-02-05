@@ -138,6 +138,10 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             TimeValue timeout,
             ActionListener<InferenceServiceResults> listener
         ) {
+            if (Objects.equals(((TestTaskSettings) model.getTaskSettings()).shouldFailValidation(), Boolean.TRUE)) {
+                listener.onFailure(new RuntimeException("validation call intentionally failed based on task settings"));
+                return;
+            }
             switch (model.getConfigurations().getTaskType()) {
                 case ANY, SPARSE_EMBEDDING -> listener.onResponse(makeResults(input));
                 default -> listener.onFailure(

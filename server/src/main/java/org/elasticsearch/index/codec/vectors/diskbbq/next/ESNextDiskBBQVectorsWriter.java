@@ -20,7 +20,6 @@ import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
 import org.apache.lucene.util.packed.DirectWriter;
 import org.apache.lucene.util.packed.PackedInts;
@@ -43,12 +42,14 @@ import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.IntUnaryOperator;
 
 import static org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans.NO_SOAR_ASSIGNMENT;
@@ -69,7 +70,6 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     private final int numMergeWorkers;
     private final int blockDimension;
     private final boolean doPrecondition;
-    private Preconditioner preconditioner;
 
     public ESNextDiskBBQVectorsWriter(
         SegmentWriteState state,
@@ -95,52 +95,58 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    protected void inheritPreconditioner(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        if (doPrecondition && this.preconditioner == null) {
+    protected Preconditioner inheritPreconditioner(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+        if (doPrecondition) {
             for (KnnVectorsReader reader : mergeState.knnVectorsReaders) {
                 if (reader instanceof VectorPreconditioner) {
-                    this.preconditioner = ((VectorPreconditioner) reader).getPreconditioner(fieldInfo);
-                    break;
+                    Preconditioner preconditioner = ((VectorPreconditioner) reader).getPreconditioner(fieldInfo);
+                    if (preconditioner != null) {
+                        return preconditioner;
+                    }
                 }
             }
-            if (this.preconditioner == null) {
-                createPreconditioner(fieldInfo.getVectorDimension());
-            }
+            // else
+            return createPreconditioner(fieldInfo.getVectorDimension());
+        }
+        return null;
+    }
+
+    @Override
+    protected Preconditioner createPreconditioner(int dimension) {
+        if (doPrecondition) {
+            return Preconditioner.createPreconditioner(dimension, blockDimension);
+        } else {
+            return null;
         }
     }
 
     @Override
-    protected void createPreconditioner(int dimension) {
-        if (doPrecondition && this.preconditioner == null) {
-            this.preconditioner = Preconditioner.createPreconditioner(dimension, blockDimension);
-        }
-    }
-
-    @Override
-    protected void writePreconditioner(IndexOutput out) throws IOException {
+    protected void writePreconditioner(Preconditioner preconditioner, IndexOutput out) throws IOException {
         if (preconditioner != null) {
             preconditioner.write(out);
         }
     }
 
     @Override
-    protected void preconditionVectors(List<float[]> vectors) {
-        if (doPrecondition == false || vectors.isEmpty()) {
-            return;
-        }
-        if (preconditioner == null) {
-            throw new IllegalStateException("preconditioner was not created but should be first");
-        }
-        float[] out = new float[vectors.getFirst().length];
-        for (int i = 0; i < vectors.size(); i++) {
-            float[] vector = vectors.get(i);
-            preconditioner.applyTransform(vector, out);
-            System.arraycopy(out, 0, vector, 0, vector.length);
-        }
+    protected Consumer<List<float[]>> preconditionVectors(Preconditioner preconditioner) {
+        return (vectors) -> {
+            if (doPrecondition == false || vectors.isEmpty()) {
+                return;
+            }
+            if (preconditioner == null) {
+                throw new IllegalStateException("preconditioner was not created but should be first");
+            }
+            float[] out = new float[vectors.getFirst().length];
+            for (int i = 0; i < vectors.size(); i++) {
+                float[] vector = vectors.get(i);
+                preconditioner.applyTransform(vector, out);
+                System.arraycopy(out, 0, vector, 0, vector.length);
+            }
+        };
     }
 
     @Override
-    protected FloatVectorValues preconditionVectors(FloatVectorValues vectors) {
+    protected FloatVectorValues preconditionVectors(Preconditioner preconditioner, FloatVectorValues vectors) {
         if (doPrecondition == false) {
             return vectors;
         }
@@ -228,7 +234,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         // write the posting lists
         final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
         final PackedLongValues.Builder lengths = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
-        DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(quantEncoding.bits(), BULK_SIZE, postingsOutput);
+        DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(quantEncoding.bits(), BULK_SIZE, postingsOutput, true, true);
         OnHeapQuantizedVectors onHeapQuantizedVectors = new OnHeapQuantizedVectors(
             floatVectorValues,
             quantEncoding,
@@ -249,7 +255,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             // write raw centroid for quantizing the query vectors
             postingsOutput.writeBytes(buffer.array(), buffer.array().length);
             // write centroid dot product for quantizing the query vectors
-            postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
+            postingsOutput.writeInt(Float.floatToIntBits(ESVectorUtil.dotProduct(centroid, centroid)));
             int size = cluster.length;
             // write docIds
             postingsOutput.writeVInt(size);
@@ -380,7 +386,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 quantEncoding,
                 fieldInfo.getVectorDimension()
             );
-            DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(quantEncoding.bits(), BULK_SIZE, postingsOutput);
+            DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(quantEncoding.bits(), BULK_SIZE, postingsOutput, true, true);
             final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
             // write the posting lists
             final int[] docIds = new int[maxPostingListSize];
@@ -397,7 +403,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 buffer.asFloatBuffer().put(centroid);
                 postingsOutput.writeBytes(buffer.array(), buffer.array().length);
                 // write centroid dot product for quantizing the query vectors
-                postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
+                postingsOutput.writeInt(Float.floatToIntBits(ESVectorUtil.dotProduct(centroid, centroid)));
                 // write docIds
                 int size = cluster.length;
                 postingsOutput.writeVInt(size);
@@ -568,7 +574,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         IndexOutput centroidOutput,
         CentroidGroups centroidGroups
     ) throws IOException {
-        DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(7, BULK_SIZE, centroidOutput, true);
+        DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(7, BULK_SIZE, centroidOutput, true, true);
         final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
         centroidOutput.writeVInt(centroidGroups.centroids.length);
         centroidOutput.writeVInt(centroidGroups.maxVectorsPerCentroidLength);
@@ -613,7 +619,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         IndexOutput centroidOutput
     ) throws IOException {
         centroidOutput.writeVInt(0);
-        DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(7, BULK_SIZE, centroidOutput, true);
+        DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(7, BULK_SIZE, centroidOutput, true, true);
         final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
         QuantizedCentroids quantizedCentroids = new QuantizedCentroids(
             centroidSupplier,
@@ -726,8 +732,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         indexOutput.writeInt(Float.floatToIntBits(corrections.lowerInterval()));
         indexOutput.writeInt(Float.floatToIntBits(corrections.upperInterval()));
         indexOutput.writeInt(Float.floatToIntBits(corrections.additionalCorrection()));
-        assert corrections.quantizedComponentSum() >= 0 && corrections.quantizedComponentSum() <= 0xffff;
-        indexOutput.writeShort((short) corrections.quantizedComponentSum());
+        indexOutput.writeInt(corrections.quantizedComponentSum());
     }
 
     static class OffHeapCentroidSupplier implements CentroidSupplier {
@@ -897,7 +902,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         OffHeapQuantizedVectors(IndexInput quantizedVectorsInput, ESNextDiskBBQVectorsFormat.QuantEncoding encoding, int dimension) {
             this.quantizedVectorsInput = quantizedVectorsInput;
             this.binaryScratch = new byte[encoding.getDocPackedLength(dimension)];
-            this.vectorByteSize = (binaryScratch.length + 3 * Float.BYTES + Short.BYTES);
+            this.vectorByteSize = (binaryScratch.length + 3 * Float.BYTES + Integer.BYTES);
         }
 
         private void reset(int count, IntToBooleanFunction isOverspill, IntToIntFunction ordTransformer) {
@@ -941,7 +946,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             quantizedVectorsInput.seek(offset);
             quantizedVectorsInput.readBytes(binaryScratch, 0, binaryScratch.length);
             quantizedVectorsInput.readFloats(corrections, 0, 3);
-            bitSum = Short.toUnsignedInt(quantizedVectorsInput.readShort());
+            bitSum = quantizedVectorsInput.readInt();
         }
     }
 }

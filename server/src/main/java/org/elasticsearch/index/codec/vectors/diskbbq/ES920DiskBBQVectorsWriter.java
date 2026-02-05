@@ -18,7 +18,6 @@ import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
@@ -37,6 +36,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans.NO_SOAR_ASSIGNMENT;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.BULK_SIZE;
@@ -159,7 +159,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
             // write raw centroid for quantizing the query vectors
             postingsOutput.writeBytes(buffer.array(), buffer.array().length);
             // write centroid dot product for quantizing the query vectors
-            postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
+            postingsOutput.writeInt(Float.floatToIntBits(ESVectorUtil.dotProduct(centroid, centroid)));
             int size = cluster.length;
             // write docIds
             postingsOutput.writeVInt(size);
@@ -308,7 +308,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
                 buffer.asFloatBuffer().put(centroid);
                 postingsOutput.writeBytes(buffer.array(), buffer.array().length);
                 // write centroid dot product for quantizing the query vectors
-                postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
+                postingsOutput.writeInt(Float.floatToIntBits(ESVectorUtil.dotProduct(centroid, centroid)));
                 // write docIds
                 int size = cluster.length;
                 postingsOutput.writeVInt(size);
@@ -383,28 +383,31 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    protected void inheritPreconditioner(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+    protected Preconditioner inheritPreconditioner(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
         // no-op
+        return null;
     }
 
     @Override
-    protected void createPreconditioner(int dimension) {
+    protected Preconditioner createPreconditioner(int dimension) {
         // no-op
+        return null;
     }
 
     @Override
-    protected FloatVectorValues preconditionVectors(FloatVectorValues vectors) {
+    protected FloatVectorValues preconditionVectors(Preconditioner Preconditioner, FloatVectorValues vectors) {
         // no-op
         return vectors;
     }
 
     @Override
-    protected void preconditionVectors(List<float[]> vectors) {
+    protected Consumer<List<float[]>> preconditionVectors(Preconditioner preconditioner) {
         // no-op
+        return (vectors) -> {};
     }
 
     @Override
-    protected void writePreconditioner(IndexOutput out) throws IOException {
+    protected void writePreconditioner(Preconditioner Preconditioner, IndexOutput out) throws IOException {
         // no-op
     }
 

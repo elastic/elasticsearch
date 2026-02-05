@@ -70,7 +70,7 @@ public final class MultiValueSeparateCountBinaryDocValuesReader {
         for (int v = 0; v < count; v++) {
             initializeScratch();
             if (min == null || scratch.compareTo(min) < 0) {
-                min = BytesRef.deepCopyOf(scratch);
+                min = new BytesRef(scratch.bytes, scratch.offset, scratch.length);
             }
         }
         builder.appendBytesRef(min);

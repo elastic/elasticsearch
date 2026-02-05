@@ -5,14 +5,11 @@
 
 setup:
   - requires:
-      capabilities:
-        - method: POST
-          path: /_search
-          capabilities: [ deprecate_default_metric_in_aggregate_metric_double ]
-      test_runner_features: capabilities
-      reason: "Default metric is deprecated in aggregate metric double fields since 9.4"
+      test_runner_features: [ allowed_warnings ]
   # Setup aggregate index with field metric of type aggregate_metric_double
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create:
         index:  test_metric_aggregate
         body:
@@ -23,6 +20,7 @@ setup:
               metric:
                 type: aggregate_metric_double
                 metrics: [min, max, sum, value_count]
+                default_metric: max
   - do:
       bulk:
         index: test_metric_aggregate

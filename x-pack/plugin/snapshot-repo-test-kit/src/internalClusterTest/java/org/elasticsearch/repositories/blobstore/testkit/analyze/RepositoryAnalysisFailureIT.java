@@ -673,8 +673,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
     interface Disruption {
 
-        Disruption NONE = new Disruption() {
-        };
+        Disruption NONE = new Disruption() {};
 
         default byte[] onRead(byte[] actualContents, long position, long length) throws IOException {
             return actualContents;

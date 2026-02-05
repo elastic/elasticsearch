@@ -344,14 +344,20 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
      * that match the given filter.
      */
     public static class FilterFunctionBuilder implements ToXContentObject, Writeable {
+        public static final TransportVersion FILTER_FUNCTION_NAME = TransportVersion.fromName("filter_function_name");
         private final QueryBuilder filter;
         private final ScoreFunctionBuilder<?> scoreFunction;
+        private final String name;
 
         public FilterFunctionBuilder(ScoreFunctionBuilder<?> scoreFunctionBuilder) {
             this(new MatchAllQueryBuilder(), scoreFunctionBuilder);
         }
 
         public FilterFunctionBuilder(QueryBuilder filter, ScoreFunctionBuilder<?> scoreFunction) {
+            this(filter, null, scoreFunction);
+        }
+
+        public FilterFunctionBuilder(QueryBuilder filter, String name, ScoreFunctionBuilder<?> scoreFunction) {
             if (filter == null) {
                 throw new IllegalArgumentException("function_score: filter must not be null");
             }
@@ -360,6 +366,10 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
             }
             this.filter = filter;
             this.scoreFunction = scoreFunction;
+            this.name = name;
+            if (this.filter != null && this.name != null) {
+                this.filter.queryName(this.name);
+            }
         }
 
         /**
@@ -368,12 +378,20 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         public FilterFunctionBuilder(StreamInput in) throws IOException {
             filter = in.readNamedWriteable(QueryBuilder.class);
             scoreFunction = in.readNamedWriteable(ScoreFunctionBuilder.class);
+            if (in.getTransportVersion().supports(FILTER_FUNCTION_NAME)) {
+                name = in.readOptionalString();
+            } else {
+                name = null;
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeNamedWriteable(filter);
             out.writeNamedWriteable(scoreFunction);
+            if (out.getTransportVersion().supports(FILTER_FUNCTION_NAME)) {
+                out.writeOptionalString(name);
+            }
         }
 
         public QueryBuilder getFilter() {
@@ -384,7 +402,18 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
             return scoreFunction;
         }
 
+        public String getName() {
+            return name;
+        }
+
+        void applyNameToFilter() {
+            filter.queryName(name);
+        }
+
         Query toNamedScoreQuery(SearchExecutionContext context, ScoreFunction scoreFunction) throws IOException {
+            if (name != null) {
+                filter.queryName(name);
+            }
             Query filterQuery = filter.getName().equals(MatchAllQueryBuilder.NAME) ? Queries.ALL_DOCS_INSTANCE : filter.toQuery(context);
             return toNamedScoreQuery(filterQuery, scoreFunction);
         }
@@ -399,13 +428,16 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
             builder.field(FILTER_FIELD.getPreferredName());
             filter.toXContent(builder, params);
             scoreFunction.toXContent(builder, params);
+            if (name != null) {
+                builder.field(NAME_FIELD.getPreferredName(), name);
+            }
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(filter, scoreFunction);
+            return Objects.hash(filter, name, scoreFunction);
         }
 
         @Override
@@ -417,13 +449,15 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                 return false;
             }
             FilterFunctionBuilder that = (FilterFunctionBuilder) obj;
-            return Objects.equals(this.filter, that.filter) && Objects.equals(this.scoreFunction, that.scoreFunction);
+            return Objects.equals(this.filter, that.filter)
+                && Objects.equals(this.scoreFunction, that.scoreFunction)
+                && Objects.equals(this.name, that.name);
         }
 
         public FilterFunctionBuilder rewrite(QueryRewriteContext context) throws IOException {
             QueryBuilder rewrite = filter.rewrite(context);
             if (rewrite != filter) {
-                return new FilterFunctionBuilder(rewrite, scoreFunction);
+                return new FilterFunctionBuilder(rewrite, name, scoreFunction);
             }
             return this;
         }
@@ -612,6 +646,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             QueryBuilder filter = null;
             ScoreFunctionBuilder<?> scoreFunction = null;
+            String name = null;
             Float functionWeight = null;
             if (token != XContentParser.Token.START_OBJECT) {
                 throw new ParsingException(
@@ -642,6 +677,8 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                     } else if (token.isValue()) {
                         if (WEIGHT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             functionWeight = parser.floatValue();
+                        } else if (NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                            name = parser.text();
                         } else {
                             throw new ParsingException(
                                 parser.getTokenLocation(),
@@ -670,7 +707,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                     NAME
                 );
             }
-            filterFunctionBuilders.add(new FunctionScoreQueryBuilder.FilterFunctionBuilder(filter, scoreFunction));
+            filterFunctionBuilders.add(new FunctionScoreQueryBuilder.FilterFunctionBuilder(filter, name, scoreFunction));
         }
         return currentFieldName;
     }

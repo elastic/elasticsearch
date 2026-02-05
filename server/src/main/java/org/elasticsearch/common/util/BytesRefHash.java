@@ -99,7 +99,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
         try {
             // `super` allocates a big array so we have to `close` if we fail here or we'll leak it.
             this.hashes = bigArrays.newIntArray(maxSize, false);
-            this.bytesRefs = BytesRefArray.takeOwnershipOf(bytesRefs);
+            this.bytesRefs = bytesRefs;
             success = true;
         } finally {
             if (false == success) {
@@ -246,7 +246,8 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
 
     public BytesRefArray takeBytesRefsOwnership() {
         try (Releasable releasable = Releasables.wrap(this)) {
-            return BytesRefArray.takeOwnershipOf(bytesRefs);
+            bytesRefs.incRef();
+            return bytesRefs;
         }
     }
 

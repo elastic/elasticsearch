@@ -274,6 +274,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         private final int fieldIdx;
 
         BlockLoader loader;
+        // TODO rework this bit of mutable state into something harder to forget
+        // Seriously, I've tripped over this twice.
         @Nullable
         ConverterEvaluator converter;
         @Nullable

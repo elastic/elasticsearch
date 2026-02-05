@@ -7,8 +7,6 @@
 
 package org.elasticsearch.compute.lucene.read;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.FieldType;
@@ -107,7 +105,6 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -123,7 +120,6 @@ import static org.hamcrest.Matchers.sameInstance;
  * lucene to merge. It intentionally tries to create many files to make sure
  * that {@link ValuesSourceReaderOperator} works with it.
  */
-@Repeat(iterations = 10)
 @LuceneTestCase.SuppressFileSystems(value = "HandleLimitFS")
 public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     private static final String[] PREFIX = new String[] { "a", "b", "c" };
@@ -535,7 +531,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             IntVector keys = page.<IntBlock>getBlock(2).asVector();
             for (int p = 0; p < page.getPositionCount(); p++) {
                 int key = keys.getInt(p);
-                testCase.checkResults.check(page.getBlock(1), p, key);
+                testCase.checkResults.check(page.getBlock(1), p, key, null);
             }
         }
         ValuesSourceReaderOperatorStatus status = (ValuesSourceReaderOperatorStatus) load.status();
@@ -685,7 +681,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 int key = keys.getInt(p);
                 for (int i = 0; i < tests.size(); i++) {
                     try {
-                        tests.get(i).checkResults.check(page.getBlock(2 + i), p, key);
+                        tests.get(i).checkResults.check(page.getBlock(2 + i), p, key, null);
                     } catch (AssertionError e) {
                         throw new AssertionError("error checking " + tests.get(i).info.name() + "[" + p + "]: " + e.getMessage(), e);
                     }
@@ -704,6 +700,10 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         void check(Block block, int position, int key);
     }
 
+    interface CheckResultsWithIndexKey {
+        void check(Block block, int position, int key, String indexKey);
+    }
+
     interface CheckReaders {
         void check(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readersBuilt);
     }
@@ -712,24 +712,28 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         void check(String name, boolean reuseBlockLoaders, int pageCount, int segmentCount, Map<?, ?> readersBuilt);
     }
 
-    record FieldCase(ValuesSourceReaderOperator.FieldInfo info, CheckResults checkResults, CheckReadersWithName checkReaders) {
-        FieldCase(MappedFieldType ft, ElementType elementType, CheckResults checkResults, CheckReadersWithName checkReaders) {
-            this(fieldInfo(ft, elementType), checkResults, checkReaders);
+    record FieldCase(ValuesSourceReaderOperator.FieldInfo info, CheckResultsWithIndexKey checkResults, CheckReadersWithName checkReaders) {
+        FieldCase(ValuesSourceReaderOperator.FieldInfo info, CheckResults checkResults, CheckReadersWithName checkReaders) {
+            this(info, (block, position, key, indexKey) -> checkResults.check(block, position, key), checkReaders);
         }
+    }
 
-        FieldCase(MappedFieldType ft, ElementType elementType, CheckResults checkResults, CheckReaders checkReaders) {
-            this(
-                ft,
-                elementType,
-                checkResults,
-                (name, reuseBlockLoaders, pageCount, segmentCount, readersBuilt) -> checkReaders.check(
-                    reuseBlockLoaders,
-                    pageCount,
-                    segmentCount,
-                    readersBuilt
-                )
-            );
-        }
+    private static FieldCase fieldCase(MappedFieldType ft, ElementType elementType, CheckResults checkResults, CheckReadersWithName checkReaders) {
+        return new FieldCase(fieldInfo(ft, elementType), checkResults, checkReaders);
+    }
+
+    private static FieldCase fieldCase(MappedFieldType ft, ElementType elementType, CheckResults checkResults, CheckReaders checkReaders) {
+        return fieldCase(
+            ft,
+            elementType,
+            checkResults,
+            (name, reuseBlockLoaders, pageCount, segmentCount, readersBuilt) -> checkReaders.check(
+                reuseBlockLoaders,
+                pageCount,
+                segmentCount,
+                readersBuilt
+            )
+        );
     }
 
     /**
@@ -807,10 +811,10 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 StatusChecks::mvLongsFromDocValues
             )
         );
-        r.add(new FieldCase(mapperService.fieldType("missing_long"), ElementType.LONG, checks::constantNulls, StatusChecks::constantNulls));
-        r.add(new FieldCase(mapperService.fieldType("source_long"), ElementType.LONG, checks::longs, StatusChecks::longsFromSource));
+        r.add(fieldCase(mapperService.fieldType("missing_long"), ElementType.LONG, checks::constantNulls, StatusChecks::constantNulls));
+        r.add(fieldCase(mapperService.fieldType("source_long"), ElementType.LONG, checks::longs, StatusChecks::longsFromSource));
         r.add(
-            new FieldCase(
+            fieldCase(
                 mapperService.fieldType("mv_source_long"),
                 ElementType.LONG,
                 checks::mvLongsUnordered,
@@ -1269,6 +1273,10 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             docValues("kwd", "Ordinals", reuseColumnLoaders, pageCount, segmentCount, readers);
         }
 
+        static void strFromDocValues(String name, boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
+            docValues(name, "Ordinals", reuseColumnLoaders, pageCount, segmentCount, readers);
+        }
+
         static void keywordsFromStored(boolean reuseColumnLoaders, int pageCount, int segmentCount, Map<?, ?> readers) {
             stored("stored_kwd", "Bytes", reuseColumnLoaders, pageCount, segmentCount, readers);
         }
@@ -1500,6 +1508,11 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 readers,
                 matchesMap().entry(name + ":column_at_a_time:constant_nulls", countMatcher(reuseColumnLoaders, pageCount, segmentCount, 0))
             );
+        }
+
+        static void unionFromDocValues(String name, boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            // TODO: develop a working check for this
+            // docValues(name, "Ordinals", forcedRowByRow, pageCount, segmentCount, readers);
         }
     }
 

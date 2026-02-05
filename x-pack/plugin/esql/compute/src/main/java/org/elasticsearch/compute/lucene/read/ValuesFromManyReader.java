@@ -140,8 +140,8 @@ class ValuesFromManyReader extends ValuesReader {
             convertAndAccumulate();
             for (int f = 0; f < target.length; f++) {
                 try (Block targetBlock = finalBuilders[f].build()) {
-                    assert targetBlock.getPositionCount() == backwards.length :
-                        targetBlock.getPositionCount() + " == " + backwards.length + " " + targetBlock;
+                    assert targetBlock.getPositionCount() == backwards.length
+                        : targetBlock.getPositionCount() + " == " + backwards.length + " " + targetBlock;
                     target[f] = targetBlock.filter(backwards);
                 }
                 operator.sanityCheckBlock(current[f].rowStride, backwards.length, target[f], f);
@@ -282,9 +282,7 @@ class ValuesFromManyReader extends ValuesReader {
         ) {
             this.field = field;
             this.converter = field.converter;
-            this.builder = converter == null
-                ? finalBuilder
-                : (Block.Builder) field.loader.builder(blockFactory, docs.getPositionCount());
+            this.builder = converter == null ? finalBuilder : (Block.Builder) field.loader.builder(blockFactory, docs.getPositionCount());
             this.finalBuilder = finalBuilder;
         }
 

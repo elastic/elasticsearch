@@ -15,8 +15,13 @@ esplugin {
 dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
-  clusterModules project(':modules:data-streams')
-  clusterModules project(xpackModule('ilm'))
+  // stack is needed as we import the metrics@custom template
   clusterModules project(xpackModule('stack'))
+  // transitive dependencies of stack
+  clusterModules project(xpackModule('wildcard'))
+  clusterModules project(xpackModule('ilm'))
   clusterModules project(xpackModule('mapper-constant-keyword'))
+  clusterModules project(':modules:ingest-common')
+  clusterModules project(':modules:mapper-extras')
+  clusterModules project(':modules:data-streams')
 }

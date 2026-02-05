@@ -58,6 +58,8 @@ public class JsonXContentImpl implements XContent {
         jsonFactory.configure(JsonParser.Feature.USE_FAST_DOUBLE_PARSER, true);
         // keeping existing behavior of including source, for now
         jsonFactory.configure(JsonParser.Feature.INCLUDE_SOURCE_IN_LOCATION, true);
+        // Speeds up deserialization a lot.
+        jsonFactory.configure(JsonFactory.Feature.CANONICALIZE_FIELD_NAMES, false);
         jsonXContent = new JsonXContentImpl();
     }
 

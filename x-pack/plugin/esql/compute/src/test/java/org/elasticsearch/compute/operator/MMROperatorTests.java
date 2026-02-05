@@ -57,7 +57,6 @@ public class MMROperatorTests extends OperatorTestCase {
                 int vectorIndex = 0;
                 try {
                     for (int i = 1; i <= length; i++) {
-                        // todo - use random vector of length
                         var thisVector = TEST_VECTORS.get(randomIntBetween(0, TEST_VECTORS.size() - 1));
                         for (int v = 0; v < 4; v++) {
                             vectors[vectorIndex + v] = thisVector[v];

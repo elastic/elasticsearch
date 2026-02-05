@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -62,10 +63,7 @@ public abstract class CompleteInputCollectorOperator implements Operator {
 
     @Override
     public void close() {
-        for (Page page : inputPages) {
-            page.releaseBlocks();
-        }
-
+        Releasables.close(inputPages);
         onClose();
     }
 

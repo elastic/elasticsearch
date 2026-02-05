@@ -339,7 +339,7 @@ public class LocalExecutionPlanner {
         // see if we have a score in the input we can use for the docs
         Integer scoreChannel = null;
         for (Attribute input : mmr.inputSet()) {
-            if (input.name().equals("_score") && input.dataType() == DataType.DOUBLE) {
+            if (input instanceof MetadataAttribute && MetadataAttribute.SCORE.equals(input.name())) {
                 scoreChannel = source.layout.get(input.id()).channel();
                 break;
             }

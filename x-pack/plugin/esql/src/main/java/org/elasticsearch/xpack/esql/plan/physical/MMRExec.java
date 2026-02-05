@@ -138,10 +138,8 @@ public class MMRExec extends UnaryExec {
 
             float[] values = new float[litValues.size()];
             for (int i = 0; i < values.length; i++) {
-                if (litValues.get(i) instanceof Float floatValue) {
-                    values[i] = floatValue;
-                } else if (litValues.get(i) instanceof Double doubleValue) {
-                    values[i] = doubleValue.floatValue();
+                if (litValues.get(i) instanceof Number numberValue) {
+                    values[i] = numberValue.floatValue();
                 } else {
                     // should never happen here
                     return null;

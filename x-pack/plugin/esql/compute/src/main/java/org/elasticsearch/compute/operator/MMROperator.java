@@ -26,6 +26,7 @@ import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -138,7 +139,6 @@ public class MMROperator extends CompleteInputCollectorOperator {
             return page;
         } finally {
             emitNanos = System.nanoTime() - emitStart;
-            Releasables.close(inputPages);
         }
     }
 
@@ -178,8 +178,7 @@ public class MMROperator extends CompleteInputCollectorOperator {
         try {
             results = diversification.diversify(docs.toArray(new RankDoc[0]));
         } catch (IOException ioEx) {
-            // TODO - better exception here
-            throw new RuntimeException(ioEx);
+            throw new UncheckedIOException(ioEx);
         }
 
         // create our output filter set

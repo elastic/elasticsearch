@@ -178,7 +178,7 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
             Expression lambdaValueExpression = optionsMap.remove(MMR.LAMBDA_OPTION_NAME);
             Float extractedLambda = extractLambdaFromMMROptions(lambdaValueExpression);
             if (extractedLambda != null && (extractedLambda < 0.0f || extractedLambda > 1.0f)) {
-                throw new RuntimeException("MMR lambda value must be a number between 0.0 and 1.0");
+                failures.add(fail(this, "MMR lambda value must be a number between 0.0 and 1.0"));
             }
         } catch (RuntimeException rtEx) {
             failures.add(fail(this, rtEx.getMessage()));

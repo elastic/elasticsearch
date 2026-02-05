@@ -38,7 +38,7 @@ public class BulkPutRolesRequest extends LegacyActionRequest {
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (roles.isEmpty()) {
-            validationException = addValidationError("at least one role is required", validationException);
+            validationException = addValidationError("roles cannot be empty", validationException);
         }
         return validationException;
     }

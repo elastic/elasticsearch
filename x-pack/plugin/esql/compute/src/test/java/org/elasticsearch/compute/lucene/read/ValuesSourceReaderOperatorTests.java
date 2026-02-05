@@ -505,7 +505,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             Randomness.shuffle(input.subList(sortedPages, input.size() - 1));  // Sort some of the list so we reuse some loaders
         }
         Checks checks = new Checks(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
-        FieldCase testCase = new FieldCase(
+        FieldCase testCase = fieldCase(
             new KeywordFieldMapper.KeywordFieldType("kwd"),
             ElementType.BYTES_REF,
             checks::tags,
@@ -800,11 +800,11 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     ) {
         Checks checks = new Checks(booleanAndNumericalDocValuesMvOrdering, bytesRefDocValuesMvOrdering);
         List<FieldCase> r = new ArrayList<>();
-        r.add(new FieldCase(mapperService.fieldType(IdFieldMapper.NAME), ElementType.BYTES_REF, checks::ids, StatusChecks::id));
-        r.add(new FieldCase(TsidExtractingIdFieldMapper.INSTANCE.fieldType(), ElementType.BYTES_REF, checks::ids, StatusChecks::id));
-        r.add(new FieldCase(mapperService.fieldType("long"), ElementType.LONG, checks::longs, StatusChecks::longsFromDocValues));
+        r.add(fieldCase(mapperService.fieldType(IdFieldMapper.NAME), ElementType.BYTES_REF, checks::ids, StatusChecks::id));
+        r.add(fieldCase(TsidExtractingIdFieldMapper.INSTANCE.fieldType(), ElementType.BYTES_REF, checks::ids, StatusChecks::id));
+        r.add(fieldCase(mapperService.fieldType("long"), ElementType.LONG, checks::longs, StatusChecks::longsFromDocValues));
         r.add(
-            new FieldCase(
+            fieldCase(
                 mapperService.fieldType("mv_long"),
                 ElementType.LONG,
                 checks::mvLongsFromDocValues,
@@ -821,46 +821,46 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 StatusChecks::mvLongsFromSource
             )
         );
-        r.add(new FieldCase(mapperService.fieldType("int"), ElementType.INT, checks::ints, StatusChecks::intsFromDocValues));
+        r.add(fieldCase(mapperService.fieldType("int"), ElementType.INT, checks::ints, StatusChecks::intsFromDocValues));
         r.add(
-            new FieldCase(
+            fieldCase(
                 mapperService.fieldType("mv_int"),
                 ElementType.INT,
                 checks::mvIntsFromDocValues,
                 StatusChecks::mvIntsFromDocValues
             )
         );
-        r.add(new FieldCase(mapperService.fieldType("missing_int"), ElementType.INT, checks::constantNulls, StatusChecks::constantNulls));
-        r.add(new FieldCase(mapperService.fieldType("source_int"), ElementType.INT, checks::ints, StatusChecks::intsFromSource));
+        r.add(fieldCase(mapperService.fieldType("missing_int"), ElementType.INT, checks::constantNulls, StatusChecks::constantNulls));
+        r.add(fieldCase(mapperService.fieldType("source_int"), ElementType.INT, checks::ints, StatusChecks::intsFromSource));
         r.add(
-            new FieldCase(
+            fieldCase(
                 mapperService.fieldType("mv_source_int"),
                 ElementType.INT,
                 checks::mvIntsUnordered,
                 StatusChecks::mvIntsFromSource
             )
         );
-        r.add(new FieldCase(mapperService.fieldType("short"), ElementType.INT, checks::shorts, StatusChecks::shortsFromDocValues));
-        r.add(new FieldCase(mapperService.fieldType("mv_short"), ElementType.INT, checks::mvShorts, StatusChecks::mvShortsFromDocValues));
-        r.add(new FieldCase(mapperService.fieldType("missing_short"), ElementType.INT, checks::constantNulls, StatusChecks::constantNulls));
-        r.add(new FieldCase(mapperService.fieldType("byte"), ElementType.INT, checks::bytes, StatusChecks::bytesFromDocValues));
-        r.add(new FieldCase(mapperService.fieldType("mv_byte"), ElementType.INT, checks::mvBytes, StatusChecks::mvBytesFromDocValues));
-        r.add(new FieldCase(mapperService.fieldType("missing_byte"), ElementType.INT, checks::constantNulls, StatusChecks::constantNulls));
-        r.add(new FieldCase(mapperService.fieldType("double"), ElementType.DOUBLE, checks::doubles, StatusChecks::doublesFromDocValues));
+        r.add(fieldCase(mapperService.fieldType("short"), ElementType.INT, checks::shorts, StatusChecks::shortsFromDocValues));
+        r.add(fieldCase(mapperService.fieldType("mv_short"), ElementType.INT, checks::mvShorts, StatusChecks::mvShortsFromDocValues));
+        r.add(fieldCase(mapperService.fieldType("missing_short"), ElementType.INT, checks::constantNulls, StatusChecks::constantNulls));
+        r.add(fieldCase(mapperService.fieldType("byte"), ElementType.INT, checks::bytes, StatusChecks::bytesFromDocValues));
+        r.add(fieldCase(mapperService.fieldType("mv_byte"), ElementType.INT, checks::mvBytes, StatusChecks::mvBytesFromDocValues));
+        r.add(fieldCase(mapperService.fieldType("missing_byte"), ElementType.INT, checks::constantNulls, StatusChecks::constantNulls));
+        r.add(fieldCase(mapperService.fieldType("double"), ElementType.DOUBLE, checks::doubles, StatusChecks::doublesFromDocValues));
         r.add(
-            new FieldCase(mapperService.fieldType("mv_double"), ElementType.DOUBLE, checks::mvDoubles, StatusChecks::mvDoublesFromDocValues)
+            fieldCase(mapperService.fieldType("mv_double"), ElementType.DOUBLE, checks::mvDoubles, StatusChecks::mvDoublesFromDocValues)
         );
         r.add(
-            new FieldCase(mapperService.fieldType("missing_double"), ElementType.DOUBLE, checks::constantNulls, StatusChecks::constantNulls)
+            fieldCase(mapperService.fieldType("missing_double"), ElementType.DOUBLE, checks::constantNulls, StatusChecks::constantNulls)
         );
-        r.add(new FieldCase(mapperService.fieldType("bool"), ElementType.BOOLEAN, checks::bools, StatusChecks::boolFromDocValues));
-        r.add(new FieldCase(mapperService.fieldType("mv_bool"), ElementType.BOOLEAN, checks::mvBools, StatusChecks::mvBoolFromDocValues));
+        r.add(fieldCase(mapperService.fieldType("bool"), ElementType.BOOLEAN, checks::bools, StatusChecks::boolFromDocValues));
+        r.add(fieldCase(mapperService.fieldType("mv_bool"), ElementType.BOOLEAN, checks::mvBools, StatusChecks::mvBoolFromDocValues));
         r.add(
-            new FieldCase(mapperService.fieldType("missing_bool"), ElementType.BOOLEAN, checks::constantNulls, StatusChecks::constantNulls)
+            fieldCase(mapperService.fieldType("missing_bool"), ElementType.BOOLEAN, checks::constantNulls, StatusChecks::constantNulls)
         );
-        r.add(new FieldCase(mapperService.fieldType("kwd"), ElementType.BYTES_REF, checks::tags, StatusChecks::keywordsFromDocValues));
+        r.add(fieldCase(mapperService.fieldType("kwd"), ElementType.BYTES_REF, checks::tags, StatusChecks::keywordsFromDocValues));
         r.add(
-            new FieldCase(
+            fieldCase(
                 mapperService.fieldType("mv_kwd"),
                 ElementType.BYTES_REF,
                 checks::mvStringsFromDocValues,
@@ -868,11 +868,11 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             )
         );
         r.add(
-            new FieldCase(mapperService.fieldType("missing_kwd"), ElementType.BYTES_REF, checks::constantNulls, StatusChecks::constantNulls)
+            fieldCase(mapperService.fieldType("missing_kwd"), ElementType.BYTES_REF, checks::constantNulls, StatusChecks::constantNulls)
         );
-        r.add(new FieldCase(storedKeywordField("stored_kwd"), ElementType.BYTES_REF, checks::strings, StatusChecks::keywordsFromStored));
+        r.add(fieldCase(storedKeywordField("stored_kwd"), ElementType.BYTES_REF, checks::strings, StatusChecks::keywordsFromStored));
         r.add(
-            new FieldCase(
+            fieldCase(
                 storedKeywordField("mv_stored_kwd"),
                 ElementType.BYTES_REF,
                 checks::mvStringsUnordered,
@@ -880,28 +880,28 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             )
         );
         r.add(
-            new FieldCase(mapperService.fieldType("source_kwd"), ElementType.BYTES_REF, checks::strings, StatusChecks::keywordsFromSource)
+            fieldCase(mapperService.fieldType("source_kwd"), ElementType.BYTES_REF, checks::strings, StatusChecks::keywordsFromSource)
         );
         r.add(
-            new FieldCase(
+            fieldCase(
                 mapperService.fieldType("mv_source_kwd"),
                 ElementType.BYTES_REF,
                 checks::mvStringsUnordered,
                 StatusChecks::mvKeywordsFromSource
             )
         );
-        r.add(new FieldCase(mapperService.fieldType("source_text"), ElementType.BYTES_REF, checks::strings, StatusChecks::textFromSource));
+        r.add(fieldCase(mapperService.fieldType("source_text"), ElementType.BYTES_REF, checks::strings, StatusChecks::textFromSource));
         r.add(
-            new FieldCase(
+            fieldCase(
                 mapperService.fieldType("mv_source_text"),
                 ElementType.BYTES_REF,
                 checks::mvStringsUnordered,
                 StatusChecks::mvTextFromSource
             )
         );
-        r.add(new FieldCase(storedTextField("stored_text"), ElementType.BYTES_REF, checks::strings, StatusChecks::textFromStored));
+        r.add(fieldCase(storedTextField("stored_text"), ElementType.BYTES_REF, checks::strings, StatusChecks::textFromStored));
         r.add(
-            new FieldCase(
+            fieldCase(
                 storedTextField("mv_stored_text"),
                 ElementType.BYTES_REF,
                 checks::mvStringsUnordered,
@@ -909,7 +909,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             )
         );
         r.add(
-            new FieldCase(
+            fieldCase(
                 textFieldWithDelegate("text_with_delegate", new KeywordFieldMapper.KeywordFieldType("kwd")),
                 ElementType.BYTES_REF,
                 checks::tags,
@@ -917,7 +917,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             )
         );
         r.add(
-            new FieldCase(
+            fieldCase(
                 textFieldWithDelegate("mv_text_with_delegate", new KeywordFieldMapper.KeywordFieldType("mv_kwd")),
                 ElementType.BYTES_REF,
                 checks::mvStringsFromDocValues,
@@ -925,7 +925,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             )
         );
         r.add(
-            new FieldCase(
+            fieldCase(
                 textFieldWithDelegate("missing_text_with_delegate", new KeywordFieldMapper.KeywordFieldType("missing_kwd")),
                 ElementType.BYTES_REF,
                 checks::constantNulls,
@@ -996,7 +996,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         Checks checks = new Checks(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
 
         List<FieldCase> cases = List.of(
-            new FieldCase(
+            fieldCase(
                 mapperService.fieldType("long_source_text"),
                 ElementType.BYTES_REF,
                 checks::strings,

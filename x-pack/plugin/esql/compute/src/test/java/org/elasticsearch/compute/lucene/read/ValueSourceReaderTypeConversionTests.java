@@ -482,9 +482,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         List<ValuesSourceReaderOperator.ShardContext> shardContexts = initShardContexts();
         List<Operator> operators = new ArrayList<>();
         Checks checks = new Checks(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
-        FieldCase testCase = fieldCase(new KeywordFieldMapper.KeywordFieldType("kwd"), ElementType.BYTES_REF).checkResults(
-            UnionChecks::tags
-        ).checkReaders(StatusChecks::keywordsFromDocValues);
+        FieldCase testCase = fc(new KeywordFieldMapper.KeywordFieldType("kwd"), ElementType.BYTES_REF).results(UnionChecks::tags)
+            .readers(StatusChecks::keywordsFromDocValues);
         // TODO: Add index2
         operators.add(
             new ValuesSourceReaderOperator.Factory(
@@ -502,7 +501,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             IntVector keys = page.<IntBlock>getBlock(2).asVector();
             for (int p = 0; p < page.getPositionCount(); p++) {
                 int key = keys.getInt(p);
-                testCase.checkResults().check(page.getBlock(1), p, key, indexKey);
+                testCase.results().check(page.getBlock(1), p, key, indexKey);
             }
         }
     }
@@ -534,10 +533,6 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
 
     private static ValuesSourceReaderOperator.FieldInfo fieldInfo(MappedFieldType ft, ElementType elementType) {
         return new ValuesSourceReaderOperator.FieldInfo(ft.name(), elementType, false, shardIdx -> getBlockLoaderFor(shardIdx, ft, null));
-    }
-
-    private static ValuesSourceReaderOperator.FieldInfo fieldInfo(MappedFieldType ft, MappedFieldType ftX, ElementType elementType) {
-        return new ValuesSourceReaderOperator.FieldInfo(ft.name(), elementType, false, shardIdx -> getBlockLoaderFor(shardIdx, ft, ftX));
     }
 
     private ValuesSourceReaderOperator.FieldInfo fieldInfo(String fieldName, ElementType elementType, String toType) {
@@ -596,7 +591,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 String indexKey = indexKeys.getBytesRef(p, new BytesRef()).utf8ToString();
                 for (int i = 0; i < tests.size(); i++) {
                     try {
-                        tests.get(i).checkResults().check(page.getBlock(3 + i), p, key, indexKey);
+                        tests.get(i).results().check(page.getBlock(3 + i), p, key, indexKey);
                     } catch (AssertionError e) {
                         throw new AssertionError("error checking " + tests.get(i).info().name() + "[" + p + "]: " + e.getMessage(), e);
                     }
@@ -611,39 +606,21 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         assertDriverContext(driverContext);
     }
 
-    private static FieldCase fieldCase(MappedFieldType ft, ElementType elementType) {
+    private FieldCase fc(MapperService mapperService, String name, ElementType elementType) {
+        return fc(mapperService.fieldType(name), elementType);
+    }
+
+    private static FieldCase fc(MappedFieldType ft, ElementType elementType) {
         return new FieldCase(fieldInfo(ft, elementType));
     }
 
-    // record FieldCase(ValuesSourceReaderOperator.FieldInfo info, CheckResults checkResults, CheckReadersWithName checkReaders) {
-    // FieldCase(MappedFieldType ft, ElementType elementType, CheckResults checkResults, CheckReadersWithName checkReaders) {
-    // this(fieldInfo(ft, elementType), checkResults, checkReaders);
-    // }
-    //
-    // FieldCase(
-    // MappedFieldType ft,
-    // MappedFieldType ftX,
-    // ElementType elementType,
-    // CheckResults checkResults,
-    // CheckReadersWithName checkReaders
-    // ) {
-    // this(fieldInfo(ft, ftX, elementType), checkResults, checkReaders);
-    // }
-    //
-    // FieldCase(MappedFieldType ft, ElementType elementType, CheckResults checkResults, CheckReaders checkReaders) {
-    // this(
-    // ft,
-    // elementType,
-    // checkResults,
-    // (name, forcedRowByRow, pageCount, segmentCount, readersBuilt) -> checkReaders.check(
-    // forcedRowByRow,
-    // pageCount,
-    // segmentCount,
-    // readersBuilt
-    // )
-    // );
-    // }
-    // }
+    private static FieldCase fc(MapperService mapperService, String f1, String f2, ElementType elementType) {
+        MappedFieldType ft1 = mapperService.fieldType(f1);
+        MappedFieldType ft2 = mapperService.fieldType(f2);
+        return new FieldCase(
+            new ValuesSourceReaderOperator.FieldInfo(f1, elementType, false, shardIdx -> getBlockLoaderFor(shardIdx, ft1, ft2))
+        );
+    }
 
     /**
      * Asserts that {@link ValuesSourceReaderOperator#status} claims that only
@@ -697,7 +674,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             assertThat(status.pagesReceived(), equalTo(input.size()));
             assertThat(status.pagesEmitted(), equalTo(input.size()));
             FieldCase fc = cases.get(i);
-            fc.checkReaders().check(fc.info().name(), allInOnePage, input.size(), totalSize, status.readersBuilt());
+            fc.readers().check(fc.info().name(), allInOnePage, input.size(), totalSize, status.readersBuilt());
         }
     }
 
@@ -708,139 +685,55 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         MapperService mapperService = mapperService("index1");  // almost fields have identical mapper service
         Checks checks = new Checks(booleanAndNumericalDocValuesMvOrdering, bytesRefDocValuesMvOrdering);
         List<FieldCase> r = new ArrayList<>();
+        r.add(fc(mapperService, IdFieldMapper.NAME, ElementType.BYTES_REF).results(checks::ids).readers(StatusChecks::id));
+        r.add(fc(TsidExtractingIdFieldMapper.INSTANCE.fieldType(), ElementType.BYTES_REF).results(checks::ids).readers(StatusChecks::id));
+        r.add(fc(mapperService, "long", ElementType.LONG).results(checks::longs).readers(StatusChecks::longsFromDocValues));
+        r.add(fc(mapperService, "str_long", "long", ElementType.LONG).results(checks::longs).readers(StatusChecks::strFromDocValues));
         r.add(
-            fieldCase(mapperService.fieldType(IdFieldMapper.NAME), ElementType.BYTES_REF).checkResults(checks::ids)
-                .checkReaders(StatusChecks::id)
+            fc(mapperService, "mv_long", ElementType.LONG).results(checks::mvLongsFromDocValues).readers(StatusChecks::mvLongsFromDocValues)
+        );
+        r.add(fc(mapperService, "missing_long", ElementType.LONG).results(checks::constantNulls).readers(StatusChecks::constantNulls));
+        r.add(fc(mapperService, "source_long", ElementType.LONG).results(checks::longs).readers(StatusChecks::longsFromSource));
+        r.add(
+            fc(mapperService, "mv_source_long", ElementType.LONG).results(checks::mvLongsUnordered).readers(StatusChecks::mvLongsFromSource)
+        );
+        r.add(fc(mapperService, "int", ElementType.INT).results(checks::ints).readers(StatusChecks::intsFromDocValues));
+        r.add(fc(mapperService, "str_int", "int", ElementType.INT).results(checks::ints).readers(StatusChecks::strFromDocValues));
+        r.add(fc(mapperService, "mv_int", ElementType.INT).results(checks::mvIntsFromDocValues).readers(StatusChecks::mvIntsFromDocValues));
+        r.add(fc(mapperService, "missing_int", ElementType.INT).results(checks::constantNulls).readers(StatusChecks::constantNulls));
+        r.add(fc(mapperService, "source_int", ElementType.INT).results(checks::ints).readers(StatusChecks::intsFromSource));
+        r.add(fc(mapperService, "mv_source_int", ElementType.INT).results(checks::mvIntsUnordered).readers(StatusChecks::mvIntsFromSource));
+        r.add(fc(mapperService, "short", ElementType.INT).results(checks::shorts).readers(StatusChecks::shortsFromDocValues));
+        r.add(fc(mapperService, "str_short", "short", ElementType.INT).results(checks::shorts).readers(StatusChecks::strFromDocValues));
+        r.add(fc(mapperService, "mv_short", ElementType.INT).results(checks::mvShorts).readers(StatusChecks::mvShortsFromDocValues));
+        r.add(fc(mapperService, "missing_short", ElementType.INT).results(checks::constantNulls).readers(StatusChecks::constantNulls));
+        r.add(fc(mapperService, "byte", ElementType.INT).results(checks::bytes).readers(StatusChecks::bytesFromDocValues));
+        // r.add(fc(mapperService, "str_byte", ElementType.INT).results(checks::bytes).readers(StatusChecks::bytesFromDocValues));
+        r.add(fc(mapperService, "mv_byte", ElementType.INT).results(checks::mvBytes).readers(StatusChecks::mvBytesFromDocValues));
+        r.add(fc(mapperService, "missing_byte", ElementType.INT).results(checks::constantNulls).readers(StatusChecks::constantNulls));
+        r.add(fc(mapperService, "double", ElementType.DOUBLE).results(checks::doubles).readers(StatusChecks::doublesFromDocValues));
+        r.add(
+            fc(mapperService, "str_double", "double", ElementType.DOUBLE).results(checks::doubles).readers(StatusChecks::strFromDocValues)
+        );
+        r.add(fc(mapperService, "mv_double", ElementType.DOUBLE).results(checks::mvDoubles).readers(StatusChecks::mvDoublesFromDocValues));
+        r.add(fc(mapperService, "missing_double", ElementType.DOUBLE).results(checks::constantNulls).readers(StatusChecks::constantNulls));
+        r.add(fc(mapperService, "kwd", ElementType.BYTES_REF).results(UnionChecks::tags).readers(StatusChecks::keywordsFromDocValues));
+        r.add(
+            fc(mapperService, "mv_kwd", ElementType.BYTES_REF).results(checks::mvStringsFromDocValues)
+                .readers(StatusChecks::mvKeywordsFromDocValues)
+        );
+        r.add(fc(mapperService, "missing_kwd", ElementType.BYTES_REF).results(checks::constantNulls).readers(StatusChecks::constantNulls));
+        r.add(
+            fc(storedKeywordField("stored_kwd"), ElementType.BYTES_REF).results(checks::strings).readers(StatusChecks::keywordsFromStored)
         );
         r.add(
-            fieldCase(TsidExtractingIdFieldMapper.INSTANCE.fieldType(), ElementType.BYTES_REF).checkResults(checks::ids)
-                .checkReaders(StatusChecks::id)
+            fc(storedKeywordField("mv_stored_kwd"), ElementType.BYTES_REF).results(checks::mvStringsUnordered)
+                .readers(StatusChecks::mvKeywordsFromStored)
         );
+        r.add(fc(mapperService, "source_kwd", ElementType.BYTES_REF).results(checks::strings).readers(StatusChecks::keywordsFromSource));
         r.add(
-            fieldCase(mapperService.fieldType("long"), ElementType.LONG).checkResults(checks::longs)
-                .checkReaders(StatusChecks::longsFromDocValues)
-        );
-        r.add(
-            new FieldCase(fieldInfo(mapperService.fieldType("str_long"), mapperService.fieldType("long"), ElementType.LONG)).checkResults(
-                checks::longs
-            ).checkReaders(StatusChecks::strFromDocValues)
-        );
-        r.add(
-            fieldCase(mapperService.fieldType("mv_long"), ElementType.LONG).checkResults(checks::mvLongsFromDocValues)
-                .checkReaders(StatusChecks::mvLongsFromDocValues)
-        );
-        r.add(
-            fieldCase(mapperService.fieldType("missing_long"), ElementType.LONG).checkResults(checks::constantNulls)
-                .checkReaders(StatusChecks::constantNulls)
-        );
-        r.add(
-            fieldCase(mapperService.fieldType("source_long"), ElementType.LONG).checkResults(checks::longs)
-                .checkReaders(StatusChecks::longsFromSource)
-        );
-        r.add(
-            fieldCase(mapperService.fieldType("mv_source_long"), ElementType.LONG).checkResults(checks::mvLongsUnordered)
-                .checkReaders(StatusChecks::mvLongsFromSource)
-        );
-        r.add(
-            fieldCase(mapperService.fieldType("int"), ElementType.INT).checkResults(checks::ints)
-                .checkReaders(StatusChecks::intsFromDocValues)
-        );
-        r.add(
-            new FieldCase(fieldInfo(mapperService.fieldType("str_int"), mapperService.fieldType("int"), ElementType.INT)).checkResults(
-                checks::ints
-            ).checkReaders(StatusChecks::strFromDocValues)
-        );
-        r.add(
-            fieldCase(mapperService.fieldType("mv_int"), ElementType.INT).checkResults(checks::mvIntsFromDocValues)
-                .checkReaders(StatusChecks::mvIntsFromDocValues)
-        );
-        r.add(
-            fieldCase(mapperService.fieldType("missing_int"), ElementType.INT).checkResults(checks::constantNulls)
-                .checkReaders(StatusChecks::constantNulls)
-        );
-        r.add(
-            fieldCase(mapperService.fieldType("source_int"), ElementType.INT).checkResults(checks::ints)
-                .checkReaders(StatusChecks::intsFromSource)
-        );
-        r.add(
-            fieldCase(mapperService.fieldType("mv_source_int"), ElementType.INT).checkResults(checks::mvIntsUnordered)
-                .checkReaders(StatusChecks::mvIntsFromSource)
-        );
-        r.add(
-            fieldCase(mapperService.fieldType("short"), ElementType.INT).checkResults(checks::shorts)
-                .checkReaders(StatusChecks::shortsFromDocValues)
-        );
-        r.add(
-            new FieldCase(fieldInfo(mapperService.fieldType("str_short"), mapperService.fieldType("short"), ElementType.INT)).checkResults(
-                checks::shorts
-            ).checkReaders(StatusChecks::strFromDocValues)
-        );
-        r.add(
-            fieldCase(mapperService.fieldType("mv_short"), ElementType.INT).checkResults(checks::mvShorts)
-                .checkReaders(StatusChecks::mvShortsFromDocValues)
-        );
-        r.add(
-            fieldCase(mapperService.fieldType("missing_short"), ElementType.INT).checkResults(checks::constantNulls)
-                .checkReaders(StatusChecks::constantNulls)
-        );
-        r.add(
-            fieldCase(mapperService.fieldType("byte"), ElementType.INT).checkResults(checks::bytes)
-                .checkReaders(StatusChecks::bytesFromDocValues)
-        );
-        // r.add(fieldCase(mapperService.fieldType("str_byte"),
-        // ElementType.INT).checkResults(checks::bytes).checkReaders(StatusChecks::bytesFromDocValues));
-        r.add(
-            fieldCase(mapperService.fieldType("mv_byte"), ElementType.INT).checkResults(checks::mvBytes)
-                .checkReaders(StatusChecks::mvBytesFromDocValues)
-        );
-        r.add(
-            fieldCase(mapperService.fieldType("missing_byte"), ElementType.INT).checkResults(checks::constantNulls)
-                .checkReaders(StatusChecks::constantNulls)
-        );
-        r.add(
-            fieldCase(mapperService.fieldType("double"), ElementType.DOUBLE).checkResults(checks::doubles)
-                .checkReaders(StatusChecks::doublesFromDocValues)
-        );
-        r.add(
-            new FieldCase(fieldInfo(mapperService.fieldType("str_double"), mapperService.fieldType("double"), ElementType.DOUBLE))
-                .checkResults(checks::doubles)
-                .checkReaders(StatusChecks::strFromDocValues)
-        );
-        r.add(
-            fieldCase(mapperService.fieldType("mv_double"), ElementType.DOUBLE).checkResults(checks::mvDoubles)
-                .checkReaders(StatusChecks::mvDoublesFromDocValues)
-        );
-        r.add(
-            fieldCase(mapperService.fieldType("missing_double"), ElementType.DOUBLE).checkResults(checks::constantNulls)
-                .checkReaders(StatusChecks::constantNulls)
-        );
-        r.add(
-            fieldCase(mapperService.fieldType("kwd"), ElementType.BYTES_REF).checkResults(UnionChecks::tags)
-                .checkReaders(StatusChecks::keywordsFromDocValues)
-        );
-        r.add(
-            fieldCase(mapperService.fieldType("mv_kwd"), ElementType.BYTES_REF).checkResults(checks::mvStringsFromDocValues)
-                .checkReaders(StatusChecks::mvKeywordsFromDocValues)
-        );
-        r.add(
-            fieldCase(mapperService.fieldType("missing_kwd"), ElementType.BYTES_REF).checkResults(checks::constantNulls)
-                .checkReaders(StatusChecks::constantNulls)
-        );
-        r.add(
-            fieldCase(storedKeywordField("stored_kwd"), ElementType.BYTES_REF).checkResults(checks::strings)
-                .checkReaders(StatusChecks::keywordsFromStored)
-        );
-        r.add(
-            fieldCase(storedKeywordField("mv_stored_kwd"), ElementType.BYTES_REF).checkResults(checks::mvStringsUnordered)
-                .checkReaders(StatusChecks::mvKeywordsFromStored)
-        );
-        r.add(
-            fieldCase(mapperService.fieldType("source_kwd"), ElementType.BYTES_REF).checkResults(checks::strings)
-                .checkReaders(StatusChecks::keywordsFromSource)
-        );
-        r.add(
-            fieldCase(mapperService.fieldType("mv_source_kwd"), ElementType.BYTES_REF).checkResults(checks::mvStringsUnordered)
-                .checkReaders(StatusChecks::mvKeywordsFromSource)
+            fc(mapperService, "mv_source_kwd", ElementType.BYTES_REF).results(checks::mvStringsUnordered)
+                .readers(StatusChecks::mvKeywordsFromSource)
         );
         r.add(
             new FieldCase(
@@ -850,7 +743,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     false,
                     shardIdx -> ValuesSourceReaderOperator.load(new ConstantBytes(new BytesRef("foo")))
                 )
-            ).checkResults(checks::constantBytes).checkReaders(StatusChecks::constantBytes)
+            ).results(checks::constantBytes).readers(StatusChecks::constantBytes)
         );
         r.add(
             new FieldCase(
@@ -860,378 +753,20 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     false,
                     shardIdx -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
                 )
-            ).checkResults(checks::constantNulls).checkReaders(StatusChecks::constantNulls)
+            ).results(checks::constantNulls).readers(StatusChecks::constantNulls)
         );
 
         // We only care about the field name at this point, so we can use any index mapper here
         TestIndexMappingConfig indexMappingConfig = INDICES.get("index1");
         for (TestFieldType<?> fieldType : indexMappingConfig.fieldTypes.values()) {
             r.add(
-                new FieldCase(fieldInfo(fieldType.name, ElementType.BYTES_REF, "keyword")).checkResults(fieldType.checkResults)
-                    .checkReaders(StatusChecks::unionFromDocValues)
+                new FieldCase(fieldInfo(fieldType.name, ElementType.BYTES_REF, "keyword")).results(fieldType.checkResults)
+                    .readers(StatusChecks::unionFromDocValues)
             );
         }
         Collections.shuffle(r, random());
         return r;
     }
-
-    // record Checks(Block.MvOrdering booleanAndNumericalDocValuesMvOrdering, Block.MvOrdering bytesRefDocValuesMvOrdering) {
-    // void longs(Block block, int position, int key, String indexKey) {
-    // LongVector longs = ((LongBlock) block).asVector();
-    // assertThat(longs.getLong(position), equalTo((long) key));
-    // }
-    //
-    // void ints(Block block, int position, int key, String indexKey) {
-    // IntVector ints = ((IntBlock) block).asVector();
-    // assertThat(ints.getInt(position), equalTo(key));
-    // }
-    //
-    // void shorts(Block block, int position, int key, String indexKey) {
-    // IntVector ints = ((IntBlock) block).asVector();
-    // assertThat(ints.getInt(position), equalTo((int) (short) key));
-    // }
-    //
-    // void bytes(Block block, int position, int key, String indexKey) {
-    // IntVector ints = ((IntBlock) block).asVector();
-    // assertThat(ints.getInt(position), equalTo((int) (byte) key));
-    // }
-    //
-    // void doubles(Block block, int position, int key, String indexKey) {
-    // DoubleVector doubles = ((DoubleBlock) block).asVector();
-    // assertThat(doubles.getDouble(position), equalTo(key / 123_456d));
-    // }
-    //
-    // void strings(Block block, int position, int key, String indexKey) {
-    // BytesRefVector keywords = ((BytesRefBlock) block).asVector();
-    // assertThat(keywords.getBytesRef(position, new BytesRef()).utf8ToString(), equalTo(Integer.toString(key)));
-    // }
-    //
-    // static void unionIPsAsStrings(Block block, int position, int key, String indexKey) {
-    // BytesRefVector keywords = ((BytesRefBlock) block).asVector();
-    // BytesRef bytesRef = keywords.getBytesRef(position, new BytesRef());
-    // TestIndexMappingConfig mappingConfig = INDICES.get(indexKey);
-    // TestFieldType<?> fieldType = mappingConfig.fieldTypes.get("ip");
-    // String expected = fieldType.valueGenerator.apply(key).toString();
-    // // Conversion should already be done in FieldInfo!
-    // // BytesRef found = (fieldType.typeName.equals("ip")) ? new BytesRef(DocValueFormat.IP.format(bytesRef)) : bytesRef;
-    // assertThat(bytesRef.utf8ToString(), equalTo(expected));
-    // }
-    //
-    // static void unionDurationsAsStrings(Block block, int position, int key, String indexKey) {
-    // BytesRefVector keywords = ((BytesRefBlock) block).asVector();
-    // BytesRef bytesRef = keywords.getBytesRef(position, new BytesRef());
-    // TestIndexMappingConfig mappingConfig = INDICES.get(indexKey);
-    // TestFieldType<?> fieldType = mappingConfig.fieldTypes.get("duration");
-    // String expected = fieldType.valueGenerator.apply(key).toString();
-    // assertThat(bytesRef.utf8ToString(), equalTo(expected));
-    // }
-    //
-    // void tags(Block block, int position, int key, String indexKey) {
-    // BytesRefVector keywords = ((BytesRefBlock) block).asVector();
-    // Object[] validTags = INDICES.keySet().stream().map(keyToTags::get).map(t -> t.get(key)).toArray();
-    // assertThat(keywords.getBytesRef(position, new BytesRef()).utf8ToString(), oneOf(validTags));
-    // }
-    //
-    // void ids(Block block, int position, int key, String indexKey) {
-    // BytesRefVector ids = ((BytesRefBlock) block).asVector();
-    // assertThat(ids.getBytesRef(position, new BytesRef()).utf8ToString(), equalTo("id" + key));
-    // }
-    //
-    // void constantBytes(Block block, int position, int key, String indexKey) {
-    // BytesRefVector keywords = ((BytesRefBlock) block).asVector();
-    // assertThat(keywords.getBytesRef(position, new BytesRef()).utf8ToString(), equalTo("foo"));
-    // }
-    //
-    // void constantNulls(Block block, int position, int key, String indexKey) {
-    // assertTrue(block.areAllValuesNull());
-    // assertTrue(block.isNull(position));
-    // }
-    //
-    // void mvLongsFromDocValues(Block block, int position, int key, String indexKey) {
-    // mvLongs(block, position, key, booleanAndNumericalDocValuesMvOrdering);
-    // }
-    //
-    // void mvLongsUnordered(Block block, int position, int key, String indexKey) {
-    // mvLongs(block, position, key, Block.MvOrdering.UNORDERED);
-    // }
-    //
-    // private void mvLongs(Block block, int position, int key, Block.MvOrdering expectedMv) {
-    // LongBlock longs = (LongBlock) block;
-    // assertThat(longs.getValueCount(position), equalTo(key % 3 + 1));
-    // int offset = longs.getFirstValueIndex(position);
-    // for (int v = 0; v <= key % 3; v++) {
-    // assertThat(longs.getLong(offset + v), equalTo(-1_000L * key + v));
-    // }
-    // if (key % 3 > 0) {
-    // assertThat(longs.mvOrdering(), equalTo(expectedMv));
-    // }
-    // }
-    //
-    // void mvIntsFromDocValues(Block block, int position, int key, String indexKey) {
-    // mvInts(block, position, key, booleanAndNumericalDocValuesMvOrdering);
-    // }
-    //
-    // void mvIntsUnordered(Block block, int position, int key, String indexKey) {
-    // mvInts(block, position, key, Block.MvOrdering.UNORDERED);
-    // }
-    //
-    // private void mvInts(Block block, int position, int key, Block.MvOrdering expectedMv) {
-    // IntBlock ints = (IntBlock) block;
-    // assertThat(ints.getValueCount(position), equalTo(key % 3 + 1));
-    // int offset = ints.getFirstValueIndex(position);
-    // for (int v = 0; v <= key % 3; v++) {
-    // assertThat(ints.getInt(offset + v), equalTo(1_000 * key + v));
-    // }
-    // if (key % 3 > 0) {
-    // assertThat(ints.mvOrdering(), equalTo(expectedMv));
-    // }
-    // }
-    //
-    // void mvShorts(Block block, int position, int key, String indexKey) {
-    // IntBlock ints = (IntBlock) block;
-    // assertThat(ints.getValueCount(position), equalTo(key % 3 + 1));
-    // int offset = ints.getFirstValueIndex(position);
-    // for (int v = 0; v <= key % 3; v++) {
-    // assertThat(ints.getInt(offset + v), equalTo((int) (short) (2_000 * key + v)));
-    // }
-    // if (key % 3 > 0) {
-    // assertThat(ints.mvOrdering(), equalTo(booleanAndNumericalDocValuesMvOrdering));
-    // }
-    // }
-    //
-    // void mvBytes(Block block, int position, int key, String indexKey) {
-    // IntBlock ints = (IntBlock) block;
-    // assertThat(ints.getValueCount(position), equalTo(key % 3 + 1));
-    // int offset = ints.getFirstValueIndex(position);
-    // for (int v = 0; v <= key % 3; v++) {
-    // assertThat(ints.getInt(offset + v), equalTo((int) (byte) (3_000 * key + v)));
-    // }
-    // if (key % 3 > 0) {
-    // assertThat(ints.mvOrdering(), equalTo(booleanAndNumericalDocValuesMvOrdering));
-    // }
-    // }
-    //
-    // void mvDoubles(Block block, int position, int key, String indexKey) {
-    // DoubleBlock doubles = (DoubleBlock) block;
-    // int offset = doubles.getFirstValueIndex(position);
-    // for (int v = 0; v <= key % 3; v++) {
-    // assertThat(doubles.getDouble(offset + v), equalTo(key / 123_456d + v));
-    // }
-    // if (key % 3 > 0) {
-    // assertThat(doubles.mvOrdering(), equalTo(booleanAndNumericalDocValuesMvOrdering));
-    // }
-    // }
-    //
-    // void mvStringsFromDocValues(Block block, int position, int key, String indexKey) {
-    // mvStrings(block, position, key, bytesRefDocValuesMvOrdering);
-    // }
-    //
-    // void mvStringsUnordered(Block block, int position, int key, String indexKey) {
-    // mvStrings(block, position, key, Block.MvOrdering.UNORDERED);
-    // }
-    //
-    // void mvStrings(Block block, int position, int key, Block.MvOrdering expectedMv) {
-    // BytesRefBlock text = (BytesRefBlock) block;
-    // assertThat(text.getValueCount(position), equalTo(key % 3 + 1));
-    // int offset = text.getFirstValueIndex(position);
-    // for (int v = 0; v <= key % 3; v++) {
-    // assertThat(text.getBytesRef(offset + v, new BytesRef()).utf8ToString(), equalTo(PREFIX[v] + key));
-    // }
-    // if (key % 3 > 0) {
-    // assertThat(text.mvOrdering(), equalTo(expectedMv));
-    // }
-    // }
-    // }
-
-    // static class StatusChecks {
-    //
-    // static void strFromDocValues(String name, boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-    // docValues(name, "Ordinals", forcedRowByRow, pageCount, segmentCount, readers);
-    // }
-    //
-    // static void longsFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-    // docValues("long", "Longs", forcedRowByRow, pageCount, segmentCount, readers);
-    // }
-    //
-    // static void longsFromSource(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-    // source("source_long", "Longs", forcedRowByRow, pageCount, segmentCount, readers);
-    // }
-    //
-    // static void intsFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-    // docValues("int", "Ints", forcedRowByRow, pageCount, segmentCount, readers);
-    // }
-    //
-    // static void intsFromSource(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-    // source("source_int", "Ints", forcedRowByRow, pageCount, segmentCount, readers);
-    // }
-    //
-    // static void shortsFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-    // docValues("short", "Ints", forcedRowByRow, pageCount, segmentCount, readers);
-    // }
-    //
-    // static void bytesFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-    // docValues("byte", "Ints", forcedRowByRow, pageCount, segmentCount, readers);
-    // }
-    //
-    // static void doublesFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-    // docValues("double", "Doubles", forcedRowByRow, pageCount, segmentCount, readers);
-    // }
-    //
-    // static void keywordsFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-    // docValues("kwd", "Ordinals", forcedRowByRow, pageCount, segmentCount, readers);
-    // }
-    //
-    // static void keywordsFromStored(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-    // stored("stored_kwd", "Bytes", forcedRowByRow, pageCount, segmentCount, readers);
-    // }
-    //
-    // static void keywordsFromSource(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-    // source("source_kwd", "Bytes", forcedRowByRow, pageCount, segmentCount, readers);
-    // }
-    //
-    // static void mvLongsFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-    // mvDocValues("mv_long", "Longs", forcedRowByRow, pageCount, segmentCount, readers);
-    // }
-    //
-    // static void mvLongsFromSource(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-    // source("mv_source_long", "Longs", forcedRowByRow, pageCount, segmentCount, readers);
-    // }
-    //
-    // static void mvIntsFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-    // mvDocValues("mv_int", "Ints", forcedRowByRow, pageCount, segmentCount, readers);
-    // }
-    //
-    // static void mvIntsFromSource(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-    // source("mv_source_int", "Ints", forcedRowByRow, pageCount, segmentCount, readers);
-    // }
-    //
-    // static void mvShortsFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-    // mvDocValues("mv_short", "Ints", forcedRowByRow, pageCount, segmentCount, readers);
-    // }
-    //
-    // static void mvBytesFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-    // mvDocValues("mv_byte", "Ints", forcedRowByRow, pageCount, segmentCount, readers);
-    // }
-    //
-    // static void mvDoublesFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-    // mvDocValues("mv_double", "Doubles", forcedRowByRow, pageCount, segmentCount, readers);
-    // }
-    //
-    // static void mvKeywordsFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-    // mvDocValues("mv_kwd", "Ordinals", forcedRowByRow, pageCount, segmentCount, readers);
-    // }
-    //
-    // static void mvKeywordsFromStored(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-    // stored("mv_stored_kwd", "Bytes", forcedRowByRow, pageCount, segmentCount, readers);
-    // }
-    //
-    // static void mvKeywordsFromSource(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-    // source("mv_source_kwd", "Bytes", forcedRowByRow, pageCount, segmentCount, readers);
-    // }
-    //
-    //
-    // private static void docValues(
-    // String name,
-    // String type,
-    // boolean forcedRowByRow,
-    // int pageCount,
-    // int segmentCount,
-    // Map<?, ?> readers
-    // ) {
-    // if (forcedRowByRow) {
-    // assertMap(
-    // "Expected segment count in " + readers + "\n",
-    // readers,
-    // matchesMap().entry(name + ":row_stride:" + singleName(type), lessThanOrEqualTo(segmentCount))
-    // );
-    // } else {
-    // assertMap(
-    // "Expected segment count in " + readers + "\n",
-    // readers,
-    // matchesMap().entry(name + ":column_at_a_time:" + singleName(type), lessThanOrEqualTo(pageCount))
-    // );
-    // }
-    // }
-    //
-    // private static void mvDocValues(
-    // String name,
-    // String type,
-    // boolean forcedRowByRow,
-    // int pageCount,
-    // int segmentCount,
-    // Map<?, ?> readers
-    // ) {
-    // if (forcedRowByRow) {
-    // Integer singletons = (Integer) readers.remove(name + ":row_stride:" + singleName(type));
-    // if (singletons != null) {
-    // segmentCount -= singletons;
-    // }
-    // assertMap(readers, matchesMap().entry(name + ":row_stride:" + multiName(type), segmentCount));
-    // } else {
-    // Integer singletons = (Integer) readers.remove(name + ":column_at_a_time:" + singleName(type));
-    // if (singletons != null) {
-    // pageCount -= singletons;
-    // }
-    // assertMap(readers, matchesMap().entry(name + ":column_at_a_time:" + multiName(type), lessThanOrEqualTo(pageCount)));
-    // }
-    // }
-    //
-    // static void id(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-    // stored("_id", "Id", forcedRowByRow, pageCount, segmentCount, readers);
-    // }
-    //
-    // private static void source(String name, String type, boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-    // Matcher<Integer> count;
-    // if (forcedRowByRow) {
-    // count = equalTo(segmentCount);
-    // } else {
-    // count = lessThanOrEqualTo(pageCount);
-    // Integer columnAttempts = (Integer) readers.remove(name + ":column_at_a_time:null");
-    // assertThat(columnAttempts, not(nullValue()));
-    // }
-    //
-    // Integer sequentialCount = (Integer) readers.remove("stored_fields[requires_source:true, fields:0, sequential: true]");
-    // Integer nonSequentialCount = (Integer) readers.remove("stored_fields[requires_source:true, fields:0, sequential: false]");
-    // int totalReaders = (sequentialCount == null ? 0 : sequentialCount) + (nonSequentialCount == null ? 0 : nonSequentialCount);
-    // assertThat(totalReaders, count);
-    //
-    // assertMap(readers, matchesMap().entry(name + ":row_stride:BlockSourceReader." + type, count));
-    // }
-    //
-    // private static void stored(String name, String type, boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-    // Matcher<Integer> count;
-    // if (forcedRowByRow) {
-    // count = equalTo(segmentCount);
-    // } else {
-    // count = lessThanOrEqualTo(pageCount);
-    // Integer columnAttempts = (Integer) readers.remove(name + ":column_at_a_time:null");
-    // assertThat(columnAttempts, not(nullValue()));
-    // }
-    //
-    // Integer sequentialCount = (Integer) readers.remove("stored_fields[requires_source:false, fields:1, sequential: true]");
-    // Integer nonSequentialCount = (Integer) readers.remove("stored_fields[requires_source:false, fields:1, sequential: false]");
-    // int totalReaders = (sequentialCount == null ? 0 : sequentialCount) + (nonSequentialCount == null ? 0 : nonSequentialCount);
-    // assertThat(totalReaders, count);
-    //
-    // assertMap(readers, matchesMap().entry(name + ":row_stride:BlockStoredFieldsReader." + type, count));
-    // }
-    //
-    // static void constantBytes(String name, boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-    // if (forcedRowByRow) {
-    // assertMap(readers, matchesMap().entry(name + ":row_stride:constant[[66 6f 6f]]", segmentCount));
-    // } else {
-    // assertMap(readers, matchesMap().entry(name + ":column_at_a_time:constant[[66 6f 6f]]", lessThanOrEqualTo(pageCount)));
-    // }
-    // }
-    //
-    // static void constantNulls(String name, boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-    // if (forcedRowByRow) {
-    // assertMap(readers, matchesMap().entry(name + ":row_stride:constant_nulls", segmentCount));
-    // } else {
-    // assertMap(readers, matchesMap().entry(name + ":column_at_a_time:constant_nulls", lessThanOrEqualTo(pageCount)));
-    // }
-    // }
-    // }
 
     static class UnionChecks {
         static void tags(Block block, int position, int key, String indexKey) {

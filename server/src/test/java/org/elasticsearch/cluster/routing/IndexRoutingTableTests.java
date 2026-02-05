@@ -9,8 +9,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.index.Index;

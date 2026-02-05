@@ -41,3 +41,49 @@ ROW values = null, element = ["a", "b", "c"]
 values:null | element:keyword | result:null 
 null        | [a, b, c]       | null         
 ;
+
+mvExcept_dedup1
+required_capability: fn_mv_except
+ROW valuesA = ["a","a","b","c","c","d"], valuesB = ["b", "c"]
+| EVAL result = mv_except(valuesA, valuesB)
+;
+
+valuesA:keyword      | valuesB:keyword | result:keyword 
+[a,a,b,c,c,d]        | [b, c]          | [a,a,d]          
+;
+
+mvExcept_dedup1
+required_capability: fn_mv_except
+ROW valuesA = [1,2,2,3,4,5,6,6,6], valuesB = [2,3]
+| EVAL result = mv_except(valuesA, valuesB)
+;
+
+valuesA:integer      | valuesB:integer | result:integer 
+[1,2,2,3,4,5,6,6,6]  | [2,3]           | [1,4,5,6,6,6]
+;
+
+mvExcept_from
+required_capability: fn_mv_except
+FROM employees
+| WHERE emp_no == 10002 OR emp_no ==  10053 
+| KEEP salary_change, is_rehired
+| EVAL result1 = mv_except(salary_change, [11.17])
+| EVAL result2 = mv_except(is_rehired, true)
+;
+
+salary_change:double | is_rehired:boolean         | result1:double | result2:boolean 
+[-7.23, 11.17]       | [false,false]              |-7.23           | [false,false]   
+[-7.67, -3.25]       | [false, false, true, true] |[-7.67, -3.25]  | [false,false]  
+;
+
+mvExcept_from_keyword
+required_capability: fn_mv_except
+FROM employees
+| WHERE emp_no == 10022
+| KEEP first_name, job_positions
+| EVAL result = mv_except(job_positions, "Internship")
+;
+
+first_name:keyword | job_positions:keyword                                             | result:keyword
+Shahaf             | [Data Scientist, Internship, Python Developer, Reporting Analyst] | [Data Scientist, Python Developer, Reporting Analyst] 
+;

@@ -12,9 +12,7 @@ dependencies {
   implementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   implementation "org.apache.httpcomponents:httpcore:${versions.httpcore}"
 
-  testImplementation(project(":test:framework")) {
-    exclude group: 'org.elasticsearch', module: 'web-utils'
-  }
+  testImplementation(project(":test:framework"))
 }
 
 tasks.named('forbiddenApisMain').configure {

@@ -225,7 +225,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 priorityPendingTasksMetricName(priority, "latency.time"),
                 "milliseconds",
                 "Current max latency in milliseconds of the master's task queue for priority " + priority,
-                () -> getMaxQueueLatencyMillisForPriority(priority)
+                () -> queuesByPriority.get(priority).getQueueLatencyMillis(threadPool.relativeTimeInMillis())
             );
         }
     }
@@ -746,14 +746,6 @@ public class MasterService extends AbstractLifecycleComponent {
             maxQueueLatencyMillis = Math.max(maxQueueLatencyMillis, queue.getQueueLatencyMillis(now));
         }
         return maxQueueLatencyMillis;
-    }
-
-    private long getMaxQueueLatencyMillisForPriority(Priority priority) {
-        final var queue = queuesByPriority.get(priority);
-        if (queue == null) {
-            return 0L;
-        }
-        return queue.getQueueLatencyMillis(threadPool.relativeTimeInMillis());
     }
 
     private Stream<Batch> allBatchesStream() {

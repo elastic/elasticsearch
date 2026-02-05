@@ -10,23 +10,29 @@ package org.elasticsearch.xpack.prometheus;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
 
 public class PrometheusYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
+    private static final String USER = "x_pack_rest_user";
+    private static final String PASS = "x-pack-test-password";
+
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .module("x-pack-prometheus")
-        .module("x-pack-stack")
-        .module("x-pack-ilm")
-        .module("wildcard")
-        .module("constant-keyword")
-        .module("ingest-common")
-        .module("mapper-extras")
-        .module("data-streams")
+        .distribution(DistributionType.DEFAULT)
+        .setting("xpack.security.enabled", "true")
+        .user(USER, PASS)
+        .keystore("bootstrap.password", "x-pack-test-password")
+        .setting("xpack.license.self_generated.type", "trial")
+        .feature(FeatureFlag.PROMETHEUS_FEATURE_FLAG)
         .build();
 
     public PrometheusYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
@@ -41,5 +47,10 @@ public class PrometheusYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
+        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 }

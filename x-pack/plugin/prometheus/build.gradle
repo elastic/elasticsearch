@@ -75,3 +75,7 @@ tasks.named("thirdPartyAudit").configure {
 tasks.named("licenseHeaders").configure {
   excludes << 'org/elasticsearch/xpack/prometheus/proto/**/*'
 }
+
+tasks.named('yamlRestTest') {
+  usesDefaultDistribution("Requires a bunch of xpack plugins")
+}

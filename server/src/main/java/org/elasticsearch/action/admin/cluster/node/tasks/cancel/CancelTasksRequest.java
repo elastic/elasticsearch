@@ -17,7 +17,6 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
-import java.util.Arrays;
 
 /**
  * A request to cancel tasks

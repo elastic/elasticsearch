@@ -54,4 +54,5 @@ public interface DlmAction {
         return false;
     }
 
+    boolean canRunOnProject(DlmActionContext dlmActionContext);
 }

@@ -71,6 +71,7 @@ import org.elasticsearch.datastreams.lifecycle.downsampling.DeleteSourceAndAddDo
 import org.elasticsearch.datastreams.lifecycle.downsampling.DeleteSourceAndAddDownsampleToDS;
 import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthInfoPublisher;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmAction;
+import org.elasticsearch.datastreams.lifecycle.transitions.DlmActionContext;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStep;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStepContext;
 import org.elasticsearch.gateway.GatewayService;
@@ -498,6 +499,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     Set<Index> maybeProcessDlmActions(ProjectState projectState, DataStream dataStream, Set<Index> indicesToExclude) {
         HashSet<Index> indicesProcessed = new HashSet<>();
         for (DlmAction action : actions) {
+
+            if (action.canRunOnProject(
+                new DlmActionContext(projectState, transportActionsDeduplicator, errorStore, signallingErrorRetryInterval, client)
+            ) == false) continue;
+
             TimeValue actionSchedule = action.applyAfterTime().apply(dataStream.getDataLifecycle());
 
             if (actionSchedule == null) {
@@ -547,16 +553,15 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                             dataStream.getName(),
                             action.name()
                         );
-                        stepToExecute.execute(
-                            new DlmStepContext(
-                                index,
-                                projectState,
-                                transportActionsDeduplicator,
-                                errorStore,
-                                signallingErrorRetryInterval,
-                                client
-                            )
+                        DlmStepContext dlmStepContext = new DlmStepContext(
+                            index,
+                            projectState,
+                            transportActionsDeduplicator,
+                            errorStore,
+                            signallingErrorRetryInterval,
+                            client
                         );
+                        stepToExecute.execute(dlmStepContext);
                     } catch (Exception ex) {
                         logger.warn(
                             logger.getMessageFactory()

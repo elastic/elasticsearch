@@ -72,6 +72,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthInfoPublisher;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmAction;
+import org.elasticsearch.datastreams.lifecycle.transitions.DlmActionContext;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStep;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStepContext;
 import org.elasticsearch.index.Index;
@@ -1895,6 +1896,11 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         @Override
         public boolean appliesToFailureStore() {
             return appliesFailureStore;
+        }
+
+        @Override
+        public boolean canRunOnProject(DlmActionContext dlmActionContext) {
+            return true;
         }
     }
 

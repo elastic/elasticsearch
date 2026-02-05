@@ -18,20 +18,16 @@ import org.elasticsearch.common.Randomness;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.Random;
 
 class StatefulReindexRelocationNodePicker implements ReindexRelocationNodePicker {
 
     private static final Logger logger = LogManager.getLogger(StatefulReindexRelocationNodePicker.class);
 
-    private final Random random;
-
-    StatefulReindexRelocationNodePicker() {
-        this.random = Randomness.get();
-    }
+    StatefulReindexRelocationNodePicker() {}
 
     @Override
     public Optional<String> pickNode(DiscoveryNodes nodes, NodesShutdownMetadata nodeShutdowns) {
+        assert ReindexPlugin.REINDEX_RESILIENCE_ENABLED : "reindex resilience should be enabled for relocations";
         String currentNodeId = nodes.getLocalNodeId();
         if (currentNodeId == null) {
             logger.warn(
@@ -77,6 +73,6 @@ class StatefulReindexRelocationNodePicker implements ReindexRelocationNodePicker
     }
 
     private String selectRandomNodeIdFrom(List<String> nodeIds) {
-        return nodeIds.get(random.nextInt(nodeIds.size()));
+        return nodeIds.get(Randomness.get().nextInt(nodeIds.size()));
     }
 }

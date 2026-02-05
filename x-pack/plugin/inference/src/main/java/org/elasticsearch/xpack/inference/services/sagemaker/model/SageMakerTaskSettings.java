@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 /**
  * Maintains mutable settings for SageMaker. Model-specific settings are stored in {@link SageMakerStoredTaskSchema}.
  */
-record SageMakerTaskSettings(
+public record SageMakerTaskSettings(
     @Nullable String customAttributes,
     @Nullable String enableExplanations,
     @Nullable String inferenceIdForDataCapture,

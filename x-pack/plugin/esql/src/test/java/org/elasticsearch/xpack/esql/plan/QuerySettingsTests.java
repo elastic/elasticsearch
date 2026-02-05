@@ -271,6 +271,14 @@ public class QuerySettingsTests extends ESTestCase {
             settingsDocsSupport.renderDocs();
         }
 
+        // TODO remote this when project routing is public
+        // we only want the Kibana JSON for now
+        new DocsV3Support.SettingsDocsSupport(
+            QuerySettings.PROJECT_ROUTING,
+            QuerySettingsTests.class,
+            DocsV3Support.callbacksFromSystemProperty()
+        ).renderKibanaCommandDefinition();
+
         DocsV3Support.SettingsTocDocsSupport toc = new DocsV3Support.SettingsTocDocsSupport(
             settings,
             QuerySettingsTests.class,

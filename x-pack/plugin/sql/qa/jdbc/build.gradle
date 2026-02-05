@@ -83,5 +83,6 @@ buildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
     tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
       classpath += driverConfiguration
       systemProperty 'jdbc.driver.version', bwcVersion.toString()
+      buildParams.withFipsEnabledOnly(it)
     }
 }

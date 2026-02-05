@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -82,7 +83,7 @@ public class ReindexResumeIT extends ESIntegTestCase {
             .setDestIndex(destIndex)
             .setSourceBatchSize(batchSize)
             .setRefresh(true)
-            .setResumeInfo(new ResumeInfo(new ScrollWorkerResumeInfo(scrollId, startTime, randomStats), null));
+            .setResumeInfo(new ResumeInfo(new ScrollWorkerResumeInfo(scrollId, startTime, randomStats, null), null));
         BulkByScrollResponse response = client().execute(ReindexAction.INSTANCE, request).actionGet();
 
         // total should equal to total hits from the search
@@ -156,7 +157,7 @@ public class ReindexResumeIT extends ESIntegTestCase {
                     RemoteInfo.DEFAULT_CONNECT_TIMEOUT
                 )
             )
-            .setResumeInfo(new ResumeInfo(new ScrollWorkerResumeInfo(scrollId, startTime, randomStats), null));
+            .setResumeInfo(new ResumeInfo(new ScrollWorkerResumeInfo(scrollId, startTime, randomStats, Version.CURRENT), null));
         BulkByScrollResponse response = client().execute(ReindexAction.INSTANCE, request).actionGet();
 
         // total should equal to total hits from the search

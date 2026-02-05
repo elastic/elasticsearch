@@ -18,7 +18,6 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
@@ -34,7 +33,6 @@ import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
-import org.elasticsearch.index.reindex.RetryListener;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -90,16 +88,12 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
     }
 
     @Override
-    public void restoreState(WorkerResumeInfo resumeInfo, ActionListener<Void> doSearchListener) {
+    public void restoreState(WorkerResumeInfo resumeInfo) {
         assert resumeInfo instanceof ScrollWorkerResumeInfo;
         var scrollResumeInfo = (ScrollWorkerResumeInfo) resumeInfo;
-        lookupRemoteVersion(
-            new RetryListener<>(logger, threadPool, backoffPolicy, this::lookupRemoteVersion, ActionListener.wrap(version -> {
-                remoteVersion = version;
-                setScroll(scrollResumeInfo.scrollId());
-                doSearchListener.onResponse(null);
-            }, doSearchListener::onFailure))
-        );
+        remoteVersion = scrollResumeInfo.remoteVersion();
+        assert remoteVersion != null : "remote cluster version must be set to resume remote reindex";
+        setScroll(scrollResumeInfo.scrollId());
     }
 
     void lookupRemoteVersion(RejectAwareActionListener<Version> listener) {

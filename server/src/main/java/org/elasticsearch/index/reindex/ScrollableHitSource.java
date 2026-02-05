@@ -80,10 +80,11 @@ public abstract class ScrollableHitSource {
      * @param resumeInfo resume information
      */
     public void resume(WorkerResumeInfo resumeInfo) {
-        restoreState(resumeInfo, ActionListener.wrap(v -> startNextScroll(TimeValue.ZERO), fail));
+        restoreState(resumeInfo);
+        startNextScroll(TimeValue.ZERO);
     }
 
-    protected abstract void restoreState(WorkerResumeInfo resumeInfo, ActionListener<Void> doSearchListener);
+    protected abstract void restoreState(WorkerResumeInfo resumeInfo);
 
     private RetryListener<Response> createRetryListener(Consumer<RejectAwareActionListener<Response>> retryHandler) {
         Consumer<RejectAwareActionListener<Response>> countingRetryHandler = listener -> {

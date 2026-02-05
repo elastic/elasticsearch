@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -72,7 +73,9 @@ public record ResumeInfo(@Nullable WorkerResumeInfo worker, @Nullable Map<Intege
     /**
      * Resume information for a scroll-based BulkByScrollTask worker.
      */
-    public record ScrollWorkerResumeInfo(String scrollId, long startTime, BulkByScrollTask.Status status) implements WorkerResumeInfo {
+    public record ScrollWorkerResumeInfo(String scrollId, long startTime, BulkByScrollTask.Status status, @Nullable Version remoteVersion)
+        implements
+            WorkerResumeInfo {
         public static final String NAME = "ScrollWorkerResumeInfo";
 
         public ScrollWorkerResumeInfo {
@@ -81,7 +84,7 @@ public record ResumeInfo(@Nullable WorkerResumeInfo worker, @Nullable Map<Intege
         }
 
         public ScrollWorkerResumeInfo(StreamInput in) throws IOException {
-            this(in.readString(), in.readLong(), new BulkByScrollTask.Status(in));
+            this(in.readString(), in.readLong(), new BulkByScrollTask.Status(in), in.readOptional(Version::readVersion));
         }
 
         @Override
@@ -89,6 +92,7 @@ public record ResumeInfo(@Nullable WorkerResumeInfo worker, @Nullable Map<Intege
             out.writeString(scrollId);
             out.writeLong(startTime);
             status.writeTo(out);
+            out.writeOptional((output, version) -> Version.writeVersion(version, output), remoteVersion);
         }
 
         @Override

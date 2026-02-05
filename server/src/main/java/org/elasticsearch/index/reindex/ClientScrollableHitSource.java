@@ -77,11 +77,10 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
     }
 
     @Override
-    protected void restoreState(WorkerResumeInfo resumeInfo, ActionListener<Void> doSearchListener) {
+    protected void restoreState(WorkerResumeInfo resumeInfo) {
         assert resumeInfo instanceof ScrollWorkerResumeInfo;
         var scrollResumeInfo = (ScrollWorkerResumeInfo) resumeInfo;
         setScroll(scrollResumeInfo.scrollId());
-        doSearchListener.onResponse(null);
     }
 
     @Override

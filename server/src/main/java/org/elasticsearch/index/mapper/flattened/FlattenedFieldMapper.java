@@ -284,16 +284,58 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
     public static final TypeParser PARSER = createTypeParserWithLegacySupport(FlattenedFieldMapper.Builder::new);
 
+    abstract static class BaseFlattenedFieldType extends StringFieldType {
+        protected final IgnoreAbove ignoreAbove;
+        protected final boolean usesBinaryDocValues;
+        protected final String nullValue;
+
+        BaseFlattenedFieldType(
+            String name,
+            IndexType indexType,
+            boolean isStored,
+            TextSearchInfo textSearchInfo,
+            Map<String, String> meta,
+            IgnoreAbove ignoreAbove,
+            boolean usesBinaryDocValues,
+            String nullValue
+        ) {
+            super(name, indexType, isStored, textSearchInfo, meta);
+            this.ignoreAbove = ignoreAbove;
+            this.usesBinaryDocValues = usesBinaryDocValues;
+            this.nullValue = nullValue;
+        }
+
+        protected Mapper.IgnoreAbove ignoreAbove() {
+            return ignoreAbove;
+        }
+
+        protected BlockSourceReader.LeafIteratorLookup sourceBlockLoaderLookup(
+            MappedFieldType.BlockLoaderContext blContext,
+            String fieldName
+        ) {
+            if (hasDocValues() && ignoreAbove().valuesPotentiallyIgnored() == false) {
+                if (usesBinaryDocValues) {
+                    return ctx -> Objects.requireNonNullElseGet(ctx.reader().getBinaryDocValues(fieldName), DocIdSetIterator::empty);
+                } else {
+                    return ctx -> Objects.requireNonNullElseGet(ctx.reader().getSortedSetDocValues(fieldName), DocIdSetIterator::empty);
+                }
+            }
+            if (hasDocValues() == false && indexType.hasTerms()) {
+                // We only write the field names field if there aren't doc values or norms
+                return BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), fieldName);
+            }
+            return BlockSourceReader.lookupMatchingAll();
+        }
+    }
+
     /**
      * A field type that represents the values under a particular JSON key, used
      * when searching under a specific key as in 'my_flattened.key: some_value'.
      */
-    public static final class KeyedFlattenedFieldType extends StringFieldType {
+    public static final class KeyedFlattenedFieldType extends BaseFlattenedFieldType {
         private final String key;
         private final String rootName;
         private final boolean isDimension;
-        private final boolean usesBinaryDocValues;
-        private final String nullValue;
 
         @Override
         public boolean isDimension() {
@@ -307,6 +349,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             boolean splitQueriesOnWhitespace,
             Map<String, String> meta,
             boolean isDimension,
+            IgnoreAbove ignoreAbove,
             boolean usesBinaryDocValues,
             String nullValue
         ) {
@@ -315,19 +358,21 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 indexType,
                 false,
                 splitQueriesOnWhitespace ? TextSearchInfo.WHITESPACE_MATCH_ONLY : TextSearchInfo.SIMPLE_MATCH_ONLY,
-                meta
+                meta,
+                ignoreAbove,
+                usesBinaryDocValues,
+                nullValue
             );
             this.key = key;
             this.rootName = rootName;
             this.isDimension = isDimension;
-            this.usesBinaryDocValues = usesBinaryDocValues;
-            this.nullValue = nullValue;
         }
 
         private KeyedFlattenedFieldType(
             String rootName,
             String key,
             RootFlattenedFieldType ref,
+            IgnoreAbove ignoreAbove,
             boolean usesBinaryDocValues,
             String nullValue
         ) {
@@ -338,6 +383,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 ref.splitQueriesOnWhitespace,
                 ref.meta(),
                 ref.dimensions.contains(key),
+                ignoreAbove,
                 usesBinaryDocValues,
                 nullValue
             );
@@ -510,8 +556,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 }
             };
 
-            var sourceBlockLoaderLookup = BlockSourceReader.lookupMatchingAll();
-            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup);
+            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext, rootName()));
         }
     }
 
@@ -816,14 +861,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
      * A field type that represents all 'root' values. This field type is used in
      * searches on the flattened field itself, e.g. 'my_flattened: some_value'.
      */
-    public static final class RootFlattenedFieldType extends StringFieldType implements DynamicFieldType {
+    public static final class RootFlattenedFieldType extends BaseFlattenedFieldType implements DynamicFieldType {
         private final boolean splitQueriesOnWhitespace;
         private final boolean eagerGlobalOrdinals;
         private final List<String> dimensions;
         private final boolean isDimension;
-        private final IgnoreAbove ignoreAbove;
-        private final boolean usesBinaryDocValues;
-        private final String nullValue;
         private final boolean isSyntheticSourceEnabled;
 
         RootFlattenedFieldType(
@@ -868,15 +910,15 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 indexType,
                 false,
                 splitQueriesOnWhitespace ? TextSearchInfo.WHITESPACE_MATCH_ONLY : TextSearchInfo.SIMPLE_MATCH_ONLY,
-                meta
+                meta,
+                ignoreAbove,
+                usesBinaryDocValues,
+                nullValue
             );
             this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
             this.eagerGlobalOrdinals = eagerGlobalOrdinals;
             this.dimensions = dimensions;
             this.isDimension = dimensions.isEmpty() == false;
-            this.ignoreAbove = ignoreAbove;
-            this.usesBinaryDocValues = usesBinaryDocValues;
-            this.nullValue = nullValue;
             this.isSyntheticSourceEnabled = isSyntheticSourceEnabled;
         }
 
@@ -907,22 +949,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 }
             };
 
-            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext));
-        }
-
-        private BlockSourceReader.LeafIteratorLookup sourceBlockLoaderLookup(BlockLoaderContext blContext) {
-            if (hasDocValues() && ignoreAbove().valuesPotentiallyIgnored() == false) {
-                if (usesBinaryDocValues) {
-                    return ctx -> Objects.requireNonNullElseGet(ctx.reader().getBinaryDocValues(name()), DocIdSetIterator::empty);
-                } else {
-                    return ctx -> Objects.requireNonNullElseGet(ctx.reader().getSortedSetDocValues(name()), DocIdSetIterator::empty);
-                }
-            }
-            if (hasDocValues() == false && indexType.hasTerms()) {
-                // We only write the field names field if there aren't doc values or norms
-                return BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name());
-            }
-            return BlockSourceReader.lookupMatchingAll();
+            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext, name()));
         }
 
         @Override
@@ -1028,7 +1055,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         @Override
         public MappedFieldType getChildFieldType(String childPath) {
-            return new KeyedFlattenedFieldType(name(), childPath, this, usesBinaryDocValues, nullValue);
+            return new KeyedFlattenedFieldType(name(), childPath, this, ignoreAbove, usesBinaryDocValues, nullValue);
         }
 
         public MappedFieldType getKeyedFieldType() {

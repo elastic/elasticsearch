@@ -20,8 +20,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.IndexType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -42,8 +44,20 @@ import static org.mockito.Mockito.when;
 
 public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
 
+    private static final Mapper.IgnoreAbove IGNORE_ABOVE = new Mapper.IgnoreAbove(null, IndexMode.STANDARD);
+
     private static KeyedFlattenedFieldType createFieldType() {
-        return new KeyedFlattenedFieldType("field", IndexType.terms(true, true), "key", false, Collections.emptyMap(), false, true, null);
+        return new KeyedFlattenedFieldType(
+            "field",
+            IndexType.terms(true, true),
+            "key",
+            false,
+            Collections.emptyMap(),
+            false,
+            IGNORE_ABOVE,
+            true,
+            null
+        );
     }
 
     public void testIndexedValueForSearch() {
@@ -75,6 +89,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
             false,
             Collections.emptyMap(),
             false,
+            IGNORE_ABOVE,
             true,
             null
         );

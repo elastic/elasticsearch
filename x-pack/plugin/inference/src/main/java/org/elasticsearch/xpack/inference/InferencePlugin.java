@@ -104,6 +104,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettings;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.features.InferenceFeatureService;
 import org.elasticsearch.xpack.inference.highlight.SemanticTextHighlighter;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
@@ -485,6 +486,7 @@ public class InferencePlugin extends Plugin
             ccmService
         );
 
+        var inferenceFeatureService = new InferenceFeatureService(services.clusterService(), services.featureService());
         var authTaskExecutor = AuthorizationTaskExecutor.create(
             services.clusterService(),
             services.featureService(),
@@ -498,7 +500,8 @@ public class InferencePlugin extends Plugin
                 modelRegistry,
                 services.client(),
                 ccmFeature,
-                ccmService
+                ccmService,
+                inferenceFeatureService
             )
         );
         authorizationTaskExecutorRef.set(authTaskExecutor);

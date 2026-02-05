@@ -21,6 +21,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsAction;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.features.InferenceFeatureService;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
@@ -58,11 +59,23 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class AuthorizationPollerTests extends ESTestCase {
+    private static final AuthorizationPoller.TaskFields TASK_FIELDS = new AuthorizationPoller.TaskFields(
+        0,
+        "abc",
+        "abc",
+        "abc",
+        new TaskId("abc", 0),
+        Map.of()
+    );
+
     private DeterministicTaskQueue taskQueue;
+    private InferenceFeatureService inferenceFeatureServiceMock;
 
     @Before
     public void init() throws Exception {
         taskQueue = new DeterministicTaskQueue();
+        inferenceFeatureServiceMock = mock(InferenceFeatureService.class);
+        when(inferenceFeatureServiceMock.hasEndpointMetadataFeature()).thenReturn(true);
     }
 
     public void testDoesNotSendAuthorizationRequest_WhenModelRegistryIsNotReady() {
@@ -81,7 +94,8 @@ public class AuthorizationPollerTests extends ESTestCase {
             mock(Client.class),
             createMockCCMFeature(false),
             createMockCCMService(false),
-            null
+            null,
+            inferenceFeatureServiceMock
         );
 
         var persistentTaskId = "id";
@@ -110,7 +124,7 @@ public class AuthorizationPollerTests extends ESTestCase {
         var authorizationRequestHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
 
         var poller = new AuthorizationPoller(
-            new AuthorizationPoller.TaskFields(0, "abc", "abc", "abc", new TaskId("abc", 0), Map.of()),
+            TASK_FIELDS,
             createWithEmptySettings(taskQueue.getThreadPool()),
             authorizationRequestHandler,
             mock(Sender.class),
@@ -119,7 +133,8 @@ public class AuthorizationPollerTests extends ESTestCase {
             mock(Client.class),
             createMockCCMFeature(true),
             createMockCCMService(false),
-            null
+            null,
+            inferenceFeatureServiceMock
         );
 
         var persistentTaskId = "id";
@@ -132,6 +147,48 @@ public class AuthorizationPollerTests extends ESTestCase {
 
         verify(authorizationRequestHandler, never()).getAuthorization(any(), any());
         verify(mockPersistentTasksService, times(1)).sendCompletionRequest(
+            eq(persistentTaskId),
+            eq(allocationId),
+            isNull(),
+            isNull(),
+            any(),
+            any()
+        );
+    }
+
+    public void testDoesNotSendAuthorizationRequest_WhenClusterDoesNotIncludeMetadata_MappingUpdate() {
+        var mockRegistry = mock(ModelRegistry.class);
+        when(mockRegistry.isReady()).thenReturn(true);
+
+        var inferenceFeatureService = mock(InferenceFeatureService.class);
+        when(inferenceFeatureService.hasEndpointMetadataFeature()).thenReturn(false);
+
+        var authorizationRequestHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
+
+        var poller = new AuthorizationPoller(
+            TASK_FIELDS,
+            createWithEmptySettings(taskQueue.getThreadPool()),
+            authorizationRequestHandler,
+            mock(Sender.class),
+            ElasticInferenceServiceSettingsTests.create("", TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
+            mockRegistry,
+            mock(Client.class),
+            createMockCCMFeature(true),
+            createMockCCMService(true),
+            null,
+            inferenceFeatureService
+        );
+
+        var persistentTaskId = "id";
+        var allocationId = 0L;
+
+        var mockPersistentTasksService = mock(PersistentTasksService.class);
+        poller.init(mockPersistentTasksService, mock(TaskManager.class), persistentTaskId, allocationId);
+
+        poller.sendAuthorizationRequest();
+
+        verify(authorizationRequestHandler, never()).getAuthorization(any(), any());
+        verify(mockPersistentTasksService, never()).sendCompletionRequest(
             eq(persistentTaskId),
             eq(allocationId),
             isNull(),
@@ -157,7 +214,8 @@ public class AuthorizationPollerTests extends ESTestCase {
             mock(Client.class),
             createMockCCMFeature(true),
             createMockCCMService(false),
-            null
+            null,
+            inferenceFeatureServiceMock
         );
 
         var persistentTaskId = "id";
@@ -212,7 +270,8 @@ public class AuthorizationPollerTests extends ESTestCase {
             mockClient,
             createMockCCMFeature(true),
             createMockCCMService(true),
-            null
+            null,
+            inferenceFeatureServiceMock
         );
 
         var persistentTaskId = "id";
@@ -312,7 +371,8 @@ public class AuthorizationPollerTests extends ESTestCase {
             // CCM is not configurable so we should send the request because it doesn't depend on an api key
             createMockCCMFeature(false),
             createMockCCMService(false),
-            null
+            null,
+            inferenceFeatureServiceMock
         );
 
         var persistentTaskId = "id";
@@ -395,7 +455,8 @@ public class AuthorizationPollerTests extends ESTestCase {
             mockClient,
             createMockCCMFeature(true),
             createMockCCMService(true),
-            null
+            null,
+            inferenceFeatureServiceMock
         );
 
         poller.sendAuthorizationRequest();
@@ -435,7 +496,8 @@ public class AuthorizationPollerTests extends ESTestCase {
             mockClient,
             createMockCCMFeature(true),
             createMockCCMService(true),
-            null
+            null,
+            inferenceFeatureServiceMock
         );
 
         poller.sendAuthorizationRequest();
@@ -493,7 +555,8 @@ public class AuthorizationPollerTests extends ESTestCase {
             mockClient,
             createMockCCMFeature(true),
             createMockCCMService(true),
-            callback
+            callback,
+            inferenceFeatureServiceMock
         );
         pollerRef.set(poller);
         poller.start();
@@ -552,7 +615,8 @@ public class AuthorizationPollerTests extends ESTestCase {
             mockClient,
             createMockCCMFeature(true),
             createMockCCMService(true),
-            callback
+            callback,
+            inferenceFeatureServiceMock
         );
 
         var persistentTaskId = "id";

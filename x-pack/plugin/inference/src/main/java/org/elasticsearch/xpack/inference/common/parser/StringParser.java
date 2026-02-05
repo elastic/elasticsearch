@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.common.parser;
 
+import org.elasticsearch.common.Strings;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -29,7 +31,7 @@ public class StringParser {
                 result.add(str);
             } else {
                 throw new IllegalArgumentException(
-                    String.format(
+                    Strings.format(
                         "Expected all items in list for field [%s] to be of type String but item [%s] at index [%d] is of type [%s]",
                         pathToKey(root, key),
                         item,

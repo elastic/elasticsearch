@@ -11,10 +11,13 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.EndpointMetadata;
 import org.elasticsearch.inference.EndpointMetadataTests;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.StatusHeuristic;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContent;
@@ -34,6 +37,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension.TestServiceSettings.HIDDEN_FIELD_KEY;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCase<ModelConfigurations> {
@@ -198,6 +202,54 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
         String json = Strings.toString(builder);
 
         assertThat(json, not(containsString(EndpointMetadata.METADATA)));
+    }
+
+    public void testToXContentIncludesNonEmptyEndpointMetadata() throws IOException {
+        ModelConfigurations modelConfigurations = new ModelConfigurations(
+            "test_entity_id",
+            TaskType.SPARSE_EMBEDDING,
+            TestSparseInferenceServiceExtension.TestInferenceService.NAME,
+            new TestSparseInferenceServiceExtension.TestServiceSettings("model", "hidden_value", false),
+            EmptyTaskSettings.INSTANCE,
+            null,
+            new EndpointMetadata(
+                new EndpointMetadata.Heuristics(List.of("heuristic1", "heuristic2"), StatusHeuristic.BETA, "2025-01-01", "2025-12-31"),
+                new EndpointMetadata.Internal("fingerprint", 1L),
+                new EndpointMetadata.Display("name")
+            )
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        modelConfigurations.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        String json = Strings.toString(builder);
+
+        assertThat(json, is(XContentHelper.stripWhitespace("""
+            {
+              "inference_id": "test_entity_id",
+              "task_type": "sparse_embedding",
+              "service": "test_service",
+              "service_settings": {
+                "model": "model",
+                "hidden_field": "hidden_value",
+                "should_return_hidden_field": false
+              },
+              "metadata": {
+                "heuristics": {
+                  "properties": ["heuristic1", "heuristic2"],
+                  "status": "beta",
+                  "release_date": "2025-01-01",
+                  "end_of_life_date": "2025-12-31"
+                },
+                "internal": {
+                  "fingerprint": "fingerprint",
+                  "version": 1
+                },
+                "display": {
+                  "name": "name"
+                }
+              }
+            }
+            """)));
     }
 
     public void testToXContentIncludesHiddenFieldsInServiceSettings() throws IOException {

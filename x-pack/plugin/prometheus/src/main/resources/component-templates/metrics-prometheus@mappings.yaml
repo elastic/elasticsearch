@@ -1,0 +1,33 @@
+---
+version: ${xpack.prometheus.template.version}
+_meta:
+  description: Default mappings for Prometheus metrics index template installed by x-pack
+  managed: true
+template:
+  settings:
+    index.mapping.total_fields.limit: 10000
+  mappings:
+    date_detection: false
+    properties:
+      "@timestamp":
+        type: date
+      data_stream.type:
+        type: constant_keyword
+        value: metrics
+      data_stream.dataset:
+        type: constant_keyword
+      data_stream.namespace:
+        type: constant_keyword
+      labels:
+        type: passthrough
+        priority: 10
+        time_series_dimension: true
+    dynamic_templates:
+      - counter:
+          mapping:
+            type: double
+            time_series_metric: counter
+      - gauge:
+          mapping:
+            type: double
+            time_series_metric: gauge

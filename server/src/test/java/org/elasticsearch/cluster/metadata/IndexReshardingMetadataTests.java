@@ -17,7 +17,7 @@ public class IndexReshardingMetadataTests extends ESTestCase {
         final var numShards = randomIntBetween(1, 10);
         final var multiple = randomIntBetween(2, 5);
 
-        final var metadata = IndexReshardingMetadata.newSplitByMultiple(numShards, multiple);
+        final var metadata = IndexReshardingMetadata.newSplitByMultiple(0L, numShards, multiple);
         var split = metadata.getSplit();
 
         // starting state is as expected

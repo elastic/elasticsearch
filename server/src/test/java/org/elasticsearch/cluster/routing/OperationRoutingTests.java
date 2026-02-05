@@ -501,7 +501,7 @@ public class OperationRoutingTests extends ESTestCase {
             .settings(indexSettings(IndexVersion.current(), newShardCount, 1))
             .numberOfShards(newShardCount)
             .numberOfReplicas(1)
-            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(shardCount, 2))
+            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(0L, shardCount, 2))
             .build();
 
         ClusterState.Builder initialStateBuilder = ClusterState.builder(new ClusterName("test"));

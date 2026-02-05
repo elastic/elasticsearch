@@ -175,7 +175,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
         state = addOpenedIndex(projectId, indexName, randomIntBetween(1, 5), randomIntBetween(0, 5), state);
 
         var updatedMetadata = IndexMetadata.builder(state.metadata().getProject(projectId).index(indexName))
-            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(randomIntBetween(1, 5), 2))
+            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(0L, randomIntBetween(1, 5), 2))
             .build();
         state = ClusterState.builder(state)
             .putProjectMetadata(ProjectMetadata.builder(state.metadata().getProject(projectId)).put(updatedMetadata, true))

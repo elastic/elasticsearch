@@ -798,7 +798,7 @@ public class IndexMetadataTests extends ESTestCase {
     public void testReshardingBWCSerialization() throws IOException {
         final int numShards = randomIntBetween(1, 8);
         final var settings = indexSettings(IndexVersion.current(), numShards, 0);
-        final var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(numShards, randomIntBetween(2, 5));
+        final var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(0L, numShards, randomIntBetween(2, 5));
         IndexMetadata idx = IndexMetadata.builder("test").settings(settings).reshardingMetadata(reshardingMetadata).build();
 
         // the version prior to TransportVersions.INDEX_RESHARDING_METADATA
@@ -923,6 +923,6 @@ public class IndexMetadataTests extends ESTestCase {
     }
 
     private IndexReshardingMetadata randomIndexReshardingMetadata(int oldShards) {
-        return IndexReshardingMetadata.newSplitByMultiple(oldShards, randomIntBetween(2, 5));
+        return IndexReshardingMetadata.newSplitByMultiple(randomNonNegativeLong(), oldShards, randomIntBetween(2, 5));
     }
 }

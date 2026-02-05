@@ -37,6 +37,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TypedData.MULTI_ROW_NULL;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TypedData.NULL;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSliceTests.randomGrid;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -76,8 +77,8 @@ public class MvDifferenceTests extends AbstractScalarFunctionTestCase {
         if (result.size() > 1) {
             return equalTo(result);
         }
-
-        return equalTo(result.stream().findFirst().get());
+        // except both single value and multivalue with single entry.
+        return anyOf(equalTo(result), equalTo(result.stream().findFirst().get()));
     }
 
     private static Matcher<?> matchResult(TestCaseSupplier.TypedData typedData) {

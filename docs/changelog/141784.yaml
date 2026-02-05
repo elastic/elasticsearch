@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 138778
+pr: 141784
+summary: Update constant-value fields to support normalized wildcard queries
+type: bug

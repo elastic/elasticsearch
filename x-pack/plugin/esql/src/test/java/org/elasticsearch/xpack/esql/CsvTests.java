@@ -351,6 +351,10 @@ public class CsvTests extends ESTestCase {
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.SOURCE_FIELD_MAPPING.capabilityName())
             );
             assumeFalseLogging(
+                "CSV tests cannot currently handle field aliases in mappings",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.FIELD_ALIAS_SUPPORT.capabilityName())
+            );
+            assumeFalseLogging(
                 "CSV tests cannot currently handle scoring that depends on Lucene",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METADATA_SCORE.capabilityName())
             );

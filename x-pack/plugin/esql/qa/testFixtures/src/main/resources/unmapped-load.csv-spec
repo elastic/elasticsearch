@@ -729,3 +729,22 @@ count(*):long | message::INT:integer
 13            | null
 1             | 42
 ;
+
+fieldAliasAndNonExistent
+required_capability: unmapped_fields
+required_capability: optional_fields
+required_capability: field_alias_support
+
+SET unmapped_fields="load"\;
+FROM all_types
+| KEEP integer, alias_integer, does_not_exist
+| SORT integer
+;
+
+integer:integer | alias_integer:integer | does_not_exist:keyword
+1               | 1                     | null
+2               | 2                     | null
+3               | 3                     | null
+4               | 4                     | null
+5               | 5                     | null
+;

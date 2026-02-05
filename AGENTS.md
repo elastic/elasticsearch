@@ -22,7 +22,7 @@ The repository is organized into several key directories:
 *   `qa`: Integration and multi-version tests.
 *   `docs`: Project documentation.
 *   `distribution`: Logic for building distribution packages.
-*   `x-pack`: Additional code modules and plugins under Elastic License.  
+*   `x-pack`: Additional code modules and plugins under Elastic License.
 *   `build-conventions`, `build-tools`, `build-tools-internal`: Gradle build logic.
 
 ## Testing Cheatsheet
@@ -94,5 +94,6 @@ The repository is organized into several key directories:
 - Prefer Gradle tasks over ad-hoc scripts.
 - When scripting CLI sequences, leverage `gradlew` task.
 - Unrecognized changes: assume other agent; keep going; focus your changes. If it causes issues, stop + ask user.
+- Do not add "Co-Authored-By" lines to commit messages. commit messages should adhere to the 50/72 rule: use a maximum of 50 columns for the commit summary
 
 Stay aligned with `CONTRIBUTING.md`, `BUILDING.md`, and `TESTING.asciidoc`; this AGENTS guide summarizes—but does not replace—those authoritative docs.

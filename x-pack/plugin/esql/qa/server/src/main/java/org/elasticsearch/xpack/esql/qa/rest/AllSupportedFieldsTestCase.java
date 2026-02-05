@@ -104,7 +104,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 }
                 return false;
             }
-        }).build();
+        })
+        .build();
 
     @Rule(order = Integer.MIN_VALUE)
     public ProfileLogger profileLogger = new ProfileLogger();

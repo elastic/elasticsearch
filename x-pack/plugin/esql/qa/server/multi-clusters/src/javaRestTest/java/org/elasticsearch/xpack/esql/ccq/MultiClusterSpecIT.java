@@ -106,7 +106,8 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                 }
                 return false;
             }
-        }).build();
+        })
+        .build();
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {

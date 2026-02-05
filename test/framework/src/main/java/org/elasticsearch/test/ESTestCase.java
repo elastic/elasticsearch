@@ -267,6 +267,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     private static final AtomicInteger portGenerator = new AtomicInteger();
 
     private static final Collection<String> loggedLeaks = new ArrayList<>();
+    private static Level originalRootLoggerLevel;
 
     private HeaderWarningAppender headerWarningAppender;
 
@@ -546,6 +547,16 @@ public abstract class ESTestCase extends LuceneTestCase {
     @BeforeClass
     public static void setContentType() throws Exception {
         Requests.INDEX_CONTENT_TYPE = randomFrom(XContentType.values());
+    }
+
+    @BeforeClass
+    public static void storeRootLoggerLevel() throws Exception {
+        originalRootLoggerLevel = LogManager.getRootLogger().getLevel();
+    }
+
+    @AfterClass
+    public static void resetRootLogger() {
+        Loggers.setLevel(LogManager.getRootLogger(), originalRootLoggerLevel);
     }
 
     @AfterClass

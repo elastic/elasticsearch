@@ -30,8 +30,6 @@ import org.objectweb.asm.RecordComponentVisitor;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.util.CheckClassAdapter;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.Map;
@@ -46,46 +44,21 @@ import static org.objectweb.asm.Opcodes.INVOKESTATIC;
 public final class InstrumenterImpl implements Instrumenter {
     private static final Logger logger = LogManager.getLogger(InstrumenterImpl.class);
 
-    private final String getCheckerClassMethodDescriptor;
+    private final String registryClassMethodDescriptor;
     private final String handleClass;
-
-    /**
-     * To avoid class name collisions during testing without an agent to replace classes in-place.
-     */
-    private final String classNameSuffix;
     private final Map<MethodKey, InstrumentationInfo> checkMethods;
 
-    InstrumenterImpl(
-        String handleClass,
-        String getCheckerClassMethodDescriptor,
-        String classNameSuffix,
-        Map<MethodKey, InstrumentationInfo> checkMethods
-    ) {
+    InstrumenterImpl(String handleClass, String registryClassMethodDescriptor, Map<MethodKey, InstrumentationInfo> checkMethods) {
         this.handleClass = handleClass;
-        this.getCheckerClassMethodDescriptor = getCheckerClassMethodDescriptor;
-        this.classNameSuffix = classNameSuffix;
+        this.registryClassMethodDescriptor = registryClassMethodDescriptor;
         this.checkMethods = checkMethods;
     }
 
-    public static InstrumenterImpl create(Class<?> checkerClass, Map<MethodKey, InstrumentationInfo> checkMethods) {
-
-        Type checkerClassType = Type.getType(checkerClass);
-        String handleClass = checkerClassType.getInternalName() + "Handle";
-        String getCheckerClassMethodDescriptor = Type.getMethodDescriptor(checkerClassType);
-        return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, "", checkMethods);
-    }
-
-    static ClassFileInfo getClassFileInfo(Class<?> clazz) throws IOException {
-        String internalName = Type.getInternalName(clazz);
-        String fileName = "/" + internalName + ".class";
-        byte[] originalBytecodes;
-        try (InputStream classStream = clazz.getResourceAsStream(fileName)) {
-            if (classStream == null) {
-                throw new IllegalStateException("Classfile not found in jar: " + fileName);
-            }
-            originalBytecodes = classStream.readAllBytes();
-        }
-        return new ClassFileInfo(fileName, originalBytecodes);
+    public static InstrumenterImpl create(Class<?> registryClass, Map<MethodKey, InstrumentationInfo> checkMethods) {
+        Type registryClassType = Type.getType(registryClass);
+        String handleClass = registryClassType.getInternalName() + "Handle";
+        String getCheckerClassMethodDescriptor = Type.getMethodDescriptor(registryClassType);
+        return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, checkMethods);
     }
 
     private enum VerificationPhase {
@@ -154,7 +127,7 @@ public final class InstrumenterImpl implements Instrumenter {
 
         @Override
         public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
-            super.visit(version, access, name + classNameSuffix, signature, superName, interfaces);
+            super.visit(version, access, name, signature, superName, interfaces);
         }
 
         @Override
@@ -306,24 +279,36 @@ public final class InstrumenterImpl implements Instrumenter {
             return super.visitAnnotation(descriptor, visible);
         }
 
+        @SuppressWarnings("rawtypes")
         @Override
         public void visitCode() {
             pushEntitlementChecker();
             pushInstrumentationId();
             pushCallerClass();
             pushArguments();
-            if (strategy instanceof DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy) {
-                catchNotEntitled();
-            } else if (strategy instanceof DeniedEntitlementStrategy.NoopDeniedEntitlementStrategy) {
-                catchNotEntitledAndReturnEarly();
-            } else {
-                invokeInstrumentationMethod();
+            switch (strategy) {
+                case DeniedEntitlementStrategy.NoopDeniedEntitlementStrategy noop -> {
+                    // For noop strategy we want to catch not entitled and return early
+                    catchNotEntitledAndReturnEarly();
+                }
+                case DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy defaultValue -> {
+                    // For default value strategy we want to catch not entitled and return the default value
+                    catchNotEntitledAndReturnValue(defaultValue.getDefaultValue());
+                }
+                case DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy notEntitled -> {
+                    // For not entitled strategy we just want to let the not entitled exception propagate
+                    invokeInstrumentationMethod();
+                }
+                case DeniedEntitlementStrategy.ExceptionDeniedEntitlementStrategy exception -> {
+                    // Custom exception strategy is handled by invoking the instrumentation method
+                    invokeInstrumentationMethod();
+                }
             }
             super.visitCode();
         }
 
         private void pushEntitlementChecker() {
-            mv.visitMethodInsn(INVOKESTATIC, handleClass, "instance", getCheckerClassMethodDescriptor, false);
+            mv.visitMethodInsn(INVOKESTATIC, handleClass, "instance", registryClassMethodDescriptor, false);
         }
 
         private void pushInstrumentationId() {
@@ -431,21 +416,15 @@ public final class InstrumenterImpl implements Instrumenter {
         private void invokeInstrumentationMethod() {
             mv.visitMethodInsn(
                 INVOKEINTERFACE,
-                Type.getReturnType(getCheckerClassMethodDescriptor).getInternalName(),
+                Type.getReturnType(registryClassMethodDescriptor).getInternalName(),
                 "check$",
                 "(Ljava/lang/String;Ljava/lang/Class;[Ljava/lang/Object;)V",
                 true
             );
         }
 
-        private void catchNotEntitled() {
-            wrapInstrumentationInTryCatch(() -> {
-                if (strategy instanceof DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy<?> dve) {
-                    returnConstantValue(dve.getDefaultValue());
-                } else {
-                    throw new IllegalStateException("unexpected entitlement handler type [" + strategy.getClass() + "]");
-                }
-            });
+        private void catchNotEntitledAndReturnValue(Object defaultValue) {
+            wrapInstrumentationInTryCatch(() -> { returnConstantValue(defaultValue); });
         }
 
         private void catchNotEntitledAndReturnEarly() {
@@ -498,6 +477,4 @@ public final class InstrumenterImpl implements Instrumenter {
             }
         }
     }
-
-    record ClassFileInfo(String fileName, byte[] bytecodes) {}
 }

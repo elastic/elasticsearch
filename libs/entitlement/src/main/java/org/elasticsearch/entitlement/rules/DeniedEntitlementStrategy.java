@@ -13,7 +13,7 @@ import org.elasticsearch.entitlement.bridge.NotEntitledException;
 
 import java.util.function.Function;
 
-public sealed class DeniedEntitlementStrategy permits DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy,
+public abstract sealed class DeniedEntitlementStrategy permits DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy,
     DeniedEntitlementStrategy.ExceptionDeniedEntitlementStrategy, DeniedEntitlementStrategy.NoopDeniedEntitlementStrategy,
     DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy {
 

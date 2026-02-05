@@ -13,7 +13,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.entitlement.bridge.InstrumentationRegistry;
 import org.elasticsearch.entitlement.bridge.NotEntitledException;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
-import org.elasticsearch.entitlement.instrumentation.impl.InstrumenterImpl.ClassFileInfo;
 import org.elasticsearch.entitlement.rules.EntitlementRulesBuilder;
 import org.elasticsearch.entitlement.rules.function.Call0;
 import org.elasticsearch.entitlement.rules.function.CheckMethod;
@@ -27,6 +26,7 @@ import org.junit.Before;
 import org.objectweb.asm.Type;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.InvocationTargetException;
@@ -35,7 +35,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.entitlement.instrumentation.impl.ASMUtils.bytecode2text;
-import static org.elasticsearch.entitlement.instrumentation.impl.InstrumenterImpl.getClassFileInfo;
 
 /**
  * This tests {@link InstrumenterImpl} can instrument various method signatures
@@ -306,7 +305,6 @@ public class InstrumenterTests extends ESTestCase {
         InstrumenterImpl instrumenter = new InstrumenterImpl(
             Type.getType(InstrumenterTests.class).getInternalName(),
             Type.getMethodDescriptor(Type.getType(InstrumentationRegistry.class)),
-            "",
             registry.getInstrumentedMethods()
         );
 
@@ -315,12 +313,24 @@ public class InstrumenterTests extends ESTestCase {
 
     private static TestLoader instrumentTestClass(InstrumenterImpl instrumenter) throws IOException {
         var clazz = TestClassToInstrument.class;
-        ClassFileInfo initial = getClassFileInfo(clazz);
-        byte[] newBytecode = instrumenter.instrumentClass(Type.getInternalName(clazz), initial.bytecodes(), true);
+        byte[] newBytecode = instrumenter.instrumentClass(Type.getInternalName(clazz), getClassBytecode(clazz), true);
         if (logger.isTraceEnabled()) {
             logger.trace("Bytecode after instrumentation:\n{}", bytecode2text(newBytecode));
         }
         return new TestLoader(clazz.getName(), newBytecode, instrumenter);
+    }
+
+    private static byte[] getClassBytecode(Class<?> clazz) throws IOException {
+        String internalName = Type.getInternalName(clazz);
+        String fileName = "/" + internalName + ".class";
+        byte[] originalBytecodes;
+        try (InputStream classStream = clazz.getResourceAsStream(fileName)) {
+            if (classStream == null) {
+                throw new IllegalStateException("Classfile not found in jar: " + fileName);
+            }
+            originalBytecodes = classStream.readAllBytes();
+        }
+        return originalBytecodes;
     }
 
     private static class TestLoader extends ClassLoader {

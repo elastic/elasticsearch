@@ -21,6 +21,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.InnerHitsRewriteContext;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -36,10 +37,14 @@ import org.elasticsearch.test.AbstractBuilderTestCase;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -324,6 +329,115 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         assertThat(e.getMessage(), containsString("[knn] queries are only supported on [dense_vector] fields"));
     }
 
+    public void testQueryVectorBase64RewritesToFloatVector() throws Exception {
+        String encoded;
+        float[] expectedVector;
+
+        if (elementType() == DenseVectorFieldMapper.ElementType.BYTE) {
+            // For byte vectors, encode as bytes
+            byte[] byteVector = randomByteVector(vectorDimensions);
+            encoded = encodeToBase64(byteVector);
+            // Convert to float for comparison (keep as signed byte values)
+            expectedVector = new float[byteVector.length];
+            for (int i = 0; i < byteVector.length; i++) {
+                expectedVector[i] = byteVector[i];
+            }
+        } else {
+            // For float vectors, encode as floats
+            expectedVector = randomVector(vectorDimensions);
+            encoded = encodeToBase64(expectedVector);
+        }
+
+        int k = randomIntBetween(1, Math.max(1, vectorDimensions));
+        int numCands = randomIntBetween(k, Math.max(k, vectorDimensions + 10));
+
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject(KnnVectorQueryBuilder.NAME)
+            .field(KnnVectorQueryBuilder.FIELD_FIELD.getPreferredName(), VECTOR_FIELD)
+            .field(KnnVectorQueryBuilder.QUERY_VECTOR_FIELD.getPreferredName(), encoded)
+            .field(KnnVectorQueryBuilder.K_FIELD.getPreferredName(), k)
+            .field(KnnVectorQueryBuilder.NUM_CANDS_FIELD.getPreferredName(), numCands)
+            .endObject()
+            .endObject();
+
+        try (XContentParser parser = createParser(builder)) {
+            SearchExecutionContext context = createSearchExecutionContext();
+            KnnVectorQueryBuilder parsed = (KnnVectorQueryBuilder) parseQuery(parser);
+            KnnVectorQueryBuilder rewritten = (KnnVectorQueryBuilder) parsed.rewrite(context);
+
+            DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) context.getFieldType(VECTOR_FIELD);
+            VectorData resolved = vectorFieldType.resolveQueryVector(rewritten.queryVector());
+            assertArrayEquals(expectedVector, resolved.asFloatVector(), 0f);
+            assertNull("base64 should be resolved without a query_vector_builder", rewritten.queryVectorBuilder());
+        }
+    }
+
+    public void testQueryVectorBase64InvalidEncoding() throws Exception {
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject(KnnVectorQueryBuilder.NAME)
+            .field(KnnVectorQueryBuilder.FIELD_FIELD.getPreferredName(), VECTOR_FIELD)
+            .field(KnnVectorQueryBuilder.QUERY_VECTOR_FIELD.getPreferredName(), "not-base64###")
+            .field(KnnVectorQueryBuilder.K_FIELD.getPreferredName(), 3)
+            .field(KnnVectorQueryBuilder.NUM_CANDS_FIELD.getPreferredName(), 5)
+            .endObject()
+            .endObject();
+
+        try (XContentParser parser = createParser(builder)) {
+            SearchExecutionContext context = createSearchExecutionContext();
+            KnnVectorQueryBuilder parsed = (KnnVectorQueryBuilder) parseQuery(parser);
+            DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) context.getFieldType(VECTOR_FIELD);
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> vectorFieldType.resolveQueryVector(parsed.queryVector())
+            );
+            assertThat(e.getMessage(), containsString("query_vector"));
+            assertThat(e.getMessage(), containsString("base64"));
+        }
+    }
+
+    public void testQueryVectorBase64WrongDimensions() throws Exception {
+        String encoded;
+        if (elementType() == DenseVectorFieldMapper.ElementType.BYTE) {
+            // For byte vectors, encode as bytes with wrong dimensions
+            byte[] vector = randomByteVector(vectorDimensions + 1);
+            encoded = encodeToBase64(vector);
+        } else {
+            // For float vectors, encode as floats with wrong dimensions
+            float[] vector = randomVector(vectorDimensions + 1);
+            encoded = encodeToBase64(vector);
+        }
+
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject(KnnVectorQueryBuilder.NAME)
+            .field(KnnVectorQueryBuilder.FIELD_FIELD.getPreferredName(), VECTOR_FIELD)
+            .field(KnnVectorQueryBuilder.QUERY_VECTOR_FIELD.getPreferredName(), encoded)
+            .field(KnnVectorQueryBuilder.K_FIELD.getPreferredName(), 3)
+            .field(KnnVectorQueryBuilder.NUM_CANDS_FIELD.getPreferredName(), 5)
+            .endObject()
+            .endObject();
+
+        try (XContentParser parser = createParser(builder)) {
+            SearchExecutionContext context = createSearchExecutionContext();
+            KnnVectorQueryBuilder parsed = (KnnVectorQueryBuilder) parseQuery(parser);
+            DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) context.getFieldType(VECTOR_FIELD);
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> vectorFieldType.resolveQueryVector(parsed.queryVector())
+            );
+            assertThat(
+                e.getMessage(),
+                anyOf(
+                    containsString("different number of dimensions"),
+                    containsString("Base64-encoded byte vector"),
+                    containsString("Base64-encoded float vector")
+                )
+            );
+        }
+    }
+
     public void testNumCandsLessThanK() {
         int k = 5;
         int numCands = 3;
@@ -511,5 +625,31 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         List<QueryBuilder> newFilters = randomList(5, () -> RandomQueryBuilder.createQuery(random()));
         knnQueryBuilder.setFilterQueries(newFilters);
         assertThat(knnQueryBuilder.filterQueries(), equalTo(newFilters));
+    }
+
+    protected String encodeToBase64(float[] vector) {
+        ByteBuffer buffer = ByteBuffer.allocate(Float.BYTES * vector.length).order(ByteOrder.BIG_ENDIAN);
+        buffer.asFloatBuffer().put(vector);
+        return Base64.getEncoder().encodeToString(buffer.array());
+    }
+
+    protected String encodeToBase64(byte[] vector) {
+        return Base64.getEncoder().encodeToString(vector);
+    }
+
+    private float[] randomVector(int dims) {
+        float[] vector = new float[dims];
+        for (int i = 0; i < dims; i++) {
+            vector[i] = randomFloat();
+        }
+        return vector;
+    }
+
+    private byte[] randomByteVector(int dims) {
+        byte[] vector = new byte[dims];
+        for (int i = 0; i < dims; i++) {
+            vector[i] = randomByte();
+        }
+        return vector;
     }
 }

@@ -58,6 +58,46 @@ setup:
   - match: {hits.hits.1.fields.name.0: "rabbit.jpg"}
 
 ---
+"kNN retriever with base64 query_vector":
+  - requires:
+      reason: "base64 query_vector capability required"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ knn_query_vector_base64 ]
+  - do:
+      search:
+        index: index1
+        body:
+          fields: [ "name" ]
+          retriever:
+            knn:
+              field: vector
+              query_vector: [2, 2, 2, 2, 3]
+              k: 2
+              num_candidates: 3
+
+  - set: { hits.hits.0._id: array_result_1 }
+  - set: { hits.hits.1._id: array_result_2 }
+
+  # [2, 2, 2, 2, 3] is encoded as float32 big-endian bytes in base64 as 'QAAAAEAAAABAAAAAQAAAAEBAAAA='
+  - do:
+      search:
+        index: index1
+        body:
+          fields: [ "name" ]
+          retriever:
+            knn:
+              field: vector
+              query_vector: "QAAAAEAAAABAAAAAQAAAAEBAAAA="
+              k: 2
+              num_candidates: 3
+
+  - match: { hits.hits.0._id: $array_result_1 }
+  - match: { hits.hits.1._id: $array_result_2 }
+
+---
 "kNN retrieve with visit_percentage":
   - requires:
       cluster_features: "mapper.bbq_disk_support"

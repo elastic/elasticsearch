@@ -3744,16 +3744,18 @@ public class AnalyzerTests extends ESTestCase {
             from test
             | fuse
             """));
-        assertThat(e.getMessage(), containsString("Unknown column [_score]"));
-        assertThat(e.getMessage(), containsString("Unknown column [_fork]"));
+        assertThat(e.getMessage(), containsString("FUSE requires a score column, default [_score] column not found."));
+        assertThat(e.getMessage(), containsString("FUSE requires a column to group by, default [_fork] column not found."));
+        assertThat(e.getMessage(), containsString("FUSE requires a key column, default [_index] column not found"));
+        assertThat(e.getMessage(), containsString("FUSE requires a key column, default [_id] column not found"));
 
         e = expectThrows(VerificationException.class, () -> analyze("""
-            from test
+            from test metadata _id, _index
             | FORK ( WHERE emp_no == 1 )
                    ( WHERE emp_no > 1 )
             | FUSE
             """));
-        assertThat(e.getMessage(), containsString("Unknown column [_score]"));
+        assertThat(e.getMessage(), containsString("FUSE requires a score column, default [_score] column not found."));
 
         e = expectThrows(VerificationException.class, () -> analyze("""
             from test metadata _score, _id
@@ -3761,7 +3763,7 @@ public class AnalyzerTests extends ESTestCase {
                    ( WHERE emp_no > 1 )
             | FUSE
             """));
-        assertThat(e.getMessage(), containsString("Unknown column [_index]"));
+        assertThat(e.getMessage(), containsString("FUSE requires a key column, default [_index] column not found"));
 
         e = expectThrows(VerificationException.class, () -> analyze("""
             from test metadata _score, _index
@@ -3769,7 +3771,7 @@ public class AnalyzerTests extends ESTestCase {
                    ( WHERE emp_no > 1 )
             | FUSE
             """));
-        assertThat(e.getMessage(), containsString("Unknown column [_id]"));
+        assertThat(e.getMessage(), containsString("FUSE requires a key column, default [_id] column not found"));
     }
 
     // TODO There's too much boilerplate involved here! We need a better way of creating FieldCapabilitiesResponses from a mapping or index.

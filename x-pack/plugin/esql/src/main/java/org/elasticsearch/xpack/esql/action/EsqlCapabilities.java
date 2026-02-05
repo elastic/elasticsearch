@@ -286,6 +286,11 @@ public class EsqlCapabilities {
         FN_MV_INTERSECTS,
 
         /**
+         * support for MV_EXCEPT function
+         */
+        FN_MV_EXCEPT,
+
+        /**
          * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.
          */
         FUNCTIONS_SOURCE_SERIALIZATION_WARNINGS,

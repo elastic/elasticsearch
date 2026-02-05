@@ -1,0 +1,43 @@
+mvExcept
+required_capability: fn_mv_except
+// tag::mv_except[]
+ROW values = ["a", "b", "c"], element = "a"
+| EVAL result = mv_except(values, element)
+// end::mv_except[]
+;
+
+// tag::mv_except-result[]
+values:keyword | element:keyword | result:keyword 
+[a, b, c]      | a               | [b, c]         
+// end::mv_except-result[]
+;
+
+mvExcept_empty
+required_capability: fn_mv_except
+ROW valuesA = ["a","c"], valuesB = ["a", "b", "c"]
+| EVAL result = mv_except(valuesA, valuesB)
+;
+
+valuesA:keyword | valuesB:keyword | result:keyword 
+[a, c]          | [a, b, c]       | null             
+;
+
+mvExcept_null
+required_capability: fn_mv_except
+ROW values = ["a", "b", "c"], element = null
+| EVAL result = mv_except(values, element)
+;
+
+values:keyword | element:null | result:keyword 
+[a, b, c]      | null            | [a, b, c]         
+;
+
+mvExcept_null_input
+required_capability: fn_mv_except
+ROW values = null, element = ["a", "b", "c"]
+| EVAL result = mv_except(values, element)
+;
+
+values:null | element:keyword | result:null 
+null        | [a, b, c]       | null         
+;

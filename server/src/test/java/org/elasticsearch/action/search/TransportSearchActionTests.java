@@ -262,6 +262,7 @@ public class TransportSearchActionTests extends ESTestCase {
         for (SearchShardIterator searchShardIterator : groupShardsIterator) {
             result.add(searchShardIterator);
         }
+        result.sort(SearchShardIterator::compareTo);
         assertEquals(expected, result);
     }
 

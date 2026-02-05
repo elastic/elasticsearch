@@ -149,3 +149,32 @@ setup:
 
   - match: { hits.total.value: 5 }
   - match: { aggregations.max_agg.value: 13000.0 }
+
+---
+"Percentiles aggregation":
+  - requires:
+      cluster_features: [ "search.exponential_histogram_querydsl_percentiles" ]
+      reason: exponential_histogram percentile aggregations was introduced
+  - do:
+      search:
+        index: test_exponential_histogram
+        size: 0
+        body:
+          aggs:
+            percentiles_agg:
+              percentiles:
+                field: histo
+                percents: [5, 25, 50, 75, 95]
+
+  - match: { hits.total.value: 5 }
+  # Use range comparisons to handle small numeric errors across different machines
+  - gte: { aggregations.percentiles_agg.values.5\.0: -798.2 }
+  - lte: { aggregations.percentiles_agg.values.5\.0: -798.1 }
+  - gte: { aggregations.percentiles_agg.values.25\.0: -0.01 }
+  - lte: { aggregations.percentiles_agg.values.25\.0: 0.01 }
+  - gte: { aggregations.percentiles_agg.values.50\.0: 6.39 }
+  - lte: { aggregations.percentiles_agg.values.50\.0: 6.41 }
+  - gte: { aggregations.percentiles_agg.values.75\.0: 2730.6 }
+  - lte: { aggregations.percentiles_agg.values.75\.0: 2730.7 }
+  - gte: { aggregations.percentiles_agg.values.95\.0: 10922.6 }
+  - lte: { aggregations.percentiles_agg.values.95\.0: 10922.7 }

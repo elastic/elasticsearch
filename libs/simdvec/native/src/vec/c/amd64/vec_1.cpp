@@ -203,12 +203,48 @@ EXPORT void vec_sqri7u_bulk_offsets(
 
 // --- byte vectors
 
-EXPORT int32_t vec_doti8(const int8_t* a, const int8_t* b, const int32_t elementCount) {
-    int32_t result = 0;
-    for (int i=0; i<elementCount; i++) {
-        result += a[i] * b[i];
+/*
+ * AVX2 doesn't have sign-symmetric 8-bit operations,
+ * so we have to sign-extend to 16-bits and operate on those values
+ * instead, at the cost of doing double the loops
+ */
+
+static inline int32_t doti8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
+    // Init accumulator(s) with 0
+    __m256i acc1 = _mm256_setzero_si256();
+
+#pragma GCC unroll 4
+    for(int i = 0; i < dims; i += sizeof(__m128i)) {
+        // Load packed 8-bit integers
+        __m128i va8 = _mm_load_si128((const __m128i*)(a + i));
+        __m128i vb8 = _mm_load_si128((const __m128i*)(b + i));
+
+        // sign-extend to 16-bits
+        __m256i va16 = _mm256_cvtepi8_epi16(va8);
+        __m256i vb16 = _mm256_cvtepi8_epi16(vb8);
+
+        // vertically multiply and add a little bit to 32-bit values
+        __m256i vab = _mm256_madd_epi16(va16, vb16);
+
+        // accumulate
+        acc1 = _mm256_add_epi32(vab, acc1);
     }
-    return result;
+
+    // reduce (horizontally add all)
+    return mm256_reduce_epi32<_mm_add_epi32>(acc1);
+}
+
+EXPORT int32_t vec_doti8(const int8_t* a, const int8_t* b, const int32_t dims) {
+    int32_t res = 0;
+    int i = 0;
+    if (dims > sizeof(__m128i)) {
+        i += dims & ~(sizeof(__m128i) - 1);
+        res = doti8_inner(a, b, i);
+    }
+    for (; i < dims; i++) {
+        res += a[i] * b[i];
+    }
+    return res;
 }
 
 template <int64_t(*mapper)(int32_t, const int32_t*)>
@@ -242,13 +278,42 @@ EXPORT void vec_doti8_bulk_offsets(
     doti8_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 
-EXPORT int32_t vec_sqri8(const int8_t* a, const int8_t* b, const int32_t elementCount) {
-    int32_t result = 0;
-    for (int i=0; i<elementCount; i++) {
-        int diff = a[i] - b[i];
-        result += diff * diff;
+static inline int32_t sqri8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
+    // Init accumulator(s) with 0
+    __m256i acc1 = _mm256_setzero_si256();
+
+#pragma GCC unroll 4
+    for(int i = 0; i < dims; i += sizeof(__m128i)) {
+        // Load packed 8-bit integers
+        __m128i va8 = _mm_load_si128((const __m128i*)(a + i));
+        __m128i vb8 = _mm_load_si128((const __m128i*)(b + i));
+
+        // sign-extend to 16-bits
+        __m256i va16 = _mm256_cvtepi8_epi16(va8);
+        __m256i vb16 = _mm256_cvtepi8_epi16(vb8);
+
+        // do the sqr distance and accumulate to 32-bit ints
+        __m256i dist = _mm256_sub_epi16(va16, vb16);
+        __m256i sqr = _mm256_madd_epi16(dist, dist);
+        acc1 = _mm256_add_epi32(sqr, acc1);
     }
-    return result;
+
+    // reduce (accumulate all)
+    return mm256_reduce_epi32<_mm_add_epi32>(acc1);
+}
+
+EXPORT int32_t vec_sqri8(const int8_t* a, const int8_t* b, const int32_t dims) {
+    int32_t res = 0;
+    int i = 0;
+    if (dims > sizeof(__m128i)) {
+        i += dims & ~(sizeof(__m128i) - 1);
+        res = sqri8_inner(a, b, i);
+    }
+    for (; i < dims; i++) {
+        int32_t dist = a[i] - b[i];
+        res += dist * dist;
+    }
+    return res;
 }
 
 template <int64_t(*mapper)(int32_t, const int32_t*)>

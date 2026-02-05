@@ -66,14 +66,15 @@ mvDifference_from
 required_capability: fn_mv_difference
 FROM employees
 | WHERE emp_no == 10002 OR emp_no ==  10053 
-| KEEP salary_change, is_rehired
+| KEEP emp_no, salary_change, is_rehired
 | EVAL result1 = mv_difference(salary_change, [11.17])
 | EVAL result2 = mv_difference(is_rehired, true)
+| SORT emp_no
 ;
 
-salary_change:double | is_rehired:boolean         | result1:double | result2:boolean 
-[-7.23, 11.17]       | [false,false]              |-7.23           | [false,false]   
-[-7.67, -3.25]       | [false, false, true, true] |[-7.67, -3.25]  | [false,false]  
+emp_no:integer | salary_change:double | is_rehired:boolean         | result1:double | result2:boolean 
+10002          | [-7.23, 11.17]        | [false,false]              |-7.23           | [false,false]   
+10053          | [-7.67, -3.25]        | [false, false, true, true] |[-7.67, -3.25]  | [false,false]  
 ;
 
 mvDifference_from_keyword

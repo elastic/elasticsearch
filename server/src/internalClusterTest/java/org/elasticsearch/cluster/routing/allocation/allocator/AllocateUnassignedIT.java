@@ -78,12 +78,19 @@ public class AllocateUnassignedIT extends AbstractAllocationDecisionTestCase {
 
         // The single-shard should be allocated to one of the expected nodes
         createIndex(indexName, 1, 0);
-        ensureGreen(indexName);
 
         final var firstAllocatedNode = safeAwait(firstAllocationListener);
         assertThat(firstAllocatedNode.getName(), in(expectedNodeNames));
     }
 
+    /**
+     * We wait for the first allocation of a shard to ensure we're seeing the first node a shard is
+     * assigned to, and that we are testing the {@link BalancedShardsAllocator.Balancer#allocateUnassigned()}
+     * behaviour, rather than an assignment followed by a movement.
+     *
+     * @param indexName The single-shard index to monitor
+     * @return A {@link SubscribableListener} that will resolve with the first assigned node
+     */
     private SubscribableListener<DiscoveryNode> waitForFirstAllocation(String indexName) {
         final var firstAllocationNode = new AtomicReference<DiscoveryNode>();
         return addTemporaryStateListener(internalCluster().clusterService(), state -> {

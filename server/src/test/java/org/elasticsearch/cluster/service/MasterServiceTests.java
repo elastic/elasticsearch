@@ -1956,7 +1956,6 @@ public class MasterServiceTests extends ESTestCase {
                 };
                 masterService.submitUnbatchedStateUpdateTask(taskName, loopingTask);
             }
-            final var oldestTaskInsertionTime = deterministicTaskQueue.getCurrentTimeMillis();
 
             final IntConsumer someTasksRunner = targetCount -> {
                 tasksExecuted.set(0);
@@ -1969,19 +1968,8 @@ public class MasterServiceTests extends ESTestCase {
             someTasksRunner.accept(between(1, 5));
 
             final var immediateStarvingDuration = deterministicTaskQueue.getCurrentTimeMillis() - firstTaskExecutionTime.get();
-            final var immediateMaxWaitTime = deterministicTaskQueue.getCurrentTimeMillis() - lastTaskInsertionTime.get();
-            final var immediateStarvingMaxWaitTime = deterministicTaskQueue.getCurrentTimeMillis() - oldestTaskInsertionTime;
 
             assertStarvationMetrics(meterRegistry, "nonempty.time", immediateStarvingDuration, ignored -> immediateStarvingDuration);
-            assertStarvationMetrics(meterRegistry, "max_wait.time", immediateStarvingMaxWaitTime, priority -> {
-                if (priority == Priority.LANGUID) {
-                    return 0L;
-                }
-                if (priority == Priority.IMMEDIATE) {
-                    return immediateMaxWaitTime;
-                }
-                return immediateStarvingMaxWaitTime;
-            });
             assertStarvationMetrics(meterRegistry, "tasks.current", 5L, priority -> priority == Priority.LANGUID ? 0L : 1L);
             assertStarvationMetrics(meterRegistry, "batches.current", 5L, priority -> priority == Priority.LANGUID ? 0L : 1L);
 
@@ -1990,8 +1978,6 @@ public class MasterServiceTests extends ESTestCase {
 
             final var highStarvingDuration = deterministicTaskQueue.getCurrentTimeMillis() - firstTaskExecutionTime.get();
             final var lastTaskDuration = deterministicTaskQueue.getCurrentTimeMillis() - lastTaskExecutionTime.get();
-            final var highMaxWaitTime = deterministicTaskQueue.getCurrentTimeMillis() - lastTaskInsertionTime.get();
-            final var highStarvingMaxWaitTime = deterministicTaskQueue.getCurrentTimeMillis() - oldestTaskInsertionTime;
 
             assertStarvationMetrics(
                 meterRegistry,
@@ -1999,15 +1985,6 @@ public class MasterServiceTests extends ESTestCase {
                 highStarvingDuration,
                 priority -> priority.sameOrAfter(Priority.HIGH) ? highStarvingDuration : lastTaskDuration
             );
-            assertStarvationMetrics(meterRegistry, "max_wait.time", highStarvingMaxWaitTime, priority -> {
-                if (priority == Priority.LANGUID || Priority.HIGH.after(priority)) {
-                    return 0L;
-                }
-                if (priority == Priority.HIGH) {
-                    return highMaxWaitTime;
-                }
-                return highStarvingMaxWaitTime;
-            });
             assertStarvationMetrics(meterRegistry, "tasks.current", 3L, priority -> {
                 if (priority == Priority.LANGUID || Priority.HIGH.after(priority)) {
                     return 0L;
@@ -2025,7 +2002,6 @@ public class MasterServiceTests extends ESTestCase {
             deterministicTaskQueue.runAllTasks();
 
             assertStarvationMetrics(meterRegistry, "nonempty.time", 0L, ignored -> 0L);
-            assertStarvationMetrics(meterRegistry, "max_wait.time", 0L, ignored -> 0L);
             assertStarvationMetrics(meterRegistry, "tasks.current", 0L, ignored -> 0L);
             assertStarvationMetrics(meterRegistry, "batches.current", 0L, ignored -> 0L);
         }

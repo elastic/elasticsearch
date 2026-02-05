@@ -72,6 +72,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -208,22 +209,16 @@ public class MasterService extends AbstractLifecycleComponent {
             starvationWatcher::getNonemptyAge
         );
         registerLongGaugeMetric(
-            pendingTasksMetricName("max_wait.time"),
-            "milliseconds",
-            "Current max waiting time in milliseconds of a task in the master's pending task queue",
-            this::getMaxTaskWaitMillis
+            pendingTasksMetricName("batches.current"),
+            "count",
+            "Current number of batches across all the master's queues",
+            totalQueueSize::get
         );
         registerLongGaugeMetric(
             pendingTasksMetricName("tasks.current"),
             "count",
-            "Number of currently pending tasks in the master's queue",
-            this::numberOfPendingTasks
-        );
-        registerLongGaugeMetric(
-            pendingTasksMetricName("batches.current"),
-            "count",
-            "Number of currently pending batches in the master's queue",
-            () -> allBatchesStream().count()
+            "Current number of tasks across all the master's queues",
+            this::getTotalNumberOfTasksInQueues
         );
 
         for (var priority : Priority.values()) {
@@ -234,22 +229,16 @@ public class MasterService extends AbstractLifecycleComponent {
                 () -> starvationWatcher.getPriorityNonemptyAge(priority)
             );
             registerLongGaugeMetric(
-                priorityPendingTasksMetricName(priority, "max_wait.time"),
-                "milliseconds",
-                "Current max waiting time in milliseconds of a task in the master's pending task queue for priority " + priority,
-                () -> getMaxTaskWaitMillisForPriority(priority)
+                priorityPendingTasksMetricName(priority, "batches.current"),
+                "count",
+                "Current number of batches in the master's queue for priority " + priority,
+                () -> queuesByPriority.get(priority).queue.size()
             );
             registerLongGaugeMetric(
                 priorityPendingTasksMetricName(priority, "tasks.current"),
                 "count",
-                "Number of currently pending tasks in the master's queue for priority " + priority,
-                () -> numberOfPendingTasks(priority)
-            );
-            registerLongGaugeMetric(
-                priorityPendingTasksMetricName(priority, "batches.current"),
-                "count",
-                "Number of currently pending batches in the master's queue for priority " + priority,
-                () -> allBatchesStreamWithPriority(priority).count()
+                "Current number of tasks in the master's queue for priority " + priority,
+                () -> queuesByPriority.get(priority).totalQueuedTasksCount.get()
             );
         }
     }
@@ -748,8 +737,12 @@ public class MasterService extends AbstractLifecycleComponent {
         return allBatchesStream().mapToInt(Batch::getPendingCount).sum();
     }
 
-    private int numberOfPendingTasks(Priority priority) {
-        return allBatchesStreamWithPriority(priority).mapToInt(Batch::getPendingCount).sum();
+    private int getTotalNumberOfTasksInQueues() {
+        int taskCount = 0;
+        for (final var queue : queuesByPriority.values()) {
+            taskCount += queue.totalQueuedTasksCount.get();
+        }
+        return taskCount;
     }
 
     /**
@@ -758,37 +751,18 @@ public class MasterService extends AbstractLifecycleComponent {
      * @return A zero time value if the queue is empty, otherwise the time value oldest task waiting in the queue
      */
     public TimeValue getMaxTaskWaitTime() {
-        return TimeValue.timeValueMillis(getMaxTaskWaitMillis());
-    }
-
-    private long getMaxTaskWaitMillis() {
-        return getMaxTaskWaitMillisForBatches(allBatchesStream());
-    }
-
-    private long getMaxTaskWaitMillisForPriority(Priority priority) {
-        return getMaxTaskWaitMillisForBatches(allBatchesStreamWithPriority(priority));
-    }
-
-    private long getMaxTaskWaitMillisForBatches(Stream<MasterService.Batch> batches) {
-        long oldestTaskTimeMillis = batches.mapToLong(Batch::getCreationTimeMillis).min().orElse(Long.MAX_VALUE);
-
+        final var oldestTaskTimeMillis = allBatchesStream().mapToLong(Batch::getCreationTimeMillis).min().orElse(Long.MAX_VALUE);
         if (oldestTaskTimeMillis == Long.MAX_VALUE) {
-            return 0L;
+            return TimeValue.ZERO;
         }
-        return threadPool.relativeTimeInMillis() - oldestTaskTimeMillis;
+
+        return TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - oldestTaskTimeMillis);
     }
 
     private Stream<Batch> allBatchesStream() {
         return Stream.concat(
             Stream.ofNullable(currentlyExecutingBatch),
             queuesByPriority.values().stream().filter(Objects::nonNull).flatMap(q -> q.queue.stream())
-        );
-    }
-
-    private Stream<Batch> allBatchesStreamWithPriority(Priority priority) {
-        return Stream.concat(
-            Stream.ofNullable(currentlyExecutingBatch).filter(batch -> batch.getPriority() == priority),
-            Stream.ofNullable(queuesByPriority.get(priority)).flatMap(q -> q.queue.stream())
         );
     }
 
@@ -1614,8 +1588,9 @@ public class MasterService extends AbstractLifecycleComponent {
      * There is one of these queues for each priority level.
      */
     private class PerPriorityQueue {
-        private final ConcurrentLinkedQueue<Batch> queue = new ConcurrentLinkedQueue<>();
+        private final LinkedBlockingQueue<Batch> queue = new LinkedBlockingQueue<>();
         private final Priority priority;
+        private final AtomicInteger totalQueuedTasksCount = new AtomicInteger();
 
         PerPriorityQueue(Priority priority) {
             this.priority = priority;
@@ -1868,6 +1843,7 @@ public class MasterService extends AbstractLifecycleComponent {
             if (queueSize.getAndIncrement() == 0) {
                 perPriorityQueue.execute(processor);
             }
+            perPriorityQueue.totalQueuedTasksCount.getAndIncrement();
         }
 
         @Override
@@ -1913,6 +1889,7 @@ public class MasterService extends AbstractLifecycleComponent {
             @Override
             public void onRejection(NotMasterException e) {
                 final var items = queueSize.getAndSet(0);
+                perPriorityQueue.totalQueuedTasksCount.getAndAdd(-1 * items);
                 for (int i = 0; i < items; i++) {
                     final var entry = queue.poll();
                     assert entry != null;
@@ -1924,6 +1901,7 @@ public class MasterService extends AbstractLifecycleComponent {
             public void run(ActionListener<Void> listener) {
                 assert executing.isEmpty() : executing;
                 final var entryCount = queueSize.getAndSet(0);
+                perPriorityQueue.totalQueuedTasksCount.getAndAdd(-1 * entryCount);
                 var taskCount = 0;
                 final var tasks = new ArrayList<ExecutionResult<T>>(entryCount);
                 for (int i = 0; i < entryCount; i++) {

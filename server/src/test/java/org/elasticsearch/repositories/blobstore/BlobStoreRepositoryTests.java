@@ -29,7 +29,9 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
@@ -43,6 +45,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedRunnable;
@@ -60,6 +63,7 @@ import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
+import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
@@ -92,6 +96,7 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.repositories.RepositoryDataTests.generateRandomRepoData;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.INDEX_FILE_PREFIX;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING;
@@ -858,5 +863,97 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .setPersistentSettings(Settings.builder().putNull(MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING.getKey()).build())
             .get();
+    }
+
+    public void testAdjustIndexMetadataIfNeeded() {
+        IndexId indexWithReshardingMetadata = new IndexId(randomIndexName(), randomUUID());
+        var indexMetadataWithReshardingMetadata = IndexMetadata.builder(indexWithReshardingMetadata.getName())
+            .settings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()))
+            .numberOfShards(2)
+            .numberOfReplicas(0)
+            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(1, 2))
+            .build();
+
+        IndexId indexWithoutReshardingMetadata = new IndexId(randomIndexName(), randomUUID());
+        var indexMetadataWithoutReshardingMetadata = IndexMetadata.builder(indexWithoutReshardingMetadata.getName())
+            .settings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()))
+            .numberOfShards(2)
+            .numberOfReplicas(0)
+            .build();
+
+        // An index that is not in the metadata, should not break the logic (e.g. the index was deleted during the snapshot).
+        String someIndex = randomIndexName();
+
+        // This how snapshot generations would look like during finalization if the snapshot started after resharding.
+        // Actual generation/status doesn't matter for this code so we'll have some mix of them.
+        var liveShardGenerationsInPostReshardState = ShardGenerations.builder()
+            .put(
+                indexWithReshardingMetadata,
+                0,
+                SnapshotsInProgress.ShardSnapshotStatus.success(
+                    "node",
+                    new ShardSnapshotResult(new ShardGeneration("gen1"), ByteSizeValue.ofBytes(100), 2)
+                )
+            )
+            .put(indexWithReshardingMetadata, 1, SnapshotsInProgress.ShardSnapshotStatus.MISSING)
+            .put(indexWithoutReshardingMetadata, 0, SnapshotsInProgress.ShardSnapshotStatus.MISSING)
+            .put(indexWithoutReshardingMetadata, 1, new SnapshotsInProgress.ShardSnapshotStatus("node2", new ShardGeneration("gen1")))
+            .put(new IndexId(someIndex, randomUUID()), 0, SnapshotsInProgress.ShardSnapshotStatus.MISSING)
+            .build();
+
+        // We should strip resharding metadata from the index that has it.
+        // But number of shards doesn't change since the snapshot entry has post-reshard number of shards.
+        var adjustedIndexMetadataWithReshardingMetadata1 = BlobStoreRepository.adjustIndexMetadataIfNeeded(
+            indexWithReshardingMetadata,
+            indexMetadataWithReshardingMetadata,
+            liveShardGenerationsInPostReshardState
+        );
+        assertFalse(adjustedIndexMetadataWithReshardingMetadata1.isEmpty());
+        assertNull(adjustedIndexMetadataWithReshardingMetadata1.get().getReshardingMetadata());
+        assertEquals(2, adjustedIndexMetadataWithReshardingMetadata1.get().getNumberOfShards());
+
+        var adjustedIndexMetadataWithoutReshardingMetadata1 = BlobStoreRepository.adjustIndexMetadataIfNeeded(
+            indexWithoutReshardingMetadata,
+            indexMetadataWithoutReshardingMetadata,
+            liveShardGenerationsInPostReshardState
+        );
+        // Unaffected since the number of shard matches and there is no resharding metadata.
+        assertTrue(adjustedIndexMetadataWithoutReshardingMetadata1.isEmpty());
+
+        // This how an entry would look like if the snapshot started before resharding.
+        // Note how shards with id 1 are not present.
+        // That is because (emulated here) a resharding operations from 1 to 2 shards started after
+        // this snapshot has started.
+        var liveShardGenerationsInPreReshardState = ShardGenerations.builder()
+            .put(
+                indexWithReshardingMetadata,
+                0,
+                SnapshotsInProgress.ShardSnapshotStatus.success(
+                    "node",
+                    new ShardSnapshotResult(new ShardGeneration("gen1"), ByteSizeValue.ofBytes(100), 2)
+                )
+            )
+            .put(indexWithoutReshardingMetadata, 0, SnapshotsInProgress.ShardSnapshotStatus.MISSING)
+            .put(new IndexId(someIndex, randomUUID()), 0, SnapshotsInProgress.ShardSnapshotStatus.MISSING)
+            .build();
+
+        // We should strip resharding metadata from the index that has it.
+        // Number of shards also changes for all indices that have different number of shards in the snapshot entry.
+        var adjustedIndexMetadataWithReshardingMetadata2 = BlobStoreRepository.adjustIndexMetadataIfNeeded(
+            indexWithReshardingMetadata,
+            indexMetadataWithReshardingMetadata,
+            liveShardGenerationsInPreReshardState
+        );
+        assertFalse(adjustedIndexMetadataWithReshardingMetadata2.isEmpty());
+        assertNull(adjustedIndexMetadataWithReshardingMetadata2.get().getReshardingMetadata());
+        assertEquals(1, adjustedIndexMetadataWithReshardingMetadata2.get().getNumberOfShards());
+
+        var adjustedIndexMetadataWithoutReshardingMetadata2 = BlobStoreRepository.adjustIndexMetadataIfNeeded(
+            indexWithoutReshardingMetadata,
+            indexMetadataWithoutReshardingMetadata,
+            liveShardGenerationsInPreReshardState
+        );
+        assertFalse(adjustedIndexMetadataWithoutReshardingMetadata2.isEmpty());
+        assertEquals(1, adjustedIndexMetadataWithoutReshardingMetadata2.get().getNumberOfShards());
     }
 }

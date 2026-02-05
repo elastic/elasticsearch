@@ -210,7 +210,7 @@ public class MasterService extends AbstractLifecycleComponent {
         registerLongGaugeMetric(
             pendingTasksMetricName("latency.time"),
             "milliseconds",
-            "Current max waiting time in milliseconds of a task in the master's pending task queue",
+            "Current max latency in milliseconds across all the master's task queues",
             this::getMaxQueueLatencyMillis
         );
 
@@ -224,7 +224,7 @@ public class MasterService extends AbstractLifecycleComponent {
             registerLongGaugeMetric(
                 priorityPendingTasksMetricName(priority, "latency.time"),
                 "milliseconds",
-                "Current max waiting time in milliseconds of a task in the master's pending task queue for priority " + priority,
+                "Current max latency in milliseconds of the master's task queue for priority " + priority,
                 () -> getMaxQueueLatencyMillisForPriority(priority)
             );
         }

@@ -20,9 +20,6 @@ dependencies {
 
   // allow these upgrade tests to import some helpers from the javaRestTest classes in x-pack:plugin:inference:qa:inference-service-tests
   javaRestTestImplementation(testArtifact(project(":x-pack:plugin:inference:qa:inference-service-tests"), "javaRestTest"))
-
-  // Access public test classes/utilities from x-pack:inference tests
-  javaRestTestImplementation(testArtifact(project(xpackModule('inference'))))
 }
 
 // Inference API added in 8.11

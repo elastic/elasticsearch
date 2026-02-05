@@ -74,15 +74,7 @@ public class IncrementalBulkService {
         Set<String> paramsUsed
     ) {
         ensureEnabled();
-        return new Handler(
-            client,
-            indexingPressure,
-            waitForActiveShards,
-            timeout,
-            refresh,
-            chunkWaitTimeMillisHistogram,
-            paramsUsed
-        );
+        return new Handler(client, indexingPressure, waitForActiveShards, timeout, refresh, chunkWaitTimeMillisHistogram, paramsUsed);
     }
 
     private void ensureEnabled() {

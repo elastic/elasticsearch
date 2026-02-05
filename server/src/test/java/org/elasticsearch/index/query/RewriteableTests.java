@@ -101,26 +101,21 @@ public class RewriteableTests extends ESTestCase {
             AtomicReference<String> completionThreadName = new AtomicReference<>();
             CountDownLatch completionLatch = new CountDownLatch(1);
             CountDownLatch asyncStartLatch = new CountDownLatch(1);
-            //TestRewriteable rewrite = new TestRewriteableWithLatchAndCapture(1, asyncStartLatch);
+            // TestRewriteable rewrite = new TestRewriteableWithLatchAndCapture(1, asyncStartLatch);
             TestRewriteable rewrite = new TestRewriteableWithLatchAndCapture(1, asyncStartLatch, completionThreadName);
-            Rewriteable.rewriteAndFetch(
-                rewrite,
-                new QueryRewriteContext(null, null, null),
-                searchExecutor,
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(TestRewriteable result) {
-                        completionThreadName.set(Thread.currentThread().getName());
-                        completionLatch.countDown();
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        completionThreadName.set(Thread.currentThread().getName());
-                        completionLatch.countDown();
-                    }
+            Rewriteable.rewriteAndFetch(rewrite, new QueryRewriteContext(null, null, null), searchExecutor, new ActionListener<>() {
+                @Override
+                public void onResponse(TestRewriteable result) {
+                    completionThreadName.set(Thread.currentThread().getName());
+                    completionLatch.countDown();
                 }
-            );
+
+                @Override
+                public void onFailure(Exception e) {
+                    completionThreadName.set(Thread.currentThread().getName());
+                    completionLatch.countDown();
+                }
+            });
             asyncStartLatch.countDown();
 
             assertTrue("Timed out waiting for rewrite to complete", completionLatch.await(10, TimeUnit.SECONDS));
@@ -138,25 +133,20 @@ public class RewriteableTests extends ESTestCase {
             AtomicReference<Exception> caughtException = new AtomicReference<>();
             CountDownLatch latch = new CountDownLatch(1);
             TestRewriteable rewrite = new FailingTestRewriteable(randomIntBetween(1, 3));
-            Rewriteable.rewriteAndFetch(
-                rewrite,
-                new QueryRewriteContext(null, null, null),
-                searchExecutor,
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(TestRewriteable result) {
-                        completionThreadName.set(Thread.currentThread().getName());
-                        latch.countDown();
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        completionThreadName.set(Thread.currentThread().getName());
-                        caughtException.set(e);
-                        latch.countDown();
-                    }
+            Rewriteable.rewriteAndFetch(rewrite, new QueryRewriteContext(null, null, null), searchExecutor, new ActionListener<>() {
+                @Override
+                public void onResponse(TestRewriteable result) {
+                    completionThreadName.set(Thread.currentThread().getName());
+                    latch.countDown();
                 }
-            );
+
+                @Override
+                public void onFailure(Exception e) {
+                    completionThreadName.set(Thread.currentThread().getName());
+                    caughtException.set(e);
+                    latch.countDown();
+                }
+            });
 
             assertTrue("Timed out waiting for rewrite to complete", latch.await(10, TimeUnit.SECONDS));
             assertNotNull("Exception should be caught", caughtException.get());
@@ -175,25 +165,20 @@ public class RewriteableTests extends ESTestCase {
             AtomicReference<Thread> completionThread = new AtomicReference<>();
             CountDownLatch latch = new CountDownLatch(1);
             TestRewriteable rewrite = new TestRewriteable(randomIntBetween(0, 5), false);
-            Rewriteable.rewriteAndFetch(
-                rewrite,
-                new QueryRewriteContext(null, null, null),
-                searchExecutor,
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(TestRewriteable result) {
-                        completionThread.set(Thread.currentThread());
-                        assertEquals(0, result.numRewrites);
-                        latch.countDown();
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        fail("Should not fail: " + e.getMessage());
-                        latch.countDown();
-                    }
+            Rewriteable.rewriteAndFetch(rewrite, new QueryRewriteContext(null, null, null), searchExecutor, new ActionListener<>() {
+                @Override
+                public void onResponse(TestRewriteable result) {
+                    completionThread.set(Thread.currentThread());
+                    assertEquals(0, result.numRewrites);
+                    latch.countDown();
                 }
-            );
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail("Should not fail: " + e.getMessage());
+                    latch.countDown();
+                }
+            });
 
             assertTrue("Timed out waiting for rewrite to complete", latch.await(10, TimeUnit.SECONDS));
             assertSame("Should complete on calling thread when no async actions", callingThread, completionThread.get());
@@ -206,18 +191,13 @@ public class RewriteableTests extends ESTestCase {
         TestRewriteable rewrite = new TestRewriteable(1, false);
         NullPointerException e = expectThrows(
             NullPointerException.class,
-            () -> Rewriteable.rewriteAndFetch(
-                rewrite,
-                new QueryRewriteContext(null, null, null),
-                null,
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(TestRewriteable result) {}
+            () -> Rewriteable.rewriteAndFetch(rewrite, new QueryRewriteContext(null, null, null), null, new ActionListener<>() {
+                @Override
+                public void onResponse(TestRewriteable result) {}
 
-                    @Override
-                    public void onFailure(Exception e) {}
-                }
-            )
+                @Override
+                public void onFailure(Exception e) {}
+            })
         );
         assertEquals("responseExecutor must not be null", e.getMessage());
     }
@@ -231,24 +211,19 @@ public class RewriteableTests extends ESTestCase {
             CountDownLatch completionLatch = new CountDownLatch(1);
             CountDownLatch asyncStartLatch = new CountDownLatch(1);
             TestRewriteable rewrite = new TestRewriteableWithLatchAndCapture(1, asyncStartLatch, asyncThreadName);
-            Rewriteable.rewriteAndFetch(
-                rewrite,
-                new QueryRewriteContext(null, null, null),
-                searchExecutor,
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(TestRewriteable result) {
-                        completionThreadName.set(Thread.currentThread().getName());
-                        completionLatch.countDown();
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        completionThreadName.set(Thread.currentThread().getName());
-                        completionLatch.countDown();
-                    }
+            Rewriteable.rewriteAndFetch(rewrite, new QueryRewriteContext(null, null, null), searchExecutor, new ActionListener<>() {
+                @Override
+                public void onResponse(TestRewriteable result) {
+                    completionThreadName.set(Thread.currentThread().getName());
+                    completionLatch.countDown();
                 }
-            );
+
+                @Override
+                public void onFailure(Exception e) {
+                    completionThreadName.set(Thread.currentThread().getName());
+                    completionLatch.countDown();
+                }
+            });
             asyncStartLatch.countDown();
 
             assertTrue("Timed out waiting for rewrite to complete", completionLatch.await(10, TimeUnit.SECONDS));
@@ -314,7 +289,6 @@ public class RewriteableTests extends ESTestCase {
         }
     }
 
-
     private static class FailingTestRewriteable extends TestRewriteable {
 
         FailingTestRewriteable(int numRewrites) {
@@ -329,9 +303,7 @@ public class RewriteableTests extends ESTestCase {
             SetOnce<Boolean> setOnce = new SetOnce<>();
             ctx.registerAsyncAction((c, l) -> {
                 // Simulate failure on a separate thread (like transport thread)
-                new Thread(() -> {
-                    l.onFailure(new RuntimeException("Simulated async failure"));
-                }).start();
+                new Thread(() -> { l.onFailure(new RuntimeException("Simulated async failure")); }).start();
             });
             return new FailingTestRewriteable(numRewrites - 1);
         }

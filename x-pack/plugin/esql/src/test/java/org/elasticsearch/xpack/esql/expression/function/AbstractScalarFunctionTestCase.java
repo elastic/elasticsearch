@@ -42,6 +42,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
@@ -116,7 +117,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
             Page row = row(testCase.getDataValues());
             try (Block block = evaluator.eval(row)) {
                 assertThat(block.getPositionCount(), is(1));
-                result = toJavaObjectUnsignedLongAware(block, 0);
+                result = toJavaObject(block, 0);
                 extraBlockTests(row, block);
             } finally {
                 row.releaseBlocks();

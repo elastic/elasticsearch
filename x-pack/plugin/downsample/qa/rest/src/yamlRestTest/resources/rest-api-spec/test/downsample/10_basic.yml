@@ -371,7 +371,6 @@ setup:
   - match: { test-downsample.mappings.properties.@timestamp.meta.time_zone: UTC }
   - match: { test-downsample.mappings.properties.k8s\.pod\.multi-gauge.type: aggregate_metric_double }
   - match: { test-downsample.mappings.properties.k8s\.pod\.multi-gauge.metrics: [ "min", "max", "sum", "value_count" ] }
-  - match: { test-downsample.mappings.properties.k8s\.pod\.multi-gauge.default_metric: max }
   - match: { test-downsample.mappings.properties.k8s\.pod\.multi-gauge.time_series_metric: gauge }
   - match: { test-downsample.mappings.properties.k8s\.pod\.multi-counter.type: long }
   - match: { test-downsample.mappings.properties.k8s\.pod\.multi-counter.time_series_metric: counter }
@@ -380,7 +379,6 @@ setup:
   - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-counter.time_series_metric: counter }
   - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-gauge.type: aggregate_metric_double }
   - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-gauge.metrics: [ "min", "max", "sum", "value_count" ] }
-  - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-gauge.default_metric: max }
   - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-gauge.time_series_metric: gauge }
   - match: { test-downsample.mappings.properties.k8s\.pod\.uid.type: keyword }
   - match: { test-downsample.mappings.properties.k8s\.pod\.uid.time_series_dimension: true }
@@ -855,7 +853,6 @@ setup:
   - match: { test-downsample-2.mappings.properties.@timestamp.meta.time_zone: UTC }
   - match: { test-downsample-2.mappings.properties.k8s\.pod\.multi-gauge.type: aggregate_metric_double }
   - match: { test-downsample-2.mappings.properties.k8s\.pod\.multi-gauge.metrics: [ "min", "max", "sum", "value_count" ] }
-  - match: { test-downsample-2.mappings.properties.k8s\.pod\.multi-gauge.default_metric: max }
   - match: { test-downsample-2.mappings.properties.k8s\.pod\.multi-gauge.time_series_metric: gauge }
   - match: { test-downsample-2.mappings.properties.k8s\.pod\.multi-counter.type: long }
   - match: { test-downsample-2.mappings.properties.k8s\.pod\.multi-counter.time_series_metric: counter }
@@ -863,7 +860,6 @@ setup:
   - match: { test-downsample-2.mappings.properties.k8s\.pod\.uid.time_series_dimension: true }
   - match: { test-downsample-2.mappings.properties.k8s\.pod\.network\.tx.type: aggregate_metric_double }
   - match: { test-downsample-2.mappings.properties.k8s\.pod\.network\.tx.metrics: [ "min", "max", "sum", "value_count" ] }
-  - match: { test-downsample-2.mappings.properties.k8s\.pod\.network\.tx.default_metric: max }
   - match: { test-downsample-2.mappings.properties.k8s\.pod\.network\.tx.time_series_metric: gauge }
 
   - do:
@@ -1059,7 +1055,6 @@ setup:
   - match: { test-downsample-histogram.mappings.properties.k8s\.pod\.uid.time_series_dimension: true }
   - match: { test-downsample-histogram.mappings.properties.k8s\.pod\.network\.tx.type: aggregate_metric_double }
   - match: { test-downsample-histogram.mappings.properties.k8s\.pod\.network\.tx.metrics: [ "min", "max", "sum", "value_count" ] }
-  - match: { test-downsample-histogram.mappings.properties.k8s\.pod\.network\.tx.default_metric: max }
   - match: { test-downsample-histogram.mappings.properties.k8s\.pod\.network\.tx.time_series_metric: gauge }
 
   - do:

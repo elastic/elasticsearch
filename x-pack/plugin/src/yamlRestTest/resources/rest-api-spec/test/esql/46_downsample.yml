@@ -260,8 +260,8 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
-      reason: "Support for casting aggregate metric double implicitly when present in aggregations"
+          capabilities: [aggregate_metric_double_default_metric, dense_vector_agg_metric_double_if_version]
+      reason: "Requires default metric to run TS ... | STATS max(agg_metric)"
 
   - do:
       indices.downsample:

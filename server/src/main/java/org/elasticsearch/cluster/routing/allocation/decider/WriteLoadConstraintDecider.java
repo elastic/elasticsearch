@@ -54,11 +54,6 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "Decider is disabled");
         }
 
-        // Never reject allocation of an unassigned shard
-        if (shardRouting.assignedToNode() == false) {
-            return allocation.decision(Decision.YES, NAME, "Shard is unassigned. Decider takes no action.");
-        }
-
         var allNodeUsageStats = allocation.clusterInfo().getNodeUsageStatsForThreadPools();
         var nodeUsageStatsForThreadPools = allNodeUsageStats.get(node.nodeId());
         if (nodeUsageStatsForThreadPools == null) {

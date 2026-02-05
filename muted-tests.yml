@@ -96,9 +96,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.ClassificationHousePricingIT
   method: testFeatureImportanceValues
   issue: https://github.com/elastic/elasticsearch/issues/124341
-- class: org.elasticsearch.cli.keystore.AddStringKeyStoreCommandTests
-  method: testStdinWithMultipleValues
-  issue: https://github.com/elastic/elasticsearch/issues/126882
 - class: org.elasticsearch.xpack.ccr.action.ShardFollowTaskReplicationTests
   method: testChangeFollowerHistoryUUID
   issue: https://github.com/elastic/elasticsearch/issues/127680

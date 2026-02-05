@@ -267,18 +267,15 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         }
     }
 
-    private record RegistryNotReadyAction() implements Consumer<ActionListener<Void>> {
-        @Override
-        public void accept(ActionListener<Void> listener) {
-            logger.info("Skipping sending authorization request, because model registry is not ready");
-            listener.onResponse(null);
-        }
-    }
+    private record SkipAndLogAction(String reason) implements Consumer<ActionListener<Void>> {
+        private static final SkipAndLogAction REGISTRY_NOT_READY_ACTION = new SkipAndLogAction("the model registry is not ready");
+        private static final SkipAndLogAction MISSING_REQUIRED_FEATURES = new SkipAndLogAction(
+            "the cluster is currently upgrading and missing required features"
+        );
 
-    private record MissingRequiredFeatures() implements Consumer<ActionListener<Void>> {
         @Override
         public void accept(ActionListener<Void> listener) {
-            logger.info("Skipping sending authorization request, because the cluster is currently upgrading and missing required features");
+            logger.info("Skipping sending authorization request, because {}", reason);
             listener.onResponse(null);
         }
     }
@@ -305,11 +302,11 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
             return;
         }
         if (modelRegistry.isReady() == false) {
-            listener.onResponse(new RegistryNotReadyAction());
+            listener.onResponse(SkipAndLogAction.REGISTRY_NOT_READY_ACTION);
             return;
         }
         if (inferenceFeatureService.hasEndpointMetadataFeature() == false) {
-            listener.onResponse(new MissingRequiredFeatures());
+            listener.onResponse(SkipAndLogAction.MISSING_REQUIRED_FEATURES);
             return;
         }
         if (ccmFeature.isCcmSupportedEnvironment() == false) {

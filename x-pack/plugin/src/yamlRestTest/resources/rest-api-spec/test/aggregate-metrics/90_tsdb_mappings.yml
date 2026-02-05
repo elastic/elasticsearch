@@ -1,13 +1,10 @@
 aggregate_double_metric with time series mappings:
   - requires:
-      capabilities:
-        - method: POST
-          path: /_search
-          capabilities: [ deprecate_default_metric_in_aggregate_metric_double ]
-      test_runner_features: capabilities
-      reason: "Default metric is deprecated in aggregate metric double fields since 9.4"
+      test_runner_features: [ allowed_warnings ]
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create:
           index: test_index
           body:
@@ -32,10 +29,12 @@ aggregate_double_metric with time series mappings:
                             tx:
                               type: aggregate_metric_double
                               metrics: [min, max, sum, value_count]
+                              default_metric: max
                               time_series_metric: gauge
                             rx:
                               type: aggregate_metric_double
                               metrics: [min, max, sum, value_count]
+                              default_metric: max
                               time_series_metric: gauge
 
 ---
@@ -66,10 +65,12 @@ aggregate_double_metric with wrong time series mappings:
                           tx:
                             type: aggregate_metric_double
                             metrics: [min, max, sum, value_count]
+                            default_metric: max
                             time_series_metric: gauge
                           rx:
                             type: aggregate_metric_double
                             metrics: [min, max, sum, value_count]
+                            default_metric: max
                             time_series_metric: histogram
 
 ---

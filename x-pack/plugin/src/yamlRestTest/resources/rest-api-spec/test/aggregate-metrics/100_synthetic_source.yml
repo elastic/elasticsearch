@@ -1,16 +1,14 @@
 setup:
   - requires:
       cluster_features: [ "mapper.source.mode_from_index_setting" ]
-      capabilities:
-        - method: POST
-          path: /_search
-          capabilities: [ deprecate_default_metric_in_aggregate_metric_double ]
-      test_runner_features: capabilities
-      reason: "Default metric is deprecated in aggregate metric double fields since 9.4"
+      reason: "Source mode configured through index setting"
+      test_runner_features: [ allowed_warnings ]
 
 ---
 aggregate_metric_double:
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create:
         index: test
         body:
@@ -22,6 +20,7 @@ aggregate_metric_double:
               metric:
                 type: aggregate_metric_double
                 metrics: [min, max, value_count]
+                default_metric: max
 
   - do:
       index:
@@ -62,6 +61,8 @@ aggregate_metric_double:
 ---
 aggregate_metric_double with ignore_malformed:
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create:
         index: test
         body:
@@ -73,6 +74,7 @@ aggregate_metric_double with ignore_malformed:
               metric:
                 type: aggregate_metric_double
                 metrics: [min, max, value_count]
+                default_metric: max
                 ignore_malformed: true
 
   - do:

@@ -16,7 +16,6 @@ import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
@@ -281,12 +280,21 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
         }
 
         /**
-         * Return a delegate field type for the default metric sub-field
+         * Return a delegate field type which is max if it exists or any other metric.
+         * This will be switched to average soon, so now use with caution.
          * @return a field type
          */
         private NumberFieldMapper.NumberFieldType delegateFieldType() {
-            assert metricFields.isEmpty() == false;
-            return metricFields.values().stream().findAny().get();
+            if (metricFields.containsKey(Metric.max)) {
+                return metricFields.get(Metric.max);
+            }
+            // We iterate on the metrics to ensure that we have a predictable order in metrics
+            for (Metric metric : Metric.values()) {
+                if (metricFields.containsKey(metric)) {
+                    return metricFields.get(metric);
+                }
+            }
+            throw new IllegalStateException("No delegate field type found for aggregate metric field [" + name() + "]");
         }
 
         @Override
@@ -318,18 +326,12 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             if (value == null) {
                 throw new IllegalArgumentException("Cannot search for null.");
             }
-            if (metricFields.containsKey(Metric.max)) {
-                return metricFields.get(Metric.max).termQuery(value, context);
-            }
-            return Queries.NO_DOCS_INSTANCE;
+            return delegateFieldType().termQuery(value, context);
         }
 
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-            if (metricFields.containsKey(Metric.max)) {
-                return metricFields.get(Metric.max).termsQuery(values, context);
-            }
-            return Queries.NO_DOCS_INSTANCE;
+            return delegateFieldType().termsQuery(values, context);
         }
 
         @Override
@@ -340,18 +342,12 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             boolean includeUpper,
             SearchExecutionContext context
         ) {
-            if (metricFields.containsKey(Metric.max)) {
-                return metricFields.get(Metric.max).rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, context);
-            }
-            return Queries.NO_DOCS_INSTANCE;
+            return delegateFieldType().rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, context);
         }
 
         @Override
         public Object valueForDisplay(Object value) {
-            if (metricFields.containsKey(Metric.max) == false) {
-                return null;
-            }
-            return metricFields.get(Metric.max).valueForDisplay(value);
+            return delegateFieldType().valueForDisplay(value);
         }
 
         @Override

@@ -52,18 +52,15 @@ public class SimulateIngestServiceTests extends ESTestCase {
         Map<String, Processor.Factory> processors = new HashMap<>();
         processors.put(
             "processor1",
-            (factories, tag, description, config) -> new FakeProcessor("processor1", tag, description, ingestDocument -> {}) {
-            }
+            (factories, tag, description, config) -> new FakeProcessor("processor1", tag, description, ingestDocument -> {}) {}
         );
         processors.put(
             "processor2",
-            (factories, tag, description, config) -> new FakeProcessor("processor2", tag, description, ingestDocument -> {}) {
-            }
+            (factories, tag, description, config) -> new FakeProcessor("processor2", tag, description, ingestDocument -> {}) {}
         );
         processors.put(
             "processor3",
-            (factories, tag, description, config) -> new FakeProcessor("processor3", tag, description, ingestDocument -> {}) {
-            }
+            (factories, tag, description, config) -> new FakeProcessor("processor3", tag, description, ingestDocument -> {}) {}
         );
         IngestService ingestService = createWithProcessors(processors);
         ingestService.innerUpdatePipelines(ingestMetadata);

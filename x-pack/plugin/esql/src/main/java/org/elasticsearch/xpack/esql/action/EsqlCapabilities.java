@@ -1080,6 +1080,12 @@ public class EsqlCapabilities {
         FIX_REPLACE_ALIASING_EVAL_WITH_PROJECT_SHADOWING,
 
         /**
+         * Fix for <a href="https://github.com/elastic/elasticsearch/issues/141627">141627</a>,
+         * TO_IP with leading_zeros=octal generates proper warning and returns null when given invalid input.
+         */
+        FIX_TO_IP_LEADING_ZEROS_OCTAL,
+
+        /**
          * Fix for multi-value constant propagation after GROUP BY.
          * When a multi-value constant (e.g., [1, 2]) is used as GROUP BY key, the aggregation explodes
          * it into single values. Propagating the original multi-value literal after the Aggregate would

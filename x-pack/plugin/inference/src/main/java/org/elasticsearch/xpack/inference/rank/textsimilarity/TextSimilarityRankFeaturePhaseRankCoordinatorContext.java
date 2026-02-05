@@ -81,22 +81,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
                     }
                     l2.onResponse(originalScores);
                 } else {
-                    final float[] scores = extractScoresFromRankedDocs(rankedDocs, featureDocs);
-
-                    // Ensure we get exactly as many final scores as the number of docs we passed, otherwise we may return incorrect results
-                    if (scores.length != featureDocs.length) {
-                        l2.onFailure(
-                            new IllegalStateException(
-                                "Reranker input document count and returned score count mismatch: ["
-                                    + featureDocs.length
-                                    + "] vs ["
-                                    + scores.length
-                                    + "]"
-                            )
-                        );
-                    } else {
-                        l2.onResponse(scores);
-                    }
+                    l2.onResponse(extractScoresFromRankedDocs(rankedDocs, featureDocs));
                 }
             });
 

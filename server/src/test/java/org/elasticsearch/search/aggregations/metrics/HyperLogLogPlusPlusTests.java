@@ -177,12 +177,98 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
         }
     }
 
+    public void testTransitionsAndMaxOrd() {
+        final int p = 14;
+        final HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 0);
+        final long bucket = 1000;
+        final int threshold = lcThreshold(p);
+        final int arrayLimit = arrayLimit(p);
+        final Set<Integer> seen = new HashSet<>();
+        final int[] seed = new int[] { 0 };
+
+        collectUniqueUntil(counts, p, bucket, seen, seed, arrayLimit);
+        assertEquals(AbstractHyperLogLogPlusPlus.LINEAR_COUNTING, counts.getAlgorithm(bucket));
+
+        collectUniqueUntil(counts, p, bucket, seen, seed, threshold);
+        assertEquals(AbstractHyperLogLogPlusPlus.HYPERLOGLOG, counts.getAlgorithm(bucket));
+        assertEquals(bucket + 1, counts.maxOrd());
+        assertThat((double) counts.cardinality(bucket), closeTo(seen.size(), 0.1 * seen.size()));
+    }
+
+    public void testBreakerSafePromotion() {
+        final int p = 14;
+        final AtomicLong total = new AtomicLong();
+        CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
+        when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(new NoopCircuitBreaker(CircuitBreaker.REQUEST) {
+            private boolean tripped;
+
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                if (tripped == false && bytes >= (1L << p)) {
+                    tripped = true;
+                    throw new CircuitBreakingException("test error", bytes, Long.MAX_VALUE, Durability.TRANSIENT);
+                }
+                total.addAndGet(bytes);
+            }
+
+            @Override
+            public void addWithoutBreaking(long bytes) {
+                total.addAndGet(bytes);
+            }
+        });
+        BigArrays bigArrays = new BigArrays(null, breakerService, CircuitBreaker.REQUEST).withCircuitBreaking();
+        final int arrayLimit = arrayLimit(p);
+        final Set<Integer> seen = new HashSet<>();
+        boolean tripped = false;
+        final int[] seed = new int[] { 0 };
+
+        try (HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(p, bigArrays, 0)) {
+            try {
+                collectUniqueUntil(counts, p, 0, seen, seed, arrayLimit);
+            } catch (CircuitBreakingException e) {
+                tripped = true;
+            }
+            assertTrue(tripped);
+            assertEquals(AbstractHyperLogLogPlusPlus.LINEAR_COUNTING, counts.getAlgorithm(0));
+            assertEquals(seen.size(), counts.getLinearCounting(0).size());
+
+            collectNextUnique(counts, p, 0, seen, seed);
+            assertEquals(seen.size(), counts.getLinearCounting(0).size());
+        }
+    }
+
     public void testAllocation() {
         int precision = between(MIN_PRECISION, MAX_PRECISION);
         long initialBucketCount = between(0, 100);
         MockBigArrays.assertFitsIn(
-            ByteSizeValue.ofBytes((initialBucketCount << precision) + initialBucketCount * 4 + PageCacheRecycler.PAGE_SIZE_IN_BYTES * 2),
+            ByteSizeValue.ofBytes(initialBucketCount * 16L + PageCacheRecycler.PAGE_SIZE_IN_BYTES * 3),
             bigArrays -> new HyperLogLogPlusPlus(precision, bigArrays, initialBucketCount)
         );
+    }
+
+    private static int lcThreshold(int p) {
+        final int capacity = (1 << p) / 4;
+        return (int) (capacity * 0.75f);
+    }
+
+    private static int arrayLimit(int p) {
+        return Math.min(16, lcThreshold(p));
+    }
+
+    private static void collectUniqueUntil(HyperLogLogPlusPlus counts, int p, long bucket, Set<Integer> seen, int[] seed, int targetSize) {
+        while (seen.size() <= targetSize) {
+            collectNextUnique(counts, p, bucket, seen, seed);
+        }
+    }
+
+    private static void collectNextUnique(HyperLogLogPlusPlus counts, int p, long bucket, Set<Integer> seen, int[] seed) {
+        while (true) {
+            final long hash = BitMixer.mix64(seed[0]++);
+            final int encoded = AbstractLinearCounting.encodeHash(hash, p);
+            if (seen.add(encoded)) {
+                counts.collect(bucket, hash);
+                return;
+            }
+        }
     }
 }

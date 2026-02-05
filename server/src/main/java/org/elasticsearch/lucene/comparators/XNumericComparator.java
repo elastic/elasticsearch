@@ -22,6 +22,7 @@ import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.SkipBlockRangeIterator;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.util.DocIdSetBuilder;
 import org.apache.lucene.util.IntsRef;
@@ -530,7 +531,7 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
 
         @Override
         protected void doUpdateCompetitiveIterator() {
-            competitiveIterator.update(new XSkipBlockRangeIterator(skipper, minValueAsLong, maxValueAsLong));
+            competitiveIterator.update(new SkipBlockRangeIterator(skipper, minValueAsLong, maxValueAsLong));
         }
     }
 }

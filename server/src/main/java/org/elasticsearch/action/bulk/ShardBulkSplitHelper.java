@@ -103,8 +103,7 @@ public final class ShardBulkSplitHelper {
         List<ReplicationResponse.ShardInfo.Failure> shardFailures = new ArrayList<>();
 
         Map<Integer, BulkItemResponse> itemResponsesById = new HashMap<>();
-
-        // responses.forEach((shardId, responseTuple) -> {
+        
         for (Map.Entry<ShardId, Tuple<BulkShardResponse, Exception>> entry : responses.entrySet()) {
             Tuple<BulkShardResponse, Exception> responseTuple = entry.getValue();
             ShardId shardId = entry.getKey();

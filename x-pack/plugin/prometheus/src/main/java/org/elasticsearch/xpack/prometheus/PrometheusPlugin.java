@@ -68,6 +68,6 @@ public class PrometheusPlugin extends Plugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return enabled ? List.of(PROMETHEUS_REGISTRY_ENABLED) : List.of();
+        return List.of(PROMETHEUS_REGISTRY_ENABLED);
     }
 }

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverFiel
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 public class TransportGetViewAction extends TransportLocalProjectMetadataAction<GetViewAction.Request, GetViewAction.Response> {
@@ -61,7 +62,7 @@ public class TransportGetViewAction extends TransportLocalProjectMetadataAction<
         ActionListener<GetViewAction.Response> listener
     ) {
         ProjectId projectId = project.projectId();
-        Collection<View> views = new ArrayList<>();
+        Collection<View> views = new LinkedHashSet<>();
         List<String> missing = new ArrayList<>();
         String[] names = request.indices();
         // TODO currently doesn't support multi-target when security is off
@@ -82,7 +83,7 @@ public class TransportGetViewAction extends TransportLocalProjectMetadataAction<
         if (missing.isEmpty() == false) {
             listener.onFailure(new ResourceNotFoundException("Views do not exist: " + String.join(", ", missing)));
         } else {
-            listener.onResponse(new GetViewAction.Response(views.toArray(View[]::new)));
+            listener.onResponse(new GetViewAction.Response(views));
         }
     }
 

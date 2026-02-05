@@ -725,10 +725,6 @@ public class IndexNameExpressionResolver {
         return indicesOptions.includeFailureIndices();
     }
 
-    public static boolean shouldPreserveViews(IndicesOptions indicesOptions) {
-        return indicesOptions.wildcardOptions().resolveViews();
-    }
-
     private static boolean resolvesToMoreThanOneIndex(IndexAbstraction indexAbstraction, Context context, ResolvedExpression expression) {
         if (indexAbstraction.getType() == Type.ALIAS && indexAbstraction.isDataStreamRelated()) {
             // We inline this logic instead of calling aliasDataStreams because we want to return as soon as we've identified that we have
@@ -1792,7 +1788,7 @@ public class IndexNameExpressionResolver {
             String wildcardExpression,
             IndexAbstraction indexAbstraction
         ) {
-            if (shouldPreserveViews(context.getOptions()) == false && indexAbstraction.getType() == Type.VIEW) {
+            if (context.getOptions().wildcardOptions().resolveViews() == false && indexAbstraction.getType() == Type.VIEW) {
                 return false;
             }
             if (context.getOptions().ignoreAliases() && indexAbstraction.getType() == Type.ALIAS) {
@@ -1847,7 +1843,7 @@ public class IndexNameExpressionResolver {
             } else if (context.isPreserveDataStreams() && indexAbstraction.getType() == Type.DATA_STREAM) {
                 resources.add(new ResolvedExpression(indexAbstraction.getName(), selector));
             } else if (indexAbstraction.getType() == Type.VIEW) {
-                if (shouldPreserveViews(context.getOptions())) {
+                if (context.getOptions().wildcardOptions().resolveViews()) {
                     resources.add(new ResolvedExpression(indexAbstraction.getName(), selector));
                 }
             } else {

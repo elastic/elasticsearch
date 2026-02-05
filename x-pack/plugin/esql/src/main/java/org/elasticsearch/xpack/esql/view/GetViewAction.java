@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.esql.EsqlViewActionNames;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 
@@ -88,14 +89,14 @@ public class GetViewAction extends ActionType<GetViewAction.Response> {
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private final View[] views;
+        private final Collection<View> views;
 
-        public Response(View[] views) {
+        public Response(Collection<View> views) {
             Objects.requireNonNull(views, "views cannot be null");
             this.views = views;
         }
 
-        public View[] getViews() {
+        public Collection<View> getViews() {
             return views;
         }
 
@@ -107,7 +108,7 @@ public class GetViewAction extends ActionType<GetViewAction.Response> {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            var v = ChunkedToXContentHelper.array("views", Arrays.asList(views).iterator());
+            var v = ChunkedToXContentHelper.array("views", views.iterator());
             while (v.hasNext()) {
                 v.next().toXContent(builder, params);
             }
@@ -121,19 +122,19 @@ public class GetViewAction extends ActionType<GetViewAction.Response> {
                 return true;
             }
             if (o instanceof GetViewAction.Response response) {
-                return Arrays.equals(this.views, response.views);
+                return this.views.equals(response.views);
             }
             return false;
         }
 
         @Override
         public int hashCode() {
-            return Arrays.hashCode(views);
+            return views.hashCode();
         }
 
         @Override
         public String toString() {
-            return "GetViewAction.Response" + Arrays.toString(Arrays.stream(views).map(View::name).toArray(String[]::new));
+            return "GetViewAction.Response" + Arrays.toString(views.stream().map(View::name).toArray(String[]::new));
         }
     }
 }

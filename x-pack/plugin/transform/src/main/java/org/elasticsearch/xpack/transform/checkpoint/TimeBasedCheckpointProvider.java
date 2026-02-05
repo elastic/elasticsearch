@@ -48,13 +48,12 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
     TimeBasedCheckpointProvider(
         final Clock clock,
         final ParentTaskAssigningClient client,
-        final RemoteClusterResolver remoteClusterResolver,
         final TransformConfigManager transformConfigManager,
         final TransformAuditor transformAuditor,
         final TransformConfig transformConfig,
         final CrossProjectModeDecider crossProjectModeDecider
     ) {
-        super(clock, client, remoteClusterResolver, transformConfigManager, transformAuditor, transformConfig, crossProjectModeDecider);
+        super(clock, client, transformConfigManager, transformAuditor, transformConfig, crossProjectModeDecider);
         timeSyncConfig = (TimeSyncConfig) transformConfig.getSyncConfig();
         alignTimestamp = createAlignTimestampFunction(transformConfig);
     }

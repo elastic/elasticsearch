@@ -28,7 +28,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
@@ -288,7 +287,6 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
         return new TimeBasedCheckpointProvider(
             clock,
             parentTaskClient,
-            new RemoteClusterResolver(Settings.EMPTY, StubLinkedProjectConfigService.INSTANCE),
             transformConfigManager,
             transformAuditor,
             transformConfig,

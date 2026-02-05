@@ -304,8 +304,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         var crossProjectModeDecider = new CrossProjectModeDecider(settings);
         TransformCheckpointService checkpointService = new TransformCheckpointService(
             clock,
-            settings,
-            services.linkedProjectConfigService(),
             configManager,
             auditor,
             crossProjectModeDecider

@@ -32,7 +32,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
@@ -74,7 +73,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -202,8 +200,6 @@ public class TransformTaskTests extends ESTestCase {
         var transformsConfigManager = new InMemoryTransformConfigManager();
         var transformsCheckpointService = new TransformCheckpointService(
             clock,
-            Settings.EMPTY,
-            StubLinkedProjectConfigService.INSTANCE,
             transformsConfigManager,
             auditor,
             mock(CrossProjectModeDecider.class)

@@ -48,7 +48,6 @@ class DefaultCheckpointProvider implements CheckpointProvider {
 
     protected final Clock clock;
     protected final ParentTaskAssigningClient client;
-    protected final RemoteClusterResolver remoteClusterResolver;
     protected final TransformConfigManager transformConfigManager;
     protected final TransformAuditor transformAuditor;
     protected final TransformConfig transformConfig;
@@ -57,7 +56,6 @@ class DefaultCheckpointProvider implements CheckpointProvider {
     DefaultCheckpointProvider(
         final Clock clock,
         final ParentTaskAssigningClient client,
-        final RemoteClusterResolver remoteClusterResolver,
         final TransformConfigManager transformConfigManager,
         final TransformAuditor transformAuditor,
         final TransformConfig transformConfig,
@@ -65,7 +63,6 @@ class DefaultCheckpointProvider implements CheckpointProvider {
     ) {
         this.clock = clock;
         this.client = client;
-        this.remoteClusterResolver = remoteClusterResolver;
         this.transformConfigManager = transformConfigManager;
         this.transformAuditor = transformAuditor;
         this.transformConfig = transformConfig;
@@ -94,20 +91,6 @@ class DefaultCheckpointProvider implements CheckpointProvider {
 
     protected void getIndexCheckpoints(TimeValue timeout, ActionListener<Map<String, long[]>> listener) {
         try {
-            ActionListener<Map<String, long[]>> debugListener = logger.isDebugEnabled() ? listener.delegateFailure((l, r) -> {
-                remoteClusterResolver.resolve(r.keySet().toArray(new String[0]))
-                    .getRemoteIndicesPerClusterAlias()
-                    .keySet()
-                    .forEach(
-                        cluster -> logger.debug(
-                            "[{}] Successfully retrieved checkpoints from cluster [{}] using transform checkpoint API",
-                            transformConfig.getId(),
-                            cluster
-                        )
-                    );
-                l.onResponse(r);
-            }) : listener;
-
             var indicesOption = crossProjectModeDecider.crossProjectEnabled() && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
                 ? IndicesOptions.builder(IndicesOptions.LENIENT_EXPAND_OPEN)
                     .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
@@ -130,7 +113,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
                 transformConfig.getHeaders(),
                 ClientHelper.TRANSFORM_ORIGIN,
                 getCheckpointRequest,
-                debugListener.map(GetCheckpointAction.Response::getCheckpoints),
+                listener.map(GetCheckpointAction.Response::getCheckpoints),
                 (r, l) -> client.execute(GetCheckpointAction.INSTANCE, r, l)
             );
         } catch (Exception e) {

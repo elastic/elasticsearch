@@ -24,7 +24,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.MockLog.LoggingExpectation;
-import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -254,7 +253,6 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
             clock,
             parentTaskClient,
-            remoteClusterResolver,
             transformConfigManager,
             transformAuditor,
             transformConfig,
@@ -302,7 +300,6 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
             clock,
             parentTaskClient,
-            remoteClusterResolver,
             transformConfigManager,
             transformAuditor,
             transformConfig,
@@ -330,7 +327,6 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         return new DefaultCheckpointProvider(
             clock,
             parentTaskClient,
-            new RemoteClusterResolver(Settings.EMPTY, StubLinkedProjectConfigService.INSTANCE),
             transformConfigManager,
             transformAuditor,
             transformConfig,

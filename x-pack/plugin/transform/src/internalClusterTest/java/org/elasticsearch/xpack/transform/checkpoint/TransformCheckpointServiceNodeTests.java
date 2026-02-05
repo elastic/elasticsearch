@@ -47,7 +47,6 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
@@ -176,8 +175,6 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
         TransformAuditor mockAuditor = mock(TransformAuditor.class);
         transformCheckpointService = new TransformCheckpointService(
             Clock.systemUTC(),
-            Settings.EMPTY,
-            StubLinkedProjectConfigService.INSTANCE,
             transformsConfigManager,
             mockAuditor,
             new CrossProjectModeDecider(Settings.EMPTY)

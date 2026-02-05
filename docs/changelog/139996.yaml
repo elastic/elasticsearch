@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 139996
+summary: Implementation of IN_RANGE function
+type: feature

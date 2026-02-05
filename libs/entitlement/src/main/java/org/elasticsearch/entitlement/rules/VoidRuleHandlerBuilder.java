@@ -25,8 +25,10 @@ public class VoidRuleHandlerBuilder<T> extends AbstractRuleHandlerBuilder<T> {
         super(registry, clazz, methodKey, checkMethod);
     }
 
-    public ClassMethodBuilder<T> elseNoop() {
-        registry.registerRule(new EntitlementRule(methodKey, checkMethod, new DeniedEntitlementStrategy.NoopDeniedEntitlementStrategy()));
+    public ClassMethodBuilder<T> elseReturnEarly() {
+        registry.registerRule(
+            new EntitlementRule(methodKey, checkMethod, new DeniedEntitlementStrategy.ReturnEarlyDeniedEntitlementStrategy())
+        );
         return new ClassMethodBuilder<>(registry, clazz);
     }
 }

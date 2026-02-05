@@ -15,7 +15,7 @@ import java.util.function.Function;
 
 public abstract sealed class DeniedEntitlementStrategy permits DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy,
     DeniedEntitlementStrategy.ExceptionDeniedEntitlementStrategy, DeniedEntitlementStrategy.MethodArgumentValueDeniedEntitlementStrategy,
-    DeniedEntitlementStrategy.NoopDeniedEntitlementStrategy, DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy {
+    DeniedEntitlementStrategy.ReturnEarlyDeniedEntitlementStrategy, DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy {
 
     /**
      * An {@link DeniedEntitlementStrategy} instructing that a failed entitlement check should result in a {@link NotEntitledException}.
@@ -39,10 +39,9 @@ public abstract sealed class DeniedEntitlementStrategy permits DeniedEntitlement
     }
 
     /**
-     * An {@link DeniedEntitlementStrategy} that returns a default value when an entitlement check fails.
-     * @param <T> the type of the default value
+     * An {@link DeniedEntitlementStrategy} that returns the value of a method argument when an entitlement check fails.
      */
-    public static final class MethodArgumentValueDeniedEntitlementStrategy<T> extends DeniedEntitlementStrategy {
+    public static final class MethodArgumentValueDeniedEntitlementStrategy extends DeniedEntitlementStrategy {
         private final int index;
 
         public MethodArgumentValueDeniedEntitlementStrategy(int index) {
@@ -73,5 +72,5 @@ public abstract sealed class DeniedEntitlementStrategy permits DeniedEntitlement
      * An {@link DeniedEntitlementStrategy} that returns early when an entitlement check fails. This effectively turns the instrumented
      * method into a no-op in the case of a failed entitlement check.
      */
-    public static final class NoopDeniedEntitlementStrategy extends DeniedEntitlementStrategy {}
+    public static final class ReturnEarlyDeniedEntitlementStrategy extends DeniedEntitlementStrategy {}
 }

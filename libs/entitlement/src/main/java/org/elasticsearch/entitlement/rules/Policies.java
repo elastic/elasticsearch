@@ -25,7 +25,7 @@ import java.util.Set;
 
 public class Policies {
 
-    public static CheckMethod noop() {
+    public static CheckMethod empty() {
         return (callingClass, policyChecker) -> {};
     }
 

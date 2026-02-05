@@ -191,7 +191,7 @@ public class NetworkInstrumentation implements InstrumentationConfig {
                 if (proxy.type() == Proxy.Type.HTTP || proxy.type() == Proxy.Type.SOCKS) {
                     return Policies.outboundNetworkAccess();
                 } else {
-                    return Policies.noop();
+                    return Policies.empty();
                 }
             })
             .elseThrowNotEntitled()
@@ -662,7 +662,7 @@ public class NetworkInstrumentation implements InstrumentationConfig {
         builder.on(AbstractSelectableChannel.class)
             .calling(AbstractSelectableChannel::register, Selector.class, Integer.class, Object.class)
             .enforce((_, _, ops) -> {
-                CheckMethod check = Policies.noop();
+                CheckMethod check = Policies.empty();
                 if ((ops & SelectionKey.OP_CONNECT) != 0) {
                     check = check.and(Policies.outboundNetworkAccess());
                 }
@@ -675,7 +675,7 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             .elseThrowNotEntitled()
             .calling(AbstractSelectableChannel::register, Selector.class, Integer.class)
             .enforce((_, _, ops) -> {
-                CheckMethod check = Policies.noop();
+                CheckMethod check = Policies.empty();
                 if ((ops & SelectionKey.OP_CONNECT) != 0) {
                     check = check.and(Policies.outboundNetworkAccess());
                 }

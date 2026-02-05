@@ -547,13 +547,13 @@ public class InstrumenterTests extends ESTestCase {
         verifier2.assertCalled(1);
     }
 
-    public void testStaticMethodNoop() throws Exception {
+    public void testStaticMethodReturnEarly() throws Exception {
         var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someStaticMethodWithSideEffects", AtomicInteger.class));
         var loader = buildInstrumentation(
             builder -> builder.on(TestClassToInstrument.class)
                 .callingVoidStatic(TestClassToInstrument::someStaticMethodWithSideEffects, AtomicInteger.class)
                 .enforce(verifier)
-                .elseNoop()
+                .elseReturnEarly()
         );
 
         var counter = new AtomicInteger();
@@ -568,13 +568,13 @@ public class InstrumenterTests extends ESTestCase {
         assertEquals(1, counter.get());
     }
 
-    public void testInstanceMethodNoop() throws Exception {
+    public void testInstanceMethodReturnEarly() throws Exception {
         var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someMethodWithSideEffects", AtomicInteger.class));
         var loader = buildInstrumentation(
             builder -> builder.on(TestClassToInstrument.class)
                 .callingVoid(TestClassToInstrument::someMethodWithSideEffects, AtomicInteger.class)
                 .enforce(verifier)
-                .elseNoop()
+                .elseReturnEarly()
         );
 
         var instance = loader.newInstance();

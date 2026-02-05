@@ -66,7 +66,7 @@ public class SecurityInstrumentation implements InstrumentationConfig {
 
         builder.on(CertStore.class)
             .callingStatic(CertStore::getInstance, String.class, CertStoreParameters.class)
-            .enforce((type) -> "LDAP".equals(type) ? Policies.outboundNetworkAccess() : Policies.noop())
+            .enforce((type) -> "LDAP".equals(type) ? Policies.outboundNetworkAccess() : Policies.empty())
             .elseThrowNotEntitled();
     }
 }

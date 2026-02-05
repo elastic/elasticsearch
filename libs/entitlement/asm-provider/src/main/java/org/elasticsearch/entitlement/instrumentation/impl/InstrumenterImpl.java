@@ -287,8 +287,8 @@ public final class InstrumenterImpl implements Instrumenter {
             pushCallerClass();
             pushArguments();
             switch (strategy) {
-                case DeniedEntitlementStrategy.NoopDeniedEntitlementStrategy noop -> {
-                    // For noop strategy we want to catch not entitled and return early
+                case DeniedEntitlementStrategy.ReturnEarlyDeniedEntitlementStrategy returnEarly -> {
+                    // For return early strategy we want to catch not entitled and return early
                     catchNotEntitledAndReturnEarly();
                 }
                 case DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy defaultValue -> {

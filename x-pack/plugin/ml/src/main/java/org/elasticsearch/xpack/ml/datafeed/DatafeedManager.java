@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.datafeed;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -18,7 +19,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -221,7 +221,7 @@ public final class DatafeedManager {
 
         Runnable doUpdate = () -> useSecondaryAuthIfAvailable(securityContext, () -> {
             final Map<String, String> headers = threadPool.getThreadContext().getHeaders();
-            
+
             // Wrap the validator to check project_routing requires CPS environment.
             // This validation is applied to the updated config (after the update is applied to the existing config).
             BiConsumer<DatafeedConfig, ActionListener<Boolean>> wrappedValidator = (updatedConfig, validatorListener) -> {
@@ -238,7 +238,7 @@ public final class DatafeedManager {
                 // Then call the original validator
                 jobConfigProvider.validateDatafeedJob(updatedConfig, validatorListener);
             };
-            
+
             datafeedConfigProvider.updateDatefeedConfig(
                 request.getUpdate().getId(),
                 request.getUpdate(),

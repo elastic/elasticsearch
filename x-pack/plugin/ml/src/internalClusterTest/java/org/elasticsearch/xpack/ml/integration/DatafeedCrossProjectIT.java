@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
@@ -29,8 +28,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
@@ -86,11 +83,7 @@ public class DatafeedCrossProjectIT extends MlSingleNodeTestCase {
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
         blockingCall(
-            actionListener -> datafeedConfigProvider.putDatafeedConfig(
-                datafeedBuilder.build(),
-                createSecurityHeader(),
-                actionListener
-            ),
+            actionListener -> datafeedConfigProvider.putDatafeedConfig(datafeedBuilder.build(), createSecurityHeader(), actionListener),
             putResponseHolder,
             exceptionHolder
         );
@@ -114,7 +107,10 @@ public class DatafeedCrossProjectIT extends MlSingleNodeTestCase {
         Map<String, String> headers = new HashMap<>();
         // Only security headers are updated, grab the first one
         String securityHeader = ClientHelper.SECURITY_HEADER_FILTERS.iterator().next();
-        if (Set.of(AuthenticationField.AUTHENTICATION_KEY, org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication.THREAD_CTX_KEY).contains(securityHeader)) {
+        if (Set.of(
+            AuthenticationField.AUTHENTICATION_KEY,
+            org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication.THREAD_CTX_KEY
+        ).contains(securityHeader)) {
             headers.put(securityHeader, dummyAuthenticationHeader);
         } else {
             headers.put(securityHeader, "SECURITY_");

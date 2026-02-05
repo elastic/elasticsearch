@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.common.logging.action;
+package org.elasticsearch.common.logging.activity;
 
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.index.ActionLoggingFields;
@@ -21,15 +21,15 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ActionLoggerProducerTests extends ESTestCase {
+public class ActivityLoggerProducerTests extends ESTestCase {
 
-    ActionLoggerProducer<ActionLoggerContext> producer;
+    ActivityLogProducer<ActivityLoggerContext> producer;
 
     @Before
     public void setup() {
-        producer = new ActionLoggerProducer<>() {
+        producer = new ActivityLogProducer<>() {
             @Override
-            public ESLogMessage produce(ActionLoggerContext ctx, ActionLoggingFields additionalFields) {
+            public ESLogMessage produce(ActivityLoggerContext ctx, ActionLoggingFields additionalFields) {
                 return produceCommon(ctx, additionalFields);
             }
 
@@ -40,8 +40,8 @@ public class ActionLoggerProducerTests extends ESTestCase {
         };
     }
 
-    private static ActionLoggerContext makeSuccessContext() {
-        ActionLoggerContext context = mock(ActionLoggerContext.class);
+    private static ActivityLoggerContext makeSuccessContext() {
+        ActivityLoggerContext context = mock(ActivityLoggerContext.class);
         when(context.getType()).thenReturn("testType");
         when(context.getOpaqueId()).thenReturn("test_task");
         when(context.getTookInNanos()).thenReturn(1_000_000L);
@@ -49,8 +49,8 @@ public class ActionLoggerProducerTests extends ESTestCase {
         return context;
     }
 
-    private static ActionLoggerContext makeFailContext() {
-        ActionLoggerContext context = mock(ActionLoggerContext.class);
+    private static ActivityLoggerContext makeFailContext() {
+        ActivityLoggerContext context = mock(ActivityLoggerContext.class);
         when(context.getType()).thenReturn("failType");
         when(context.getOpaqueId()).thenReturn("test_task2");
         when(context.getTookInNanos()).thenReturn(1_000L);

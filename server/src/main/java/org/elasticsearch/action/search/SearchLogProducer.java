@@ -10,7 +10,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.common.logging.ESLogMessage;
-import org.elasticsearch.common.logging.action.ActionLoggerProducer;
+import org.elasticsearch.common.logging.activity.ActivityLogProducer;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.ActionLoggingFields;
@@ -19,9 +19,9 @@ import org.elasticsearch.logging.Level;
 import java.util.Arrays;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.common.logging.action.ActionLogger.ACTION_LOGGER_SETTINGS_PREFIX;
+import static org.elasticsearch.common.logging.activity.ActivityLogger.ACTIVITY_LOGGER_SETTINGS_PREFIX;
 
-public class SearchLogProducer implements ActionLoggerProducer<SearchLogContext> {
+public class SearchLogProducer implements ActivityLogProducer<SearchLogContext> {
 
     public static final String LOGGER_NAME = "search.actionlog";
     public static final String[] NEVER_MATCH = new String[] { "*", "-*" };
@@ -30,7 +30,7 @@ public class SearchLogProducer implements ActionLoggerProducer<SearchLogContext>
     private final Predicate<String> systemChecker;
 
     public static final Setting<Boolean> SEARCH_LOGGER_LOG_SYSTEM = Setting.boolSetting(
-        ACTION_LOGGER_SETTINGS_PREFIX + "search.include_system_indices",
+        ACTIVITY_LOGGER_SETTINGS_PREFIX + "search.include_system_indices",
         false,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope

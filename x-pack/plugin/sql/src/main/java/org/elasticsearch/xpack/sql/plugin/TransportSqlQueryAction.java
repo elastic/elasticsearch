@@ -14,8 +14,8 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.logging.action.ActionLogWriterProvider;
-import org.elasticsearch.common.logging.action.ActionLogger;
+import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
+import org.elasticsearch.common.logging.activity.ActivityLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -78,7 +78,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
     private final SqlLicenseChecker sqlLicenseChecker;
     private final TransportService transportService;
     private final AsyncTaskManagementService<SqlQueryRequest, SqlQueryResponse, SqlQueryTask> asyncTaskManagementService;
-    private final ActionLogger<SqlLogContext> actionLog;
+    private final ActivityLogger<SqlLogContext> actionLog;
 
     @Inject
     public TransportSqlQueryAction(
@@ -91,7 +91,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
         SqlLicenseChecker sqlLicenseChecker,
         BigArrays bigArrays,
         ActionLoggingFieldsProvider fieldProvider,
-        ActionLogWriterProvider logWriterProvider
+        ActivityLogWriterProvider logWriterProvider
     ) {
         super(SqlQueryAction.NAME, transportService, actionFilters, SqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
@@ -116,7 +116,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
             threadPool,
             bigArrays
         );
-        this.actionLog = new ActionLogger<>(
+        this.actionLog = new ActivityLogger<>(
             SqlLogContext.TYPE,
             clusterService.getClusterSettings(),
             new SqlLogProducer(),

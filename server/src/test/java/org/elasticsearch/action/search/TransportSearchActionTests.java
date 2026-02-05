@@ -48,7 +48,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.action.ActionLogWriterProvider;
+import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -1829,7 +1829,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 client,
                 new UsageService(),
                 new TestActionActionLoggingFieldsProvider(),
-                ActionLogWriterProvider.NOOP
+                ActivityLogWriterProvider.NOOP
             );
 
             CountDownLatch latch = new CountDownLatch(1);

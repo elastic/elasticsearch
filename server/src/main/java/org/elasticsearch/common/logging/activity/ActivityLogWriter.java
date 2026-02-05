@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.common.logging.action;
+package org.elasticsearch.common.logging.activity;
 
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.logging.Level;
@@ -15,8 +15,8 @@ import org.elasticsearch.logging.Level;
 /**
  * Generic writer interface to record a log message.
  */
-public interface ActionLogWriter {
-    ActionLogWriter NOOP = (l, m) -> {};
+public interface ActivityLogWriter {
+    ActivityLogWriter NOOP = (l, m) -> {};
 
     void write(Level level, ESLogMessage message);
 }

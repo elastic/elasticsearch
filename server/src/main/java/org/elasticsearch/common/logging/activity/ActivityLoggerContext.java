@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.common.logging.action;
+package org.elasticsearch.common.logging.activity;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
@@ -18,11 +18,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 
 /**
- * Context for {@link ActionLogger}.
+ * Context for {@link ActivityLogger}.
  * This class contains the information needed to log the query and is extended by specific logging contexts for each action.
- * {@link ActionLoggerProducer} uses the context data to compose fields for the log message.
+ * {@link ActivityLogProducer} uses the context data to compose fields for the log message.
  */
-public abstract class ActionLoggerContext {
+public abstract class ActivityLoggerContext {
     private final long tookInNanos;
     private final String type;
     private final @Nullable Exception error;
@@ -35,14 +35,14 @@ public abstract class ActionLoggerContext {
         return new String(sourceEscaped, StandardCharsets.UTF_8);
     }
 
-    public ActionLoggerContext(Task task, String type, long tookInNanos, @Nullable Exception error) {
+    public ActivityLoggerContext(Task task, String type, long tookInNanos, @Nullable Exception error) {
         this.type = type;
         this.error = error;
         this.tookInNanos = tookInNanos;
         this.task = task;
     }
 
-    public ActionLoggerContext(Task task, String type, long tookInNanos) {
+    public ActivityLoggerContext(Task task, String type, long tookInNanos) {
         this(task, type, tookInNanos, null);
     }
 

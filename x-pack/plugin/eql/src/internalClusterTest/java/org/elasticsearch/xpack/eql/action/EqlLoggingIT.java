@@ -15,7 +15,7 @@ import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.test.ActionLoggingUtils;
+import org.elasticsearch.test.ActivityLoggingUtils;
 import org.elasticsearch.xpack.eql.logging.EqlLogProducer;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -25,9 +25,9 @@ import org.junit.BeforeClass;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.test.ActionLoggingUtils.assertMessageFailure;
-import static org.elasticsearch.test.ActionLoggingUtils.assertMessageSuccess;
-import static org.elasticsearch.test.ActionLoggingUtils.getMessageData;
+import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageFailure;
+import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
+import static org.elasticsearch.test.ActivityLoggingUtils.getMessageData;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -56,13 +56,13 @@ public class EqlLoggingIT extends AbstractEqlIntegTestCase {
 
     @Before
     public void enableLog() {
-        ActionLoggingUtils.enableLoggers();
+        ActivityLoggingUtils.enableLoggers();
         appender.reset();
     }
 
     @After
     public void restoreLog() {
-        ActionLoggingUtils.disableLoggers();
+        ActivityLoggingUtils.disableLoggers();
     }
 
     public void testEqlLogging() throws Exception {

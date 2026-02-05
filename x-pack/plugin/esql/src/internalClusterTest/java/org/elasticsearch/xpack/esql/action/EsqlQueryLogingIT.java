@@ -12,7 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.ActionLoggingUtils;
+import org.elasticsearch.test.ActivityLoggingUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogProducer;
 import org.junit.After;
@@ -20,9 +20,9 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import static org.elasticsearch.test.ActionLoggingUtils.assertMessageFailure;
-import static org.elasticsearch.test.ActionLoggingUtils.assertMessageSuccess;
-import static org.elasticsearch.test.ActionLoggingUtils.getMessageData;
+import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageFailure;
+import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
+import static org.elasticsearch.test.ActivityLoggingUtils.getMessageData;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class EsqlQueryLogingIT extends AbstractEsqlIntegTestCase {
@@ -48,13 +48,13 @@ public class EsqlQueryLogingIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void enableLog() {
-        ActionLoggingUtils.enableLoggers();
+        ActivityLoggingUtils.enableLoggers();
         appender.reset();
     }
 
     @After
     public void restoreLog() {
-        ActionLoggingUtils.disableLoggers();
+        ActivityLoggingUtils.disableLoggers();
     }
 
     public void testLogging() throws Exception {

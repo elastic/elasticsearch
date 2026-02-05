@@ -48,7 +48,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.test.AbstractSearchCancellationTestCase;
-import org.elasticsearch.test.ActionLoggingUtils;
+import org.elasticsearch.test.ActivityLoggingUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -64,9 +64,9 @@ import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.elasticsearch.test.AbstractSearchCancellationTestCase.ScriptedBlockPlugin.SEARCH_BLOCK_SCRIPT_NAME;
-import static org.elasticsearch.test.ActionLoggingUtils.assertMessageFailure;
-import static org.elasticsearch.test.ActionLoggingUtils.assertMessageSuccess;
-import static org.elasticsearch.test.ActionLoggingUtils.getMessageData;
+import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageFailure;
+import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
+import static org.elasticsearch.test.ActivityLoggingUtils.getMessageData;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -101,13 +101,13 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
 
     @Before
     public void enableLog() {
-        ActionLoggingUtils.enableLoggers();
+        ActivityLoggingUtils.enableLoggers();
         appender.reset();
     }
 
     @After
     public void restoreLog() {
-        ActionLoggingUtils.disableLoggers();
+        ActivityLoggingUtils.disableLoggers();
     }
 
     @Override
@@ -259,7 +259,7 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         );
         assertNull(appender.getLastEventAndReset());
         // Log system index with option on
-        ActionLoggingUtils.enableLoggingSystem();
+        ActivityLoggingUtils.enableLoggingSystem();
         try {
             assertResponse(
                 prepareSearch(TestSystemIndexDescriptor.PRIMARY_INDEX_NAME).setQuery(new MatchAllQueryBuilder()),
@@ -270,7 +270,7 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             assertThat(message.get("indices"), equalTo(TestSystemIndexDescriptor.PRIMARY_INDEX_NAME));
             assertThat(message.get("is_system"), equalTo("true"));
         } finally {
-            ActionLoggingUtils.disableLoggingSystem();
+            ActivityLoggingUtils.disableLoggingSystem();
         }
     }
 
@@ -288,7 +288,7 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             );
             assertNull(appender.getLastEventAndReset());
             // Enable
-            ActionLoggingUtils.enableLoggingSystem();
+            ActivityLoggingUtils.enableLoggingSystem();
             assertResponse(
                 prepareSearch(TestSystemDataStreamPlugin.SYSTEM_DATA_STREAM_NAME).setQuery(new MatchAllQueryBuilder()),
                 ElasticsearchAssertions::assertNoFailures
@@ -298,7 +298,7 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             assertThat(message.get("indices"), equalTo(TestSystemDataStreamPlugin.SYSTEM_DATA_STREAM_NAME));
             assertThat(message.get("is_system"), equalTo("true"));
         } finally {
-            ActionLoggingUtils.disableLoggingSystem();
+            ActivityLoggingUtils.disableLoggingSystem();
             client().execute(
                 DeleteDataStreamAction.INSTANCE,
                 new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TestSystemDataStreamPlugin.SYSTEM_DATA_STREAM_NAME)

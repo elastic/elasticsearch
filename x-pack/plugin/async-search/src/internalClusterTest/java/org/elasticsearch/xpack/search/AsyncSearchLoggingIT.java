@@ -18,7 +18,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.ThrowingQueryBuilder;
-import org.elasticsearch.test.ActionLoggingUtils;
+import org.elasticsearch.test.ActivityLoggingUtils;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 import org.junit.After;
@@ -31,9 +31,9 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.test.ActionLoggingUtils.assertMessageFailure;
-import static org.elasticsearch.test.ActionLoggingUtils.assertMessageSuccess;
-import static org.elasticsearch.test.ActionLoggingUtils.getMessageData;
+import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageFailure;
+import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
+import static org.elasticsearch.test.ActivityLoggingUtils.getMessageData;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -61,13 +61,13 @@ public class AsyncSearchLoggingIT extends AsyncSearchIntegTestCase {
 
     @Before
     public void enableLog() {
-        ActionLoggingUtils.enableLoggers();
+        ActivityLoggingUtils.enableLoggers();
         appender.reset();
     }
 
     @After
     public void restoreLog() {
-        ActionLoggingUtils.disableLoggers();
+        ActivityLoggingUtils.disableLoggers();
     }
 
     private static final String INDEX_NAME = "test_index";

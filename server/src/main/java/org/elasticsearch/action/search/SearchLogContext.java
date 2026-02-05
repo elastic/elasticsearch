@@ -12,14 +12,14 @@ package org.elasticsearch.action.search;
 import joptsimple.internal.Strings;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.logging.action.ActionLoggerContext;
+import org.elasticsearch.common.logging.activity.ActivityLoggerContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 
 import java.util.Arrays;
 import java.util.function.Predicate;
 
-public class SearchLogContext extends ActionLoggerContext {
+public class SearchLogContext extends ActivityLoggerContext {
     private static final String TYPE = "search";
     private final SearchRequest request;
     private final @Nullable SearchResponse response;

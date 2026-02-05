@@ -73,8 +73,8 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.DynamicContextDataProvider;
 import org.elasticsearch.common.logging.HeaderWarning;
-import org.elasticsearch.common.logging.action.ActionLogWriterProvider;
-import org.elasticsearch.common.logging.action.Log4jActionWriter;
+import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
+import org.elasticsearch.common.logging.activity.Log4jWriter;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -1333,9 +1333,9 @@ class NodeConstruction {
         );
         dataStreamAutoShardingService.init();
 
-        ActionLogWriterProvider logWriterProvider = pluginsService.loadSingletonServiceProvider(
-            ActionLogWriterProvider.class,
-            () -> Log4jActionWriter.PROVIDER
+        ActivityLogWriterProvider logWriterProvider = pluginsService.loadSingletonServiceProvider(
+            ActivityLogWriterProvider.class,
+            () -> Log4jWriter.PROVIDER
         );
 
         modules.add(b -> {
@@ -1381,7 +1381,7 @@ class NodeConstruction {
             b.bind(MergeMetrics.class).toInstance(mergeMetrics);
             b.bind(ProjectRoutingResolver.class).toInstance(projectRoutingResolver);
             b.bind(ActionLoggingFieldsProvider.class).toInstance(loggingFieldsProvider);
-            b.bind(ActionLogWriterProvider.class).toInstance(logWriterProvider);
+            b.bind(ActivityLogWriterProvider.class).toInstance(logWriterProvider);
         });
 
         if (ReadinessService.enabled(environment)) {

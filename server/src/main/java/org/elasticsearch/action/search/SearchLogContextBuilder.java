@@ -10,10 +10,10 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.logging.action.ActionLoggerContextBuilder;
+import org.elasticsearch.common.logging.activity.ActivityLoggerContextBuilder;
 import org.elasticsearch.tasks.Task;
 
-public class SearchLogContextBuilder extends ActionLoggerContextBuilder<SearchLogContext, SearchRequest, SearchResponse> {
+public class SearchLogContextBuilder extends ActivityLoggerContextBuilder<SearchLogContext, SearchRequest, SearchResponse> {
     private final NamedWriteableRegistry namedWriteableRegistry;
 
     public SearchLogContextBuilder(Task task, NamedWriteableRegistry namedWriteableRegistry, SearchRequest request) {

@@ -7,10 +7,10 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.common.logging.action;
+package org.elasticsearch.common.logging.activity;
 
-public interface ActionLogWriterProvider {
-    ActionLogWriterProvider NOOP = (n) -> ActionLogWriter.NOOP;
+public interface ActivityLogWriterProvider {
+    ActivityLogWriterProvider NOOP = (n) -> ActivityLogWriter.NOOP;
 
-    ActionLogWriter getWriter(String loggerName);
+    ActivityLogWriter getWriter(String loggerName);
 }

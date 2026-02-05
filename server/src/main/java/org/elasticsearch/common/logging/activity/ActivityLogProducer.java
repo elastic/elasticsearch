@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.common.logging.action;
+package org.elasticsearch.common.logging.activity;
 
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.index.ActionLoggingFields;
@@ -17,11 +17,11 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Generic log producer class.
- * Each log producer receives a context and decides whether or not to log, and at which level. Then it extracts logging information
+ * Each log producer receives a context and decides whether to log, and at which level. Then it extracts logging information
  * from the context and places it into the message. The producer defines which fields are included in the specific log message.
  * @param <Context> Specific logger context
  */
-public interface ActionLoggerProducer<Context extends ActionLoggerContext> {
+public interface ActivityLogProducer<Context extends ActivityLoggerContext> {
     ESLogMessage produce(Context context, ActionLoggingFields additionalFields);
 
     default Level logLevel(Context context, Level defaultLevel) {

@@ -201,7 +201,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.io;
     exports org.elasticsearch.common.io.stream;
     exports org.elasticsearch.common.logging;
-    exports org.elasticsearch.common.logging.action;
+    exports org.elasticsearch.common.logging.activity;
     exports org.elasticsearch.common.lucene;
     exports org.elasticsearch.common.lucene.index;
     exports org.elasticsearch.common.lucene.search;

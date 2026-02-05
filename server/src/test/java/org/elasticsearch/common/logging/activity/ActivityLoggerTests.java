@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.common.logging.action;
+package org.elasticsearch.common.logging.activity;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.logging.ESLogMessage;
@@ -28,30 +28,30 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-public class ActionLoggerTests extends ESTestCase {
+public class ActivityLoggerTests extends ESTestCase {
 
     private final String loggerName = "test_logger";
     private ClusterSettings clusterSettings;
-    private ActionLoggerProducer<TestContext> producer;
-    private ActionLogWriter writer;
+    private ActivityLogProducer<TestContext> producer;
+    private ActivityLogWriter writer;
     private ActionLoggingFields loggingFields;
-    private ActionLogger<TestContext> actionLogger;
+    private ActivityLogger<TestContext> actionLogger;
 
     @Before
     @SuppressWarnings("unchecked")
     public void setup() {
         clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        producer = mock(ActionLoggerProducer.class);
+        producer = mock(ActivityLogProducer.class);
         when(producer.loggerName()).thenReturn(loggerName);
-        writer = mock(ActionLogWriter.class);
+        writer = mock(ActivityLogWriter.class);
         ActionLoggingFieldsProvider fieldProvider = mock(ActionLoggingFieldsProvider.class);
         loggingFields = mock(ActionLoggingFields.class);
 
         when(fieldProvider.create(any())).thenReturn(loggingFields);
-        var writerProvider = mock(ActionLogWriterProvider.class);
+        var writerProvider = mock(ActivityLogWriterProvider.class);
         when(writerProvider.getWriter(loggerName)).thenReturn(writer);
 
-        actionLogger = new ActionLogger<>(loggerName, clusterSettings, producer, writerProvider, fieldProvider);
+        actionLogger = new ActivityLogger<>(loggerName, clusterSettings, producer, writerProvider, fieldProvider);
     }
 
     private ESLogMessage randomMessage() {
@@ -124,7 +124,7 @@ public class ActionLoggerTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testWrapDisabled() {
         ActionListener<String> listener = ActionListener.noop();
-        ActionLoggerContextBuilder<TestContext, String, String> builder = mock(ActionLoggerContextBuilder.class);
+        ActivityLoggerContextBuilder<TestContext, String, String> builder = mock(ActivityLoggerContextBuilder.class);
 
         ActionListener<String> wrapped = actionLogger.wrap(listener, builder);
 
@@ -134,7 +134,7 @@ public class ActionLoggerTests extends ESTestCase {
 
     private void enableLogger() {
         clusterSettings.applySettings(
-            Settings.builder().put(ActionLogger.ACTION_LOGGER_ENABLED.getConcreteSettingForNamespace(loggerName).getKey(), true).build()
+            Settings.builder().put(ActivityLogger.ACTIVITY_LOGGER_ENABLED.getConcreteSettingForNamespace(loggerName).getKey(), true).build()
         );
     }
 
@@ -142,13 +142,13 @@ public class ActionLoggerTests extends ESTestCase {
     private void setThreshold(TimeValue threshold) {
         clusterSettings.applySettings(
             Settings.builder()
-                .put(ActionLogger.ACTION_LOGGER_ENABLED.getConcreteSettingForNamespace(loggerName).getKey(), true)
-                .put(ActionLogger.ACTION_LOGGER_THRESHOLD.getConcreteSettingForNamespace(loggerName).getKey(), threshold)
+                .put(ActivityLogger.ACTIVITY_LOGGER_ENABLED.getConcreteSettingForNamespace(loggerName).getKey(), true)
+                .put(ActivityLogger.ACTIVITY_LOGGER_THRESHOLD.getConcreteSettingForNamespace(loggerName).getKey(), threshold)
                 .build()
         );
     }
 
-    private static class TestContext extends ActionLoggerContext {
+    private static class TestContext extends ActivityLoggerContext {
         TestContext(long tookInNanos) {
             super(mock(Task.class), "test", tookInNanos);
         }

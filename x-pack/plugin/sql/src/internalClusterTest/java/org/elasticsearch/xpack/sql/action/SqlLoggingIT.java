@@ -13,7 +13,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.ActionLoggingUtils;
+import org.elasticsearch.test.ActivityLoggingUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.VerificationException;
 import org.elasticsearch.xpack.sql.logging.SqlLogProducer;
 import org.elasticsearch.xpack.sql.proto.Mode;
@@ -23,9 +23,9 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import static org.elasticsearch.test.ActionLoggingUtils.assertMessageFailure;
-import static org.elasticsearch.test.ActionLoggingUtils.assertMessageSuccess;
-import static org.elasticsearch.test.ActionLoggingUtils.getMessageData;
+import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageFailure;
+import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
+import static org.elasticsearch.test.ActivityLoggingUtils.getMessageData;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -53,13 +53,13 @@ public class SqlLoggingIT extends AbstractSqlIntegTestCase {
 
     @Before
     public void enableLog() {
-        ActionLoggingUtils.enableLoggers();
+        ActivityLoggingUtils.enableLoggers();
         appender.reset();
     }
 
     @After
     public void restoreLog() {
-        ActionLoggingUtils.disableLoggers();
+        ActivityLoggingUtils.disableLoggers();
     }
 
     public void testSqlLogging() {

@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.sql.logging;
 
 import org.elasticsearch.common.logging.ESLogMessage;
-import org.elasticsearch.common.logging.action.ActionLoggerProducer;
+import org.elasticsearch.common.logging.activity.ActivityLogProducer;
 import org.elasticsearch.index.ActionLoggingFields;
 
-public class SqlLogProducer implements ActionLoggerProducer<SqlLogContext> {
+public class SqlLogProducer implements ActivityLogProducer<SqlLogContext> {
 
     public static final String LOGGER_NAME = "sql.actionlog";
 

@@ -9,14 +9,14 @@ package org.elasticsearch.xpack.eql.logging;
 
 import joptsimple.internal.Strings;
 
-import org.elasticsearch.common.logging.action.ActionLoggerContext;
+import org.elasticsearch.common.logging.activity.ActivityLoggerContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 
 import java.util.concurrent.TimeUnit;
 
-public class EqlLogContext extends ActionLoggerContext {
+public class EqlLogContext extends ActivityLoggerContext {
     public static final String TYPE = "eql";
     private final EqlSearchRequest request;
     private final EqlSearchResponse response;

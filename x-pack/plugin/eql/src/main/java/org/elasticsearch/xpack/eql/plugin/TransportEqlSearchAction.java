@@ -17,8 +17,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.logging.action.ActionLogWriterProvider;
-import org.elasticsearch.common.logging.action.ActionLogger;
+import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
+import org.elasticsearch.common.logging.activity.ActivityLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
@@ -77,7 +77,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
     private final PlanExecutor planExecutor;
     private final TransportService transportService;
     private final AsyncTaskManagementService<EqlSearchRequest, EqlSearchResponse, EqlSearchTask> asyncTaskManagementService;
-    private final ActionLogger<EqlLogContext> actionLog;
+    private final ActivityLogger<EqlLogContext> actionLog;
 
     @Inject
     public TransportEqlSearchAction(
@@ -91,7 +91,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
         Client client,
         BigArrays bigArrays,
         ActionLoggingFieldsProvider fieldProvider,
-        ActionLogWriterProvider logWriterProvider
+        ActivityLogWriterProvider logWriterProvider
     ) {
         super(EqlSearchAction.NAME, transportService, actionFilters, EqlSearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
@@ -115,7 +115,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
             threadPool,
             bigArrays
         );
-        this.actionLog = new ActionLogger<>(
+        this.actionLog = new ActivityLogger<>(
             EqlLogContext.TYPE,
             clusterService.getClusterSettings(),
             new EqlLogProducer(),

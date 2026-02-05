@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.common.logging.action;
+package org.elasticsearch.common.logging.activity;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
@@ -27,50 +27,50 @@ import static org.elasticsearch.common.settings.Setting.timeSetting;
 
 /**
  * Generic wrapper to log completion (whether successful or not) of any action, with necessary details.
- * Specific details are added in the specific context types for each action.
+ * Specific details are added in the specific context types for each action, such as search, ESQL query, etc.
  * @param <Context> Logging context type
  */
-public class ActionLogger<Context extends ActionLoggerContext> {
-    private final ActionLoggerProducer<Context> producer;
-    private final ActionLogWriter writer;
+public class ActivityLogger<Context extends ActivityLoggerContext> {
+    private final ActivityLogProducer<Context> producer;
+    private final ActivityLogWriter writer;
     private final ActionLoggingFields additionalFields;
     private boolean enabled = false;
     private long threshold = -1;
     private Level logLevel = Level.INFO;
 
-    public static final String ACTION_LOGGER_SETTINGS_PREFIX = "elasticsearch.actionlog.";
-    public static final Setting.AffixSetting<Boolean> ACTION_LOGGER_ENABLED = Setting.affixKeySetting(
-        ACTION_LOGGER_SETTINGS_PREFIX,
+    public static final String ACTIVITY_LOGGER_SETTINGS_PREFIX = "elasticsearch.actionlog.";
+    public static final Setting.AffixSetting<Boolean> ACTIVITY_LOGGER_ENABLED = Setting.affixKeySetting(
+        ACTIVITY_LOGGER_SETTINGS_PREFIX,
         "enabled",
         key -> boolSetting(key, false, Setting.Property.Dynamic, Setting.Property.NodeScope)
     );
 
-    public static final Setting.AffixSetting<TimeValue> ACTION_LOGGER_THRESHOLD = Setting.affixKeySetting(
-        ACTION_LOGGER_SETTINGS_PREFIX,
+    public static final Setting.AffixSetting<TimeValue> ACTIVITY_LOGGER_THRESHOLD = Setting.affixKeySetting(
+        ACTIVITY_LOGGER_SETTINGS_PREFIX,
         "threshold",
         key -> timeSetting(key, TimeValue.MINUS_ONE, Setting.Property.Dynamic, Setting.Property.NodeScope)
     );
 
     // Default log level for this log type. Logger can override that if it wants to.
-    public static final Setting.AffixSetting<Level> ACTION_LOGGER_LEVEL = Setting.affixKeySetting(
-        ACTION_LOGGER_SETTINGS_PREFIX,
+    public static final Setting.AffixSetting<Level> ACTIVITY_LOGGER_LEVEL = Setting.affixKeySetting(
+        ACTIVITY_LOGGER_SETTINGS_PREFIX,
         "log_level",
         key -> new Setting<>(key, Level.INFO.name(), Level::valueOf, Setting.Property.Dynamic, Setting.Property.NodeScope)
     );
 
     // Whether to include authentication information in the log
-    public static final Setting.AffixSetting<Boolean> ACTION_LOGGER_INCLUDE_USER = Setting.affixKeySetting(
-        ACTION_LOGGER_SETTINGS_PREFIX,
+    public static final Setting.AffixSetting<Boolean> ACTIVITY_LOGGER_INCLUDE_USER = Setting.affixKeySetting(
+        ACTIVITY_LOGGER_SETTINGS_PREFIX,
         // Named to match slowlog, we may reconsider this naming
         "include.user",
         key -> boolSetting(key, true, Setting.Property.Dynamic, Setting.Property.NodeScope)
     );
 
-    public ActionLogger(
+    public ActivityLogger(
         String name,
         ClusterSettings settings,
-        ActionLoggerProducer<Context> producer,
-        ActionLogWriterProvider writerProvider,
+        ActivityLogProducer<Context> producer,
+        ActivityLogWriterProvider writerProvider,
         ActionLoggingFieldsProvider fieldsProvider
     ) {
         this.producer = producer;
@@ -78,19 +78,19 @@ public class ActionLogger<Context extends ActionLoggerContext> {
         var context = new ActionLoggingFieldsContext(true);
         // Initialize
         this.additionalFields = fieldsProvider.create(context);
-        this.enabled = settings.get(ACTION_LOGGER_ENABLED.getConcreteSettingForNamespace(name));
-        this.threshold = settings.get(ACTION_LOGGER_THRESHOLD.getConcreteSettingForNamespace(name)).nanos();
-        setLogLevel(settings.get(ACTION_LOGGER_LEVEL.getConcreteSettingForNamespace(name)));
-        context.setIncludeUserInformation(settings.get(ACTION_LOGGER_INCLUDE_USER.getConcreteSettingForNamespace(name)));
+        this.enabled = settings.get(ACTIVITY_LOGGER_ENABLED.getConcreteSettingForNamespace(name));
+        this.threshold = settings.get(ACTIVITY_LOGGER_THRESHOLD.getConcreteSettingForNamespace(name)).nanos();
+        setLogLevel(settings.get(ACTIVITY_LOGGER_LEVEL.getConcreteSettingForNamespace(name)));
+        context.setIncludeUserInformation(settings.get(ACTIVITY_LOGGER_INCLUDE_USER.getConcreteSettingForNamespace(name)));
 
-        settings.addAffixUpdateConsumer(ACTION_LOGGER_ENABLED, updater(name, v -> enabled = v), (k, v) -> {});
-        settings.addAffixUpdateConsumer(ACTION_LOGGER_THRESHOLD, updater(name, v -> threshold = v.nanos()), (k, v) -> {});
-        settings.addAffixUpdateConsumer(ACTION_LOGGER_LEVEL, updater(name, this::setLogLevel), (k, v) -> {
+        settings.addAffixUpdateConsumer(ACTIVITY_LOGGER_ENABLED, updater(name, v -> enabled = v), (k, v) -> {});
+        settings.addAffixUpdateConsumer(ACTIVITY_LOGGER_THRESHOLD, updater(name, v -> threshold = v.nanos()), (k, v) -> {});
+        settings.addAffixUpdateConsumer(ACTIVITY_LOGGER_LEVEL, updater(name, this::setLogLevel), (k, v) -> {
             if (v.equals(Level.ERROR) || v.equals(Level.FATAL)) {
                 throw new IllegalStateException("Log level can not be " + v.name() + " for " + k);
             }
         });
-        settings.addAffixUpdateConsumer(ACTION_LOGGER_INCLUDE_USER, updater(name, context::setIncludeUserInformation), (k, v) -> {});
+        settings.addAffixUpdateConsumer(ACTIVITY_LOGGER_INCLUDE_USER, updater(name, context::setIncludeUserInformation), (k, v) -> {});
     }
 
     private void setLogLevel(Level level) {
@@ -119,7 +119,7 @@ public class ActionLogger<Context extends ActionLoggerContext> {
         }
     }
 
-    public <Req, R> ActionListener<R> wrap(ActionListener<R> listener, final ActionLoggerContextBuilder<Context, Req, R> contextBuilder) {
+    public <Req, R> ActionListener<R> wrap(ActionListener<R> listener, final ActivityLoggerContextBuilder<Context, Req, R> contextBuilder) {
         if (enabled == false) {
             return listener;
         }
@@ -148,7 +148,7 @@ public class ActionLogger<Context extends ActionLoggerContext> {
 
             @Override
             public String toString() {
-                return "ActionLogger listener/" + delegate;
+                return "ActivityLogger listener/" + delegate;
             }
         };
     }

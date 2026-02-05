@@ -17,7 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.action.search.SearchLogProducer.SEARCH_LOGGER_LOG_SYSTEM;
-import static org.elasticsearch.common.logging.action.ActionLogger.ACTION_LOGGER_ENABLED;
+import static org.elasticsearch.common.logging.activity.ActivityLogger.ACTIVITY_LOGGER_ENABLED;
 import static org.elasticsearch.test.ESIntegTestCase.updateClusterSettings;
 import static org.elasticsearch.test.ESTestCase.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -27,14 +27,14 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertNotNull;
 
-public class ActionLoggingUtils {
+public class ActivityLoggingUtils {
 
     private static final String[] loggers = new String[] { "search", "sql", "esql", "eql" };
 
     public static void enableLoggers() {
         var builder = Settings.builder();
         for (String logger : loggers) {
-            builder.put(ACTION_LOGGER_ENABLED.getConcreteSettingForNamespace(logger).getKey(), true);
+            builder.put(ACTIVITY_LOGGER_ENABLED.getConcreteSettingForNamespace(logger).getKey(), true);
         }
         updateClusterSettings(builder);
     }
@@ -42,7 +42,7 @@ public class ActionLoggingUtils {
     public static void disableLoggers() {
         var builder = Settings.builder();
         for (String logger : loggers) {
-            builder.put(ACTION_LOGGER_ENABLED.getConcreteSettingForNamespace(logger).getKey(), (String) null);
+            builder.put(ACTIVITY_LOGGER_ENABLED.getConcreteSettingForNamespace(logger).getKey(), (String) null);
         }
         updateClusterSettings(builder);
     }

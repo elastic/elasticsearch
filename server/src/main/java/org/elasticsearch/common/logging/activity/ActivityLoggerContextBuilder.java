@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.common.logging.action;
+package org.elasticsearch.common.logging.activity;
 
 import org.elasticsearch.tasks.Task;
 
@@ -19,13 +19,13 @@ import org.elasticsearch.tasks.Task;
  * @param <Request> Request class.
  * @param <Response> Response type for the listener.
  */
-public abstract class ActionLoggerContextBuilder<Context extends ActionLoggerContext, Request, Response> {
+public abstract class ActivityLoggerContextBuilder<Context extends ActivityLoggerContext, Request, Response> {
 
     private final long start;
     protected final Request request;
     protected final Task task;
 
-    protected ActionLoggerContextBuilder(Task task, Request request) {
+    protected ActivityLoggerContextBuilder(Task task, Request request) {
         start = System.nanoTime();
         this.task = task;
         this.request = request;

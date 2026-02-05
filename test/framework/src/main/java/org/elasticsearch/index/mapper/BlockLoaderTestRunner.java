@@ -51,7 +51,7 @@ public class BlockLoaderTestRunner {
     }
 
     public void defaultMatcher(Object expected, Object actual) {
-        assertThat(expected, PrettyEqual.prettyEqualTo(actual));
+        assertThat(actual, PrettyEqual.prettyEqualTo(expected));
     }
 
     public void runTest(MapperService mapperService, Map<String, Object> document, Object expected, String blockLoaderFieldName)

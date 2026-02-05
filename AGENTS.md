@@ -26,6 +26,18 @@ This file briefs agentic contributors on how to build, test, lint, and extend th
 - `./gradlew spotlessJavaCheck` / `spotlessApply` (or `:server:spotlessJavaCheck`): enforce the Eclipse formatter profile in `build-conventions/formatterConfig.xml`.
 - `./gradlew configureIdeCheckstyle -Didea.active=true`: regenerates IntelliJ Checkstyle config when missing.
 
+### Project Structure
+The repository is organized into several key directories:
+*   `server`: The core Elasticsearch server.
+*   `modules`: Features shipped with Elasticsearch by default.
+*   `plugins`: Officially supported plugins.
+*   `libs`: Internal libraries used by other parts of the project.
+*   `qa`: Integration and multi-version tests.
+*   `docs`: Project documentation.
+*   `distribution`: Logic for building distribution packages.
+*   `x-pack`: Additional code modules and plugins under Elastic License.  
+*   `build-conventions`, `build-tools`, `build-tools-internal`: Gradle build logic.
+  
 ## Testing Cheatsheet
 - Standard suite: `./gradlew test` (respects cached results; add `-Dtests.timestamp=$(date +%s)` to bypass caches when reusing seeds).
 - Single project: `./gradlew :server:test` (or other subproject path).

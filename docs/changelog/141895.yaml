@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 141895
+summary: ESQL `mv_except` function
+type: feature

@@ -712,28 +712,55 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         void check(String name, boolean reuseBlockLoaders, int pageCount, int segmentCount, Map<?, ?> readersBuilt);
     }
 
-    record FieldCase(ValuesSourceReaderOperator.FieldInfo info, CheckResultsWithIndexKey checkResults, CheckReadersWithName checkReaders) {
-        FieldCase(ValuesSourceReaderOperator.FieldInfo info, CheckResults checkResults, CheckReadersWithName checkReaders) {
-            this(info, (block, position, key, indexKey) -> checkResults.check(block, position, key), checkReaders);
+    static class FieldCase {
+        private final ValuesSourceReaderOperator.FieldInfo info;
+        CheckResultsWithIndexKey checkResults;
+        CheckReadersWithName checkReaders;
+
+        FieldCase(ValuesSourceReaderOperator.FieldInfo info) {
+            this.info = info;
+        }
+
+        public ValuesSourceReaderOperator.FieldInfo info() {
+            return info;
+        }
+
+        CheckResultsWithIndexKey checkResults() {
+            return checkResults;
+        }
+
+        FieldCase checkResults(CheckResultsWithIndexKey checkResults) {
+            this.checkResults = checkResults;
+            return this;
+        }
+
+        FieldCase checkResults(CheckResults checkResults) {
+            return checkResults((block, position, key, indexKey) -> checkResults.check(block, position, key);
+        }
+
+        CheckReadersWithName checkReaders() {
+            return checkReaders;
+        }
+
+        FieldCase checkReaders(CheckReadersWithName checkReaders) {
+            this.checkReaders = checkReaders;
+            return this;
+        }
+
+        FieldCase checkReaders(CheckReaders checkReaders) {
+            return checkReaders(
+                (name, reuseBlockLoaders, pageCount, segmentCount, readersBuilt) -> checkReaders.check(
+                    reuseBlockLoaders,
+                    pageCount,
+                    segmentCount,
+                    readersBuilt
+                )
+            );
         }
     }
 
-    private static FieldCase fieldCase(MappedFieldType ft, ElementType elementType, CheckResults checkResults, CheckReadersWithName checkReaders) {
-        return new FieldCase(fieldInfo(ft, elementType), checkResults, checkReaders);
-    }
-
-    private static FieldCase fieldCase(MappedFieldType ft, ElementType elementType, CheckResults checkResults, CheckReaders checkReaders) {
-        return fieldCase(
-            ft,
-            elementType,
-            checkResults,
-            (name, reuseBlockLoaders, pageCount, segmentCount, readersBuilt) -> checkReaders.check(
-                reuseBlockLoaders,
-                pageCount,
-                segmentCount,
-                readersBuilt
-            )
-        );
+    private static FieldCase fieldCase(MappedFieldType ft, ElementType elementType) {
+        return new FieldCase(fieldInfo(ft, elementType));
     }
 
     /**
@@ -823,22 +850,12 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         );
         r.add(fieldCase(mapperService.fieldType("int"), ElementType.INT, checks::ints, StatusChecks::intsFromDocValues));
         r.add(
-            fieldCase(
-                mapperService.fieldType("mv_int"),
-                ElementType.INT,
-                checks::mvIntsFromDocValues,
-                StatusChecks::mvIntsFromDocValues
-            )
+            fieldCase(mapperService.fieldType("mv_int"), ElementType.INT, checks::mvIntsFromDocValues, StatusChecks::mvIntsFromDocValues)
         );
         r.add(fieldCase(mapperService.fieldType("missing_int"), ElementType.INT, checks::constantNulls, StatusChecks::constantNulls));
         r.add(fieldCase(mapperService.fieldType("source_int"), ElementType.INT, checks::ints, StatusChecks::intsFromSource));
         r.add(
-            fieldCase(
-                mapperService.fieldType("mv_source_int"),
-                ElementType.INT,
-                checks::mvIntsUnordered,
-                StatusChecks::mvIntsFromSource
-            )
+            fieldCase(mapperService.fieldType("mv_source_int"), ElementType.INT, checks::mvIntsUnordered, StatusChecks::mvIntsFromSource)
         );
         r.add(fieldCase(mapperService.fieldType("short"), ElementType.INT, checks::shorts, StatusChecks::shortsFromDocValues));
         r.add(fieldCase(mapperService.fieldType("mv_short"), ElementType.INT, checks::mvShorts, StatusChecks::mvShortsFromDocValues));
@@ -847,17 +864,11 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         r.add(fieldCase(mapperService.fieldType("mv_byte"), ElementType.INT, checks::mvBytes, StatusChecks::mvBytesFromDocValues));
         r.add(fieldCase(mapperService.fieldType("missing_byte"), ElementType.INT, checks::constantNulls, StatusChecks::constantNulls));
         r.add(fieldCase(mapperService.fieldType("double"), ElementType.DOUBLE, checks::doubles, StatusChecks::doublesFromDocValues));
-        r.add(
-            fieldCase(mapperService.fieldType("mv_double"), ElementType.DOUBLE, checks::mvDoubles, StatusChecks::mvDoublesFromDocValues)
-        );
-        r.add(
-            fieldCase(mapperService.fieldType("missing_double"), ElementType.DOUBLE, checks::constantNulls, StatusChecks::constantNulls)
-        );
+        r.add(fieldCase(mapperService.fieldType("mv_double"), ElementType.DOUBLE, checks::mvDoubles, StatusChecks::mvDoublesFromDocValues));
+        r.add(fieldCase(mapperService.fieldType("missing_double"), ElementType.DOUBLE, checks::constantNulls, StatusChecks::constantNulls));
         r.add(fieldCase(mapperService.fieldType("bool"), ElementType.BOOLEAN, checks::bools, StatusChecks::boolFromDocValues));
         r.add(fieldCase(mapperService.fieldType("mv_bool"), ElementType.BOOLEAN, checks::mvBools, StatusChecks::mvBoolFromDocValues));
-        r.add(
-            fieldCase(mapperService.fieldType("missing_bool"), ElementType.BOOLEAN, checks::constantNulls, StatusChecks::constantNulls)
-        );
+        r.add(fieldCase(mapperService.fieldType("missing_bool"), ElementType.BOOLEAN, checks::constantNulls, StatusChecks::constantNulls));
         r.add(fieldCase(mapperService.fieldType("kwd"), ElementType.BYTES_REF, checks::tags, StatusChecks::keywordsFromDocValues));
         r.add(
             fieldCase(
@@ -867,9 +878,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 StatusChecks::mvKeywordsFromDocValues
             )
         );
-        r.add(
-            fieldCase(mapperService.fieldType("missing_kwd"), ElementType.BYTES_REF, checks::constantNulls, StatusChecks::constantNulls)
-        );
+        r.add(fieldCase(mapperService.fieldType("missing_kwd"), ElementType.BYTES_REF, checks::constantNulls, StatusChecks::constantNulls));
         r.add(fieldCase(storedKeywordField("stored_kwd"), ElementType.BYTES_REF, checks::strings, StatusChecks::keywordsFromStored));
         r.add(
             fieldCase(
@@ -879,9 +888,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 StatusChecks::mvKeywordsFromStored
             )
         );
-        r.add(
-            fieldCase(mapperService.fieldType("source_kwd"), ElementType.BYTES_REF, checks::strings, StatusChecks::keywordsFromSource)
-        );
+        r.add(fieldCase(mapperService.fieldType("source_kwd"), ElementType.BYTES_REF, checks::strings, StatusChecks::keywordsFromSource));
         r.add(
             fieldCase(
                 mapperService.fieldType("mv_source_kwd"),
@@ -901,12 +908,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         );
         r.add(fieldCase(storedTextField("stored_text"), ElementType.BYTES_REF, checks::strings, StatusChecks::textFromStored));
         r.add(
-            fieldCase(
-                storedTextField("mv_stored_text"),
-                ElementType.BYTES_REF,
-                checks::mvStringsUnordered,
-                StatusChecks::mvTextFromStored
-            )
+            fieldCase(storedTextField("mv_stored_text"), ElementType.BYTES_REF, checks::mvStringsUnordered, StatusChecks::mvTextFromStored)
         );
         r.add(
             fieldCase(
@@ -996,12 +998,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         Checks checks = new Checks(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
 
         List<FieldCase> cases = List.of(
-            fieldCase(
-                mapperService.fieldType("long_source_text"),
-                ElementType.BYTES_REF,
-                checks::strings,
-                StatusChecks::longTextFromSource
-            )
+            fieldCase(mapperService.fieldType("long_source_text"), ElementType.BYTES_REF, checks::strings, StatusChecks::longTextFromSource)
         );
         // Build one operator for each field, so we get a unique map to assert on
         List<Operator> operators = cases.stream()

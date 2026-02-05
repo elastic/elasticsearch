@@ -55,16 +55,23 @@ setup:
         id: "3"
         body:
           keyword: [ "abcdef", "ab", "abcdefg" ]
+  - do:
+      indices.refresh: {}
 
   - do:
       esql.query:
         body:
-          query: 'FROM test | EVAL k = mv_min(keyword) | SORT k | KEEP k'
+          query: 'FROM test METADATA _id | EVAL k = mv_min(keyword) | SORT k | KEEP _id, k | LIMIT 10'
 
-  - length: {columns: 1}
-  - match: {columns.0.name: "k"}
+  - length: {columns: 2}
+  - match: {columns.0.name: "_id"}
   - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "k"}
+  - match: {columns.1.type: "keyword"}
   - length: {values: 3}
-  - match: {values.0.0: "abc"}
-  - match: {values.1.0: "abcdef"}
-  - match: {values.2.0: "ab"}
+  - match: {values.0.0: "3"}
+  - match: {values.0.1: "ab"}
+  - match: {values.1.0: "1"}
+  - match: {values.1.1: "abc"}
+  - match: {values.2.0: "2"}
+  - match: {values.2.1: "abcdef"}

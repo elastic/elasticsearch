@@ -52,6 +52,8 @@ public class ReadOnlyStep implements DlmStep {
         AddIndexBlockRequest addIndexBlockRequest = new AddIndexBlockRequest(WRITE, indexName).masterNodeTimeout(
             INFINITE_MASTER_NODE_TIMEOUT
         );
+        // Force a flush while adding the read-only block to ensure all in-flight writes are completed and written to segments
+        addIndexBlockRequest.markVerified(true);
 
         stepContext.executeDeduplicatedRequest(
             addIndexBlockRequest,

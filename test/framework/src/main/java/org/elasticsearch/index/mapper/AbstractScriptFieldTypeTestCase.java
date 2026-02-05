@@ -490,7 +490,9 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         BlockLoader loader = fieldType.blockLoader(blContext(settings, true));
         List<Object> all = new ArrayList<>();
         for (LeafReaderContext ctx : reader.leaves()) {
-            TestBlock block = (TestBlock) loader.columnAtATimeReader(ctx).read(TestBlock.factory(), TestBlock.docs(ctx), offset, false);
+            TestBlock block = (TestBlock) loader.columnAtATimeReader(ctx)
+                .get()
+                .read(TestBlock.factory(), TestBlock.docs(ctx), offset, false);
             for (int i = 0; i < block.size(); i++) {
                 all.add(block.get(i));
             }

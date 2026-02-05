@@ -51,7 +51,7 @@ public class MMROperatorTests extends OperatorTestCase {
             @Override
             protected Page createPage(int positionOffset, int length) {
                 length = Integer.min(length, remaining());
-                var blocks = new Block[2];
+                var blocks = new Block[1];
                 float[] vectors = new float[length * 4];
                 int[] vectorPositions = new int[length + 1];
                 int vectorIndex = 0;
@@ -67,13 +67,6 @@ public class MMROperatorTests extends OperatorTestCase {
                     vectorPositions[length] = vectorIndex;
 
                     blocks[0] = blockFactory.newFloatArrayBlock(vectors, length, vectorPositions, new BitSet(), Block.MvOrdering.UNORDERED);
-
-                    // score block
-                    var scoreBlockBuilder = blockFactory.newDoubleBlockBuilder(length);
-                    for (int i = 0; i < length; i++) {
-                        scoreBlockBuilder.appendDouble(1.0);
-                    }
-                    blocks[1] = scoreBlockBuilder.build();
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 } finally {}
@@ -93,15 +86,14 @@ public class MMROperatorTests extends OperatorTestCase {
         var firstResultPage = results.getFirst();
         assertEquals(expectedLimit, firstResultPage.getPositionCount());
 
-        assertEquals(2, firstResultPage.getBlockCount());
+        assertEquals(1, firstResultPage.getBlockCount());
 
         assertThat(firstResultPage.getBlock(0).elementType(), equalTo(ElementType.FLOAT));
-        assertThat(firstResultPage.getBlock(1).elementType(), equalTo(ElementType.DOUBLE));
     }
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new MMROperator.Factory("vector_field", 0, testLimitValue, null, null, 1);
+        return new MMROperator.Factory("vector_field", 0, testLimitValue, null, null);
     }
 
     @Override

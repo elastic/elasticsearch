@@ -457,7 +457,7 @@ public class ESTestCaseTests extends ESTestCase {
     }
 
     public void testAssertArrayEqualsPercentDifferentSize() {
-        var ex = expectThrows(AssertionError.class, () -> assertArrayEqualsPercent(new float[] { 1, 2, 3 }, new float[] { 1, 2 }, 0.1f, 0.0f));
+        var ex = expectThrows(AssertionError.class, () -> assertArrayEqualsPercent(new float[] { 1, 2, 3 }, new float[] { 1, 2 }, 0.1f, 0));
         assertThat(ex.getMessage(), is("array lengths differed, expected.length=3 actual.length=2"));
     }
 
@@ -491,6 +491,18 @@ public class ESTestCaseTests extends ESTestCase {
     }
 
     public void testAssertArrayEqualsPercentElementsAreWithinAbsoluteDelta() {
-        assertArrayEqualsPercent(new float[] { 1, 2, 3, 0 }, new float[] { 0.99f, 1.99f, 2.99f, 0.01f }, 0.001f, 0.02f);
+        float[] expected = {1, 2, 3, 0};
+        float[] actual = {0.99f, 1.99f, 2.99f, 0.01f};
+        var ex = expectThrows(
+            AssertionError.class,
+            () -> assertArrayEqualsPercent(expected, actual, 0.001f, 0.0f)
+        );
+        assertThat(ex.getMessage(), startsWith("arrays first differed at element [0]"));
+        ex = expectThrows(
+            AssertionError.class,
+            () -> assertArrayEqualsPercent(expected, actual, 0.01f, 0.0f)
+        );
+        assertThat(ex.getMessage(), startsWith("arrays first differed at element [3]"));
+        assertArrayEqualsPercent(expected, actual, 0.001f, 0.02f);
     }
 }

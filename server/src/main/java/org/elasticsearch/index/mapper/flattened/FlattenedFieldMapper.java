@@ -21,6 +21,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -32,6 +33,7 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -54,6 +56,8 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -79,14 +83,17 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -267,7 +274,9 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 eagerGlobalOrdinals.get(),
                 dimensions.get(),
                 new IgnoreAbove(ignoreAbove.getValue(), indexMode, indexCreatedVersion),
-                usesBinaryDocValues
+                usesBinaryDocValues,
+                nullValue.get(),
+                context.isSourceSynthetic()
             );
             return new FlattenedFieldMapper(leafName(), ft, builderParams(this, context), this);
         }
@@ -787,6 +796,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
         private final boolean isDimension;
         private final IgnoreAbove ignoreAbove;
         private final boolean usesBinaryDocValues;
+        private final String nullValue;
+        private final boolean isSyntheticSourceEnabled;
 
         RootFlattenedFieldType(
             String name,
@@ -795,7 +806,9 @@ public final class FlattenedFieldMapper extends FieldMapper {
             boolean splitQueriesOnWhitespace,
             boolean eagerGlobalOrdinals,
             IgnoreAbove ignoreAbove,
-            boolean usesBinaryDocValues
+            boolean usesBinaryDocValues,
+            String nullValue,
+            boolean isSyntheticSourceEnabled
         ) {
             this(
                 name,
@@ -805,7 +818,9 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 eagerGlobalOrdinals,
                 Collections.emptyList(),
                 ignoreAbove,
-                usesBinaryDocValues
+                usesBinaryDocValues,
+                nullValue,
+                isSyntheticSourceEnabled
             );
         }
 
@@ -817,7 +832,9 @@ public final class FlattenedFieldMapper extends FieldMapper {
             boolean eagerGlobalOrdinals,
             List<String> dimensions,
             IgnoreAbove ignoreAbove,
-            boolean usesBinaryDocValues
+            boolean usesBinaryDocValues,
+            String nullValue,
+            boolean isSyntheticSourceEnabled
         ) {
             super(
                 name,
@@ -832,11 +849,53 @@ public final class FlattenedFieldMapper extends FieldMapper {
             this.isDimension = dimensions.isEmpty() == false;
             this.ignoreAbove = ignoreAbove;
             this.usesBinaryDocValues = usesBinaryDocValues;
+            this.nullValue = nullValue;
+            this.isSyntheticSourceEnabled = isSyntheticSourceEnabled;
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (hasDocValues() && (ignoreAbove.valuesPotentiallyIgnored() == false || isSyntheticSourceEnabled)) {
+                return new RootFlattenedDocValuesBlockLoader(name(), ignoreAbove, usesBinaryDocValues);
+            }
+
+            SourceValueFetcher fetcher = new SourceValueFetcher(
+                blContext.sourcePaths(name()),
+                nullValue,
+                blContext.indexSettings().getIgnoredSourceFormat()
+            ) {
+                @Override
+                @SuppressWarnings("unchecked")
+                protected Object parseSourceValue(Object value) {
+                    try {
+                        return Strings.toString(XContentFactory.jsonBuilder().map((Map<String, Object>) value));
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }
+            };
+
+            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext));
+        }
+
+        private BlockSourceReader.LeafIteratorLookup sourceBlockLoaderLookup(BlockLoaderContext blContext) {
+            if (hasDocValues() && ignoreAbove().valuesPotentiallyIgnored() == false) {
+                if (usesBinaryDocValues) {
+                    return ctx -> Objects.requireNonNullElseGet(ctx.reader().getBinaryDocValues(name()), DocIdSetIterator::empty);
+                } else {
+                    return ctx -> Objects.requireNonNullElseGet(ctx.reader().getSortedSetDocValues(name()), DocIdSetIterator::empty);
+                }
+            }
+            if (hasDocValues() == false && indexType.hasTerms()) {
+                // We only write the field names field if there aren't doc values or norms
+                return BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name());
+            }
+            return BlockSourceReader.lookupMatchingAll();
         }
 
         @Override

@@ -480,6 +480,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return circuitBreaker;
     }
 
+    public BigArrays getBigArrays() {
+        return bigArrays;
+    }
+
     private void setEnableSearchWorkerThreads(boolean enableSearchWorkerThreads) {
         if (enableSearchWorkerThreads) {
             searchExecutor = threadPool.executor(Names.SEARCH);
@@ -2156,7 +2160,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 searcher,
                 request::nowInMillis,
                 request.getClusterAlias(),
-                request.getRuntimeMappings()
+                request.getRuntimeMappings(),
+                null,
+                null
             );
         }
 

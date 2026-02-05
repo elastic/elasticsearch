@@ -111,6 +111,8 @@ redirects:
   'reference/query-languages/esql/kibana/docs/functions/st_geohash_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'
   'reference/query-languages/esql/kibana/docs/functions/st_geotile_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'
   'reference/query-languages/esql/kibana/docs/functions/st_geohex_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'reference/query-languages/esql/kibana/docs/functions/all_first.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'reference/query-languages/esql/kibana/docs/functions/all_last.md': 'reference/query-languages/esql/esql-functions-operators.md'
 
   'reference/elasticsearch/mapping-reference/text.md':
     to: 'reference/elasticsearch/mapping-reference/text.md'

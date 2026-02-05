@@ -22,8 +22,8 @@ import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.ComputeTestCase;
-import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.hamcrest.Matchers;
@@ -69,11 +69,13 @@ public class FirstDocIdGroupingAggregatorFunctionTests extends ComputeTestCase {
                 pages.add(new Page(docVector.asBlock(), groups.build().asBlock()));
             }
         }
+        AggregatorMode aggregatorMode = AggregatorMode.INITIAL;
         var aggregatorFactory = new FirstDocIdGroupingAggregatorFunction.FunctionSupplier().groupingAggregatorFactory(
-            AggregatorMode.INITIAL,
+            aggregatorMode,
             List.of(0)
         );
         HashAggregationOperator hashAggregationOperator = new HashAggregationOperator(
+            aggregatorMode,
             List.of(aggregatorFactory),
             () -> BlockHash.build(
                 List.of(new BlockHash.GroupSpec(1, ElementType.INT)),
@@ -81,6 +83,8 @@ public class FirstDocIdGroupingAggregatorFunctionTests extends ComputeTestCase {
                 randomIntBetween(1, 1024),
                 randomBoolean()
             ),
+            Integer.MAX_VALUE,
+            1.0,
             driverContext
         );
         List<Page> outputPages = new ArrayList<>();
@@ -90,7 +94,7 @@ public class FirstDocIdGroupingAggregatorFunctionTests extends ComputeTestCase {
             List.of(hashAggregationOperator),
             new PageConsumerOperator(outputPages::add)
         );
-        OperatorTestCase.runDriver(driver);
+        new TestDriverRunner().run(driver);
         for (RefCounted value : shardRefs.values()) {
             value.decRef();
         }

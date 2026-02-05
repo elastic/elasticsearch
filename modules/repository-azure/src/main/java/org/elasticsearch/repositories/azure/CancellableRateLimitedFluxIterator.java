@@ -18,6 +18,7 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Queue;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -61,6 +62,7 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
     private record DoneState(boolean done, Throwable error) {
         static final DoneState STILL_READING = new DoneState(false, null);
         static final DoneState FINISHED = new DoneState(true, null);
+        static final DoneState CANCELLED = new DoneState(true, new CancellationException());
 
         public DoneState {
             assert done || error == null : "Must be done to specify an error";
@@ -129,17 +131,13 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
 
         T nextElement = queue.poll();
 
-        if (doneState.done()) {
-            // We can't trust anything we read after doneState is done, as we may have begun
-            // clearing the queue
+        if (doneState.done() && doneState.error() != null) {
+            // We can't trust anything we read after doneState is done with an error or cancellation
+            // as we may have begun clearing the queue
             if (nextElement != null) {
                 cleanElement(nextElement);
             }
-            if (doneState.error() != null) {
-                throw new RuntimeException(doneState.error());
-            } else {
-                throw new NoSuchElementException();
-            }
+            throw new RuntimeException(doneState.error());
         } else if (nextElement == null) {
             cancelSubscription();
             signalConsumer();
@@ -188,7 +186,7 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
     }
 
     public void cancel() {
-        doneState = DoneState.FINISHED;
+        doneState = DoneState.CANCELLED;
         cancelSubscription();
         clearQueue();
         // cancel should be called from the consumer

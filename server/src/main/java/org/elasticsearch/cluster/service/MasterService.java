@@ -138,7 +138,7 @@ public class MasterService extends AbstractLifecycleComponent {
     private final Deque<ExecutionHistoryEntry> executionHistory;
 
     private final MeterRegistry meterRegistry;
-    private final List<Releasable> metricsToUnregister = new ArrayList<>(4 + Priority.values().length * 4);
+    private final List<Releasable> metricsToUnregister = new ArrayList<>(3 + Priority.values().length * 3);
 
     public MasterService(
         Settings settings,

@@ -871,7 +871,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             .settings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfShards(2)
             .numberOfReplicas(0)
-            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(1, 2))
+            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(0L, 1, 2))
             .build();
 
         IndexId indexWithoutReshardingMetadata = new IndexId(randomIndexName(), randomUUID());

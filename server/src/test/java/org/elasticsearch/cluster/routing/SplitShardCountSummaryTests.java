@@ -48,7 +48,7 @@ public class SplitShardCountSummaryTests extends ESTestCase {
         // Now reshard-split from 2 shards to 4 shards
         final int multiple = 2;
         var indexMetadataAfterReshard = IndexMetadata.builder(indexMetadata)
-            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(numSourceShards, multiple))
+            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(0L, numSourceShards, multiple))
             .reshardAddShards(numSourceShards * multiple)
             .build();
 

@@ -253,6 +253,6 @@ public class IndexShardCountTests extends ESTestCase {
     }
 
     private IndexReshardingMetadata randomIndexReshardingMetadata(int oldShards) {
-        return IndexReshardingMetadata.newSplitByMultiple(oldShards, randomIntBetween(2, 5));
+        return IndexReshardingMetadata.newSplitByMultiple(randomNonNegativeLong(), oldShards, randomIntBetween(2, 5));
     }
 }

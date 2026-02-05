@@ -73,7 +73,7 @@ public class ReplicationSplitHelperTests extends ESTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(settings).build();
         indexMetadata = IndexMetadata.builder(indexMetadata)
             .reshardAddShards(2)
-            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(1, 2))
+            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(0L, 1, 2))
             .build();
 
         SplitShardCountSummary currentSummary = SplitShardCountSummary.forIndexing(indexMetadata, 0);
@@ -90,7 +90,7 @@ public class ReplicationSplitHelperTests extends ESTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(settings).build();
         indexMetadata = IndexMetadata.builder(indexMetadata)
             .reshardAddShards(2)
-            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(1, 2))
+            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(0L, 1, 2))
             .build();
 
         SplitShardCountSummary staleSummary = SplitShardCountSummary.forIndexing(indexMetadata, 0);

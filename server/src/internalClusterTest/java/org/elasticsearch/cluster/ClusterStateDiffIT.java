@@ -591,7 +591,11 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 }
                 if (randomBoolean()) {
                     builder.reshardingMetadata(
-                        IndexReshardingMetadata.newSplitByMultiple(builder.numberOfShards(), randomIntBetween(2, 5))
+                        IndexReshardingMetadata.newSplitByMultiple(
+                            randomNonNegativeLong(),
+                            builder.numberOfShards(),
+                            randomIntBetween(2, 5)
+                        )
                     );
                 }
                 return builder.build();
@@ -620,7 +624,11 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                     case 4:
                         if (randomBoolean()) {
                             builder.reshardingMetadata(
-                                IndexReshardingMetadata.newSplitByMultiple(builder.numberOfShards(), randomIntBetween(2, 5))
+                                IndexReshardingMetadata.newSplitByMultiple(
+                                    randomNonNegativeLong(),
+                                    builder.numberOfShards(),
+                                    randomIntBetween(2, 5)
+                                )
                             );
                         } else {
                             builder.reshardingMetadata(null);

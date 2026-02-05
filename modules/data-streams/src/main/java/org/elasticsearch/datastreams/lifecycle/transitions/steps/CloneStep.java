@@ -227,42 +227,20 @@ public class CloneStep implements DlmStep {
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(cloneIndex).indicesOptions(IGNORE_MISSING_OPTIONS)
             .masterNodeTimeout(TimeValue.MAX_VALUE);
         String errorMessage = String.format(Locale.ROOT, "Failed to acknowledge delete of index [%s]", cloneIndex);
-        DeleteCloneIndexActionListener listener = new DeleteCloneIndexActionListener(cloneIndex);
+        ActionListener<AcknowledgedResponse> listener = ActionListener.wrap(
+            resp -> logger.debug("DLM successfully deleted clone index [{}]", cloneIndex),
+            err -> logger.error(() -> Strings.format("DLM failed to delete clone index [%s]", cloneIndex), err)
+        );
         stepContext.client()
             .projectClient(stepContext.projectId())
             .admin()
             .indices()
-            .delete(deleteIndexRequest, failIfNotAcknowledged(listener, errorMessage));
-    }
-
-    private static class DeleteCloneIndexActionListener implements ActionListener<AcknowledgedResponse> {
-        private final String targetIndex;
-
-        private DeleteCloneIndexActionListener(String targetIndex) {
-            this.targetIndex = targetIndex;
-        }
-
-        @Override
-        public void onResponse(AcknowledgedResponse response) {
-            logger.debug("DLM successfully deleted clone index [{}]", targetIndex);
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            logger.error(() -> Strings.format("DLM failed to delete clone index [%s]", targetIndex), e);
-        }
-    }
-
-    private static <U extends AcknowledgedResponse> ActionListener<U> failIfNotAcknowledged(
-        ActionListener<U> listener,
-        String errorMessage
-    ) {
-        return listener.delegateFailure((delegate, response) -> {
-            if (response.isAcknowledged()) {
-                delegate.onResponse(null);
-            } else {
-                delegate.onFailure(new ElasticsearchException(errorMessage));
-            }
-        });
+            .delete(deleteIndexRequest, listener.delegateFailure((delegate, response) -> {
+                if (response.isAcknowledged()) {
+                    delegate.onResponse(null);
+                } else {
+                    delegate.onFailure(new ElasticsearchException(errorMessage));
+                }
+            }));
     }
 }

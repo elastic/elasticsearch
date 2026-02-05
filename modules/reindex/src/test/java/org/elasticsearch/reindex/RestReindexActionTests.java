@@ -45,7 +45,8 @@ public class RestReindexActionTests extends RestActionTestCase {
     public void setUpAction() {
         action = new RestReindexAction(
             nf -> nf.equals(ReindexPlugin.RELOCATE_ON_SHUTDOWN_NODE_FEATURE) && relocateOnShutdownFeatureEnabled,
-                Settings.EMPTY);
+            Settings.EMPTY
+        );
         controller().registerHandler(action);
     }
 

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -36,17 +37,21 @@ public abstract class AbstractAllocationDecisionTestCase extends ESIntegTestCase
     protected static final Set<String> CAN_ALLOCATE_NOT_PREFERRED_NODE_IDS = Collections.newSetFromMap(new ConcurrentHashMap<>());
     protected static final Set<String> CAN_ALLOCATE_THROTTLE_NODE_IDS = Collections.newSetFromMap(new ConcurrentHashMap<>());
     protected static final Set<String> CAN_ALLOCATE_NO_IDS = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    protected static final Set<String> CAN_REMAIN_NO_NODE_IDS = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    protected static final Set<String> CAN_REMAIN_NOT_PREFERRED_NODE_IDS = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     @Before
-    public final void clearCanAllocateDeciderState() {
+    public final void clearDeciderState() {
         CAN_ALLOCATE_NOT_PREFERRED_NODE_IDS.clear();
         CAN_ALLOCATE_THROTTLE_NODE_IDS.clear();
         CAN_ALLOCATE_NO_IDS.clear();
+        CAN_REMAIN_NO_NODE_IDS.clear();
+        CAN_REMAIN_NOT_PREFERRED_NODE_IDS.clear();
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), TestCanAllocatePlugin.class);
+        return CollectionUtils.appendToCopy(super.nodePlugins(), TestAllocationPlugin.class);
     }
 
     protected record CreatedNodes(Set<String> noNodes, Set<String> notPreferredNodes, Set<String> throttleNodes, Set<String> yesNodes) {}
@@ -86,15 +91,15 @@ public abstract class AbstractAllocationDecisionTestCase extends ESIntegTestCase
         }
     }
 
-    public static class TestCanAllocatePlugin extends Plugin implements ClusterPlugin {
+    public static class TestAllocationPlugin extends Plugin implements ClusterPlugin {
 
         @Override
         public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
-            return List.of(new TestCanAllocateDecider());
+            return List.of(new TestAllocationDecider());
         }
     }
 
-    public static class TestCanAllocateDecider extends AllocationDecider {
+    public static class TestAllocationDecider extends AllocationDecider {
 
         /**
          * These tests aren't about rebalancing, disable it so it doesn't interfere with the results
@@ -114,6 +119,16 @@ public abstract class AbstractAllocationDecisionTestCase extends ESIntegTestCase
             }
             if (CAN_ALLOCATE_THROTTLE_NODE_IDS.contains(node.nodeId()) && allocation.isSimulating() == false) {
                 return Decision.THROTTLE;
+            }
+            return Decision.YES;
+        }
+
+        @Override
+        public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            if (CAN_REMAIN_NO_NODE_IDS.contains(node.nodeId())) {
+                return Decision.NO;
+            } else if (CAN_REMAIN_NOT_PREFERRED_NODE_IDS.contains(node.nodeId())) {
+                return Decision.NOT_PREFERRED;
             }
             return Decision.YES;
         }

@@ -10,41 +10,11 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.plugins.ClusterPlugin;
-import org.elasticsearch.plugins.Plugin;
-import org.junit.Before;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class MoveShardsIT extends AbstractAllocationDecisionTestCase {
-
-    private static final Set<String> CAN_REMAIN_NO_NODE_IDS = Collections.newSetFromMap(new ConcurrentHashMap<>());
-    private static final Set<String> CAN_REMAIN_NOT_PREFERRED_NODE_IDS = Collections.newSetFromMap(new ConcurrentHashMap<>());
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), TestCanRemainPlugin.class);
-    }
-
-    @Before
-    public final void clearCanRemainDeciderState() {
-        CAN_REMAIN_NO_NODE_IDS.clear();
-        CAN_REMAIN_NOT_PREFERRED_NODE_IDS.clear();
-    }
 
     public void testShardsWillBeMovedToYesNodesWhenPresent() {
         final var initialNode = internalCluster().startNode();
@@ -145,26 +115,5 @@ public class MoveShardsIT extends AbstractAllocationDecisionTestCase {
             }
             return false;
         });
-    }
-
-    public static class TestCanRemainPlugin extends Plugin implements ClusterPlugin {
-
-        @Override
-        public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
-            return List.of(new TestCanRemainDecider());
-        }
-    }
-
-    public static class TestCanRemainDecider extends AllocationDecider {
-
-        @Override
-        public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-            if (CAN_REMAIN_NO_NODE_IDS.contains(node.nodeId())) {
-                return Decision.NO;
-            } else if (CAN_REMAIN_NOT_PREFERRED_NODE_IDS.contains(node.nodeId())) {
-                return Decision.NOT_PREFERRED;
-            }
-            return Decision.YES;
-        }
     }
 }

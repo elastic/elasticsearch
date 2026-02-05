@@ -654,9 +654,12 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                 new FieldInferenceResponse(field, sourceField, v, order++, 0, null, EMPTY_CHUNKED_INFERENCE)
                             );
                         } else if (hasTimedOut) {
-                            slot.setFailure(new ElasticsearchStatusException(
-                                "Bulk inference timed out after [" + inferenceTimeout + "]",
-                                RestStatus.REQUEST_TIMEOUT));
+                            slot.setFailure(
+                                new ElasticsearchStatusException(
+                                    "Bulk inference timed out after [" + inferenceTimeout + "]",
+                                    RestStatus.REQUEST_TIMEOUT
+                                )
+                            );
                         } else {
                             requests.add(
                                 new FieldInferenceRequest(itemIndex, field, sourceField, v, order++, offsetAdjustment, chunkingSettings)

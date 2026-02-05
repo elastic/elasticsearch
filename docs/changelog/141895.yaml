@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 141895
-summary: ESQL `mv_except` function
+summary: ESQL `mv_difference` function
 type: feature

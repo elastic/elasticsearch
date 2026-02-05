@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -60,6 +61,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ml.datafeed.AggProviderTests.createRandomValidAggProvider;
 import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createTestQueryProvider;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
@@ -145,6 +147,9 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
             Map<String, Object> field = new HashMap<>();
             field.put("runtime_field_foo", settings);
             builder.setRuntimeMappings(field);
+        }
+        if (randomBoolean()) {
+            builder.setProjectRouting(randomAlphaOfLength(20));
         }
         return builder.build();
     }
@@ -402,7 +407,7 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
     @Override
     protected DatafeedUpdate mutateInstance(DatafeedUpdate instance) throws IOException {
         DatafeedUpdate.Builder builder = new DatafeedUpdate.Builder(instance);
-        switch (between(1, 12)) {
+        switch (between(1, 13)) {
             case 1:
                 builder.setId(instance.getId() + DatafeedConfigTests.randomValidDatafeedId());
                 break;
@@ -522,9 +527,67 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
                     builder.setRuntimeMappings(field);
                 }
                 break;
+            case 13:
+                if (instance.getProjectRouting() != null) {
+                    builder.setProjectRouting(instance.getProjectRouting() + randomAlphaOfLength(5));
+                } else {
+                    builder.setProjectRouting(randomAlphaOfLength(20));
+                }
+                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
         return builder.build();
     }
+
+    public void testApplyWithProjectRouting() {
+        DatafeedConfig datafeed = DatafeedConfigTests.createRandomizedDatafeedConfig("foo");
+        String newProjectRouting = "_alias:prod-*";
+
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setProjectRouting(newProjectRouting).build();
+        DatafeedConfig updatedDatafeed = update.apply(datafeed, Collections.emptyMap(), clusterState);
+
+        assertThat(updatedDatafeed.getProjectRouting(), equalTo(newProjectRouting));
+    }
+
+    public void testProjectRoutingParsing() throws IOException {
+        String datafeedUpdateJson = """
+            {
+                "datafeed_id": "test-datafeed",
+                "project_routing": "_project._region:us-*"
+            }""";
+
+        try (
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()), datafeedUpdateJson)
+        ) {
+            DatafeedUpdate update = DatafeedUpdate.PARSER.apply(parser, null).build();
+            assertThat(update.getProjectRouting(), equalTo("_project._region:us-*"));
+        }
+    }
+
+    public void testProjectRoutingToXContent() throws IOException {
+        DatafeedUpdate update = new DatafeedUpdate.Builder("test-datafeed").setProjectRouting("_alias:prod-*").build();
+
+        BytesReference bytes = org.elasticsearch.common.xcontent.XContentHelper.toXContent(update, XContentType.JSON, false);
+        String json = bytes.utf8ToString();
+
+        assertThat(json, containsString("\"project_routing\":\"_alias:prod-*\""));
+    }
+
+    public void testProjectRoutingSerialization() throws IOException {
+        String projectRouting = "_project._region:eu-*";
+        DatafeedUpdate update = new DatafeedUpdate.Builder("test-datafeed").setProjectRouting(projectRouting).build();
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setTransportVersion(TransportVersion.current());
+            update.writeTo(output);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
+                in.setTransportVersion(TransportVersion.current());
+                DatafeedUpdate deserialized = new DatafeedUpdate(in);
+                assertThat(deserialized.getProjectRouting(), equalTo(projectRouting));
+            }
+        }
+    }
+
 }

@@ -138,4 +138,13 @@ public class CannedSourceOperator extends SourceOperator {
             page.next().releaseBlocks();
         }
     }
+
+    @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        // CannedSourceOperator doesn't buffer data internally - it just returns pages from an iterator.
+        // There's no internal buffer that needs draining, so return false.
+        // The default SourceOperator implementation returns !isFinished() which would cause busy-spin
+        // when downstream async operators are blocked.
+        return false;
+    }
 }

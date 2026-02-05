@@ -493,7 +493,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                 sig,
                 matchesList().item("LuceneSourceOperator")
                     .item("ValuesSourceReaderOperator") // the real work is here, checkOperatorProfile checks the status
-                    .item("LookupOperator")
+                    .item("StreamingLookupOperator")
                     .item("EvalOperator") // this one just renames the field
                     .item("AggregationOperator")
                     .item("ExchangeSinkOperator")
@@ -525,7 +525,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                 sig,
                 matchesList().item("LuceneSourceOperator")
                     .item("ValuesSourceReaderOperator") // the real work is here, checkOperatorProfile checks the status
-                    .item("LookupOperator")
+                    .item("StreamingLookupOperator")
                     .item("EvalOperator") // this one just renames the field
                     .item("AggregationOperator")
                     .item("ExchangeSinkOperator")

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.query.functionscore;
 
+import org.apache.lucene.search.NamedMatches;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
@@ -299,9 +300,25 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         for (FilterFunctionBuilder filterFunctionBuilder : filterFunctionBuilders) {
             ScoreFunction scoreFunction = filterFunctionBuilder.getScoreFunction().toFunction(context);
             if (filterFunctionBuilder.getFilter().getName().equals(MatchAllQueryBuilder.NAME)) {
+                if (filterFunctionBuilder.getFilter().queryName() != null) {
+                    String queryName = filterFunctionBuilder.getFilter().queryName();
+                    Query namedScoreQuery = filterFunctionBuilder.toNamedScoreQuery(context, scoreFunction);
+                    if (context.rewriteToNamedQuery()) {
+                        namedScoreQuery = NamedMatches.wrapQuery(queryName, namedScoreQuery);
+                    }
+                    context.addNamedQuery(queryName, namedScoreQuery);
+                }
                 filterFunctions[i++] = scoreFunction;
             } else {
                 Query filter = filterFunctionBuilder.getFilter().toQuery(context);
+                if (filterFunctionBuilder.getFilter().queryName() != null) {
+                    String queryName = filterFunctionBuilder.getFilter().queryName();
+                    Query namedScoreQuery = filterFunctionBuilder.toNamedScoreQuery(filter, scoreFunction);
+                    if (context.rewriteToNamedQuery()) {
+                        namedScoreQuery = NamedMatches.wrapQuery(queryName, namedScoreQuery);
+                    }
+                    context.addNamedQuery(queryName, namedScoreQuery);
+                }
                 filterFunctions[i++] = new FunctionScoreQuery.FilterScoreFunction(filter, scoreFunction);
             }
         }
@@ -365,6 +382,15 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
 
         public ScoreFunctionBuilder<?> getScoreFunction() {
             return scoreFunction;
+        }
+
+        Query toNamedScoreQuery(SearchExecutionContext context, ScoreFunction scoreFunction) throws IOException {
+            Query filterQuery = filter.getName().equals(MatchAllQueryBuilder.NAME) ? Queries.ALL_DOCS_INSTANCE : filter.toQuery(context);
+            return toNamedScoreQuery(filterQuery, scoreFunction);
+        }
+
+        Query toNamedScoreQuery(Query filterQuery, ScoreFunction scoreFunction) {
+            return new FunctionScoreQuery(filterQuery, scoreFunction, CombineFunction.REPLACE, null, FunctionScoreQuery.DEFAULT_MAX_BOOST);
         }
 
         @Override

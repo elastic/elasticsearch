@@ -45,8 +45,7 @@ public class InferenceFeatureServiceTests extends ESTestCase {
     }
 
     public void testHasEndpointMetadataFeatureReturnsTrueWhenClusterHasFeature() {
-        when(featureService.clusterHasFeature(any(), eq(InferenceFeatures.ENDPOINT_METADATA_FIELD)))
-            .thenReturn(true);
+        when(featureService.clusterHasFeature(any(), eq(InferenceFeatures.ENDPOINT_METADATA_FIELD))).thenReturn(true);
 
         var inferenceFeatureService = new InferenceFeatureService(clusterService, featureService);
 
@@ -56,8 +55,7 @@ public class InferenceFeatureServiceTests extends ESTestCase {
     }
 
     public void testHasEndpointMetadataFeatureReturnsFalseWhenClusterDoesNotHaveFeature() {
-        when(featureService.clusterHasFeature(any(), eq(InferenceFeatures.ENDPOINT_METADATA_FIELD)))
-            .thenReturn(false);
+        when(featureService.clusterHasFeature(any(), eq(InferenceFeatures.ENDPOINT_METADATA_FIELD))).thenReturn(false);
 
         var inferenceFeatureService = new InferenceFeatureService(clusterService, featureService);
 

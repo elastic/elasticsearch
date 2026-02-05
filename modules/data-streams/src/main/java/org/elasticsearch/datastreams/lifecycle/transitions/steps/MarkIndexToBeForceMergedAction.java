@@ -175,7 +175,7 @@ public class MarkIndexToBeForceMergedAction {
             ActionListener<AcknowledgedResponse> listener
         ) {
             taskQueue.submitTask(
-                Strings.format("mark index [%s] to be force merged", indexToBeForceMerged),
+                Strings.format("marking index [%s] to be force merged for DLM", indexToBeForceMerged),
                 new UpdateTask(listener, request.getProjectId(), sourceIndex, indexToBeForceMerged),
                 null
             );

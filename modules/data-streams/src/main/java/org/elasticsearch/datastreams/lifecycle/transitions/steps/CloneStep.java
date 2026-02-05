@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStep;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStepContext;
@@ -94,7 +95,7 @@ public class CloneStep implements DlmStep {
             markIndexToBeForceMerged(indexName, indexName, stepContext, ActionListener.noop());
             return;
         }
-        String cloneIndexName = generateCloneIndexName(indexName);
+        String cloneIndexName = getCloneIndexName(indexName);
         if (projectMetadata.indices().containsKey(cloneIndexName)) {
             logger.info("DLM cleaning up clone index [{}] for index [{}] as it already exists.", cloneIndexName, indexName);
             deleteCloneIndexIfExists(stepContext);
@@ -168,12 +169,12 @@ public class CloneStep implements DlmStep {
     }
 
     /*
-     * Generates a unique name deterministically for the clone index based on the original index name.
+     * Gets a unique name deterministically for the clone index based on the original index name.
      */
-    private static String generateCloneIndexName(String originalName) {
+    private static String getCloneIndexName(String originalName) {
         String hash = MessageDigests.toHexString(MessageDigests.sha256().digest(originalName.getBytes(StandardCharsets.UTF_8)))
             .substring(0, 8);
-        return originalName + "-dlm-clone-" + hash;
+        return  "dlm-force-merge-clone-" + originalName + "-"+ hash;
     }
 
     /*
@@ -205,6 +206,7 @@ public class CloneStep implements DlmStep {
      * Returns the name of index to be force merged from the custom metadata of the index metadata of the source index.
      * If no such index has been marked in the custom metadata, returns null.
      */
+    @Nullable
     private static String getIndexToBeForceMerged(String sourceIndex, ProjectState projectState) {
         IndexMetadata sourceIndexMetadata = projectState.metadata().index(sourceIndex);
         if (sourceIndexMetadata == null) {
@@ -219,7 +221,7 @@ public class CloneStep implements DlmStep {
     }
 
     private static void deleteCloneIndexIfExists(DlmStepContext stepContext) {
-        String cloneIndex = generateCloneIndexName(stepContext.indexName());
+        String cloneIndex = getCloneIndexName(stepContext.indexName());
         logger.debug("Attempting to delete index [{}]", cloneIndex);
 
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(cloneIndex).indicesOptions(IGNORE_MISSING_OPTIONS)

@@ -36,6 +36,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.elastic.authorization.EndpointSchemaMigration.ENDPOINT_VERSION;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.EIS_CHAT_PATH;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.EIS_MULTIMODAL_EMBED_PATH;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.EIS_SPARSE_PATH;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.EIS_TEXT_EMBED_PATH;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.createTaskTypeObject;
@@ -656,13 +657,15 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         var idCompletion = "id_completion";
         var idChat = "id_chat";
         var idSparse = "id_sparse";
-        var idDense = "id_dense";
+        var idDenseMultimodal = "id_dense_multimodal";
+        var idDenseText = "id_dense_text";
         var idRerank = "id_rerank";
 
         var nameCompletion = "completion_model";
         var nameChat = "chat_model";
         var nameSparse = "sparse_model";
-        var nameDense = "dense_model";
+        var nameDenseMultimodal = "dense_multimodal_model";
+        var nameDenseText = "dense_text_model";
         var nameRerank = "rerank_model";
 
         var similarity = SimilarityMeasure.COSINE;
@@ -671,6 +674,12 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
 
         var url = "base_url";
 
+        var denseEmbeddingConfiguration = new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(
+            similarity.toString(),
+            dimensions,
+            elementType,
+            null
+        );
         var response = new ElasticInferenceServiceAuthorizationResponseEntity(
             List.of(
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -710,19 +719,26 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null
                 ),
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
-                    idDense,
-                    nameDense,
+                    idDenseMultimodal,
+                    nameDenseMultimodal,
+                    createTaskTypeObject(EIS_MULTIMODAL_EMBED_PATH, TaskType.EMBEDDING.toString()),
+                    STATUS_GA,
+                    null,
+                    TEST_RELEASE_DATE,
+                    TEST_END_OF_LIFE_DATE,
+                    denseEmbeddingConfiguration,
+                    null,
+                    null
+                ),
+                new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+                    idDenseText,
+                    nameDenseText,
                     createTaskTypeObject(EIS_TEXT_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
                     STATUS_GA,
                     null,
                     TEST_RELEASE_DATE,
                     TEST_END_OF_LIFE_DATE,
-                    new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(
-                        similarity.toString(),
-                        dimensions,
-                        elementType,
-                        null
-                    ),
+                    denseEmbeddingConfiguration,
                     null,
                     null
                 ),
@@ -743,7 +759,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
 
         var auth = ElasticInferenceServiceAuthorizationModel.of(response, url);
 
-        var ids = Set.of(idCompletion, idChat, idSparse, idDense, idRerank);
+        var ids = Set.of(idCompletion, idChat, idSparse, idDenseMultimodal, idDenseText, idRerank);
         var endpoints = auth.getEndpoints(ids);
         assertThat(endpoints.size(), is(ids.size()));
         assertThat(
@@ -775,10 +791,18 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     DEFAULT_ENDPOINT_METADATA
                 ),
                 new ElasticInferenceServiceDenseEmbeddingsModel(
-                    idDense,
+                    idDenseMultimodal,
+                    TaskType.EMBEDDING,
+                    ElasticInferenceService.NAME,
+                    new ElasticInferenceServiceDenseEmbeddingsServiceSettings(nameDenseMultimodal, similarity, dimensions, null),
+                    new ElasticInferenceServiceComponents(url),
+                    ChunkingSettingsBuilder.DEFAULT_SETTINGS
+                ),
+                new ElasticInferenceServiceDenseEmbeddingsModel(
+                    idDenseText,
                     TaskType.TEXT_EMBEDDING,
                     ElasticInferenceService.NAME,
-                    new ElasticInferenceServiceDenseEmbeddingsServiceSettings(nameDense, similarity, dimensions, null),
+                    new ElasticInferenceServiceDenseEmbeddingsServiceSettings(nameDenseText, similarity, dimensions, null),
                     new ElasticInferenceServiceComponents(url),
                     ChunkingSettingsBuilder.DEFAULT_SETTINGS,
                     DEFAULT_ENDPOINT_METADATA

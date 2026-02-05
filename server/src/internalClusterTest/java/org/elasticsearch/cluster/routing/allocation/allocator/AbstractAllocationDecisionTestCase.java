@@ -39,9 +39,9 @@ import static org.elasticsearch.test.ClusterServiceUtils.addTemporaryStateListen
 
 /**
  * Supplies an {@link AllocationDecider} with settable sets of data nodes that return certain {@link Decision}s for
- * {@link AllocationDecider#canAllocate}. Rebalancing in the integration tests will be disabled because
- * {@link AllocationDecider#canRebalance} is overridden: only the first two phases of the balancer, allocating unassigned shards and moving
- * shards that cannot remain, will run.
+ * {@link AllocationDecider#canAllocate} and {@link AllocationDecider#canRemain}. Rebalancing in the integration tests
+ * will be disabled because {@link AllocationDecider#canRebalance} is overridden: only the first two phases of the balancer,
+ * allocating unassigned shards and moving shards that cannot remain, will run.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public abstract class AbstractAllocationDecisionTestCase extends ESIntegTestCase {
@@ -77,6 +77,7 @@ public abstract class AbstractAllocationDecisionTestCase extends ESIntegTestCase
         return addTemporaryStateListener(internalCluster().clusterService(), state -> {
             final var index = state.routingTable(ProjectId.DEFAULT).index(indexName);
             if (index != null) {
+                assert index.allShards().count() == 1 : "expected a single shard, got " + index.allShards().toList();
                 final var shardRouting = index.shard(0).primaryShard();
                 final var currentNodeId = shardRouting.currentNodeId();
                 if (currentNodeId != null && shardRouting.started()) {
@@ -99,6 +100,7 @@ public abstract class AbstractAllocationDecisionTestCase extends ESIntegTestCase
         awaitClusterState(state -> {
             final var index = state.routingTable(ProjectId.DEFAULT).index(indexName);
             if (index != null) {
+                assert index.allShards().count() == 1 : "expected a single shard, got " + index.allShards().toList();
                 final var shardRouting = index.shard(0).primaryShard();
                 final var currentNodeId = shardRouting.currentNodeId();
                 if (currentNodeId != null && shardRouting.started()) {

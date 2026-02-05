@@ -281,7 +281,6 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         final RestClient bulkClient = dataLocation == DataLocation.REMOTE_ONLY ? remoteClient : randomFrom(localClient, remoteClient);
         when(twoClients.performRequest(any())).then(invocation -> {
             Request request = invocation.getArgument(0);
-            request.setOptions(DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER);
             String endpoint = request.getEndpoint();
             if (endpoint.startsWith("/_query")) {
                 return localClient.performRequest(request);
@@ -294,6 +293,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                 && LOOKUP_ENDPOINTS.contains(endpoint) == false) {
                     return bulkClient.performRequest(request);
                 } else {
+                    request.setOptions(DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER);
                     Request[] clones = cloneRequests(request, 2);
                     Response resp1 = remoteClient.performRequest(clones[0]);
                     Response resp2 = localClient.performRequest(clones[1]);
@@ -318,6 +318,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         for (int i = 0; i < clones.length; i++) {
             clones[i] = new Request(orig.getMethod(), orig.getEndpoint());
             clones[i].addParameters(orig.getParameters());
+            clones[i].setOptions(orig.getOptions());
         }
         HttpEntity entity = orig.getEntity();
         if (entity != null) {

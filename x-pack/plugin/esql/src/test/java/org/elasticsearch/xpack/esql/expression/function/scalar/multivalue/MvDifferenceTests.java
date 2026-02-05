@@ -40,8 +40,8 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.multivalue
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MvExceptTests extends AbstractScalarFunctionTestCase {
-    public MvExceptTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+public class MvDifferenceTests extends AbstractScalarFunctionTestCase {
+    public MvDifferenceTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -65,7 +65,7 @@ public class MvExceptTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new MvExcept(source, args.get(0), args.get(1));
+        return new MvDifference(source, args.get(0), args.get(1));
     }
 
     private static <T> Matcher<?> matchResult(List<T> result) {
@@ -99,7 +99,7 @@ public class MvExceptTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.BOOLEAN, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.BOOLEAN, "field2")
                 ),
-                "MvExceptBooleanEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvDifferenceBooleanEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 matchResult(result)
             );
@@ -117,7 +117,7 @@ public class MvExceptTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.INTEGER, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.INTEGER, "field2")
                 ),
-                "MvExceptIntEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvDifferenceIntEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.INTEGER,
                 matchResult(result)
             );
@@ -143,7 +143,7 @@ public class MvExceptTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.UNSIGNED_LONG, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.UNSIGNED_LONG, "field2")
                 ),
-                "MvExceptLongEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvDifferenceLongEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.UNSIGNED_LONG,
                 matchResult(unsignedResult)
             );
@@ -162,7 +162,7 @@ public class MvExceptTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, dataType, "field1"),
                     new TestCaseSupplier.TypedData(field2, dataType, "field2")
                 ),
-                "MvExceptLongEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvDifferenceLongEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 dataType,
                 matchResult(result)
             );
@@ -181,7 +181,7 @@ public class MvExceptTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.DOUBLE, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.DOUBLE, "field2")
                 ),
-                "MvExceptDoubleEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvDifferenceDoubleEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.DOUBLE,
                 matchResult(result)
             );
@@ -202,7 +202,7 @@ public class MvExceptTests extends AbstractScalarFunctionTestCase {
                             new TestCaseSupplier.TypedData(field1, lhs, "field1"),
                             new TestCaseSupplier.TypedData(field2, rhs, "field2")
                         ),
-                        "MvExceptBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                        "MvDifferenceBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                         DataType.KEYWORD,
                         matchResult(result)
                     );
@@ -220,7 +220,7 @@ public class MvExceptTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.IP, "field"),
                     new TestCaseSupplier.TypedData(field2, DataType.IP, "field")
                 ),
-                "MvExceptBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvDifferenceBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.IP,
                 matchResult(result)
             );
@@ -237,7 +237,7 @@ public class MvExceptTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.VERSION, "field"),
                     new TestCaseSupplier.TypedData(field2, DataType.VERSION, "field")
                 ),
-                "MvExceptBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvDifferenceBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.VERSION,
                 matchResult(result)
             );
@@ -254,7 +254,7 @@ public class MvExceptTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.GEO_POINT, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.GEO_POINT, "field2")
                 ),
-                "MvExceptBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvDifferenceBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.GEO_POINT,
                 matchResult(result)
             );
@@ -271,7 +271,7 @@ public class MvExceptTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.CARTESIAN_POINT, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.CARTESIAN_POINT, "field2")
                 ),
-                "MvExceptBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvDifferenceBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.CARTESIAN_POINT,
                 matchResult(result)
             );
@@ -288,7 +288,7 @@ public class MvExceptTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.GEO_SHAPE, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.GEO_SHAPE, "field2")
                 ),
-                "MvExceptBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvDifferenceBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.GEO_SHAPE,
                 matchResult(result)
             );
@@ -305,7 +305,7 @@ public class MvExceptTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.CARTESIAN_SHAPE, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.CARTESIAN_SHAPE, "field2")
                 ),
-                "MvExceptBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvDifferenceBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.CARTESIAN_SHAPE,
                 matchResult(result)
             );

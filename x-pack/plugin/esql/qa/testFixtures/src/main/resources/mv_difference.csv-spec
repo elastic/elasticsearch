@@ -1,74 +1,74 @@
-mvExcept
-required_capability: fn_mv_except
-// tag::mv_except[]
+mvDifference
+required_capability: fn_mv_difference
+// tag::mv_difference[]
 ROW values = ["a", "b", "c"], element = "a"
-| EVAL result = mv_except(values, element)
-// end::mv_except[]
+| EVAL result = mv_difference(values, element)
+// end::mv_difference[]
 ;
 
-// tag::mv_except-result[]
+// tag::mv_difference-result[]
 values:keyword | element:keyword | result:keyword 
 [a, b, c]      | a               | [b, c]         
-// end::mv_except-result[]
+// end::mv_difference-result[]
 ;
 
-mvExcept_empty
-required_capability: fn_mv_except
+mvDifference_empty
+required_capability: fn_mv_difference
 ROW valuesA = ["a","c"], valuesB = ["a", "b", "c"]
-| EVAL result = mv_except(valuesA, valuesB)
+| EVAL result = mv_difference(valuesA, valuesB)
 ;
 
 valuesA:keyword | valuesB:keyword | result:keyword 
 [a, c]          | [a, b, c]       | null             
 ;
 
-mvExcept_null
-required_capability: fn_mv_except
+mvDifference_null
+required_capability: fn_mv_difference
 ROW values = ["a", "b", "c"], element = null
-| EVAL result = mv_except(values, element)
+| EVAL result = mv_difference(values, element)
 ;
 
 values:keyword | element:null | result:keyword 
 [a, b, c]      | null            | [a, b, c]         
 ;
 
-mvExcept_null_input
-required_capability: fn_mv_except
+mvDifference_null_input
+required_capability: fn_mv_difference
 ROW values = null, element = ["a", "b", "c"]
-| EVAL result = mv_except(values, element)
+| EVAL result = mv_difference(values, element)
 ;
 
 values:null | element:keyword | result:null 
 null        | [a, b, c]       | null         
 ;
 
-mvExcept_dedup1
-required_capability: fn_mv_except
+mvDifference_dedup1
+required_capability: fn_mv_difference
 ROW valuesA = ["a","a","b","c","c","d"], valuesB = ["b", "c"]
-| EVAL result = mv_except(valuesA, valuesB)
+| EVAL result = mv_difference(valuesA, valuesB)
 ;
 
 valuesA:keyword      | valuesB:keyword | result:keyword 
 [a,a,b,c,c,d]        | [b, c]          | [a,a,d]          
 ;
 
-mvExcept_dedup1
-required_capability: fn_mv_except
+mvDifference_dedup1
+required_capability: fn_mv_difference
 ROW valuesA = [1,2,2,3,4,5,6,6,6], valuesB = [2,3]
-| EVAL result = mv_except(valuesA, valuesB)
+| EVAL result = mv_difference(valuesA, valuesB)
 ;
 
 valuesA:integer      | valuesB:integer | result:integer 
 [1,2,2,3,4,5,6,6,6]  | [2,3]           | [1,4,5,6,6,6]
 ;
 
-mvExcept_from
-required_capability: fn_mv_except
+mvDifference_from
+required_capability: fn_mv_difference
 FROM employees
 | WHERE emp_no == 10002 OR emp_no ==  10053 
 | KEEP salary_change, is_rehired
-| EVAL result1 = mv_except(salary_change, [11.17])
-| EVAL result2 = mv_except(is_rehired, true)
+| EVAL result1 = mv_difference(salary_change, [11.17])
+| EVAL result2 = mv_difference(is_rehired, true)
 ;
 
 salary_change:double | is_rehired:boolean         | result1:double | result2:boolean 
@@ -76,12 +76,12 @@ salary_change:double | is_rehired:boolean         | result1:double | result2:boo
 [-7.67, -3.25]       | [false, false, true, true] |[-7.67, -3.25]  | [false,false]  
 ;
 
-mvExcept_from_keyword
-required_capability: fn_mv_except
+mvDifference_from_keyword
+required_capability: fn_mv_difference
 FROM employees
 | WHERE emp_no == 10022
 | KEEP first_name, job_positions
-| EVAL result = mv_except(job_positions, "Internship")
+| EVAL result = mv_difference(job_positions, "Internship")
 ;
 
 first_name:keyword | job_positions:keyword                                             | result:keyword

@@ -8,7 +8,7 @@ import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -17,11 +17,11 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvExcept}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvDifference}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class MvExceptBytesRefEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvExceptBytesRefEvaluator.class);
+public final class MvDifferenceDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvDifferenceDoubleEvaluator.class);
 
   private final Source source;
 
@@ -33,7 +33,7 @@ public final class MvExceptBytesRefEvaluator implements EvalOperator.ExpressionE
 
   private Warnings warnings;
 
-  public MvExceptBytesRefEvaluator(Source source, EvalOperator.ExpressionEvaluator field1,
+  public MvDifferenceDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator field1,
       EvalOperator.ExpressionEvaluator field2, DriverContext driverContext) {
     this.source = source;
     this.field1 = field1;
@@ -43,8 +43,8 @@ public final class MvExceptBytesRefEvaluator implements EvalOperator.ExpressionE
 
   @Override
   public Block eval(Page page) {
-    try (BytesRefBlock field1Block = (BytesRefBlock) field1.eval(page)) {
-      try (BytesRefBlock field2Block = (BytesRefBlock) field2.eval(page)) {
+    try (DoubleBlock field1Block = (DoubleBlock) field1.eval(page)) {
+      try (DoubleBlock field2Block = (DoubleBlock) field2.eval(page)) {
         return eval(page.getPositionCount(), field1Block, field2Block);
       }
     }
@@ -58,9 +58,8 @@ public final class MvExceptBytesRefEvaluator implements EvalOperator.ExpressionE
     return baseRamBytesUsed;
   }
 
-  public BytesRefBlock eval(int positionCount, BytesRefBlock field1Block,
-      BytesRefBlock field2Block) {
-    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+  public DoubleBlock eval(int positionCount, DoubleBlock field1Block, DoubleBlock field2Block) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!field1Block.isNull(p)) {
@@ -73,7 +72,7 @@ public final class MvExceptBytesRefEvaluator implements EvalOperator.ExpressionE
           result.appendNull();
           continue position;
         }
-        MvExcept.process(result, p, field1Block, field2Block);
+        MvDifference.process(result, p, field1Block, field2Block);
       }
       return result.build();
     }
@@ -81,7 +80,7 @@ public final class MvExceptBytesRefEvaluator implements EvalOperator.ExpressionE
 
   @Override
   public String toString() {
-    return "MvExceptBytesRefEvaluator[" + "field1=" + field1 + ", field2=" + field2 + "]";
+    return "MvDifferenceDoubleEvaluator[" + "field1=" + field1 + ", field2=" + field2 + "]";
   }
 
   @Override
@@ -111,13 +110,13 @@ public final class MvExceptBytesRefEvaluator implements EvalOperator.ExpressionE
     }
 
     @Override
-    public MvExceptBytesRefEvaluator get(DriverContext context) {
-      return new MvExceptBytesRefEvaluator(source, field1.get(context), field2.get(context), context);
+    public MvDifferenceDoubleEvaluator get(DriverContext context) {
+      return new MvDifferenceDoubleEvaluator(source, field1.get(context), field2.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "MvExceptBytesRefEvaluator[" + "field1=" + field1 + ", field2=" + field2 + "]";
+      return "MvDifferenceDoubleEvaluator[" + "field1=" + field1 + ", field2=" + field2 + "]";
     }
   }
 }

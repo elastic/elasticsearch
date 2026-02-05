@@ -19,7 +19,7 @@ public class MvFunctionWritables {
             MvConcat.ENTRY,
             MvContains.ENTRY,
             MvCount.ENTRY,
-            MvExcept.ENTRY,
+            MvDifference.ENTRY,
             MvDedupe.ENTRY,
             MvFirst.ENTRY,
             MvIntersection.ENTRY,

@@ -8,7 +8,7 @@ import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -17,11 +17,11 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvExcept}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvDifference}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class MvExceptLongEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvExceptLongEvaluator.class);
+public final class MvDifferenceIntEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvDifferenceIntEvaluator.class);
 
   private final Source source;
 
@@ -33,7 +33,7 @@ public final class MvExceptLongEvaluator implements EvalOperator.ExpressionEvalu
 
   private Warnings warnings;
 
-  public MvExceptLongEvaluator(Source source, EvalOperator.ExpressionEvaluator field1,
+  public MvDifferenceIntEvaluator(Source source, EvalOperator.ExpressionEvaluator field1,
       EvalOperator.ExpressionEvaluator field2, DriverContext driverContext) {
     this.source = source;
     this.field1 = field1;
@@ -43,8 +43,8 @@ public final class MvExceptLongEvaluator implements EvalOperator.ExpressionEvalu
 
   @Override
   public Block eval(Page page) {
-    try (LongBlock field1Block = (LongBlock) field1.eval(page)) {
-      try (LongBlock field2Block = (LongBlock) field2.eval(page)) {
+    try (IntBlock field1Block = (IntBlock) field1.eval(page)) {
+      try (IntBlock field2Block = (IntBlock) field2.eval(page)) {
         return eval(page.getPositionCount(), field1Block, field2Block);
       }
     }
@@ -58,8 +58,8 @@ public final class MvExceptLongEvaluator implements EvalOperator.ExpressionEvalu
     return baseRamBytesUsed;
   }
 
-  public LongBlock eval(int positionCount, LongBlock field1Block, LongBlock field2Block) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+  public IntBlock eval(int positionCount, IntBlock field1Block, IntBlock field2Block) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!field1Block.isNull(p)) {
@@ -72,7 +72,7 @@ public final class MvExceptLongEvaluator implements EvalOperator.ExpressionEvalu
           result.appendNull();
           continue position;
         }
-        MvExcept.process(result, p, field1Block, field2Block);
+        MvDifference.process(result, p, field1Block, field2Block);
       }
       return result.build();
     }
@@ -80,7 +80,7 @@ public final class MvExceptLongEvaluator implements EvalOperator.ExpressionEvalu
 
   @Override
   public String toString() {
-    return "MvExceptLongEvaluator[" + "field1=" + field1 + ", field2=" + field2 + "]";
+    return "MvDifferenceIntEvaluator[" + "field1=" + field1 + ", field2=" + field2 + "]";
   }
 
   @Override
@@ -110,13 +110,13 @@ public final class MvExceptLongEvaluator implements EvalOperator.ExpressionEvalu
     }
 
     @Override
-    public MvExceptLongEvaluator get(DriverContext context) {
-      return new MvExceptLongEvaluator(source, field1.get(context), field2.get(context), context);
+    public MvDifferenceIntEvaluator get(DriverContext context) {
+      return new MvDifferenceIntEvaluator(source, field1.get(context), field2.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "MvExceptLongEvaluator[" + "field1=" + field1 + ", field2=" + field2 + "]";
+      return "MvDifferenceIntEvaluator[" + "field1=" + field1 + ", field2=" + field2 + "]";
     }
   }
 }

@@ -4,7 +4,7 @@
 
 ```esql
 ROW values = ["a", "b", "c"], element = "a"
-| EVAL result = mv_except(values, element)
+| EVAL result = mv_difference(values, element)
 ```
 
 | values:keyword | element:keyword | result:keyword |

@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction.Response;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 import org.elasticsearch.xpack.transform.transforms.TransformNodes;
@@ -151,12 +152,14 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
 
         // <3> Validate Project Routing is not set when CPS is not supported
         ActionListener<Boolean> validateProjectRoutingListener = validateConfigListener.delegateFailureAndWrap((l, ignored) -> {
-            if (config.getSource().getProjectRouting() == null || crossProjectModeDecider.crossProjectEnabled()) {
+            if (config.getSource().getProjectRouting() == null
+                || (crossProjectModeDecider.crossProjectEnabled() && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled())) {
                 l.onResponse(true);
             } else {
                 l.onFailure(
                     new ValidationException().addValidationError(
-                        "project_routing is only supported in environments that support cross-project calls."
+                        "Cross-project calls are not supported, but project_routing was requested: "
+                            + config.getSource().getProjectRouting()
                     )
                 );
             }

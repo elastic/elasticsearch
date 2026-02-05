@@ -3097,6 +3097,9 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         createTransformRequest.setJsonEntity(config);
 
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(createTransformRequest));
-        assertThat(e.getMessage(), containsString("project_routing is only supported in environments that support cross-project calls"));
+        assertThat(
+            e.getMessage(),
+            containsString("Cross-project calls are not supported, but project_routing was requested: _alias:_origin")
+        );
     }
 }

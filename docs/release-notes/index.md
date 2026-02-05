@@ -204,7 +204,6 @@ ES|QL:
 * ES|QL - Remove vectors from `_source` when applicable [#138013](https://github.com/elastic/elasticsearch/pull/138013)
 * ES|QL Update CHUNK to support `chunking_settings` as optional argument [#138123](https://github.com/elastic/elasticsearch/pull/138123)
 * ES|QL completion command constant folding [#138112](https://github.com/elastic/elasticsearch/pull/138112) (issue: [#136863](https://github.com/elastic/elasticsearch/issues/136863))
-* Enable CCS tests for subqueries [#137776](https://github.com/elastic/elasticsearch/pull/137776)
 * Enable nullify and fail unmapped resolution in tech-preview [#140528](https://github.com/elastic/elasticsearch/pull/140528)
 * Enable score function in release builds [#136988](https://github.com/elastic/elasticsearch/pull/136988)
 * Enable the TEXT_EMBEDDING function in non-snapshot build [#136103](https://github.com/elastic/elasticsearch/pull/136103)
@@ -227,7 +226,6 @@ ES|QL:
 * Locale and timezone argument for `date_parse` [#136548](https://github.com/elastic/elasticsearch/pull/136548) (issue: [#132487](https://github.com/elastic/elasticsearch/issues/132487))
 * Make field fusion generic [#137382](https://github.com/elastic/elasticsearch/pull/137382)
 * Multiple patterns for grok command [#136541](https://github.com/elastic/elasticsearch/pull/136541) (issue: [#132486](https://github.com/elastic/elasticsearch/issues/132486))
-* Non-Correlated Subquery in FROM command [#135744](https://github.com/elastic/elasticsearch/pull/135744)
 * Optimize geogrid functions to read points from doc-values [#138917](https://github.com/elastic/elasticsearch/pull/138917)
 * Pull `OrderBy` followed by `InlineJoin` on top of it [#137648](https://github.com/elastic/elasticsearch/pull/137648)
 * Push down COUNT(*) BY DATE_TRUNC [#138023](https://github.com/elastic/elasticsearch/pull/138023)
@@ -685,11 +683,14 @@ Transform:
 * Reduce task match load [#139857](https://github.com/elastic/elasticsearch/pull/139857) (issue: [#139252](https://github.com/elastic/elasticsearch/issues/139252))
 
 
+
 ## 9.1.9 [elasticsearch-9.1.9-release-notes]
 
 ### Features and enhancements [elasticsearch-9.1.9-features-enhancements]
+
 Infra/Core:
 * Bump lz4 dependency [#138806](https://github.com/elastic/elasticsearch/pull/138806)
+
 Infra/Logging:
 * Upgrade ECS logging layout [#138854](https://github.com/elastic/elasticsearch/pull/138854)
 
@@ -723,6 +724,7 @@ Infra/Core:
 
 Ingest Node:
 * Handle individual doc parsing failure in bulk request with pipeline [#138624](https://github.com/elastic/elasticsearch/pull/138624) (issue: [#138445](https://github.com/elastic/elasticsearch/issues/138445))
+
 Machine Learning:
 * Correctly handle empty inputs in `chunkedInfer()` [#138632](https://github.com/elastic/elasticsearch/pull/138632)
 
@@ -734,6 +736,7 @@ Security:
 
 Stats:
 * Improving performance of stats APIs when the number of shards is very large [#138126](https://github.com/elastic/elasticsearch/pull/138126) (issue: [#97222](https://github.com/elastic/elasticsearch/issues/97222))
+
 
 
 ## 9.2.3 [elasticsearch-9.2.3-release-notes]
@@ -796,6 +799,7 @@ Stats:
 
 Vector Search:
 * Disallow index types updates to bbq_disk, revert [#139061](https://github.com/elastic/elasticsearch/pull/139061)
+
 
 
 ## 9.2.2 [elasticsearch-9.2.2-release-notes]
@@ -1180,6 +1184,18 @@ Add support for Lookup Join on Multiple Fields e.g. FROM index1
 | LOOKUP JOIN lookup_index on field1, field2
 ::::
 
+::::{dropdown} Safely prevent overwriting objects in S3 repositories
+Earlier versions of Elasticsearch had a small risk of inadvertently overwriting an object in an [AWS S3 snapshot
+repository](docs-content://deploy-manage/tools/snapshot-and-restore/s3-repository.md) which, if it happened, might corrupt the
+repository contents. From version 9.2.0 onwards, Elasticsearch uses S3's [conditional write
+feature](https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html) to prevent this corruption.
+
+If you are using a snapshot repository with type `s3` backed by some storage which is not AWS S3, but which is fully S3-compatible,
+then you will also get the benefits of this corruption protection by upgrading to 9.2.0 or later. Refer to [S3-compatible
+services](docs-content://deploy-manage/tools/snapshot-and-restore/s3-repository.md#repository-s3-compatible-services) for more
+information about using Elasticsearch with S3-compatible storage services.
+::::
+
 ::::{dropdown} Add support for expressions with LOOKUP JOIN in tech preview
 Enable Lookup Join on Expression Tech Preview
 FROM index1 | LOOKUP JOIN lookup_index on left_field1 > right_field1 AND left_field2 <= right_field2
@@ -1472,8 +1488,8 @@ Security:
 Snapshot/Restore:
 * Add extension points to remediate index metadata in during snapshot restore [#131706](https://github.com/elastic/elasticsearch/pull/131706)
 * Expose S3 connection max idle time as a setting [#125552](https://github.com/elastic/elasticsearch/pull/125552)
-* Implement `failIfAlreadyExists` in S3 repositories [#133030](https://github.com/elastic/elasticsearch/pull/133030) (issue: [#128565](https://github.com/elastic/elasticsearch/issues/128565))
 * Improve lost-increment message in repo analysis [#131200](https://github.com/elastic/elasticsearch/pull/131200)
+* Safely prevent overwriting objects in S3 repositories [#133030](https://github.com/elastic/elasticsearch/pull/133030) (issue: [#128565](https://github.com/elastic/elasticsearch/issues/128565))
 
 Store:
 * Add new `CachePopulationReason` [#130593](https://github.com/elastic/elasticsearch/pull/130593)
@@ -3635,3 +3651,19 @@ Vector Search:
 Watcher:
 * Watcher history index has too many indexed fields - [#117701](https://github.com/elastic/elasticsearch/pull/117701) (issue: [#71479](https://github.com/elastic/elasticsearch/issues/71479))
 
+* Do not capture `ClusterChangedEvent` in `IndicesStore` call to #onClusterStateShardsClosed [#120193](https://github.com/elastic/elasticsearch/pull/120193)
+
+Suggesters:
+* Return an empty suggestion when suggest phase times out [#122575](https://github.com/elastic/elasticsearch/pull/122575) (issue: [#122548](https://github.com/elastic/elasticsearch/issues/122548))
+
+Transform:
+* If the Transform is configured to write to an alias as its destination index, when the delete_dest_index parameter is set to true, then the Delete API will now delete the write index backing the alias [#122074](https://github.com/elastic/elasticsearch/pull/122074) (issue: [#121913](https://github.com/elastic/elasticsearch/issues/121913))
+
+Vector Search:
+* Apply default k for knn query eagerly [#118774](https://github.com/elastic/elasticsearch/pull/118774)
+* Fix `bbq_hnsw` merge file cleanup on random IO exceptions [#119691](https://github.com/elastic/elasticsearch/pull/119691) (issue: [#119392](https://github.com/elastic/elasticsearch/issues/119392))
+* Knn vector rescoring to sort score docs [#122653](https://github.com/elastic/elasticsearch/pull/122653) (issue: [#119711](https://github.com/elastic/elasticsearch/issues/119711))
+* Return appropriate error on null dims update instead of npe [#125716](https://github.com/elastic/elasticsearch/pull/125716)
+
+Watcher:
+* Watcher history index has too many indexed fields - [#117701](https://github.com/elastic/elasticsearch/pull/117701) (issue: [#71479](https://github.com/elastic/elasticsearch/issues/71479))

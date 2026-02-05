@@ -67,12 +67,70 @@ if "%SMART_RETRIES%"=="true" (
                   if not defined DEVELOCITY_BASE_URL set DEVELOCITY_BASE_URL=https://gradle-enterprise.elastic.co
                   set DEVELOCITY_FAILED_TEST_API_URL=!DEVELOCITY_BASE_URL!/api/tests/build/!BUILD_SCAN_ID!?testOutcomes=failed
 
+                  REM Fetch test seed from build scan custom values
+                  REM Support both DEVELOCITY_API_KEY and DEVELOCITY_API_ACCESS_KEY
+                  set API_KEY=
+                  if defined DEVELOCITY_API_KEY (
+                    set API_KEY=%DEVELOCITY_API_KEY%
+                  ) else if defined DEVELOCITY_API_ACCESS_KEY (
+                    set API_KEY=%DEVELOCITY_API_ACCESS_KEY%
+                  )
+
+                  if not defined API_KEY (
+                    echo Warning: No Develocity API key available ^(DEVELOCITY_API_KEY or DEVELOCITY_API_ACCESS_KEY^)
+                    echo Test seed retrieval will be skipped
+                    set TESTS_SEED=
+                  ) else (
+                    set DEVELOCITY_BUILD_SCAN_API_URL=!DEVELOCITY_BASE_URL!/api/builds/!BUILD_SCAN_ID!?models=gradle-attributes
+                    set TESTS_SEED=
+
+                    echo Fetching test seed from build scan: !BUILD_SCAN_ID!
+                    echo API URL: !DEVELOCITY_BUILD_SCAN_API_URL!
+
+                    REM Fetch build scan data
+                    curl --silent --show-error --compressed --request GET --url "!DEVELOCITY_BUILD_SCAN_API_URL!" --max-time 30 --header "accept: application/json" --header "authorization: Bearer !API_KEY!" --header "content-type: application/json" 2>nul | jq "." > .build-scan-data.json 2>nul
+
+                    if exist .build-scan-data.json (
+                      REM Validate JSON
+                      jq empty .build-scan-data.json 2>nul
+                      if !errorlevel! equ 0 (
+                        REM Extract test seed from gradle attributes
+                        for /f "delims=" %%i in ('jq -r ".models.gradleAttributes.model.values[]? | select(.name == \"tests.seed\") | .value" .build-scan-data.json 2^>nul') do set TESTS_SEED=%%i
+
+                        if defined TESTS_SEED (
+                          if not "!TESTS_SEED!"=="null" (
+                            echo Retrieved test seed: !TESTS_SEED!
+                          ) else (
+                            echo Could not retrieve test seed from build scan
+                            echo Debug: Checking available gradle attributes...
+                            jq -r ".models.gradleAttributes.model.values[]? | .name" .build-scan-data.json 2>nul
+                            set TESTS_SEED=
+                          )
+                        ) else (
+                          echo Could not retrieve test seed from build scan
+                          echo Debug: Checking available gradle attributes...
+                          jq -r ".models.gradleAttributes.model.values[]? | .name" .build-scan-data.json 2>nul
+                          set TESTS_SEED=
+                        )
+                      ) else (
+                        echo Error: Invalid JSON response from Develocity API
+                        type .build-scan-data.json 2>nul | findstr /C:"^" | more +0 +10
+                        set TESTS_SEED=
+                      )
+
+                      del .build-scan-data.json 2>nul
+                    ) else (
+                      echo Error: Failed to fetch build scan data from Develocity API
+                      set TESTS_SEED=
+                    )
+                  )
+
                   REM Add random delay to prevent API rate limiting (0-4 seconds)
                   set /a "delay=%RANDOM% %% 5"
                   timeout /t !delay! /nobreak >nul 2>&1
 
                   REM Fetch failed tests from Develocity API (curl will auto-decompress gzip with --compressed)
-                  curl --compressed --request GET --url "!DEVELOCITY_FAILED_TEST_API_URL!" --max-filesize 10485760 --max-time 30 --header "accept: application/json" --header "authorization: Bearer %DEVELOCITY_API_ACCESS_KEY%" --header "content-type: application/json" 2>nul | jq "." > .failed-test-history.json 2>nul
+                  curl --compressed --request GET --url "!DEVELOCITY_FAILED_TEST_API_URL!" --max-filesize 10485760 --max-time 30 --header "accept: application/json" --header "authorization: Bearer %DEVELOCITY_API_ACCESS_KEY%" --header "content-type: application/json" 2>nul | jq --arg testseed "!TESTS_SEED!" ". + {testseed: $testseed}" > .failed-test-history.json 2>nul
 
                   if exist .failed-test-history.json (
                     REM Set restrictive file permissions (owner only)
@@ -90,7 +148,7 @@ if "%SMART_RETRIES%"=="true" (
                     if not defined ORIGIN_JOB_NAME set ORIGIN_JOB_NAME=previous attempt
                     if "!ORIGIN_JOB_NAME!"=="null" set ORIGIN_JOB_NAME=previous attempt
 
-                    echo ✓ Smart retry enabled: filtering to !FILTERED_WORK_UNITS! work units
+                    echo Smart retry enabled: filtering to !FILTERED_WORK_UNITS! work units
 
                     REM Create Buildkite annotation for visibility
                     echo Rerunning failed build job [!ORIGIN_JOB_NAME!]^(!BUILD_SCAN_URL!^) > .smart-retry-annotation.txt
@@ -173,10 +231,11 @@ set "_DEVELOCITY_API_ACCESS_KEY=%DEVELOCITY_API_ACCESS_KEY%"
 set "_BUILDKITE_API_TOKEN=%BUILDKITE_API_TOKEN%"
 set "_JAVA_HOME=%JAVA_HOME%"
 set "_JAVA16_HOME=%JAVA16_HOME%"
+set "_TESTS_SEED=%TESTS_SEED%"
 
 REM End local scope and restore critical variables to parent environment
 REM This ensures bash scripts can access WORKSPACE, GRADLEW, and other variables
-ENDLOCAL && set "WORKSPACE=%_WORKSPACE%" && set "GRADLEW=%_GRADLEW%" && set "GRADLEW_BAT=%_GRADLEW_BAT%" && set "BUILD_NUMBER=%_BUILD_NUMBER%" && set "JOB_BRANCH=%_JOB_BRANCH%" && set "GH_TOKEN=%_GH_TOKEN%" && set "GRADLE_BUILD_CACHE_USERNAME=%_GRADLE_BUILD_CACHE_USERNAME%" && set "GRADLE_BUILD_CACHE_PASSWORD=%_GRADLE_BUILD_CACHE_PASSWORD%" && set "DEVELOCITY_ACCESS_KEY=%_DEVELOCITY_ACCESS_KEY%" && set "DEVELOCITY_API_ACCESS_KEY=%_DEVELOCITY_API_ACCESS_KEY%" && set "BUILDKITE_API_TOKEN=%_BUILDKITE_API_TOKEN%" && set "JAVA_HOME=%_JAVA_HOME%" && set "JAVA16_HOME=%_JAVA16_HOME%"
+ENDLOCAL && set "WORKSPACE=%_WORKSPACE%" && set "GRADLEW=%_GRADLEW%" && set "GRADLEW_BAT=%_GRADLEW_BAT%" && set "BUILD_NUMBER=%_BUILD_NUMBER%" && set "JOB_BRANCH=%_JOB_BRANCH%" && set "GH_TOKEN=%_GH_TOKEN%" && set "GRADLE_BUILD_CACHE_USERNAME=%_GRADLE_BUILD_CACHE_USERNAME%" && set "GRADLE_BUILD_CACHE_PASSWORD=%_GRADLE_BUILD_CACHE_PASSWORD%" && set "DEVELOCITY_ACCESS_KEY=%_DEVELOCITY_ACCESS_KEY%" && set "DEVELOCITY_API_ACCESS_KEY=%_DEVELOCITY_API_ACCESS_KEY%" && set "BUILDKITE_API_TOKEN=%_BUILDKITE_API_TOKEN%" && set "JAVA_HOME=%_JAVA_HOME%" && set "JAVA16_HOME=%_JAVA16_HOME%" && set "TESTS_SEED=%_TESTS_SEED%"
 
 bash.exe -c "bash .buildkite/scripts/get-latest-test-mutes.sh"
 

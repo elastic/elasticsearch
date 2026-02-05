@@ -267,9 +267,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
   method: testManyRandomTextFieldsInSubqueryIntermediateResultsWithSortManyFields
   issue: https://github.com/elastic/elasticsearch/issues/140664
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/46_downsample/Stats from downsampled and non-downsampled index simultaneously with implicit casting}
-  issue: https://github.com/elastic/elasticsearch/issues/140774
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testCreatesEisChatCompletion_DoesNotRemoveEndpointWhenNoLongerAuthorized
   issue: https://github.com/elastic/elasticsearch/issues/140802
@@ -359,12 +356,15 @@ tests:
 - class: org.elasticsearch.xpack.ccr.CcrTimeSeriesDataStreamsIT
   method: testCrossClusterReplicationForTSDBWithSyntheticId
   issue: https://github.com/elastic/elasticsearch/issues/141796
-- class: org.elasticsearch.index.codec.vectors.diskbbq.PreconditionerTests
-  method: testRandomProviderConfigurations
-  issue: https://github.com/elastic/elasticsearch/issues/141748
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=search.vectors/41_knn_search_bbq_hnsw/Vector rescoring has same scoring as exact search for kNN section}
-  issue: https://github.com/elastic/elasticsearch/issues/141842
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=esql/50_index_patterns/disjoint_mappings}
+  issue: https://github.com/elastic/elasticsearch/issues/141856
+- class: org.elasticsearch.repositories.azure.CancellableRateLimitedFluxIteratorTests
+  method: testErrorPath
+  issue: https://github.com/elastic/elasticsearch/issues/141893
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/141894
 
 # Examples:
 #

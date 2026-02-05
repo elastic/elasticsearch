@@ -53,8 +53,14 @@ public class ES93BinaryQuantizedVectorsScorerTests extends BaseVectorizationTest
         };
     }
 
-    private void createTestFile(Directory dir, int numVectors, float[] vectorValues, float[] centroid,
-                                OptimizedScalarQuantizer quantizer, int dims) throws IOException {
+    private void createTestFile(
+        Directory dir,
+        int numVectors,
+        float[] vectorValues,
+        float[] centroid,
+        OptimizedScalarQuantizer quantizer,
+        int dims
+    ) throws IOException {
         try (IndexOutput out = dir.createOutput("testScore.bin", IOContext.DEFAULT)) {
             for (int i = 0; i < numVectors; i++) {
                 randomVector(vectorValues, similarityFunction);
@@ -86,16 +92,8 @@ public class ES93BinaryQuantizedVectorsScorerTests extends BaseVectorizationTest
                 final int perVectorBytes = vectorLengthInBytes + 14;
                 assertEquals(in.length(), (long) numVectors * perVectorBytes);
 
-                final var defaultScorer = defaultProvider().newES93BinaryQuantizedVectorsScorer(
-                    in,
-                    dims,
-                    vectorLengthInBytes
-                );
-                final var panamaScorer = maybePanamaProvider().newES93BinaryQuantizedVectorsScorer(
-                    in,
-                    dims,
-                    vectorLengthInBytes
-                );
+                final var defaultScorer = defaultProvider().newES93BinaryQuantizedVectorsScorer(in, dims, vectorLengthInBytes);
+                final var panamaScorer = maybePanamaProvider().newES93BinaryQuantizedVectorsScorer(in, dims, vectorLengthInBytes);
 
                 for (int i = 0; i < numVectors; i++) {
                     var defaultScore = defaultScorer.score(
@@ -147,16 +145,8 @@ public class ES93BinaryQuantizedVectorsScorerTests extends BaseVectorizationTest
                 final int perVectorBytes = vectorLengthInBytes + 14;
                 assertEquals(in.length(), (long) numVectors * perVectorBytes);
 
-                final var defaultScorer = defaultProvider().newES93BinaryQuantizedVectorsScorer(
-                    in,
-                    dims,
-                    vectorLengthInBytes
-                );
-                final var panamaScorer = maybePanamaProvider().newES93BinaryQuantizedVectorsScorer(
-                    in,
-                    dims,
-                    vectorLengthInBytes
-                );
+                final var defaultScorer = defaultProvider().newES93BinaryQuantizedVectorsScorer(in, dims, vectorLengthInBytes);
+                final var panamaScorer = maybePanamaProvider().newES93BinaryQuantizedVectorsScorer(in, dims, vectorLengthInBytes);
 
                 final float[] scoresDefault = new float[numVectors];
                 final float[] scoresPanama = new float[numVectors];

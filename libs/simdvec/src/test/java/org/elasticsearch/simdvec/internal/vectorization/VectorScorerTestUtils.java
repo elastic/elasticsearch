@@ -18,7 +18,13 @@ import java.io.IOException;
 
 public class VectorScorerTestUtils {
 
-    public record VectorData(byte[] vector, float lowerInterval, float upperInterval, float additionalCorrection, short quantizedComponentSum) {}
+    public record VectorData(
+        byte[] vector,
+        float lowerInterval,
+        float upperInterval,
+        float additionalCorrection,
+        short quantizedComponentSum
+    ) {}
 
     private static final byte queryBits = 4;
 
@@ -41,7 +47,7 @@ public class VectorScorerTestUtils {
             values,
             scratch,
             quantizationScratch,
-            (byte)1,
+            (byte) 1,
             centroid
         );
         // pack and store document bit vector
@@ -49,8 +55,7 @@ public class VectorScorerTestUtils {
 
         assert r.quantizedComponentSum() >= 0 && r.quantizedComponentSum() <= 0xffff;
 
-        return new VectorData(toIndex, r.lowerInterval(), r.upperInterval(),
-            r.additionalCorrection(), (short) r.quantizedComponentSum());
+        return new VectorData(toIndex, r.lowerInterval(), r.upperInterval(), r.additionalCorrection(), (short) r.quantizedComponentSum());
     }
 
     static VectorData createBinarizedQueryData(
@@ -78,8 +83,7 @@ public class VectorScorerTestUtils {
         ESVectorUtil.transposeHalfByte(quantizationScratch, toQuery);
         assert r.quantizedComponentSum() >= 0 && r.quantizedComponentSum() <= 0xffff;
 
-        return new VectorData(toQuery, r.lowerInterval(), r.upperInterval(),
-            r.additionalCorrection(), (short) r.quantizedComponentSum());
+        return new VectorData(toQuery, r.lowerInterval(), r.upperInterval(), r.additionalCorrection(), (short) r.quantizedComponentSum());
     }
 
     static void writeBinarizedVectorData(IndexOutput binarizedQueryData, VectorData vectorData) throws IOException {

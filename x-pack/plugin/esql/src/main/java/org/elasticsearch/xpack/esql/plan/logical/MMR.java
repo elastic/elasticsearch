@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -27,6 +28,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.planner.PlannerUtils.hasLimitedInput;
 
 public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordinator, PostAnalysisVerificationAware {
     public static final String LAMBDA_OPTION_NAME = "lambda";
@@ -122,6 +124,10 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
 
     @Override
     public void postAnalysisVerification(Failures failures) {
+        if (false == hasLimitedInput(this)) {
+            failures.add(new Failure(this, "MMR can only be used on a limited number of rows. Consider adding a LIMIT before MMR."));
+        }
+
         if (diversifyField.dataType() != DataType.DENSE_VECTOR) {
             failures.add(fail(this, "MMR diversify field must be a dense vector field"));
         }

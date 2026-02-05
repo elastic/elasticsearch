@@ -28,6 +28,7 @@ import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
 import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Rule;
 import org.junit.rules.TestWatcher;
@@ -137,7 +138,7 @@ public class TopNOomRaceTests extends ESTestCase {
                 page.close();
             })));
         }
-        expectThrows(CircuitBreakingException.class, () -> OperatorTestCase.runDriver(drivers));
+        expectThrows(CircuitBreakingException.class, () -> new TestDriverRunner().run(drivers));
         for (DriverContext c : contexts) {
             OperatorTestCase.assertDriverContext(c);
         }

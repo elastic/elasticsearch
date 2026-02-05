@@ -72,7 +72,7 @@ public class IbmWatsonxChatCompletionRequestTests extends ESTestCase {
 
     public static IbmWatsonxChatCompletionRequest createRequest(String apiKey, String input, @Nullable String model, boolean stream)
         throws URISyntaxException {
-        var chatCompletionModel = IbmWatsonxChatCompletionModelTests.createModel(
+        var chatCompletionModel = IbmWatsonxChatCompletionModelTests.createCompletionModel(
             new URI("abc.com"),
             "apiVersion",
             model,

@@ -160,4 +160,13 @@ public class JULBridgeTests extends ESTestCase {
             new SeenEventExpectation("formatted msg", "", Level.INFO, "class name is {Class}")
         );
     }
+
+    public void testMessageWithException() {
+        JULBridge.install();
+        Object[] params = new Object[] { "1", "2" };
+        assertLogged(
+            () -> logger.log(java.util.logging.Level.INFO, "Too many arguments {}", params),
+            new SeenEventExpectation("formatted msg", "", Level.INFO, "Too many arguments {} [1, 2]")
+        );
+    }
 }

@@ -14,6 +14,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
@@ -92,6 +93,19 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         COMPLETION.capabilityName(),
         TEXT_EMBEDDING_FUNCTION.capabilityName()
     );
+
+    private static RequestOptions.Builder DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
+        if (warnings.isEmpty()) {
+            return false;
+        } else {
+            for (String warning : warnings) {
+                if ("Parameter [default_metric] is deprecated and will be removed in a future version".equals(warning) == false) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    });
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
@@ -266,6 +280,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         final RestClient bulkClient = dataLocation == DataLocation.REMOTE_ONLY ? remoteClient : randomFrom(localClient, remoteClient);
         when(twoClients.performRequest(any())).then(invocation -> {
             Request request = invocation.getArgument(0);
+            request.setOptions(DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER);
             String endpoint = request.getEndpoint();
             if (endpoint.startsWith("/_query")) {
                 return localClient.performRequest(request);

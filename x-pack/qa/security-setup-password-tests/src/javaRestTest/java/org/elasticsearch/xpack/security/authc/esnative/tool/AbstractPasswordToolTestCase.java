@@ -94,7 +94,6 @@ public abstract class AbstractPasswordToolTestCase extends ESRestTestCase {
             addressPart = addressPart.substring(1, addressPart.length() - 1);
         }
         InetAddress actualPublishAddress = InetAddresses.forString(addressPart);
-        InetAddress expectedPublishAddress = new NetworkService(Collections.emptyList()).resolvePublishHostAddresses(Strings.EMPTY_ARRAY);
         final int port = Integer.valueOf(nodePublishAddress.substring(lastColonIndex + 1));
 
         List<String> lines = Files.readAllLines(configPath.resolve("elasticsearch.yml"));
@@ -102,8 +101,9 @@ public abstract class AbstractPasswordToolTestCase extends ESRestTestCase {
             .filter(s -> s.startsWith("http.port") == false && s.startsWith("http.publish_port") == false)
             .collect(Collectors.toList());
         lines.add(randomFrom("http.port", "http.publish_port") + ": " + port);
-        if (expectedPublishAddress.equals(actualPublishAddress) == false) {
-            lines.add("http.publish_address: " + InetAddresses.toAddrString(actualPublishAddress));
+
+        if (false == lines.stream().anyMatch(s -> s.startsWith("http.publish_host"))) {
+            lines.add("http.publish_host: " + InetAddresses.toAddrString(actualPublishAddress));
         }
         Files.write(configPath.resolve("elasticsearch.yml"), lines, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING);
     }

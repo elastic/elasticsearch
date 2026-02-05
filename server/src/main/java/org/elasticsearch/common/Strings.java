@@ -594,7 +594,7 @@ public class Strings {
         public BoundedDelimitedStringCollector(StringBuilder stringBuilder, String delimiter, int appendLimit) {
             this.stringBuilder = stringBuilder;
             this.delimiter = delimiter;
-            this.lengthLimit = stringBuilder.length() + appendLimit; // long to avoid overflow
+            this.lengthLimit = (long) stringBuilder.length() + appendLimit; // long to avoid overflow
         }
 
         /**

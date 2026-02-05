@@ -41,7 +41,7 @@ public abstract class ES93BinaryQuantizedVectorsScorer {
         int targetOrd
     ) throws IOException;
 
-    public void scoreBulk(
+    public float scoreBulk(
         byte[] q,
         float queryLowerInterval,
         float queryUpperInterval,
@@ -53,6 +53,7 @@ public abstract class ES93BinaryQuantizedVectorsScorer {
         float[] scores,
         int bulkSize
     ) throws IOException {
+        float maxScore = Float.NEGATIVE_INFINITY;
         for (var i = 0; i < bulkSize; i++) {
             scores[i] = score(
                 q,
@@ -64,7 +65,9 @@ public abstract class ES93BinaryQuantizedVectorsScorer {
                 centroidDp,
                 nodes[i]
             );
+            maxScore = Math.max(maxScore, scores[i]);
         }
+        return maxScore;
     }
 
     protected static float quantizedScore(

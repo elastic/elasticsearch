@@ -260,15 +260,6 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
         }
     }
 
-    private void randomVector(float[] vector, VectorSimilarityFunction vectorSimilarityFunction) {
-        for (int i = 0; i < vector.length; i++) {
-            vector[i] = random().nextFloat();
-        }
-        if (vectorSimilarityFunction != VectorSimilarityFunction.EUCLIDEAN) {
-            VectorUtil.l2normalize(vector);
-        }
-    }
-
     private Directory newRandomDirectory() throws IOException {
         return randomBoolean() ? new MMapDirectory(createTempDir()) : new NIOFSDirectory(createTempDir());
     }

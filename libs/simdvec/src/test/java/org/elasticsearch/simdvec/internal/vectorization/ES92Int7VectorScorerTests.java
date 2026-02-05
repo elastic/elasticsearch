@@ -274,13 +274,4 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
             out.writeInt(Float.floatToIntBits(correction.additionalCorrection()));
         }
     }
-
-    private void randomVector(float[] vector, VectorSimilarityFunction vectorSimilarityFunction) {
-        for (int i = 0; i < vector.length; i++) {
-            vector[i] = random().nextFloat();
-        }
-        if (vectorSimilarityFunction != VectorSimilarityFunction.EUCLIDEAN) {
-            VectorUtil.l2normalize(vector);
-        }
-    }
 }

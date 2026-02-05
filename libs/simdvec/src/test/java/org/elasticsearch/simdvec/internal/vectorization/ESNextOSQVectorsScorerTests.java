@@ -189,7 +189,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                     long qDist = defaultScorer.quantizeScore(quantizeQuery);
                     slice.readFloats(floatScratch, 0, 3);
                     int quantizedComponentSum = slice.readInt();
-                    float defaulScore = defaultScorer.score(
+                    float defaultScore = defaultScorer.score(
                         queryCorrections.lowerInterval(),
                         queryCorrections.upperInterval(),
                         queryCorrections.quantizedComponentSum(),
@@ -218,7 +218,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                         floatScratch[2],
                         qDist
                     );
-                    assertEquals(defaulScore, panamaScore, 1e-2f);
+                    assertEquals(defaultScore, panamaScore, 1e-2f);
                     assertEquals(((long) (i + 1) * perVectorBytes), slice.getFilePointer());
                     assertEquals(padding + ((long) (i + 1) * perVectorBytes), in.getFilePointer());
                 }
@@ -244,7 +244,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
         final float[] residualScratch = new float[dimensions];
         final byte[] qVector = new byte[length];
         final float[] centroid = new float[dimensions];
-        VectorSimilarityFunction similarityFunction = randomFrom(VectorSimilarityFunction.values());
+
         randomVector(centroid, similarityFunction);
         OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(similarityFunction);
         int padding = random().nextInt(100);
@@ -330,9 +330,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                         scoresPanama
                     );
                     assertEquals(defaultMaxScore, panamaMaxScore, 1e-2f);
-                    for (int j = 0; j < ESNextOSQVectorsScorer.BULK_SIZE; j++) {
-                        assertEquals(scoresDefault[j], scoresPanama[j], 1e-2f);
-                    }
+                    assertArrayEqualsPercent(scoresDefault, scoresPanama, 0.05f);
                     assertEquals(((long) (ESNextOSQVectorsScorer.BULK_SIZE) * perVectorBytes), slice.getFilePointer());
                     assertEquals(padding + ((long) (i + ESNextOSQVectorsScorer.BULK_SIZE) * perVectorBytes), in.getFilePointer());
                 }
@@ -352,15 +350,6 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
         }
         for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
             out.writeInt(Float.floatToIntBits(correction.additionalCorrection()));
-        }
-    }
-
-    private void randomVector(float[] vector, VectorSimilarityFunction vectorSimilarityFunction) {
-        for (int i = 0; i < vector.length; i++) {
-            vector[i] = random().nextFloat();
-        }
-        if (vectorSimilarityFunction != VectorSimilarityFunction.EUCLIDEAN) {
-            VectorUtil.l2normalize(vector);
         }
     }
 

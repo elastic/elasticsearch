@@ -39,7 +39,7 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
     );
 
     public static final Setting<Boolean> WRITE_LOAD_FORECASTER_ENABLED_SETTING = Setting.boolSetting(
-        "index.write_load_forecast.enabled",
+        "write_load_forecaster.enabled",
         true,
         Setting.Property.NodeScope
     );
@@ -52,7 +52,7 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(MAX_INDEX_AGE_SETTING, OVERRIDE_WRITE_LOAD_FORECAST_SETTING);
+        return List.of(MAX_INDEX_AGE_SETTING, OVERRIDE_WRITE_LOAD_FORECAST_SETTING, WRITE_LOAD_FORECASTER_ENABLED_SETTING);
     }
 
     @Override

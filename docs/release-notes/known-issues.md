@@ -15,7 +15,7 @@ Known issues are significant defects or limitations that may impact your impleme
 :::{changelog} /changelog/new/bundles
 :subsections:
 :type: known-issue
-:config: /docs/changelog.yml
+:config: /changelog.yml
 :::
 
 ## 9.2.4 [elasticsearch-9.2.4-known-issues]

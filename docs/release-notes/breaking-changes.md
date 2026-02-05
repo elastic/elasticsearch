@@ -18,7 +18,7 @@ If you are migrating from a version prior to version 9.0, you must first upgrade
 :::{changelog} /changelog/new/bundles
 :subsections:
 :type: breaking-change
-:config: /docs/changelog.yml
+:config: /changelog.yml
 :::
 
 ## 9.3.0 [elasticsearch-9.3.0-breaking-changes]

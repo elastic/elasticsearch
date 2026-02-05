@@ -25,7 +25,7 @@ To check for security updates, go to [Security announcements for the Elastic sta
 
 :::{changelog} /changelog/new/bundles
 :subsections:
-:config: /docs/changelog.yml
+:config: /changelog.yml
 :::
 
 ## 9.3.0 [elasticsearch-9.3.0-release-notes]

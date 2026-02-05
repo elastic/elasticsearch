@@ -240,3 +240,4 @@ block:
           - Watcher
         types:
           - docs
+          - other

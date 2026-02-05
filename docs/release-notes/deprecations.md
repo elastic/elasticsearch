@@ -22,7 +22,7 @@ To give you insight into what deprecated features you’re using, {{es}}:
 :::{changelog} /changelog/new/bundles
 :subsections:
 :type: deprecation
-:config: /docs/changelog.yml
+:config: /changelog.yml
 :::
 
 ## 9.3.0 [elasticsearch-9.3.0-deprecations]

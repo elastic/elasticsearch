@@ -31,4 +31,11 @@ public class RuleHandlerBuilder<T, R> extends VoidRuleHandlerBuilder<T> {
         );
         return new ClassMethodBuilder<>(registry, clazz);
     }
+
+    public ClassMethodBuilder<T> elseReturnArg(int index) {
+        registry.registerRule(
+            new EntitlementRule(methodKey, checkMethod, new DeniedEntitlementStrategy.MethodArgumentValueDeniedEntitlementStrategy<>(index))
+        );
+        return new ClassMethodBuilder<>(registry, clazz);
+    }
 }

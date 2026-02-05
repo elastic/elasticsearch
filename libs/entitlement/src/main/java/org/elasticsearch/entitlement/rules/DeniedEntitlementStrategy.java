@@ -14,8 +14,8 @@ import org.elasticsearch.entitlement.bridge.NotEntitledException;
 import java.util.function.Function;
 
 public abstract sealed class DeniedEntitlementStrategy permits DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy,
-    DeniedEntitlementStrategy.ExceptionDeniedEntitlementStrategy, DeniedEntitlementStrategy.NoopDeniedEntitlementStrategy,
-    DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy {
+    DeniedEntitlementStrategy.ExceptionDeniedEntitlementStrategy, DeniedEntitlementStrategy.MethodArgumentValueDeniedEntitlementStrategy,
+    DeniedEntitlementStrategy.NoopDeniedEntitlementStrategy, DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy {
 
     /**
      * An {@link DeniedEntitlementStrategy} instructing that a failed entitlement check should result in a {@link NotEntitledException}.
@@ -35,6 +35,22 @@ public abstract sealed class DeniedEntitlementStrategy permits DeniedEntitlement
 
         public T getDefaultValue() {
             return defaultValue;
+        }
+    }
+
+    /**
+     * An {@link DeniedEntitlementStrategy} that returns a default value when an entitlement check fails.
+     * @param <T> the type of the default value
+     */
+    public static final class MethodArgumentValueDeniedEntitlementStrategy<T> extends DeniedEntitlementStrategy {
+        private final int index;
+
+        public MethodArgumentValueDeniedEntitlementStrategy(int index) {
+            this.index = index;
+        }
+
+        public int getIndex() {
+            return index;
         }
     }
 

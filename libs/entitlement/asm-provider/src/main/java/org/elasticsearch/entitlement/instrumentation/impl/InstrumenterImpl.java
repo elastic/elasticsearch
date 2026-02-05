@@ -295,6 +295,10 @@ public final class InstrumenterImpl implements Instrumenter {
                     // For default value strategy we want to catch not entitled and return the default value
                     catchNotEntitledAndReturnValue(defaultValue.getDefaultValue());
                 }
+                case DeniedEntitlementStrategy.MethodArgumentValueDeniedEntitlementStrategy methodArgValue -> {
+                    // For method argument value strategy we want to catch not entitled and return the method argument at the given index
+                    catchNotEntitledAndReturnMethodArgument(methodArgValue.getIndex());
+                }
                 case DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy notEntitled -> {
                     // For not entitled strategy we just want to let the not entitled exception propagate
                     invokeInstrumentationMethod();
@@ -433,6 +437,31 @@ public final class InstrumenterImpl implements Instrumenter {
                 mv.visitInsn(Opcodes.POP);
                 // Return immediately, making the method a no-op
                 mv.visitInsn(Opcodes.RETURN);
+            });
+        }
+
+        private void catchNotEntitledAndReturnMethodArgument(int argumentIndex) {
+            wrapInstrumentationInTryCatch(() -> {
+                // Pop the exception from the stack
+                mv.visitInsn(Opcodes.POP);
+
+                // Calculate the local variable index for the method argument
+                Type[] argumentTypes = Type.getArgumentTypes(instrumentedMethodDescriptor);
+                int localVarIndex = instrumentedMethodIsStatic ? 0 : 1;
+
+                // Advance to the specified argument index
+                for (int i = 0; i < argumentIndex && i < argumentTypes.length; i++) {
+                    localVarIndex += argumentTypes[i].getSize();
+                }
+
+                // Load the method argument at the specified index
+                if (argumentIndex < argumentTypes.length) {
+                    Type argType = argumentTypes[argumentIndex];
+                    mv.visitVarInsn(argType.getOpcode(Opcodes.ILOAD), localVarIndex);
+                    mv.visitInsn(argType.getOpcode(Opcodes.IRETURN));
+                } else {
+                    throw new IllegalStateException("Invalid argument index: " + argumentIndex);
+                }
             });
         }
 

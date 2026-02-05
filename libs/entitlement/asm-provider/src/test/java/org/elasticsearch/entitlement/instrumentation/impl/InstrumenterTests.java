@@ -65,6 +65,24 @@ public class InstrumenterTests extends ESTestCase {
         boolean someMethodReturningFalse();
 
         void someMethodWithSideEffects(AtomicInteger counter);
+
+        String someMethodReturningString(String arg);
+
+        int someMethodReturningInt(int arg);
+
+        boolean someMethodReturningBoolean(boolean arg);
+
+        byte someMethodReturningByte(byte arg);
+
+        short someMethodReturningShort(short arg);
+
+        char someMethodReturningChar(char arg);
+
+        long someMethodReturningLong(long arg);
+
+        float someMethodReturningFloat(float arg);
+
+        double someMethodReturningDouble(double arg);
     }
 
     /**
@@ -93,6 +111,51 @@ public class InstrumenterTests extends ESTestCase {
             return false;
         }
 
+        @Override
+        public String someMethodReturningString(String arg) {
+            return "original";
+        }
+
+        @Override
+        public int someMethodReturningInt(int arg) {
+            return -1;
+        }
+
+        @Override
+        public boolean someMethodReturningBoolean(boolean arg) {
+            return false;
+        }
+
+        @Override
+        public byte someMethodReturningByte(byte arg) {
+            return -1;
+        }
+
+        @Override
+        public short someMethodReturningShort(short arg) {
+            return -1;
+        }
+
+        @Override
+        public char someMethodReturningChar(char arg) {
+            return 'X';
+        }
+
+        @Override
+        public long someMethodReturningLong(long arg) {
+            return -1L;
+        }
+
+        @Override
+        public float someMethodReturningFloat(float arg) {
+            return -1.0f;
+        }
+
+        @Override
+        public double someMethodReturningDouble(double arg) {
+            return -1.0;
+        }
+
         public static void someStaticMethod(int arg) {}
 
         public static void someStaticMethod(int arg, String anotherArg) {}
@@ -105,6 +168,42 @@ public class InstrumenterTests extends ESTestCase {
 
         public static void someStaticMethodWithSideEffects(AtomicInteger counter) {
             counter.incrementAndGet();
+        }
+
+        public static String someStaticMethodReturningString(String arg) {
+            return "original";
+        }
+
+        public static int someStaticMethodReturningInt(int arg) {
+            return -1;
+        }
+
+        public static boolean someStaticMethodReturningBoolean(boolean arg) {
+            return false;
+        }
+
+        public static byte someStaticMethodReturningByte(byte arg) {
+            return -1;
+        }
+
+        public static short someStaticMethodReturningShort(short arg) {
+            return -1;
+        }
+
+        public static char someStaticMethodReturningChar(char arg) {
+            return 'X';
+        }
+
+        public static long someStaticMethodReturningLong(long arg) {
+            return -1L;
+        }
+
+        public static float someStaticMethodReturningFloat(float arg) {
+            return -1.0f;
+        }
+
+        public static double someStaticMethodReturningDouble(double arg) {
+            return -1.0;
         }
     }
 
@@ -129,25 +228,6 @@ public class InstrumenterTests extends ESTestCase {
         // After checking is activated, everything should throw
         verifier.setActive(true);
         verifier.assertStaticMethodThrows(loader, 123);
-        verifier.assertCalled(2);
-    }
-
-    public void testStaticMethodReturn() throws Exception {
-        var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someStaticMethodReturningFalse"));
-        var loader = buildInstrumentation(
-            builder -> builder.on(TestClassToInstrument.class)
-                .callingStatic(TestClassToInstrument::someStaticMethodReturningFalse)
-                .enforce(verifier)
-                .elseReturn(true)
-        );
-
-        // Before checking is active, should return normal value
-        verifier.setActive(false);
-        assertEquals(false, verifier.assertStaticMethod(loader));
-
-        // After checking is activated, should return overridden value
-        verifier.setActive(true);
-        assertEquals(true, verifier.assertStaticMethod(loader));
         verifier.assertCalled(2);
     }
 
@@ -227,7 +307,26 @@ public class InstrumenterTests extends ESTestCase {
         verifier.assertCalled(1);
     }
 
-    public void testInstanceMethodReturn() throws Exception {
+    public void testStaticMethodReturnBoolean() throws Exception {
+        var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someStaticMethodReturningFalse"));
+        var loader = buildInstrumentation(
+            builder -> builder.on(TestClassToInstrument.class)
+                .callingStatic(TestClassToInstrument::someStaticMethodReturningFalse)
+                .enforce(verifier)
+                .elseReturn(true)
+        );
+
+        // Before checking is active, should return normal value
+        verifier.setActive(false);
+        assertEquals(false, verifier.assertStaticMethod(loader));
+
+        // After checking is activated, should return overridden value
+        verifier.setActive(true);
+        assertEquals(true, verifier.assertStaticMethod(loader));
+        verifier.assertCalled(2);
+    }
+
+    public void testInstanceMethodReturnBoolean() throws Exception {
         var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someMethodReturningFalse"));
         var loader = buildInstrumentation(
             builder -> builder.on(TestClassToInstrument.class)
@@ -246,6 +345,186 @@ public class InstrumenterTests extends ESTestCase {
         verifier.setActive(true);
         assertEquals(true, instance.someMethodReturningFalse());
 
+        verifier.assertCalled(2);
+    }
+
+    public void testStaticMethodReturnString() throws Exception {
+        var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someStaticMethodReturningString", String.class));
+        var loader = buildInstrumentation(
+            builder -> builder.on(TestClassToInstrument.class)
+                .callingStatic(TestClassToInstrument::someStaticMethodReturningString, String.class)
+                .enforce(verifier)
+                .elseReturn("overridden")
+        );
+
+        verifier.setActive(false);
+        assertEquals("original", verifier.assertStaticMethod(loader, "test"));
+
+        verifier.setActive(true);
+        assertEquals("overridden", verifier.assertStaticMethod(loader, "test"));
+        verifier.assertCalled(2);
+    }
+
+    public void testInstanceMethodReturnString() throws Exception {
+        var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someMethodReturningString", String.class));
+        var loader = buildInstrumentation(
+            builder -> builder.on(TestClassToInstrument.class)
+                .calling(TestClassToInstrument::someMethodReturningString, String.class)
+                .enforce(verifier)
+                .elseReturn("overridden")
+        );
+
+        var instance = loader.newInstance();
+
+        verifier.setActive(false);
+        assertEquals("original", instance.someMethodReturningString("test"));
+
+        verifier.setActive(true);
+        assertEquals("overridden", instance.someMethodReturningString("test"));
+        verifier.assertCalled(2);
+    }
+
+    public void testStaticMethodReturnInt() throws Exception {
+        var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someStaticMethodReturningInt", int.class));
+        var loader = buildInstrumentation(
+            builder -> builder.on(TestClassToInstrument.class)
+                .callingStatic(TestClassToInstrument::someStaticMethodReturningInt, Integer.class)
+                .enforce(verifier)
+                .elseReturn(99)
+        );
+
+        verifier.setActive(false);
+        assertEquals(-1, verifier.assertStaticMethod(loader, 42));
+
+        verifier.setActive(true);
+        assertEquals(99, verifier.assertStaticMethod(loader, 42));
+        verifier.assertCalled(2);
+    }
+
+    public void testInstanceMethodReturnInt() throws Exception {
+        var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someMethodReturningInt", int.class));
+        var loader = buildInstrumentation(
+            builder -> builder.on(TestClassToInstrument.class)
+                .calling(TestClassToInstrument::someMethodReturningInt, Integer.class)
+                .enforce(verifier)
+                .elseReturn(99)
+        );
+
+        var instance = loader.newInstance();
+
+        verifier.setActive(false);
+        assertEquals(-1, instance.someMethodReturningInt(42));
+
+        verifier.setActive(true);
+        assertEquals(99, instance.someMethodReturningInt(42));
+        verifier.assertCalled(2);
+    }
+
+    public void testStaticMethodReturnLong() throws Exception {
+        var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someStaticMethodReturningLong", long.class));
+        var loader = buildInstrumentation(
+            builder -> builder.on(TestClassToInstrument.class)
+                .callingStatic(TestClassToInstrument::someStaticMethodReturningLong, Long.class)
+                .enforce(verifier)
+                .elseReturn(99L)
+        );
+
+        verifier.setActive(false);
+        assertEquals(-1L, verifier.assertStaticMethod(loader, 42L));
+
+        verifier.setActive(true);
+        assertEquals(99L, verifier.assertStaticMethod(loader, 42L));
+        verifier.assertCalled(2);
+    }
+
+    public void testInstanceMethodReturnLong() throws Exception {
+        var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someMethodReturningLong", long.class));
+        var loader = buildInstrumentation(
+            builder -> builder.on(TestClassToInstrument.class)
+                .calling(TestClassToInstrument::someMethodReturningLong, Long.class)
+                .enforce(verifier)
+                .elseReturn(99L)
+        );
+
+        var instance = loader.newInstance();
+
+        verifier.setActive(false);
+        assertEquals(-1L, instance.someMethodReturningLong(42L));
+
+        verifier.setActive(true);
+        assertEquals(99L, instance.someMethodReturningLong(42L));
+        verifier.assertCalled(2);
+    }
+
+    public void testStaticMethodReturnFloat() throws Exception {
+        var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someStaticMethodReturningFloat", float.class));
+        var loader = buildInstrumentation(
+            builder -> builder.on(TestClassToInstrument.class)
+                .callingStatic(TestClassToInstrument::someStaticMethodReturningFloat, Float.class)
+                .enforce(verifier)
+                .elseReturn(99.5f)
+        );
+
+        verifier.setActive(false);
+        assertEquals(-1.0f, (float) verifier.assertStaticMethod(loader, 42.5f), 0.0f);
+
+        verifier.setActive(true);
+        assertEquals(99.5f, (float) verifier.assertStaticMethod(loader, 42.5f), 0.0f);
+        verifier.assertCalled(2);
+    }
+
+    public void testInstanceMethodReturnFloat() throws Exception {
+        var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someMethodReturningFloat", float.class));
+        var loader = buildInstrumentation(
+            builder -> builder.on(TestClassToInstrument.class)
+                .calling(TestClassToInstrument::someMethodReturningFloat, Float.class)
+                .enforce(verifier)
+                .elseReturn(99.5f)
+        );
+
+        var instance = loader.newInstance();
+
+        verifier.setActive(false);
+        assertEquals(-1.0f, instance.someMethodReturningFloat(42.5f), 0.0f);
+
+        verifier.setActive(true);
+        assertEquals(99.5f, instance.someMethodReturningFloat(42.5f), 0.0f);
+        verifier.assertCalled(2);
+    }
+
+    public void testStaticMethodReturnDouble() throws Exception {
+        var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someStaticMethodReturningDouble", double.class));
+        var loader = buildInstrumentation(
+            builder -> builder.on(TestClassToInstrument.class)
+                .callingStatic(TestClassToInstrument::someStaticMethodReturningDouble, Double.class)
+                .enforce(verifier)
+                .elseReturn(99.5)
+        );
+
+        verifier.setActive(false);
+        assertEquals(-1.0, (double) verifier.assertStaticMethod(loader, 42.5), 0.0);
+
+        verifier.setActive(true);
+        assertEquals(99.5, (double) verifier.assertStaticMethod(loader, 42.5), 0.0);
+        verifier.assertCalled(2);
+    }
+
+    public void testInstanceMethodReturnDouble() throws Exception {
+        var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someMethodReturningDouble", double.class));
+        var loader = buildInstrumentation(
+            builder -> builder.on(TestClassToInstrument.class)
+                .calling(TestClassToInstrument::someMethodReturningDouble, Double.class)
+                .enforce(verifier)
+                .elseReturn(99.5)
+        );
+
+        var instance = loader.newInstance();
+
+        verifier.setActive(false);
+        assertEquals(-1.0, instance.someMethodReturningDouble(42.5), 0.0);
+
+        verifier.setActive(true);
+        assertEquals(99.5, instance.someMethodReturningDouble(42.5), 0.0);
         verifier.assertCalled(2);
     }
 
@@ -309,6 +588,338 @@ public class InstrumenterTests extends ESTestCase {
         verifier.setActive(true);
         instance.someMethodWithSideEffects(counter);
         assertEquals(1, counter.get());
+    }
+
+    public void testStaticMethodReturnArgString() throws Exception {
+        var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someStaticMethodReturningString", String.class));
+        var loader = buildInstrumentation(
+            builder -> builder.on(TestClassToInstrument.class)
+                .callingStatic(TestClassToInstrument::someStaticMethodReturningString, String.class)
+                .enforce(verifier)
+                .elseReturnArg(0)
+        );
+
+        // Before checking is active, should return original value
+        verifier.setActive(false);
+        assertEquals("original", verifier.assertStaticMethod(loader, "test"));
+
+        // After checking is activated, should return the argument
+        verifier.setActive(true);
+        assertEquals("test", verifier.assertStaticMethod(loader, "test"));
+        verifier.assertCalled(2);
+    }
+
+    public void testStaticMethodReturnArgInt() throws Exception {
+        var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someStaticMethodReturningInt", int.class));
+        var loader = buildInstrumentation(
+            builder -> builder.on(TestClassToInstrument.class)
+                .callingStatic(TestClassToInstrument::someStaticMethodReturningInt, Integer.class)
+                .enforce(verifier)
+                .elseReturnArg(0)
+        );
+
+        // Before checking is active, should return original value
+        verifier.setActive(false);
+        assertEquals(-1, verifier.assertStaticMethod(loader, 42));
+
+        // After checking is activated, should return the argument
+        verifier.setActive(true);
+        assertEquals(42, verifier.assertStaticMethod(loader, 42));
+        verifier.assertCalled(2);
+    }
+
+    public void testInstanceMethodReturnArgString() throws Exception {
+        var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someMethodReturningString", String.class));
+        var loader = buildInstrumentation(
+            builder -> builder.on(TestClassToInstrument.class)
+                .calling(TestClassToInstrument::someMethodReturningString, String.class)
+                .enforce(verifier)
+                .elseReturnArg(0)
+        );
+
+        var instance = loader.newInstance();
+
+        // Before checking is active, should return original value
+        verifier.setActive(false);
+        assertEquals("original", instance.someMethodReturningString("test"));
+
+        // After checking is activated, should return the argument
+        verifier.setActive(true);
+        assertEquals("test", instance.someMethodReturningString("test"));
+        verifier.assertCalled(2);
+    }
+
+    public void testInstanceMethodReturnArgInt() throws Exception {
+        var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someMethodReturningInt", int.class));
+        var loader = buildInstrumentation(
+            builder -> builder.on(TestClassToInstrument.class)
+                .calling(TestClassToInstrument::someMethodReturningInt, Integer.class)
+                .enforce(verifier)
+                .elseReturnArg(0)
+        );
+
+        var instance = loader.newInstance();
+
+        // Before checking is active, should return original value
+        verifier.setActive(false);
+        assertEquals(-1, instance.someMethodReturningInt(42));
+
+        // After checking is activated, should return the argument
+        verifier.setActive(true);
+        assertEquals(42, instance.someMethodReturningInt(42));
+        verifier.assertCalled(2);
+    }
+
+    public void testStaticMethodReturnArgBoolean() throws Exception {
+        var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someStaticMethodReturningBoolean", boolean.class));
+        var loader = buildInstrumentation(
+            builder -> builder.on(TestClassToInstrument.class)
+                .callingStatic(TestClassToInstrument::someStaticMethodReturningBoolean, Boolean.class)
+                .enforce(verifier)
+                .elseReturnArg(0)
+        );
+
+        verifier.setActive(false);
+        assertEquals(false, verifier.assertStaticMethod(loader, true));
+
+        verifier.setActive(true);
+        assertEquals(true, verifier.assertStaticMethod(loader, true));
+        verifier.assertCalled(2);
+    }
+
+    public void testInstanceMethodReturnArgBoolean() throws Exception {
+        var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someMethodReturningBoolean", boolean.class));
+        var loader = buildInstrumentation(
+            builder -> builder.on(TestClassToInstrument.class)
+                .calling(TestClassToInstrument::someMethodReturningBoolean, Boolean.class)
+                .enforce(verifier)
+                .elseReturnArg(0)
+        );
+
+        var instance = loader.newInstance();
+
+        verifier.setActive(false);
+        assertEquals(false, instance.someMethodReturningBoolean(true));
+
+        verifier.setActive(true);
+        assertEquals(true, instance.someMethodReturningBoolean(true));
+        verifier.assertCalled(2);
+    }
+
+    public void testStaticMethodReturnArgByte() throws Exception {
+        var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someStaticMethodReturningByte", byte.class));
+        var loader = buildInstrumentation(
+            builder -> builder.on(TestClassToInstrument.class)
+                .callingStatic(TestClassToInstrument::someStaticMethodReturningByte, Byte.class)
+                .enforce(verifier)
+                .elseReturnArg(0)
+        );
+
+        verifier.setActive(false);
+        assertEquals((byte) -1, verifier.assertStaticMethod(loader, (byte) 42));
+
+        verifier.setActive(true);
+        assertEquals((byte) 42, verifier.assertStaticMethod(loader, (byte) 42));
+        verifier.assertCalled(2);
+    }
+
+    public void testInstanceMethodReturnArgByte() throws Exception {
+        var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someMethodReturningByte", byte.class));
+        var loader = buildInstrumentation(
+            builder -> builder.on(TestClassToInstrument.class)
+                .calling(TestClassToInstrument::someMethodReturningByte, Byte.class)
+                .enforce(verifier)
+                .elseReturnArg(0)
+        );
+
+        var instance = loader.newInstance();
+
+        verifier.setActive(false);
+        assertEquals((byte) -1, instance.someMethodReturningByte((byte) 42));
+
+        verifier.setActive(true);
+        assertEquals((byte) 42, instance.someMethodReturningByte((byte) 42));
+        verifier.assertCalled(2);
+    }
+
+    public void testStaticMethodReturnArgShort() throws Exception {
+        var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someStaticMethodReturningShort", short.class));
+        var loader = buildInstrumentation(
+            builder -> builder.on(TestClassToInstrument.class)
+                .callingStatic(TestClassToInstrument::someStaticMethodReturningShort, Short.class)
+                .enforce(verifier)
+                .elseReturnArg(0)
+        );
+
+        verifier.setActive(false);
+        assertEquals((short) -1, verifier.assertStaticMethod(loader, (short) 42));
+
+        verifier.setActive(true);
+        assertEquals((short) 42, verifier.assertStaticMethod(loader, (short) 42));
+        verifier.assertCalled(2);
+    }
+
+    public void testInstanceMethodReturnArgShort() throws Exception {
+        var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someMethodReturningShort", short.class));
+        var loader = buildInstrumentation(
+            builder -> builder.on(TestClassToInstrument.class)
+                .calling(TestClassToInstrument::someMethodReturningShort, Short.class)
+                .enforce(verifier)
+                .elseReturnArg(0)
+        );
+
+        var instance = loader.newInstance();
+
+        verifier.setActive(false);
+        assertEquals((short) -1, instance.someMethodReturningShort((short) 42));
+
+        verifier.setActive(true);
+        assertEquals((short) 42, instance.someMethodReturningShort((short) 42));
+        verifier.assertCalled(2);
+    }
+
+    public void testStaticMethodReturnArgChar() throws Exception {
+        var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someStaticMethodReturningChar", char.class));
+        var loader = buildInstrumentation(
+            builder -> builder.on(TestClassToInstrument.class)
+                .callingStatic(TestClassToInstrument::someStaticMethodReturningChar, Character.class)
+                .enforce(verifier)
+                .elseReturnArg(0)
+        );
+
+        verifier.setActive(false);
+        assertEquals('X', verifier.assertStaticMethod(loader, 'A'));
+
+        verifier.setActive(true);
+        assertEquals('A', verifier.assertStaticMethod(loader, 'A'));
+        verifier.assertCalled(2);
+    }
+
+    public void testInstanceMethodReturnArgChar() throws Exception {
+        var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someMethodReturningChar", char.class));
+        var loader = buildInstrumentation(
+            builder -> builder.on(TestClassToInstrument.class)
+                .calling(TestClassToInstrument::someMethodReturningChar, Character.class)
+                .enforce(verifier)
+                .elseReturnArg(0)
+        );
+
+        var instance = loader.newInstance();
+
+        verifier.setActive(false);
+        assertEquals('X', instance.someMethodReturningChar('A'));
+
+        verifier.setActive(true);
+        assertEquals('A', instance.someMethodReturningChar('A'));
+        verifier.assertCalled(2);
+    }
+
+    public void testStaticMethodReturnArgLong() throws Exception {
+        var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someStaticMethodReturningLong", long.class));
+        var loader = buildInstrumentation(
+            builder -> builder.on(TestClassToInstrument.class)
+                .callingStatic(TestClassToInstrument::someStaticMethodReturningLong, Long.class)
+                .enforce(verifier)
+                .elseReturnArg(0)
+        );
+
+        verifier.setActive(false);
+        assertEquals(-1L, verifier.assertStaticMethod(loader, 42L));
+
+        verifier.setActive(true);
+        assertEquals(42L, verifier.assertStaticMethod(loader, 42L));
+        verifier.assertCalled(2);
+    }
+
+    public void testInstanceMethodReturnArgLong() throws Exception {
+        var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someMethodReturningLong", long.class));
+        var loader = buildInstrumentation(
+            builder -> builder.on(TestClassToInstrument.class)
+                .calling(TestClassToInstrument::someMethodReturningLong, Long.class)
+                .enforce(verifier)
+                .elseReturnArg(0)
+        );
+
+        var instance = loader.newInstance();
+
+        verifier.setActive(false);
+        assertEquals(-1L, instance.someMethodReturningLong(42L));
+
+        verifier.setActive(true);
+        assertEquals(42L, instance.someMethodReturningLong(42L));
+        verifier.assertCalled(2);
+    }
+
+    public void testStaticMethodReturnArgFloat() throws Exception {
+        var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someStaticMethodReturningFloat", float.class));
+        var loader = buildInstrumentation(
+            builder -> builder.on(TestClassToInstrument.class)
+                .callingStatic(TestClassToInstrument::someStaticMethodReturningFloat, Float.class)
+                .enforce(verifier)
+                .elseReturnArg(0)
+        );
+
+        verifier.setActive(false);
+        assertEquals(-1.0f, (float) verifier.assertStaticMethod(loader, 42.5f), 0.0f);
+
+        verifier.setActive(true);
+        assertEquals(42.5f, (float) verifier.assertStaticMethod(loader, 42.5f), 0.0f);
+        verifier.assertCalled(2);
+    }
+
+    public void testInstanceMethodReturnArgFloat() throws Exception {
+        var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someMethodReturningFloat", float.class));
+        var loader = buildInstrumentation(
+            builder -> builder.on(TestClassToInstrument.class)
+                .calling(TestClassToInstrument::someMethodReturningFloat, Float.class)
+                .enforce(verifier)
+                .elseReturnArg(0)
+        );
+
+        var instance = loader.newInstance();
+
+        verifier.setActive(false);
+        assertEquals(-1.0f, instance.someMethodReturningFloat(42.5f), 0.0f);
+
+        verifier.setActive(true);
+        assertEquals(42.5f, instance.someMethodReturningFloat(42.5f), 0.0f);
+        verifier.assertCalled(2);
+    }
+
+    public void testStaticMethodReturnArgDouble() throws Exception {
+        var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someStaticMethodReturningDouble", double.class));
+        var loader = buildInstrumentation(
+            builder -> builder.on(TestClassToInstrument.class)
+                .callingStatic(TestClassToInstrument::someStaticMethodReturningDouble, Double.class)
+                .enforce(verifier)
+                .elseReturnArg(0)
+        );
+
+        verifier.setActive(false);
+        assertEquals(-1.0, (double) verifier.assertStaticMethod(loader, 42.5), 0.0);
+
+        verifier.setActive(true);
+        assertEquals(42.5, (double) verifier.assertStaticMethod(loader, 42.5), 0.0);
+        verifier.assertCalled(2);
+    }
+
+    public void testInstanceMethodReturnArgDouble() throws Exception {
+        var verifier = new TestVerifier(TestClassToInstrument.class.getMethod("someMethodReturningDouble", double.class));
+        var loader = buildInstrumentation(
+            builder -> builder.on(TestClassToInstrument.class)
+                .calling(TestClassToInstrument::someMethodReturningDouble, Double.class)
+                .enforce(verifier)
+                .elseReturnArg(0)
+        );
+
+        var instance = loader.newInstance();
+
+        verifier.setActive(false);
+        assertEquals(-1.0, instance.someMethodReturningDouble(42.5), 0.0);
+
+        verifier.setActive(true);
+        assertEquals(42.5, instance.someMethodReturningDouble(42.5), 0.0);
+        verifier.assertCalled(2);
     }
 
     private static TestLoader buildInstrumentation(Consumer<EntitlementRulesBuilder> builderConsumer) throws Exception {

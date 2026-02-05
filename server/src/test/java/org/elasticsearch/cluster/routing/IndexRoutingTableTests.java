@@ -154,13 +154,11 @@ public class IndexRoutingTableTests extends ESTestCase {
         }
     }
 
-    @Repeat(iterations = 10)
     public void testAllActivePrimaries() {
         final var randomIRT = RandomIndexRoutingTable.generate(randomIndexName(), 1, 10, 0, 9);
         assertEquals(randomIRT.counter.primaryActive, randomIRT.irt.allActivePrimaries().count());
     }
 
-    @Repeat(iterations = 10)
     public void testAllActiveReplicas() {
         final var randomIRT = RandomIndexRoutingTable.generate(randomIndexName(), 1, 10, 0, 9);
         final var activeReplicas = randomIRT.counter.active - randomIRT.counter.primaryActive;

@@ -9,10 +9,15 @@
 
 package org.elasticsearch.lucene.queries;
 
+import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.BytesRefComparator;
+import org.apache.lucene.util.StringSorter;
 
+import java.util.Collection;
 import java.util.Objects;
-import java.util.Set;
+import java.util.SortedSet;
 
 /**
  * A query for matching any value from a set of BytesRef values for a specific field.
@@ -21,23 +26,50 @@ import java.util.Set;
  */
 public final class SlowCustomBinaryDocValuesTermInSetQuery extends AbstractBinaryDocValuesQuery {
 
-    private final Set<BytesRef> terms;
+    private final PrefixCodedTerms termData;
+    private final int termDataHashCode;
 
-    public SlowCustomBinaryDocValuesTermInSetQuery(String fieldName, Set<BytesRef> terms) {
-        super(fieldName, terms::contains);
+    public SlowCustomBinaryDocValuesTermInSetQuery(String fieldName, Collection<BytesRef> terms) {
+        super(fieldName, Objects.requireNonNull(terms)::contains);
+        this.termData = packTerms(fieldName, terms);
+        this.termDataHashCode = termData.hashCode();
+    }
 
-        // verify inputs
-        Objects.requireNonNull(terms);
-        if (terms.isEmpty()) {
-            throw new IllegalArgumentException("terms must not be empty");
+    private static PrefixCodedTerms packTerms(String field, Collection<BytesRef> terms) {
+        BytesRef[] sortedTerms = terms.toArray(new BytesRef[0]);
+        // already sorted if we are a SortedSet with natural order
+        boolean sorted = terms instanceof SortedSet && ((SortedSet<BytesRef>) terms).comparator() == null;
+        if (sorted == false) {
+            new StringSorter(BytesRefComparator.NATURAL) {
+
+                @Override
+                protected void get(BytesRefBuilder builder, BytesRef result, int i) {
+                    BytesRef term = sortedTerms[i];
+                    result.length = term.length;
+                    result.offset = term.offset;
+                    result.bytes = term.bytes;
+                }
+
+                @Override
+                protected void swap(int i, int j) {
+                    BytesRef tmp = sortedTerms[i];
+                    sortedTerms[i] = sortedTerms[j];
+                    sortedTerms[j] = tmp;
+                }
+            }.sort(0, sortedTerms.length);
         }
-        for (BytesRef term : terms) {
-            if (term == null) {
-                throw new IllegalArgumentException("terms must not contain null");
+        PrefixCodedTerms.Builder builder = new PrefixCodedTerms.Builder();
+        BytesRefBuilder previous = null;
+        for (BytesRef term : sortedTerms) {
+            if (previous == null) {
+                previous = new BytesRefBuilder();
+            } else if (previous.get().equals(term)) {
+                continue; // deduplicate
             }
+            builder.add(field, term);
+            previous.copyBytes(term);
         }
-
-        this.terms = terms;
+        return builder.finish();
     }
 
     @Override
@@ -51,8 +83,9 @@ public final class SlowCustomBinaryDocValuesTermInSetQuery extends AbstractBinar
     public String toString(String field) {
         StringBuilder sb = new StringBuilder("SlowCustomBinaryDocValuesTermInSetQuery(fieldName=");
         sb.append(field).append(",terms=[");
+        PrefixCodedTerms.TermIterator iterator = termData.iterator();
         boolean first = true;
-        for (BytesRef term : terms) {
+        for (BytesRef term = iterator.next(); term != null; term = iterator.next()) {
             if (first == false) {
                 sb.append(",");
             }
@@ -72,11 +105,11 @@ public final class SlowCustomBinaryDocValuesTermInSetQuery extends AbstractBinar
             return false;
         }
         SlowCustomBinaryDocValuesTermInSetQuery that = (SlowCustomBinaryDocValuesTermInSetQuery) o;
-        return Objects.equals(fieldName, that.fieldName) && Objects.equals(terms, that.terms);
+        return Objects.equals(fieldName, that.fieldName) && termDataHashCode == that.termDataHashCode && termData.equals(that.termData);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), fieldName, terms);
+        return Objects.hash(classHash(), fieldName, termDataHashCode);
     }
 }

@@ -101,7 +101,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.IntPredicate;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
@@ -973,18 +972,13 @@ public final class TextFieldMapper extends FieldMapper {
             if (indexType().hasTerms()) {
                 return super.termsQuery(values, context);
             }
+
             failIfNotIndexedNorDocValuesFallback(context);
+
+            Collection<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
             if (usesBinaryDocValues) {
-                BooleanQuery bq = new BooleanQuery.Builder().add(
-                    new SlowCustomBinaryDocValuesTermInSetQuery(
-                        name(),
-                        values.stream().map(this::indexedValueForSearch).collect(Collectors.toSet())
-                    ),
-                    BooleanClause.Occur.SHOULD
-                ).build();
-                return new ConstantScoreQuery(bq);
+                return new SlowCustomBinaryDocValuesTermInSetQuery(name(), bytesRefs);
             } else {
-                Collection<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
                 return SortedSetDocValuesField.newSlowSetQuery(name(), bytesRefs);
             }
         }

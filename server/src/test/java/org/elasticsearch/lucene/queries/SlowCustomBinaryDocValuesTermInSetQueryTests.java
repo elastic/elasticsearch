@@ -21,8 +21,9 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -138,19 +139,8 @@ public class SlowCustomBinaryDocValuesTermInSetQueryTests extends ESTestCase {
         }
     }
 
-    public void testEmptySetThrows() {
-        expectThrows(IllegalArgumentException.class, () -> new SlowCustomBinaryDocValuesTermInSetQuery("field", Set.of()));
-    }
-
     public void testNullTermsThrows() {
         expectThrows(NullPointerException.class, () -> new SlowCustomBinaryDocValuesTermInSetQuery("field", null));
-    }
-
-    public void testNullTermInSetThrows() {
-        Set<BytesRef> termsWithNull = new HashSet<>();
-        termsWithNull.add(new BytesRef("a"));
-        termsWithNull.add(null);
-        expectThrows(IllegalArgumentException.class, () -> new SlowCustomBinaryDocValuesTermInSetQuery("field", termsWithNull));
     }
 
     public void testEqualsAndHashCode() {
@@ -176,6 +166,24 @@ public class SlowCustomBinaryDocValuesTermInSetQueryTests extends ESTestCase {
 
         // Self equality
         assertEquals(query1, query1);
+    }
+
+    public void testDeduplication() {
+        // query with duplicates should equal query without duplicates
+        List<BytesRef> termsWithDuplicates = Arrays.asList(
+            new BytesRef("a"),
+            new BytesRef("b"),
+            new BytesRef("a"),
+            new BytesRef("b"),
+            new BytesRef("a")
+        );
+        Set<BytesRef> termsWithoutDuplicates = Set.of(new BytesRef("a"), new BytesRef("b"));
+
+        SlowCustomBinaryDocValuesTermInSetQuery query1 = new SlowCustomBinaryDocValuesTermInSetQuery("field", termsWithDuplicates);
+        SlowCustomBinaryDocValuesTermInSetQuery query2 = new SlowCustomBinaryDocValuesTermInSetQuery("field", termsWithoutDuplicates);
+
+        assertEquals(query1, query2);
+        assertEquals(query1.hashCode(), query2.hashCode());
     }
 
 }

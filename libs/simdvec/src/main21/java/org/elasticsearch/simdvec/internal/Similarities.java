@@ -11,6 +11,7 @@ package org.elasticsearch.simdvec.internal;
 
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.BBQType;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.DataType;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.Function;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.Operation;
@@ -39,19 +40,19 @@ public class Similarities {
         Operation.BULK_OFFSETS
     );
 
-    static final MethodHandle DOT_PRODUCT_I1I4 = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, DataType.I1I4, Operation.SINGLE);
-    static final MethodHandle DOT_PRODUCT_I1I4_BULK = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, DataType.I1I4, Operation.BULK);
+    static final MethodHandle DOT_PRODUCT_I1I4 = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, BBQType.I1I4, Operation.SINGLE);
+    static final MethodHandle DOT_PRODUCT_I1I4_BULK = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, BBQType.I1I4, Operation.BULK);
     static final MethodHandle DOT_PRODUCT_I1I4_BULK_WITH_OFFSETS = DISTANCE_FUNCS.getHandle(
         Function.DOT_PRODUCT,
-        DataType.I1I4,
+        BBQType.I1I4,
         Operation.BULK_OFFSETS
     );
 
-    static final MethodHandle DOT_PRODUCT_I2I4 = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, DataType.I2I4, Operation.SINGLE);
-    static final MethodHandle DOT_PRODUCT_I2I4_BULK = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, DataType.I2I4, Operation.BULK);
+    static final MethodHandle DOT_PRODUCT_I2I4 = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, BBQType.I2I4, Operation.SINGLE);
+    static final MethodHandle DOT_PRODUCT_I2I4_BULK = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, BBQType.I2I4, Operation.BULK);
     static final MethodHandle DOT_PRODUCT_I2I4_BULK_WITH_OFFSETS = DISTANCE_FUNCS.getHandle(
         Function.DOT_PRODUCT,
-        DataType.I2I4,
+        BBQType.I2I4,
         Operation.BULK_OFFSETS
     );
 
@@ -209,7 +210,7 @@ public class Similarities {
         }
     }
 
-    static float dotProductF32(MemorySegment a, MemorySegment b, int length) {
+    public static float dotProductF32(MemorySegment a, MemorySegment b, int length) {
         try {
             return (float) DOT_PRODUCT_F32.invokeExact(a, b, length);
         } catch (Throwable e) {
@@ -241,7 +242,7 @@ public class Similarities {
         }
     }
 
-    static float squareDistanceF32(MemorySegment a, MemorySegment b, int length) {
+    public static float squareDistanceF32(MemorySegment a, MemorySegment b, int length) {
         try {
             return (float) SQUARE_DISTANCE_F32.invokeExact(a, b, length);
         } catch (Throwable e) {

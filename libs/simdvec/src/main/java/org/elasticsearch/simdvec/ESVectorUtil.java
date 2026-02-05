@@ -78,6 +78,20 @@ public class ESVectorUtil {
         return ESVectorizationProvider.getInstance().newES93BinaryQuantizedVectorsScorer(input, dimension, vectorLengthInBytes);
     }
 
+    public static float dotProduct(float[] a, float[] b) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        return IMPL.dotProduct(a, b);
+    }
+
+    public static float squareDistance(float[] a, float[] b) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        return IMPL.squareDistance(a, b);
+    }
+
     public static long ipByteBinByte(byte[] q, byte[] d) {
         if (q.length != d.length * B_QUERY) {
             throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!= " + B_QUERY + " x " + d.length);

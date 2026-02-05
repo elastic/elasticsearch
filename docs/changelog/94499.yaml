@@ -1,0 +1,6 @@
+pr: 94499
+summary: Introduce more leniency to date formats that mistakenly use week-based years
+  instead of years of era
+area: Infra/Core
+type: enhancement
+issues: []

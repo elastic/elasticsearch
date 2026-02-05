@@ -11,10 +11,10 @@ import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -25,12 +25,12 @@ import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.xpack.analytics.aggregations.support.HistogramValuesSource;
+import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
 
 import java.io.IOException;
 import java.util.Map;
 
-abstract class AbstractHistoBackedTDigestPercentilesAggregator extends NumericMetricsAggregator.MultiValue {
+abstract class AbstractTDigestOrExponentialMergingAggregator extends NumericMetricsAggregator.MultiValue {
 
     protected final double[] keys;
     protected final ValuesSource valuesSource;
@@ -40,7 +40,7 @@ abstract class AbstractHistoBackedTDigestPercentilesAggregator extends NumericMe
     protected final TDigestExecutionHint executionHint;
     protected final boolean keyed;
 
-    AbstractHistoBackedTDigestPercentilesAggregator(
+    AbstractTDigestOrExponentialMergingAggregator(
         String name,
         ValuesSourceConfig config,
         AggregationContext context,
@@ -68,10 +68,7 @@ abstract class AbstractHistoBackedTDigestPercentilesAggregator extends NumericMe
         return valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
     }
 
-    @Override
-    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
-        final HistogramValues values = ((HistogramValuesSource.Histogram) valuesSource).getHistogramValues(aggCtx.getLeafReaderContext());
-
+    protected LeafBucketCollectorBase mergingTDigestCollector(LeafBucketCollector sub, HistogramValues values) {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -81,6 +78,22 @@ abstract class AbstractHistoBackedTDigestPercentilesAggregator extends NumericMe
                     while (sketch.next()) {
                         state.add(sketch.value(), sketch.count());
                     }
+                }
+            }
+        };
+    }
+
+    protected LeafBucketCollectorBase mergingExponentialHistogramCollector(
+        LeafBucketCollector sub,
+        ExponentialHistogramValuesReader values
+    ) {
+        return new LeafBucketCollectorBase(sub, values) {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                HistogramUnionState state = getExistingOrNewHistogram(bigArrays(), bucket);
+                if (values.advanceExact(doc)) {
+                    ExponentialHistogram histo = values.histogramValue();
+                    state.add(histo);
                 }
             }
         };

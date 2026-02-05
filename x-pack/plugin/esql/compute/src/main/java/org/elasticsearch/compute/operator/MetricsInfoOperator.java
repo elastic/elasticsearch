@@ -41,6 +41,8 @@ import java.util.Set;
  */
 public class MetricsInfoOperator implements Operator {
 
+    public static final int NUM_BLOCKS = 6;
+
     /**
      * Looks up metric field metadata on demand.
      * Allows the operator to query mapping information without depending on index mapper classes.
@@ -195,7 +197,7 @@ public class MetricsInfoOperator implements Operator {
     }
 
     private Page createEmptyPage() {
-        Block[] blocks = new Block[6];
+        Block[] blocks = new Block[NUM_BLOCKS];
         try {
             for (int i = 0; i < blocks.length; i++) {
                 blocks[i] = blockFactory.newConstantBytesRefBlockWith(new BytesRef(""), 0);
@@ -211,7 +213,7 @@ public class MetricsInfoOperator implements Operator {
         ArrayList<MetricInfo> metrics = new ArrayList<>(metricsByKey.values());
         int rowCount = metrics.size();
 
-        Block[] blocks = new Block[6];
+        Block[] blocks = new Block[NUM_BLOCKS];
         try {
             // Build metric_name column (single-valued keyword)
             try (BytesRefBlock.Builder nameBuilder = blockFactory.newBytesRefBlockBuilder(rowCount)) {

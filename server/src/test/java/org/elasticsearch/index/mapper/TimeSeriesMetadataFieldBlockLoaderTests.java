@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SourceFieldMapperBlockLoaderTests extends MapperServiceTestCase {
+public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCase {
 
     public void testBlockLoaderWithTimeSeriesDimensionsFunction() throws IOException {
         Settings settings = Settings.builder()
@@ -40,7 +40,10 @@ public class SourceFieldMapperBlockLoaderTests extends MapperServiceTestCase {
                   "@timestamp": { "type": "date" },
                   "host": { "type": "keyword", "time_series_dimension": true },
                   "cluster": { "type": "keyword", "time_series_dimension": true },
-                  "metric": { "type": "long", "time_series_metric": "gauge" }
+                  "metric": { "type": "long", "time_series_metric": "gauge" },
+                  "message": { "type": "keyword" },
+                  "status_code": { "type": "integer" },
+                  "tags": { "type": "keyword" }
                 }
               }
             }
@@ -74,7 +77,10 @@ public class SourceFieldMapperBlockLoaderTests extends MapperServiceTestCase {
                 "properties": {
                   "@timestamp": { "type": "date" },
                   "host": { "type": "keyword", "time_series_dimension": true },
-                  "metric": { "type": "long", "time_series_metric": "gauge" }
+                  "metric": { "type": "long", "time_series_metric": "gauge" },
+                  "message": { "type": "keyword" },
+                  "status_code": { "type": "integer" },
+                  "tags": { "type": "keyword" }
                 }
               }
             }
@@ -105,8 +111,11 @@ public class SourceFieldMapperBlockLoaderTests extends MapperServiceTestCase {
                   "@timestamp": { "type": "date" },
                   "host": { "type": "keyword", "time_series_dimension": true },
                   "cluster": { "type": "keyword", "time_series_dimension": true },
-                  "cpu_usage": { "type": "double", "time_series_metric": "gauge" },
-                  "request_count": { "type": "long", "time_series_metric": "counter" }
+                  "cpu": { "type": "double", "time_series_metric": "gauge" },
+                  "request_count": { "type": "long", "time_series_metric": "counter" },
+                  "message": { "type": "keyword" },
+                  "status_code": { "type": "integer" },
+                  "tags": { "type": "keyword" }
                 }
               }
             }
@@ -141,8 +150,10 @@ public class SourceFieldMapperBlockLoaderTests extends MapperServiceTestCase {
                   "@timestamp": { "type": "date" },
                   "host": { "type": "keyword", "time_series_dimension": true },
                   "env": { "type": "keyword", "time_series_dimension": true },
-                  "cpu_usage": { "type": "double", "time_series_metric": "gauge" },
-                  "request_count": { "type": "long", "time_series_metric": "counter" }
+                  "cpu": { "type": "double", "time_series_metric": "gauge" },
+                  "request_count": { "type": "long", "time_series_metric": "counter" },
+                  "message": { "type": "keyword" },
+                  "status_code": { "type": "integer" }
                 }
               }
             }
@@ -179,8 +190,11 @@ public class SourceFieldMapperBlockLoaderTests extends MapperServiceTestCase {
                   "@timestamp": { "type": "date" },
                   "host": { "type": "keyword", "time_series_dimension": true },
                   "env": { "type": "keyword", "time_series_dimension": true },
-                  "cpu_usage": { "type": "double", "time_series_metric": "gauge" },
-                  "request_count": { "type": "long", "time_series_metric": "counter" }
+                  "cpu": { "type": "double", "time_series_metric": "gauge" },
+                  "request_count": { "type": "long", "time_series_metric": "counter" },
+                  "message": { "type": "keyword" },
+                  "status_code": { "type": "integer" },
+                  "tags": { "type": "keyword" }
                 }
               }
             }
@@ -197,9 +211,10 @@ public class SourceFieldMapperBlockLoaderTests extends MapperServiceTestCase {
 
         assertThat(blockLoader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
 
+        // Should only include dimensions and metrics, not regular fields (message, status_code, tags)
         var storedFieldsSpec = blockLoader.rowStrideStoredFieldSpec();
         Set<String> requiredFields = storedFieldsSpec.requiresSource() ? storedFieldsSpec.sourcePaths() : Set.of();
-        assertThat(requiredFields, equalTo(Set.of("host", "env", "cpu_usage", "request_count")));
+        assertThat(requiredFields, equalTo(Set.of("host", "env", "cpu", "request_count")));
     }
 
     private MappedFieldType.BlockLoaderContext createBlockLoaderContext(MapperService mapperService, BlockLoaderFunctionConfig config) {

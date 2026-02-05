@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefHash;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.Arrays;
@@ -46,9 +47,24 @@ public class DistinctByOperator extends AbstractPageMappingOperator {
     @Override
     protected Page process(Page page) {
         BytesRefBlock keyBlock = page.getBlock(keyChannel);
+        BytesRef scratch = new BytesRef();
+
+        // If the block is a constant vector, all values are the same
+        // We only need to check once instead of iterating through all positions
+        BytesRefVector vector = keyBlock.asVector();
+        if (vector != null && vector.isConstant()) {
+            BytesRef key = vector.getBytesRef(0, scratch);
+            long result = seenKeys.add(key);
+            if (result >= 0) {
+                return page.filter(0);
+            } else {
+                page.releaseBlocks();
+                return null;
+            }
+        }
+
         int rowCount = 0;
         int[] positions = new int[page.getPositionCount()];
-        BytesRef scratch = new BytesRef();
 
         for (int p = 0; p < page.getPositionCount(); p++) {
             if (keyBlock.isNull(p)) {

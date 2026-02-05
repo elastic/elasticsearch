@@ -28,22 +28,11 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
     private final Set<String> metadataFields;
 
-    public TimeSeriesMetadataFieldBlockLoader(MappedFieldType.BlockLoaderContext context) {
-        this.metadataFields = dimensionFields(context);
-    }
-
     public TimeSeriesMetadataFieldBlockLoader(MappedFieldType.BlockLoaderContext context, boolean loadDimensions, boolean loadMetrics) {
-        Set<String> fields = new LinkedHashSet<>();
-
-        if (loadDimensions) {
-            fields.addAll(dimensionFields(context));
+        if (loadDimensions == false && loadMetrics == false) {
+            throw new IllegalArgumentException("At least one type of metadata (dimension or metric) is required");
         }
-
-        if (loadMetrics) {
-            fields.addAll(metricFields(context));
-        }
-
-        this.metadataFields = fields;
+        this.metadataFields = timeSeriesMetadata(context, loadDimensions, loadMetrics);
     }
 
     @Override
@@ -92,42 +81,34 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
         }
     }
 
-    private static Set<String> dimensionFields(MappedFieldType.BlockLoaderContext ctx) {
+    private Set<String> timeSeriesMetadata(MappedFieldType.BlockLoaderContext ctx, boolean loadDimensions, boolean loadMetrics) {
         if (ctx.indexSettings().getMode() == IndexMode.TIME_SERIES) {
-            IndexMetadata indexMetadata = ctx.indexSettings().getIndexMetadata();
-            List<String> dimensionFieldsFromSettings = indexMetadata.getTimeSeriesDimensions();
-            if (dimensionFieldsFromSettings != null && dimensionFieldsFromSettings.isEmpty() == false) {
-                return new LinkedHashSet<>(dimensionFieldsFromSettings);
+            Set<String> result = new LinkedHashSet<>();
+
+            if (loadDimensions && loadMetrics == false) {
+                IndexMetadata indexMetadata = ctx.indexSettings().getIndexMetadata();
+                List<String> dimensionFieldsFromSettings = indexMetadata.getTimeSeriesDimensions();
+                if (dimensionFieldsFromSettings != null && dimensionFieldsFromSettings.isEmpty() == false) {
+                    result.addAll(dimensionFieldsFromSettings);
+                    return result;
+                }
             }
 
-            Set<String> dimensionFields = new LinkedHashSet<>();
             MappingLookup mappingLookup = ctx.mappingLookup();
             for (Mapper mapper : mappingLookup.fieldMappers()) {
                 if (mapper instanceof FieldMapper fieldMapper) {
                     MappedFieldType fieldType = fieldMapper.fieldType();
-                    if (fieldType.isDimension()) {
-                        dimensionFields.add(fieldType.name());
+                    if (loadDimensions && fieldType.isDimension()) {
+                        result.add(fieldType.name());
                     }
-                }
-            }
-            return dimensionFields;
-        }
-        throw new IllegalStateException("The TimeSeriesMetadataFieldBlockLoader cannot be used in non-time series mode.");
-    }
 
-    private static Set<String> metricFields(MappedFieldType.BlockLoaderContext ctx) {
-        if (ctx.indexSettings().getMode() == IndexMode.TIME_SERIES) {
-            Set<String> metricFields = new LinkedHashSet<>();
-            MappingLookup mappingLookup = ctx.mappingLookup();
-            for (Mapper mapper : mappingLookup.fieldMappers()) {
-                if (mapper instanceof FieldMapper fieldMapper) {
-                    MappedFieldType fieldType = fieldMapper.fieldType();
-                    if (fieldType.getMetricType() != null) {
-                        metricFields.add(fieldType.name());
+                    if (loadMetrics && fieldType.getMetricType() != null) {
+                        result.add(fieldType.name());
                     }
                 }
             }
-            return metricFields;
+
+            return result;
         }
         throw new IllegalStateException("The TimeSeriesMetadataFieldBlockLoader cannot be used in non-time series mode.");
     }

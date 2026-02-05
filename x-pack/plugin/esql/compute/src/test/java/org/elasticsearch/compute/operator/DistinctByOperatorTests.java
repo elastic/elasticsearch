@@ -286,7 +286,100 @@ public class DistinctByOperatorTests extends OperatorTestCase {
                 Page output = op.getOutput();
                 output.releaseBlocks();
             }
-            // Should show 2 seen keys (a and b)
+            assertThat(op.toString(), equalTo("DistinctByOperator[keyChannel=0, seenKeys=2]"));
+        }
+    }
+
+    public void testConstantVectorNewKey() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (DistinctByOperator op = new DistinctByOperator(0)) {
+            // A constant block with 100 positions all having the same value
+            BytesRefBlock constantBlock = blockFactory.newConstantBytesRefBlockWith(new BytesRef("constant_key"), 100);
+            assertTrue("Block should be constant", constantBlock.asVector() != null && constantBlock.asVector().isConstant());
+
+            Page input = new Page(constantBlock);
+            op.addInput(input);
+            Page output = op.getOutput();
+
+            // Should output 1 row (the first occurrence)
+            assertThat(output.getPositionCount(), equalTo(1));
+
+            BytesRefBlock keyBlock = output.getBlock(0);
+            assertThat(keyBlock.getBytesRef(0, new BytesRef()).utf8ToString(), equalTo("constant_key"));
+
+            output.releaseBlocks();
+        }
+    }
+
+    public void testConstantVectorSeenKey() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (DistinctByOperator op = new DistinctByOperator(0)) {
+            try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(1)) {
+                builder.appendBytesRef(new BytesRef("seen_key"));
+                Page input1 = new Page(builder.build());
+                op.addInput(input1);
+                Page output1 = op.getOutput();
+                assertThat(output1.getPositionCount(), equalTo(1));
+                output1.releaseBlocks();
+            }
+
+            BytesRefBlock constantBlock = blockFactory.newConstantBytesRefBlockWith(new BytesRef("seen_key"), 50);
+            assertTrue("Block should be constant", constantBlock.asVector() != null && constantBlock.asVector().isConstant());
+
+            Page input2 = new Page(constantBlock);
+            op.addInput(input2);
+            Page output2 = op.getOutput();
+
+            assertNull(output2);
+        }
+    }
+
+    public void testConstantVectorWithOtherColumns() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (DistinctByOperator op = new DistinctByOperator(0)) {
+            BytesRefBlock constantKey = blockFactory.newConstantBytesRefBlockWith(new BytesRef("key"), 5);
+            try (LongBlock.Builder valueBuilder = blockFactory.newLongBlockBuilder(5)) {
+                for (int i = 0; i < 5; i++) {
+                    valueBuilder.appendLong(i * 100);
+                }
+                Page input = new Page(constantKey, valueBuilder.build());
+                op.addInput(input);
+                Page output = op.getOutput();
+
+                assertThat(output.getPositionCount(), equalTo(1));
+
+                LongBlock outputValues = output.getBlock(1);
+                assertThat(outputValues.getLong(0), equalTo(0L));
+
+                output.releaseBlocks();
+            }
+        }
+    }
+
+    public void testConstantVectorAcrossPages() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (DistinctByOperator op = new DistinctByOperator(0)) {
+            // First constant page with "a"
+            BytesRefBlock constantA = blockFactory.newConstantBytesRefBlockWith(new BytesRef("a"), 10);
+            op.addInput(new Page(constantA));
+            Page output1 = op.getOutput();
+            assertThat(output1.getPositionCount(), equalTo(1));
+            output1.releaseBlocks();
+
+            // Second constant page with "b" - should pass (new key)
+            BytesRefBlock constantB = blockFactory.newConstantBytesRefBlockWith(new BytesRef("b"), 20);
+            op.addInput(new Page(constantB));
+            Page output2 = op.getOutput();
+            assertThat(output2.getPositionCount(), equalTo(1));
+            output2.releaseBlocks();
+
+            // Third constant page with "a" again - should be filtered (seen key)
+            BytesRefBlock constantA2 = blockFactory.newConstantBytesRefBlockWith(new BytesRef("a"), 30);
+            op.addInput(new Page(constantA2));
+            Page output3 = op.getOutput();
+            assertNull(output3);
+
+            // Verify we have 2 seen keys
             assertThat(op.toString(), equalTo("DistinctByOperator[keyChannel=0, seenKeys=2]"));
         }
     }

@@ -26,10 +26,27 @@ import static java.util.Objects.requireNonNull;
 public interface TemplateDecoratorProvider extends Supplier<Template.TemplateDecorator> {
     InstanceHolder TEMPLATE_DECORATOR = new InstanceHolder();
 
+    /**
+     * Get the singleton {@link Template.TemplateDecorator} instance.
+     *
+     * Initialization is done during node construction and must have happened before.
+     */
     static Template.TemplateDecorator getInstance() {
-        return requireNonNull(TEMPLATE_DECORATOR.instance.get(), "TemplateDecoratorProvider not initialized");
+        Template.TemplateDecorator decorator = TEMPLATE_DECORATOR.instance.get();
+        if (decorator == null) {
+            var illegalStateException = new IllegalStateException("TemplateDecoratorProvider not initialized");
+            LogManager.getLogger(TemplateDecoratorProvider.class)
+                .warn("Attempted to access TemplateDecorator instance before initialization", illegalStateException);
+            throw illegalStateException;
+        }
+        return decorator;
     }
 
+    /**
+     * Initialize the singleton {@link Template.TemplateDecorator} instance from the given list of providers.
+     *
+     * This method must be called only once during node construction loading available providers via SPI.
+     */
     static void initOnce(List<? extends TemplateDecoratorProvider> providers) {
         Template.TemplateDecorator decorator = switch (providers.size()) {
             case 0 -> Template.TemplateDecorator.DEFAULT;

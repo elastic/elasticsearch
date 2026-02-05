@@ -83,6 +83,8 @@ public class StreamingLookupFromIndexOperator implements Operator {
     private volatile boolean closed = false;
     private boolean clientFinishCalled = false;
     private volatile boolean hadMissingMarkersWithoutFailure = false;
+    // Cached flag to avoid iterating activeBatches on every canProduceMoreDataWithoutExtraInput() call
+    private volatile boolean hasBatchReadyToOutput = false;
 
     // Stats
     private long pagesReceived = 0;
@@ -451,6 +453,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
 
             if (resultPage.isLastPageInBatch()) {
                 batch.receivedLastPage = true;
+                hasBatchReadyToOutput = true;
             }
 
             // BatchPage extends Page, so we can use it directly
@@ -485,6 +488,14 @@ public class StreamingLookupFromIndexOperator implements Operator {
             Releasables.closeExpectNoException(batch.join);
             it.remove();
             pagesCompleted++;
+            // Recompute cached flag - check if any remaining batch has receivedLastPage
+            hasBatchReadyToOutput = false;
+            for (BatchState remaining : activeBatches.values()) {
+                if (remaining.receivedLastPage) {
+                    hasBatchReadyToOutput = true;
+                    break;
+                }
+            }
         }
     }
 
@@ -541,12 +552,10 @@ public class StreamingLookupFromIndexOperator implements Operator {
     @Override
     public boolean canProduceMoreDataWithoutExtraInput() {
         // Return true only if we have actual data ready to emit:
-        // 1. Any batch received last page (needs trailing nulls computed)
+        // 1. Any batch received last page (needs trailing nulls computed) - use cached flag
         // 2. We have pages ready in the output queue (not just buffered out-of-order pages)
-        for (BatchState batch : activeBatches.values()) {
-            if (batch.receivedLastPage) {
-                return true;
-            }
+        if (hasBatchReadyToOutput) {
+            return true;
         }
         // Check if there are pages ready to output (in correct order).
         // Using hasReadyPages() instead of pageCacheSize() > 0 prevents busy-spinning
@@ -559,6 +568,11 @@ public class StreamingLookupFromIndexOperator implements Operator {
 
     @Override
     public IsBlockedResult isBlocked() {
+        // Fast path: if we have data ready to output, don't block
+        if (hasBatchReadyToOutput) {
+            return NOT_BLOCKED;
+        }
+
         Exception ex = failure.get();
         if (ex != null) {
             // it will throw in getOutput() with the exception
@@ -569,15 +583,13 @@ public class StreamingLookupFromIndexOperator implements Operator {
             return waitingForClientResult;
         }
 
+        // Fast path: if client has ready pages, don't block
+        if (client != null && client.hasReadyPages()) {
+            return NOT_BLOCKED;
+        }
+
         // If we have active batches waiting for results, check if we need to wait for pages
         if (activeBatches.isEmpty() == false) {
-            // Check if any batch has received all results (ready for trailing nulls)
-            for (BatchState batch : activeBatches.values()) {
-                if (batch.receivedLastPage) {
-                    return NOT_BLOCKED; // Data ready to process (trailing nulls)
-                }
-            }
-
             // If page cache is done but we have batches without markers, wait for server response
             // to know if the server succeeded or failed before deciding what to do
             if (client.isPageCacheDone()) {

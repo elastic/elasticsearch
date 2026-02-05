@@ -267,7 +267,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         logger.debug("[LookupJoinServer] Client is ready, starting driver for exchangeId={}", serverToClientId);
         // driverFuture was already created in startBatchProcessing(), reuse it
         // The driver completion listener will handle both success and failure cases and reply
-        Driver.start(threadContext, executor, batchDriver, 1000, createDriverCompletionListener());
+        Driver.start(threadContext, executor, batchDriver, Driver.DEFAULT_MAX_ITERATIONS, createDriverCompletionListener());
         logger.debug("[LookupJoinServer] Server driver started");
     }
 

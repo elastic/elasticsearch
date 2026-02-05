@@ -34,7 +34,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 /**
  * A driver operates single-threadedly on a simple chain of {@link Operator}s, passing
@@ -91,6 +90,8 @@ public class Driver implements Releasable, Describable {
     private final AtomicBoolean started = new AtomicBoolean();
     private final SubscribableListener<Void> completionListener = new SubscribableListener<>();
     private final DriverScheduler scheduler = new DriverScheduler();
+    /** Reusable list to collect blocked results, avoiding stream API allocations. */
+    private final List<IsBlockedResult> blockedResults = new ArrayList<>();
 
     /**
      * Status reported to the tasks API. We write the status at most once every
@@ -316,25 +317,10 @@ public class Driver implements Releasable, Describable {
         closeEarlyFinishedOperators(activeOperators.listIterator(activeOperators.size()));
 
         if (movedPage == false) {
-            IsBlockedResult result = oneOf(
-                activeOperators.stream()
-                    .map(Operator::isBlocked)
-                    .filter(laf -> laf.listener().isDone() == false)
-                    .collect(Collectors.toList())
-            );
+            blockedResults.clear();
+            activeOperators.stream().map(Operator::isBlocked).filter(laf -> laf.listener().isDone() == false).forEach(blockedResults::add);
+            IsBlockedResult result = oneOf(blockedResults);
             onNoPagesMoved();
-
-            // Before blocking, check if any operator can produce more data without extra input.
-            // If so, we should continue looping rather than waiting, because that operator
-            // has buffered data that needs to be processed. This prevents deadlock when an
-            // intermediate operator (like LookupQueryOperator) has data to process
-            // but the source operator is blocked waiting for more input.
-            for (Operator op : activeOperators) {
-                if (op.canProduceMoreDataWithoutExtraInput()) {
-                    return Operator.NOT_BLOCKED;
-                }
-            }
-
             return result;
         }
         return Operator.NOT_BLOCKED;

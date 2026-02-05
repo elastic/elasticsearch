@@ -299,6 +299,10 @@ public final class BatchDriver extends Driver {
 
         @Override
         public IsBlockedResult isBlocked() {
+            // During DRAINING, don't block - keep driver looping to drain intermediate operators
+            if (driver.batchContext.getState() == BatchContext.BatchState.DRAINING) {
+                return Operator.NOT_BLOCKED;
+            }
             return delegate.isBlocked();
         }
 

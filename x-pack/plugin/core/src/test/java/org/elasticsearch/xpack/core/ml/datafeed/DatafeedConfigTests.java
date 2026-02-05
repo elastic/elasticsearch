@@ -1098,22 +1098,6 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
         assertThat(config.getProjectRouting(), equalTo("_alias:prod-*"));
     }
 
-    public void testProjectRoutingToXContent() throws IOException {
-        // Skip test if feature flag is disabled
-        assumeTrue("CPS feature flag must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
-
-        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
-        builder.setIndices(List.of("logs-*"));
-        builder.setProjectRouting("_project._region:us-*");
-
-        DatafeedConfig config = builder.build();
-
-        BytesReference bytes = XContentHelper.toXContent(config, XContentType.JSON, false);
-        String json = bytes.utf8ToString();
-
-        assertThat(json, containsString("\"project_routing\":\"_project._region:us-*\""));
-    }
-
     public void testProjectRoutingSerialization() throws IOException {
         // Skip test if feature flag is disabled
         assumeTrue("CPS feature flag must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());

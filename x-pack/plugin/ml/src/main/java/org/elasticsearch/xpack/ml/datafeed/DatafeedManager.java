@@ -18,9 +18,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -56,6 +59,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static java.util.function.Predicate.not;
@@ -81,6 +85,7 @@ public final class DatafeedManager {
     private final NamedXContentRegistry xContentRegistry;
     private final Client client;
     private final Settings settings;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
     public DatafeedManager(
         DatafeedConfigProvider datafeedConfigProvider,
@@ -94,6 +99,7 @@ public final class DatafeedManager {
         this.xContentRegistry = xContentRegistry;
         this.client = client;
         this.settings = settings;
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
     }
 
     public void putDatafeed(
@@ -215,11 +221,29 @@ public final class DatafeedManager {
 
         Runnable doUpdate = () -> useSecondaryAuthIfAvailable(securityContext, () -> {
             final Map<String, String> headers = threadPool.getThreadContext().getHeaders();
+            
+            // Wrap the validator to check project_routing requires CPS environment.
+            // This validation is applied to the updated config (after the update is applied to the existing config).
+            BiConsumer<DatafeedConfig, ActionListener<Boolean>> wrappedValidator = (updatedConfig, validatorListener) -> {
+                // Validate project_routing requires CPS to be enabled in the environment
+                if (updatedConfig.getProjectRouting() != null && crossProjectModeDecider.crossProjectEnabled() == false) {
+                    validatorListener.onFailure(
+                        new ElasticsearchStatusException(
+                            "project_routing is only supported in environments that support cross-project calls",
+                            RestStatus.BAD_REQUEST
+                        )
+                    );
+                    return;
+                }
+                // Then call the original validator
+                jobConfigProvider.validateDatafeedJob(updatedConfig, validatorListener);
+            };
+            
             datafeedConfigProvider.updateDatefeedConfig(
                 request.getUpdate().getId(),
                 request.getUpdate(),
                 headers,
-                jobConfigProvider::validateDatafeedJob,
+                wrappedValidator,
                 listener.delegateFailureAndWrap((l, updatedConfig) -> l.onResponse(new PutDatafeedAction.Response(updatedConfig)))
             );
         });
@@ -306,6 +330,17 @@ public final class DatafeedManager {
         ActionListener<PutDatafeedAction.Response> listener
     ) {
         DatafeedConfig.validateAggregations(request.getDatafeed().getParsedAggregations(xContentRegistry));
+
+        // Validate project_routing requires CPS to be enabled in the environment.
+        if (request.getDatafeed().getProjectRouting() != null && crossProjectModeDecider.crossProjectEnabled() == false) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "project_routing is only supported in environments that support cross-project calls",
+                    RestStatus.BAD_REQUEST
+                )
+            );
+            return;
+        }
 
         CheckedConsumer<Boolean, Exception> mappingsUpdated = ok -> datafeedConfigProvider.putDatafeedConfig(
             request.getDatafeed(),

@@ -23,14 +23,14 @@ required_capability: temp_mmr_exec
 FROM mmr_text_vector_keyword
 | SORT keyword_field
 | LIMIT 10
-| MMR [0.1, 0.2, 0.3]::dense_vector ON text_vector LIMIT 3 WITH { "lambda": 0.1 }
+| MMR [0.1, 0.2, 0.3] ON text_vector LIMIT 3 WITH { "lambda": 0.1 }
 | DROP text_vector
 ;
 
 keyword_field:keyword | text_body:text     
+test1                 | first text
 test3                 | third text
 test6                 | sixth text
-test8                 | eighth text
 ;
 
 

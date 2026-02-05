@@ -153,7 +153,11 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
 
         // ensure query_vector, if given, is resolved to a DENSE_VECTOR type
         if (queryVector != null) {
-            if (queryVector.resolved() && queryVector.dataType() != DataType.DENSE_VECTOR) {
+            boolean isValidQueryVector = queryVector.resolved()
+                && ((queryVector instanceof Literal
+                    && (queryVector.dataType() == DataType.DOUBLE || queryVector.dataType() == DataType.FLOAT))
+                    || queryVector.dataType() == DataType.DENSE_VECTOR);
+            if (isValidQueryVector == false) {
                 failures.add(fail(this, "MMR query vector must be resolved to a dense vector type"));
             }
         }

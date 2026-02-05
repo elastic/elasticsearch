@@ -8,7 +8,9 @@ _meta:
   description: Default Prometheus metrics template installed by x-pack
   managed: true
 composed_of:
-  - prometheus@mappings
+  - metrics@tsdb-settings
+  - metrics-prometheus@mappings
+  - metrics-prometheus@settings
   - metrics@custom
   - metrics-prometheus@custom
 ignore_missing_component_templates:

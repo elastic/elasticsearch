@@ -19,11 +19,14 @@ public class PrometheusYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .module("data-streams")
-        .module("constant-keyword")
-        .module("x-pack-ilm")
-        .module("x-pack-stack")
         .module("x-pack-prometheus")
+        .module("x-pack-stack")
+        .module("x-pack-ilm")
+        .module("wildcard")
+        .module("constant-keyword")
+        .module("ingest-common")
+        .module("mapper-extras")
+        .module("data-streams")
         .build();
 
     public PrometheusYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

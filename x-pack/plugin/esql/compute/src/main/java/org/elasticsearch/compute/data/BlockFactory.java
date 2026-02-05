@@ -418,6 +418,12 @@ public class BlockFactory {
         return newConstantBytesRefVector(value, positions).asBlock();
     }
 
+    public BytesRefBlock newConstantBytesRefBlockWith(BytesRef value, int positions, long preAdjustedBytes) {
+        var b = new ConstantBytesRefVector(value, positions, this).asBlock();
+        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes);
+        return b;
+    }
+
     public BytesRefVector newConstantBytesRefVector(BytesRef value, int positions) {
         long preadjusted = ConstantBytesRefVector.ramBytesUsedWithLength(value);
         adjustBreaker(preadjusted);

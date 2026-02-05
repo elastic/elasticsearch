@@ -1,0 +1,5 @@
+pr: 141815
+summary: Prevent large CancelTasksRequest descriptions by truncating nodes and actions
+area: Search
+type: bug
+issues: []

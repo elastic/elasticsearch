@@ -182,6 +182,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public QuerySetting visitSetCommand(EsqlBaseParser.SetCommandContext ctx) {
         var field = visitSetField(ctx.setField());
+        context.telemetry().setting(field.name());
         return new QuerySetting(source(ctx), field);
     }
 

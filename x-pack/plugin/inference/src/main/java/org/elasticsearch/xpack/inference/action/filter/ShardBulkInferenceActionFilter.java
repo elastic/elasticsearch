@@ -285,6 +285,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         private final IndexingPressure.Coordinating coordinatingIndexingPressure;
         private final long startTimeNanos;
         private final TimeValue inferenceTimeout;
+        private volatile boolean hasTimedOut = false;
 
         private AsyncBulkShardInferenceAction(
             boolean useLegacyFormat,
@@ -305,9 +306,13 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
         /**
          * Calculates the remaining time before the inference timeout expires.
-         * @return the remaining time, or {@link TimeValue#ZERO} if the timeout has already expired
+         * @return the remaining time, or {@link TimeValue#ZERO} if the timeout has already expired,
+         * or {@link TimeValue#MAX_VALUE} if that's the timeout to avoid downstream overflow
          */
         private TimeValue getRemainingTimeout() {
+            if (inferenceTimeout.equals(TimeValue.MAX_VALUE)) {
+                return TimeValue.MAX_VALUE;
+            }
             long elapsedNanos = System.nanoTime() - startTimeNanos;
             long remainingNanos = inferenceTimeout.nanos() - elapsedNanos;
             return remainingNanos > 0 ? TimeValue.timeValueNanos(remainingNanos) : TimeValue.ZERO;
@@ -326,7 +331,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
             TimeValue remainingTimeout = getRemainingTimeout();
             if (remainingTimeout.equals(TimeValue.ZERO)) {
-                failRemainingItemsOnTimeout(itemOffset);
+                hasTimedOut = true;
                 onCompletion.run();
                 return;
             }
@@ -365,30 +370,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             try (var releaseOnFinish = new RefCountingRunnable(onInferenceCompletion)) {
                 for (var entry : fieldRequestsMap.entrySet()) {
                     executeChunkedInferenceAsync(entry.getKey(), null, entry.getValue(), remainingTimeout, releaseOnFinish.acquire());
-                }
-            }
-        }
-
-        /**
-         * Fails all remaining items that require inference due to timeout.
-         * Items that don't require inference (no semantic text fields) are left untouched
-         * and will proceed normally.
-         */
-        private void failRemainingItemsOnTimeout(int fromItemOffset) {
-            var items = bulkShardRequest.items();
-            var timeoutException = new ElasticsearchStatusException(
-                "Bulk inference timed out after [" + inferenceTimeout + "]",
-                RestStatus.REQUEST_TIMEOUT
-            );
-
-            for (int i = fromItemOffset; i < items.length; i++) {
-                var item = items[i];
-                // Check if this item needs inference by examining if it has any semantic text fields
-                Map<String, List<FieldInferenceRequest>> fieldRequestsMap = new HashMap<>();
-                addFieldInferenceRequests(item, i, fieldRequestsMap);
-                if (fieldRequestsMap.isEmpty() == false) {
-                    // This item requires inference - fail it
-                    item.abort(bulkShardRequest.index(), timeoutException);
                 }
             }
         }
@@ -672,6 +653,10 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                             slot.addOrUpdateResponse(
                                 new FieldInferenceResponse(field, sourceField, v, order++, 0, null, EMPTY_CHUNKED_INFERENCE)
                             );
+                        } else if (hasTimedOut) {
+                            slot.setFailure(new ElasticsearchStatusException(
+                                "Bulk inference timed out after [" + inferenceTimeout + "]",
+                                RestStatus.REQUEST_TIMEOUT));
                         } else {
                             requests.add(
                                 new FieldInferenceRequest(itemIndex, field, sourceField, v, order++, offsetAdjustment, chunkingSettings)

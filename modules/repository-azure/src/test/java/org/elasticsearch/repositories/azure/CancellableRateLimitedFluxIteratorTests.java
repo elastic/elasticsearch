@@ -146,9 +146,11 @@ public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
         assertThat(iterator.next(), equalTo(1));
 
         latch.countDown();
-        // noinspection ResultOfMethodCallIgnored
-        assertBusy(() -> expectThrows(RuntimeException.class, iterator::hasNext));
-        assertThat(cleaning, equalTo(Set.of(2)));
+        assertBusy(() -> {
+            // noinspection ResultOfMethodCallIgnored
+            expectThrows(RuntimeException.class, iterator::hasNext);
+            assertThat(cleaning, equalTo(Set.of(2)));
+        });
         assertThat(iterator.getQueue(), is(empty()));
         iterator.cancel();
     }

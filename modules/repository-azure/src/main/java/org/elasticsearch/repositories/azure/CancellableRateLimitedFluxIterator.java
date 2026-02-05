@@ -129,15 +129,22 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
 
         T nextElement = queue.poll();
 
-        if (nextElement == null) {
-            if (doneState.done() && doneState.error() != null) {
+        if (doneState.done()) {
+            // We can't trust anything we read after doneState is done, as we may have begun
+            // clearing the queue
+            if (nextElement != null) {
+                cleanElement(nextElement);
+            }
+            if (doneState.error() != null) {
                 throw new RuntimeException(doneState.error());
             } else {
-                cancelSubscription();
-                signalConsumer();
-
-                throw new IllegalStateException("Queue is empty: Expected one element to be available from the Reactive Streams source.");
+                throw new NoSuchElementException();
             }
+        } else if (nextElement == null) {
+            cancelSubscription();
+            signalConsumer();
+
+            throw new IllegalStateException("Queue is empty: Expected one element to be available from the Reactive Streams source.");
         }
 
         int totalEmittedElements = emittedElements + 1;

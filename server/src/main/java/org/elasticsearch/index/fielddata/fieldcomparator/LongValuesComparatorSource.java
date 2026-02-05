@@ -184,11 +184,11 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
 
     @Override
     public Object missingObject(Object missingValue, boolean reversed) {
-        if (targetNumericType == NumericType.DATE_NANOSECONDS) {
+        if (targetNumericType == NumericType.DATE_NANOSECONDS || targetNumericType == NumericType.DATE) {
             // special case to prevent negative values that would cause invalid nanosecond ranges
             if (sortMissingFirst(missingValue) || sortMissingLast(missingValue)) {
                 final boolean min = sortMissingFirst(missingValue) ^ reversed;
-                return min ? 0L : DateUtils.MAX_NANOSECOND;
+                return min ? 0L : targetNumericType == IndexNumericFieldData.NumericType.DATE_NANOSECONDS ? DateUtils.MAX_NANOSECOND : Long.MAX_VALUE;
             }
         }
         return super.missingObject(missingValue, reversed);

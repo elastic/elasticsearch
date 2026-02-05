@@ -220,8 +220,10 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
             // reranked chunk (the best matching one) is returned for each feature doc.
             Float score = scores.get(i);
             if (score == null) {
-                throw new IllegalStateException("Scores not computed for all feature docs. This is a sign that the reranker service may" +
-                    " be unexpectedly truncating ranked docs. Is the reranker service using an unreported top N task setting?");
+                throw new IllegalStateException(
+                    "Scores not computed for all feature docs. This is a sign that the reranker service may be unexpectedly truncating" +
+                        " ranked docs. Is the reranker service using an unreported top N task setting?"
+                );
             }
 
             result[i] = score;

@@ -98,8 +98,8 @@ named_queries_with_score:
 ---
 named_queries_with_function_score:
     - requires:
-          cluster_features: ["gte_v8.8.0", "search.function_score.named_queries"]
-          reason: introduced in 8.8.0
+          cluster_features: ["search.function_score.named_queries"]
+          reason: requires named query support for function_score functions
 
     - do:
           bulk:

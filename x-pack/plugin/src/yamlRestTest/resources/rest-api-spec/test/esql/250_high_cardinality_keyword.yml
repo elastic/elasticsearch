@@ -49,6 +49,10 @@ setup:
 
 ---
 "Test mv_min":
+  - requires:
+      cluster_features: ["mapper.keyword.mv_min_function_fuse_to_load"]
+      reason: "testing mv_min fuse to load"
+
   - do:
       index:
         index: test

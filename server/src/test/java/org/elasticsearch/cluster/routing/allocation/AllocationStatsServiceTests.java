@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetr
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.GlobalBalancingWeightsFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardAssignment;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardRelocationOrder;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -179,7 +180,8 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
                     EMPTY_NODE_ALLOCATION_STATS,
                     TEST_ONLY_EXPLAINER,
                     DesiredBalanceMetrics.NOOP,
-                    AllocationBalancingRoundMetrics.NOOP
+                    AllocationBalancingRoundMetrics.NOOP,
+                    new ShardRelocationOrder.DefaultOrder()
                 ) {
                     @Override
                     public DesiredBalance getDesiredBalance() {

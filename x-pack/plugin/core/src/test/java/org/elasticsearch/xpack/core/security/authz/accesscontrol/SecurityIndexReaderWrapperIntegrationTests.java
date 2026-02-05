@@ -43,6 +43,7 @@ import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.MockLicenseState;
@@ -112,7 +113,9 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             () -> true,
             null,
             Map.of(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
         SearchExecutionContext searchExecutionContext = spy(realSearchExecutionContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY);
@@ -271,7 +274,9 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             () -> true,
             null,
             Map.of(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
         SearchExecutionContext searchExecutionContext = spy(realSearchExecutionContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY);

@@ -140,6 +140,7 @@ public class ViewService {
      * Removes a view from the cluster state.
      */
     public void deleteView(ProjectId projectId, DeleteViewAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+        // TODO this should support wildcard deletion if action.destructive_requires_name = false
         if (viewsFeatureEnabled() == false) {
             listener.onFailure(new IllegalArgumentException("ESQL views are not enabled"));
             return;

@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.esql.core.tree;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
@@ -271,6 +273,42 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     @SuppressWarnings("unchecked")
     public <E extends T> T transformDown(Predicate<Node<?>> nodePredicate, Function<E, ? extends T> rule) {
         return transformDown((t) -> (nodePredicate.test(t) ? rule.apply((E) t) : t));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void transformDown(BiConsumer<? super T, ActionListener<T>> rule, ActionListener<T> listener) {
+        rule.accept((T) this, listener.delegateFailureAndWrap((originalListener, root) -> {
+            Node<T> node = this.equals(root) ? this : root;
+            node.transformChildren((child, childListener) -> child.transformDown(rule, childListener), originalListener);
+        }));
+    }
+
+    @SuppressWarnings("unchecked")
+    protected void transformChildren(BiConsumer<T, ActionListener<T>> traversalOperation, ActionListener<T> listener) {
+        if (children.isEmpty()) {
+            listener.onResponse((T) this);
+            return;
+        }
+
+        final Holder<List<T>> updatedChildren = new Holder<>();
+        SubscribableListener<Void> chain = SubscribableListener.newForked(l -> l.onResponse(null));
+        for (int i = 0; i < children.size(); i++) {
+            var index = i;
+            var child = children.get(index);
+            chain = chain.andThen(originalListener -> {
+                traversalOperation.accept(child, originalListener.delegateFailureAndWrap((o, maybeTransformed) -> {
+                    if (maybeTransformed.equals(child) == false) {
+                        if (updatedChildren.get() == null) {
+                            updatedChildren.set(new ArrayList<>(children));
+                        }
+                        updatedChildren.get().set(index, maybeTransformed);
+                    }
+                    o.onResponse(null);
+                }));
+            });
+        }
+        chain.andThenApply(ignored -> updatedChildren.get() == null ? (T) this : replaceChildrenSameSize(updatedChildren.get()))
+            .addListener(listener);
     }
 
     @SuppressWarnings("unchecked")

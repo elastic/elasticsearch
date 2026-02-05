@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
@@ -26,6 +27,11 @@ public class UpdateTransformsActionResponseTests extends AbstractSerializingTran
     @Override
     protected Response mutateInstance(Response instance) {
         return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected Response mutateInstanceForVersion(Response instance, TransportVersion version) {
+        return new Response(TransformConfigTests.mutateForVersion(instance.getConfig(), version));
     }
 
     @Override

@@ -19,15 +19,15 @@
 #include "vec_common.h"
 #include "aarch64/aarch64_vec_common.h"
 
-#ifndef DOTI7U_STRIDE_BYTES_LEN
-#define DOTI7U_STRIDE_BYTES_LEN 32 // Must be a power of 2
+#ifndef DOTI8_STRIDE_BYTES_LEN
+#define DOTI8_STRIDE_BYTES_LEN 32 // Must be a power of 2
 #endif
 
-#ifndef SQRI7U_STRIDE_BYTES_LEN
-#define SQRI7U_STRIDE_BYTES_LEN 16 // Must be a power of 2
+#ifndef SQRI8_STRIDE_BYTES_LEN
+#define SQRI8_STRIDE_BYTES_LEN 16 // Must be a power of 2
 #endif
 
-static inline int32_t doti7u_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
+static inline int32_t doti8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
     // We have contention in the instruction pipeline on the accumulation
     // registers if we use too few.
     int32x4_t acc1 = vdupq_n_s32(0);
@@ -36,7 +36,7 @@ static inline int32_t doti7u_inner(const int8_t* a, const int8_t* b, const int32
     int32x4_t acc4 = vdupq_n_s32(0);
 
     // Some unrolling gives around 50% performance improvement.
-    for (int i = 0; i < dims; i += DOTI7U_STRIDE_BYTES_LEN) {
+    for (int i = 0; i < dims; i += DOTI8_STRIDE_BYTES_LEN) {
         // Read into 16 x 8 bit vectors.
         int8x16_t va1 = vld1q_s8(a + i);
         int8x16_t vb1 = vld1q_s8(b + i);
@@ -61,12 +61,12 @@ static inline int32_t doti7u_inner(const int8_t* a, const int8_t* b, const int32
     return vaddvq_s32(vaddq_s32(acc5, acc6));
 }
 
-EXPORT int32_t vec_doti7u(const int8_t* a, const int8_t* b, const int32_t dims) {
+EXPORT int32_t vec_doti8(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
-    if (dims > DOTI7U_STRIDE_BYTES_LEN) {
-        i += dims & ~(DOTI7U_STRIDE_BYTES_LEN - 1);
-        res = doti7u_inner(a, b, i);
+    if (dims > DOTI8_STRIDE_BYTES_LEN) {
+        i += dims & ~(DOTI8_STRIDE_BYTES_LEN - 1);
+        res = doti8_inner(a, b, i);
     }
     for (; i < dims; i++) {
         res += a[i] * b[i];
@@ -74,8 +74,13 @@ EXPORT int32_t vec_doti7u(const int8_t* a, const int8_t* b, const int32_t dims) 
     return res;
 }
 
+EXPORT int32_t vec_doti7u(const int8_t* a, const int8_t* b, const int32_t dims) {
+#pragma inline
+    return vec_doti8(a, b, dims);
+}
+
 template <int64_t(*mapper)(const int32_t, const int32_t*)>
-static inline void doti7u_inner_bulk(
+static inline void doti8_inner_bulk(
     const int8_t* a,
     const int8_t* b,
     const int32_t dims,
@@ -164,12 +169,12 @@ static inline void doti7u_inner_bulk(
     // Tail-handling: remaining vectors
     for (; c < count; c++) {
         const int8_t* a0 = a + mapper(c, offsets) * pitch;
-        results[c] = (f32_t)vec_doti7u(a0, b, dims);
+        results[c] = (f32_t)vec_doti8(a0, b, dims);
     }
 }
 
 EXPORT void vec_doti7u_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    doti7u_inner_bulk<identity_mapper>(a, b, dims, dims, NULL, count, results);
+    doti8_inner_bulk<identity_mapper>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_doti7u_bulk_offsets(
@@ -180,16 +185,31 @@ EXPORT void vec_doti7u_bulk_offsets(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    doti7u_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
+    doti8_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 
-static inline int32_t sqri7u_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
+EXPORT void vec_doti8_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
+    doti8_inner_bulk<identity_mapper>(a, b, dims, dims, NULL, count, results);
+}
+
+EXPORT void vec_doti8_bulk_offsets(
+    const int8_t* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results) {
+    doti8_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
+}
+
+static inline int32_t sqri8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32x4_t acc1 = vdupq_n_s32(0);
     int32x4_t acc2 = vdupq_n_s32(0);
     int32x4_t acc3 = vdupq_n_s32(0);
     int32x4_t acc4 = vdupq_n_s32(0);
 
-    for (int i = 0; i < dims; i += SQRI7U_STRIDE_BYTES_LEN) {
+    for (int i = 0; i < dims; i += SQRI8_STRIDE_BYTES_LEN) {
         int8x16_t va1 = vld1q_s8(a + i);
         int8x16_t vb1 = vld1q_s8(b + i);
 
@@ -208,12 +228,12 @@ static inline int32_t sqri7u_inner(const int8_t* a, const int8_t* b, const int32
     return vaddvq_s32(vaddq_s32(acc5, acc6));
 }
 
-EXPORT int32_t vec_sqri7u(const int8_t* a, const int8_t* b, const int32_t dims) {
+EXPORT int32_t vec_sqri8(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
-    if (dims > SQRI7U_STRIDE_BYTES_LEN) {
-        i += dims & ~(SQRI7U_STRIDE_BYTES_LEN - 1);
-        res = sqri7u_inner(a, b, i);
+    if (dims > SQRI8_STRIDE_BYTES_LEN) {
+        i += dims & ~(SQRI8_STRIDE_BYTES_LEN - 1);
+        res = sqri8_inner(a, b, i);
     }
     for (; i < dims; i++) {
         int32_t dist = a[i] - b[i];
@@ -222,8 +242,13 @@ EXPORT int32_t vec_sqri7u(const int8_t* a, const int8_t* b, const int32_t dims) 
     return res;
 }
 
+EXPORT int32_t vec_sqri7u(const int8_t* a, const int8_t* b, const int32_t dims) {
+#pragma inline
+    return vec_sqri8(a, b, dims);
+}
+
 template <int64_t(*mapper)(const int32_t, const int32_t*)>
-static inline void sqri7u_inner_bulk(
+static inline void sqri8_inner_bulk(
     const int8_t* a,
     const int8_t* b,
     const int32_t dims,
@@ -234,12 +259,12 @@ static inline void sqri7u_inner_bulk(
 ) {
     for (int c = 0; c < count; c++) {
         const int8_t* a0 = a + mapper(c, offsets) * pitch;
-        results[c] = (f32_t)vec_sqri7u(a0, b, dims);
+        results[c] = (f32_t)vec_sqri8(a0, b, dims);
     }
 }
 
 EXPORT void vec_sqri7u_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    sqri7u_inner_bulk<identity_mapper>(a, b, dims, dims, NULL, count, results);
+    sqri8_inner_bulk<identity_mapper>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_sqri7u_bulk_offsets(
@@ -250,73 +275,7 @@ EXPORT void vec_sqri7u_bulk_offsets(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    sqri7u_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
-}
-
-// --- byte vectors
-
-EXPORT int32_t vec_doti8(const int8_t* a, const int8_t* b, const int32_t elementCount) {
-    int32_t result = 0;
-    for (int i=0; i<elementCount; i++) {
-        result += a[i] * b[i];
-    }
-    return result;
-}
-
-template <int64_t(*mapper)(int32_t, const int32_t*)>
-static inline void doti8_inner_bulk(
-    const int8_t* a,
-    const int8_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results
-) {
-    for (int c=0; c<count; c++) {
-        const int8_t* a0 = a + mapper(c, offsets) * pitch;
-        results[c] = (f32_t)vec_doti8(a0, b, dims);
-    }
-}
-
-EXPORT void vec_doti8_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    doti8_inner_bulk<identity_mapper>(a, b, dims, dims, NULL, count, results);
-}
-
-EXPORT void vec_doti8_bulk_offsets(
-    const int8_t* a,
-    const int8_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results) {
-    doti8_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
-}
-
-EXPORT int32_t vec_sqri8(const int8_t* a, const int8_t* b, const int32_t elementCount) {
-    int32_t result = 0;
-    for (int i=0; i<elementCount; i++) {
-        int diff = a[i] - b[i];
-        result += diff * diff;
-    }
-    return result;
-}
-
-template <int64_t(*mapper)(int32_t, const int32_t*)>
-static inline void sqri8_inner_bulk(
-    const int8_t* a,
-    const int8_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results
-) {
-    for (int c=0; c<count; c++) {
-        const int8_t* a0 = a + mapper(c, offsets) * pitch;
-        results[c] = (f32_t)vec_sqri8(a0, b, dims);
-    }
+    sqri8_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 
 EXPORT void vec_sqri8_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {

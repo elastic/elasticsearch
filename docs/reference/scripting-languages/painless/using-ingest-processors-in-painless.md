@@ -116,7 +116,7 @@ For example, if the input document looks like this:
 then executing this script:
 
 ```painless
-Processors.json(ctx.foo, 'inputJsonString')
+Processors.json(ctx.foo, 'inputJsonString');
 ```
 
 will result in this document:

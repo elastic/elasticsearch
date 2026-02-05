@@ -490,27 +490,12 @@ public class JsonXContentGenerator implements XContentGenerator {
             if (generator.getOutputContext().getCurrentName() != null) {
                 // If we've just started a field we'll need to add the separator
                 generator.writeRaw(':');
-            }
-            flush();
-            Streams.copy(stream, os, false);
-            writeEndRaw();
-        }
-    }
-
-    @Override
-    public void writeRawSource(InputStream sourceStream) throws IOException {
-        XContentType contentType = XContentFactory.xContentType(sourceStream);
-        if (contentType == null) {
-            throw new IllegalArgumentException("Can't write raw source when its xcontent-type can't be guessed");
-        }
-        if (mayWriteRawData(contentType) == false) {
-            copyRawValue(sourceStream, contentType.xContent());
-        } else {
-            if (generator.getOutputContext().getCurrentIndex() > 0) {
+            } else if (generator.getOutputContext().getCurrentIndex() > 0) {
+                // We may be writing an array element, check for adding separator
                 generator.writeRaw(',');
             }
             flush();
-            Streams.copy(sourceStream, os, false);
+            Streams.copy(stream, os, false);
             writeEndRaw();
         }
     }

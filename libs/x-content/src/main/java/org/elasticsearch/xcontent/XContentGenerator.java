@@ -107,14 +107,6 @@ public interface XContentGenerator extends Closeable, Flushable {
     void writeRawValue(InputStream value, XContentType xContentType) throws IOException;
 
     /**
-     * Writes source as a value. It will be converted to the appropriate type in case the source content type
-     * is not the same as the builder content type, otherwise it will be copied as is
-     *
-     * @param sourceStream raw source as an input stream
-     */
-    void writeRawSource(InputStream sourceStream) throws IOException;
-
-    /**
      * Writes a raw value taken from a pre-rendered string representation
      */
     void writeRawValue(String value) throws IOException;

@@ -46,6 +46,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.xcontent.XContentFactory.xContent;
 import static org.elasticsearch.xcontent.XContentFactory.xContentType;
 
 @SuppressWarnings("unchecked")
@@ -571,15 +572,8 @@ public class XContentHelper {
     @Deprecated
     public static void writeRawField(String field, BytesReference source, XContentBuilder builder, ToXContent.Params params)
         throws IOException {
-        Compressor compressor = CompressorFactory.compressorForUnknownXContentType(source);
-        if (compressor != null) {
-            try (InputStream compressedStreamInput = compressor.threadLocalInputStream(source.streamInput())) {
-                builder.rawField(field, compressedStreamInput);
-            }
-        } else {
-            try (InputStream stream = source.streamInput()) {
-                builder.rawField(field, stream);
-            }
+        try (InputStream stream = streamForSource(source)) {
+            builder.rawField(field, stream);
         }
     }
 
@@ -595,32 +589,41 @@ public class XContentHelper {
         ToXContent.Params params
     ) throws IOException {
         Objects.requireNonNull(xContentType);
-        Compressor compressor = CompressorFactory.compressorForUnknownXContentType(source);
-        if (compressor != null) {
-            try (InputStream compressedStreamInput = compressor.threadLocalInputStream(source.streamInput())) {
-                builder.rawField(field, compressedStreamInput, xContentType);
-            }
-        } else {
-            try (InputStream stream = source.streamInput()) {
-                builder.rawField(field, stream, xContentType);
-            }
+        try (InputStream stream = streamForSource(source)) {
+            builder.rawField(field, stream, xContentType);
         }
     }
 
-    public static XContentBuilder writeRawSource(BytesReference source, XContentBuilder builder) throws IOException {
+    /**
+     * Writes a "raw" (bytes) value, handling cases where the bytes are compressed, and tries to optimize writing using
+     * {@link XContentBuilder#rawValue(InputStream, XContentType)}.
+     */
+    public static XContentBuilder writeRawValue(BytesReference source, XContentBuilder builder) throws IOException {
+        InputStream stream = streamForSource(source);
+        try (stream) {
+            XContentType contentType = XContentFactory.xContentType(stream);
+            if (contentType == null) {
+                throw new IllegalArgumentException("Cannot write raw souce when content type can't be guessed");
+            }
+            return builder.rawValue(stream, contentType);
+        }
+    }
 
+    /**
+     * Retrieves an InputStream for a source, uncompressing it if necessary
+     * @param source
+     * @return InputStream for the source appropriately decompressed if needed
+     * @throws IOException
+     */
+    private static InputStream streamForSource(BytesReference source) throws IOException {
+        InputStream stream;
         Compressor compressor = CompressorFactory.compressorForUnknownXContentType(source);
         if (compressor != null) {
-            try (InputStream compressedStreamInput = compressor.threadLocalInputStream(source.streamInput())) {
-                builder.rawSource(compressedStreamInput);
-            }
+            stream = compressor.threadLocalInputStream(source.streamInput());
         } else {
-            try (InputStream stream = source.streamInput()) {
-                builder.rawSource(stream);
-            }
+            stream = source.streamInput();
         }
-        return builder;
-
+        return stream;
     }
 
     /**

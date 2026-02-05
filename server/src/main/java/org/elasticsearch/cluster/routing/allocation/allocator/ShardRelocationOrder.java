@@ -38,6 +38,8 @@ public interface ShardRelocationOrder {
     class DefaultOrder implements ShardRelocationOrder {
         /**
          * Node's shards are ordered from data stream write indices, to regular indices and lastly to data stream read indices.
+         * In case of the necessary shard movement, such shards will move first. This might be useful in case of the timeout
+         * for the node shutdown.
          */
         @Override
         public Iterator<ShardRouting> forNecessaryMoves(RoutingAllocation allocation, String nodeId) {
@@ -49,6 +51,7 @@ public interface ShardRelocationOrder {
 
         /**
          * Node's shards are ordered from data stream read indices, to regular indices and lastly to data stream write indices.
+         * This is to minimize the impact of relocations on shards with active writes in case of balancing.
          */
         @Override
         public Iterator<ShardRouting> forBalancing(RoutingAllocation allocation, String nodeId) {

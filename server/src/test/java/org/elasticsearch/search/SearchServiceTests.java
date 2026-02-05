@@ -24,6 +24,7 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -446,7 +447,8 @@ public class SearchServiceTests extends IndexShardTestCase {
         MappingLookup mappingLookup = MappingLookup.fromMappers(
             mapping,
             Collections.singletonList(keywordFieldMapper),
-            Collections.emptyList()
+            Collections.emptyList(),
+            IndexMode.STANDARD
         );
         return new SearchExecutionContext(
             0,

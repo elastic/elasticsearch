@@ -49,6 +49,10 @@ public abstract class AbstractAllocationDecisionTestCase extends ESIntegTestCase
         return CollectionUtils.appendToCopy(super.nodePlugins(), TestCanAllocatePlugin.class);
     }
 
+    /**
+     * Data structure to hold the results of {@link #createNodes}, lists of which nodes return what {@link AllocationDecider#canAllocate}
+     * {@link Decision}.
+     */
     protected record CreatedNodes(Set<String> noNodes, Set<String> notPreferredNodes, Set<String> throttleNodes, Set<String> yesNodes) {}
 
     protected CreatedNodes createNodes(int noNodes, int notPreferredNodes, int throttleNodes, int yesNodes) {

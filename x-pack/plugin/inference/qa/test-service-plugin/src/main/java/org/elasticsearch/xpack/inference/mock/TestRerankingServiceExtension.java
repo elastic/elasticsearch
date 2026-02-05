@@ -40,7 +40,6 @@ import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;

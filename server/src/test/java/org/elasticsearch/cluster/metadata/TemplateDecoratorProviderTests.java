@@ -27,7 +27,7 @@ public class TemplateDecoratorProviderTests extends ESTestCase {
     public final TestRule templateDecoratorRule = TemplateDecoratorRule.reset();
 
     public void testGetInstanceThrowsWhenNotInitialized() {
-        NullPointerException e = expectThrows(NullPointerException.class, TemplateDecoratorProvider::getInstance);
+        IllegalStateException e = expectThrows(IllegalStateException.class, TemplateDecoratorProvider::getInstance);
         assertThat(e.getMessage(), equalTo("TemplateDecoratorProvider not initialized"));
     }
 

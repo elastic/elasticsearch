@@ -12,6 +12,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gpu.GPUSupport;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
@@ -47,6 +48,12 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
         @Override
         protected boolean isGpuIndexingFeatureAllowed() {
             return isGpuIndexingFeatureAllowed;
+        }
+
+        @Override
+        public List<ActionPlugin.ActionHandler> getActions() {
+            // Skip registering xpack usage/info actions in this test as they require XPackLicenseState
+            return List.of();
         }
     }
 

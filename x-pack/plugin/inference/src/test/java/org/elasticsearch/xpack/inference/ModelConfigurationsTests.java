@@ -217,8 +217,6 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
         modelConfigurations.toXContent(builder, ToXContent.EMPTY_PARAMS);
         String json = Strings.toString(builder);
 
-        // TODO parse the json and verify the hidden field by looking at the map
-        assertFalse(true);
         assertThat(json, containsString(ModelConfigurations.SERVICE_SETTINGS));
         assertThat(json, containsString(HIDDEN_FIELD_KEY));
         assertThat(json, containsString(hiddenValue));

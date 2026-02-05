@@ -796,7 +796,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     ElasticInferenceService.NAME,
                     new ElasticInferenceServiceDenseEmbeddingsServiceSettings(nameDenseMultimodal, similarity, dimensions, null),
                     new ElasticInferenceServiceComponents(url),
-                    ChunkingSettingsBuilder.DEFAULT_SETTINGS
+                    ChunkingSettingsBuilder.DEFAULT_SETTINGS,
+                    DEFAULT_ENDPOINT_METADATA
                 ),
                 new ElasticInferenceServiceDenseEmbeddingsModel(
                     idDenseText,

@@ -357,6 +357,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                         throw new IllegalStateException("can't load source here");
                     }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY))
                 ),
+                true,
                 0
             );
             CancellableTask parentTask = new EsqlQueryTask(

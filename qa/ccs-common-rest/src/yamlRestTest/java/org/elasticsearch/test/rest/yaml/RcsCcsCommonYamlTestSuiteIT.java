@@ -101,6 +101,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .setting("xpack.security.remote_cluster_client.ssl.enabled", "false")
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .feature(FeatureFlag.SYNTHETIC_VECTORS)
+        .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
         .user("test_admin", "x-pack-test-password");
 
     private static ElasticsearchCluster fulfillingCluster = ElasticsearchCluster.local()

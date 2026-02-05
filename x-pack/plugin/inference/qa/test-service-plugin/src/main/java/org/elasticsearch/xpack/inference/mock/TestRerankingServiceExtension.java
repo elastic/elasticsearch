@@ -195,7 +195,8 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
                     results.add(new RankedDocsResults.RankedDoc(i, Float.parseFloat(input.get(i)), input.get(i)));
                 }
 
-                var sortedResultsStream = results.stream().sorted(Comparator.reverseOrder());
+                // RankedDoc's compareTo implementation already sorts by score descending, so we don't need to reverse the sort order
+                var sortedResultsStream = results.stream().sorted();
                 if (taskSettings.topN != null) {
                     sortedResultsStream = sortedResultsStream.limit(taskSettings.topN);
                 }

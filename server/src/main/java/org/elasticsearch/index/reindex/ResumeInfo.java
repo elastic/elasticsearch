@@ -27,8 +27,9 @@ import java.util.Optional;
 public record ResumeInfo(@Nullable WorkerResumeInfo worker, @Nullable Map<Integer, SliceStatus> slices) implements Writeable {
 
     public ResumeInfo(@Nullable WorkerResumeInfo worker, @Nullable Map<Integer, SliceStatus> slices) {
-        if (worker == null && (slices == null || slices.isEmpty())) {
-            throw new IllegalArgumentException("resume info requires a worker resume info or non-empty slices resume info");
+        if (worker == null && (slices == null || slices.size() < 2)) {
+            throw new IllegalArgumentException("resume info requires a worker resume info or at minimum two slices");
+
         }
         if (worker != null && slices != null) {
             throw new IllegalArgumentException("resume info cannot contain both a worker resume info and slices resume info");

@@ -27,7 +27,6 @@ class StatefulReindexRelocationNodePicker implements ReindexRelocationNodePicker
 
     @Override
     public Optional<String> pickNode(DiscoveryNodes nodes, NodesShutdownMetadata nodeShutdowns) {
-        assert ReindexPlugin.REINDEX_RESILIENCE_ENABLED : "reindex resilience should be enabled for relocations";
         String currentNodeId = nodes.getLocalNodeId();
         if (currentNodeId == null) {
             logger.warn(

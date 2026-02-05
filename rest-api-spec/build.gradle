@@ -248,6 +248,8 @@ tasks.named("precommit").configure {
 tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
   task.skipTest("indices.sort/10_basic/Index Sort", "warning does not exist for compatibility")
   task.skipTest("search/330_fetch_fields/Test search rewrite", "warning does not exist for compatibility")
+  task.skipTest("tsdb/05_dimension_and_metric_in_non_tsdb_index/can't shadow dimensions", "Dimensions can be shadowed in non tsdb indices")
+  task.skipTest("tsdb/05_dimension_and_metric_in_non_tsdb_index/can't shadow metrics", "Metrics can be shadowed in non tsdb indices")
   task.skipTest("tsdb/20_mapping/stored source is supported", "no longer serialize source_mode")
   task.skipTest("tsdb/20_mapping/Synthetic source", "no longer serialize source_mode")
   task.skipTest("tsdb/20_mapping/nested fields", "nested field support in tsdb indices is now supported")

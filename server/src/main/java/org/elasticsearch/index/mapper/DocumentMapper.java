@@ -50,7 +50,8 @@ public class DocumentMapper {
             mapping.toCompressedXContent(),
             IndexVersion.current(),
             mapperService.getMapperMetrics(),
-            mapperService.index().getName()
+            mapperService.index().getName(),
+            mapperService.getIndexMode()
         );
     }
 
@@ -60,11 +61,12 @@ public class DocumentMapper {
         CompressedXContent source,
         IndexVersion version,
         MapperMetrics mapperMetrics,
-        String indexName
+        String indexName,
+        IndexMode indexMode
     ) {
         this.documentParser = documentParser;
         this.type = mapping.getRoot().fullPath();
-        this.mappingLookup = MappingLookup.fromMapping(mapping);
+        this.mappingLookup = MappingLookup.fromMapping(mapping, indexMode);
         this.mappingSource = source;
         this.mapperMetrics = mapperMetrics;
         this.indexVersion = version;

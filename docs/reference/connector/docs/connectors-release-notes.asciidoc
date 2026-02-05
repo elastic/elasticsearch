@@ -10,6 +10,17 @@ Prior to version *8.16.0*, the connector release notes were published as part of
 ====
 
 [discrete]
+[[es-connectors-release-notes-8-19-11]]
+=== 8.19.11
+
+[discrete]
+[[es-connectors-release-notes-8-19-11-bug-fixes]]
+===== Bug fixes
+
+* Fixed a serialization error in the PostgreSQL connector when handling `INET`, `CIDR`, `UUID`, and geometric types.
+See: https://github.com/elastic/connectors/pull/3900[*PR 3900*], https://github.com/elastic/connectors/issues/3879[*Issue 3879*]
+
+[discrete]
 [[es-connectors-release-notes-8-19-10]]
 === 8.19.10
 

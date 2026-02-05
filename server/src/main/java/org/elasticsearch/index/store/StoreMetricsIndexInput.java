@@ -33,19 +33,20 @@ public class StoreMetricsIndexInput extends FilterIndexInput {
     private StoreMetricsIndexInput(String resourceDescription, IndexInput in, PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder) {
         super(resourceDescription, in);
         this.metricHolder = metricHolder;
+        assert in instanceof StoreMetricsIndexInput == false;
     }
 
     @Override
     public byte readByte() throws IOException {
-        byte result = super.readByte();
-        metricHolder.instance().addBytesRead(1);
+        byte result = in.readByte();
+        addBytesRead(1);
         return result;
     }
 
     @Override
     public void readBytes(byte[] b, int offset, int len) throws IOException {
-        super.readBytes(b, offset, len);
-        metricHolder.instance().addBytesRead(len);
+        in.readBytes(b, offset, len);
+        addBytesRead(len);
     }
 
     IndexInput createCopy(String resourceDescription, IndexInput in, PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder) {
@@ -59,108 +60,87 @@ public class StoreMetricsIndexInput extends FilterIndexInput {
 
     @Override
     public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
-        return createCopy(sliceDescription, super.slice(sliceDescription, offset, length), metricHolder.singleThreaded());
+        return createCopy(sliceDescription, in.slice(sliceDescription, offset, length), metricHolder.singleThreaded());
     }
 
     @Override
     public IndexInput slice(String sliceDescription, long offset, long length, IOContext context) throws IOException {
-        return createCopy(sliceDescription, super.slice(sliceDescription, offset, length, context), metricHolder.singleThreaded());
+        return createCopy(sliceDescription, in.slice(sliceDescription, offset, length, context), metricHolder.singleThreaded());
     }
 
     @Override
     public RandomAccessInput randomAccessSlice(long offset, long length) throws IOException {
         RandomAccessInput delegate = in.randomAccessSlice(offset, length);
-
-        return new RandomAccessInput() {
-            private final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = StoreMetricsIndexInput.this.metricHolder
-                .singleThreaded();
-
-            @Override
-            public long length() {
-                return delegate.length();
-            }
-
-            @Override
-            public byte readByte(long pos) throws IOException {
-                byte result = delegate.readByte(pos);
-                metricHolder.instance().addBytesRead(1);
-                return result;
-            }
-
-            @Override
-            public short readShort(long pos) throws IOException {
-                short result = delegate.readShort(pos);
-                metricHolder.instance().addBytesRead(2);
-                return result;
-            }
-
-            @Override
-            public int readInt(long pos) throws IOException {
-                int result = delegate.readInt(pos);
-                metricHolder.instance().addBytesRead(4);
-                return result;
-            }
-
-            @Override
-            public long readLong(long pos) throws IOException {
-                long result = delegate.readLong(pos);
-                metricHolder.instance().addBytesRead(8);
-                return result;
-            }
-        };
+        if (delegate instanceof IndexInput input) {
+            return new RandomAccessIndexInput(input.toString(), input, metricHolder.singleThreaded());
+        } else {
+            return new MetricsRandomAccessInput(delegate, metricHolder.singleThreaded());
+        }
     }
 
     @Override
     public void prefetch(long offset, long length) throws IOException {
-        getDelegate().prefetch(offset, length);
+        in.prefetch(offset, length);
     }
 
     @Override
     public Optional<Boolean> isLoaded() {
-        return getDelegate().isLoaded();
+        return in.isLoaded();
     }
 
     @Override
     public void updateIOContext(IOContext context) throws IOException {
-        getDelegate().updateIOContext(context);
+        in.updateIOContext(context);
+    }
+
+    void addBytesRead(long bytes) {
+        metricHolder.instance().addBytesRead(bytes);
     }
 
     @Override
     public void readBytes(byte[] b, int offset, int len, boolean useBuffer) throws IOException {
-        getDelegate().readBytes(b, offset, len, useBuffer);
-        metricHolder.instance().addBytesRead(len);
+        in.readBytes(b, offset, len, useBuffer);
+        addBytesRead(len);
     }
 
     @Override
     public short readShort() throws IOException {
-        short result = getDelegate().readShort();
-        metricHolder.instance().addBytesRead(2);
+        short result = in.readShort();
+        addBytesRead(2);
         return result;
     }
 
     @Override
     public int readInt() throws IOException {
         int result = getDelegate().readInt();
-        metricHolder.instance().addBytesRead(4);
+        addBytesRead(4);
         return result;
     }
 
     @Override
     public int readVInt() throws IOException {
-        // keep as is for now due to variable length
-        return super.readVInt();
+        long position = in.getFilePointer();
+        int result = in.readVInt();
+        long bytes = in.getFilePointer() - position;
+        assert bytes > 0;
+        addBytesRead(bytes);
+        return result;
     }
 
     @Override
     public int readZInt() throws IOException {
-        // keep as is for now due to variable length
-        return super.readZInt();
+        long position = in.getFilePointer();
+        int result = in.readZInt();
+        long bytes = in.getFilePointer() - position;
+        assert bytes > 0;
+        addBytesRead(bytes);
+        return result;
     }
 
     @Override
     public long readLong() throws IOException {
         long result = getDelegate().readLong();
-        metricHolder.instance().addBytesRead(8);
+        addBytesRead(8);
         return result;
     }
 
@@ -184,32 +164,53 @@ public class StoreMetricsIndexInput extends FilterIndexInput {
 
     @Override
     public long readVLong() throws IOException {
-        // keep as is for now due to variable length
-        return super.readVLong();
+        long position = in.getFilePointer();
+        long result = in.readVLong();
+        long bytes = in.getFilePointer() - position;
+        assert bytes > 0;
+        addBytesRead(bytes);
+        return result;
     }
 
     @Override
     public long readZLong() throws IOException {
-        // keep as is for now due to variable length
-        return super.readZLong();
+        long position = in.getFilePointer();
+        long result = in.readZLong();
+        long bytes = in.getFilePointer() - position;
+        assert bytes > 0;
+        addBytesRead(bytes);
+
+        return result;
     }
 
     @Override
     public String readString() throws IOException {
-        // keep as is for now due to variable length
-        return super.readString();
+        long position = in.getFilePointer();
+        String result = in.readString();
+        long bytes = in.getFilePointer() - position;
+        assert bytes > 0;
+        addBytesRead(bytes);
+        return result;
     }
 
     @Override
     public Map<String, String> readMapOfStrings() throws IOException {
-        // keep as is for now due to variable length
-        return super.readMapOfStrings();
+        long position = in.getFilePointer();
+        Map<String, String> result = in.readMapOfStrings();
+        long bytes = in.getFilePointer() - position;
+        assert bytes > 0;
+        addBytesRead(bytes);
+        return result;
     }
 
     @Override
     public Set<String> readSetOfStrings() throws IOException {
-        // keep as is for now due to variable length
-        return super.readSetOfStrings();
+        long position = in.getFilePointer();
+        Set<String> result = in.readSetOfStrings();
+        long bytes = in.getFilePointer() - position;
+        assert bytes > 0;
+        addBytesRead(bytes);
+        return result;
     }
 
     private static class RandomAccessIndexInput extends StoreMetricsIndexInput implements RandomAccessInput {
@@ -231,8 +232,46 @@ public class StoreMetricsIndexInput extends FilterIndexInput {
         }
 
         @Override
-        public RandomAccessInput randomAccessSlice(long offset, long length) throws IOException {
-            return super.randomAccessSlice(offset, length);
+        public long length() {
+            return delegate.length();
+        }
+
+        @Override
+        public byte readByte(long pos) throws IOException {
+            byte result = delegate.readByte(pos);
+            addBytesRead(1);
+            return result;
+        }
+
+        @Override
+        public short readShort(long pos) throws IOException {
+            short result = delegate.readShort(pos);
+            addBytesRead(2);
+            return result;
+        }
+
+        @Override
+        public int readInt(long pos) throws IOException {
+            int result = delegate.readInt(pos);
+            addBytesRead(4);
+            return result;
+        }
+
+        @Override
+        public long readLong(long pos) throws IOException {
+            long result = delegate.readLong(pos);
+            addBytesRead(8);
+            return result;
+        }
+    }
+
+    private static class MetricsRandomAccessInput implements RandomAccessInput {
+        private final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder;
+        private final RandomAccessInput delegate;
+
+        private MetricsRandomAccessInput(RandomAccessInput delegate, PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder) {
+            this.delegate = delegate;
+            this.metricHolder = metricHolder;
         }
 
         @Override

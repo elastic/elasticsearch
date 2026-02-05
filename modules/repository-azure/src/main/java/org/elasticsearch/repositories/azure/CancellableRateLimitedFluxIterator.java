@@ -62,7 +62,6 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
     private record DoneState(boolean done, Throwable error) {
         static final DoneState STILL_READING = new DoneState(false, null);
         static final DoneState FINISHED = new DoneState(true, null);
-        static final DoneState CANCELLED = new DoneState(true, new CancellationException());
 
         public DoneState {
             assert done || error == null : "Must be done to specify an error";
@@ -186,7 +185,7 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
     }
 
     public void cancel() {
-        doneState = DoneState.CANCELLED;
+        doneState = new DoneState(true, new CancellationException());
         cancelSubscription();
         clearQueue();
         // cancel should be called from the consumer

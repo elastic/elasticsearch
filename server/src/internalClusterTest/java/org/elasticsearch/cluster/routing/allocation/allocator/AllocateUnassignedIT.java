@@ -28,7 +28,7 @@ public class AllocateUnassignedIT extends AbstractAllocationDecisionTestCase {
     public void testNewShardsAreAllocatedToYesNodesWhenPresent() {
         final var nodes = createNodes(randomIntBetween(1, 3), randomIntBetween(1, 3), 0, randomIntBetween(1, 3));
 
-        createSingleShardAndAssertItIsAssignedToAppropriateNode(nodes.yesNodes());
+        createSingleShardAndAssertItIsAssignedToNodes(nodes.yesNodes());
     }
 
     public void testNewShardsAreAllocatedToThrottleNodesWhenNoYesNodesArePresent() {
@@ -59,7 +59,7 @@ public class AllocateUnassignedIT extends AbstractAllocationDecisionTestCase {
     public void testNewShardsAreAllocatedToNotPreferredNodesWhenNoThrottleOrYesNodesArePresent() {
         final var nodes = createNodes(randomIntBetween(1, 3), randomIntBetween(1, 3), 0, 0);
 
-        createSingleShardAndAssertItIsAssignedToAppropriateNode(nodes.notPreferredNodes());
+        createSingleShardAndAssertItIsAssignedToNodes(nodes.notPreferredNodes());
     }
 
     public void testNewShardsAreNotAllocatedToNoNodes() {
@@ -72,7 +72,7 @@ public class AllocateUnassignedIT extends AbstractAllocationDecisionTestCase {
         ensureRed(indexName);
     }
 
-    private void createSingleShardAndAssertItIsAssignedToAppropriateNode(Set<String> expectedNodeNames) {
+    private void createSingleShardAndAssertItIsAssignedToNodes(Set<String> expectedNodeNames) {
         final var indexName = randomIdentifier();
         final var firstAllocationListener = waitForFirstAllocation(indexName);
 

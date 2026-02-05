@@ -150,6 +150,7 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
         GroupingAggregatorFunction fn,
         TimeSeriesGroupingAggregatorEvaluationContext context
     ) {
+        context.computeAdjacentGroupIds();
         var groupIds = context.groupIdsFromWindow(startingGroupId, window);
         if (groupIds.size() > 1) {
             try (IntVector oneGroup = context.driverContext().blockFactory().newConstantIntVector(startingGroupId, 1)) {

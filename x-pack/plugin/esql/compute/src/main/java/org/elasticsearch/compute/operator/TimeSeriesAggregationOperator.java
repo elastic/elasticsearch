@@ -338,16 +338,13 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
             @Override
             public List<Integer> groupIdsFromWindow(int startingGroupId, Duration window) {
-                long tsid = hash.getBytesRefKeyFromGroup(startingGroupId);
-                long bucket = hash.getLongKeyFromGroup(startingGroupId);
                 List<Integer> results = new ArrayList<>();
                 results.add(startingGroupId);
-                long endTimestamp = bucket + timeResolution.convert(window.toMillis());
-                while ((bucket = optimizedTimeBucket.nextRoundingValue(bucket)) < endTimestamp) {
-                    long nextGroupId = hash.getGroupId(tsid, bucket);
-                    if (nextGroupId != -1) {
-                        results.add(Math.toIntExact(nextGroupId));
-                    }
+                int nextGroupId = nextGroupId(startingGroupId);
+                long endTimestamp = hash.getLongKeyFromGroup(startingGroupId) + timeResolution.convert(window.toMillis());
+                while (nextGroupId != -1 && rangeStartInMillis(nextGroupId) < endTimestamp) {
+                    results.add(nextGroupId);
+                    nextGroupId = nextGroupId(nextGroupId);
                 }
                 return results;
             }

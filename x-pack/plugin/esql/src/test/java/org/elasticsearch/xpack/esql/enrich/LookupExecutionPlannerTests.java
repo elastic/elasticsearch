@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.enrich;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
@@ -18,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -27,21 +27,16 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.OutputOperator;
 import org.elasticsearch.compute.operator.ProjectOperator;
-import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.Warnings;
-import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
+import org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeServer;
+import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
+import org.elasticsearch.compute.operator.lookup.LookupQueryOperator;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasable;
@@ -109,7 +104,8 @@ public class LookupExecutionPlannerTests extends ESTestCase {
             IndexNameExpressionResolver indexNameExpressionResolver,
             BigArrays bigArrays,
             BlockFactory blockFactory,
-            ProjectResolver projectResolver
+            ProjectResolver projectResolver,
+            ExchangeService exchangeService
         ) {
             super(
                 clusterService,
@@ -119,7 +115,8 @@ public class LookupExecutionPlannerTests extends ESTestCase {
                 indexNameExpressionResolver,
                 bigArrays,
                 blockFactory,
-                projectResolver
+                projectResolver,
+                exchangeService
             );
         }
 
@@ -134,17 +131,25 @@ public class LookupExecutionPlannerTests extends ESTestCase {
         }
 
         @Override
-        protected void startDriver(
-            TransportRequest request,
-            CancellableTask task,
-            ActionListener<List<Page>> listener,
-            LookupQueryPlan lookupQueryPlan
+        protected void startServerWithOperators(
+            BidirectionalBatchExchangeServer server,
+            LookupQueryPlan lookupQueryPlan,
+            List<Operator> intermediateOperators,
+            Releasable releasables,
+            ActionListener<LookupResponse> responseListener,
+            String planString
         ) {
-            // Capture the plan instead of starting the driver
-            // We don't want to actually execute the plan in this test class
+            // Capture the plan instead of starting the server
             this.capturedPlan = lookupQueryPlan;
-            // Immediately respond with empty pages to satisfy the listener
-            listener.onResponse(List.of());
+            // Don't call super - we don't want to actually start the server in tests
+            // Signal ready immediately for test purposes
+            responseListener.onResponse(new LookupResponse(List.of(), blockFactory, planString));
+        }
+
+        @Override
+        protected DiscoveryNode determineClientNode(TransportRequest request, CancellableTask task) {
+            // Return a mock client node for testing - we don't actually use it since we override startServerWithOperators
+            return mock(DiscoveryNode.class);
         }
 
         LookupFromIndexService.LookupQueryPlan getCapturedPlan() {
@@ -154,8 +159,6 @@ public class LookupExecutionPlannerTests extends ESTestCase {
 
     @Before
     public void setup() {
-        // Enable streaming lookup to test the execution planner code path
-        LookupFromIndexService.USE_STREAMING_LOOKUP = true;
         blockFactory = TestBlockFactory.getNonBreakingInstance();
         bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking();
         releasables = new ArrayList<>();
@@ -209,8 +212,6 @@ public class LookupExecutionPlannerTests extends ESTestCase {
 
     @After
     public void cleanup() {
-        // Reset streaming lookup to default
-        LookupFromIndexService.USE_STREAMING_LOOKUP = false;
         Releasables.close(releasables);
         blockFactory = null;
         bigArrays = null;
@@ -223,76 +224,73 @@ public class LookupExecutionPlannerTests extends ESTestCase {
 
     public void testLookupJoinNoMerge() throws Exception {
         // Test lookup join with mergePages=false and no extract fields
-        Page inputPage = createBytesRefPage("a", "b");
-
         // No extract fields
         List<NamedExpression> extractFields = Collections.emptyList();
 
-        LookupFromIndexService.LookupQueryPlan queryPlan = generateQueryPlan(inputPage, extractFields);
+        LookupFromIndexService.LookupQueryPlan queryPlan = generateQueryPlan(extractFields);
         MatcherAssert.assertThat(queryPlan, notNullValue());
 
         // Verify complete plan structure
-        // Expected: EnrichQuerySourceOperator -> ProjectOperator -> OutputOperator
-        verifyCompletePlan(
-            queryPlan,
-            List.of(EnrichQuerySourceOperator.class, ProjectOperator.class, OutputOperator.class),
-            extractFields,
-            null
-        );
+        // Expected: LookupQueryOperator -> ProjectOperator
+        // Only the intermediate operators are in the plan for Streaming mode,
+        // the source and sink are added by the BidirectionalBatchExchangeServer automatically
+        verifyCompletePlan(queryPlan, List.of(LookupQueryOperator.class, ProjectOperator.class), extractFields);
     }
 
     public void testLookupJoinNoExtraFields() throws Exception {
         // Test lookup join where we don't need to get extra fields (no extract fields, no merge)
         // This is the simplest lookup join case - just joining without extracting additional fields
-        Page inputPage = createBytesRefPage("key1", "key2", "key3");
-
         // No extract fields - pure lookup join without extra field extraction
         List<NamedExpression> extractFields = Collections.emptyList();
 
-        LookupFromIndexService.LookupQueryPlan queryPlan = generateQueryPlan(inputPage, extractFields);
+        LookupFromIndexService.LookupQueryPlan queryPlan = generateQueryPlan(extractFields);
         MatcherAssert.assertThat(queryPlan, notNullValue());
 
         // Verify complete plan structure
-        // Expected: EnrichQuerySourceOperator -> ProjectOperator -> OutputOperator
+        // Expected: LookupQueryOperator -> ProjectOperator
         // No ValuesSourceReaderOperator (no extract fields)
-        verifyCompletePlan(
-            queryPlan,
-            List.of(EnrichQuerySourceOperator.class, ProjectOperator.class, OutputOperator.class),
-            extractFields,
-            null
-        );
+        // Only the intermediate operators are in the plan for Streaming mode,
+        // the source and sink are added by the BidirectionalBatchExchangeServer automatically
+        verifyCompletePlan(queryPlan, List.of(LookupQueryOperator.class, ProjectOperator.class), extractFields);
     }
 
     public void testLookupJoinWithExtractFields() throws Exception {
         // Test lookup join with extract fields (uses ProjectOperator)
-        Page inputPage = createBytesRefPage("a", "b");
-
         List<NamedExpression> extractFields = List.of(createFieldAttribute("field1", DataType.KEYWORD));
 
-        LookupFromIndexService.LookupQueryPlan queryPlan = generateQueryPlan(inputPage, extractFields);
+        LookupFromIndexService.LookupQueryPlan queryPlan = generateQueryPlan(extractFields);
         MatcherAssert.assertThat(queryPlan, notNullValue());
 
         // Verify complete plan structure
-        // Expected: EnrichQuerySourceOperator -> ValuesSourceReaderOperator -> ProjectOperator -> OutputOperator
+        // Only the intermediate operators are in the plan for Streaming mode,
+        // the source and sink are added by the BidirectionalBatchExchangeServer automatically
+        // Expected: LookupQueryOperator -> ValuesSourceReaderOperator -> ProjectOperator
         verifyCompletePlan(
             queryPlan,
-            List.of(EnrichQuerySourceOperator.class, ValuesSourceReaderOperator.class, ProjectOperator.class, OutputOperator.class),
-            extractFields,
-            null
+            List.of(LookupQueryOperator.class, ValuesSourceReaderOperator.class, ProjectOperator.class),
+            extractFields
         );
     }
 
     public void testEnrichWithAllNullInputPage() throws Exception {
         // Test enrich with input page where all values are null
-        // doLookup() returns early for null input blocks without generating operators
-        Page inputPage = createAllNullBytesRefPage(3);
-
+        // In streaming mode, operators are still generated because input comes through exchange
+        // The null check happens in AbstractLookupService.doLookup() for non-streaming mode,
+        // but streaming mode always generates operators regardless of input page content
         List<NamedExpression> extractFields = List.of(createFieldAttribute("field1", DataType.KEYWORD));
 
-        // With all null values, doLookup() returns early without calling startDriver()
-        // Therefore, no operators should be generated
-        LookupFromIndexService.LookupQueryPlan queryPlan = generateQueryPlan(inputPage, extractFields);
-        assertNull("No operators should be generated for all-null input page", queryPlan);
+        // In streaming mode, operators are generated even for all-null input pages
+        // The operators will handle null values during execution
+        LookupFromIndexService.LookupQueryPlan queryPlan = generateQueryPlan(extractFields);
+        MatcherAssert.assertThat(queryPlan, notNullValue());
+
+        // Verify complete plan structure - same as with extract fields
+        // Expected: LookupQueryOperator -> ValuesSourceReaderOperator -> ProjectOperator
+        verifyCompletePlan(
+            queryPlan,
+            List.of(LookupQueryOperator.class, ValuesSourceReaderOperator.class, ProjectOperator.class),
+            extractFields
+        );
     }
 
     // Verification helper methods
@@ -300,82 +298,38 @@ public class LookupExecutionPlannerTests extends ESTestCase {
     /**
      * Verifies the complete plan structure with all operators and performs detailed verification.
      * @param queryPlan The query plan to verify
-     * @param expectedOperators List of expected operator types in order: [source, intermediate1, intermediate2, ..., output]
-     * @param extractFields Extract fields for OutputOperator and ProjectOperator verification
-     * @param inputPage Optional input page for optimization verification
+     * @param expectedOperators List of expected intermediate operator types in order
+     * @param extractFields Extract fields for ProjectOperator verification
      */
     private void verifyCompletePlan(
         LookupFromIndexService.LookupQueryPlan queryPlan,
         List<Class<? extends Operator>> expectedOperators,
-        List<NamedExpression> extractFields,
-        Page inputPage
+        List<NamedExpression> extractFields
     ) {
-        if (expectedOperators.size() < 2) {
-            throw new IllegalArgumentException("Expected operators list must have at least 2 elements (source and output)");
-        }
+        // In streaming mode, only intermediate operators are in LookupQueryPlan
+        // The source is ExchangeSourceOperator (provided by BidirectionalBatchExchangeServer)
+        // The sink is ExchangeSinkOperator (provided by BidirectionalBatchExchangeServer)
 
-        // Verify source operator (first in list)
-        MatcherAssert.assertThat("Source operator type mismatch", queryPlan.queryOperator(), instanceOf(expectedOperators.get(0)));
-
-        // Verify intermediate operators (middle of list)
+        // Verify intermediate operators only
         List<Operator> actualOperators = queryPlan.operators();
-        int expectedIntermediateCount = expectedOperators.size() - 2; // Exclude source and output
-        MatcherAssert.assertThat("Intermediate operators count mismatch", actualOperators.size(), is(expectedIntermediateCount));
+        MatcherAssert.assertThat("Intermediate operators count mismatch", actualOperators.size(), is(expectedOperators.size()));
 
-        for (int i = 0; i < expectedIntermediateCount; i++) {
-            Class<? extends Operator> expectedType = expectedOperators.get(i + 1); // +1 to skip source
+        // Verify all intermediate operators match expected types
+        for (int i = 0; i < expectedOperators.size(); i++) {
+            Class<? extends Operator> expectedType = expectedOperators.get(i);
+            Operator operator = actualOperators.get(i);
             MatcherAssert.assertThat(
                 "Operator at index " + i + " should be " + expectedType.getSimpleName(),
-                actualOperators.get(i),
+                operator,
                 instanceOf(expectedType)
             );
-        }
-
-        // Verify output operator (last in list)
-        MatcherAssert.assertThat(
-            "Output operator type mismatch",
-            queryPlan.outputOperator(),
-            instanceOf(expectedOperators.get(expectedOperators.size() - 1))
-        );
-
-        // Perform detailed verification based on operator types
-        EnrichQuerySourceOperator sourceOp = verifyEnrichQuerySourceOperator(queryPlan);
-
-        // Verify input page optimization if provided
-        if (inputPage != null) {
-            verifyNoPageOptimization(sourceOp, inputPage.getBlock(0));
-        }
-
-        // Verify intermediate operators
-        int operatorIndex = 0;
-        for (int i = 1; i < expectedOperators.size() - 1; i++) {
-            Class<? extends Operator> expectedType = expectedOperators.get(i);
-            Operator operator = actualOperators.get(operatorIndex);
 
             if (expectedType == ValuesSourceReaderOperator.class) {
-                verifyValuesSourceReaderOperator(queryPlan, operatorIndex);
+                verifyValuesSourceReaderOperator(queryPlan, i);
             } else if (expectedType == ProjectOperator.class) {
                 verifyProjectOperator((ProjectOperator) operator, extractFields.size());
             }
-
-            operatorIndex++;
         }
-
-        // Always verify OutputOperator
-        verifyOutputOperator(queryPlan, extractFields);
-    }
-
-    /**
-     * Verifies EnrichQuerySourceOperator and returns it.
-     */
-    private EnrichQuerySourceOperator verifyEnrichQuerySourceOperator(LookupFromIndexService.LookupQueryPlan queryPlan) {
-        SourceOperator sourceOp = queryPlan.queryOperator();
-        MatcherAssert.assertThat(sourceOp, notNullValue());
-        MatcherAssert.assertThat(sourceOp, instanceOf(EnrichQuerySourceOperator.class));
-        EnrichQuerySourceOperator enrichOp = (EnrichQuerySourceOperator) sourceOp;
-        Page inputPage = enrichOp.getInputPage();
-        MatcherAssert.assertThat(inputPage, notNullValue());
-        return enrichOp;
     }
 
     /**
@@ -400,95 +354,32 @@ public class LookupExecutionPlannerTests extends ESTestCase {
         }
     }
 
-    private void verifyNoPageOptimization(EnrichQuerySourceOperator sourceOp, Block expectedInputBlock) {
-        Page sourceInputPage = sourceOp.getInputPage();
-        MatcherAssert.assertThat(
-            "Input page should be the original page when no optimization is used",
-            sourceInputPage.getBlock(0),
-            is(expectedInputBlock)
-        );
-    }
-
-    private void verifyOutputOperator(LookupFromIndexService.LookupQueryPlan queryPlan, List<NamedExpression> extractFields) {
-        OutputOperator outputOp = queryPlan.outputOperator();
-        MatcherAssert.assertThat(outputOp, notNullValue());
-        MatcherAssert.assertThat(outputOp, instanceOf(OutputOperator.class));
-
-        // Build expected columns: lookup joins always include positions
-        List<String> expectedColumns = new ArrayList<>();
-        expectedColumns.add("$$Positions$$");
-        expectedColumns.addAll(extractFields.stream().map(NamedExpression::name).toList());
-
-        // Verify columns
-        List<String> actualColumns = outputOp.getColumns();
-        MatcherAssert.assertThat("OutputOperator columns should match expected columns", actualColumns, is(expectedColumns));
-    }
-
-    /**
-     * Creates a Page with a BytesRefBlock containing the specified string values.
-     */
-    private Page createBytesRefPage(String... values) {
-        BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(values.length);
-        for (String value : values) {
-            builder.appendBytesRef(new BytesRef(value));
-        }
-        BytesRefBlock inputBlock = builder.build();
-        return new Page(inputBlock);
-    }
-
-    /**
-     * Creates a Page with an OrdinalBytesRefBlock (dictionary optimization).
-     * @param dictionary The dictionary values
-     * @param ordinals The ordinal indices into the dictionary
-     */
-    private Page createOrdinalBytesRefPage(String[] dictionary, int[] ordinals) {
-        BytesRefVector.Builder dictBuilder = blockFactory.newBytesRefVectorBuilder(dictionary.length);
-        for (String value : dictionary) {
-            dictBuilder.appendBytesRef(new BytesRef(value));
-        }
-        BytesRefVector dictionaryVector = dictBuilder.build();
-
-        IntBlock.Builder ordinalsBuilder = blockFactory.newIntBlockBuilder(ordinals.length);
-        for (int ordinal : ordinals) {
-            ordinalsBuilder.appendInt(ordinal);
-        }
-        IntBlock ordinalsBlock = ordinalsBuilder.build();
-
-        OrdinalBytesRefBlock ordinalBlock = new OrdinalBytesRefBlock(ordinalsBlock, dictionaryVector);
-        return new Page(ordinalBlock);
-    }
-
-    /**
-     * Creates a Page with a BytesRefBlock containing all null values.
-     * @param positionCount The number of null positions to create
-     */
-    private Page createAllNullBytesRefPage(int positionCount) {
-        BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(positionCount);
-        for (int i = 0; i < positionCount; i++) {
-            builder.appendNull();
-        }
-        BytesRefBlock inputBlock = builder.build();
-        return new Page(inputBlock);
-    }
-
     /**
      * Executes doLookup() and returns the captured LookupQueryPlan.
      * This is the common pattern used by all test cases.
+     * Note: In streaming mode, the setup request requires an empty page (0 rows).
+     * The actual input data comes through the exchange, not the request.
      */
-    private LookupFromIndexService.LookupQueryPlan generateQueryPlan(Page inputPage, List<NamedExpression> extractFields) throws Exception {
+    private LookupFromIndexService.LookupQueryPlan generateQueryPlan(List<NamedExpression> extractFields) throws Exception {
         AbstractLookupService.LookupShardContext shardContext = createMockShardContext();
         TestLookupService testService = createTestService(shardContext);
+
+        // In streaming mode, setup request must have an empty page (0 rows)
+        Page emptyPage = new Page(blockFactory.newBytesRefBlockBuilder(0).build());
 
         LookupFromIndexService.Request request = new LookupFromIndexService.Request(
             "test-session",
             "test-index",
             "test-index",
             List.of(new MatchConfig("test-field", 0, DataType.KEYWORD)),
-            inputPage,
+            emptyPage,
             extractFields,
             Source.EMPTY,
             null,
-            null
+            null,
+            "test-session/node_0/clientToServer", // clientToServerId - per-server unique
+            "test-session/serverToClient", // serverToClientId - shared across all servers
+            false // profile
         );
         LookupFromIndexService.TransportRequest transportRequest = testService.transportRequest(request, new ShardId("test", "n/a", 0));
 
@@ -501,6 +392,13 @@ public class LookupExecutionPlannerTests extends ESTestCase {
         AbstractLookupService.LookupShardContextFactory factory = shardId -> shardContext;
         // Use TestProjectResolvers which provides a proper implementation
         ProjectResolver projectResolver = TestProjectResolvers.singleProject(Metadata.DEFAULT_PROJECT_ID);
+        ExchangeService exchangeService = new ExchangeService(
+            Settings.EMPTY,
+            threadPool,
+            EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
+            blockFactory
+        );
+        releasables.add(exchangeService);  // Ensure ExchangeService is properly closed to stop scheduled tasks
         return new TestLookupService(
             clusterService,
             indicesService,
@@ -509,7 +407,8 @@ public class LookupExecutionPlannerTests extends ESTestCase {
             indexNameExpressionResolver,
             bigArrays,
             blockFactory,
-            projectResolver
+            projectResolver,
+            exchangeService
         );
     }
 

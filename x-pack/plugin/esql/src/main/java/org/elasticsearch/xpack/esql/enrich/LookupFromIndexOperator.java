@@ -31,16 +31,18 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
 // TODO rename package
-public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndexOperator.OngoingJoin> {
+public class LookupFromIndexOperator extends AsyncOperator<LookupFromIndexOperator.OngoingJoin> {
 
     public record Factory(
         List<MatchConfig> matchFields,
@@ -53,12 +55,20 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         List<NamedExpression> loadFields,
         Source source,
         PhysicalPlan rightPreJoinPlan,
-        Expression joinOnConditions
+        Expression joinOnConditions,
+        boolean useStreamingOperator,
+        int exchangeBufferSize,
+        boolean profile
     ) implements OperatorFactory {
+
+        private String operatorName() {
+            return useStreamingOperator ? "StreamingLookupOperator" : "LookupOperator";
+        }
+
         @Override
         public String describe() {
             StringBuilder stringBuilder = new StringBuilder();
-            stringBuilder.append("LookupOperator[index=").append(lookupIndex).append(" load_fields=").append(loadFields);
+            stringBuilder.append(operatorName()).append("[index=").append(lookupIndex).append(" load_fields=").append(loadFields);
             for (MatchConfig matchField : matchFields) {
                 stringBuilder.append(" input_type=")
                     .append(matchField.type())
@@ -75,42 +85,62 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new LookupFromIndexOperator(
-                matchFields,
-                sessionId,
-                driverContext,
-                parentTask,
-                maxOutstandingRequests,
-                lookupService.apply(driverContext),
-                lookupIndexPattern,
-                lookupIndex,
-                loadFields,
-                source,
-                rightPreJoinPlan,
-                joinOnConditions
-            );
+            if (useStreamingOperator) {
+                return new StreamingLookupFromIndexOperator(
+                    matchFields,
+                    sessionId,
+                    parentTask,
+                    maxOutstandingRequests,
+                    lookupService.apply(driverContext),
+                    lookupIndexPattern,
+                    lookupIndex,
+                    loadFields,
+                    source,
+                    rightPreJoinPlan,
+                    joinOnConditions,
+                    exchangeBufferSize,
+                    profile
+                );
+            } else {
+                return new LookupFromIndexOperator(
+                    matchFields,
+                    sessionId,
+                    driverContext,
+                    parentTask,
+                    maxOutstandingRequests,
+                    lookupService.apply(driverContext),
+                    lookupIndexPattern,
+                    lookupIndex,
+                    loadFields,
+                    source,
+                    rightPreJoinPlan,
+                    joinOnConditions
+                );
+            }
         }
     }
 
-    private final LookupFromIndexService lookupService;
-    private final String sessionId;
-    private final CancellableTask parentTask;
-    private final String lookupIndexPattern;
-    private final String lookupIndex;
-    private final List<NamedExpression> loadFields;
-    private final Source source;
-    private long totalRows = 0L;
-    private final List<MatchConfig> matchFields;
-    private final PhysicalPlan rightPreJoinPlan;
-    private final Expression joinOnConditions;
+    protected final LookupFromIndexService lookupService;
+    protected final String sessionId;
+    protected final CancellableTask parentTask;
+    protected final String lookupIndexPattern;
+    protected final String lookupIndex;
+    protected final List<NamedExpression> loadFields;
+    protected final Source source;
+    protected long totalRows = 0L;
+    protected final List<MatchConfig> matchFields;
+    protected final PhysicalPlan rightPreJoinPlan;
+    protected final Expression joinOnConditions;
+    // MatchFieldsMapping is the same for all batches (based on operator configuration, not input pages)
+    protected final MatchFieldsMapping matchFieldsMapping;
     /**
      * Total number of pages emitted by this {@link Operator}.
      */
-    private long emittedPages = 0L;
+    protected long emittedPages = 0L;
     /**
      * Total number of rows emitted by this {@link Operator}.
      */
-    private long emittedRows = 0L;
+    protected long emittedRows = 0L;
     /**
      * The ongoing join or {@code null} none is ongoing at the moment.
      */
@@ -141,45 +171,71 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         this.source = source;
         this.rightPreJoinPlan = rightPreJoinPlan;
         this.joinOnConditions = joinOnConditions;
+        this.matchFieldsMapping = buildMatchFieldsMapping(matchFields, joinOnConditions);
     }
 
-    @Override
-    protected void performAsync(Page inputPage, ActionListener<OngoingJoin> listener) {
+    /**
+     * Build MatchFieldsMapping from matchFields and joinOnConditions.
+     * This is a static method that can be called from constructors without "this-escape" warnings.
+     */
+    protected static MatchFieldsMapping buildMatchFieldsMapping(List<MatchConfig> matchFields, Expression joinOnConditions) {
         List<MatchConfig> newMatchFields = new ArrayList<>();
-        List<MatchConfig> uniqueMatchFields = uniqueMatchFieldsByName(matchFields);
-        Block[] inputBlockArray = new Block[uniqueMatchFields.size()];
+        List<MatchConfig> uniqueMatchFields = uniqueMatchFieldsByName(matchFields, joinOnConditions);
+        Map<Integer, Integer> channelMapping = new HashMap<>();
         for (int i = 0; i < uniqueMatchFields.size(); i++) {
             MatchConfig matchField = uniqueMatchFields.get(i);
             int inputChannel = matchField.channel();
-            final Block inputBlock = inputPage.getBlock(inputChannel);
-            inputBlockArray[i] = inputBlock;
             // the matchFields we have are indexed by the input channel on the left side of the join
             // create a new MatchConfig that uses the field name and type from the matchField
             // but the new channel index in the inputBlockArray
             newMatchFields.add(new MatchConfig(matchField.fieldName(), i, matchField.type()));
+            // Map new channel index (i) to original input page channel offset (inputChannel)
+            channelMapping.put(i, inputChannel);
+        }
+        return new MatchFieldsMapping(newMatchFields, channelMapping);
+    }
+
+    protected Block[] applyMatchFieldsMapping(Page inputPage, Map<Integer, Integer> channelMapping) {
+        Block[] inputBlockArray = new Block[channelMapping.size()];
+        for (Map.Entry<Integer, Integer> entry : channelMapping.entrySet()) {
+            int newIndex = entry.getKey();
+            int originalChannel = entry.getValue();
+            inputBlockArray[newIndex] = inputPage.getBlock(originalChannel);
         }
         // we only add to the totalRows once, so we can use the first block
         totalRows += inputPage.getBlock(0).getTotalValueCount();
+        return inputBlockArray;
+    }
+
+    @Override
+    protected void performAsync(Page inputPage, ActionListener<OngoingJoin> listener) {
+        Block[] inputBlockArray = applyMatchFieldsMapping(inputPage, matchFieldsMapping.channelMapping());
 
         LookupFromIndexService.Request request = new LookupFromIndexService.Request(
             sessionId,
             lookupIndex,
             lookupIndexPattern,
-            newMatchFields,
+            matchFieldsMapping.reindexedMatchFields(),
             new Page(inputBlockArray),
             loadFields,
             source,
             rightPreJoinPlan,
-            joinOnConditions
+            joinOnConditions,
+            null, // clientToServerId - set only by StreamingLookupFromIndexOperator
+            null, // serverToClientId - set only by StreamingLookupFromIndexOperator
+            false // profile - non-streaming lookup doesn't support plan output
         );
-        lookupService.lookupAsync(
-            request,
-            parentTask,
-            listener.map(pages -> new OngoingJoin(new RightChunkedLeftJoin(inputPage, loadFields.size()), pages.iterator()))
-        );
+        lookupService.lookupAsync(request, parentTask, listener.map(response -> {
+            List<Page> pages = response.takePages();
+            return new OngoingJoin(new RightChunkedLeftJoin(inputPage, loadFields.size()), pages.iterator());
+        }));
     }
 
-    private List<MatchConfig> uniqueMatchFieldsByName(List<MatchConfig> matchFields) {
+    /**
+     * Get unique match fields by name, filtering duplicates if joinOnConditions is present.
+     * This is a static method that can be called from constructors without "this-escape" warnings.
+     */
+    protected static List<MatchConfig> uniqueMatchFieldsByName(List<MatchConfig> matchFields, Expression joinOnConditions) {
         if (joinOnConditions == null) {
             return matchFields;
         }
@@ -232,10 +288,18 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         ongoingJoin.releaseOnAnyThread();
     }
 
+    /**
+     * Returns the name of this operator for use in toString() and describe().
+     * Subclasses can override this to provide a different name.
+     */
+    protected String getOperatorName() {
+        return "LookupOperator";
+    }
+
     @Override
     public String toString() {
         StringBuilder stringBuilder = new StringBuilder();
-        stringBuilder.append("LookupOperator[index=").append(lookupIndex).append(" load_fields=").append(loadFields);
+        stringBuilder.append(getOperatorName()).append("[index=").append(lookupIndex).append(" load_fields=").append(loadFields);
         for (MatchConfig matchField : matchFields) {
             stringBuilder.append(" input_type=")
                 .append(matchField.type())
@@ -370,6 +434,11 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             return Objects.hash(super.hashCode(), totalRows, emittedPages, emittedRows);
         }
     }
+
+    /**
+     * Result of building match fields mapping - contains reindexed match fields and channel mapping.
+     */
+    protected record MatchFieldsMapping(List<MatchConfig> reindexedMatchFields, Map<Integer, Integer> channelMapping) {}
 
     protected record OngoingJoin(RightChunkedLeftJoin join, Iterator<Page> itr) implements Releasable {
         @Override

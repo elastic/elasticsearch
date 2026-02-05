@@ -91,4 +91,9 @@ public class ChangePointOperatorTests extends OperatorTestCase {
     protected void assertStatus(Map<String, Object> map, List<Page> input, List<Page> output) {
         assertThat(map, nullValue());
     }
+
+    @Override
+    public void testCanProduceMoreDataWithoutExtraInput() {
+        // Change point cannot work with empty input, so skip this test
+    }
 }

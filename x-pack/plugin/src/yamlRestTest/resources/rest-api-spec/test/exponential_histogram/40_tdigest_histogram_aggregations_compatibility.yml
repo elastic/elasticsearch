@@ -57,16 +57,15 @@ setup:
         body:
           '@timestamp': "2023-01-02T00:00:00Z"
           tdigest_or_exp_histo:
-            scale: 1
+            scale: 0
             sum: 100.0
             min: 1.0
             max: 10.0
             zero: { count: 1 }
-            positive: { indices: [0,1], counts: [1,2] }
-            negative: { indices: [0], counts: [1] }
+            positive: { indices: [0,1,2], counts: [1,2,1] }
 
 ---
-"Value count aggregation over aggregate_metric_double and exponential_histogram":
+"Value count aggregation over tdigest and exponential_histogram":
   - do:
       search:
         index: test-data-stream
@@ -79,7 +78,7 @@ setup:
   - match: { aggregations.value_count_metric.value: 10.0 }
 
 ---
-"Sum aggregation over aggregate_metric_double and exponential_histogram":
+"Sum aggregation over tdigest and exponential_histogram":
   - do:
       search:
         index: test-data-stream
@@ -92,7 +91,7 @@ setup:
   - match: { aggregations.sum_metric.value: 109.8 }
 
 ---
-"Average aggregation over aggregate_metric_double and exponential_histogram":
+"Average aggregation over tdigest and exponential_histogram":
   - do:
       search:
         index: test-data-stream
@@ -105,7 +104,7 @@ setup:
   - match: { aggregations.avg_metric.value: 10.98 }
 
 ---
-"Min aggregation over aggregate_metric_double and exponential_histogram":
+"Min aggregation over tdigest and exponential_histogram":
   - requires:
       cluster_features: [ "search.exponential_histogram_querydsl_min_max" ]
       reason: exponential_histogram min/max aggregations were introduced
@@ -123,7 +122,7 @@ setup:
   - match: { aggregations.min_agg.value: 0.9 }
 
 ---
-"Max aggregation over aggregate_metric_double and exponential_histogram":
+"Max aggregation over tdigest and exponential_histogram":
   - requires:
       cluster_features: [ "search.exponential_histogram_querydsl_min_max" ]
       reason: exponential_histogram min/max aggregations were introduced
@@ -139,3 +138,60 @@ setup:
 
   - match: { hits.total.value: 2 }
   - match: { aggregations.max_agg.value: 10.0 }
+
+---
+"Histogram aggregation over tdigest and exponential_histogram":
+  - do:
+      search:
+        index: test-data-stream
+        size: 0
+        body:
+          aggs:
+            histo_agg:
+              histogram:
+                field: tdigest_or_exp_histo
+                interval: 0.5
+                min_doc_count: 1
+  - match:
+      aggregations.histo_agg.buckets:
+        - key: 0.0
+          doc_count: 1
+        - key: 0.5
+          doc_count: 2
+        - key: 1.0
+          doc_count: 1
+        - key: 2.0
+          doc_count: 2
+        - key: 2.5
+          doc_count: 2
+        - key: 4.0
+          doc_count: 1
+        - key: 5.0
+          doc_count: 1
+
+---
+"Percentiles aggregation over tdigest and exponential_histogram":
+  - requires:
+      cluster_features: [ "search.exponential_histogram_querydsl_percentiles" ]
+      reason: exponential_histogram percentile aggregations was introduced
+  - do:
+      search:
+        index: test-data-stream
+        size: 0
+        body:
+          aggs:
+            percentiles_agg:
+              percentiles:
+                field: tdigest_or_exp_histo
+                percents: [5, 25, 50, 75]
+
+  - match: { hits.total.value: 2 }
+  # Use range comparisons to handle small numeric errors across different machines
+  - gte: { aggregations.percentiles_agg.values.5\.0: 0.899 }
+  - lte: { aggregations.percentiles_agg.values.5\.0: 0.901 }
+  - gte: { aggregations.percentiles_agg.values.25\.0: 1.007 }
+  - lte: { aggregations.percentiles_agg.values.25\.0: 1.009 }
+  - gte: { aggregations.percentiles_agg.values.50\.0: 1.999 }
+  - lte: { aggregations.percentiles_agg.values.50\.0: 2.001 }
+  - gte: { aggregations.percentiles_agg.values.75\.0: 2.665 }
+  - lte: { aggregations.percentiles_agg.values.75\.0: 2.667 }

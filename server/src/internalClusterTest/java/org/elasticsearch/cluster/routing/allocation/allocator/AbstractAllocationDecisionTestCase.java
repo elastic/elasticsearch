@@ -31,6 +31,12 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Supplies an {@link AllocationDecider} with settable sets of data nodes that return certain {@link Decision}s for
+ * {@link AllocationDecider#canAllocate}. Rebalancing in the integration tests will be disabled because
+ * {@link AllocationDecider#canRebalance} is overridden: only the first two phases of the balancer, allocating unassigned shards and moving
+ * shards that cannot remain, will run.
+ */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public abstract class AbstractAllocationDecisionTestCase extends ESIntegTestCase {
 
@@ -54,6 +60,10 @@ public abstract class AbstractAllocationDecisionTestCase extends ESIntegTestCase
         return CollectionUtils.appendToCopy(super.nodePlugins(), TestAllocationPlugin.class);
     }
 
+    /**
+     * Data structure to hold the results of {@link #createNodes}, lists of which nodes return what {@link AllocationDecider#canAllocate}
+     * {@link Decision}.
+     */
     protected record CreatedNodes(Set<String> noNodes, Set<String> notPreferredNodes, Set<String> throttleNodes, Set<String> yesNodes) {}
 
     protected CreatedNodes createNodes(int noNodes, int notPreferredNodes, int throttleNodes, int yesNodes) {

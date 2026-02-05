@@ -94,7 +94,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         TEXT_EMBEDDING_FUNCTION.capabilityName()
     );
 
-    private static RequestOptions.Builder DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER = RequestOptions.DEFAULT.toBuilder()
+    private static final RequestOptions DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER = RequestOptions.DEFAULT.toBuilder()
         .setWarningsHandler(warnings -> {
             if (warnings.isEmpty()) {
                 return false;
@@ -106,7 +106,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                 }
                 return false;
             }
-        });
+        }).build();
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {

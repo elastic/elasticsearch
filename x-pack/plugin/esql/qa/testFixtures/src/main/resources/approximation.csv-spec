@@ -14,6 +14,18 @@
 // which would make the tests flaky.
 
 
+total count
+required_capability: approximation
+
+SET approximation={"rows":10000}\;
+FROM many_numbers | STATS count=COUNT(*)
+;
+
+count:long
+200100
+;
+
+
 approximate stats on large data
 required_capability: approximation
 

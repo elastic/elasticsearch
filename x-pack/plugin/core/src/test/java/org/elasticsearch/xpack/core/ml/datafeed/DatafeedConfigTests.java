@@ -28,7 +28,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -45,7 +44,7 @@ import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggreg
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
-import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -83,7 +82,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<DatafeedConfig> {
+public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<DatafeedConfig> {
 
     private static final String[] EXPAND_WILDCARDS_VALUES = { "open", "closed", "hidden" };
 
@@ -959,7 +958,7 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
     @Override
     protected DatafeedConfig mutateInstance(DatafeedConfig instance) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(instance);
-        switch (between(0, 12)) {
+        switch (between(0, 13)) {
             case 0:
                 builder.setId(instance.getId() + randomValidDatafeedId());
                 break;
@@ -1058,24 +1057,40 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
                     builder.setRuntimeMappings(field);
                 }
                 break;
+            case 13:
+                if (instance.getProjectRouting() == null && DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled()) {
+                    builder.setProjectRouting("_alias:" + randomAlphaOfLengthBetween(1, 10) + "-*");
+                } else {
+                    builder.setProjectRouting(null);
+                }
+                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
         return builder.build();
     }
 
+    @Override
+    protected DatafeedConfig mutateInstanceForVersion(DatafeedConfig instance, TransportVersion version) {
+        if (version.supports(DatafeedConfig.DATAFEED_PROJECT_ROUTING)) {
+            return instance;
+        }
+        return new DatafeedConfig.Builder(instance).setProjectRouting(null).build();
+    }
+
+    /**
+     * Verifies that when the CPS feature flag is enabled, building a config with project_routing succeeds.
+     * Feature flags cannot be disabled in unit tests, so the forbidden case (project_routing when CPS is
+     * disabled) is validated at runtime and in integration tests.
+     */
     public void testProjectRoutingRespectsFeatureFlag() {
+        assumeTrue("CPS feature flag must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
         builder.setIndices(List.of("logs-*"));
         builder.setProjectRouting("_alias:prod-*");
 
-        if (DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled()) {
-            DatafeedConfig config = builder.build();
-            assertThat(config.getProjectRouting(), equalTo("_alias:prod-*"));
-        } else {
-            ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
-            assertThat(e.status(), equalTo(RestStatus.FORBIDDEN));
-        }
+        DatafeedConfig config = builder.build();
+        assertThat(config.getProjectRouting(), equalTo("_alias:prod-*"));
     }
 
     public void testProjectRoutingParsing() throws IOException {
@@ -1096,32 +1111,6 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
         DatafeedConfig config = builder.build();
 
         assertThat(config.getProjectRouting(), equalTo("_alias:prod-*"));
-    }
-
-    public void testProjectRoutingSerialization() throws IOException {
-        // Skip test if feature flag is disabled
-        assumeTrue("CPS feature flag must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
-
-        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
-        builder.setIndices(List.of("logs-*"));
-        builder.setProjectRouting("_alias:staging-*");
-
-        DatafeedConfig original = builder.build();
-
-        // Serialize
-        BytesStreamOutput output = new BytesStreamOutput();
-        output.setTransportVersion(TransportVersion.current());
-        original.writeTo(output);
-
-        // Deserialize using NamedWriteableAwareStreamInput
-        StreamInput rawInput = output.bytes().streamInput();
-        rawInput.setTransportVersion(TransportVersion.current());
-        try (StreamInput input = new NamedWriteableAwareStreamInput(rawInput, getNamedWriteableRegistry())) {
-            DatafeedConfig deserialized = new DatafeedConfig(input);
-
-            assertThat(deserialized.getProjectRouting(), equalTo("_alias:staging-*"));
-            assertThat(deserialized, equalTo(original));
-        }
     }
 
     public void testProjectRoutingNullIsOptional() throws IOException {

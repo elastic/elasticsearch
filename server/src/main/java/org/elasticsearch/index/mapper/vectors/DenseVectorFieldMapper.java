@@ -1748,6 +1748,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
                 RescoreVector rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
 
+                Object flushThresholdNode = indexOptionsMap.remove("flush_threshold");
+                int flushThreshold = clusterSize * ES920DiskBBQVectorsFormat.DEFAULT_FLAT_VECTOR_THRESHOLD_MULTIPLIER;
+                if (flushThresholdNode != null) {
+                    flushThreshold = XContentMapValues.nodeIntegerValue(flushThresholdNode);
+                    if (flushThreshold < 0) {
+                        throw new IllegalArgumentException(
+                            "flush_threshold must be >= 0, got: " + flushThreshold + " for field [" + fieldName + "]"
+                        );
+                    }
+                }
+
                 Object visitPercentageNode = indexOptionsMap.remove("default_visit_percentage");
                 double visitPercentage = 0d;
                 if (visitPercentageNode != null) {
@@ -1796,6 +1807,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new BBQIVFIndexOptions(
                     clusterSize,
+                    flushThreshold,
                     visitPercentage,
                     onDiskRescore,
                     rescoreVector,
@@ -2450,6 +2462,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     public static class BBQIVFIndexOptions extends QuantizedIndexOptions {
         final int clusterSize;
+        final int flushThreshold;
         final double defaultVisitPercentage;
         final boolean onDiskRescore;
         final IndexVersion indexVersionCreated;
@@ -2458,6 +2471,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         BBQIVFIndexOptions(
             int clusterSize,
+            int flushThreshold,
             double defaultVisitPercentage,
             boolean onDiskRescore,
             RescoreVector rescoreVector,
@@ -2467,6 +2481,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         ) {
             super(VectorIndexType.BBQ_DISK, rescoreVector);
             this.clusterSize = clusterSize;
+            this.flushThreshold = flushThreshold;
             this.defaultVisitPercentage = defaultVisitPercentage;
             this.onDiskRescore = onDiskRescore;
             this.indexVersionCreated = indexVersionCreated;
@@ -2495,7 +2510,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     mergingExecutorService,
                     numMergeWorkers,
                     doPrecondition,
-                    ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION
+                    ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                    flushThreshold
                 );
             }
             return new ES920DiskBBQVectorsFormat(
@@ -2504,7 +2520,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 elementType,
                 onDiskRescore,
                 mergingExecutorService,
-                numMergeWorkers
+                numMergeWorkers,
+                flushThreshold
             );
         }
 
@@ -2517,6 +2534,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         boolean doEquals(DenseVectorIndexOptions other) {
             BBQIVFIndexOptions that = (BBQIVFIndexOptions) other;
             return clusterSize == that.clusterSize
+                && flushThreshold == that.flushThreshold
                 && defaultVisitPercentage == that.defaultVisitPercentage
                 && onDiskRescore == that.onDiskRescore
                 && bits == that.bits
@@ -2525,7 +2543,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         int doHashCode() {
-            return Objects.hash(clusterSize, defaultVisitPercentage, onDiskRescore, rescoreVector, bits);
+            return Objects.hash(clusterSize, flushThreshold, defaultVisitPercentage, onDiskRescore, rescoreVector);
         }
 
         @Override
@@ -2538,6 +2556,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             builder.startObject();
             builder.field("type", type);
             builder.field("cluster_size", clusterSize);
+            builder.field("flush_threshold", flushThreshold);
             builder.field("default_visit_percentage", defaultVisitPercentage);
             if (onDiskRescore) {
                 builder.field("on_disk_rescore", true);
@@ -2557,6 +2576,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public int getClusterSize() {
             return clusterSize;
+        }
+
+        public int getFlushThreshold() {
+            return flushThreshold;
         }
 
         public double getDefaultVisitPercentage() {

@@ -107,7 +107,8 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
             LifecycleSettings.SLM_RETENTION_SCHEDULE_SETTING,
             LifecycleSettings.SLM_RETENTION_DURATION_SETTING,
             LifecycleSettings.SLM_MINIMUM_INTERVAL_SETTING,
-            LifecycleSettings.SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD_SETTING
+            LifecycleSettings.SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD_SETTING,
+            SnapshotHistoryStore.SLM_HISTORY_MAX_BULK_REQUEST_BYTES_IN_FLIGHT_SETTING
         );
     }
 
@@ -129,7 +130,9 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
             services.xContentRegistry()
         );
         templateRegistry.initialize();
-        snapshotHistoryStore.set(new SnapshotHistoryStore(new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN), clusterService));
+        snapshotHistoryStore.set(
+            new SnapshotHistoryStore(new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN), clusterService, threadPool)
+        );
         snapshotLifecycleService.set(
             new SnapshotLifecycleService(
                 settings,
@@ -237,7 +240,7 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
     @Override
     public void close() {
         try {
-            IOUtils.close(snapshotLifecycleService.get(), snapshotRetentionService.get());
+            IOUtils.close(snapshotLifecycleService.get(), snapshotRetentionService.get(), snapshotHistoryStore.get());
         } catch (IOException e) {
             throw new ElasticsearchException("unable to close snapshot lifecycle services", e);
         }

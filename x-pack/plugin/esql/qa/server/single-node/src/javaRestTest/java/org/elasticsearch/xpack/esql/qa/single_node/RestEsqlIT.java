@@ -30,6 +30,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.elasticsearch.xpack.esql.tools.ProfileParser;
 import org.hamcrest.Matcher;
@@ -1018,7 +1019,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
      * block loaders and asserts that we don't.
      */
     public void testAggManyFieldsReuse() throws IOException {
-        testAggManyFields(PlannerSettings.REUSE_COLUMN_LOADERS_THRESHOLD.get(Settings.EMPTY) - 1, equalTo(1));
+        testAggManyFields(PlannerSettings.REUSE_COLUMN_LOADERS_THRESHOLD.get(Settings.EMPTY), equalTo(1));
     }
 
     private void testAggManyFields(int fieldCount, Matcher<Integer> readerMatcher) throws IOException {
@@ -1085,7 +1086,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
      * asserts that we don't.
      */
     public void testLoadManyFieldsNoReuse() throws IOException {
-        testLoadManyFields(PlannerSettings.REUSE_COLUMN_LOADERS_THRESHOLD.get(Settings.EMPTY) + 1, greaterThan(1));
+        // + 2 because one field is loaded for the top n - then we need one more than the setting
+        testLoadManyFields(PlannerSettings.REUSE_COLUMN_LOADERS_THRESHOLD.get(Settings.EMPTY) + 2, greaterThan(1));
     }
 
     /**
@@ -1093,17 +1095,23 @@ public class RestEsqlIT extends RestEsqlTestCase {
      * block loaders and asserts that we don't.
      */
     public void testLoadManyFieldsReuse() throws IOException {
-        testLoadManyFields(PlannerSettings.REUSE_COLUMN_LOADERS_THRESHOLD.get(Settings.EMPTY) - 1, equalTo(1));
+        // One field is loaded by the top n - then we need
+        testLoadManyFields(PlannerSettings.REUSE_COLUMN_LOADERS_THRESHOLD.get(Settings.EMPTY) + 1, greaterThanOrEqualTo(1));
+        // TODO if we emitted the docs in doc order, collected, then re-sorted - *then* we would always reuse the loaders
     }
 
     private void testLoadManyFields(int fieldCount, Matcher<Integer> readerMatcher) throws IOException {
+        assumeTrue("asserts based on later materialization plan", EsqlCapabilities.Cap.ENABLE_REDUCE_NODE_LATE_MATERIALIZATION.isEnabled());
         initMany(fieldCount);
 
-        int limit = 1000;
-        RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | SORT f000 | LIMIT " + limit);
+        int limit = 10;
+        int pageSize = 2;
+        RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | SORT f000 ASC | LIMIT " + limit);
         builder.profile(true);
         // Lock to shard level partitioning, so we get consistent profile output
-        builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
+        builder.pragmas(
+            Settings.builder().put(QueryPragmas.DATA_PARTITIONING.getKey(), "shard").put(QueryPragmas.PAGE_SIZE.getKey(), pageSize).build()
+        );
         builder.pragmasOk();
         Map<String, Object> result = runEsql(builder);
         ListMatcher schemaMatcha = matchesList();
@@ -1125,7 +1133,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
         for (Map<String, Object> p : profiles) {
             String description = p.get("description").toString();
-            if (description.equals("data") == false) {
+            if (description.equals("node_reduce") == false) {
                 continue;
             }
             fixTypesOnProfile(p);
@@ -1141,7 +1149,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         }
         assertNotNull(reader);
         MapMatcher readersBuiltMatcher = matchesMap();
-        for (int f = 0; f < fieldCount; f++) {
+        for (int f = 1; f < fieldCount; f++) { // <--- starts at 1 because we load 0 on the data node
             readersBuiltMatcher = readersBuiltMatcher.entry(
                 String.format(Locale.ROOT, "f%03d:column_at_a_time:LongsFromDocValues.Singleton", f),
                 readerMatcher

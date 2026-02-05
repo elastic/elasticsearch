@@ -290,6 +290,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
         void sameSegment(int firstDoc) {
             if (columnAtATime != null && columnAtATime.canReuse(firstDoc) == false) {
+                // TODO count the number of times we can't reuse?
                 columnAtATime = null;
             }
             if (rowStride != null && rowStride.canReuse(firstDoc) == false) {

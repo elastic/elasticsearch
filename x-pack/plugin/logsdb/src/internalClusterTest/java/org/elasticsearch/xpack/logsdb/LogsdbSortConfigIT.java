@@ -196,13 +196,13 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
             """;
 
         final DocWithId[] orderedDocs = {
+            doc("{\"@timestamp\": \"2025-01-01T16:00:00\", \"test_id\": \"%id%\"}"),
             doc("{\"@timestamp\": \"2025-01-01T15:00:00\", \"host.name\": \"aaa\", \"test_id\": \"%id%\"}"),
             doc("{\"@timestamp\": \"2025-01-01T14:00:00\", \"host.name\": [\"aaa\", \"bbb\"], \"test_id\": \"%id%\"}"),
             doc("{\"@timestamp\": \"2025-01-01T12:30:00\", \"host.name\": [\"aaa\", \"bbb\"], \"test_id\": \"%id%\"}"),
             doc("{\"@timestamp\": \"2025-01-01T12:00:00\", \"host.name\": \"aaa\", \"test_id\": \"%id%\"}"),
             doc("{\"@timestamp\": \"2025-01-01T12:00:00\", \"host.name\": \"bbb\", \"test_id\": \"%id%\"}"),
             doc("{\"@timestamp\": \"2025-01-01T11:00:00\", \"host.name\": \"bbb\", \"test_id\": \"%id%\"}"),
-            doc("{\"@timestamp\": \"2025-01-01T16:00:00\", \"test_id\": \"%id%\"}"),
             doc("{\"@timestamp\": \"2025-01-01T11:00:00\", \"test_id\": \"%id%\"}") };
 
         createDataStream(dataStreamName, MAPPING);
@@ -215,10 +215,14 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
         var featureService = getInstanceFromNode(FeatureService.class);
         if (featureService.getNodeFeatures().containsKey("mapper.provide_index_sort_setting_defaults")) {
             assertSettings(backingIndex, settings -> {
-                assertThat(IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(settings), equalTo(List.of("host.name", "@timestamp")));
-                assertThat(IndexSortConfig.INDEX_SORT_ORDER_SETTING.get(settings), equalTo(List.of(SortOrder.ASC, SortOrder.DESC)));
-                assertThat(IndexSortConfig.INDEX_SORT_MODE_SETTING.get(settings), equalTo(List.of(MultiValueMode.MIN, MultiValueMode.MAX)));
+                assertThat(IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(settings), equalTo(List.of("@timestamp", "host.name")));
+                assertThat(IndexSortConfig.INDEX_SORT_ORDER_SETTING.get(settings), equalTo(List.of(SortOrder.DESC, SortOrder.ASC)));
+                assertThat(IndexSortConfig.INDEX_SORT_MODE_SETTING.get(settings), equalTo(List.of(MultiValueMode.MAX, MultiValueMode.MIN)));
                 assertThat(IndexSortConfig.INDEX_SORT_MISSING_SETTING.get(settings), equalTo(List.of("_last", "_last")));
+                //assertThat(IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(settings), equalTo(List.of("host.name", "@timestamp")));
+                //assertThat(IndexSortConfig.INDEX_SORT_ORDER_SETTING.get(settings), equalTo(List.of(SortOrder.ASC, SortOrder.DESC)));
+                //assertThat(IndexSortConfig.INDEX_SORT_MODE_SETTING.get(settings), equalTo(List.of(MultiValueMode.MIN, MultiValueMode.MAX)));
+                //assertThat(IndexSortConfig.INDEX_SORT_MISSING_SETTING.get(settings), equalTo(List.of("_last", "_last")));
             });
         }
 
@@ -418,7 +422,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
         client().admin().indices().prepareRefresh().execute().actionGet();
 
         Index backingIndex = getBackingIndex(dataStreamName);
-        checkTailSkipping(backingIndex, false);
+        checkTailSkipping(backingIndex, true);
     }
 
     private void createDataStream(String dataStreamName, String mapping) throws IOException {

@@ -116,7 +116,7 @@ public final class IndexSortConfig {
         }
 
         public static final SortDefault NO_SORT, TIME_SERIES_SORT, TIMESTAMP_SORT, HOSTNAME_TIMESTAMP_SORT, HOSTNAME_TIMESTAMP_BWC_SORT,
-            MESSAGE_PATTERN_TIMESTAMP_SORT, HOSTNAME_MESSAGE_PATTERN_TIMESTAMP_SORT;
+            MESSAGE_PATTERN_TIMESTAMP_SORT, HOSTNAME_MESSAGE_PATTERN_TIMESTAMP_SORT, TIMESTAMP_HOSTNAME_SORT;
 
         static {
             NO_SORT = new SortDefault(Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
@@ -139,6 +139,13 @@ public final class IndexSortConfig {
                 List.of(IndexMode.HOST_NAME, DataStreamTimestampFieldMapper.DEFAULT_PATH),
                 List.of("asc", "desc"),
                 List.of("min", "max"),
+                List.of("_last", "_last")
+            );
+
+            TIMESTAMP_HOSTNAME_SORT = new SortDefault(
+                List.of(DataStreamTimestampFieldMapper.DEFAULT_PATH, IndexMode.HOST_NAME),
+                List.of("desc", "asc"),
+                List.of("max", "min"),
                 List.of("_last", "_last")
             );
 
@@ -194,7 +201,11 @@ public final class IndexSortConfig {
                     if (sortOnHostName && sortOnMessageTemplate) {
                         return HOSTNAME_MESSAGE_PATTERN_TIMESTAMP_SORT;
                     } else if (sortOnHostName) {
-                        return HOSTNAME_TIMESTAMP_SORT;
+                        if (version.onOrAfter(IndexVersions.LOGSDB_TIMESTAMP_PRIMARY_SORT)) {
+                            return TIMESTAMP_HOSTNAME_SORT;
+                        } else {
+                            return HOSTNAME_TIMESTAMP_SORT;
+                        }
                     } else if (sortOnMessageTemplate) {
                         return MESSAGE_PATTERN_TIMESTAMP_SORT;
                     } else {

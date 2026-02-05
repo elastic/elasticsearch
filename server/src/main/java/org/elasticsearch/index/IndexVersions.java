@@ -222,6 +222,7 @@ public class IndexVersions {
     public static final IndexVersion DISK_BBQ_QUANTIZE_BITS = def(9_069_0_00, Version.LUCENE_10_3_2);
     public static final IndexVersion ID_FIELD_USE_ES812_POSTINGS_FORMAT = def(9_070_0_00, Version.LUCENE_10_3_2);
     public static final IndexVersion TIME_SERIES_USE_SYNTHETIC_ID_94 = def(9_071_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion LOGSDB_TIMESTAMP_PRIMARY_SORT = def(9_072_0_00, Version.LUCENE_10_3_2);
 
     /*
      * STOP! READ THIS FIRST! No, really,

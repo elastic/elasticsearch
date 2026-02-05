@@ -14,15 +14,13 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.GetRerankerWindowSizeAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
-import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTaskSettings;
-import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankTaskSettings;
-import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankTaskSettings;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -122,12 +120,8 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
             Integer configuredTopN = null;
             if (r.getEndpoints().isEmpty() == false) {
                 var taskSettings = r.getEndpoints().get(0).getTaskSettings();
-                if (taskSettings instanceof CohereRerankTaskSettings cohere) {
-                    configuredTopN = cohere.getTopNDocumentsOnly();
-                } else if (taskSettings instanceof GoogleVertexAiRerankTaskSettings google) {
-                    configuredTopN = google.topN();
-                } else if (taskSettings instanceof HuggingFaceRerankTaskSettings hf) {
-                    configuredTopN = hf.getTopNDocumentsOnly();
+                if (taskSettings instanceof TopNProvider topNProvider) {
+                    configuredTopN = topNProvider.getTopN();
                 }
             }
             if (configuredTopN != null && configuredTopN < rankWindowSize) {

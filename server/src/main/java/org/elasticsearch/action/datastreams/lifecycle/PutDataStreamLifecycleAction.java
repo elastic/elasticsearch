@@ -75,7 +75,7 @@ public class PutDataStreamLifecycleAction {
             ActionRequestValidationException validationException = null;
             try {
                 if (lifecycle.downsamplingRounds() != null && lifecycle.downsamplingRounds().isEmpty() == false) {
-                    // Add the REST layer we can use validateRounds instead of validateRoundsIncorrectly
+                    // We're on the REST layer, so we can use validateRounds instead of validateRoundsIncorrectly
                     DataStreamLifecycle.DownsamplingRound.validateRounds(lifecycle.downsamplingRounds());
                 }
             } catch (Exception e) {

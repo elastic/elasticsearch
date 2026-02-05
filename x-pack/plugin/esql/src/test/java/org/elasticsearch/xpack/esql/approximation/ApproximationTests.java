@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -515,7 +516,7 @@ public class ApproximationTests extends ESTestCase {
             runner,
             EsqlTestUtils.TEST_CFG,
             FoldContext.small(),
-            TransportVersion.current(),
+            TransportVersionUtils.randomCompatibleVersion(),
             new PlanTimeProfile()
         );
     }

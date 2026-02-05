@@ -808,9 +808,8 @@ public class Approximation {
     }
 
     /**
-     * Optimizes the plan by running just the operator optimizations. These
-     * should be safe to rerun any time. This is primarily to prune unnecessary
-     * columns generated in the approximation plan.
+     * Optimizes the plan by running just the operator batch. This is primarily
+     * to prune unnecessary columns generated in the approximation plan.
      * <p>
      * These unnecessary columns are generated in various ways, for example:
      * - STATS AVG(x): the AVG is rewritten via a surrogate to SUM and COUNT.
@@ -818,6 +817,14 @@ public class Approximation {
      *   but the corrected ones aren't needed for AVG(x) = SUM(x)/COUNT().
      * - STATS x=COUNT() | EVAL x=TO_STRING(x): bucket columns are generated
      *   for the numeric count, but are not needed after the string conversion.
+     * <p>
+     * Note this is running the operator batch on top of a plan that it normally
+     * doesn't run on (namely a cleaned-up plan, which can contain a TopN). It
+     * seems like that works (at least for everything we've tested), but this
+     * process has poor test coverage.
+     * TODO: refactor so that approximation ideally happens halfway-through
+     * optimization, before cleanup step. Possibly make approximation an
+     * optimization rule itself in the substitutions batch.
      */
     private LogicalPlan optimize(LogicalPlan plan) {
         LogicalPlanOptimizer optimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, foldContext, minimumVersion)) {

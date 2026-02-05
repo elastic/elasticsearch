@@ -317,7 +317,9 @@ public class AsyncSearchTaskTests extends ESTestCase {
             int totalShards = numShards + numSkippedShards;
 
             // Ensure that given partial results from shard searches, the result we send to the listeners does not contain partial results
-            // because partialResultsSupressed is set to true.
+            // because partialResultsSupressed is set to true. Passing partialResultsSupressed set to true in the assertCompletionListeners
+            // method causes AsyncSearchTask to create an internal completion listener with returnPartialResultsInResponse set to false,
+            // suppressing the partial results in the response.
             task.getSearchProgressActionListener()
                 .onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false, createTimeProvider());
             for (int i = 0; i < numShards; i++) {

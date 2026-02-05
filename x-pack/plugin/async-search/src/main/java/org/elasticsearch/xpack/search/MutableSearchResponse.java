@@ -261,6 +261,8 @@ class MutableSearchResponse extends AbstractRefCounted {
             SearchResponseMerger searchResponseMerger = createSearchResponseMerger(task);
             try {
                 if (returnPartialResultsInResponse == false) {
+                    InternalAggregations reducedAggs = reducedAggsSource.get();
+                    reducedAggsSource = () -> reducedAggs;
                     searchResponse = buildResponse(task.getStartTimeNanos(), null);
                 } else if (searchResponseMerger == null) { // local-only search or CCS MRT=false
                     /*

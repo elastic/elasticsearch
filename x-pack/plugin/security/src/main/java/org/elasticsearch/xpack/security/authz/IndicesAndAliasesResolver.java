@@ -442,7 +442,7 @@ class IndicesAndAliasesResolver {
                             projectMetadata,
                             authorizedProjects
                         );
-                        CrossProjectIndexExpressionsRewriter.rewriteIndexExpression(
+                        CrossProjectIndexExpressionsRewriter.validateIndexExpressionWithoutRewrite(
                             indexExpression,
                             resolvedProjects.originProjectAlias(),
                             resolvedProjects.allProjectAliases(),

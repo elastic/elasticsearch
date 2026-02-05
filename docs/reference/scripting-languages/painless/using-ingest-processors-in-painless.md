@@ -136,8 +136,7 @@ The second `json` method accepts a JSON string in the `value` parameter and retu
 You can then add this object to the document through the context object:
 
 ```painless
-Object json = Processors.json(ctx.inputJsonString);
-ctx.parsedJson = json;
+ctx.parsedJson = Processors.json(ctx.inputJsonString);
 ```
 
 

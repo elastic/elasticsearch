@@ -232,6 +232,10 @@ ROW result = CHUNK(
 )
 ;
 
+result:keyword
+[Hello world. This is a test., It was the best of times\, it was the worst, worst of times\, it was the age of wisdom\, it, \, it was the age of foolishness\, it was the epoch, epoch of belief.]
+;
+
 chunkTextWithMultivaluedExpression
 required_capability: chunk_function_v2
 required_capability: chunk_mv
@@ -241,4 +245,10 @@ FROM books
 | SORT book_no
 | LIMIT 3
 | KEEP book_no, title, chunks
+;
+
+book_no:keyword | title:text                                 | chunks:keyword
+1211            | The brothers Karamazov                     | [In 1880 Dostoevsky completed The Brothers Karamazov\, the literary effort, effort for which he had been preparing all his life, life. Compelling\, profound\, complex\, it is the story of a, a patricide and of the four sons who each had, had a motive for murder: Dmitry\, the sensualist\, Ivan\, the, \, the intellectual\, Alyosha\, the mystic\, and twisted\, cunning Smerdyakov\, the, \, the bastard child. Frequently lurid\, nightmarish\, always brilliant\, the novel, novel plunges the reader into a sordid love triangle\, a, \, a pathological obsession\, and a gripping courtroom drama. But throughout, throughout the whole\, Dostoevsky searhes for the truth--about man, man\, about life\, about the existence of God. A terrifying, terrifying answer to man's eternal questions\, this monumental work remains, remains the crowning achievement of perhaps the finest novelist of, of all time. From the Paperback edition., The brothers Karamazov]
+1463            | Realms of Tolkien: Images of Middle-earth  | [Twenty new and familiar Tolkien artists are represented in this, this fabulous volume\, breathing an extraordinary variety of life into, into 58 different scenes\, each of which is accompanied by, by appropriate passage from The Hobbit and The Lord of, of the Rings and The Silmarillion, Realms of Tolkien: Images of Middle-earth]
+1502            | Selected Passages from Correspondence with Friends | [Nikolai Gogol wrote some letters to his friends\, none of, of which were a nose of high rank. Many are, are reproduced here (the letters\, not noses)., Selected Passages from Correspondence with Friends]
 ;

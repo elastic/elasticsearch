@@ -48,7 +48,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRep
  * a = ["a","b","c"] b = ["b"] MV_DIFFERENCE(a,b) => ["a","c"]
  */
 public class MvDifference extends BinaryScalarFunction implements EvaluatorMapper {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvDifference", MvDifference::new);
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "MvDifference",
+        MvDifference::new
+    );
     protected DataType dataType;
 
     @FunctionInfo(

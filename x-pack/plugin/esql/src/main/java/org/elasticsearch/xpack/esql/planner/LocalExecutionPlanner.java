@@ -329,26 +329,14 @@ public class LocalExecutionPlanner {
 
         assert (mmr.diversifyField() != null) : "diversifyField is required for the MMROperator";
 
-        String diversifyField = mmr.diversifyField().qualifiedName();
         int limit = getMMRLimitValue(mmr.limit());
         Float lambdaValue = mmr.lambda();
         VectorData queryVector = mmr.queryVector();
 
         int diversifyFieldChannel = source.layout.get(mmr.diversifyField().id()).channel();
+        String diversifyField = mmr.diversifyField().qualifiedName();
 
-        // see if we have a score in the input we can use for the docs
-        Integer scoreChannel = null;
-        for (Attribute input : mmr.inputSet()) {
-            if (input instanceof MetadataAttribute && MetadataAttribute.SCORE.equals(input.name())) {
-                scoreChannel = source.layout.get(input.id()).channel();
-                break;
-            }
-        }
-
-        return source.with(
-            new MMROperator.Factory(diversifyField, diversifyFieldChannel, limit, queryVector, lambdaValue, scoreChannel),
-            source.layout
-        );
+        return source.with(new MMROperator.Factory(diversifyField, diversifyFieldChannel, limit, queryVector, lambdaValue), source.layout);
     }
 
     private PhysicalOperation planCompletion(CompletionExec completion, LocalExecutionPlannerContext context) {

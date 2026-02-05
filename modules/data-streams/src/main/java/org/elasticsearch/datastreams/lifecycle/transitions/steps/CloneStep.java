@@ -174,7 +174,7 @@ public class CloneStep implements DlmStep {
     private static String getCloneIndexName(String originalName) {
         String hash = MessageDigests.toHexString(MessageDigests.sha256().digest(originalName.getBytes(StandardCharsets.UTF_8)))
             .substring(0, 8);
-        return  "dlm-force-merge-clone-" + originalName + "-"+ hash;
+        return "dlm-force-merge-clone-" + originalName + "-" + hash;
     }
 
     /*

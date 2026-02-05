@@ -185,7 +185,7 @@ public class CloneStepTests extends ESTestCase {
 
         assertThat(capturedResizeRequest.get(), is(notNullValue()));
         assertThat(capturedResizeRequest.get().getSourceIndex(), equalTo(indexName));
-        assertThat(capturedResizeRequest.get().getTargetIndexRequest().index(), containsString( "dlm-force-merge-clone-" + indexName));
+        assertThat(capturedResizeRequest.get().getTargetIndexRequest().index(), containsString("dlm-force-merge-clone-" + indexName));
         assertThat(capturedResizeRequest.get().getTargetIndexRequest().settings().get("index.number_of_replicas"), equalTo("0"));
     }
 
@@ -409,6 +409,6 @@ public class CloneStepTests extends ESTestCase {
     private String generateExpectedCloneName(String originalName) {
         String hash = MessageDigests.toHexString(MessageDigests.sha256().digest(originalName.getBytes(StandardCharsets.UTF_8)))
             .substring(0, 8);
-        return "dlm-force-merge-clone-" + originalName + "-"+ hash;
+        return "dlm-force-merge-clone-" + originalName + "-" + hash;
     }
 }

@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public final class ShardBulkSplitHelper {
 
@@ -98,14 +97,17 @@ public final class ShardBulkSplitHelper {
         Map<ShardId, BulkShardRequest> splitRequests,
         Map<ShardId, Tuple<BulkShardResponse, Exception>> responses
     ) {
-        AtomicInteger failed = new AtomicInteger();
-        AtomicInteger successful = new AtomicInteger();
-        AtomicInteger total = new AtomicInteger();
-        List<ReplicationResponse.ShardInfo.Failure> failures = new ArrayList<>();
+        int failedShards = 0;
+        int successfulShards = 0;
+        int totalShards = 0;
+        List<ReplicationResponse.ShardInfo.Failure> shardFailures = new ArrayList<>();
 
         Map<Integer, BulkItemResponse> itemResponsesById = new HashMap<>();
 
-        responses.forEach((shardId, responseTuple) -> {
+        // responses.forEach((shardId, responseTuple) -> {
+        for (Map.Entry<ShardId, Tuple<BulkShardResponse, Exception>> entry : responses.entrySet()) {
+            Tuple<BulkShardResponse, Exception> responseTuple = entry.getValue();
+            ShardId shardId = entry.getKey();
             Exception exception = responseTuple.v2();
             if (exception != null) {
                 BulkShardRequest bulkShardRequest = splitRequests.get(shardId);
@@ -114,17 +116,19 @@ public final class ShardBulkSplitHelper {
                     BulkItemResponse.Failure failure = new BulkItemResponse.Failure(item.index(), request.id(), exception);
                     itemResponsesById.put(item.id(), BulkItemResponse.failure(item.id(), request.opType(), failure));
                 }
-                failed.addAndGet(1);
-                total.addAndGet(1);
-                failures.add(new ReplicationResponse.ShardInfo.Failure(shardId, null, exception, ExceptionsHelper.status(exception), true));
+                failedShards += 1;
+                totalShards += 1;
+                shardFailures.add(
+                    new ReplicationResponse.ShardInfo.Failure(shardId, null, exception, ExceptionsHelper.status(exception), true)
+                );
             } else {
                 for (BulkItemResponse bulkItemResponse : responseTuple.v1().getResponses()) {
                     itemResponsesById.put(bulkItemResponse.getItemId(), bulkItemResponse);
                 }
-                successful.addAndGet(1);
-                total.addAndGet(1);
+                successfulShards += 1;
+                totalShards += 1;
             }
-        });
+        }
         BulkItemRequest[] originalItemRequests = originalRequest.items();
         BulkItemResponse[] bulkItemResponses = new BulkItemResponse[originalItemRequests.length];
         // Item responses should match the order of the original item requests
@@ -132,9 +136,9 @@ public final class ShardBulkSplitHelper {
             bulkItemResponses[i] = itemResponsesById.get(originalItemRequests[i].id());
         }
         BulkShardResponse bulkShardResponse = new BulkShardResponse(originalRequest.shardId(), bulkItemResponses);
-        ReplicationResponse.ShardInfo.Failure[] failureArray = failures.toArray(new ReplicationResponse.ShardInfo.Failure[0]);
-        assert failureArray.length == failed.get();
-        ReplicationResponse.ShardInfo shardInfo = ReplicationResponse.ShardInfo.of(total.get(), successful.get(), failureArray);
+        ReplicationResponse.ShardInfo.Failure[] failureArray = shardFailures.toArray(new ReplicationResponse.ShardInfo.Failure[0]);
+        assert failureArray.length == failedShards;
+        ReplicationResponse.ShardInfo shardInfo = ReplicationResponse.ShardInfo.of(totalShards, successfulShards, failureArray);
         bulkShardResponse.setShardInfo(shardInfo);
         return new Tuple<>(bulkShardResponse, null);
     }

@@ -1,5 +1,5 @@
 version: 9.2.5
-released: false
+released: true
 generated: 2026-01-31T00:09:12.893973818Z
 changelogs:
   - pr: 135899

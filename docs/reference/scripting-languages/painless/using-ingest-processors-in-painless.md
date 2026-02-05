@@ -137,7 +137,7 @@ You can then add this object to the document through the context object:
 
 ```painless
 Object json = Processors.json(ctx.inputJsonString);
-ctx.structuredJson = json;
+ctx.parsedJson = json;
 ```
 
 

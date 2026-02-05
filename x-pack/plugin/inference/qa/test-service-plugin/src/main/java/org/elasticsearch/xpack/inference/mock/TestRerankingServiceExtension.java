@@ -31,6 +31,7 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
@@ -267,9 +268,14 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         }
     }
 
-    public record TestTaskSettings(boolean shouldFailValidation, boolean useTextLength, float minScore, float resultDiff, Integer topN)
-        implements
-            TaskSettings {
+    public record TestTaskSettings(
+        boolean shouldFailValidation,
+        boolean useTextLength,
+        float minScore,
+        float resultDiff,
+        Integer topN,
+        boolean hideTopN
+    ) implements TaskSettings, TopNProvider {
 
         static final String NAME = "test_reranking_task_settings";
 
@@ -278,6 +284,8 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             boolean useTextLength = false;
             float minScore = random.nextFloat(-1f, 1f);
             float resultDiff = 0.2f;
+            Integer topN = null;
+            boolean hideTopN = false;
 
             if (map.containsKey("should_fail_validation")) {
                 shouldFailValidation = Boolean.parseBoolean(map.remove("should_fail_validation").toString());
@@ -295,16 +303,19 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
                 resultDiff = Float.parseFloat(map.remove("result_diff").toString());
             }
 
-            Integer topN = null;
             if (map.containsKey("top_n")) {
                 topN = Integer.parseInt(map.remove("top_n").toString());
             }
 
-            return new TestTaskSettings(shouldFailValidation, useTextLength, minScore, resultDiff, topN);
+            if (map.containsKey("hide_top_n")) {
+                hideTopN = Boolean.parseBoolean(map.remove("hide_top_n").toString());
+            }
+
+            return new TestTaskSettings(shouldFailValidation, useTextLength, minScore, resultDiff, topN, hideTopN);
         }
 
         public TestTaskSettings(StreamInput in) throws IOException {
-            this(in.readBoolean(), in.readBoolean(), in.readFloat(), in.readFloat(), in.readOptionalInt());
+            this(in.readBoolean(), in.readBoolean(), in.readFloat(), in.readFloat(), in.readOptionalInt(), in.readBoolean());
         }
 
         @Override
@@ -319,6 +330,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             out.writeFloat(minScore);
             out.writeFloat(resultDiff);
             out.writeOptionalInt(topN);
+            out.writeBoolean(hideTopN);
         }
 
         @Override
@@ -331,8 +343,14 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             if (topN != null) {
                 builder.field("top_n", topN);
             }
+            builder.field("hide_top_n", hideTopN);
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public Integer getTopN() {
+            return hideTopN ? null : topN;
         }
 
         @Override
@@ -353,7 +371,8 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
                 newSettingsMap.containsKey("use_text_length") ? newSettingsObject.useTextLength() : useTextLength,
                 newSettingsMap.containsKey("min_score") ? newSettingsObject.minScore() : minScore,
                 newSettingsMap.containsKey("result_diff") ? newSettingsObject.resultDiff() : resultDiff,
-                newSettingsMap.containsKey("top_n") ? newSettingsObject.topN() : topN
+                newSettingsMap.containsKey("top_n") ? newSettingsObject.topN() : topN,
+                newSettingsMap.containsKey("hide_top_n") ? newSettingsObject.hideTopN() : hideTopN
             );
         }
     }

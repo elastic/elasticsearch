@@ -1241,7 +1241,7 @@ setup:
   - contains: { profile.shards.0.searches.0.query.0.description: "\"max_chunk_size\":333" }
 
 ---
-"Text similarity rank retriever with a rerank service that truncates via top_n":
+"Text similarity rank retriever with a rerank service that sets top_n":
   # TODO: Add cluster feature
 
   - do:
@@ -1256,11 +1256,12 @@ setup:
               "api_key": "abc64"
             },
             "task_settings": {
-              "top_n": 1
+              "top_n": 3
             }
           }
 
   - do:
+      catch: bad_request
       search:
         index: test-index
         body:
@@ -1277,7 +1278,74 @@ setup:
               field: inference_text_field
           size: 10
 
-  - match: { hits.total.value: 1 }
-  - length: { hits.hits: 1 }
+  - match: { error.suppressed.0.caused_by.type: illegal_argument_exception }
+  - match: { error.suppressed.0.caused_by.reason: "Inference endpoint [my-rerank-model-with-top-n] is configured to
+      return the top [3] results, but rank_window_size is [10]. Reduce rank_window_size to be less than or equal to the
+      configured top N value." }
+
+  - do:
+      search:
+        index: test-index
+        body:
+          track_total_hits: true
+          retriever:
+            text_similarity_reranker:
+              retriever:
+                standard:
+                  query:
+                    match_all: { }
+              rank_window_size: 3
+              inference_id: my-rerank-model-with-top-n
+              inference_text: "How often does the moon hide the sun?"
+              field: inference_text_field
+          size: 3
+
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 3 }
+
+  - match: { hits.hits.0._id: "doc_3" }
+  - match: { hits.hits.1._id: "doc_2" }
+  - match: { hits.hits.2._id: "doc_1" }
+
+---
+"Text similarity rank retriever with a rerank service that truncates via an unreported top_n":
+  # TODO: Add cluster feature
+
+  - do:
+      inference.put:
+        task_type: rerank
+        inference_id: my-rerank-model-with-unreported-top-n
+        body: >
+          {
+            "service": "test_reranking_service",
+            "service_settings": {
+              "model_id": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+              "top_n": 1,
+              "hide_top_n": true
+            }
+          }
+
+  - do:
+      search:
+        index: test-index
+        body:
+          track_total_hits: true
+          retriever:
+            text_similarity_reranker:
+              retriever:
+                standard:
+                  query:
+                    match_all: {}
+              rank_window_size: 10
+              inference_id: my-rerank-model-with-unreported-top-n
+              inference_text: "How often does the moon hide the sun?"
+              field: inference_text_field
+          size: 10
+
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 3 }
 
   - match: { hits.hits.0._id: "doc_3" }

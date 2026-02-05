@@ -30,7 +30,7 @@ public class SearchLogProducer implements ActionLoggerProducer<SearchLogContext>
     private final Predicate<String> systemChecker;
 
     public static final Setting<Boolean> SEARCH_LOGGER_LOG_SYSTEM = Setting.boolSetting(
-        ACTION_LOGGER_SETTINGS_PREFIX + "search.log_system",
+        ACTION_LOGGER_SETTINGS_PREFIX + "search.include_system_indices",
         false,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope

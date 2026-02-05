@@ -33,6 +33,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MapperTestUtils;
+import org.elasticsearch.index.codec.bloomfilter.LazyFilterTermsEnum;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -60,6 +61,7 @@ import static org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper.createS
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -126,8 +128,12 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                     assertThat(terms.getSumDocFreq(), equalTo(0L));
                     assertThat(terms.getDocCount(), equalTo(docsPerSegments[i]));
 
-                    var termsEnum = terms.iterator();
-                    assertThat(termsEnum, notNullValue());
+                    var lazyTermsEnum = terms.iterator();
+                    assertThat(lazyTermsEnum, notNullValue());
+                    assertThat(lazyTermsEnum, instanceOf(LazyFilterTermsEnum.class));
+                    var unwrappedTermsEnum = LazyFilterTermsEnum.unwrap(lazyTermsEnum);
+                    assertThat(unwrappedTermsEnum, instanceOf(TSDBSyntheticIdFieldsProducer.SyntheticIdTermsEnum.class));
+                    var termsEnum = randomFrom(lazyTermsEnum, unwrappedTermsEnum);
 
                     assertThat(termsEnum.impacts(0), nullValue());
                     assertThat(termsEnum.docFreq(), equalTo(0));
@@ -179,6 +185,8 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
         final int routing = randomNonNegativeInt();
         final int maxHosts = randomIntBetween(1, 25);
 
+        // Generate a list of unique random documents
+        // Note: some documents will be later updated to a newer version so that 1 synthetic term have more than 1 posting (doc)
         final var randomDocs = new ArrayList<Doc>();
         for (int host = 0; host < maxHosts; host++) {
             var timestamp = Instant.now();
@@ -191,7 +199,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
         }
 
         runTest((writer, parser) -> {
-
+            // Last version of docs, keyed by their synthetic id term
             final var finalDocs = new TreeMap<BytesRef, Doc>();
 
             // Shuffle docs ordering before indexing
@@ -211,21 +219,20 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                     // Randomly picks a previously indexed doc and soft-update it to a newer version
                     uid = randomFrom(finalDocs.keySet());
                     var previousDoc = finalDocs.get(uid);
-                    var updatedDoc =
-                        new Doc(
-                            previousDoc.timestamp(),
-                            previousDoc.hostName(),
-                            previousDoc.metricField(),
-                            previousDoc.metricValue(),
-                            previousDoc.version() + 1,
-                            previousDoc.routing()
+                    var updatedDoc = new Doc(
+                        previousDoc.timestamp(),
+                        previousDoc.hostName(),
+                        previousDoc.metricField(),
+                        previousDoc.metricValue(),
+                        previousDoc.version() + 1,
+                        previousDoc.routing()
                     );
 
                     Term uidTerm = new Term(IdFieldMapper.NAME, uid);
                     if (randomBoolean()) {
                         writer.softUpdateDocuments(uidTerm, List.of(parser.parse(updatedDoc)), Lucene.newSoftDeletesField());
                     } else {
-                        writer.softUpdateDocument(uidTerm,  parser.parse(updatedDoc), Lucene.newSoftDeletesField());
+                        writer.softUpdateDocument(uidTerm, parser.parse(updatedDoc), Lucene.newSoftDeletesField());
                     }
                     finalDocs.put(uid, updatedDoc);
                     numDocs += 1;
@@ -246,16 +253,21 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                     Terms terms = leafReader.terms(IdFieldMapper.NAME);
                     assertNotNull(terms);
 
-                    TermsEnum termsEnum = terms.iterator();
+                    TermsEnum lazyTermsEnum = terms.iterator();
+                    assertThat(lazyTermsEnum, notNullValue());
+                    assertThat(lazyTermsEnum, instanceOf(LazyFilterTermsEnum.class));
+                    var unwrappedTermsEnum = LazyFilterTermsEnum.unwrap(lazyTermsEnum);
+                    assertThat(unwrappedTermsEnum, instanceOf(TSDBSyntheticIdFieldsProducer.SyntheticIdTermsEnum.class));
+                    var termsEnum = randomFrom(lazyTermsEnum, unwrappedTermsEnum);
+
                     switch (randomInt(2)) {
                         case 0:
-                            assertThat(termsEnum.seekExact(docIdTerm), equalTo(true));
-                            break;
-                        case 1:
                             assertThat(termsEnum.seekCeil(docIdTerm), equalTo(TermsEnum.SeekStatus.FOUND));
                             break;
+                        case 1:
+                            assertThat(termsEnum.seekExact(docIdTerm), equalTo(true));
+                            break;
                         case 2:
-                            // Not supported but should fallback to the supported seekExact(BytesRef)
                             termsEnum.seekExact(docIdTerm, new TermState() {
                                 @Override
                                 public void copyFrom(TermState other) {
@@ -291,48 +303,36 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                         }
                     }
 
-                    assertThat(maxDocId, greaterThan(0));
-                    assertThat(maxDocId, greaterThan(minDocId));
-
                     int docId = -1;
                     assertThat(postings.docID(), equalTo(docId));
 
-                    if (false) {
+                    if (randomBoolean()) {
                         int expectedDocId = minDocId;
-                        while ((docId = postings.nextDoc()) !=  DocIdSetIterator.NO_MORE_DOCS) {
+                        while ((docId = postings.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
                             assertThat(docId, equalTo(expectedDocId));
                             assertThat(postings.docID(), equalTo(expectedDocId));
-                            if (expectedDocId < maxDocId) {
+                            if (docId < maxDocId) {
                                 expectedDocId += 1;
                             }
                         }
                     } else {
                         int expectedDocId = minDocId;
-                        if (randomBoolean()) {
-                            docId = postings.nextDoc();
-                        } else {
-                            docId = postings.advance(expectedDocId);
-                        }
-                        assertThat(docId, equalTo(expectedDocId));
-                        assertThat(postings.docID(), equalTo(expectedDocId));
+                        while (expectedDocId < maxDocId) {
+                            boolean canUseNextDoc = (docId + 1 == expectedDocId) || (docId == -1) /* first iteration */;
 
-                        int remaining = maxDocId - minDocId - 1;
-                        if (remaining > 0) {
-                            if (randomBoolean()) {
-                                for (int i = 0; i < remaining; i++) {
-                                    docId = postings.nextDoc();
-                                    assertThat(docId, equalTo(minDocId + remaining));
-                                    assertThat(postings.docID(), equalTo(minDocId + remaining));
-
-                                }
+                            if (canUseNextDoc && randomBoolean()) {
+                                docId = postings.nextDoc();
                             } else {
-                                while (remaining > 0) {
-                                    int upTo = randomIntBetween(1, remaining);
-                                    docId = postings.advance(target);
-                                    assertThat(docId, equalTo(target));
-                                    assertThat(postings.docID(), equalTo(target));
-                                    remaining -=
-                                }
+                                docId = postings.advance(expectedDocId);
+                            }
+
+                            assertThat(docId, equalTo(expectedDocId));
+                            assertThat(postings.docID(), equalTo(expectedDocId));
+
+                            if (randomBoolean() || expectedDocId + 1 >= maxDocId) {
+                                expectedDocId++;
+                            } else {
+                                expectedDocId = randomIntBetween(expectedDocId + 1, maxDocId - 1);
                             }
                         }
                     }
@@ -342,6 +342,8 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
             }
         });
     }
+
+    // TODO Add test for seekCeil with NOT_FOUND and END
 
     private void runTest(CheckedBiConsumer<IndexWriter, TestDocParser, IOException> test) throws IOException {
         final var indexName = randomIdentifier();

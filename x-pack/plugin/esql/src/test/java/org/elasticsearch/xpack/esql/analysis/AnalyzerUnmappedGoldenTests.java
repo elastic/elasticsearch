@@ -11,8 +11,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 
 import java.util.EnumSet;
-
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import java.util.Optional;
 
 /**
  * Golden tests for analyzer behavior with unmapped fields using SET unmapped_fields="nullify" and "load".
@@ -24,7 +23,8 @@ public class AnalyzerUnmappedGoldenTests extends GoldenTestCase {
     public void testKeep() throws Exception {
         runTests("""
             FROM employees
-            | KEEP does_not_exist_field
+            | eval x = does_not_exist_field :: version
+            | keep x
             """);
     }
 
@@ -164,6 +164,14 @@ public class AnalyzerUnmappedGoldenTests extends GoldenTestCase {
             """);
     }
 
+    public void testDoesNotExistAfterInlineStats() throws Exception {
+        runTests("""
+            FROM employees
+            | INLINE STATS COUNT(*) BY emp_no
+            | EVAL x = does_not_exist_field
+            """);
+    }
+
     public void testStatsSumBy() throws Exception {
         runTests("""
             FROM employees
@@ -266,7 +274,7 @@ public class AnalyzerUnmappedGoldenTests extends GoldenTestCase {
     public void testLookupJoin() throws Exception {
         runTests("""
             FROM employees
-            | EVAL language_code = does_not_exist::INTEGER
+            | EVAL language_code = does_not_exist :: INTEGER
             | LOOKUP JOIN languages_lookup ON language_code
             """);
     }
@@ -282,7 +290,7 @@ public class AnalyzerUnmappedGoldenTests extends GoldenTestCase {
 
     public void testSubqueryKeepUnmapped() throws Exception {
         runTests("""
-            FROM employees, (FROM languages | KEEP language_code, does_not_exist)
+            FROM employees, (FROM languages | KEEP language_code)
             | KEEP emp_no, language_code, does_not_exist
             """);
     }
@@ -327,6 +335,36 @@ public class AnalyzerUnmappedGoldenTests extends GoldenTestCase {
             """);
     }
 
+    public void testFuse() throws Exception {
+        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V6.isEnabled());
+        runTests("""
+            FROM employees METADATA _score, _index, _id
+            | FORK (WHERE does_not_exist::LONG > 0)
+                   (WHERE emp_no > 0)
+            | FUSE
+            """);
+    }
+
+    public void testFuseWithEval() throws Exception {
+        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V6.isEnabled());
+        runTests("""
+            FROM employees METADATA _score, _index, _id
+            | FORK (EVAL x = does_not_exist::DOUBLE + 1)
+                   (EVAL y = emp_no + 1)
+            | FUSE RRF
+            """);
+    }
+
+    public void testFuseLinear() throws Exception {
+        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V6.isEnabled());
+        runTests("""
+            FROM employees METADATA _score, _index, _id
+            | FORK (WHERE does_not_exist::LONG > 0 | EVAL x = 1)
+                   (WHERE emp_no > 0 | EVAL y = 2)
+            | FUSE LINEAR
+            """);
+    }
+
     public void testCoalesce() throws Exception {
         runTests("""
             FROM employees
@@ -356,8 +394,6 @@ public class AnalyzerUnmappedGoldenTests extends GoldenTestCase {
             """);
     }
 
-    // TODO add one for text
-
     public void testTimeSeriesFirstOverTimeUnmapped() throws Exception {
         runTests("""
             TS k8s
@@ -372,39 +408,47 @@ public class AnalyzerUnmappedGoldenTests extends GoldenTestCase {
             """);
     }
 
-    public void testPartiallyMappedFieldWithStats() throws Exception {
+    public void testMappedInOneIndexOnly() throws Exception {
         runTests("""
-            FROM sample_data, partial_mapping_sample_data
-            | STATS c = COUNT(*) BY unmapped_message
+            FROM sample_data, no_mapping_sample_data
+            | KEEP message
             """);
     }
 
-    public void testPartiallyMappedFieldWithEval() throws Exception {
+    public void testMappedInOneIndexOnlyCast() throws Exception {
         runTests("""
-            FROM sample_data, partial_mapping_sample_data
-            | EVAL x = COALESCE(unmapped_message, "missing")
-            | KEEP @timestamp, x, does_not_exist
+            FROM sample_data, no_mapping_sample_data
+            | EVAL x = message :: LONG
             """);
     }
 
-    public void testDifferentTypesAcrossIndices() throws Exception {
+    public void testMappedToNonKeywordInOneIndexOnly() throws Exception {
         runTests("""
-            FROM sample_data, sample_data_ts_long
-            | KEEP @timestamp, message, does_not_exist
+            FROM sample_data, no_mapping_sample_data
+            | KEEP event_duration
             """);
     }
 
-    public void testDifferentTypesWithCast() throws Exception {
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/141912")
+    public void testMappedToNonKeywordInOneIndexOnlyCast() throws Exception {
         runTests("""
-            FROM sample_data, sample_data_ts_long
-            | EVAL ts = @timestamp::STRING
-            | KEEP ts, message, does_not_exist
+            FROM sample_data, no_mapping_sample_data
+            | EVAL x = event_duration :: DOUBLE
             """);
     }
 
-    @Override
-    protected java.util.List<String> filteredWarnings() {
-        return withDefaultLimitWarning(super.filteredWarnings());
+    public void testDifferentTypesAndUnmapped() throws Exception {
+        runTests("""
+            FROM sample_data, sample_data_ts_long, no_mapping_sample_data
+            | KEEP @timestamp
+            """);
+    }
+
+    public void testDifferentTypesAndUnmappedCast() throws Exception {
+        runTests("""
+            FROM sample_data, sample_data_ts_long, no_mapping_sample_data
+            | EVAL x = @timestamp :: DOUBLE
+            """);
     }
 
     private static String setUnmappedNullify(String query) {
@@ -416,15 +460,26 @@ public class AnalyzerUnmappedGoldenTests extends GoldenTestCase {
     }
 
     private void runTests(String query) {
-        runTestsNullifyOnly(query);
-        if (EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled()) {
-            builder(setUnmappedLoad(query)).nestedPath("load").stages(STAGES).run();
+        var nullifyException = runTestsNullifyOnly(query);
+        var loadException = runTestsLoadOnly(query);
+        if (nullifyException.isPresent() && loadException.isPresent()) {
+            throw new AssertionError("Both nullify and load modes failed", nullifyException.get());
+        } else if (nullifyException.isPresent()) {
+            throw new AssertionError("Nullify mode failed (but load succeeded)", nullifyException.get());
+        } else if (loadException.isPresent()) {
+            throw new AssertionError("Load mode failed (but nullify succeeded)", loadException.get());
         }
     }
 
-    private void runTestsNullifyOnly(String query) {
-        if (EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled()) {
-            builder(setUnmappedNullify(query)).nestedPath("nullify").stages(STAGES).run();
-        }
+    private Optional<Throwable> runTestsNullifyOnly(String query) {
+        return EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled()
+            ? builder(setUnmappedNullify(query)).nestedPath("nullify").stages(STAGES).tryRun()
+            : Optional.empty();
+    }
+
+    private Optional<Throwable> runTestsLoadOnly(String query) {
+        return EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled()
+            ? builder(setUnmappedLoad(query)).nestedPath("load").stages(STAGES).tryRun()
+            : Optional.empty();
     }
 }

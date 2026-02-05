@@ -58,6 +58,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -174,6 +175,15 @@ public abstract class GoldenTestCase extends ESTestCase {
         public void run() {
             runGoldenTest(esqlQuery, stages, searchStats, transportVersion, nestedPath);
         }
+
+        public Optional<Throwable> tryRun() {
+            try {
+                run();
+                return Optional.empty();
+            } catch (Throwable e) {
+                return Optional.of(e);
+            }
+        }
     }
 
     private record Test(
@@ -201,7 +211,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
             var statement = EsqlParser.INSTANCE.createStatement(esqlQuery);
             var parsedPlan = statement.plan();
-            Files.createDirectories(PathUtils.get(basePath.toString(), pathArray(0)));
+            Files.createDirectories(outputPath());
             Files.writeString(outputPath("query.esql"), esqlQuery);
             var analyzer = new Analyzer(
                 new AnalyzerContext(
@@ -303,12 +313,12 @@ public abstract class GoldenTestCase extends ESTestCase {
             return result;
         }
 
-        // FIXME(gal, NOCOMMIT) Not a fan of this signature
-        private String[] pathArray(int extraElements) {
-            var paths = new String[nestedPath.length + 1 + extraElements];
+        private Path outputPath(String... extraArrayElements) {
+            var paths = new String[nestedPath.length + 1 + extraArrayElements.length];
             paths[0] = testName;
             System.arraycopy(nestedPath, 0, paths, 1, nestedPath.length);
-            return paths;
+            System.arraycopy(extraArrayElements, 0, paths, 1 + nestedPath.length, extraArrayElements.length);
+            return PathUtils.get(basePath.toString(), paths);
         }
 
         private enum TestResult {
@@ -366,12 +376,6 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         private Path expectedOutputPath(String stageName) {
             return outputPath(stageName + ".expected");
-        }
-
-        private Path outputPath(String fileName) {
-            var paths = pathArray(1);
-            paths[paths.length - 1] = fileName;
-            return PathUtils.get(basePath.toString(), paths);
         }
 
         private PhysicalPlan localOptimize(PhysicalPlan plan, Configuration conf) {

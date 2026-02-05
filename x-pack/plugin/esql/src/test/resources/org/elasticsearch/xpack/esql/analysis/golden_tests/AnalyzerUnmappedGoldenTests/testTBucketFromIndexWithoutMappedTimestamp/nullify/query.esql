@@ -1,0 +1,2 @@
+SET unmapped_fields="nullify"; FROM employees
+| STATS c = COUNT(*) BY tbucket(1 hour)

@@ -1,0 +1,4 @@
+Project[[@timestamp{f(DateEsField)}#0, client_ip{f(EsField)}#1, !event_duration, message{f(KeywordEsField)}#2, x{r}#3]]
+\_Limit[1000[INTEGER],false,false]
+  \_Eval[[$$event_duration$converted_to$double{f(MultiTypeEsField)$}#4 AS x#3]]
+    \_EsRelation[sample_data,no_mapping_sample_data][@timestamp{f}#0, client_ip{f}#1, !event_duration, message{f}#2, $$event_duration$converted_to$double{f$}#4]

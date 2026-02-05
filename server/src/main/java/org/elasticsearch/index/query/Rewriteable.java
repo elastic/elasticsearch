@@ -9,10 +9,13 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.Executor;
 
 /**
  * A basic interface for rewriteable classes.
@@ -72,9 +75,42 @@ public interface Rewriteable<T> {
 
     /**
      * Rewrites the given rewriteable and fetches pending async tasks for each round before rewriting again.
+     * The listener may be called on any thread, including a transport thread.
+     * Forthe listener to be called on a specific thread pool, use
+     * {@link #rewriteAndFetch(Rewriteable, QueryRewriteContext, Executor, ActionListener)} instead.
      */
     static <T extends Rewriteable<T>> void rewriteAndFetch(T original, QueryRewriteContext context, ActionListener<T> rewriteResponse) {
         rewriteAndFetch(original, context, rewriteResponse, 0);
+    }
+
+    /**
+     * Rewrites the given rewriteable and fetches pending async tasks for each round before rewriting again.
+     * The listener is guaranteed to be completed on the provided executor.
+     *
+     * @param original the rewriteable to rewrite
+     * @param context the rewrite context
+     * @param responseExecutor the executor to complete the listener on. Must not be null.
+     * @param rewriteResponse the listener to notify on completion
+     * @param <T> the rewriteable type
+     *
+     * @see #rewriteAndFetch(Rewriteable, QueryRewriteContext, ActionListener)
+     */
+    static <T extends Rewriteable<T>> void rewriteAndFetch(
+        T original,
+        QueryRewriteContext context,
+        Executor responseExecutor,
+        ActionListener<T> rewriteResponse
+    ) {
+        Objects.requireNonNull(responseExecutor, "responseExecutor must not be null");
+
+        SubscribableListener<T> subscribableListener = new SubscribableListener<>();
+        rewriteAndFetch(original, context, subscribableListener, 0);
+
+        if (subscribableListener.isDone()) {
+            subscribableListener.addListener(rewriteResponse);
+        } else {
+            subscribableListener.addListener(rewriteResponse, responseExecutor, null);
+        }
     }
 
     /**

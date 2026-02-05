@@ -92,7 +92,7 @@ import static org.hamcrest.Matchers.startsWith;
  */
 public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
-    private static RequestOptions.Builder DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER = RequestOptions.DEFAULT.toBuilder()
+    private static final RequestOptions DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER = RequestOptions.DEFAULT.toBuilder()
         .setWarningsHandler(warnings -> {
             if (warnings.isEmpty()) {
                 return false;
@@ -104,7 +104,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 }
                 return false;
             }
-        });
+        }).build();
 
     @Rule(order = Integer.MIN_VALUE)
     public ProfileLogger profileLogger = new ProfileLogger();

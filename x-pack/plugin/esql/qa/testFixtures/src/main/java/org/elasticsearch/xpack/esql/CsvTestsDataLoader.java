@@ -203,7 +203,7 @@ public class CsvTestsDataLoader {
         "histogram_standard_index.csv"
     ).withSetting("settings-histogram_time_series_index.json");
     private static final TestDataset MANY_NUMBERS = new TestDataset("many_numbers");
-    private static RequestOptions DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER = RequestOptions.DEFAULT.toBuilder()
+    private static final RequestOptions DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER = RequestOptions.DEFAULT.toBuilder()
         .setWarningsHandler(warnings -> {
             if (warnings.isEmpty()) {
                 return false;

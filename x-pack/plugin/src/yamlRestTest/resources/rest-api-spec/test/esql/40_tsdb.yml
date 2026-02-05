@@ -873,13 +873,14 @@ error on rename timestamp:
 ---
 Stats using default metric for aggregate metric double:
   - requires:
-      test_runner_features: [capabilities]
+      test_runner_features: [capabilities, cluster_features]
+      cluster_features: ["aggregate_metric_double.default_metric.deprecated"]
       capabilities:
         - method: POST
           path: /_query
           parameters: []
           capabilities: [aggregate_metric_double_default_metric]
-      reason: "Default metric"
+      reason: "Using max as the default metric was added in 9.4"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"

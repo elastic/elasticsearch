@@ -1866,15 +1866,21 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         private final TimeValue schedule;
         private boolean actionScheduleChecked = false;
         private final boolean appliesFailureStore;
+        private final boolean canRunOnProjectResult;
 
         private TestDlmAction(TimeValue schedule, DlmStep... steps) {
-            this(schedule, false, steps);
+            this(schedule, false, true, steps);
         }
 
         private TestDlmAction(TimeValue schedule, boolean appliesFailureStore, DlmStep... steps) {
+            this(schedule, appliesFailureStore, true, steps);
+        }
+
+        private TestDlmAction(TimeValue schedule, boolean appliesFailureStore, boolean canRunOnProjectResult, DlmStep... steps) {
             this.steps = Arrays.asList(steps);
             this.schedule = schedule;
             this.appliesFailureStore = appliesFailureStore;
+            this.canRunOnProjectResult = canRunOnProjectResult;
         }
 
         @Override
@@ -1900,7 +1906,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
 
         @Override
         public boolean canRunOnProject(DlmActionContext dlmActionContext) {
-            return true;
+            return canRunOnProjectResult;
         }
     }
 
@@ -2239,5 +2245,70 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         assertThat(processedIndices, hasSize(numBackingIndices + numFailureIndices - 2));
         assertThat(step1.executeCount, equalTo(failureIndicesEligible.size()));
         assertThat(processedIndices, hasSize(failureIndicesEligible.size()));
+    }
+
+    public void testMaybeProcessDlmActionsCanRunOnProjectReturnsTrue() {
+        TestDlmStep step1 = new TestDlmStep();
+        TimeValue schedule = TimeValue.timeValueMillis(1);
+        TestDlmAction action = new TestDlmAction(schedule, false, true, step1); // canRunOnProject returns true
+        actions.add(action);
+
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        int numBackingIndices = 3;
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        DataStreamLifecycle dataLifecycle = DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.ZERO).build();
+        DataStream dataStream = createDataStream(
+            builder,
+            dataStreamName,
+            numBackingIndices,
+            0,
+            settings(IndexVersion.current()),
+            dataLifecycle,
+            null,
+            now
+        );
+        builder.put(dataStream);
+        ProjectState projectState = projectStateFromProject(builder);
+
+        Set<Index> indicesToExclude = new HashSet<>();
+        Set<Index> processedIndices = dataStreamLifecycleService.maybeProcessDlmActions(projectState, dataStream, indicesToExclude);
+
+        assertThat(action.actionScheduleChecked, equalTo(true));
+        // Action should be executed, so step1.executeCount should be > 0
+        int eligibleCount = dataStream.getIndicesPastRetention(projectState.metadata()::index, () -> now, schedule, false).size();
+        assertThat(step1.executeCount, equalTo(eligibleCount));
+        assertThat(processedIndices, hasSize(eligibleCount));
+    }
+
+    public void testMaybeProcessDlmActionsCanRunOnProjectReturnsFalse() {
+        TestDlmStep step1 = new TestDlmStep();
+        TimeValue schedule = TimeValue.timeValueMillis(1);
+        TestDlmAction action = new TestDlmAction(schedule, false, false, step1); // canRunOnProject returns false
+        actions.add(action);
+
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        int numBackingIndices = 3;
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        DataStreamLifecycle dataLifecycle = DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.ZERO).build();
+        DataStream dataStream = createDataStream(
+            builder,
+            dataStreamName,
+            numBackingIndices,
+            0,
+            settings(IndexVersion.current()),
+            dataLifecycle,
+            null,
+            now
+        );
+        builder.put(dataStream);
+        ProjectState projectState = projectStateFromProject(builder);
+
+        Set<Index> indicesToExclude = new HashSet<>();
+        Set<Index> processedIndices = dataStreamLifecycleService.maybeProcessDlmActions(projectState, dataStream, indicesToExclude);
+
+        assertThat(action.actionScheduleChecked, equalTo(false));
+        // Action should NOT be executed, so step1.executeCount should be 0
+        assertThat(step1.executeCount, equalTo(0));
+        assertThat(processedIndices, empty());
     }
 }

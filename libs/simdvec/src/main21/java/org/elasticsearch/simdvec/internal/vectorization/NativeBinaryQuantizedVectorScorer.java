@@ -77,7 +77,7 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
     }
 
     @Override
-    public void scoreBulk(
+    public float scoreBulk(
         byte[] q,
         float queryLowerInterval,
         float queryUpperInterval,
@@ -92,7 +92,7 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
         var segment = msai.segmentSliceOrNull(0, slice.length());
         if (segment == null) {
             // Try to score individually, delegating it to our parent implementation (which is looping)
-            super.scoreBulk(
+            return super.scoreBulk(
                 q,
                 queryLowerInterval,
                 queryUpperInterval,
@@ -104,7 +104,6 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
                 scores,
                 bulkSize
             );
-            return;
         }
 
         Similarities.dotProductI1I4BulkWithOffsets(
@@ -118,6 +117,7 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
         );
 
         // TODO: native/vectorize this code too
+        float maxScore = Float.NEGATIVE_INFINITY;
         for (int i = 0; i < bulkSize; i++) {
             var offset = ((long) nodes[i] * byteSize);
 
@@ -142,6 +142,8 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
                 indexAdditionalCorrection,
                 indexQuantizedComponentSum
             );
+            maxScore = Math.max(maxScore, scores[i]);
         }
+        return maxScore;
     }
 }

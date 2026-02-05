@@ -9,6 +9,8 @@
 
 package org.elasticsearch.simdvec.internal.vectorization;
 
+import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -25,5 +27,14 @@ public class BaseVectorizationTests extends ESTestCase {
 
     public static ESVectorizationProvider maybePanamaProvider() {
         return ESVectorizationProvider.lookup(true);
+    }
+
+    protected void randomVector(float[] vector, VectorSimilarityFunction vectorSimilarityFunction) {
+        for (int i = 0; i < vector.length; i++) {
+            vector[i] = random().nextFloat();
+        }
+        if (vectorSimilarityFunction != VectorSimilarityFunction.EUCLIDEAN) {
+            VectorUtil.l2normalize(vector);
+        }
     }
 }

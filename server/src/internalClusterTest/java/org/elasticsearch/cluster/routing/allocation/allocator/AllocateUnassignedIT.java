@@ -10,17 +10,10 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
 
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.test.ClusterServiceUtils.addTemporaryStateListener;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.in;
 
 public class AllocateUnassignedIT extends AbstractAllocationDecisionTestCase {
@@ -45,7 +38,7 @@ public class AllocateUnassignedIT extends AbstractAllocationDecisionTestCase {
         assertEquals(0, index.shard(0).assignedShards().size());
         assertFalse(createIndexFuture.isDone());
 
-        final var firstAllocationListener = waitForFirstAllocation(indexName);
+        final var firstAllocationListener = waitForAllocation(indexName);
 
         // Un-throttle the nodes, re-route should see them allocated to one of the previously throttled nodes
         CAN_ALLOCATE_THROTTLE_NODE_IDS.clear();
@@ -74,43 +67,12 @@ public class AllocateUnassignedIT extends AbstractAllocationDecisionTestCase {
 
     private void createSingleShardAndAssertItIsAssignedToNodes(Set<String> expectedNodeNames) {
         final var indexName = randomIdentifier();
-        final var firstAllocationListener = waitForFirstAllocation(indexName);
+        final var firstAllocationListener = waitForAllocation(indexName);
 
         // The single-shard should be allocated to one of the expected nodes
         createIndex(indexName, 1, 0);
 
         final var firstAllocatedNode = safeAwait(firstAllocationListener);
         assertThat(firstAllocatedNode.getName(), in(expectedNodeNames));
-    }
-
-    /**
-     * We wait for the first allocation of a shard to ensure we're seeing the first node a shard is
-     * assigned to, and that we are testing the {@link BalancedShardsAllocator.Balancer#allocateUnassigned()}
-     * behaviour, rather than an assignment followed by a movement.
-     *
-     * @param indexName The single-shard index to monitor
-     * @return A {@link SubscribableListener} that will resolve with the first assigned node
-     */
-    private SubscribableListener<DiscoveryNode> waitForFirstAllocation(String indexName) {
-        final var firstAllocationNode = new AtomicReference<DiscoveryNode>();
-        return addTemporaryStateListener(internalCluster().clusterService(), state -> {
-            final var indexMetadata = state.projectState(ProjectId.DEFAULT).metadata().index(indexName);
-            if (indexMetadata != null) {
-                final var maybeRoutingTable = state.globalRoutingTable().indexRouting(ProjectId.DEFAULT, indexMetadata.getIndex());
-                if (maybeRoutingTable.isPresent()) {
-                    IndexRoutingTable routingTable = maybeRoutingTable.get();
-                    assertThat(routingTable.size(), equalTo(1));
-                    final var assignedShards = routingTable.shard(0).assignedShards();
-                    if (assignedShards.isEmpty() == false) {
-                        ShardRouting shardRouting = assignedShards.getFirst();
-                        if (shardRouting.started()) {
-                            firstAllocationNode.set(state.nodes().get(shardRouting.currentNodeId()));
-                            return true;
-                        }
-                    }
-                }
-            }
-            return false;
-        }).andThenApply(v -> firstAllocationNode.get());
     }
 }

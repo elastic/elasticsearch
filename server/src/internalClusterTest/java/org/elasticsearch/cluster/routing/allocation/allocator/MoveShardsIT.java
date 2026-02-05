@@ -12,8 +12,6 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.cluster.metadata.ProjectId;
 
-import java.util.Set;
-
 public class MoveShardsIT extends AbstractAllocationDecisionTestCase {
 
     public void testShardsWillBeMovedToYesNodesWhenPresent() {
@@ -29,7 +27,7 @@ public class MoveShardsIT extends AbstractAllocationDecisionTestCase {
         randomFrom(CAN_REMAIN_NO_NODE_IDS, CAN_REMAIN_NOT_PREFERRED_NODE_IDS).add(getNodeId(initialNode));
         ClusterRerouteUtils.reroute(client());
 
-        ensureShardAllocatedToAppropriateNode(indexName, nodes.yesNodes());
+        ensureShardIsAllocatedToNodes(indexName, nodes.yesNodes());
     }
 
     public void testShardsWillBeMovedToThrottleNodesWhenNoYesNodesArePresent() {
@@ -56,7 +54,7 @@ public class MoveShardsIT extends AbstractAllocationDecisionTestCase {
         CAN_ALLOCATE_THROTTLE_NODE_IDS.clear();
         ClusterRerouteUtils.reroute(client());
 
-        ensureShardAllocatedToAppropriateNode(indexName, nodes.throttleNodes());
+        ensureShardIsAllocatedToNodes(indexName, nodes.throttleNodes());
     }
 
     public void testShardsWillBeMovedToNotPreferredNodesWhenCanRemainIsNoAndThereAreNoYesOrThrottleNodes() {
@@ -72,7 +70,7 @@ public class MoveShardsIT extends AbstractAllocationDecisionTestCase {
         CAN_REMAIN_NO_NODE_IDS.add(getNodeId(initialNode));
         ClusterRerouteUtils.reroute(client());
 
-        ensureShardAllocatedToAppropriateNode(indexName, nodes.notPreferredNodes());
+        ensureShardIsAllocatedToNodes(indexName, nodes.notPreferredNodes());
     }
 
     public void testShardsWillNotBeMovedToNotPreferredNodesWhenCanRemainIsNotPreferred() {
@@ -99,21 +97,6 @@ public class MoveShardsIT extends AbstractAllocationDecisionTestCase {
         CAN_ALLOCATE_NOT_PREFERRED_NODE_IDS.clear();
         ClusterRerouteUtils.reroute(client());
 
-        ensureShardAllocatedToAppropriateNode(indexName, nodes.notPreferredNodes());
-    }
-
-    private void ensureShardAllocatedToAppropriateNode(String indexName, Set<String> expectedNodes) {
-        awaitClusterState(state -> {
-            final var index = state.routingTable(ProjectId.DEFAULT).index(indexName);
-            if (index != null) {
-                final var shardRouting = index.shard(0).primaryShard();
-                final var currentNodeId = shardRouting.currentNodeId();
-                if (currentNodeId != null && shardRouting.started()) {
-                    final var node = state.nodes().get(currentNodeId);
-                    return expectedNodes.contains(node.getName());
-                }
-            }
-            return false;
-        });
+        ensureShardIsAllocatedToNodes(indexName, nodes.notPreferredNodes());
     }
 }

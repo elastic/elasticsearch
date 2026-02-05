@@ -9,7 +9,10 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -30,6 +33,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.elasticsearch.test.ClusterServiceUtils.addTemporaryStateListener;
 
 /**
  * Supplies an {@link AllocationDecider} with settable sets of data nodes that return certain {@link Decision}s for
@@ -58,6 +64,50 @@ public abstract class AbstractAllocationDecisionTestCase extends ESIntegTestCase
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.appendToCopy(super.nodePlugins(), TestAllocationPlugin.class);
+    }
+
+    /**
+     * Wait for the index shard to be allocated to a node.
+     *
+     * @param indexName The single-shard index to monitor
+     * @return A {@link SubscribableListener} that will resolve with the node that the shard was allocated to
+     */
+    protected SubscribableListener<DiscoveryNode> waitForAllocation(String indexName) {
+        final var firstAllocationNode = new AtomicReference<DiscoveryNode>();
+        return addTemporaryStateListener(internalCluster().clusterService(), state -> {
+            final var index = state.routingTable(ProjectId.DEFAULT).index(indexName);
+            if (index != null) {
+                final var shardRouting = index.shard(0).primaryShard();
+                final var currentNodeId = shardRouting.currentNodeId();
+                if (currentNodeId != null && shardRouting.started()) {
+                    final var node = state.nodes().get(currentNodeId);
+                    firstAllocationNode.set(node);
+                    return true;
+                }
+            }
+            return false;
+        }).andThenApply(v -> firstAllocationNode.get());
+    }
+
+    /**
+     * Ensure a shard is eventually allocated to one of a set of nodes
+     *
+     * @param indexName The single-shard index to monitor
+     * @param expectedNodes The set of nodes that will constitute a successful allocation
+     */
+    protected void ensureShardIsAllocatedToNodes(String indexName, Set<String> expectedNodes) {
+        awaitClusterState(state -> {
+            final var index = state.routingTable(ProjectId.DEFAULT).index(indexName);
+            if (index != null) {
+                final var shardRouting = index.shard(0).primaryShard();
+                final var currentNodeId = shardRouting.currentNodeId();
+                if (currentNodeId != null && shardRouting.started()) {
+                    final var node = state.nodes().get(currentNodeId);
+                    return expectedNodes.contains(node.getName());
+                }
+            }
+            return false;
+        });
     }
 
     /**

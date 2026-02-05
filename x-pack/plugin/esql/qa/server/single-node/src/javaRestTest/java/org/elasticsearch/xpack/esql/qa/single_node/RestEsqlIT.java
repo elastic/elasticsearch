@@ -1022,46 +1022,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
     }
 
     private void testAggManyFields(int fieldCount, Matcher<Integer> readerMatcher) throws IOException {
-        Request createIndex = new Request("PUT", testIndexName());
-        createIndex.setJsonEntity("""
-            {
-              "settings": {
-                "index": {
-                  "number_of_shards": 1
-                }
-              }
-            }""");
-        Response response = client().performRequest(createIndex);
-        assertThat(
-            entityToMap(response.getEntity(), XContentType.JSON),
-            matchesMap().entry("shards_acknowledged", true).entry("index", testIndexName()).entry("acknowledged", true)
-        );
-
-        StringBuilder b = new StringBuilder();
-        for (int round = 0; round < 10; round++) {
-            for (int i = 0; i < 1000; i++) {
-                b.append(String.format(Locale.ROOT, """
-                    {"create":{"_index":"%s"}}
-                    {""", testIndexName()));
-                for (int f = 0; f < fieldCount; f++) {
-                    if (f != 0) {
-                        b.append(", ");
-                    }
-                    b.append(String.format(Locale.ROOT, "\"f%03d\": %s", f, i));
-                }
-                b.append("}\n");
-            }
-            Request bulk = new Request("POST", "/_bulk");
-            bulk.addParameter("refresh", "true");
-            bulk.addParameter("filter_path", "errors");
-            bulk.setJsonEntity(b.toString());
-            response = client().performRequest(bulk);
-            Assert.assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
-        }
-
-        Request forceMerge = new Request("POST", '/' + testIndexName() + "/_forcemerge");
-        forceMerge.addParameter("max_num_segments", String.valueOf(1));
-        assertOK(client().performRequest(forceMerge));
+        initMany(fieldCount);
 
         StringBuilder query = new StringBuilder(fromIndex()).append(" | STATS ");
         for (int f = 0; f < fieldCount; f++) {
@@ -1117,6 +1078,119 @@ public class RestEsqlIT extends RestEsqlTestCase {
             );
         }
         assertMap(reader, matchesMap().extraOk().entry("status", matchesMap().extraOk().entry("readers_built", readersBuiltMatcher)));
+    }
+
+    /**
+     * Fetches enough fields that we don't reuse column block loaders and
+     * asserts that we don't.
+     */
+    public void testLoadManyFieldsNoReuse() throws IOException {
+        testLoadManyFields(PlannerSettings.REUSE_COLUMN_LOADERS_THRESHOLD.get(Settings.EMPTY) + 1, greaterThan(1));
+    }
+
+    /**
+     * Fetches just less than enough fields that we still reuse column
+     * block loaders and asserts that we don't.
+     */
+    public void testLoadManyFieldsReuse() throws IOException {
+        testLoadManyFields(PlannerSettings.REUSE_COLUMN_LOADERS_THRESHOLD.get(Settings.EMPTY) - 1, equalTo(1));
+    }
+
+    private void testLoadManyFields(int fieldCount, Matcher<Integer> readerMatcher) throws IOException {
+        initMany(fieldCount);
+
+        int limit = 1000;
+        RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | SORT f000 | LIMIT " + limit);
+        builder.profile(true);
+        // Lock to shard level partitioning, so we get consistent profile output
+        builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
+        builder.pragmasOk();
+        Map<String, Object> result = runEsql(builder);
+        ListMatcher schemaMatcha = matchesList();
+        for (int f = 0; f < fieldCount; f++) {
+            schemaMatcha = schemaMatcha.item(Map.of("name", String.format(Locale.ROOT, "f%03d", f), "type", "long"));
+        }
+        ListMatcher finalResultMatcher = matchesList();
+        for (int i = 0; i < limit; i++) {
+            ListMatcher resultMatcher = matchesList();
+            for (int f = 0; f < fieldCount; f++) {
+                resultMatcher = resultMatcher.item(0);
+            }
+            finalResultMatcher = finalResultMatcher.item(resultMatcher);
+        }
+        assertResultMap(result, getResultMatcher(result).entry("profile", getProfileMatcher()), schemaMatcha, finalResultMatcher);
+
+        Map<String, Object> reader = null;
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
+        for (Map<String, Object> p : profiles) {
+            String description = p.get("description").toString();
+            if (description.equals("data") == false) {
+                continue;
+            }
+            fixTypesOnProfile(p);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
+            for (Map<String, Object> o : operators) {
+                String name = (String) o.get("operator");
+                if (name.startsWith("ValuesSourceReader")) {
+                    assertThat(reader, nullValue());
+                    reader = o;
+                }
+            }
+        }
+        assertNotNull(reader);
+        MapMatcher readersBuiltMatcher = matchesMap();
+        for (int f = 0; f < fieldCount; f++) {
+            readersBuiltMatcher = readersBuiltMatcher.entry(
+                String.format(Locale.ROOT, "f%03d:column_at_a_time:LongsFromDocValues.Singleton", f),
+                readerMatcher
+            );
+        }
+        assertMap(reader, matchesMap().extraOk().entry("status", matchesMap().extraOk().entry("readers_built", readersBuiltMatcher)));
+    }
+
+    private void initMany(int fieldCount) throws IOException {
+        Request createIndex = new Request("PUT", testIndexName());
+        createIndex.setJsonEntity("""
+            {
+              "settings": {
+                "index": {
+                  "number_of_shards": 1
+                }
+              }
+            }""");
+        Response response = client().performRequest(createIndex);
+        assertThat(
+            entityToMap(response.getEntity(), XContentType.JSON),
+            matchesMap().entry("shards_acknowledged", true).entry("index", testIndexName()).entry("acknowledged", true)
+        );
+
+        StringBuilder b = new StringBuilder();
+        for (int round = 0; round < 10; round++) {
+            for (int i = 0; i < 1000; i++) {
+                b.append(String.format(Locale.ROOT, """
+                    {"create":{"_index":"%s"}}
+                    {""", testIndexName()));
+                for (int f = 0; f < fieldCount; f++) {
+                    if (f != 0) {
+                        b.append(", ");
+                    }
+                    b.append(String.format(Locale.ROOT, "\"f%03d\": %s", f, i));
+                }
+                b.append("}\n");
+            }
+            Request bulk = new Request("POST", "/_bulk");
+            bulk.addParameter("refresh", "true");
+            bulk.addParameter("filter_path", "errors");
+            bulk.setJsonEntity(b.toString());
+            response = client().performRequest(bulk);
+            Assert.assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
+        }
+
+        Request forceMerge = new Request("POST", '/' + testIndexName() + "/_forcemerge");
+        forceMerge.addParameter("max_num_segments", String.valueOf(1));
+        assertOK(client().performRequest(forceMerge));
     }
 
     static MapMatcher commonProfile() {

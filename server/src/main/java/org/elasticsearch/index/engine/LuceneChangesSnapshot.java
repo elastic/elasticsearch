@@ -18,7 +18,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -36,7 +35,7 @@ import java.util.List;
 /**
  * A {@link Translog.Snapshot} from changes in a Lucene index
  */
-public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
+public class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
     private long lastSeenSeqNo;
     private int skippedOperations;
     private final boolean singleConsumer;
@@ -63,8 +62,8 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
      * @param requiredFullRange if true, the snapshot will strictly check for the existence of operations between fromSeqNo and toSeqNo
      * @param singleConsumer    true if the snapshot is accessed by a single thread that creates the snapshot
      * @param accessStats       true if the stats of the snapshot can be accessed via {@link #totalOperations()}
-     * @param indexVersionCreated the version on which this index was created
      */
+    @SuppressWarnings("this-escape")
     public LuceneChangesSnapshot(
         MapperService mapperService,
         Engine.Searcher engineSearcher,
@@ -73,10 +72,9 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
         long toSeqNo,
         boolean requiredFullRange,
         boolean singleConsumer,
-        boolean accessStats,
-        IndexVersion indexVersionCreated
+        boolean accessStats
     ) throws IOException {
-        super(mapperService, engineSearcher, searchBatchSize, fromSeqNo, toSeqNo, requiredFullRange, accessStats, indexVersionCreated);
+        super(mapperService, engineSearcher, searchBatchSize, fromSeqNo, toSeqNo, requiredFullRange, accessStats);
         this.creationThread = Assertions.ENABLED ? Thread.currentThread() : null;
         this.singleConsumer = singleConsumer;
         this.parallelArray = new ParallelArray(this.searchBatchSize);
@@ -254,7 +252,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
             assert version == 1L : "Noop tombstone should have version 1L; actual version [" + version + "]";
             assert assertDocSoftDeleted(leaf.reader(), segmentDocID) : "Noop but soft_deletes field is not set [" + op + "]";
         } else {
-            final String id = fields.id();
+            final String id = overrideId(fields.id());
             if (isTombstone) {
                 op = new Translog.Delete(id, seqNo, primaryTerm, version);
                 assert assertDocSoftDeleted(leaf.reader(), segmentDocID) : "Delete op but soft_deletes field is not set [" + op + "]";
@@ -266,7 +264,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
                         throw new MissingHistoryOperationsException(
                             "source not found for seqno=" + seqNo + " from_seqno=" + fromSeqNo + " to_seqno=" + toSeqNo
                         );
-                    } else {
+                    } else if (skipDocsWithNullSource()) {
                         skippedOperations++;
                         return null;
                     }

@@ -76,8 +76,10 @@ dependencies {
   testImplementation('org.webjars.npm:fontsource__roboto-mono:4.5.7')
 
   internalClusterTestImplementation project(":modules:mapper-extras")
+  internalClusterTestImplementation project(":plugins:mapper-size")
   internalClusterTestImplementation project(xpackModule('inference:qa:test-service-plugin'))
   internalClusterTestImplementation(testArtifact(project(xpackModule('inference'))))
+  internalClusterTestImplementation project(path: xpackModule('mapper-constant-keyword'))
 }
 
 tasks.named('splitPackagesAudit').configure {

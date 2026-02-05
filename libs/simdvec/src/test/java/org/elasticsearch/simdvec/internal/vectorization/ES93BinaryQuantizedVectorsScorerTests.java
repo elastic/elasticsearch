@@ -83,7 +83,6 @@ public class ES93BinaryQuantizedVectorsScorerTests extends BaseVectorizationTest
 
             try (IndexInput in = dir.openInput("testScore.bin", IOContext.DEFAULT)) {
                 final int vectorLengthInBytes = BQVectorUtils.discretize(dims, 64) / 8;
-
                 final int perVectorBytes = vectorLengthInBytes + 14;
                 assertEquals(in.length(), (long) numVectors * perVectorBytes);
 
@@ -92,7 +91,6 @@ public class ES93BinaryQuantizedVectorsScorerTests extends BaseVectorizationTest
                     dims,
                     vectorLengthInBytes
                 );
-
                 final var panamaScorer = maybePanamaProvider().newES93BinaryQuantizedVectorsScorer(
                     in,
                     dims,
@@ -110,7 +108,6 @@ public class ES93BinaryQuantizedVectorsScorerTests extends BaseVectorizationTest
                         centroidDp,
                         i
                     );
-
                     var panamaScore = panamaScorer.score(
                         queryData.vector(),
                         queryData.lowerInterval(),
@@ -189,6 +186,7 @@ public class ES93BinaryQuantizedVectorsScorerTests extends BaseVectorizationTest
                     scoresPanama,
                     numVectors
                 );
+
                 assertEquals(defaultMaxScore, panamaMaxScore, 1e-2f);
                 assertArrayEqualsPercent(scoresDefault, scoresPanama, 0.05f);
             }

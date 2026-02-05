@@ -5,9 +5,8 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.analytics.aggregations.metrics;
+package org.elasticsearch.xpack.exponentialhistogram.aggregations.metrics;
 
-import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -15,14 +14,16 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.xpack.analytics.aggregations.support.HistogramValuesSource;
+import org.elasticsearch.xpack.analytics.aggregations.metrics.AbstractTDigestOrExponentialPercentilesAggregator;
+import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
+import org.elasticsearch.xpack.exponentialhistogram.aggregations.support.ExponentialHistogramValuesSource;
 
 import java.io.IOException;
 import java.util.Map;
 
-public class HistoBackedTDigestPercentileRanksAggregator extends AbstractTDigestOrExponentialPercentileRanksAggregator {
+public class ExponentialHistogramPercentilesAggregator extends AbstractTDigestOrExponentialPercentilesAggregator {
 
-    public HistoBackedTDigestPercentileRanksAggregator(
+    public ExponentialHistogramPercentilesAggregator(
         String name,
         ValuesSourceConfig config,
         AggregationContext context,
@@ -39,7 +40,8 @@ public class HistoBackedTDigestPercentileRanksAggregator extends AbstractTDigest
 
     @Override
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
-        final HistogramValues values = ((HistogramValuesSource.Histogram) valuesSource).getHistogramValues(aggCtx.getLeafReaderContext());
-        return mergingTDigestCollector(sub, values);
+        final ExponentialHistogramValuesReader values = ((ExponentialHistogramValuesSource.ExponentialHistogram) valuesSource)
+            .getHistogramValues(aggCtx.getLeafReaderContext());
+        return mergingExponentialHistogramCollector(sub, values);
     }
 }

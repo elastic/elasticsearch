@@ -23,7 +23,6 @@ tasks.named('forbiddenApisMain').configure {
 
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
-    //commons-logging
     'org.apache.commons.codec.binary.Base64',
     'org.apache.commons.logging.Log',
     'org.apache.commons.logging.LogFactory',

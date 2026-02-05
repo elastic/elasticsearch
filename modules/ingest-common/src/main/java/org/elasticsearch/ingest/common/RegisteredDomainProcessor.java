@@ -108,7 +108,7 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
 
         @Override
         public void topLevelDomain(String topLevelDomain) {
-            document.setFieldValue(fieldPrefix + RegisteredDomain.ETLD, topLevelDomain);
+            document.setFieldValue(fieldPrefix + RegisteredDomain.eTLD, topLevelDomain);
         }
 
         @Override

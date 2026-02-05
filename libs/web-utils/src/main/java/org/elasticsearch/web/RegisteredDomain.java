@@ -15,11 +15,27 @@ import org.elasticsearch.core.Nullable;
 
 import java.util.LinkedHashMap;
 
+/**
+ * Utility class for parsing fully qualified domain names (FQDNs) into their constituent parts:
+ * domain, registered domain, top-level domain (eTLD), and subdomain.
+ * <p>
+ * This class uses the public suffix list to accurately determine domain boundaries.
+ * For example, given "www.example.co.uk":
+ * <ul>
+ *     <li>domain: www.example.co.uk</li>
+ *     <li>registered_domain: example.co.uk</li>
+ *     <li>top_level_domain: co.uk</li>
+ *     <li>subdomain: www</li>
+ * </ul>
+ *
+ * @see <a href="https://publicsuffix.org/">Public Suffix List</a>
+ * @see <a href="https://developer.mozilla.org/en-US/docs/Glossary/eTLD">eTLD (effective Top-Level Domain)</a>
+ */
 public class RegisteredDomain {
 
     public static final String DOMAIN = "domain";
     public static final String REGISTERED_DOMAIN = "registered_domain";
-    public static final String ETLD = "top_level_domain";
+    public static final String eTLD = "top_level_domain";
     public static final String SUBDOMAIN = "subdomain";
 
     public static final LinkedHashMap<String, Class<?>> REGISTERED_DOMAIN_INFO_FIELDS;
@@ -28,7 +44,7 @@ public class RegisteredDomain {
         REGISTERED_DOMAIN_INFO_FIELDS = new LinkedHashMap<>();
         REGISTERED_DOMAIN_INFO_FIELDS.putLast(DOMAIN, String.class);
         REGISTERED_DOMAIN_INFO_FIELDS.putLast(REGISTERED_DOMAIN, String.class);
-        REGISTERED_DOMAIN_INFO_FIELDS.putLast(ETLD, String.class);
+        REGISTERED_DOMAIN_INFO_FIELDS.putLast(eTLD, String.class);
         REGISTERED_DOMAIN_INFO_FIELDS.putLast(SUBDOMAIN, String.class);
     }
 

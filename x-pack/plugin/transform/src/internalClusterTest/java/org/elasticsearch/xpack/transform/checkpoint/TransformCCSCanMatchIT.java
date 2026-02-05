@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
@@ -42,7 +41,6 @@ import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -236,28 +234,12 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
     }
 
     public void testGetCheckpointAction_MatchAllQuery() throws InterruptedException {
-        final var threadContext = client().threadPool().getThreadContext();
         testGetCheckpointAction(
-            threadContext,
-            CheckpointClient.local(client()),
+            client().threadPool().getThreadContext(),
             null,
-            new String[] { "local_*" },
+            new String[] { REMOTE_CLUSTER + ":remote_*", "local_*" },
             QueryBuilders.matchAllQuery(),
-            Set.of("local_old_index", "local_new_index")
-        );
-        testGetCheckpointAction(
-            threadContext,
-            CheckpointClient.remote(
-                client().getRemoteClusterClient(
-                    REMOTE_CLUSTER,
-                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                    RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
-                )
-            ),
-            REMOTE_CLUSTER,
-            new String[] { "remote_*" },
-            QueryBuilders.matchAllQuery(),
-            Set.of("remote_old_index", "remote_new_index")
+            Set.of(REMOTE_CLUSTER + ":remote_old_index", REMOTE_CLUSTER + ":remote_new_index", "local_old_index", "local_new_index")
         );
     }
 
@@ -265,7 +247,6 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
         final var threadContext = client().threadPool().getThreadContext();
         testGetCheckpointAction(
             threadContext,
-            CheckpointClient.local(client()),
             null,
             new String[] { "local_*" },
             QueryBuilders.rangeQuery("@timestamp").from(timestamp),
@@ -273,17 +254,10 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
         );
         testGetCheckpointAction(
             threadContext,
-            CheckpointClient.remote(
-                client().getRemoteClusterClient(
-                    REMOTE_CLUSTER,
-                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                    RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
-                )
-            ),
             REMOTE_CLUSTER,
-            new String[] { "remote_*" },
+            new String[] { REMOTE_CLUSTER + ":remote_*" },
             QueryBuilders.rangeQuery("@timestamp").from(timestamp),
-            Set.of("remote_new_index")
+            Set.of(REMOTE_CLUSTER + ":remote_new_index")
         );
     }
 
@@ -291,7 +265,6 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
         final var threadContext = client().threadPool().getThreadContext();
         testGetCheckpointAction(
             threadContext,
-            CheckpointClient.local(client()),
             null,
             new String[] { "local_*" },
             QueryBuilders.rangeQuery("@timestamp").from(100_000_000),
@@ -299,15 +272,8 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
         );
         testGetCheckpointAction(
             threadContext,
-            CheckpointClient.remote(
-                client().getRemoteClusterClient(
-                    REMOTE_CLUSTER,
-                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                    RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
-                )
-            ),
             REMOTE_CLUSTER,
-            new String[] { "remote_*" },
+            new String[] { REMOTE_CLUSTER + ":remote_*" },
             QueryBuilders.rangeQuery("@timestamp").from(100_000_000),
             Set.of()
         );
@@ -315,7 +281,6 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
 
     private void testGetCheckpointAction(
         ThreadContext threadContext,
-        CheckpointClient client,
         String cluster,
         String[] indices,
         QueryBuilder query,
@@ -326,19 +291,28 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
             IndicesOptions.LENIENT_EXPAND_OPEN,
             query,
             cluster,
-            TIMEOUT
+            TIMEOUT,
+            null,
+            Map.of(),
+            false
         );
 
         CountDownLatch latch = new CountDownLatch(1);
         SetOnce<GetCheckpointAction.Response> finalResponse = new SetOnce<>();
         SetOnce<Exception> finalException = new SetOnce<>();
-        ClientHelper.executeAsyncWithOrigin(threadContext, TRANSFORM_ORIGIN, request, ActionListener.wrap(response -> {
-            finalResponse.set(response);
-            latch.countDown();
-        }, e -> {
-            finalException.set(e);
-            latch.countDown();
-        }), client::getCheckpoint);
+        ClientHelper.executeAsyncWithOrigin(
+            threadContext,
+            TRANSFORM_ORIGIN,
+            request,
+            ActionListener.<GetCheckpointAction.Response>wrap(response -> {
+                finalResponse.set(response);
+                latch.countDown();
+            }, e -> {
+                finalException.set(e);
+                latch.countDown();
+            }),
+            (r, l) -> client().execute(GetCheckpointAction.INSTANCE, r, l)
+        );
         latch.await(10, TimeUnit.SECONDS);
 
         assertThat(finalException.get(), is(nullValue()));

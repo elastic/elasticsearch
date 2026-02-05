@@ -10,8 +10,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardsGroup;
@@ -21,22 +23,31 @@ import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -45,6 +56,8 @@ import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction.Request;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction.Response;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointNodeAction;
+import org.elasticsearch.xpack.transform.TransformServices;
+import org.elasticsearch.xpack.transform.checkpoint.CheckpointException;
 
 import java.time.Clock;
 import java.util.Collection;
@@ -53,8 +66,12 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout;
 
 public class TransportGetCheckpointAction extends HandledTransportAction<Request, Response> {
 
@@ -64,6 +81,9 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
     private final TransportService transportService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Client client;
+    private final CrossProjectModeDecider crossProjectModeDecider;
+    private final RemoteClusterService remoteClusterService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportGetCheckpointAction(
@@ -72,7 +92,9 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
         final IndicesService indicesService,
         final ClusterService clusterService,
         final IndexNameExpressionResolver indexNameExpressionResolver,
-        final Client client
+        final Client client,
+        final TransformServices transformServices,
+        final ProjectResolver projectResolver
     ) {
         super(GetCheckpointAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
@@ -80,38 +102,211 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.client = client;
+        this.crossProjectModeDecider = transformServices.crossProjectModeDecider();
+        this.remoteClusterService = transportService.getRemoteClusterService();
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        final ClusterState clusterState = clusterService.state();
-        resolveIndicesAndGetCheckpoint(task, request, listener, clusterState);
+        ClusterState clusterState = clusterService.state();
+
+        var remoteClusterIndices = remoteClusterService.groupIndices(
+            crossProjectModeDecider.resolvesCrossProject(request)
+                ? indicesOptionsForCrossProjectFanout(request.indicesOptions())
+                : request.indicesOptions(),
+            request.indices()
+        );
+
+        // this can really only happen if there are remote-only requests and the requested remote clusters/projects do not exist
+        if (remoteClusterIndices.isEmpty()) {
+            listener.onFailure(new CheckpointException("No clusters exist for [{}]", String.join(",", request.indices())));
+            return;
+        }
+
+        if (Assertions.ENABLED) {
+            var visited = new HashSet<String>();
+            remoteClusterIndices.forEach((cluster, ignored) -> {
+                var uniqueCluster = visited.add(cluster);
+                assert uniqueCluster : "must only have one cluster grouped by remoteClusterService.groupIndices";
+            });
+        }
+
+        ActionListener<Map<String, Response>> mergeAndValidateListener = listener.delegateFailureAndWrap(
+            (l, responsesByCluster) -> validateAndMergeResponses(request, responsesByCluster, l)
+        );
+
+        fanOut(task, request, clusterState, remoteClusterIndices, mergeAndValidateListener);
+    }
+
+    private void fanOut(
+        Task task,
+        Request request,
+        ClusterState clusterState,
+        Map<String, OriginalIndices> remoteClusterIndices,
+        ActionListener<Map<String, Response>> listener
+    ) {
+        var localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+
+        // we only need the response's resolved indices if we are cross-project, otherwise we ignore it
+        var includeResolvedIndexExpressions = crossProjectModeDecider.resolvesCrossProject(request);
+
+        ActionListener<Tuple<String, Response>> responsesByClusterListener;
+        var numClusters = remoteClusterIndices.size() + (localIndices != null ? 1 : 0);
+        if (numClusters > 1) {
+            responsesByClusterListener = new GroupedActionListener<>(
+                numClusters,
+                listener.map(responsesByCluster -> responsesByCluster.stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2)))
+            );
+        } else {
+            responsesByClusterListener = listener.map(tuple -> Map.of(tuple.v1(), tuple.v2()));
+        }
+
+        if (localIndices != null) {
+            // note: when security is turned on, the indices are already resolved
+            // TODO: do a quick check and only resolve if necessary??
+            var concreteIndices = this.indexNameExpressionResolver.concreteIndexNames(clusterState, new IndicesRequest() {
+                @Override
+                public String[] indices() {
+                    return localIndices.indices();
+                }
+
+                @Override
+                public IndicesOptions indicesOptions() {
+                    return localIndices.indicesOptions();
+                }
+            });
+            var localRequest = request.rewriteRequest(
+                concreteIndices,
+                localIndices.indicesOptions(),
+                RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                includeResolvedIndexExpressions
+            );
+            resolveIndicesAndGetCheckpoint(
+                task,
+                localRequest,
+                clusterState,
+                responsesByClusterListener.map(response -> Tuple.tuple(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, response))
+            );
+        }
+
+        var threadContext = client.threadPool().getThreadContext();
+        var headers = request.headers();
+        remoteClusterIndices.forEach((cluster, remoteIndices) -> {
+            var remoteRequest = request.rewriteRequest(
+                remoteIndices.indices(),
+                remoteIndices.indicesOptions(),
+                cluster,
+                includeResolvedIndexExpressions
+            );
+            var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
+                cluster,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+            );
+            ClientHelper.executeWithHeadersAsync(
+                threadContext,
+                headers,
+                ClientHelper.TRANSFORM_ORIGIN,
+                remoteRequest,
+                responsesByClusterListener.<Response>map(response -> Tuple.tuple(cluster, response)),
+                (r, l) -> remoteClusterClient.execute(GetCheckpointAction.REMOTE_TYPE, r, l)
+            );
+        });
+    }
+
+    private void validateAndMergeResponses(
+        Request request,
+        Map<String, Response> responsesByCluster,
+        ActionListener<Response> mergedResponseListener
+    ) {
+        // if we're calling cross-project, we have to validate all cross-project responses together with the local response
+        if (crossProjectModeDecider.resolvesCrossProject(request)) {
+            Map<String, ResolvedIndexExpressions> remoteResolvedExpressions = responsesByCluster.entrySet()
+                .stream()
+                .filter(entry -> RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY.equals(entry.getKey()) == false)
+                .filter(entry -> entry.getValue().resolvedIndexExpressions() != null)
+                .collect(Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue().resolvedIndexExpressions()));
+            var crossProjectException = CrossProjectIndexResolutionValidator.validate(
+                request.indicesOptions(),
+                request.getProjectRouting(),
+                request.getResolvedIndexExpressions(),
+                remoteResolvedExpressions
+            );
+            if (crossProjectException != null) {
+                mergedResponseListener.onFailure(crossProjectException);
+                return;
+            }
+        }
+
+        // merge responses
+        var checkpointsByIndex = responsesByCluster.entrySet().stream().flatMap(responseByCluster -> {
+            var cluster = responseByCluster.getKey();
+            return responseByCluster.getValue().getCheckpoints().entrySet().stream().map(cbi -> {
+                if (RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY.equals(cluster)) {
+                    return cbi;
+                } else {
+                    return Map.entry(cluster + RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR + cbi.getKey(), cbi.getValue());
+                }
+            });
+        }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        ResolvedIndexExpressions resolvedIndexExpressions = null;
+        if (request.includeResolvedIndexExpressions()) {
+            var resolvedIndexExpressionList = responsesByCluster.values()
+                .stream()
+                .map(Response::resolvedIndexExpressions)
+                .filter(Objects::nonNull)
+                .map(ResolvedIndexExpressions::expressions)
+                .filter(Objects::nonNull)
+                .flatMap(Collection::stream)
+                .filter(Objects::nonNull)
+                .toList();
+            if (resolvedIndexExpressionList.isEmpty() == false) {
+                resolvedIndexExpressions = new ResolvedIndexExpressions(resolvedIndexExpressionList);
+            }
+        }
+
+        mergedResponseListener.onResponse(new Response(checkpointsByIndex, resolvedIndexExpressions));
     }
 
     protected void resolveIndicesAndGetCheckpoint(
         Task task,
         Request request,
-        ActionListener<Response> listener,
-        final ClusterState clusterState
+        ClusterState clusterState,
+        ActionListener<Response> listener
     ) {
-        final String nodeId = clusterState.nodes().getLocalNode().getId();
-        final TaskId parentTaskId = new TaskId(nodeId, task.getId());
+        ActionListener<Map<String, long[]>> checkpointListener = listener.map(checkpoints -> {
+            var localResolvedIndexExpressions = request.includeResolvedIndexExpressions() ? request.getResolvedIndexExpressions() : null;
+            return new Response(checkpoints, localResolvedIndexExpressions);
+        });
 
-        // note: when security is turned on, the indices are already resolved
-        // TODO: do a quick check and only resolve if necessary??
-        String[] concreteIndices = this.indexNameExpressionResolver.concreteIndexNames(clusterState, request);
-        Map<String, Set<ShardId>> nodesAndShards = resolveIndicesToPrimaryShards(clusterState, concreteIndices);
+        var nodeId = clusterState.nodes().getLocalNode().getId();
+        var parentTaskId = new TaskId(nodeId, task.getId());
+
+        Map<String, Set<ShardId>> nodesAndShards = resolveIndicesToPrimaryShards(
+            clusterState,
+            projectResolver.getProjectId(),
+            request.indices()
+        );
         if (nodesAndShards.isEmpty()) {
-            listener.onResponse(new Response(Collections.emptyMap()));
+            checkpointListener.onResponse(Map.of());
             return;
         }
 
         if (request.getQuery() == null) {  // If there is no query, then there is no point in filtering
-            getCheckpointsFromNodes(clusterState, task, nodesAndShards, new OriginalIndices(request), request.getTimeout(), listener);
+            getCheckpointsFromNodes(
+                clusterState,
+                task,
+                nodesAndShards,
+                new OriginalIndices(request),
+                request.getTimeout(),
+                checkpointListener
+            );
             return;
         }
 
-        SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
+        var searchShardsRequest = new SearchShardsRequest(
             request.indices(),
             SearchRequest.DEFAULT_INDICES_OPTIONS,
             request.getQuery(),
@@ -134,7 +329,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
                     filteredNodesAndShards,
                     new OriginalIndices(request),
                     request.getTimeout(),
-                    listener
+                    checkpointListener
                 );
             }, e -> {
                 // search_shards API failed so we just log the error here and continue just like there was no query
@@ -142,12 +337,23 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
                 logger.atTrace()
                     .withThrowable(e)
                     .log("search_shards API failed for cluster [{}], request was [{}]", request.getCluster(), searchShardsRequest);
-                getCheckpointsFromNodes(clusterState, task, nodesAndShards, new OriginalIndices(request), request.getTimeout(), listener);
+                getCheckpointsFromNodes(
+                    clusterState,
+                    task,
+                    nodesAndShards,
+                    new OriginalIndices(request),
+                    request.getTimeout(),
+                    checkpointListener
+                );
             })
         );
     }
 
-    private static Map<String, Set<ShardId>> resolveIndicesToPrimaryShards(ClusterState clusterState, String[] concreteIndices) {
+    private static Map<String, Set<ShardId>> resolveIndicesToPrimaryShards(
+        ClusterState clusterState,
+        ProjectId projectId,
+        String[] concreteIndices
+    ) {
         if (concreteIndices.length == 0) {
             return Collections.emptyMap();
         }
@@ -155,7 +361,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
         final DiscoveryNodes nodes = clusterState.nodes();
         Map<String, Set<ShardId>> nodesAndShards = new HashMap<>();
 
-        ShardsIterator shardsIt = clusterState.routingTable().allShards(concreteIndices);
+        ShardsIterator shardsIt = clusterState.routingTable(projectId).allShards(concreteIndices);
         for (ShardRouting shard : shardsIt) {
             // only take primary shards, which should be exactly 1, this isn't strictly necessary
             // and we should consider taking any shard copy, but then we need another way to de-dup
@@ -209,10 +415,10 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
         Map<String, Set<ShardId>> nodesAndShards,
         OriginalIndices originalIndices,
         TimeValue timeout,
-        ActionListener<Response> listener
+        ActionListener<Map<String, long[]>> listener
     ) {
         if (nodesAndShards.isEmpty()) {
-            listener.onResponse(new Response(Map.of()));
+            listener.onResponse(Map.of());
             return;
         }
 
@@ -278,7 +484,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
         }
     }
 
-    private static Response mergeNodeResponses(Collection<GetCheckpointNodeAction.Response> responses) {
+    private static Map<String, long[]> mergeNodeResponses(Collection<GetCheckpointNodeAction.Response> responses) {
         // the final list should be ordered by key
         Map<String, long[]> checkpointsByIndexReduced = new TreeMap<>();
 
@@ -296,6 +502,6 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
             });
         }
 
-        return new Response(checkpointsByIndexReduced);
+        return checkpointsByIndexReduced;
     }
 }

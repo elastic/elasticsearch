@@ -25,9 +25,9 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
@@ -259,7 +259,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
         TransformCheckpoint lastCheckpoint,
         TransformCheckpoint expectedNextCheckpoint
     ) throws InterruptedException {
-        GetCheckpointAction.Response checkpointResponse = new GetCheckpointAction.Response(Collections.emptyMap());
+        GetCheckpointAction.Response checkpointResponse = new GetCheckpointAction.Response(Collections.emptyMap(), null);
         doAnswer(withResponse(checkpointResponse)).when(client).execute(eq(GetCheckpointAction.INSTANCE), any(), any());
 
         TransformConfig transformConfig = newTransformConfigWithDateHistogram(
@@ -287,10 +287,10 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
         return new TimeBasedCheckpointProvider(
             clock,
             parentTaskClient,
-            new RemoteClusterResolver(Settings.EMPTY, StubLinkedProjectConfigService.INSTANCE),
             transformConfigManager,
             transformAuditor,
-            transformConfig
+            transformConfig,
+            mock(CrossProjectModeDecider.class)
         );
     }
 

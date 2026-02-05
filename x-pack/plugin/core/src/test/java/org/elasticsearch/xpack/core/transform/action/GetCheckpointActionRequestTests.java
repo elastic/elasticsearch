@@ -47,8 +47,11 @@ public class GetCheckpointActionRequestTests extends AbstractWireSerializingTran
         QueryBuilder query = instance.getQuery();
         String cluster = instance.getCluster();
         TimeValue timeout = instance.getTimeout();
+        String projectRouting = instance.getProjectRouting();
+        Map<String, String> headers = instance.headers();
+        boolean includeResolvedIndexExpressions = instance.includeResolvedIndexExpressions();
 
-        switch (between(0, 4)) {
+        switch (between(0, 7)) {
             case 0:
                 indices.add(randomAlphaOfLengthBetween(1, 20));
                 break;
@@ -70,11 +73,29 @@ public class GetCheckpointActionRequestTests extends AbstractWireSerializingTran
             case 4:
                 timeout = timeout != null ? null : TimeValue.timeValueSeconds(randomIntBetween(1, 300));
                 break;
+            case 5:
+                projectRouting = projectRouting != null ? null : randomAlphaOfLength(5);
+                break;
+            case 6:
+                headers = headers.isEmpty() ? Map.of(randomAlphaOfLength(5), randomAlphaOfLength(5)) : null;
+                break;
+            case 7:
+                includeResolvedIndexExpressions = includeResolvedIndexExpressions == false;
+                break;
             default:
                 throw new AssertionError("Illegal randomization branch");
         }
 
-        return new Request(indices.toArray(new String[0]), indicesOptions, query, cluster, timeout);
+        return new Request(
+            indices.toArray(new String[0]),
+            indicesOptions,
+            query,
+            cluster,
+            timeout,
+            projectRouting,
+            headers,
+            includeResolvedIndexExpressions
+        );
     }
 
     public void testCreateTask() {
@@ -84,7 +105,7 @@ public class GetCheckpointActionRequestTests extends AbstractWireSerializingTran
     }
 
     public void testCreateTaskWithNullIndices() {
-        Request request = new Request(null, null, null, null, null);
+        Request request = new Request(null, null, null, null, null, null, Map.of(), false);
         CancellableTask task = request.createTask(123, "type", "action", new TaskId("dummy-node:456"), Map.of());
         assertThat(task.getDescription(), is(equalTo("get_checkpoint[0]")));
     }
@@ -101,7 +122,10 @@ public class GetCheckpointActionRequestTests extends AbstractWireSerializingTran
             ),
             randomBoolean() ? QueryBuilders.matchAllQuery() : null,
             randomBoolean() ? randomAlphaOfLengthBetween(1, 10) : null,
-            randomBoolean() ? TimeValue.timeValueSeconds(randomIntBetween(1, 300)) : null
+            randomBoolean() ? TimeValue.timeValueSeconds(randomIntBetween(1, 300)) : null,
+            randomBoolean() ? randomAlphaOfLength(5) : null,
+            randomBoolean() ? Map.of(randomAlphaOfLength(5), randomAlphaOfLength(5)) : null,
+            randomBoolean()
         );
     }
 }

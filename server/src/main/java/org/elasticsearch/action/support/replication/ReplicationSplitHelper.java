@@ -77,7 +77,10 @@ public class ReplicationSplitHelper<
         // TODO: We currently only set the request split summary for certain Replication Requests
         // like refresh, flush and shard bulk requests. Only evaluate this when set or else every
         // request would say it needs a split.
-        if (requestSplitSummary.isUnset() == false) {
+        if (requestSplitSummary.isUnset()) { // no split coordination required
+            return false;
+        }
+
             SplitShardCountSummary latestSplitSummary = SplitShardCountSummary.forIndexing(indexMetadata, primaryRequest.shardId().getId());
             if (requestSplitSummary.equals(latestSplitSummary)) {  // no split coordination required
                 return false;
@@ -97,9 +100,7 @@ public class ReplicationSplitHelper<
                 }
                 return true;
             }
-        } else {  // no split coordination required
-            return false;
-        }
+
     }
 
     @FunctionalInterface

@@ -95,11 +95,11 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
         return ENTRY.name;
     }
 
-    Expression field() {
+    public Expression field() {
         return field;
     }
 
-    Expression format() {
+    public Expression format() {
         return format;
     }
 

@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLongBase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
@@ -6372,6 +6373,257 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
+     * Project[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17, lan
+     * guages{f}#11, last_name{f}#12, long_noidx{f}#18, salary{f}#13, avg_salary{r}#4, year_hired{r}#7]]
+     * \_Eval[[DATEFORMAT(yyyy[KEYWORD],year_hired{r$}#19) AS year_hired#7]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_InlineJoin[LEFT,[year_hired{r$}#19],[year_hired{r$}#19]]
+     *       |_Eval[[DATETRUNC(P1Y[DATE_PERIOD],hire_date{f}#15) AS year_hired#19]]
+     *       | \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     *       \_Project[[avg_salary{r}#4, year_hired{r$}#19]]
+     *         \_Eval[[$$SUM$avg_salary$0{r$}#20 / $$COUNT$avg_salary$1{r$}#21 AS avg_salary#4]]
+     *           \_Aggregate[[year_hired{r$}#19],[SUM(salary{f}#13,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$avg_salary$0#20, COUNT(salar
+     * y{f}#13,true[BOOLEAN]) AS $$COUNT$avg_salary$1#21, year_hired{r$}#19]]
+     *             \_StubRelation[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17,
+     * languages{f}#11, last_name{f}#12, long_noidx{f}#18, salary{f}#13, year_hired{r$}#19]]
+     */
+    public void testInlineStatsDateFormatOptimization() {
+        var query = """
+            FROM test
+            | INLINE STATS avg_salary = AVG(salary) BY year_hired = DATE_FORMAT("yyyy", hire_date)
+            """;
+        if (releaseBuildForInlineStats(query)) {
+            return;
+        }
+        var optimized = optimizedPlan(query);
+
+        var project = as(optimized, Project.class);
+        var eval = as(project.child(), Eval.class);
+        // Should have DATE_FORMAT conversion from optimized DATE_TRUNC
+        assertThat(eval.fields(), hasSize(1)); // year_hired conversion
+        var dateFormat = as(eval.fields().getFirst().child(), DateFormat.class);
+
+        var limit = as(eval.child(), Limit.class);
+        var inlineJoin = as(limit.child(), InlineJoin.class);
+
+        // Left side: original data with DATE_TRUNC
+        var leftEval = as(inlineJoin.left(), Eval.class);
+        assertThat(leftEval.fields(), hasSize(1)); // DATE_TRUNC operation
+        var dateTrunc = as(leftEval.fields().getFirst().child(), DateTrunc.class);
+        var leftSource = as(leftEval.child(), EsRelation.class);
+
+        // Right side: aggregation
+        var rightProject = as(inlineJoin.right(), Project.class);
+        var rightEval = as(rightProject.child(), Eval.class);
+        assertThat(rightEval.fields(), hasSize(1)); // avg_salary calculation
+        var rightAgg = as(rightEval.child(), Aggregate.class);
+        var rightSource = as(rightAgg.child(), StubRelation.class);
+    }
+
+    /**
+     * Project[[_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, gender{f}#15, hire_date{f}#20, job{f}#21, job.raw{f}#22, l
+     * anguages{f}#16, last_name{f}#17, long_noidx{f}#23, salary{f}#18, count{r}#3, year_opt{r}#6, not_opt{r}#9, month_opt{r}#12]]
+     * \_Eval[[DATEFORMAT(yyyy[KEYWORD],year_opt{r$}#24) AS year_opt#6, DATEFORMAT(yyyy-MM[KEYWORD],month_opt{r$}#25) AS mon
+     * th_opt#12]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_InlineJoin[LEFT,[year_opt{r$}#24, not_opt{r}#9, month_opt{r$}#25],[year_opt{r$}#24, not_opt{r}#9, month_opt{r$}#25]]
+     *       |_Eval[[DATETRUNC(P1Y[DATE_PERIOD],hire_date{f}#20) AS year_opt#24, DATEFORMAT(yyyy-m[KEYWORD],hire_date{f}#20) AS no
+     * t_opt#9, DATETRUNC(P1M[DATE_PERIOD],hire_date{f}#20) AS month_opt#25]]
+     *       | \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
+     *       \_Aggregate[[year_opt{r$}#24, not_opt{r}#9, month_opt{r$}#25],[COUNT(*[KEYWORD],true[BOOLEAN]) AS count#3, year_opt{r$}#24,
+     *  not_opt{r}#9, month_opt{r$}#25]]
+     *         \_StubRelation[[_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, gender{f}#15, hire_date{f}#20, job{f}#21, job.raw{f}#22, l
+     * anguages{f}#16, last_name{f}#17, long_noidx{f}#23, salary{f}#18, year_opt{r$}#24, not_opt{r}#9, month_opt{r$}#25]]
+     */
+    public void testInlineStatsMixedDateFormatOptimization() {
+        var query = """
+            FROM test
+            | INLINE STATS count = COUNT(*) BY
+                year_opt = DATE_FORMAT("yyyy", hire_date),
+                not_opt = DATE_FORMAT("yyyy-m", hire_date),
+                month_opt = DATE_FORMAT("yyyy-MM", hire_date)
+            """;
+        if (releaseBuildForInlineStats(query)) {
+            return;
+        }
+        var optimized = optimizedPlan(query);
+
+        var project = as(optimized, Project.class);
+        var eval = as(project.child(), Eval.class);
+        // Should have 2 DATE_FORMAT conversions (for optimized fields only)
+        assertThat(eval.fields(), hasSize(2)); // year_opt and month_opt conversions
+
+        var limit = as(eval.child(), Limit.class);
+        var inlineJoin = as(limit.child(), InlineJoin.class);
+
+        // Left side: should have mixed DATE_TRUNC and DATE_FORMAT operations
+        var leftEval = as(inlineJoin.left(), Eval.class);
+        assertThat(leftEval.fields(), hasSize(3)); // 2 DATE_TRUNC + 1 DATE_FORMAT
+
+        // First field: DATE_TRUNC for year (optimized)
+        var dateTrunc1 = as(leftEval.fields().get(0).child(), DateTrunc.class);
+
+        // Second field: DATE_FORMAT for not_opt (not optimizable)
+        var dateFormat = as(leftEval.fields().get(1).child(), DateFormat.class);
+
+        // Third field: DATE_TRUNC for month (optimized)
+        var dateTrunc2 = as(leftEval.fields().get(2).child(), DateTrunc.class);
+
+        var leftSource = as(leftEval.child(), EsRelation.class);
+
+        // Right side: aggregation
+        var rightAgg = as(inlineJoin.right(), Aggregate.class);
+        assertThat(rightAgg.groupings(), hasSize(3)); // 3 grouping fields
+        var rightSource = as(rightAgg.child(), StubRelation.class);
+    }
+
+    /**
+     * Limit[1000[INTEGER],false]
+     * \_InlineJoin[LEFT,[format{r}#7],[format{r}#7]]
+     *   |_Eval[[DATEFORMAT(yyyy-dd[KEYWORD],hire_date{f}#15) AS format#7]]
+     *   | \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     *   \_Project[[avg_salary{r}#4, format{r}#7]]
+     *     \_Eval[[$$SUM$avg_salary$0{r$}#19 / $$COUNT$avg_salary$1{r$}#20 AS avg_salary#4]]
+     *       \_Aggregate[[format{r}#7],[SUM(salary{f}#13,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$avg_salary$0#19, COUNT(salary{f}#1
+     * 3,true[BOOLEAN]) AS $$COUNT$avg_salary$1#20, format{r}#7]]
+     *         \_StubRelation[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17, lan
+     * guages{f}#11, last_name{f}#12, long_noidx{f}#18, salary{f}#13, format{r}#7]]
+     */
+    public void testInlineStatsNonOptimizableDateFormat() {
+        var query = """
+            FROM test
+            | INLINE STATS avg_salary = AVG(salary) BY format = DATE_FORMAT("yyyy-dd", hire_date)
+            """;
+        if (releaseBuildForInlineStats(query)) {
+            return;
+        }
+        var optimized = optimizedPlan(query);
+
+        var limit = as(optimized, Limit.class);
+        var inlineJoin = as(limit.child(), InlineJoin.class);
+
+        // Left side: should have DATE_FORMAT operation (non-optimizable format)
+        var leftEval = as(inlineJoin.left(), Eval.class);
+        assertThat(leftEval.fields(), hasSize(1)); // format conversion
+        var dateFormat = as(leftEval.fields().getFirst().child(), DateFormat.class);
+        var leftSource = as(leftEval.child(), EsRelation.class);
+
+        // Right side: aggregation
+        var rightProject = as(inlineJoin.right(), Project.class);
+        var rightEval = as(rightProject.child(), Eval.class);
+        assertThat(rightEval.fields(), hasSize(1)); // avg_salary calculation
+        var rightAgg = as(rightEval.child(), Aggregate.class);
+        var rightSource = as(rightAgg.child(), StubRelation.class);
+    }
+
+    /**
+     * Project[[_meta_field{f}#1197, emp_no{f}#1191, first_name{f}#1192, gender{f}#1193, hire_date{f}#1198, job{f}#1199, job.raw{f}#1200,
+     * languages{f}#1194, last_name{f}#1195, long_noidx{f}#1201, salary{f}#1196, count{r}#1178, avg_salary{r}#1181, year_hired{r}#1184,
+     * month_hired{r}#1187, day_hired{r}#1190]]
+     * \_Eval[[DATEFORMAT(yyyy[KEYWORD],year_hired{r$}#1202) AS year_hired#1184, DATEFORMAT(yyyy-MM[KEYWORD],month_hired{r$}
+     * #1203) AS month_hired#1187, DATEFORMAT(yyyy-MM-dd[KEYWORD],day_hired{r$}#1204) AS day_hired#1190]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_InlineJoin[LEFT,[year_hired{r$}#1202, month_hired{r$}#1203, day_hired{r$}#1204],[year_hired{r$}#1202, month_hired{r$}#1203,
+     *  day_hired{r$}#1204]]
+     *       |_Eval[[DATETRUNC(P1Y[DATE_PERIOD],hire_date{f}#1198) AS year_hired#1202, DATETRUNC(P1M[DATE_PERIOD],hire_date{f}#119
+     * 8) AS month_hired#1203, DATETRUNC(P1D[DATE_PERIOD],hire_date{f}#1198) AS day_hired#1204]]
+     *       | \_EsRelation[test][_meta_field{f}#1197, emp_no{f}#1191, first_name{f}#..]
+     *       \_Project[[count{r}#1178, avg_salary{r}#1181, year_hired{r$}#1202, month_hired{r$}#1203, day_hired{r$}#1204]]
+     *         \_Eval[[$$SUM$avg_salary$0{r$}#1205 / $$COUNT$avg_salary$1{r$}#1206 AS avg_salary#1181]]
+     *           \_Aggregate[[year_hired{r$}#1202, month_hired{r$}#1203, day_hired{r$}#1204],[COUNT(*[KEYWORD],true[BOOLEAN]) AS count#1178,
+     *  SUM(salary{f}#1196,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$avg_salary$0#1205, COUNT(salary{f}#1196,true[BOOLEAN]) AS $$COUNT$
+     *  avg_salary$1#1206, year_hired{r$}#1202, month_hired{r$}#1203, day_hired{r$}#1204]]
+     *             \_StubRelation[[_meta_field{f}#1197, emp_no{f}#1191, first_name{f}#1192, gender{f}#1193, hire_date{f}#1198, job{f}#1199,
+     * job.raw{f}#1200, languages{f}#1194, last_name{f}#1195, long_noidx{f}#1201, salary{f}#1196, year_hired{r$}#1202, month_hired{r$}#1203,
+     * day_hired{r$}#1204]]
+     */
+    public void testInlineStatsMultipleDateFormatOptimizations() {
+        var query = """
+            FROM test
+            | INLINE STATS
+                count = COUNT(*),
+                avg_salary = AVG(salary)
+            BY
+                year_hired = DATE_FORMAT("yyyy", hire_date),
+                month_hired = DATE_FORMAT("yyyy-MM", hire_date),
+                day_hired = DATE_FORMAT("yyyy-MM-dd", hire_date)
+            """;
+        if (releaseBuildForInlineStats(query)) {
+            return;
+        }
+        var optimized = optimizedPlan(query);
+
+        var project = as(optimized, Project.class);
+        var eval = as(project.child(), Eval.class);
+        // Should have 3 DATE_FORMAT conversions
+        assertThat(eval.fields(), hasSize(3)); // 3 DATE_FORMAT conversions
+
+        var limit = as(eval.child(), Limit.class);
+        var inlineJoin = as(limit.child(), InlineJoin.class);
+
+        // Left side: should have 3 DATE_TRUNC operations
+        var leftEval = as(inlineJoin.left(), Eval.class);
+        assertThat(leftEval.fields(), hasSize(3)); // 3 DATE_TRUNC operations
+
+        // All should be DATE_TRUNC operations
+        for (int i = 0; i < 3; i++) {
+            var dateTrunc = as(leftEval.fields().get(i).child(), DateTrunc.class);
+        }
+
+        var leftSource = as(leftEval.child(), EsRelation.class);
+
+        // Right side: aggregation
+        var rightProject = as(inlineJoin.right(), Project.class);
+        var rightEval = as(rightProject.child(), Eval.class);
+        assertThat(rightEval.fields(), hasSize(1)); // avg_salary calculation
+        var rightAgg = as(rightEval.child(), Aggregate.class);
+        assertThat(rightAgg.groupings(), hasSize(3)); // 3 grouping fields
+        var rightSource = as(rightAgg.child(), StubRelation.class);
+    }
+
+    /**
+     * Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
+     * uages{f}#10, last_name{f}#11, long_noidx{f}#17, salary{f}#12, count{r}#3, formatted_date{r}#6]]
+     * \_Eval[[DATEFORMAT('Year:'yyyy'-Month:'MM[KEYWORD],formatted_date{r$}#18) AS formatted_date#6]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_InlineJoin[LEFT,[formatted_date{r$}#18],[formatted_date{r$}#18]]
+     *       |_Eval[[DATETRUNC(P1M[DATE_PERIOD],hire_date{f}#14) AS formatted_date#18]]
+     *       | \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *       \_Aggregate[[formatted_date{r$}#18],[COUNT(*[KEYWORD],true[BOOLEAN]) AS count#3, formatted_date{r$}#18]]
+     *         \_StubRelation[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
+     * uages{f}#10, last_name{f}#11, long_noidx{f}#17, salary{f}#12, formatted_date{r$}#18]]
+     */
+    public void testInlineStatsComplexDateFormatOptimization() {
+        var query = """
+            FROM test
+            | INLINE STATS count = COUNT(*) BY formatted_date = DATE_FORMAT("'Year:'yyyy'-Month:'MM", hire_date)
+            """;
+        if (releaseBuildForInlineStats(query)) {
+            return;
+        }
+        var optimized = optimizedPlan(query);
+
+        var project = as(optimized, Project.class);
+        var eval = as(project.child(), Eval.class);
+        // Should have DATE_FORMAT conversion
+        assertThat(eval.fields(), hasSize(1)); // formatted_date conversion
+        var dateFormat = as(eval.fields().get(0).child(), DateFormat.class);
+
+        var limit = as(eval.child(), Limit.class);
+        var inlineJoin = as(limit.child(), InlineJoin.class);
+
+        // Left side: should have DATE_TRUNC optimization
+        var leftEval = as(inlineJoin.left(), Eval.class);
+        assertThat(leftEval.fields(), hasSize(1)); // DATE_TRUNC operation
+        var dateTrunc = as(leftEval.fields().getFirst().child(), DateTrunc.class);
+        var leftSource = as(leftEval.child(), EsRelation.class);
+
+        // Right side: aggregation
+        var rightAgg = as(inlineJoin.right(), Aggregate.class);
+        var rightSource = as(rightAgg.child(), StubRelation.class);
+    }
+
+    /**
      * Expects
      * <pre>{@code
      * Project[[c{r}#6, n{r}#8]]
@@ -9220,6 +9472,656 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var changePoint = as(limit.child(), ChangePoint.class);
         var topN = as(changePoint.child(), TopN.class);
         var source = as(topN.child(), EsRelation.class);
+    }
+
+    /**
+     * Project[[avg{r}#7, date{r}#4]]
+     * \_Eval[[$$SUM$avg$0{r$}#21 / $$COUNT$avg$1{r$}#22 AS avg#7, DATEFORMAT(yyyy[KEYWORD],date{r$}#20) AS date#4]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_Aggregate[[date{r$}#20],[SUM(salary{f}#14,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$avg$0#21, COUNT(salary{f}#14,true[
+     * BOOLEAN]) AS $$COUNT$avg$1#22, date{r$}#20]]
+     *       \_Eval[[DATETRUNC(P1Y[DATE_PERIOD],hire_date{f}#16) AS date#20]]
+     *         \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     */
+    public void testReplaceGroupingByDateFormatWithDateTrunc() {
+
+        List<String> formats = List.of(
+            // Original formats
+            "yyyy",
+            "YYYY",
+            "MM/yyyy",
+            "yyyy-dd-MM",
+            "yyyy-MM-dd HH:mm:ss",
+            // Additional year formats
+            "y",
+            "yy",
+            "yyy",
+            "u",
+            "uu",
+            "uuu",
+            // Quarter patterns
+            "yyyy-Q",
+            "yyyy-QQ",
+            "yyyy-q",
+            "yyyy-qq",
+            "yyyy-qqqq-MM",
+            // Week-based year
+            "YYYY-MM-dd",
+            // Additional month formats
+            "yyyy-MM",
+            "yyyy/MM",
+            "yyyy MM",
+            "yyyy-M",
+            "yyyy-MMM",
+            "yyyy-MMMM",
+            "yyyy-L",
+            "yyyy-LLL",
+            "yyyy-LLLL",
+            // Additional day formats
+            "yyyy-MM-dd",
+            "yyyy/MM/dd",
+            "yyyy.MM.dd",
+            "yyyy_MM_dd",
+            "yyyy:MM:dd",
+            "yyyy-M-d",
+            "yyyy-MM-d",
+            "yyyy-M-dd",
+            // Day of year formats
+            "yyyy-D",
+            "yyyy-DDD",
+            // Hour formats
+            "yyyy-MM-dd HH",
+            "yyyy-MM-dd H",
+            "yyyy-MM-dd kk",
+            "yyyy-MM-dd k",
+            "yyyy-MM-dd'T'HH",
+            "yyyy/MM/dd H",
+            // Minute formats
+            "yyyy-MM-dd HH:mm",
+            "yyyy-MM-dd H:m",
+            "yyyy-MM-dd kk:mm",
+            "yyyy-MM-dd'T'HH:mm",
+            "yyyy-MM-dd H.mm",
+            "yyyy-MM-dd HH mm",
+            // Second formats
+            "yyyy-MM-dd HH:mm:ss",
+            "yyyy-MM-dd H:m:s",
+            "yyyy-MM-dd kk:mm:ss",
+            "yyyy-MM-dd'T'HH:mm:ss",
+            "yyyy/MM/dd HH:mm:ss",
+            "yyyy.MM.dd.HH.mm.ss",
+            "yyyy-MM-dd HH mm ss",
+            "yyyy-MM-dd'T'H:m:s",
+            "yyyy-MM-dd HH.mm.ss",
+            // Millisecond formats
+            "yyyy-MM-dd A",
+            // Complex formats with literals
+            "yyyy'-'MM'-'dd",
+            "yyyy'年'MM'月'dd'日'",
+            "yyyy'/'MM'/'dd",
+            "'Year:'yyyy'-Month:'MM"
+        );
+
+        var queries = List.of("""
+            FROM test
+            | STATS avg = AVG(integer) BY date = DATE_FORMAT("%s", date)
+            """, """
+            FROM test
+            | STATS avg = AVG(integer) BY date = DATE_FORMAT("%s", date_nanos)
+            """);
+
+        for (var format : formats) {
+            for (var query : queries) {
+                String format1 = String.format(Locale.ROOT, query, format);
+                var optimized = planTypes(format1);
+
+                var project = as(optimized, Project.class);
+                var eval = as(project.child(), Eval.class);
+                assertThat(eval.fields(), hasSize(2));
+                var dateformat = as(eval.fields().get(1).child(), DateFormat.class);
+
+                var limit = as(eval.child(), Limit.class);
+                var agg = as(limit.child(), Aggregate.class);
+                var ref = as(agg.groupings().getFirst(), ReferenceAttribute.class);
+
+                var eval2 = as(agg.child(), Eval.class);
+                assertThat(eval2.fields(), hasSize(1));
+                var dateTrunc = as(eval2.fields().getFirst().child(), DateTrunc.class);
+                assertThat(eval2.fields().getFirst().toAttribute(), is(ref));
+
+                var source = as(eval2.child(), EsRelation.class);
+            }
+        }
+    }
+
+    /**
+     * Project[[avg{r}#13, date{r}#4, date2{r}#7, date3{r}#10]]
+     * \_Eval[[$$SUM$avg$0{r$}#30 / $$COUNT$avg$1{r$}#31 AS avg#13, DATEFORMAT(y-M-dd[KEYWORD],date{r$}#28) AS date#4, DATEF
+     * ORMAT(u-MMM[KEYWORD],date3{r$}#29) AS date3#10]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_Aggregate[[date{r$}#28, date2{r}#7, date3{r$}#29],[SUM(salary{f}#22,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$avg$0#30
+     * , COUNT(salary{f}#22,true[BOOLEAN]) AS $$COUNT$avg$1#31, date{r$}#28, date2{r}#7, date3{r$}#29]]
+     *       \_Eval[[DATETRUNC(P1D[DATE_PERIOD],hire_date{f}#24) AS date#28, DATEFORMAT(yyyy-MM-mm[KEYWORD],hire_date{f}#24) AS da
+     * te2#7, DATETRUNC(P1M[DATE_PERIOD],hire_date{f}#24) AS date3#29]]
+     *         \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
+     */
+    public void testMixedDateFormatOptimizationInGroupBy() {
+        var query = """
+            FROM test
+            | STATS avg = AVG(salary)
+            BY date = DATE_FORMAT("y-M-dd", hire_date),
+            date2 = DATE_FORMAT("yyyy-MM-mm", hire_date),
+            date3 = DATE_FORMAT("u-MMM", hire_date)
+            """;
+        var optimized = optimizedPlan(query);
+
+        // Top level: Project with all output fields
+        var project = as(optimized, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("avg", "date", "date2", "date3"));
+
+        // Second level: Eval that computes the final avg and converts optimized DATE_TRUNC back to DATE_FORMAT
+        var topEval = as(project.child(), Eval.class);
+        assertThat(topEval.fields(), hasSize(3)); // avg calculation + 2 DATE_FORMAT conversions
+
+        // Check that avg is computed from SUM/COUNT
+        var avgField = topEval.fields().get(0);
+        assertThat(avgField.name(), equalTo("avg"));
+
+        // Check DATE_FORMAT conversions for optimized fields
+        var dateField = topEval.fields().get(1);
+        assertThat(dateField.name(), equalTo("date"));
+        var dateFormat1 = as(dateField.child(), DateFormat.class);
+
+        var date3Field = topEval.fields().get(2);
+        assertThat(date3Field.name(), equalTo("date3"));
+        var dateFormat3 = as(date3Field.child(), DateFormat.class);
+
+        var limit = as(topEval.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+
+        // Aggregate should group by 3 fields (2 optimized DATE_TRUNC references + 1 original DATE_FORMAT)
+        assertThat(agg.groupings(), hasSize(3));
+        assertThat(agg.aggregates(), hasSize(5)); // SUM, COUNT, and 3 grouping fields
+
+        // Bottom level: Eval that creates the optimized DATE_TRUNC operations and non-optimizable DATE_FORMAT
+        var bottomEval = as(agg.child(), Eval.class);
+        assertThat(bottomEval.fields(), hasSize(3));
+
+        // First field: DATE_TRUNC for "y-M-dd" (day level)
+        var dateTruncField1 = bottomEval.fields().get(0);
+        var dateTrunc1 = as(dateTruncField1.child(), DateTrunc.class);
+
+        // Second field: DATE_FORMAT for "yyyy-MM-mm" (cannot be optimized due to 'mm' - minute without hour)
+        var dateFormatField2 = bottomEval.fields().get(1);
+        var dateFormat2 = as(dateFormatField2.child(), DateFormat.class);
+
+        // Third field: DATE_TRUNC for "u-MMM" (month level)
+        var dateTruncField3 = bottomEval.fields().get(2);
+        var dateTrunc3 = as(dateTruncField3.child(), DateTrunc.class);
+
+        var source = as(bottomEval.child(), EsRelation.class);
+    }
+
+    /**
+     * Project[[avg{r}#7, date{r}#4]]
+     * \_Eval[[$$SUM$avg$0{r$}#20 / $$COUNT$avg$1{r$}#21 AS avg#7]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_Aggregate[[date{r}#4],[SUM(salary{f}#14,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$avg$0#20, COUNT(salary{f}#14,true[BO
+     * OLEAN]) AS $$COUNT$avg$1#21, date{r}#4]]
+     *       \_Eval[[DATEFORMAT(G yyyy[KEYWORD],hire_date{f}#16) AS date#4]]
+     *         \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     */
+    public void testDateFormatNotConvertedToDateTrunc() {
+        List<String> unsupportedFormats = List.of(
+            // ERA patterns
+            "G yyyy",
+            "GGGG yyyy",
+            // Quarter patterns
+            "yyyy-qqq-d",
+            // Week patterns
+            "yyyy-w",
+            "yyyy-ww",
+            "yyyy-W",
+            // Day of week patterns
+            "yyyy-MM-dd E",
+            "yyyy-MM-dd EEEE",
+            "yyyy-MM-dd c",
+            "yyyy-MM-dd e",
+            // AM/PM patterns
+            "yyyy-MM-dd a",
+            // 12-hour patterns
+            "yyyy-MM-dd h:mm",
+            "yyyy-MM-dd K:mm",
+            // Nanosecond patterns
+            "yyyy-MM-dd HH:mm:ss.S",
+            "yyyy-MM-dd HH:mm:ss.n",
+            "yyyy-MM-dd N",
+            // Timezone patterns
+            "yyyy-MM-dd HH:mm:ss z",
+            "yyyy-MM-dd HH:mm:ss Z",
+            "yyyy-MM-dd HH:mm:ss X",
+            "yyyy-MM-dd HH:mm:ss VV",
+            "yyyy-MM-dd HH:mm:ss O",
+
+            // Day period
+            "yyyy-MM-dd HH:mm B",
+            // Modified Julian Day
+            "g",
+            // Non-continuous hierarchy patterns
+            "yyyy-dd", // year + day (skips month)
+            "yyyy HH", // year + hour (skips month and day)
+            "MM-dd", // month + day (skips year)
+            "HH:mm", // hour + minute (skips year, month, day)
+            "yyyy mm", // year + minute (skips month, day, hour)
+            "DD" // day of year only (missing year context)
+        );
+
+        var queries = List.of("""
+            FROM test
+            | STATS avg = AVG(integer) BY date = DATE_FORMAT("%s", date)
+            """, """
+            FROM test
+            | STATS avg = AVG(integer) BY date = DATE_FORMAT("%s", date_nanos)
+            """);
+
+        for (var format : unsupportedFormats) {
+            for (var query : queries) {
+                String formatQuery = String.format(Locale.ROOT, query, format);
+                var optimized = planTypes(formatQuery);
+
+                var project = as(optimized, Project.class);
+                var eval = as(project.child(), Eval.class);
+                assertThat(eval.fields(), hasSize(1));
+
+                var limit = as(eval.child(), Limit.class);
+                var agg = as(limit.child(), Aggregate.class);
+                var eval2 = as(agg.child(), Eval.class);
+
+                var source = as(eval2.child(), EsRelation.class);
+                assertThat(source, instanceOf(EsRelation.class));
+            }
+        }
+    }
+
+    /**
+     * Project[[avg{r}#10, date{r}#7]]
+     * \_Eval[[$$SUM$avg$0{r$}#24 / $$COUNT$avg$1{r$}#25 AS avg#10, DATEFORMAT(yyyy-MM[KEYWORD],date{r$}#23) AS date#7]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_Aggregate[[date{r$}#23],[SUM(salary{f}#17,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$avg$0#24, COUNT(salary{f}#17,true[
+     * BOOLEAN]) AS $$COUNT$avg$1#25, date{r$}#23]]
+     *       \_Eval[[DATETRUNC(P1M[DATE_PERIOD],hire_date{f}#19) AS date#23]]
+     *         \_EsRelation[test][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
+     */
+    public void testStatsDateFormatOptimizationWithConcat() {
+        var query = """
+            FROM test
+            | EVAL format = concat("yyyy", "-MM")
+            | STATS avg = AVG(salary) BY date = DATE_FORMAT(format, hire_date)
+            """;
+        var optimized = optimizedPlan(query);
+
+        var project = as(optimized, Project.class);
+
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(2));
+
+        // Verify avg calculation
+        var avgAlias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(avgAlias.name(), equalTo("avg"));
+        var avgDiv = as(avgAlias.child(), Div.class);
+
+        // Verify date formatting - should be optimized to use literal "yyyy-MM"
+        var dateAlias = as(eval.fields().get(1), Alias.class);
+        assertThat(dateAlias.name(), equalTo("date"));
+        var dateFormat = as(dateAlias.child(), DateFormat.class);
+        var formatArg = dateFormat.arguments().getFirst();
+        assertThat(formatArg, instanceOf(Literal.class));
+        var formatLiteral = as(formatArg, Literal.class);
+        assertThat(formatLiteral.value(), equalTo(new BytesRef("yyyy-MM")));
+
+        var limit = as(eval.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+
+        // Verify that the aggregation uses DATE_TRUNC optimization
+        var eval2 = as(agg.child(), Eval.class);
+        assertThat(eval2.fields(), hasSize(1));
+        var dateTruncAlias = as(eval2.fields().getFirst(), Alias.class);
+        assertThat(dateTruncAlias.name(), equalTo("date"));
+        var dateTrunc = as(dateTruncAlias.child(), DateTrunc.class);
+
+        var source = as(eval2.child(), EsRelation.class);
+        assertThat(source, instanceOf(EsRelation.class));
+    }
+
+    /**
+     * Limit[1000[INTEGER],false]
+     * \_InlineJoin[LEFT,[date{r}#10],[date{r}#10]]
+     *   |_Eval[[yyyy-MM[KEYWORD] AS format#3, DATEFORMAT(yyyy-MM[KEYWORD],hire_date{f}#18) AS date#10]]
+     *   | \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     *   \_Project[[avg{r}#6, date{r}#10]]
+     *     \_Eval[[$$SUM$avg$0{r$}#22 / $$COUNT$avg$1{r$}#23 AS avg#6]]
+     *       \_Aggregate[[date{r}#10],[SUM(salary{f}#16,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$avg$0#22, COUNT(salary{f}#16,true[B
+     * OOLEAN]) AS $$COUNT$avg$1#23, date{r}#10]]
+     *         \_StubRelation[[_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, gender{f}#13, hire_date{f}#18, job{f}#19, job.raw{f}#20, l
+     * anguages{f}#14, last_name{f}#15, long_noidx{f}#21, salary{f}#16, format{r}#3, date{r}#10]]
+     */
+    public void testInlineStatsDateFormatOptimizationWithConcat() {
+        var query = """
+            FROM test
+            | EVAL format = concat("yyyy", "-MM")
+            | INLINE STATS avg = AVG(salary) BY date = DATE_FORMAT(format, hire_date)
+            """;
+        var optimized = optimizedPlan(query);
+
+        var limit = as(optimized, Limit.class);
+        var inlineJoin = as(limit.child(), InlineJoin.class);
+
+        // Check left side of the join (original data with eval)
+        var leftEval = as(inlineJoin.left(), Eval.class);
+        assertThat(leftEval.fields(), hasSize(2));
+
+        // Verify that the format field is optimized to literal "yyyy-MM"
+        var formatAlias = as(leftEval.fields().getFirst(), Alias.class);
+        assertThat(formatAlias.name(), equalTo("format"));
+        var formatLiteral = as(formatAlias.child(), Literal.class);
+        assertThat(formatLiteral.value(), equalTo(new BytesRef("yyyy-MM")));
+
+        // Verify that DATE_FORMAT uses the optimized literal directly
+        var dateAlias = as(leftEval.fields().get(1), Alias.class);
+        assertThat(dateAlias.name(), equalTo("date"));
+        var dateFormat = as(dateAlias.child(), DateFormat.class);
+        var dateFormatArg = dateFormat.arguments().getFirst();
+        assertThat(dateFormatArg, instanceOf(Literal.class));
+        var dateFormatLiteral = as(dateFormatArg, Literal.class);
+        assertThat(dateFormatLiteral.value(), equalTo(new BytesRef("yyyy-MM")));
+
+        var leftSource = as(leftEval.child(), EsRelation.class);
+        assertThat(leftSource, instanceOf(EsRelation.class));
+
+        // Check right side of the join (aggregated stats)
+        var rightProject = as(inlineJoin.right(), Project.class);
+
+        var rightEval = as(rightProject.child(), Eval.class);
+        assertThat(rightEval.fields(), hasSize(1));
+        var avgAlias = as(rightEval.fields().getFirst(), Alias.class);
+        assertThat(avgAlias.name(), equalTo("avg"));
+
+        var agg = as(rightEval.child(), Aggregate.class);
+
+        var stubRelation = as(agg.child(), StubRelation.class);
+        assertThat(stubRelation, instanceOf(StubRelation.class));
+    }
+
+    /**
+     * Project[[sum(x){r}#11, date_format("yyyy-MM-dd", y){r}#9]]
+     * \_Eval[[DATEFORMAT(yyyy-MM-dd[KEYWORD],date_format("yyyy-MM-dd", y){r$}#34) AS date_format("yyyy-MM-dd", y)#9]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_Aggregate[[date_format("yyyy-MM-dd", y){r$}#34],[SUM(x{r}#4,true[BOOLEAN],compensated[KEYWORD]) AS sum(x)#11, date_format
+     * ("yyyy-MM-dd", y){r$}#34]]
+     *       \_Eval[[TOLONG(integer{f}#23) + 10[INTEGER] AS x#4, date_nanos{f}#18 + P1D[DATE_PERIOD] + P1Y[DATE_PERIOD] - PT1H[TIM
+     * E_DURATION] AS y#7, DATETRUNC(P1D[DATE_PERIOD],y{r}#7) AS date_format("yyyy-MM-dd", y)#34]]
+     *         \_EsRelation[types][!alias_integer, boolean{f}#14, byte{f}#15, constant..]
+     */
+    public void testStatsDateFormatWithReferenceAttribute() {
+        var query = """
+            from test
+            | eval x = integer::long + 10, y = date_nanos + 1 day + 1 year - 1 hour
+            | stats sum(x) by date_format("yyyy-MM-dd", y)
+            """;
+        var optimized = planTypes(query);
+
+        var project = as(optimized, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("sum(x)", "date_format(\"yyyy-MM-dd\", y)"));
+
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1)); // DATE_FORMAT conversion
+        var dateFormat = as(eval.fields().get(0).child(), DateFormat.class);
+
+        var limit = as(eval.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.groupings(), hasSize(1)); // grouped by date_format result
+        assertThat(agg.aggregates(), hasSize(2)); // sum(x) + grouping field
+
+        var aggEval = as(agg.child(), Eval.class);
+        assertThat(aggEval.fields(), hasSize(3)); // x, y, and DATE_TRUNC optimization
+        var dateTrunc = as(aggEval.fields().get(2).child(), DateTrunc.class);
+
+        var source = as(aggEval.child(), EsRelation.class);
+    }
+
+    /**
+     * Project[[!alias_integer, boolean{f}#13, byte{f}#14, constant_keyword-foo{f}#15, date{f}#16, date_nanos{f}#17, dense_ve
+     * ctor{f}#32, double{f}#18, float{f}#19, half_float{f}#20, integer{f}#22, ip{f}#23, keyword{f}#24, long{f}#25, scaled_float{f}#21,
+     * semantic_text{f}#31, short{f}#27, text{f}#28, unsigned_long{f}#26, version{f}#29, wildcard{f}#30, x{r}#4, y{r}#7, sum(x){r}#9,
+     * date_format("yyyy-MM-dd", y){r}#11]]
+     * \_Eval[[DATEFORMAT(yyyy-MM-dd[KEYWORD],date_format("yyyy-MM-dd", y){r$}#33) AS date_format("yyyy-MM-dd", y)#11]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_InlineJoin[LEFT,[date_format("yyyy-MM-dd", y){r$}#33],[date_format("yyyy-MM-dd", y){r$}#33]]
+     *       |_Eval[[TOLONG(integer{f}#22) + 10[INTEGER] AS x#4, date_nanos{f}#17 + P1D[DATE_PERIOD] + P1Y[DATE_PERIOD] - PT1H[TIM
+     * E_DURATION] AS y#7, DATETRUNC(P1D[DATE_PERIOD],y{r}#7) AS date_format("yyyy-MM-dd", y)#33]]
+     *       | \_EsRelation[types][!alias_integer, boolean{f}#13, byte{f}#14, constant..]
+     *       \_Aggregate[[date_format("yyyy-MM-dd", y){r$}#33],[SUM(x{r}#4,true[BOOLEAN],compensated[KEYWORD]) AS sum(x)#9, date_format(
+     * "yyyy-MM-dd", y){r$}#33]]
+     *         \_StubRelation[[!alias_integer, boolean{f}#13, byte{f}#14, constant_keyword-foo{f}#15, date{f}#16, date_nanos{f}#17, dense_ve
+     * ctor{f}#32, double{f}#18, float{f}#19, half_float{f}#20, integer{f}#22, ip{f}#23, keyword{f}#24, long{f}#25, scaled_float{f}#21,
+     * semantic_text{f}#31, short{f}#27, text{f}#28, unsigned_long{f}#26, version{f}#29, wildcard{f}#30, x{r}#4, y{r}#7,
+     * date_format("yyyy-MM-dd", y){r$}#33]]
+     */
+    public void testInlineStatsDateFormatWithReferenceAttribute() {
+        var query = """
+            from test
+            | eval x = integer::long + 10, y = date_nanos + 1 day + 1 year - 1 hour
+            | inline stats sum(x) by date_format("yyyy-MM-dd", y)
+            """;
+        if (releaseBuildForInlineStats(query)) {
+            return;
+        }
+        var optimized = planTypes(query);
+
+        var project = as(optimized, Project.class);
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1)); // DATE_FORMAT conversion
+        var dateFormat = as(eval.fields().get(0).child(), DateFormat.class);
+
+        var limit = as(eval.child(), Limit.class);
+        var inlineJoin = as(limit.child(), InlineJoin.class);
+
+        // Left side: should have DATE_TRUNC optimization
+        var leftEval = as(inlineJoin.left(), Eval.class);
+        assertThat(leftEval.fields(), hasSize(3)); // x, y, and DATE_TRUNC optimization
+        var dateTrunc = as(leftEval.fields().get(2).child(), DateTrunc.class);
+        var leftSource = as(leftEval.child(), EsRelation.class);
+
+        // Right side: aggregation
+        var rightAgg = as(inlineJoin.right(), Aggregate.class);
+        assertThat(rightAgg.groupings(), hasSize(1)); // grouped by date_format result
+        assertThat(rightAgg.aggregates(), hasSize(2)); // sum(x) + grouping field
+        var rightSource = as(rightAgg.child(), StubRelation.class);
+    }
+
+    /**
+     * Project[[sum(x){r}#14, date_format(fmt, y){r}#12]]
+     * \_Eval[[DATEFORMAT(yyyy-MM-dd[KEYWORD],date_format(fmt, y){r$}#37) AS date_format(fmt, y)#12]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_Aggregate[[date_format(fmt, y){r$}#37],[SUM(x{r}#4,true[BOOLEAN],compensated[KEYWORD]) AS sum(x)#14, date_format(fmt, y){
+     * r$}#37]]
+     *       \_Eval[[TOLONG(integer{f}#26) + 10[INTEGER] AS x#4, date_nanos{f}#21 + P1D[DATE_PERIOD] + P1Y[DATE_PERIOD] - PT1H[TIM
+     * E_DURATION] AS y#7, DATETRUNC(P1D[DATE_PERIOD],y{r}#7) AS date_format(fmt, y)#37]]
+     *         \_EsRelation[types][!alias_integer, boolean{f}#17, byte{f}#18, constant..]
+     */
+    public void testStatsDateFormatWithBothReferenceAttributes() {
+        var query = """
+            from test
+            | eval x = integer::long + 10, y = date_nanos + 1 day + 1 year - 1 hour, fmt = "yyyy-MM-dd"
+            | stats sum(x) by date_format(fmt, y)
+            """;
+        var optimized = planTypes(query);
+
+        var project = as(optimized, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("sum(x)", "date_format(fmt, y)"));
+
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1)); // DATE_FORMAT conversion
+        var dateFormat = as(eval.fields().get(0).child(), DateFormat.class);
+
+        var limit = as(eval.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.groupings(), hasSize(1)); // grouped by date_format result
+        assertThat(agg.aggregates(), hasSize(2)); // sum(x) + grouping field
+
+        var aggEval = as(agg.child(), Eval.class);
+        assertThat(aggEval.fields(), hasSize(3)); // x, y, and DATE_TRUNC optimization
+        var dateTrunc = as(aggEval.fields().get(2).child(), DateTrunc.class);
+
+        var source = as(aggEval.child(), EsRelation.class);
+    }
+
+    /**
+     * Limit[1000[INTEGER],false]
+     * \_InlineJoin[LEFT,[date_format(fmt, y){r}#14],[date_format(fmt, y){r}#14]]
+     *   |_Eval[[TOLONG(integer{f}#25) + 10[INTEGER] AS x#4, date_nanos{f}#20 + P1D[DATE_PERIOD] + P1Y[DATE_PERIOD] - PT1H[TIM
+     * E_DURATION] AS y#7, yyyy-MM-dd[KEYWORD] AS fmt#9, DATEFORMAT(yyyy-MM-dd[KEYWORD],y{r}#7) AS date_format(fmt, y)#14]]
+     *   | \_EsRelation[types][!alias_integer, boolean{f}#16, byte{f}#17, constant..]
+     *   \_Aggregate[[date_format(fmt, y){r}#14],[SUM(x{r}#4,true[BOOLEAN],compensated[KEYWORD]) AS sum(x)#11, date_format(fmt, y){r
+     * }#14]]
+     *     \_StubRelation[[!alias_integer, boolean{f}#16, byte{f}#17, constant_keyword-foo{f}#18, date{f}#19, date_nanos{f}#20, dense_ve
+     * ctor{f}#35, double{f}#21, float{f}#22, half_float{f}#23, integer{f}#25, ip{f}#26, keyword{f}#27, long{f}#28, scaled_float{f}#24,
+     * semantic_text{f}#34, short{f}#30, text{f}#31, unsigned_long{f}#29, version{f}#32, wildcard{f}#33, x{r}#4, y{r}#7, fmt{r}#9,
+     * date_format(fmt, y){r}#14]]
+     */
+    public void testInlineStatsDateFormatWithBothReferenceAttributes() {
+        var query = """
+            from test
+            | eval x = integer::long + 10, y = date_nanos + 1 day + 1 year - 1 hour, fmt = "yyyy-MM-dd"
+            | inline stats sum(x) by date_format(fmt, y)
+            """;
+        if (releaseBuildForInlineStats(query)) {
+            return;
+        }
+        var optimized = planTypes(query);
+
+        var limit = as(optimized, Limit.class);
+        var inlineJoin = as(limit.child(), InlineJoin.class);
+
+        // Left side: should have DATE_FORMAT conversion
+        var leftEval = as(inlineJoin.left(), Eval.class);
+        assertThat(leftEval.fields(), hasSize(4)); // x, y, fmt, and DATE_FORMAT conversion
+        var dateFormat = as(leftEval.fields().get(3).child(), DateFormat.class);
+        var leftSource = as(leftEval.child(), EsRelation.class);
+
+        // Right side: aggregation
+        var rightAgg = as(inlineJoin.right(), Aggregate.class);
+        assertThat(rightAgg.groupings(), hasSize(1)); // grouped by date_format result
+        assertThat(rightAgg.aggregates(), hasSize(2)); // sum(x) + grouping field
+        var rightSource = as(rightAgg.child(), StubRelation.class);
+    }
+
+    /**
+     * Project[[count(*){r}#7001, concat(x, "01"){r}#7003, x{r}#7000]]
+     * \_Eval[[CONCAT(x{r}#7000,01[KEYWORD]) AS concat(x, "01")#7003]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_Aggregate[[x{r}#7000],[COUNT(*[KEYWORD],true[BOOLEAN]) AS count(*)#7001, x{r}#7000]]
+     *       \_Eval[[DATEFORMAT(y-MM-dd[KEYWORD],hire_date{f}#7012) AS x#7000]]
+     *         \_EsRelation[test][_meta_field{f}#7011, emp_no{f}#7005, first_name{f}#..]
+     */
+    public void testStatsCountConcatGroupingByDateFormat() {
+        var plan = plan("""
+            from test | stats count(*), concat(x, "01") by x = date_format("y-MM-dd", hire_date)
+            """);
+
+        var project = as(plan, Project.class);
+
+        var eval = as(project.child(), Eval.class);
+        var concatAlias = as(eval.fields().get(0), Alias.class);
+        var concat = as(concatAlias.child(), Concat.class);
+
+        var limit = as(eval.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+
+        var evalInner = as(agg.child(), Eval.class);
+        var dateFormatAlias = as(evalInner.fields().get(0), Alias.class);
+        var dateFormat = as(dateFormatAlias.child(), DateFormat.class);
+
+        var relation = as(evalInner.child(), EsRelation.class);
+    }
+
+    /**
+     *Limit[1000[INTEGER],false]
+     * \_InlineJoin[LEFT,[x{r}#9486],[x{r}#9486]]
+     *   |_Eval[[DATEFORMAT(y-MM-dd[KEYWORD],hire_date{f}#9494) AS x#9486]]
+     *   | \_EsRelation[test][_meta_field{f}#9493, emp_no{f}#9487, first_name{f}#..]
+     *   \_Project[[count(*){r}#9481, concat(x, "01"){r}#9483, x{r}#9486]]
+     *     \_Eval[[CONCAT(x{r}#9486,01[KEYWORD]) AS concat(x, "01")#9483]]
+     *       \_Aggregate[[x{r}#9486],[COUNT(*[KEYWORD],true[BOOLEAN]) AS count(*)#9481, x{r}#9486]]
+     *         \_StubRelation[[_meta_field{f}#9493, emp_no{f}#9487, first_name{f}#9488, gender{f}#9489, hire_date{f}#9494, job{f}#9495, job.
+     * raw{f}#9496, languages{f}#9490, last_name{f}#9491, long_noidx{f}#9497, salary{f}#9492, x{r}#9486]]
+     */
+    public void testInlineStatsCountConcatGroupingByDateFormat() {
+        var plan = plan("""
+            from test | inline stats count(*), concat(x, "01") by x = date_format("y-MM-dd", hire_date)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var inlineJoin = as(limit.child(), InlineJoin.class);
+
+        // Verify the left side (eval with date_format)
+        var eval = as(inlineJoin.left(), Eval.class);
+        var relation = as(eval.child(), EsRelation.class);
+
+        // Verify the right side (project with aggregates)
+        var project = as(inlineJoin.right(), Project.class);
+        var evalConcat = as(project.child(), Eval.class);
+        var aggregate = as(evalConcat.child(), Aggregate.class);
+        var stubRelation = as(aggregate.child(), StubRelation.class);
+    }
+
+    /**
+     * Limit[1000[INTEGER],false]
+     * \_Aggregate[[x{r}#961],[MAX(x{r}#961,true[BOOLEAN]) AS a#964, x{r}#961]]
+     *   \_Eval[[DATEFORMAT(y-MM-dd[KEYWORD],hire_date{f}#973) AS x#961]]
+     *     \_EsRelation[test][_meta_field{f}#972, emp_no{f}#966, first_name{f}#96..]
+     */
+    public void testStatsMaxGroupingByDateFormat() {
+        var plan = plan("""
+            from test |  stats a = max(x) by x = date_format("y-MM-dd", hire_date)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        var eval = as(aggregate.child(), Eval.class);
+        var relation = as(eval.child(), EsRelation.class);
+    }
+
+    /**
+     *
+     *Limit[1000[INTEGER],false]
+     * \_InlineJoin[LEFT,[x{r}#4757],[x{r}#4757]]
+     *   |_Eval[[DATEFORMAT(y-MM-dd[KEYWORD],hire_date{f}#4765) AS x#4757]]
+     *   | \_EsRelation[test][_meta_field{f}#4764, emp_no{f}#4758, first_name{f}#..]
+     *   \_Aggregate[[x{r}#4757],[MAX(x{r}#4757,true[BOOLEAN]) AS a#4754, x{r}#4757]]
+     *     \_StubRelation[[_meta_field{f}#4764, emp_no{f}#4758, first_name{f}#4759, gender{f}#4760, hire_date{f}#4765, job{f}#4766, job.
+     * raw{f}#4767, languages{f}#4761, last_name{f}#4762, long_noidx{f}#4768, salary{f}#4763, x{r}#4757]]
+     */
+    public void testInlineStatsMaxGroupingByDateFormat() {
+        var plan = plan("""
+            from test | inline stats a = max(x) by x = date_format("y-MM-dd", hire_date)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var inlineJoin = as(limit.child(), InlineJoin.class);
+
+        // Verify the left side (eval with date_format)
+        var eval = as(inlineJoin.left(), Eval.class);
+        var relation = as(eval.child(), EsRelation.class);
+
+        // Verify eval contains date_format
+        assertThat(eval.fields(), hasSize(1));
+        var evalAlias = as(eval.fields().get(0), Alias.class);
+        assertThat(evalAlias.child(), instanceOf(DateFormat.class));
+
+        // Verify the right side (aggregate)
+        var aggregate = as(inlineJoin.right(), Aggregate.class);
+        var stubRelation = as(aggregate.child(), StubRelation.class);
     }
 
     public void testPushDownConjunctionsToKnnPrefilter() {

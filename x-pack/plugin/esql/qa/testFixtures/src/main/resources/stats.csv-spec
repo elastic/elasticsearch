@@ -3546,6 +3546,545 @@ VALUES(color):keyword | color:keyword
 // end::mv-group-values-expand-result[]
 ;
 
+
+dateFormatYearOptimization
+FROM employees
+| STATS count = COUNT(*) BY year_hired = DATE_FORMAT("yyyy", hire_date)
+| SORT year_hired
+| LIMIT 5
+;
+
+count:long | year_hired:keyword
+11         | 1985
+11         | 1986
+15         | 1987
+9          | 1988
+13         | 1989
+;
+
+dateFormatMonthOptimization
+FROM employees
+| STATS avg_salary = AVG(salary) BY month_hired = DATE_FORMAT("yyyy-MM", hire_date)
+| EVAL avg_salary = ROUND(avg_salary)
+| SORT month_hired
+| LIMIT 5
+;
+
+month_hired:keyword | avg_salary:double
+1985-02             | 46305.0
+1985-05             | 44817.0
+1985-07             | 62405.0
+1985-09             | 49095.0
+1985-10             | 51532.0
+;
+
+dateFormatDayOptimization
+FROM employees
+| STATS max_salary = MAX(salary) BY day_hired = DATE_FORMAT("yyyy-MM-dd", hire_date)
+| SORT day_hired
+| LIMIT 3
+;
+
+max_salary:integer | day_hired:keyword
+66174              | 1985-02-18
+26436              | 1985-02-24
+44817              | 1985-05-13
+;
+
+dateFormatHourOptimization
+FROM employees
+| EVAL hire_datetime = hire_date
+| STATS count = COUNT(*) BY hour_hired = DATE_FORMAT("yyyy-MM-dd HH", hire_datetime)
+| SORT hour_hired
+| LIMIT 3
+;
+
+count:long | hour_hired:keyword
+1          | 1985-02-18 00
+1          | 1985-02-24 00
+1          | 1985-05-13 00
+;
+
+dateFormatMinuteOptimization
+FROM employees
+| EVAL hire_datetime = hire_date
+| STATS count = COUNT(*) BY minute_hired = DATE_FORMAT("yyyy-MM-dd HH:mm", hire_datetime)
+| SORT minute_hired
+| LIMIT 3
+;
+
+count:long | minute_hired:keyword
+1          | 1985-02-18 00:00
+1          | 1985-02-24 00:00
+1          | 1985-05-13 00:00
+;
+
+dateFormatSecondOptimization
+FROM employees
+| EVAL hire_datetime = hire_date
+| STATS count = COUNT(*) BY second_hired = DATE_FORMAT("yyyy-MM-dd HH:mm:ss", hire_datetime)
+| SORT second_hired
+| LIMIT 3
+;
+
+count:long | second_hired:keyword
+1          | 1985-02-18 00:00:00
+1          | 1985-02-24 00:00:00
+1          | 1985-05-13 00:00:00
+;
+
+dateFormatComplexOptimization
+FROM employees
+| STATS count = COUNT(*), avg_salary = AVG(salary) BY 
+    year_month = DATE_FORMAT("yyyy-MM", hire_date),
+    day_of_year = DATE_FORMAT("yyyy-D", hire_date)
+| EVAL avg_salary = ROUND(avg_salary)
+| SORT year_month, day_of_year
+| LIMIT 5
+;
+
+count:long | year_month:keyword | day_of_year:keyword | avg_salary:double
+1          | 1985-02            | 1985-49             | 66174.0
+1          | 1985-02            | 1985-55             | 26436.0
+1          | 1985-05            | 1985-133            | 44817.0
+1          | 1985-07            | 1985-190            | 62405.0
+1          | 1985-09            | 1985-260            | 49095.0    
+;
+
+dateFormatWithLiterals
+FROM employees
+| STATS count = COUNT(*) BY formatted_date = DATE_FORMAT("'Year:'yyyy'-Month:'MM", hire_date)
+| SORT formatted_date
+| LIMIT 5
+;
+
+count:long | formatted_date:keyword
+2          | Year:1985-Month:02
+1          | Year:1985-Month:05
+1          | Year:1985-Month:07
+1          | Year:1985-Month:09
+2          | Year:1985-Month:10
+;
+
+dateFormatNonOptimizable
+FROM employees
+| STATS count = COUNT(*) BY quarter = DATE_FORMAT("yyyy-Q-d", hire_date)
+| SORT quarter
+| LIMIT 4
+;
+
+count:long | quarter:keyword
+1          | 1985-1-18
+1          | 1985-1-24
+1          | 1985-2-13
+1          | 1985-3-17
+;
+
+dateFormatMixedOptimization
+FROM employees
+| STATS 
+    count = COUNT(*),
+    avg_salary = AVG(salary)
+BY 
+    year_optimizable = DATE_FORMAT("yyyy", hire_date),
+    quarter_not_optimizable = DATE_FORMAT("yyyy-Q-d", hire_date),
+    month_optimizable = DATE_FORMAT("MM", hire_date)
+| EVAL avg_salary = ROUND(avg_salary)
+| SORT year_optimizable, quarter_not_optimizable, month_optimizable
+| LIMIT 5
+;
+
+count:long | year_optimizable:keyword | quarter_not_optimizable:keyword | month_optimizable:keyword | avg_salary:double
+1          | 1985                     | 1985-1-18                       | 02                        | 66174.0
+1          | 1985                     | 1985-1-24                       | 02                        | 26436.0
+1          | 1985                     | 1985-2-13                       | 05                        | 44817.0
+1          | 1985                     | 1985-3-17                       | 09                        | 49095.0
+1          | 1985                     | 1985-3-9                        | 07                        | 62405.0
+;
+
+dateFormatDifferentSeparators
+FROM employees
+| STATS count = COUNT(*) BY 
+    slash_format = DATE_FORMAT("yyyy/MM/dd", hire_date),
+    dot_format = DATE_FORMAT("yyyy.MM.dd", hire_date)
+| SORT slash_format
+| LIMIT 3
+;
+
+count:long | slash_format:keyword | dot_format:keyword
+1          | 1985/02/18           | 1985.02.18
+1          | 1985/02/24           | 1985.02.24
+1          | 1985/05/13           | 1985.05.13
+;
+
+dateFormatTextualMonths
+FROM employees
+| STATS count = COUNT(*) BY month_name = DATE_FORMAT("yyyy-MMM", hire_date)
+| SORT month_name
+| LIMIT 5
+;
+
+count:long | month_name:keyword
+2          | 1985-Feb
+1          | 1985-Jul
+1          | 1985-May
+4          | 1985-Nov
+2          | 1985-Oct
+;
+
+dateFormatISOFormat
+FROM employees
+| STATS count = COUNT(*) BY iso_date = DATE_FORMAT("yyyy-MM-dd'T'HH:mm:ss", hire_date)
+| SORT iso_date
+| LIMIT 3
+;
+
+count:long | iso_date:keyword
+1          | 1985-02-18T00:00:00
+1          | 1985-02-24T00:00:00
+1          | 1985-05-13T00:00:00
+;
+
+dateFormatWithDateNanos
+FROM sample_data_ts_nanos
+| STATS count = COUNT(*) BY year_month = DATE_FORMAT("yyyy-MM", @timestamp)
+| SORT year_month
+;
+
+count:long | year_month:keyword
+7          | 2023-10
+;
+
+dateFormatDateNanosYear
+FROM sample_data_ts_nanos
+| STATS 
+    count = COUNT(*),
+    min_timestamp = MIN(@timestamp),
+    max_timestamp = MAX(@timestamp)
+BY year = DATE_FORMAT("yyyy", @timestamp)
+| SORT year
+;
+
+count:long | min_timestamp:date_nanos       | max_timestamp:date_nanos       | year:keyword
+7          | 2023-10-23T12:15:03.360123456Z | 2023-10-23T13:55:01.543123456Z | 2023
+;
+
+dateFormatDateNanosMonth
+FROM sample_data_ts_nanos
+| STATS 
+    count = COUNT(*),
+    avg_duration = AVG(event_duration)
+BY month = DATE_FORMAT("MM", @timestamp)
+| EVAL avg_duration = ROUND(avg_duration)
+| SORT month
+;
+
+count:long | month:keyword | avg_duration:double
+7          | 10            | 3318761.0
+;
+
+dateFormatDateNanosDay
+FROM sample_data_ts_nanos
+| STATS count = COUNT(*) BY day = DATE_FORMAT("dd", @timestamp)
+| SORT day
+;
+
+count:long | day:keyword
+7          | 23
+;
+
+dateFormatDateNanosHour
+FROM sample_data_ts_nanos
+| STATS count = COUNT(*) BY hour = DATE_FORMAT("HH", @timestamp)
+| SORT hour
+;
+
+count:long | hour:keyword
+2          | 12
+5          | 13
+;
+
+dateFormatDateNanosYearMonth
+FROM sample_data_ts_nanos
+| STATS 
+    count = COUNT(*),
+    clients = COUNT(client_ip)
+BY year_month = DATE_FORMAT("yyyy-MM", @timestamp)
+| SORT year_month
+;
+
+count:long | clients:long | year_month:keyword
+7          | 7            | 2023-10      
+;
+
+dateFormatDateNanosMultipleFormats
+FROM sample_data_ts_nanos
+| STATS 
+    count = COUNT(*),
+    total_duration = SUM(event_duration)
+BY 
+    year = DATE_FORMAT("yyyy", @timestamp),
+    month = DATE_FORMAT("MM", @timestamp),
+    day = DATE_FORMAT("dd", @timestamp)
+| SORT year, month, day
+;
+
+count:long | total_duration:long | year:keyword | month:keyword | day:keyword
+7          | 23231327            | 2023         | 10            | 23    
+;
+
+dateFormatDateNanosWithWhere
+FROM sample_data_ts_nanos
+| WHERE @timestamp >= "2023-10-23T13:00:00Z"
+| STATS count = COUNT(*) BY year = DATE_FORMAT("yyyy", @timestamp)
+| SORT year
+;
+
+count:long | year:keyword
+5          | 2023
+;
+
+dateFormatDateNanosComplexPattern
+FROM sample_data_ts_nanos
+| STATS count = COUNT(*) BY formatted = DATE_FORMAT("yyyy-MM-dd HH:mm", @timestamp)
+| SORT formatted
+| LIMIT 5
+;
+
+count:long | formatted:keyword
+1          | 2023-10-23 12:15
+1          | 2023-10-23 12:27
+1          | 2023-10-23 13:33
+1          | 2023-10-23 13:51
+1          | 2023-10-23 13:52
+;
+
+dateFormatDateNanosWithNullHandling
+FROM sample_data_ts_nanos
+| EVAL modified_timestamp = CASE(event_duration > 5000000, @timestamp, null)
+| STATS 
+    count_all = COUNT(*),
+    count_non_null = COUNT(modified_timestamp)
+BY month = DATE_FORMAT("yyyy-MM", COALESCE(modified_timestamp, @timestamp))
+| SORT month
+;
+
+count_all:long | count_non_null:long | month:keyword
+7              | 2                   | 2023-10
+;
+
+
+dateFormatYearOptimization
+FROM employees
+| STATS count = COUNT(*) BY year_hired = DATE_FORMAT("yyyy", hire_date)
+| SORT year_hired
+| LIMIT 5
+;
+
+count:long | year_hired:keyword
+11         | 1985
+11         | 1986
+15         | 1987
+9          | 1988
+13         | 1989
+;
+
+dateFormatMonthOptimization
+FROM employees
+| STATS avg_salary = AVG(salary) BY month_hired = DATE_FORMAT("yyyy-MM", hire_date)
+| EVAL avg_salary = ROUND(avg_salary)
+| SORT month_hired
+| LIMIT 5
+;
+
+month_hired:keyword | avg_salary:double
+1985-02             | 46305.0
+1985-05             | 44817.0
+1985-07             | 62405.0
+1985-09             | 49095.0
+1985-10             | 51532.0
+;
+
+dateFormatDayOptimization
+FROM employees
+| STATS max_salary = MAX(salary) BY day_hired = DATE_FORMAT("yyyy-MM-dd", hire_date)
+| SORT day_hired
+| LIMIT 3
+;
+
+max_salary:integer | day_hired:keyword
+66174              | 1985-02-18
+26436              | 1985-02-24
+44817              | 1985-05-13
+;
+
+dateFormatHourOptimization
+FROM employees
+| EVAL hire_datetime = hire_date
+| STATS count = COUNT(*) BY hour_hired = DATE_FORMAT("yyyy-MM-dd HH", hire_datetime)
+| SORT hour_hired
+| LIMIT 3
+;
+
+count:long | hour_hired:keyword
+1          | 1985-02-18 00
+1          | 1985-02-24 00
+1          | 1985-05-13 00
+;
+
+dateFormatMinuteOptimization
+FROM employees
+| EVAL hire_datetime = hire_date
+| STATS count = COUNT(*) BY minute_hired = DATE_FORMAT("yyyy-MM-dd HH:mm", hire_datetime)
+| SORT minute_hired
+| LIMIT 3
+;
+
+count:long | minute_hired:keyword
+1          | 1985-02-18 00:00
+1          | 1985-02-24 00:00
+1          | 1985-05-13 00:00
+;
+
+dateFormatSecondOptimization
+FROM employees
+| EVAL hire_datetime = hire_date
+| STATS count = COUNT(*) BY second_hired = DATE_FORMAT("yyyy-MM-dd HH:mm:ss", hire_datetime)
+| SORT second_hired
+| LIMIT 3
+;
+
+count:long | second_hired:keyword
+1          | 1985-02-18 00:00:00
+1          | 1985-02-24 00:00:00
+1          | 1985-05-13 00:00:00
+;
+
+dateFormatComplexOptimization
+FROM employees
+| STATS count = COUNT(*), avg_salary = AVG(salary) BY 
+    year_month = DATE_FORMAT("yyyy-MM", hire_date),
+    day_of_year = DATE_FORMAT("yyyy-D", hire_date)
+| EVAL avg_salary = ROUND(avg_salary)
+| SORT year_month, day_of_year
+| LIMIT 5
+;
+
+count:long | year_month:keyword | day_of_year:keyword | avg_salary:double
+1          | 1985-02            | 1985-49             | 66174.0
+1          | 1985-02            | 1985-55             | 26436.0
+1          | 1985-05            | 1985-133            | 44817.0
+1          | 1985-07            | 1985-190            | 62405.0
+1          | 1985-09            | 1985-260            | 49095.0    
+;
+
+dateFormatWithLiterals
+FROM employees
+| STATS count = COUNT(*) BY formatted_date = DATE_FORMAT("'Year:'yyyy'-Month:'MM", hire_date)
+| SORT formatted_date
+| LIMIT 5
+;
+
+count:long | formatted_date:keyword
+2          | Year:1985-Month:02
+1          | Year:1985-Month:05
+1          | Year:1985-Month:07
+1          | Year:1985-Month:09
+2          | Year:1985-Month:10
+;
+
+dateFormatNonOptimizable
+FROM employees
+| STATS count = COUNT(*) BY quarter = DATE_FORMAT("yyyy-Q-d", hire_date)
+| SORT quarter
+| LIMIT 4
+;
+
+count:long | quarter:keyword
+1          | 1985-1-18
+1          | 1985-1-24
+1          | 1985-2-13
+1          | 1985-3-17
+;
+
+dateFormatMixedOptimization
+FROM employees
+| STATS 
+    count = COUNT(*),
+    avg_salary = AVG(salary)
+BY 
+    year_optimizable = DATE_FORMAT("yyyy", hire_date),
+    quarter_not_optimizable = DATE_FORMAT("yyyy-Q-d", hire_date),
+    month_optimizable = DATE_FORMAT("MM", hire_date)
+| EVAL avg_salary = ROUND(avg_salary)
+| SORT year_optimizable, quarter_not_optimizable, month_optimizable
+| LIMIT 5
+;
+
+count:long | year_optimizable:keyword | quarter_not_optimizable:keyword | month_optimizable:keyword | avg_salary:double
+1          | 1985                     | 1985-1-18                       | 02                        | 66174.0
+1          | 1985                     | 1985-1-24                       | 02                        | 26436.0
+1          | 1985                     | 1985-2-13                       | 05                        | 44817.0
+1          | 1985                     | 1985-3-17                       | 09                        | 49095.0
+1          | 1985                     | 1985-3-9                        | 07                        | 62405.0
+;
+
+dateFormatDifferentSeparators
+FROM employees
+| STATS count = COUNT(*) BY 
+    slash_format = DATE_FORMAT("yyyy/MM/dd", hire_date),
+    dot_format = DATE_FORMAT("yyyy.MM.dd", hire_date)
+| SORT slash_format
+| LIMIT 3
+;
+
+count:long | slash_format:keyword | dot_format:keyword
+1          | 1985/02/18           | 1985.02.18
+1          | 1985/02/24           | 1985.02.24
+1          | 1985/05/13           | 1985.05.13
+;
+
+dateFormatTextualMonths
+FROM employees
+| STATS count = COUNT(*) BY month_name = DATE_FORMAT("yyyy-MMM", hire_date)
+| SORT month_name
+| LIMIT 5
+;
+
+count:long | month_name:keyword
+2          | 1985-Feb
+1          | 1985-Jul
+1          | 1985-May
+4          | 1985-Nov
+2          | 1985-Oct
+;
+
+dateFormatISOFormat
+FROM employees
+| STATS count = COUNT(*) BY iso_date = DATE_FORMAT("yyyy-MM-dd'T'HH:mm:ss", hire_date)
+| SORT iso_date
+| LIMIT 3
+;
+
+count:long | iso_date:keyword
+1          | 1985-02-18T00:00:00
+1          | 1985-02-24T00:00:00
+1          | 1985-05-13T00:00:00
+;
+
+
+dateFormatWithConcat
+FROM sample_data_ts_nanos
+| EVAL format = CONCAT("yyyy", "-MM")
+| STATS count = COUNT(*) BY year_month = DATE_FORMAT(format, @timestamp)
+| SORT year_month
+;
+
+count:long | year_month:keyword
+7          | 2023-10
+;
+
+
 filterOrdinalValues
 required_capability: fix_filter_ordinals
 from employees 

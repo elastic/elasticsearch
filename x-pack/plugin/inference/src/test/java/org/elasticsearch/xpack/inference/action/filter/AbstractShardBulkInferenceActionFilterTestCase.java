@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.action.filter;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemRequest;
@@ -25,27 +26,40 @@ import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.inference.telemetry.InferenceStats;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.inference.model.TestModel;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.stubbing.Answer;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -54,7 +68,9 @@ import java.util.function.Consumer;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
 import static org.elasticsearch.xpack.inference.InferencePlugin.INDICES_INFERENCE_BULK_TIMEOUT;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -93,6 +109,12 @@ public abstract class AbstractShardBulkInferenceActionFilterTestCase extends EST
     // ========== Cluster Service ==========
 
     protected static ClusterService createClusterService(boolean useLegacyFormat) {
+        long batchSizeInBytes = randomLongBetween(1, ByteSizeValue.ofKb(1).getBytes());
+        Settings settings = Settings.builder().put(INDICES_INFERENCE_BATCH_SIZE.getKey(), ByteSizeValue.ofBytes(batchSizeInBytes)).build();
+        return createClusterService(useLegacyFormat, settings);
+    }
+
+    protected static ClusterService createClusterService(boolean useLegacyFormat, Settings settings) {
         IndexMetadata indexMetadata = mock(IndexMetadata.class);
         var indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
@@ -109,8 +131,6 @@ public abstract class AbstractShardBulkInferenceActionFilterTestCase extends EST
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
-        long batchSizeInBytes = randomLongBetween(1, ByteSizeValue.ofKb(1).getBytes());
-        Settings settings = Settings.builder().put(INDICES_INFERENCE_BATCH_SIZE.getKey(), ByteSizeValue.ofBytes(batchSizeInBytes)).build();
         when(clusterService.getSettings()).thenReturn(settings);
         when(clusterService.getClusterSettings()).thenReturn(
             new ClusterSettings(settings, Set.of(INDICES_INFERENCE_BATCH_SIZE, INDICES_INFERENCE_BULK_TIMEOUT))
@@ -162,6 +182,82 @@ public abstract class AbstractShardBulkInferenceActionFilterTestCase extends EST
 
         filter.apply(mock(Task.class), TransportShardBulkAction.ACTION_NAME, request, mock(ActionListener.class), chain);
         awaitLatch(latch, 30, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Creates a {@link ShardBulkInferenceActionFilter} with the given configuration.
+     * Handles the shared mock wiring for {@link ModelRegistry}, {@link InferenceService},
+     * and {@link InferenceServiceRegistry}.
+     */
+    protected ShardBulkInferenceActionFilter createFilter(
+        Map<String, StaticModel> modelMap,
+        ClusterService clusterService,
+        MockLicenseState licenseState,
+        IndexingPressure indexingPressure,
+        InferenceStats inferenceStats,
+        Answer<?> getModelWithSecretsAnswer,
+        Answer<?> chunkedInferAnswer
+    ) {
+        ModelRegistry modelRegistry = mock(ModelRegistry.class);
+        doAnswer(getModelWithSecretsAnswer).when(modelRegistry).getModelWithSecrets(any(), any());
+
+        Answer<MinimalServiceSettings> minimalServiceSettingsAnswer = invocation -> {
+            String inferenceId = (String) invocation.getArguments()[0];
+            var model = modelMap.get(inferenceId);
+            if (model == null) {
+                throw new ResourceNotFoundException("model id [{}] not found", inferenceId);
+            }
+            return new MinimalServiceSettings(model);
+        };
+        doAnswer(minimalServiceSettingsAnswer).when(modelRegistry).getMinimalServiceSettings(any());
+
+        InferenceService inferenceService = mock(InferenceService.class);
+        doAnswer(chunkedInferAnswer).when(inferenceService).chunkedInfer(any(), any(), any(), any(), any(), any(), any());
+
+        Answer<Model> parseModelAnswer = invocation -> {
+            String inferenceId = (String) invocation.getArguments()[0];
+            return modelMap.get(inferenceId);
+        };
+        doAnswer(parseModelAnswer).when(inferenceService).parsePersistedConfigWithSecrets(any(), any(), any(), any());
+
+        InferenceServiceRegistry inferenceServiceRegistry = mock(InferenceServiceRegistry.class);
+        when(inferenceServiceRegistry.getService(any())).thenReturn(Optional.of(inferenceService));
+
+        return new ShardBulkInferenceActionFilter(
+            clusterService,
+            inferenceServiceRegistry,
+            modelRegistry,
+            licenseState,
+            indexingPressure,
+            inferenceStats
+        );
+    }
+
+    /**
+     * Returns the default {@link Answer} for {@code ModelRegistry.getModelWithSecrets} that
+     * performs an immediate synchronous model lookup.
+     */
+    @SuppressWarnings("unchecked")
+    protected static Answer<?> defaultGetModelWithSecretsAnswer(Map<String, StaticModel> modelMap) {
+        return invocation -> {
+            String id = (String) invocation.getArguments()[0];
+            ActionListener<UnparsedModel> listener = (ActionListener<UnparsedModel>) invocation.getArguments()[1];
+            var model = modelMap.get(id);
+            if (model != null) {
+                listener.onResponse(
+                    new UnparsedModel(
+                        model.getInferenceEntityId(),
+                        model.getTaskType(),
+                        model.getServiceSettings().model(),
+                        XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(model.getTaskSettings()), false),
+                        XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(model.getSecretSettings()), false)
+                    )
+                );
+            } else {
+                listener.onFailure(new ResourceNotFoundException("model id [{}] not found", id));
+            }
+            return null;
+        };
     }
 
     protected static class StaticModel extends TestModel {

@@ -22,11 +22,9 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.CheckedBiFunction;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
@@ -34,30 +32,22 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
-import org.elasticsearch.inference.InferenceService;
-import org.elasticsearch.inference.InferenceServiceRegistry;
-import org.elasticsearch.inference.MinimalServiceSettings;
-import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.inference.telemetry.InferenceStatsTests;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.model.TestModel;
-import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.mockito.stubbing.Answer;
 
@@ -67,7 +57,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -118,7 +107,7 @@ public class ShardBulkInferenceActionFilterTests extends AbstractShardBulkInfere
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testFilterNoop() throws Exception {
         final InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();
-        ShardBulkInferenceActionFilter filter = createFilter(threadPool, Map.of(), NOOP_INDEXING_PRESSURE, useLegacyFormat, inferenceStats);
+        ShardBulkInferenceActionFilter filter = createFilter(Map.of(), NOOP_INDEXING_PRESSURE, inferenceStats);
         CountDownLatch chainExecuted = new CountDownLatch(1);
         ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
             try {
@@ -148,10 +137,8 @@ public class ShardBulkInferenceActionFilterTests extends AbstractShardBulkInfere
         var licenseState = MockLicenseState.createMock();
         when(licenseState.isAllowed(InferencePlugin.INFERENCE_API_FEATURE)).thenReturn(false);
         ShardBulkInferenceActionFilter filter = createFilter(
-            threadPool,
             Map.of(model.getInferenceEntityId(), model),
             NOOP_INDEXING_PRESSURE,
-            useLegacyFormat,
             licenseState,
             inferenceStats
         );
@@ -204,10 +191,8 @@ public class ShardBulkInferenceActionFilterTests extends AbstractShardBulkInfere
         var licenseState = MockLicenseState.createMock();
         when(licenseState.isAllowed(InferencePlugin.EIS_INFERENCE_FEATURE)).thenReturn(false);
         ShardBulkInferenceActionFilter filter = createFilter(
-            threadPool,
             Map.of(model.getInferenceEntityId(), model),
             NOOP_INDEXING_PRESSURE,
-            useLegacyFormat,
             licenseState,
             inferenceStats
         );
@@ -250,10 +235,8 @@ public class ShardBulkInferenceActionFilterTests extends AbstractShardBulkInfere
         final InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();
         StaticModel model = StaticModel.createRandomInstance();
         ShardBulkInferenceActionFilter filter = createFilter(
-            threadPool,
             Map.of(model.getInferenceEntityId(), model),
             NOOP_INDEXING_PRESSURE,
-            useLegacyFormat,
             inferenceStats
         );
         CountDownLatch chainExecuted = new CountDownLatch(1);
@@ -297,10 +280,8 @@ public class ShardBulkInferenceActionFilterTests extends AbstractShardBulkInfere
         final InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();
         StaticModel model = StaticModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
         ShardBulkInferenceActionFilter filter = createFilter(
-            threadPool,
             Map.of(model.getInferenceEntityId(), model),
             NOOP_INDEXING_PRESSURE,
-            useLegacyFormat,
             inferenceStats
         );
         model.putResult("I am a failure", new ChunkedInferenceError(new IllegalArgumentException("boom")));
@@ -387,10 +368,8 @@ public class ShardBulkInferenceActionFilterTests extends AbstractShardBulkInfere
         model.putResult("I am a success", randomChunkedInferenceEmbedding(model, List.of("I am a success")));
 
         ShardBulkInferenceActionFilter filter = createFilter(
-            threadPool,
             Map.of(model.getInferenceEntityId(), model),
             NOOP_INDEXING_PRESSURE,
-            useLegacyFormat,
             inferenceStats
         );
 
@@ -459,10 +438,8 @@ public class ShardBulkInferenceActionFilterTests extends AbstractShardBulkInfere
         final InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();
         StaticModel model = StaticModel.createRandomInstance();
         ShardBulkInferenceActionFilter filter = createFilter(
-            threadPool,
             Map.of(model.getInferenceEntityId(), model),
             NOOP_INDEXING_PRESSURE,
-            useLegacyFormat,
             inferenceStats
         );
 
@@ -536,10 +513,8 @@ public class ShardBulkInferenceActionFilterTests extends AbstractShardBulkInfere
         }
 
         ShardBulkInferenceActionFilter filter = createFilter(
-            threadPool,
             inferenceModelMap,
             NOOP_INDEXING_PRESSURE,
-            useLegacyFormat,
             inferenceStats
         );
         CountDownLatch chainExecuted = new CountDownLatch(1);
@@ -578,10 +553,8 @@ public class ShardBulkInferenceActionFilterTests extends AbstractShardBulkInfere
         final StaticModel sparseModel = StaticModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
         final StaticModel denseModel = StaticModel.createRandomInstance(TaskType.TEXT_EMBEDDING);
         final ShardBulkInferenceActionFilter filter = createFilter(
-            threadPool,
             Map.of(sparseModel.getInferenceEntityId(), sparseModel, denseModel.getInferenceEntityId(), denseModel),
             indexingPressure,
-            useLegacyFormat,
             inferenceStats
         );
 
@@ -697,10 +670,8 @@ public class ShardBulkInferenceActionFilterTests extends AbstractShardBulkInfere
         );
         final StaticModel sparseModel = StaticModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
         final ShardBulkInferenceActionFilter filter = createFilter(
-            threadPool,
             Map.of(sparseModel.getInferenceEntityId(), sparseModel),
             indexingPressure,
-            useLegacyFormat,
             inferenceStats
         );
 
@@ -785,10 +756,8 @@ public class ShardBulkInferenceActionFilterTests extends AbstractShardBulkInfere
         sparseModel.putResult("bar", randomChunkedInferenceEmbedding(sparseModel, List.of("bar")));
 
         final ShardBulkInferenceActionFilter filter = createFilter(
-            threadPool,
             Map.of(sparseModel.getInferenceEntityId(), sparseModel),
             indexingPressure,
-            useLegacyFormat,
             inferenceStats
         );
 
@@ -897,10 +866,8 @@ public class ShardBulkInferenceActionFilterTests extends AbstractShardBulkInfere
 
         final InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();
         final ShardBulkInferenceActionFilter filter = createFilter(
-            threadPool,
             Map.of(sparseModel.getInferenceEntityId(), sparseModel),
             indexingPressure,
-            useLegacyFormat,
             inferenceStats
         );
 
@@ -980,7 +947,7 @@ public class ShardBulkInferenceActionFilterTests extends AbstractShardBulkInfere
             // Set the coordinating bytes limit high enough to handle all the requests
             Settings.builder().put(MAX_COORDINATING_BYTES.getKey(), "100kb").build()
         );
-        final ShardBulkInferenceActionFilter filter = createFilter(threadPool, Map.of(), indexingPressure, useLegacyFormat, inferenceStats);
+        final ShardBulkInferenceActionFilter filter = createFilter(Map.of(), indexingPressure, inferenceStats);
         final int docCount = 10;
 
         final Consumer<BulkItemRequest> assertBulkItemRequest = (item) -> {
@@ -1051,65 +1018,27 @@ public class ShardBulkInferenceActionFilterTests extends AbstractShardBulkInfere
         verify(coordinatingIndexingPressure).close();
     }
 
-    private static ShardBulkInferenceActionFilter createFilter(
-        ThreadPool threadPool,
+    private ShardBulkInferenceActionFilter createFilter(
         Map<String, StaticModel> modelMap,
         IndexingPressure indexingPressure,
-        boolean useLegacyFormat,
         InferenceStats inferenceStats
     ) {
         MockLicenseState licenseState = MockLicenseState.createMock();
         when(licenseState.isAllowed(InferencePlugin.INFERENCE_API_FEATURE)).thenReturn(true);
-        return createFilter(threadPool, modelMap, indexingPressure, useLegacyFormat, licenseState, inferenceStats);
+        return createFilter(modelMap, indexingPressure, licenseState, inferenceStats);
     }
 
     @SuppressWarnings("unchecked")
-    private static ShardBulkInferenceActionFilter createFilter(
-        ThreadPool threadPool,
+    private ShardBulkInferenceActionFilter createFilter(
         Map<String, StaticModel> modelMap,
         IndexingPressure indexingPressure,
-        boolean useLegacyFormat,
         MockLicenseState licenseState,
         InferenceStats inferenceStats
     ) {
-        ModelRegistry modelRegistry = mock(ModelRegistry.class);
-        Answer<?> unparsedModelAnswer = invocationOnMock -> {
-            String id = (String) invocationOnMock.getArguments()[0];
-            ActionListener<UnparsedModel> listener = (ActionListener<UnparsedModel>) invocationOnMock.getArguments()[1];
-            var model = modelMap.get(id);
-            if (model != null) {
-                listener.onResponse(
-                    new UnparsedModel(
-                        model.getInferenceEntityId(),
-                        model.getTaskType(),
-                        model.getServiceSettings().model(),
-                        XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(model.getTaskSettings()), false),
-                        XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(model.getSecretSettings()), false)
-                    )
-                );
-            } else {
-                listener.onFailure(new ResourceNotFoundException("model id [{}] not found", id));
-            }
-            return null;
-        };
-        doAnswer(unparsedModelAnswer).when(modelRegistry).getModelWithSecrets(any(), any());
-
-        Answer<MinimalServiceSettings> minimalServiceSettingsAnswer = invocationOnMock -> {
-            String inferenceId = (String) invocationOnMock.getArguments()[0];
-            var model = modelMap.get(inferenceId);
-            if (model == null) {
-                throw new ResourceNotFoundException("model id [{}] not found", inferenceId);
-            }
-
-            return new MinimalServiceSettings(model);
-        };
-        doAnswer(minimalServiceSettingsAnswer).when(modelRegistry).getMinimalServiceSettings(any());
-
-        InferenceService inferenceService = mock(InferenceService.class);
-        Answer<?> chunkedInferAnswer = invocationOnMock -> {
-            StaticModel model = (StaticModel) invocationOnMock.getArguments()[0];
-            List<ChunkInferenceInput> inputs = (List<ChunkInferenceInput>) invocationOnMock.getArguments()[2];
-            ActionListener<List<ChunkedInference>> listener = (ActionListener<List<ChunkedInference>>) invocationOnMock.getArguments()[6];
+        Answer<?> chunkedInferAnswer = invocation -> {
+            StaticModel model = (StaticModel) invocation.getArguments()[0];
+            List<ChunkInferenceInput> inputs = (List<ChunkInferenceInput>) invocation.getArguments()[2];
+            ActionListener<List<ChunkedInference>> listener = (ActionListener<List<ChunkedInference>>) invocation.getArguments()[6];
             Runnable runnable = () -> {
                 List<ChunkedInference> results = new ArrayList<>();
                 for (ChunkInferenceInput input : inputs) {
@@ -1128,24 +1057,14 @@ public class ShardBulkInferenceActionFilterTests extends AbstractShardBulkInfere
             }
             return null;
         };
-        doAnswer(chunkedInferAnswer).when(inferenceService).chunkedInfer(any(), any(), any(), any(), any(), any(), any());
-
-        Answer<Model> modelAnswer = invocationOnMock -> {
-            String inferenceId = (String) invocationOnMock.getArguments()[0];
-            return modelMap.get(inferenceId);
-        };
-        doAnswer(modelAnswer).when(inferenceService).parsePersistedConfigWithSecrets(any(), any(), any(), any());
-
-        InferenceServiceRegistry inferenceServiceRegistry = mock(InferenceServiceRegistry.class);
-        when(inferenceServiceRegistry.getService(any())).thenReturn(Optional.of(inferenceService));
-
-        return new ShardBulkInferenceActionFilter(
+        return super.createFilter(
+            modelMap,
             createClusterService(useLegacyFormat),
-            inferenceServiceRegistry,
-            modelRegistry,
             licenseState,
             indexingPressure,
-            inferenceStats
+            inferenceStats,
+            defaultGetModelWithSecretsAnswer(modelMap),
+            chunkedInferAnswer
         );
     }
 

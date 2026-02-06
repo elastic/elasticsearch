@@ -8,44 +8,27 @@
 package org.elasticsearch.xpack.inference.action.filter;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
-import org.elasticsearch.inference.InferenceService;
-import org.elasticsearch.inference.InferenceServiceRegistry;
-import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.telemetry.InferenceStatsTests;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.inference.InferencePlugin;
-import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -53,11 +36,6 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.INDICES_INFERENC
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomChunkedInferenceEmbedding;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 /**
@@ -402,46 +380,24 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends AbstractShardBul
         MockLicenseState licenseState = MockLicenseState.createMock();
         when(licenseState.isAllowed(InferencePlugin.INFERENCE_API_FEATURE)).thenReturn(true);
 
-        ModelRegistry modelRegistry = mock(ModelRegistry.class);
-        doAnswer(invocation -> {
-            String id = (String) invocation.getArguments()[0];
-            ActionListener<UnparsedModel> listener = (ActionListener<UnparsedModel>) invocation.getArguments()[1];
-            var model = modelMap.get(id);
-
-            Runnable response = () -> {
-                if (model != null) {
-                    listener.onResponse(
-                        new UnparsedModel(
-                            model.getInferenceEntityId(),
-                            model.getTaskType(),
-                            model.getServiceSettings().model(),
-                            XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(model.getTaskSettings()), false),
-                            XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(model.getSecretSettings()), false)
-                        )
-                    );
-                } else {
-                    listener.onFailure(new ResourceNotFoundException("model id [{}] not found", id));
-                }
-            };
-
+        Answer<?> defaultModelAnswer = defaultGetModelWithSecretsAnswer(modelMap);
+        Answer<?> modelLoadingAnswer = invocation -> {
             long delay = modelLoadingDelayController.getModelLoadingDelayMs();
             if (delay > 0) {
-                threadPool.schedule(response, TimeValue.timeValueMillis(delay), threadPool.generic());
-            } else {
-                response.run();
+                ActionListener<UnparsedModel> listener = (ActionListener<UnparsedModel>) invocation.getArguments()[1];
+                threadPool.schedule(() -> {
+                    try {
+                        defaultModelAnswer.answer(invocation);
+                    } catch (Throwable e) {
+                        listener.onFailure(e instanceof Exception ? (Exception) e : new RuntimeException(e));
+                    }
+                }, TimeValue.timeValueMillis(delay), threadPool.generic());
+                return null;
             }
-            return null;
-        }).when(modelRegistry).getModelWithSecrets(any(), any());
+            return defaultModelAnswer.answer(invocation);
+        };
 
-        doAnswer(invocation -> {
-            String inferenceId = (String) invocation.getArguments()[0];
-            var model = modelMap.get(inferenceId);
-            if (model == null) throw new ResourceNotFoundException("model id [{}] not found", inferenceId);
-            return new MinimalServiceSettings(model);
-        }).when(modelRegistry).getMinimalServiceSettings(any());
-
-        InferenceService inferenceService = mock(InferenceService.class);
-        doAnswer(invocation -> {
+        Answer<?> chunkedInferAnswer = invocation -> {
             StaticModel model = (StaticModel) invocation.getArguments()[0];
             List<ChunkInferenceInput> inputs = (List<ChunkInferenceInput>) invocation.getArguments()[2];
             TimeValue inferenceTimeout = (TimeValue) invocation.getArguments()[5];
@@ -471,51 +427,25 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends AbstractShardBul
                 listener.onResponse(results);
             }
             return null;
-        }).when(inferenceService).chunkedInfer(any(), any(), any(), any(), any(), any(), any());
+        };
 
-        doAnswer(invocation -> modelMap.get((String) invocation.getArguments()[0])).when(inferenceService)
-            .parsePersistedConfigWithSecrets(any(), any(), any(), any());
-
-        InferenceServiceRegistry registry = mock(InferenceServiceRegistry.class);
-        when(registry.getService(any())).thenReturn(Optional.of(inferenceService));
-
-        return new ShardBulkInferenceActionFilter(
+        return super.createFilter(
+            modelMap,
             createClusterService(timeout),
-            registry,
-            modelRegistry,
             licenseState,
             NOOP_INDEXING_PRESSURE,
-            InferenceStatsTests.mockInferenceStats()
+            InferenceStatsTests.mockInferenceStats(),
+            modelLoadingAnswer,
+            chunkedInferAnswer
         );
     }
 
     private ClusterService createClusterService(TimeValue timeout) {
-        IndexMetadata indexMetadata = mock(IndexMetadata.class);
-        var indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
-            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
-            .build();
-        when(indexMetadata.getSettings()).thenReturn(indexSettings);
-
-        ProjectMetadata project = spy(ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID).build());
-        when(project.index(anyString())).thenReturn(indexMetadata);
-
-        Metadata metadata = mock(Metadata.class);
-        when(metadata.getProject()).thenReturn(project);
-
-        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(clusterState);
-
         Settings settings = Settings.builder()
             .put(INDICES_INFERENCE_BATCH_SIZE.getKey(), ByteSizeValue.ofBytes(20))
             .put(INDICES_INFERENCE_BULK_TIMEOUT.getKey(), timeout)
             .build();
-        when(clusterService.getSettings()).thenReturn(settings);
-        when(clusterService.getClusterSettings()).thenReturn(
-            new ClusterSettings(settings, Set.of(INDICES_INFERENCE_BATCH_SIZE, INDICES_INFERENCE_BULK_TIMEOUT))
-        );
-        return clusterService;
+        return createClusterService(useLegacyFormat, settings);
     }
 
     // ========== Supporting Types ==========

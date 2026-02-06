@@ -34,6 +34,17 @@ java {
   sourceCompatibility = versions.get("minimumRuntimeJava")
 }
 
+sourceSets {
+  integTest {
+    compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
+    runtimeClasspath += output + compileClasspath
+  }
+}
+
+tasks.named("pluginUnderTestMetadata").configure {
+  getPluginClasspath().from(sourceSets.testFixtures.runtimeClasspath)
+}
+
 gradlePlugin {
     // We already configure publication and we don't need or want the one that comes
     // with the java-gradle-plugin
@@ -76,6 +87,7 @@ gradlePlugin {
             implementationClass = 'org.elasticsearch.gradle.test.YamlRestTestPlugin'
         }
     }
+//    testSourceSets project.sourceSets.integTest, project.sourceSets.testFixtures
 }
 
 // we update the version property to reflect if we are building a snapshot or a release build
@@ -91,13 +103,6 @@ tasks.named("processResources").configure {
     from(generateVersionProperties)
     into('META-INF') {
         from configurations.reaper
-    }
-}
-
-sourceSets {
-    integTest {
-        compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
-        runtimeClasspath += output + compileClasspath
     }
 }
 
@@ -176,6 +181,7 @@ tasks.withType(JavaCompile).configureEach {
 tasks.named('test').configure {
     useJUnitPlatform()
 }
+
 tasks.register("integTest", Test) {
     testClassesDirs = sourceSets.integTest.output.classesDirs
     classpath = sourceSets.integTest.runtimeClasspath

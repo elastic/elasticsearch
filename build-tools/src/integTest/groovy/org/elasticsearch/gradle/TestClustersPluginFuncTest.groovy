@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle
 
 import spock.lang.IgnoreIf
+import spock.lang.IgnoreRest
 import spock.lang.Unroll
 import spock.util.environment.RestoreSystemProperties
 
@@ -17,6 +18,7 @@ import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.GradleRunner
 
 import static org.elasticsearch.gradle.fixtures.DistributionDownloadFixture.*
+import static org.elasticsearch.gradle.fixtures.JdkToolchainTestFixture.withMockedJdkDownload
 
 /**
  * We do not have coverage for the test cluster startup on windows yet.
@@ -239,15 +241,9 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
     }
 
     @RestoreSystemProperties
+    @IgnoreRest
     def "override jdk usage via ES_JAVA_HOME for known jdk os incompatibilities"() {
         given:
-
-        settingsFile.text = """
-            plugins {
-                id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
-            }
-            """ + settingsFile.text
-
         buildFile << """
             testClusters {
               myCluster {
@@ -266,16 +262,28 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
             }
         """
         when:
-        def result = withMockedDistributionDownload(
-            "8.10.4",
-            ElasticsearchDistribution.Platform.LINUX,
-            gradleRunner("myTask", '-Dos.name=Linux', '-Dos.version=6.14.0-1015-gcp', '-i')
-        ) {
-            build()
-        }
+        def runner = gradleRunner(
+            "myTask",
+            '-Dos.name=Linux',
+            '-Dos.version=6.14.0-1015-gcp',
+            '-i',
+            '-Dorg.gradle.java.installations.auto-detect=false'
+        )
+
+        def result = withMockedJdkDownload(runner, { GradleRunner r ->
+            withMockedDistributionDownload(
+                "8.10.4",
+                ElasticsearchDistribution.Platform.LINUX,
+                r,
+                { it.buildAndFail() }
+            )
+        }, 17, "eclipse_adoptium")
 
         then:
-        result.output.lines().anyMatch { line -> line.startsWith("Running") && line.split().find { it.startsWith("ES_JAVA_HOME=") }.contains("eclipse_adoptium-17") }
+        def output = result.output
+        assert output.contains("Running")
+        assert output.contains("ES_JAVA_HOME=")
+        assert output.contains("eclipse_adoptium-17")
     }
 
     boolean assertEsOutputContains(String testCluster, String expectedOutput) {

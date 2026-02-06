@@ -41,7 +41,6 @@ import static org.elasticsearch.repositories.s3.AbstractRepositoryS3RestTestCase
 import static org.hamcrest.Matchers.equalTo;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
-@ThreadLeakScope(ThreadLeakScope.Scope.NONE) // https://github.com/elastic/elasticsearch/issues/102482
 public class RepositoryS3StsCredentialsReloadRestIT extends ESRestTestCase {
 
     private static final String PREFIX = getIdentifierPrefix("RepositoryS3StsCredentialsRestIT");

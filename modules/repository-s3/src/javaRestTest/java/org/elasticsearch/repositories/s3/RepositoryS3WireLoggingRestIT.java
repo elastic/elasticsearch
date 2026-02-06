@@ -37,7 +37,6 @@ import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
 import static org.hamcrest.Matchers.hasSize;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
-@ThreadLeakScope(ThreadLeakScope.Scope.NONE) // https://github.com/elastic/elasticsearch/issues/102482
 public class RepositoryS3WireLoggingRestIT extends AbstractRepositoryS3RestTestCase {
 
     private static final String PREFIX = getIdentifierPrefix("RepositoryS3WireLoggingRestIT");

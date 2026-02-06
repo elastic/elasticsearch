@@ -10,7 +10,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -105,11 +105,7 @@ public class ReindexResumeIT extends ESIntegTestCase {
         // ensure remaining docs were indexed
         assertHitCount(prepareSearch(destIndex), remainingDocs);
         // ensure the scroll is cleared
-        assertThrows(
-            "Scroll should be cleared after remote reindexing is done",
-            SearchPhaseExecutionException.class,
-            () -> client().prepareSearchScroll(scrollId).get()
-        );
+        assertEquals(0, currentNumberOfScrollContexts());
     }
 
     public void testRemoteResumeReindexFromScroll() {
@@ -179,11 +175,7 @@ public class ReindexResumeIT extends ESIntegTestCase {
         // ensure remaining docs were indexed
         assertHitCount(prepareSearch(destIndex), remainingDocs);
         // ensure the scroll is cleared
-        assertThrows(
-            "Scroll should be cleared after remote reindexing is done",
-            SearchPhaseExecutionException.class,
-            () -> client().prepareSearchScroll(scrollId).get()
-        );
+        assertEquals(0, currentNumberOfScrollContexts());
     }
 
     private BulkByScrollTask.Status randomStats() {
@@ -203,5 +195,14 @@ public class ReindexResumeIT extends ESIntegTestCase {
             null,
             TimeValue.ZERO
         );
+    }
+
+    private long currentNumberOfScrollContexts() {
+        final NodesStatsResponse stats = clusterAdmin().prepareNodesStats().clear().setIndices(true).get();
+        long total = 0;
+        for (var nodeStats : stats.getNodes()) {
+            total += nodeStats.getIndices().getSearch().getTotal().getScrollCurrent();
+        }
+        return total;
     }
 }

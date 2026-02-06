@@ -73,7 +73,9 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
             .addTimeseries(createTimeSeries("metric_three_total", 3.0, now))
             .build();
 
-        RemoteWriteResponse response = executeRequest(new RemoteWriteRequest(new BytesArray(writeRequest.toByteArray())));
+        RemoteWriteResponse response = executeRequest(
+            new RemoteWriteRequest(new BytesArray(writeRequest.toByteArray()), "generic", "default")
+        );
 
         assertThat(response.getStatus(), equalTo(RestStatus.NO_CONTENT));
     }
@@ -92,7 +94,9 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
             )
             .build();
 
-        RemoteWriteResponse response = executeRequest(new RemoteWriteRequest(new BytesArray(writeRequest.toByteArray())));
+        RemoteWriteResponse response = executeRequest(
+            new RemoteWriteRequest(new BytesArray(writeRequest.toByteArray()), "generic", "default")
+        );
 
         assertThat(response.getStatus(), equalTo(RestStatus.NO_CONTENT));
     }
@@ -136,7 +140,7 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
     public void testInvalidProtobufReturns400() {
         // Invalid protobuf bytes should return 400 Bad Request (not 500)
         // per Prometheus remote write spec: 4xx for invalid requests that should not be retried
-        RemoteWriteRequest request = new RemoteWriteRequest(new BytesArray(new byte[] { 0x00, 0x01, 0x02, 0x03 }));
+        RemoteWriteRequest request = new RemoteWriteRequest(new BytesArray(new byte[] { 0x00, 0x01, 0x02, 0x03 }), "generic", "default");
 
         @SuppressWarnings("unchecked")
         ActionListener<RemoteWriteResponse> responseListener = mock(ActionListener.class);
@@ -158,9 +162,19 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
             )
             .build();
 
-        RemoteWriteResponse response = executeRequest(new RemoteWriteRequest(new BytesArray(writeRequest.toByteArray())));
+        RemoteWriteResponse response = executeRequest(
+            new RemoteWriteRequest(new BytesArray(writeRequest.toByteArray()), "generic", "default")
+        );
 
         // Should return NO_CONTENT since no valid samples were indexed
+        assertThat(response.getStatus(), equalTo(RestStatus.NO_CONTENT));
+    }
+
+    public void testCustomDatasetAndNamespace() {
+        RemoteWriteResponse response = executeRequest(
+            createWriteRequest("test_metric", 42.0, System.currentTimeMillis(), "myapp", "production")
+        );
+
         assertThat(response.getStatus(), equalTo(RestStatus.NO_CONTENT));
     }
 
@@ -205,14 +219,20 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
     }
 
     private static RemoteWriteRequest createEmptyWriteRequest() {
-        return new RemoteWriteRequest(new BytesArray(RemoteWrite.WriteRequest.newBuilder().build().toByteArray()));
+        return new RemoteWriteRequest(new BytesArray(RemoteWrite.WriteRequest.newBuilder().build().toByteArray()), "generic", "default");
     }
 
     private static RemoteWriteRequest createWriteRequest(String metricName, double value, long timestamp) {
+        return createWriteRequest(metricName, value, timestamp, "generic", "default");
+    }
+
+    private static RemoteWriteRequest createWriteRequest(String metricName, double value, long timestamp, String dataset, String ns) {
         return new RemoteWriteRequest(
             new BytesArray(
                 RemoteWrite.WriteRequest.newBuilder().addTimeseries(createTimeSeries(metricName, value, timestamp)).build().toByteArray()
-            )
+            ),
+            dataset,
+            ns
         );
     }
 

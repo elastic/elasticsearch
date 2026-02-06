@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;

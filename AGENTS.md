@@ -72,6 +72,7 @@ The repository is organized into several key directories:
 - Avoid documenting trivial getters/setters; focus on behavior, preconditions, or surprises.
 - Use `@link` for inline references; highlight performance caveats or contract obligations directly in docs.
 - For tests, Javadoc can describe scenario setup/expectations to aid future contributors.
+- Do not remove existing comments from code unless the code is also being removed or the comment has become incorrect.
 
 ## License Headers
 - Default header (outside `x-pack`): Elastic License 2.0, SSPL v1, or AGPL v3—they are already codified at the top of Java files; copy from existing sources.

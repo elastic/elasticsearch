@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.azureaistudio.rerank;
 
-import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -90,7 +89,7 @@ public class AzureAiStudioRerankModel extends AzureAiStudioModel {
 
     @Override
     protected URI getEndpointUri() throws URISyntaxException {
-        return new URIBuilder(this.target).setPath(RERANK_URI_PATH).build();
+        return new URI(stripTrailingSlash(this.target) + RERANK_URI_PATH);
     }
 
     @Override

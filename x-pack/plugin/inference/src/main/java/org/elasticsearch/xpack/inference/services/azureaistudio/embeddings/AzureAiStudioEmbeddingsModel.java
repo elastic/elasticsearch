@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.azureaistudio.embeddings;
 
-import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -104,7 +103,7 @@ public class AzureAiStudioEmbeddingsModel extends AzureAiStudioModel {
             return new URI(this.target);
         }
 
-        return new URIBuilder(this.target).setPath(EMBEDDINGS_URI_PATH).build();
+        return new URI(stripTrailingSlash(this.target) + EMBEDDINGS_URI_PATH);
     }
 
     @Override

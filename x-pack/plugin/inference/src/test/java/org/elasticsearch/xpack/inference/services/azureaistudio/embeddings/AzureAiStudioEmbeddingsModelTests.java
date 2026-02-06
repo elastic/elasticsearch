@@ -100,6 +100,17 @@ public class AzureAiStudioEmbeddingsModelTests extends ESTestCase {
         assertThat(model.getEndpointUri().toString(), is("http://testtarget.local/v1/embeddings"));
     }
 
+    public void testSetsProperUrlForCohereModel_WithExistingPath() throws URISyntaxException {
+        var model = createModel(
+            "id",
+            "http://testtarget.local/models",
+            AzureAiStudioProvider.COHERE,
+            AzureAiStudioEndpointType.TOKEN,
+            "apikey"
+        );
+        assertThat(model.getEndpointUri().toString(), is("http://testtarget.local/models/v1/embeddings"));
+    }
+
     public static AzureAiStudioEmbeddingsModel createModel(
         String inferenceId,
         String target,

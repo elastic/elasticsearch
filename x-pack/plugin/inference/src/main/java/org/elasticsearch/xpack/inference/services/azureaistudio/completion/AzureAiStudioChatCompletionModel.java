@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.azureaistudio.completion;
 
-import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -100,7 +99,7 @@ public class AzureAiStudioChatCompletionModel extends AzureAiStudioModel {
             return new URI(this.target);
         }
 
-        return new URIBuilder(this.target).setPath(COMPLETIONS_URI_PATH).build();
+        return new URI(stripTrailingSlash(this.target) + COMPLETIONS_URI_PATH);
     }
 
     @Override

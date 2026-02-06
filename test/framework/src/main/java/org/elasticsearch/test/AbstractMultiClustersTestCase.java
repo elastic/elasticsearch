@@ -71,6 +71,10 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         return Collections.emptyList();
     }
 
+    protected Settings nodeSettings(String clusterAlias) {
+        return nodeSettings();
+    }
+
     protected Settings nodeSettings() {
         return Settings.EMPTY;
     }
@@ -103,11 +107,11 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         return null;
     }
 
-    private Client internalClient() {
+    protected Client internalClient() {
         return internalClient(LOCAL_CLUSTER);
     }
 
-    private Client internalClient(String clusterAlias) {
+    protected Client internalClient(String clusterAlias) {
         String internalClientOrigin = internalClientOrigin();
         Client client = client(clusterAlias);
         return internalClientOrigin != null ? new OriginSettingClient(client, internalClientOrigin) : client;
@@ -133,7 +137,7 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
             final int numberOfNodes = randomIntBetween(1, 3);
             final Collection<Class<? extends Plugin>> nodePlugins = nodePlugins(clusterAlias);
 
-            final NodeConfigurationSource nodeConfigurationSource = nodeConfigurationSource(nodeSettings(), nodePlugins);
+            final NodeConfigurationSource nodeConfigurationSource = nodeConfigurationSource(nodeSettings(clusterAlias), nodePlugins);
             final InternalTestCluster cluster = new InternalTestCluster(
                 randomLong(),
                 createTempDir(),
@@ -215,9 +219,13 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
     protected void configureRemoteCluster(String clusterAlias, Collection<String> seedNodes) throws Exception {
         final var seedAddresses = seedNodes.stream().map(node -> {
             final TransportService transportService = cluster(clusterAlias).getInstance(TransportService.class, node);
-            return transportService.boundAddress().publishAddress();
+            return getTransportAddress(transportService);
         }).toList();
         configureRemoteClusterWithSeedAddresses(clusterAlias, seedAddresses);
+    }
+
+    protected TransportAddress getTransportAddress(TransportService transportService) {
+        return transportService.boundAddress().publishAddress();
     }
 
     protected void configureRemoteClusterWithSeedAddresses(String clusterAlias, Collection<TransportAddress> seedNodes) throws Exception {
@@ -227,23 +235,21 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         boolean skipUnavailable = skipUnavailableForRemoteClusters().containsKey(clusterAlias)
             ? skipUnavailableForRemoteClusters().get(clusterAlias)
             : DEFAULT_SKIP_UNAVAILABLE;
-        Settings.Builder builder;
         if (randomBoolean()) {
             LOGGER.info("--> use sniff mode with seed [{}], remote nodes [{}]", Collectors.joining(","), seedNodes);
-            builder = settings.putNull(remoteClusterSettingPrefix + "proxy_address")
+            settings.putNull(remoteClusterSettingPrefix + "proxy_address")
                 .put(remoteClusterSettingPrefix + "mode", "sniff")
                 .put(remoteClusterSettingPrefix + "seeds", String.join(",", seedAddresses));
         } else {
             final String proxyNode = randomFrom(seedAddresses);
             LOGGER.info("--> use proxy node [{}], remote nodes [{}]", proxyNode, seedNodes);
-            builder = settings.putNull(remoteClusterSettingPrefix + "seeds")
+            settings.putNull(remoteClusterSettingPrefix + "seeds")
                 .put(remoteClusterSettingPrefix + "mode", "proxy")
                 .put(remoteClusterSettingPrefix + "proxy_address", proxyNode);
         }
         if (skipUnavailable != DEFAULT_SKIP_UNAVAILABLE) {
-            builder.put(remoteClusterSettingPrefix + "skip_unavailable", String.valueOf(skipUnavailable));
+            settings.put(remoteClusterSettingPrefix + "skip_unavailable", String.valueOf(skipUnavailable));
         }
-        builder.build();
 
         ClusterUpdateSettingsResponse resp = internalClient().admin()
             .cluster()

@@ -58,6 +58,9 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
 
     @Override
     protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
+        // This method relies on callers filtering out feature docs with null feature data
+        assert Arrays.stream(featureDocs).noneMatch(featureDoc -> featureDoc.featureData == null);
+
         ActionListener<InferenceAction.Response> inferenceListener = scoreListener.delegateFailureAndWrap((l, r) -> {
             InferenceServiceResults results = r.getResults();
             if (results instanceof RankedDocsResults rankedDocsResults) {
@@ -96,10 +99,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
             if (featureDocs.length == 0) {
                 inferenceListener.onResponse(new InferenceAction.Response(new RankedDocsResults(List.of())));
             } else {
-                List<String> inferenceInputs = Arrays.stream(featureDocs)
-                    .filter(featureDoc -> featureDoc.featureData != null) // TODO: Filtering here could mess up indices...
-                    .flatMap(featureDoc -> featureDoc.featureData.stream())
-                    .toList();
+                List<String> inferenceInputs = Arrays.stream(featureDocs).flatMap(featureDoc -> featureDoc.featureData.stream()).toList();
                 InferenceAction.Request inferenceRequest = generateRequest(inferenceInputs);
                 try {
                     executeAsyncWithOrigin(client, INFERENCE_ORIGIN, InferenceAction.INSTANCE, inferenceRequest, inferenceListener);

@@ -15,8 +15,8 @@ dockerFixtures {
   }
   oidc {
     dockerContext = file("src/main/resources/oidc")
-    version = "1.0"
-    baseImages = ["c2id/c2id-server-demo:16.1.1", "eclipse-temurin:17-noble"]
+    version = "1.1"
+    baseImages = ["c2id/c2id-server-demo:16.1.1", "eclipse-temurin:17-jre"]
   }
   openldap {
     dockerContext = file("src/main/resources/openldap")

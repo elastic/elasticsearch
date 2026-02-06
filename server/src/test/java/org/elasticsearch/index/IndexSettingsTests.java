@@ -930,7 +930,7 @@ public class IndexSettingsTests extends ESTestCase {
         assertTrue(IndexSettings.same(settings, differentOtherSettingBuilder.build()));
     }
 
-    public void testSyntheticIdHappyCase() {
+    public void testSyntheticIdCorrectSettings() {
         IndexVersion version = IndexVersionUtils.randomVersionBetween(
             IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
             IndexVersion.current()

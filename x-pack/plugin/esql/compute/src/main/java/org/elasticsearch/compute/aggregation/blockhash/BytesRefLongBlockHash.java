@@ -68,6 +68,14 @@ public final class BytesRefLongBlockHash extends BlockHash {
         Releasables.close(bytesHash, finalHash);
     }
 
+    /**
+     * Adds a single {@link BytesRef} to the bytes hash and returns its
+     * null-reserved ordinal (0 is reserved for null, real ordinals start at 1).
+     */
+    long addBytesRef(BytesRef value) {
+        return hashOrdToGroupNullReserved(bytesHash.hash.add(value));
+    }
+
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
         BytesRefBlock bytesBlock = page.getBlock(bytesChannel);

@@ -11,7 +11,6 @@ package org.elasticsearch.common.logging.activity;
 
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.index.ActionLoggingFields;
-import org.elasticsearch.logging.Level;
 
 import java.util.concurrent.TimeUnit;
 
@@ -19,14 +18,16 @@ import java.util.concurrent.TimeUnit;
  * Generic log producer class.
  * Each log producer receives a context and decides whether to log, and at which level. Then it extracts logging information
  * from the context and places it into the message. The producer defines which fields are included in the specific log message.
+ *
  * @param <Context> Specific logger context
  */
 public interface ActivityLogProducer<Context extends ActivityLoggerContext> {
-    ESLogMessage produce(Context context, ActionLoggingFields additionalFields);
 
-    default Level logLevel(Context context, Level defaultLevel) {
-        return defaultLevel;
-    }
+    String X_OPAQUE_ID_FIELD = "http.request.headers.x_opaque_id";
+    String EVENT_OUTCOME_FIELD = "event.outcome";
+    String ES_FIELDS_PREFIX = "elasticsearch.activitylog.";
+
+    ESLogMessage produce(Context context, ActionLoggingFields additionalFields);
 
     String loggerName();
 
@@ -36,15 +37,15 @@ public interface ActivityLogProducer<Context extends ActivityLoggerContext> {
     default ESLogMessage produceCommon(Context context, ActionLoggingFields additionalFields) {
         var fields = new ESLogMessage();
         fields.withFields(additionalFields.logFields());
-        fields.field("x_opaque_id", context.getOpaqueId());
+        fields.field(X_OPAQUE_ID_FIELD, context.getOpaqueId());
         long tookInNanos = context.getTookInNanos();
-        fields.field("took", tookInNanos);
-        fields.field("took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos));
-        fields.field("success", context.isSuccess());
-        fields.field("type", context.getType());
+        fields.field(ES_FIELDS_PREFIX + "took", tookInNanos);
+        fields.field(ES_FIELDS_PREFIX + "took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos));
+        fields.field(EVENT_OUTCOME_FIELD, context.isSuccess() ? "success" : "failure");
+        fields.field(ES_FIELDS_PREFIX + "type", context.getType());
         if (context.isSuccess() == false) {
-            fields.field("error.type", context.getErrorType());
-            fields.field("error.message", context.getErrorMessage());
+            fields.field(ES_FIELDS_PREFIX + "error.type", context.getErrorType());
+            fields.field(ES_FIELDS_PREFIX + "error.message", context.getErrorMessage());
         }
         return fields;
     }

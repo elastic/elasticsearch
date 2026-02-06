@@ -72,16 +72,13 @@ public class ActivityLoggerTests extends ESTestCase {
         enableLogger();
         TestContext context = new TestContext(100);
 
-        var level = randomLogLevel();
         ESLogMessage randomMessage = randomMessage();
 
-        when(producer.logLevel(context, Level.INFO)).thenReturn(level);
         when(producer.produce(context, loggingFields)).thenReturn(randomMessage);
 
         actionLogger.logAction(context);
 
-        verify(writer).write(level, randomMessage);
-        verify(producer).logLevel(context, Level.INFO);
+        verify(writer).write(actionLogger.getLogLevel(), randomMessage);
     }
 
     public void testLogActionBelowThreshold() {
@@ -97,28 +94,13 @@ public class ActivityLoggerTests extends ESTestCase {
         setThreshold(TimeValue.timeValueMillis(100));
 
         TestContext context = new TestContext(TimeValue.timeValueMillis(150).nanos());
-        var level = randomLogLevel();
         ESLogMessage randomMessage = randomMessage();
 
-        when(producer.logLevel(context, Level.INFO)).thenReturn(level);
         when(producer.produce(context, loggingFields)).thenReturn(randomMessage);
 
         actionLogger.logAction(context);
 
-        verify(writer).write(level, randomMessage);
-        verify(producer).logLevel(context, Level.INFO);
-    }
-
-    public void testLogActionLevelOff() {
-        enableLogger();
-        TestContext context = new TestContext(100);
-
-        when(producer.logLevel(context, Level.INFO)).thenReturn(Level.OFF);
-
-        actionLogger.logAction(context);
-
-        verifyNoInteractions(writer);
-        verify(producer).logLevel(context, Level.INFO);
+        verify(writer).write(actionLogger.getLogLevel(), randomMessage);
     }
 
     @SuppressWarnings("unchecked")

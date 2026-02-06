@@ -14,7 +14,6 @@ import org.elasticsearch.common.logging.activity.ActivityLogProducer;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.ActionLoggingFields;
-import org.elasticsearch.logging.Level;
 
 import java.util.Arrays;
 import java.util.function.Predicate;
@@ -23,7 +22,7 @@ import static org.elasticsearch.common.logging.activity.ActivityLogger.ACTIVITY_
 
 public class SearchLogProducer implements ActivityLogProducer<SearchLogContext> {
 
-    public static final String LOGGER_NAME = "search.actionlog";
+    public static final String LOGGER_NAME = "search.activitylog";
     public static final String[] NEVER_MATCH = new String[] { "*", "-*" };
 
     private boolean logSystemSearches = false;
@@ -44,27 +43,22 @@ public class SearchLogProducer implements ActivityLogProducer<SearchLogContext> 
 
     @Override
     public ESLogMessage produce(SearchLogContext context, ActionLoggingFields additionalFields) {
-        ESLogMessage msg = produceCommon(context, additionalFields);
-        msg.field("query", context.getQuery());
-        msg.field("indices", context.getIndices());
-        msg.field("hits", context.getHits());
-        if (context.isSystemSearch(systemChecker)) {
-            msg.field("is_system", true);
-        }
-        return msg;
-    }
-
-    @Override
-    public Level logLevel(SearchLogContext context, Level defaultLevel) {
         if (Arrays.equals(NEVER_MATCH, context.getIndexNames())) {
             // Exclude no-match pattern searches, there's not much use in them
-            return Level.OFF;
+            return null;
         }
         // Exclude system searches, based on option
         if (logSystemSearches == false && context.isSystemSearch(systemChecker)) {
-            return Level.OFF;
+            return null;
         }
-        return defaultLevel;
+        ESLogMessage msg = produceCommon(context, additionalFields);
+        msg.field(ES_FIELDS_PREFIX + "query", context.getQuery());
+        msg.field(ES_FIELDS_PREFIX + "indices", context.getIndices());
+        msg.field(ES_FIELDS_PREFIX + "hits", context.getHits());
+        if (context.isSystemSearch(systemChecker)) {
+            msg.field(ES_FIELDS_PREFIX + "is_system", true);
+        }
+        return msg;
     }
 
     @Override

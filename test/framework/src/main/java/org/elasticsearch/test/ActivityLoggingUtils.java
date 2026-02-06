@@ -17,6 +17,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.action.search.SearchLogProducer.SEARCH_LOGGER_LOG_SYSTEM;
+import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_FIELDS_PREFIX;
+import static org.elasticsearch.common.logging.activity.ActivityLogProducer.EVENT_OUTCOME_FIELD;
 import static org.elasticsearch.common.logging.activity.ActivityLogger.ACTIVITY_LOGGER_ENABLED;
 import static org.elasticsearch.test.ESIntegTestCase.updateClusterSettings;
 import static org.elasticsearch.test.ESTestCase.assertThat;
@@ -69,11 +71,11 @@ public class ActivityLoggingUtils {
     }
 
     public static void assertMessageSuccess(Map<String, String> message, String type, String query) {
-        assertThat(message.get("success"), equalTo("true"));
-        assertThat(message.get("type"), equalTo(type));
-        assertThat(Long.valueOf(message.get("took")), greaterThan(0L));
-        assertThat(Long.valueOf(message.get("took_millis")), greaterThanOrEqualTo(0L));
-        assertThat(message.get("query"), containsString(query));
+        assertThat(message.get(EVENT_OUTCOME_FIELD), equalTo("success"));
+        assertThat(message.get(ES_FIELDS_PREFIX + "type"), equalTo(type));
+        assertThat(Long.valueOf(message.get(ES_FIELDS_PREFIX + "took")), greaterThan(0L));
+        assertThat(Long.valueOf(message.get(ES_FIELDS_PREFIX + "took_millis")), greaterThanOrEqualTo(0L));
+        assertThat(message.get(ES_FIELDS_PREFIX + "query"), containsString(query));
     }
 
     public static void assertMessageFailure(
@@ -83,16 +85,16 @@ public class ActivityLoggingUtils {
         Class<? extends Throwable> exception,
         String errorMessage
     ) {
-        assertThat(message.get("success"), equalTo("false"));
-        assertThat(message.get("type"), equalTo(type));
-        assertThat(Long.valueOf(message.get("took")), greaterThan(0L));
-        assertThat(Long.valueOf(message.get("took_millis")), greaterThanOrEqualTo(0L));
-        assertThat(message.get("query"), containsString(query));
+        assertThat(message.get(EVENT_OUTCOME_FIELD), equalTo("failure"));
+        assertThat(message.get(ES_FIELDS_PREFIX + "type"), equalTo(type));
+        assertThat(Long.valueOf(message.get(ES_FIELDS_PREFIX + "took")), greaterThan(0L));
+        assertThat(Long.valueOf(message.get(ES_FIELDS_PREFIX + "took_millis")), greaterThanOrEqualTo(0L));
+        assertThat(message.get(ES_FIELDS_PREFIX + "query"), containsString(query));
         if (errorMessage != null) {
-            assertThat(message.get("error.message"), containsString(errorMessage));
+            assertThat(message.get(ES_FIELDS_PREFIX + "error.message"), containsString(errorMessage));
         }
         if (exception != null) {
-            assertThat(message.get("error.type"), equalTo(exception.getName()));
+            assertThat(message.get(ES_FIELDS_PREFIX + "error.type"), equalTo(exception.getName()));
         }
     }
 }

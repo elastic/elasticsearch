@@ -13,14 +13,14 @@ import org.elasticsearch.index.ActionLoggingFields;
 
 public class EqlLogProducer implements ActivityLogProducer<EqlLogContext> {
 
-    public static final String LOGGER_NAME = "eql.actionlog";
+    public static final String LOGGER_NAME = "eql.activitylog";
 
     @Override
     public ESLogMessage produce(EqlLogContext context, ActionLoggingFields additionalFields) {
         ESLogMessage msg = produceCommon(context, additionalFields);
-        msg.field("query", context.getQuery());
-        msg.field("indices", context.getIndices());
-        msg.field("hits", context.getHits());
+        msg.field(ES_FIELDS_PREFIX + "query", context.getQuery());
+        msg.field(ES_FIELDS_PREFIX + "indices", context.getIndices());
+        msg.field(ES_FIELDS_PREFIX + "hits", context.getHits());
         return msg;
     }
 

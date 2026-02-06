@@ -13,12 +13,12 @@ import org.elasticsearch.index.ActionLoggingFields;
 
 public class SqlLogProducer implements ActivityLogProducer<SqlLogContext> {
 
-    public static final String LOGGER_NAME = "sql.actionlog";
+    public static final String LOGGER_NAME = "sql.activitylog";
 
     @Override
     public ESLogMessage produce(SqlLogContext context, ActionLoggingFields additionalFields) {
         ESLogMessage msg = produceCommon(context, additionalFields);
-        return msg.field("query", context.getQuery()).field("rows", context.getRows());
+        return msg.field(ES_FIELDS_PREFIX + "query", context.getQuery()).field(ES_FIELDS_PREFIX + "rows", context.getRows());
     }
 
     @Override

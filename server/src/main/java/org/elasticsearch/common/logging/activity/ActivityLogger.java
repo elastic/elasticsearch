@@ -38,7 +38,7 @@ public class ActivityLogger<Context extends ActivityLoggerContext> {
     private long threshold = -1;
     private Level logLevel = Level.INFO;
 
-    public static final String ACTIVITY_LOGGER_SETTINGS_PREFIX = "elasticsearch.actionlog.";
+    public static final String ACTIVITY_LOGGER_SETTINGS_PREFIX = "elasticsearch.activitylog.";
     public static final Setting.AffixSetting<Boolean> ACTIVITY_LOGGER_ENABLED = Setting.affixKeySetting(
         ACTIVITY_LOGGER_SETTINGS_PREFIX,
         "enabled",
@@ -51,11 +51,11 @@ public class ActivityLogger<Context extends ActivityLoggerContext> {
         key -> timeSetting(key, TimeValue.MINUS_ONE, Setting.Property.Dynamic, Setting.Property.NodeScope)
     );
 
-    // Default log level for this log type. Logger can override that if it wants to.
+    // Level for this log type. Presently set as operator configurable.
     public static final Setting.AffixSetting<Level> ACTIVITY_LOGGER_LEVEL = Setting.affixKeySetting(
         ACTIVITY_LOGGER_SETTINGS_PREFIX,
         "log_level",
-        key -> new Setting<>(key, Level.INFO.name(), Level::valueOf, Setting.Property.Dynamic, Setting.Property.NodeScope)
+        key -> new Setting<>(key, Level.INFO.name(), Level::valueOf, Setting.Property.OperatorDynamic, Setting.Property.NodeScope)
     );
 
     // Whether to include authentication information in the log
@@ -100,6 +100,11 @@ public class ActivityLogger<Context extends ActivityLoggerContext> {
         logLevel = level;
     }
 
+    // For tests
+    public Level getLogLevel() {
+        return logLevel;
+    }
+
     private <T> BiConsumer<String, T> updater(String name, Consumer<T> updater) {
         return (k, v) -> { if (name.equals(k)) updater.accept(v); };
     }
@@ -109,13 +114,9 @@ public class ActivityLogger<Context extends ActivityLoggerContext> {
         if (enabled == false || (threshold > -1 && context.getTookInNanos() < threshold)) {
             return;
         }
-        Level level = producer.logLevel(context, logLevel);
-        if (level.equals(Level.OFF)) {
-            return;
-        }
         var event = producer.produce(context, additionalFields);
         if (event != null) {
-            writer.write(level, event);
+            writer.write(logLevel, event);
         }
     }
 

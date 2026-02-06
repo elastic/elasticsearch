@@ -60,6 +60,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_FIELDS_PREFIX;
+import static org.elasticsearch.common.logging.activity.ActivityLogProducer.EVENT_OUTCOME_FIELD;
 import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
@@ -130,8 +132,8 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             var event = appender.getLastEventAndReset();
             Map<String, String> message = getMessageData(event);
             assertMessageSuccess(message, "search", "fox");
-            assertThat(message.get("hits"), equalTo("1"));
-            assertThat(message.get("indices"), equalTo(""));
+            assertThat(message.get(ES_FIELDS_PREFIX + "hits"), equalTo("1"));
+            assertThat(message.get(ES_FIELDS_PREFIX + "indices"), equalTo(""));
         }
 
         // Match
@@ -161,8 +163,8 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         var event = appender.getLastEventAndReset();
         Map<String, String> message = getMessageData(event);
         assertMessageFailure(message, "search", "quick brown", SearchPhaseExecutionException.class, "all shards failed");
-        assertThat(message.get("hits"), equalTo("0"));
-        assertThat(message.get("indices"), equalTo(INDEX_NAME));
+        assertThat(message.get(ES_FIELDS_PREFIX + "hits"), equalTo("0"));
+        assertThat(message.get(ES_FIELDS_PREFIX + "indices"), equalTo(INDEX_NAME));
     }
 
     public void testSearchCancel() throws Exception {
@@ -181,8 +183,8 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         var event = appender.getLastEventAndReset();
         Map<String, String> message = getMessageData(event);
         assertMessageFailure(message, "search", "mockscript", SearchPhaseExecutionException.class, null);
-        assertThat(message.get("hits"), equalTo("0"));
-        assertThat(message.get("indices"), equalTo("test"));
+        assertThat(message.get(ES_FIELDS_PREFIX + "hits"), equalTo("0"));
+        assertThat(message.get(ES_FIELDS_PREFIX + "indices"), equalTo("test"));
     }
 
     public void testMultiSearch() {
@@ -196,17 +198,17 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
 
         appender.events.forEach(ev -> {
             Map<String, String> message = getMessageData(ev);
-            assertThat(message.get("success"), equalTo("true"));
-            assertThat(message.get("type"), equalTo("search"));
-            assertThat(Long.valueOf(message.get("took")), greaterThan(0L));
-            assertThat(Long.valueOf(message.get("took_millis")), greaterThanOrEqualTo(0L));
-            assertThat(message.get("indices"), equalTo(INDEX_NAME));
+            assertThat(message.get(EVENT_OUTCOME_FIELD), equalTo("success"));
+            assertThat(message.get(ES_FIELDS_PREFIX + "type"), equalTo("search"));
+            assertThat(Long.valueOf(message.get(ES_FIELDS_PREFIX + "took")), greaterThan(0L));
+            assertThat(Long.valueOf(message.get(ES_FIELDS_PREFIX + "took_millis")), greaterThanOrEqualTo(0L));
+            assertThat(message.get(ES_FIELDS_PREFIX + "indices"), equalTo(INDEX_NAME));
             if (message.get("query").contains("quick")) {
-                assertThat(message.get("hits"), equalTo("3"));
+                assertThat(message.get(ES_FIELDS_PREFIX + "hits"), equalTo("3"));
             } else if (message.get("query").contains("fox")) {
-                assertThat(message.get("hits"), equalTo("1"));
+                assertThat(message.get(ES_FIELDS_PREFIX + "hits"), equalTo("1"));
             } else {
-                fail("unexpected query logged: " + message.get("query"));
+                fail("unexpected query logged: " + message.get(ES_FIELDS_PREFIX + "query"));
             }
         });
     }
@@ -225,8 +227,8 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             var event = appender.getLastEventAndReset();
             Map<String, String> message = getMessageData(event);
             assertMessageSuccess(message, "search", "fox");
-            assertThat(message.get("hits"), equalTo("1"));
-            assertThat(message.get("indices"), equalTo(INDEX_NAME));
+            assertThat(message.get(ES_FIELDS_PREFIX + "hits"), equalTo("1"));
+            assertThat(message.get(ES_FIELDS_PREFIX + "indices"), equalTo(INDEX_NAME));
         } finally {
             response.decRef();
             client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId)).actionGet();
@@ -267,8 +269,8 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             );
             var event = appender.getLastEventAndReset();
             Map<String, String> message = getMessageData(event);
-            assertThat(message.get("indices"), equalTo(TestSystemIndexDescriptor.PRIMARY_INDEX_NAME));
-            assertThat(message.get("is_system"), equalTo("true"));
+            assertThat(message.get(ES_FIELDS_PREFIX + "indices"), equalTo(TestSystemIndexDescriptor.PRIMARY_INDEX_NAME));
+            assertThat(message.get(ES_FIELDS_PREFIX + "is_system"), equalTo("true"));
         } finally {
             ActivityLoggingUtils.disableLoggingSystem();
         }
@@ -295,7 +297,7 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             );
             var event = appender.getLastEventAndReset();
             Map<String, String> message = getMessageData(event);
-            assertThat(message.get("indices"), equalTo(TestSystemDataStreamPlugin.SYSTEM_DATA_STREAM_NAME));
+            assertThat(message.get(ES_FIELDS_PREFIX + "indices"), equalTo(TestSystemDataStreamPlugin.SYSTEM_DATA_STREAM_NAME));
             assertThat(message.get("is_system"), equalTo("true"));
         } finally {
             ActivityLoggingUtils.disableLoggingSystem();

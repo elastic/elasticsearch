@@ -17,6 +17,9 @@ import org.junit.Before;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_FIELDS_PREFIX;
+import static org.elasticsearch.common.logging.activity.ActivityLogProducer.EVENT_OUTCOME_FIELD;
+import static org.elasticsearch.common.logging.activity.ActivityLogProducer.X_OPAQUE_ID_FIELD;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -69,26 +72,26 @@ public class ActivityLoggerProducerTests extends ESTestCase {
     public void testSuccess() {
         ESLogMessage message = producer.produce(makeSuccessContext(), makeFields());
 
-        assertThat(message.get("x_opaque_id"), equalTo("test_task"));
-        assertThat(message.get("took"), equalTo("1000000"));
-        assertThat(message.get("took_millis"), equalTo(String.valueOf(TimeUnit.NANOSECONDS.toMillis(1_000_000L))));
-        assertThat(message.get("success"), equalTo("true"));
-        assertThat(message.get("type"), equalTo("testType"));
+        assertThat(message.get(X_OPAQUE_ID_FIELD), equalTo("test_task"));
+        assertThat(message.get(EVENT_OUTCOME_FIELD), equalTo("success"));
+        assertThat(message.get(ES_FIELDS_PREFIX + "took"), equalTo("1000000"));
+        assertThat(message.get(ES_FIELDS_PREFIX + "took_millis"), equalTo(String.valueOf(TimeUnit.NANOSECONDS.toMillis(1_000_000L))));
+        assertThat(message.get(ES_FIELDS_PREFIX + "type"), equalTo("testType"));
         assertThat(message.get("foo"), equalTo("bar"));
-        assertNull(message.get("error.type"));
-        assertNull(message.get("error.message"));
+        assertNull(message.get(ES_FIELDS_PREFIX + "error.type"));
+        assertNull(message.get(ES_FIELDS_PREFIX + "error.message"));
     }
 
     public void testProduceCommonFailure() {
         ESLogMessage message = producer.produce(makeFailContext(), makeFields());
 
-        assertThat(message.get("x_opaque_id"), equalTo("test_task2"));
-        assertThat(message.get("took"), equalTo("1000"));
-        assertThat(message.get("took_millis"), equalTo(String.valueOf(TimeUnit.NANOSECONDS.toMillis(1_000L))));
-        assertThat(message.get("success"), equalTo("false"));
-        assertThat(message.get("type"), equalTo("failType"));
-        assertThat(message.get("error.type"), equalTo("SomeError"));
-        assertThat(message.get("error.message"), equalTo("Something went wrong"));
+        assertThat(message.get(X_OPAQUE_ID_FIELD), equalTo("test_task2"));
+        assertThat(message.get(EVENT_OUTCOME_FIELD), equalTo("failure"));
+        assertThat(message.get(ES_FIELDS_PREFIX + "took"), equalTo("1000"));
+        assertThat(message.get(ES_FIELDS_PREFIX + "took_millis"), equalTo(String.valueOf(TimeUnit.NANOSECONDS.toMillis(1_000L))));
+        assertThat(message.get(ES_FIELDS_PREFIX + "type"), equalTo("failType"));
+        assertThat(message.get(ES_FIELDS_PREFIX + "error.type"), equalTo("SomeError"));
+        assertThat(message.get(ES_FIELDS_PREFIX + "error.message"), equalTo("Something went wrong"));
         assertThat(message.get("foo"), equalTo("bar"));
     }
 }

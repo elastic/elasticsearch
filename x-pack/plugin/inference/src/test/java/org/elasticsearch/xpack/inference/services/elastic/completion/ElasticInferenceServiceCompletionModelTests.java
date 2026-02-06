@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.completion;
 
-import org.elasticsearch.inference.EmptySecretSettings;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -68,8 +66,6 @@ public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
             TaskType.COMPLETION,
             "elastic",
             new ElasticInferenceServiceCompletionServiceSettings("my-model-id"),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             ElasticInferenceServiceComponents.of("http://eis-gateway.com")
         );
 
@@ -93,8 +89,6 @@ public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
             taskType,
             "elastic",
             new ElasticInferenceServiceCompletionServiceSettings(modelId),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             ElasticInferenceServiceComponents.of(url)
         );
     }

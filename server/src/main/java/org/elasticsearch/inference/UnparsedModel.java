@@ -20,5 +20,16 @@ public record UnparsedModel(
     TaskType taskType,
     String service,
     Map<String, Object> settings,
-    Map<String, Object> secrets
-) {}
+    Map<String, Object> secrets,
+    EndpointMetadata endpointMetadata
+) {
+    public UnparsedModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        String service,
+        Map<String, Object> settings,
+        Map<String, Object> secrets
+    ) {
+        this(inferenceEntityId, taskType, service, settings, secrets, EndpointMetadata.EMPTY_INSTANCE);
+    }
+}

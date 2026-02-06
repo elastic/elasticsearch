@@ -10,12 +10,10 @@ package org.elasticsearch.xpack.inference.services.elastic.sparseembeddings;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.EndpointMetadata;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
-import org.elasticsearch.inference.SecretSettings;
-import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -35,21 +33,19 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
         TaskType taskType,
         String service,
         Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
-        Map<String, Object> secrets,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
         ConfigurationParseContext context,
-        ChunkingSettings chunkingSettings
+        ChunkingSettings chunkingSettings,
+        @Nullable EndpointMetadata endpointMetadata
     ) {
         this(
             inferenceEntityId,
             taskType,
             service,
             ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(serviceSettings, context),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             elasticInferenceServiceComponents,
-            chunkingSettings
+            chunkingSettings,
+            endpointMetadata
         );
     }
 
@@ -66,14 +62,32 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
         TaskType taskType,
         String service,
         ElasticInferenceServiceSparseEmbeddingsServiceSettings serviceSettings,
-        @Nullable TaskSettings taskSettings,
-        @Nullable SecretSettings secretSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
         ChunkingSettings chunkingSettings
     ) {
+        this(inferenceEntityId, taskType, service, serviceSettings, elasticInferenceServiceComponents, chunkingSettings, null);
+    }
+
+    public ElasticInferenceServiceSparseEmbeddingsModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        String service,
+        ElasticInferenceServiceSparseEmbeddingsServiceSettings serviceSettings,
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents,
+        ChunkingSettings chunkingSettings,
+        @Nullable EndpointMetadata endpointMetadata
+    ) {
         this(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
-            new ModelSecrets(secretSettings),
+            new ModelConfigurations(
+                inferenceEntityId,
+                taskType,
+                service,
+                serviceSettings,
+                EmptyTaskSettings.INSTANCE,
+                chunkingSettings,
+                endpointMetadata
+            ),
+            new ModelSecrets(),
             elasticInferenceServiceComponents
         );
     }

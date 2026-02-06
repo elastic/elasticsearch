@@ -9,12 +9,10 @@ package org.elasticsearch.xpack.inference.services.elastic.rerank;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.EndpointMetadata;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
-import org.elasticsearch.inference.SecretSettings;
-import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -34,19 +32,17 @@ public class ElasticInferenceServiceRerankModel extends ElasticInferenceServiceM
         TaskType taskType,
         String service,
         Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
-        Map<String, Object> secrets,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        @Nullable EndpointMetadata endpointMetadata
     ) {
         this(
             inferenceEntityId,
             taskType,
             service,
             ElasticInferenceServiceRerankServiceSettings.fromMap(serviceSettings, context),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
-            elasticInferenceServiceComponents
+            elasticInferenceServiceComponents,
+            endpointMetadata
         );
     }
 
@@ -55,13 +51,30 @@ public class ElasticInferenceServiceRerankModel extends ElasticInferenceServiceM
         TaskType taskType,
         String service,
         ElasticInferenceServiceRerankServiceSettings serviceSettings,
-        @Nullable TaskSettings taskSettings,
-        @Nullable SecretSettings secretSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents
     ) {
+        this(inferenceEntityId, taskType, service, serviceSettings, elasticInferenceServiceComponents, null);
+    }
+
+    public ElasticInferenceServiceRerankModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        String service,
+        ElasticInferenceServiceRerankServiceSettings serviceSettings,
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents,
+        @Nullable EndpointMetadata endpointMetadata
+    ) {
         this(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
-            new ModelSecrets(secretSettings),
+            new ModelConfigurations(
+                inferenceEntityId,
+                taskType,
+                service,
+                serviceSettings,
+                EmptyTaskSettings.INSTANCE,
+                null,
+                endpointMetadata
+            ),
+            new ModelSecrets(),
             elasticInferenceServiceComponents
         );
     }

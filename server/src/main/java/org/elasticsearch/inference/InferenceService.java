@@ -50,6 +50,15 @@ public interface InferenceService extends Closeable {
      */
     void parseRequestConfig(String modelId, TaskType taskType, Map<String, Object> config, ActionListener<Model> parsedModelListener);
 
+    default Model parsePersistedConfigWithSecrets(UnparsedModel unparsedModel) {
+        return parsePersistedConfigWithSecrets(
+            unparsedModel.inferenceEntityId(),
+            unparsedModel.taskType(),
+            unparsedModel.settings(),
+            unparsedModel.secrets()
+        );
+    }
+
     /**
      * Parse model configuration from {@code config map} from persisted storage and return the parsed {@link Model}. This requires that
      * secrets and service settings be in two separate maps.
@@ -86,6 +95,10 @@ public interface InferenceService extends Closeable {
      * @return The parsed {@link Model}
      */
     Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config);
+
+    default Model parsePersistedConfig(UnparsedModel unparsedModel) {
+        return parsePersistedConfig(unparsedModel.inferenceEntityId(), unparsedModel.taskType(), unparsedModel.settings());
+    }
 
     InferenceServiceConfiguration getConfiguration();
 

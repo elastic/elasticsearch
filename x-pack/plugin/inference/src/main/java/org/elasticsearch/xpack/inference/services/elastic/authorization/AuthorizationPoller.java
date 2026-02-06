@@ -16,6 +16,8 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.StrictDynamicMappingException;
+import org.elasticsearch.inference.EndpointMetadata;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -25,6 +27,7 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsAction;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.features.InferenceFeatureService;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
@@ -50,6 +53,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
     public static final String TASK_NAME = "eis-authorization-poller";
 
     private static final Logger logger = LogManager.getLogger(AuthorizationPoller.class);
+    private static final List<String> INFERENCE_MAPPING_CHANGES = List.of(EndpointMetadata.METADATA);
 
     private final ServiceComponents serviceComponents;
     private final ModelRegistry modelRegistry;
@@ -64,6 +68,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
     private final CountDownLatch receivedFirstAuthResponseLatch = new CountDownLatch(1);
     private final CCMFeature ccmFeature;
     private final CCMService ccmService;
+    private final InferenceFeatureService inferenceFeatureService;
 
     public record TaskFields(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers) {}
 
@@ -75,7 +80,8 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         ModelRegistry modelRegistry,
         Client client,
         CCMFeature ccmFeature,
-        CCMService ccmService
+        CCMService ccmService,
+        InferenceFeatureService inferenceFeatureService
     ) {}
 
     public static AuthorizationPoller create(TaskFields taskFields, Parameters parameters) {
@@ -93,7 +99,8 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
             parameters.client,
             parameters.ccmFeature,
             parameters.ccmService,
-            null
+            null,
+            parameters.inferenceFeatureService
         );
     }
 
@@ -109,7 +116,8 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         CCMFeature ccmFeature,
         CCMService ccmService,
         // this is a hack to facilitate testing
-        Runnable callback
+        Runnable callback,
+        InferenceFeatureService inferenceFeatureService
     ) {
         super(taskFields.id, taskFields.type, taskFields.action, taskFields.description, taskFields.parentTask, taskFields.headers);
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
@@ -121,6 +129,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         this.ccmFeature = Objects.requireNonNull(ccmFeature);
         this.ccmService = Objects.requireNonNull(ccmService);
         this.callback = callback;
+        this.inferenceFeatureService = Objects.requireNonNull(inferenceFeatureService);
     }
 
     public void start() {
@@ -258,10 +267,15 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         }
     }
 
-    private record RegistryNotReadyAction() implements Consumer<ActionListener<Void>> {
+    private record SkipAndLogAction(String reason) implements Consumer<ActionListener<Void>> {
+        private static final SkipAndLogAction REGISTRY_NOT_READY_ACTION = new SkipAndLogAction("the model registry is not ready");
+        private static final SkipAndLogAction MISSING_REQUIRED_FEATURES = new SkipAndLogAction(
+            "the cluster is currently upgrading and missing required features"
+        );
+
         @Override
         public void accept(ActionListener<Void> listener) {
-            logger.info("Skipping sending authorization request, because model registry is not ready");
+            logger.info("Skipping sending authorization request, because {}", reason);
             listener.onResponse(null);
         }
     }
@@ -288,7 +302,11 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
             return;
         }
         if (modelRegistry.isReady() == false) {
-            listener.onResponse(new RegistryNotReadyAction());
+            listener.onResponse(SkipAndLogAction.REGISTRY_NOT_READY_ACTION);
+            return;
+        }
+        if (inferenceFeatureService.hasEndpointMetadataFeature() == false) {
+            listener.onResponse(SkipAndLogAction.MISSING_REQUIRED_FEATURES);
             return;
         }
         if (ccmFeature.isCcmSupportedEnvironment() == false) {
@@ -343,8 +361,14 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         ActionListener<StoreInferenceEndpointsAction.Response> logResultsListener = ActionListener.wrap(responses -> {
             for (var response : responses.getResults()) {
                 if (response.failed()) {
-                    logger.atWarn()
-                        .withThrowable(response.failureCause())
+                    var logBuilder = logger.atWarn();
+
+                    if (response.failureCause() instanceof StrictDynamicMappingException
+                        && isFailureFromNewFieldInMapping(response.failureCause())) {
+                        logBuilder = logger.atDebug();
+                    }
+
+                    logBuilder.withThrowable(response.failureCause())
                         .log("Failed to store new EIS preconfigured inference endpoint with inference ID [{}]", response.inferenceId());
                 } else {
                     logger.atInfo()
@@ -358,5 +382,9 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
             storeRequest,
             ActionListener.runAfter(logResultsListener, () -> listener.onResponse(null))
         );
+    }
+
+    private static boolean isFailureFromNewFieldInMapping(Exception exception) {
+        return INFERENCE_MAPPING_CHANGES.stream().anyMatch(field -> exception.getCause().getMessage().contains(field));
     }
 }

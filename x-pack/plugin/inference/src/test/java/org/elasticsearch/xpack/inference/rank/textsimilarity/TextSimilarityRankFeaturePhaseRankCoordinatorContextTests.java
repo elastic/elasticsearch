@@ -15,8 +15,6 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankFeaturePhaseRankCoordinatorContext.extractScoresFromRankedDocs;
 
-// TODO: Add empty ranked docs and feature docs test
-
 public class TextSimilarityRankFeaturePhaseRankCoordinatorContextTests extends ESTestCase {
 
     public void testExtractScoresFromRankedDocs() {
@@ -75,6 +73,12 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContextTests extends E
                 + " ranked docs. Is the reranker service using an unreported top N task setting?",
             e.getMessage()
         );
+    }
+
+    public void testExtractScoresFromEmptyRankedDocs() {
+        // Tests the scenario when there are no docs to rerank. In this case, both rankedDocs and featureDocs are empty.
+        float[] scores = extractScoresFromRankedDocs(List.of(), new RankFeatureDoc[0]);
+        assertEquals(0, scores.length);
     }
 
     private RankFeatureDoc createRankFeatureDoc(int doc, float score, int shardIndex, List<String> featureData) {

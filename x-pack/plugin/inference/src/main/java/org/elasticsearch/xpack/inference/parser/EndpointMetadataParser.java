@@ -67,7 +67,8 @@ public final class EndpointMetadataParser {
 
     /**
      * Parse {@link EndpointMetadata.Heuristics} from a map with the same structure as the JSON produced by
-     * {@link EndpointMetadata.Heuristics#toXContent}. Returns {@link EndpointMetadata.Heuristics#EMPTY_INSTANCE} if the map is null or empty.
+     * {@link EndpointMetadata.Heuristics#toXContent}.
+     * Returns {@link EndpointMetadata.Heuristics#EMPTY_INSTANCE} if the map is null or empty.
      */
     static EndpointMetadata.Heuristics heuristicsFromMap(@Nullable Map<String, Object> map, String root) {
         if (map == null || map.isEmpty()) {

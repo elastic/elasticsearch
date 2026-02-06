@@ -27,8 +27,8 @@ import java.nio.ByteOrder;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductI1I4;
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductI1I4Bulk;
+import static org.elasticsearch.simdvec.internal.Similarities.dotProductD1Q4;
+import static org.elasticsearch.simdvec.internal.Similarities.dotProductD1Q4Bulk;
 
 /** Panamized scorer for quantized vectors stored as a {@link MemorySegment}. */
 final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVectorsScorer.MemorySegmentScorer {
@@ -62,12 +62,12 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
         final long qScore;
         if (SUPPORTS_HEAP_SEGMENTS) {
             var queryMemorySegment = MemorySegment.ofArray(q);
-            qScore = dotProductI1I4(datasetMemorySegment, queryMemorySegment, length);
+            qScore = dotProductD1Q4(datasetMemorySegment, queryMemorySegment, length);
         } else {
             try (var arena = Arena.ofConfined()) {
                 var queryMemorySegment = arena.allocate(q.length, 32);
                 MemorySegment.copy(q, 0, queryMemorySegment, ValueLayout.JAVA_BYTE, 0, q.length);
-                qScore = dotProductI1I4(datasetMemorySegment, queryMemorySegment, length);
+                qScore = dotProductD1Q4(datasetMemorySegment, queryMemorySegment, length);
             }
         }
         in.skipBytes(length);
@@ -243,7 +243,7 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
         var datasetLengthInBytes = (long) length * count;
         MemorySegment datasetSegment = memorySegment.asSlice(initialOffset, datasetLengthInBytes);
 
-        dotProductI1I4Bulk(datasetSegment, querySegment, length, count, scoresSegment);
+        dotProductD1Q4Bulk(datasetSegment, querySegment, length, count, scoresSegment);
 
         in.skipBytes(datasetLengthInBytes);
     }

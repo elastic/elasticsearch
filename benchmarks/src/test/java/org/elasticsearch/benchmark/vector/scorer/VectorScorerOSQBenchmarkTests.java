@@ -26,7 +26,6 @@ import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 public class VectorScorerOSQBenchmarkTests extends ESTestCase {
 
     private final float deltaPercent = 0.1f;
-    private final float delta = 1e-12f;
     private final int dims;
     private final int bits;
     private final VectorScorerOSQBenchmark.DirectoryType directoryType;
@@ -74,7 +73,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
 
                 float[] result = vectorized.score();
 
-                assertArrayEqualsPercent("single scoring, scalar VS vectorized", expected, result, deltaPercent, delta);
+                assertArrayEqualsPercent("single scoring, scalar VS vectorized", expected, result, deltaPercent, DEFAULT_DELTA);
             } finally {
                 scalar.teardown();
                 vectorized.teardown();
@@ -108,7 +107,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
 
                 float[] result = vectorized.bulkScore();
 
-                assertArrayEqualsPercent("bulk scoring, scalar VS vectorized", expected, result, deltaPercent, delta);
+                assertArrayEqualsPercent("bulk scoring, scalar VS vectorized", expected, result, deltaPercent, DEFAULT_DELTA);
             } finally {
                 scalar.teardown();
                 vectorized.teardown();

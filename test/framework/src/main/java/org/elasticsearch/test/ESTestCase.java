@@ -2244,6 +2244,24 @@ public abstract class ESTestCase extends LuceneTestCase {
         assertEquals(expected.isNativeMethod(), actual.isNativeMethod());
     }
 
+    protected static final float DEFAULT_DELTA = 1e-6f;
+
+    /**
+     * Compares two float arrays, checking that each element is within a certain percentage to the one in the second array.
+     * This works better than comparing with a delta if the elements in the arrays are of different magnitude.
+     * The function combines this with a separate absolute delta {@link ESTestCase#DEFAULT_DELTA}; numbers are still considered equal if
+     * they differ less than one *or* the other deltas. A separate absolute delta is useful for tiny numbers, or when one of the numbers
+     * is 0.
+     *
+     * @param expected      float array with expected values.
+     * @param actual        float array with actual values.
+     * @param deltaPercent  the maximum difference (in percentage of expected[i], 0.0 to 1.0) between expected[i] and actual[i]
+     *                      for which both numbers are still considered equal.
+     */
+    public static void assertArrayEqualsPercent(float[] expected, float[] actual, float deltaPercent) {
+        assertArrayEqualsPercent(null, expected, actual, deltaPercent, DEFAULT_DELTA);
+    }
+
     /**
      * Compares two float arrays, checking that each element is within a certain percentage to the one in the second array.
      * This works better than comparing with a delta if the elements in the arrays are of different magnitude.
@@ -2252,9 +2270,9 @@ public abstract class ESTestCase extends LuceneTestCase {
      * want to use an absolute delta.
      *
      * @param expected      float array with expected values.
-     * @param actual        float array with actual values
+     * @param actual        float array with actual values.
      * @param deltaPercent  the maximum difference (in percentage of expected[i], 0.0 to 1.0) between expected[i] and actual[i]
-     *                      for which both numbers are still considered equal
+     *                      for which both numbers are still considered equal.
      * @param absoluteDelta the absolute maximum difference for which both numbers are still considered equal.
      */
     public static void assertArrayEqualsPercent(float[] expected, float[] actual, float deltaPercent, float absoluteDelta) {
@@ -2265,14 +2283,14 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Compares two float arrays, checking that each element is within a certain percentage to the one in the second array.
      * This works better than comparing with a delta if the elements in the arrays are of different magnitude.
      * The function also accepts a separate absolute delta; numbers are still considered equal if they differ less than one *or*
-     * the other detlas. A separate absolute delta is useful for tiny numbers, or when one of the numbers is 0. Specify 0 if you don't
+     * the other deltas. A separate absolute delta is useful for tiny numbers, or when one of the numbers is 0. Specify 0 if you don't
      *  want to use an absolute delta.
      *
-     * @param message       the identifying message for the AssertionError
+     * @param message       the identifying message for the AssertionError.
      * @param expected      float array with expected values.
-     * @param actual        float array with actual values
+     * @param actual        float array with actual values.
      * @param deltaPercent  the maximum difference (in percentage of expected[i], 0.0 to 1.0) between expected[i] and actual[i]
-     *                      for which both numbers are still considered equal
+     *                      for which both numbers are still considered equal.
      * @param absoluteDelta the absolute maximum difference for which both numbers are still considered equal.
      */
     public static void assertArrayEqualsPercent(String message, float[] expected, float[] actual, float deltaPercent, float absoluteDelta) {

@@ -97,4 +97,7 @@ The repository is organized into several key directories:
 - Unrecognized changes: assume other agent; keep going; focus your changes. If it causes issues, stop + ask user.
 - Do not add "Co-Authored-By" lines to commit messages. commit messages should adhere to the 50/72 rule: use a maximum of 50 columns for the commit summary
 
+## Backwards compatibility
+- For items that require changes to the `Writeable` implementation (`writeTo` and constructor from `StreamInput`), add a new `public static final <UNIQUE_DESCRIPTIVE_NAME> = TransportVersion.fromName(<unique_descriptive_name>)` and use it in the new code paths. Confirm the backport branches and then generate a new version file with `./gradlew generateTransportVersion`.
+
 Stay aligned with `CONTRIBUTING.md`, `BUILDING.md`, and `TESTING.asciidoc`; this AGENTS guide summarizes—but does not replace—those authoritative docs.

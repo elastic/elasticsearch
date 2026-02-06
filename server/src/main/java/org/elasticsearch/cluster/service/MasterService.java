@@ -1592,7 +1592,7 @@ public class MasterService extends AbstractLifecycleComponent {
         private final Priority priority;
 
         /*
-         * Tracks the number of tasks currently in the queue, for metric purposes. In case of concurrent task submissions and batch
+         * Tracks the total number of tasks currently in the queue, for metric purposes. In case of concurrent task submissions and batch
          * executions, this count may temporarily exceed the actual number of tasks in the queue, but will self-correct over time.
          */
         private final AtomicInteger totalQueuedTasksCount = new AtomicInteger();

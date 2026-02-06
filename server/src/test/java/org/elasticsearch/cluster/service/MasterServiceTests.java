@@ -1966,11 +1966,11 @@ public class MasterServiceTests extends ESTestCase {
                 masterService.submitUnbatchedStateUpdateTask(taskName, loopingTask);
 
                 final var batchSize = randomIntBetween(1, 10);
-                final var batchQueue = masterService.createTaskQueue("noop-batch-tasks-priority-" + priority, priority, successExecutor);
+                final var batchQueue = masterService.createTaskQueue("success-noop-tasks-queue-" + priority, priority, successExecutor);
                 final var noopSuccessfulTask = new ExpectSuccessTask();
 
                 for (int i = 0; i < batchSize; i++) {
-                    batchQueue.submitTask("noop-batch-task-" + priority + "-" + i, noopSuccessfulTask, null);
+                    batchQueue.submitTask("success-noop-task-" + priority + "-" + i, noopSuccessfulTask, null);
                 }
                 batchSizePerPriority.put(priority, batchSize);
             }

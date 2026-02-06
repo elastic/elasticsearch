@@ -20,7 +20,6 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.TimeSeriesGroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.WindowGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
-import org.elasticsearch.compute.aggregation.blockhash.BytesRefLongBlockHash;
 import org.elasticsearch.compute.aggregation.blockhash.TimeSeriesBlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -117,16 +116,6 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         return false;
     }
 
-    private BytesRefLongBlockHash asBytesRefLongHash() {
-        if (blockHash instanceof BytesRefLongBlockHash h) {
-            return h;
-        }
-        if (blockHash instanceof TimeSeriesBlockHash ts) {
-            return ts.getHash();
-        }
-        return null;
-    }
-
     private long largestWindowMillis() {
         long largestWindow = Long.MIN_VALUE;
         for (GroupingAggregator aggregator : aggregators) {
@@ -204,18 +193,21 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         if (windowMillis <= 0) {
             return;
         }
-        BytesRefLongBlockHash tsBlockHash = asBytesRefLongHash();
+        if (blockHash instanceof TimeSeriesBlockHash == false) {
+            return;
+        }
+        TimeSeriesBlockHash tsBlockHash = (TimeSeriesBlockHash) blockHash;
         final long numGroups = tsBlockHash.numGroups();
         if (numGroups == 0) {
             return;
         }
-        Rounding.Prepared optimizedTimeBucket = optimizeRoundingForTimeRange(tsBlockHash.getMinLongKey(), tsBlockHash.getMaxLongKey());
+        Rounding.Prepared optimizedTimeBucket = optimizeRoundingForTimeRange(tsBlockHash.minTimestamp(), tsBlockHash.maxTimestamp());
         this.expandingGroups = new ExpandingGroups(driverContext.bigArrays());
         for (long groupId = 0; groupId < numGroups; groupId++) {
-            long tsid = tsBlockHash.getBytesRefKeyFromGroup(groupId);
-            long endTimestamp = tsBlockHash.getLongKeyFromGroup(groupId);
+            int tsid = tsBlockHash.tsidForGroup(groupId);
+            long endTimestamp = tsBlockHash.timestampForGroup(groupId);
             long bucket = optimizedTimeBucket.nextRoundingValue(endTimestamp - timeResolution.convert(largestWindowMillis()));
-            bucket = Math.max(bucket, tsBlockHash.getMinLongKey());
+            bucket = Math.max(bucket, tsBlockHash.minTimestamp());
             // Fill the missing buckets between (timestamp-window, timestamp)
             while (bucket < endTimestamp) {
                 if (tsBlockHash.addGroup(tsid, bucket) >= 0) {
@@ -273,8 +265,10 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
      *   Loading docs: [10, 10, 20, 20, 40], which is not much more expensive than [10, 20, 40].
      */
     private IntVector selectedForDocIdsAggregator(BlockFactory blockFactory, IntVector selected) {
-        final BytesRefLongBlockHash tsidHash = asBytesRefLongHash();
-        if (tsidHash == null) {
+        final TimeSeriesBlockHash tsBlockHash;
+        if (blockHash instanceof TimeSeriesBlockHash ts) {
+            tsBlockHash = ts;
+        } else {
             // Without time bucket, one tsid per group already; no need to re-map
             selected.incRef();
             return selected;
@@ -284,7 +278,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             Arrays.fill(firstGroups, -1);
             for (int p = 0; p < selected.getPositionCount(); p++) {
                 int groupId = selected.getInt(p);
-                int tsidOrdinal = Math.toIntExact(tsidHash.getBytesRefKeyFromGroup(groupId));
+                int tsidOrdinal = tsBlockHash.tsidForGroup(groupId);
                 if (firstGroups.length <= tsidOrdinal) {
                     int prevSize = firstGroups.length;
                     firstGroups = ArrayUtil.grow(firstGroups, tsidOrdinal);
@@ -332,10 +326,10 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         if (keys.length < 2) {
             return super.evaluationContext(blockHash, keys);
         }
-        final BytesRefLongBlockHash hash = asBytesRefLongHash();
+        final TimeSeriesBlockHash tsBlockHash = (TimeSeriesBlockHash) blockHash;
 
         final LongBlock timestamps = keys[0].elementType() == ElementType.LONG ? (LongBlock) keys[0] : (LongBlock) keys[1];
-        Rounding.Prepared optimizedTimeBucket = optimizeRoundingForTimeRange(hash.getMinLongKey(), hash.getMaxLongKey());
+        Rounding.Prepared optimizedTimeBucket = optimizeRoundingForTimeRange(tsBlockHash.minTimestamp(), tsBlockHash.maxTimestamp());
 
         // block hash so that we can look key
         return new TimeSeriesGroupingAggregatorEvaluationContext(driverContext) {
@@ -354,13 +348,13 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
             @Override
             public List<Integer> groupIdsFromWindow(int startingGroupId, Duration window) {
-                long tsid = hash.getBytesRefKeyFromGroup(startingGroupId);
-                long bucket = hash.getLongKeyFromGroup(startingGroupId);
+                int tsid = tsBlockHash.tsidForGroup(startingGroupId);
+                long bucket = tsBlockHash.timestampForGroup(startingGroupId);
                 List<Integer> results = new ArrayList<>();
                 results.add(startingGroupId);
                 long endTimestamp = bucket + timeResolution.convert(window.toMillis());
                 while ((bucket = optimizedTimeBucket.nextRoundingValue(bucket)) < endTimestamp) {
-                    long nextGroupId = hash.getGroupId(tsid, bucket);
+                    long nextGroupId = tsBlockHash.getGroupId(tsid, bucket);
                     if (nextGroupId != -1) {
                         results.add(Math.toIntExact(nextGroupId));
                     }
@@ -383,17 +377,17 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 if (nextGroupIds != null) {
                     return;
                 }
-                long numGroups = hash.numGroups();
+                long numGroups = tsBlockHash.numGroups();
                 nextGroupIds = driverContext.bigArrays().newIntArray(numGroups);
                 nextGroupIds.fill(0, numGroups, -1);
                 prevGroupIds = driverContext.bigArrays().newIntArray(numGroups);
                 prevGroupIds.fill(0, numGroups, -1);
                 Map<Long, Long> nextTimestamps = new HashMap<>(); // cached the rounded up timestamps
                 for (int groupId = 0; groupId < numGroups; groupId++) {
-                    long tsid = hash.getBytesRefKeyFromGroup(groupId);
-                    long bucketTs = hash.getLongKeyFromGroup(groupId);
+                    long tsid = tsBlockHash.tsidForGroup(groupId);
+                    long bucketTs = tsBlockHash.timestampForGroup(groupId);
                     long nextBucketTs = nextTimestamps.computeIfAbsent(bucketTs, optimizedTimeBucket::nextRoundingValue);
-                    int nextGroupId = Math.toIntExact(hash.getGroupId(tsid, nextBucketTs));
+                    int nextGroupId = Math.toIntExact(tsBlockHash.getGroupId(tsid, nextBucketTs));
                     if (nextGroupId >= 0) {
                         nextGroupIds.set(groupId, nextGroupId);
                         prevGroupIds.set(nextGroupId, groupId);

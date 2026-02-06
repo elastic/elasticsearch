@@ -25,7 +25,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollActionTestCase;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
-import org.elasticsearch.index.reindex.ScrollableHitSource;
+import org.elasticsearch.index.reindex.HitSource;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.List;
@@ -99,8 +99,8 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo");
     }
 
-    private ScrollableHitSource.BasicHit doc() {
-        return new ScrollableHitSource.BasicHit("index", "id", -1).setSource(new BytesArray("{}"), XContentType.JSON);
+    private HitSource.BasicHit doc() {
+        return new HitSource.BasicHit("index", "id", -1).setSource(new BytesArray("{}"), XContentType.JSON);
     }
 
     @Override

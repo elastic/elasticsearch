@@ -40,11 +40,27 @@ import java.util.function.Consumer;
 import static java.util.Objects.requireNonNull;
 
 /**
- * A scrollable source of results. Pumps data out into the passed onResponse consumer. Same data may come out several times in case
- * of failures during searching (though not yet). Once the onResponse consumer is done, it should call AsyncResponse.isDone(time) to receive
- * more data (only receives one response at a time).
+ * A source of search results. Pumps data out into the passed onResponse consumer. If a scrollable search is used, then the
+ * same data may come out several times in case of failures during searching (though not yet). Once the onResponse consumer is done,
+ * it should call AsyncResponse.isDone(time) to receive more data (only receives one response at a time).
+ * <p>
+ * There are two kinds of implementing classes:
+ * <ol>
+ *     <li>
+ *         <b>Scrollable:</b> Scrollable search lets you retrieve large result sets by opening a search context and repeatedly requesting
+ *         the next batch using a {@code _scroll_id}, effectively acting like a cursor over a snapshot of the index at the time of the
+ *         initial search. It is no longer recommended for deep pagination due to resource costs and limits on open scrolls.
+ *     </li>
+ *     <li>
+ *         <b>Point in Time:</b> PIT search creates a lightweight, consistent view of the index that you can reuse across multiple searches,
+ *         typically combined with {@code search_after} for deep pagination. It is the recommended approach for iterating over large result
+ *         sets because it scales better than scroll and avoids long-lived search contexts.
+ *     </li>
+ * </ol>
+ * For more information, view the <a href="https://www.elastic.co/docs/reference/elasticsearch/rest-apis/paginate-search-results">
+ * ES Search documentation</a>
  */
-public abstract class ScrollableHitSource {
+public abstract class HitSource {
     private final AtomicReference<String> scrollId = new AtomicReference<>();
 
     protected final Logger logger;
@@ -54,7 +70,7 @@ public abstract class ScrollableHitSource {
     private final Consumer<AsyncResponse> onResponse;
     protected final Consumer<Exception> fail;
 
-    public ScrollableHitSource(
+    public HitSource(
         Logger logger,
         BackoffPolicy backoffPolicy,
         ThreadPool threadPool,

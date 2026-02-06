@@ -43,7 +43,7 @@ import static org.elasticsearch.core.TimeValue.timeValueNanos;
 /**
  * A scrollable source of hits from a {@linkplain Client} instance.
  */
-public class ClientScrollableHitSource extends ScrollableHitSource {
+public class ClientScrollableHitSource extends HitSource {
     private final ParentTaskAssigningClient client;
     private final SearchRequest firstSearchRequest;
 

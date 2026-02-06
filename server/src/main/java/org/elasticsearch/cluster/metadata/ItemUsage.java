@@ -28,6 +28,8 @@ import java.util.Set;
  */
 public class ItemUsage implements Writeable, ToXContentObject {
 
+    public static final ItemUsage EMPTY = new ItemUsage(null, null, null);
+
     private final Set<String> indices;
     private final Set<String> dataStreams;
     private final Set<String> composableTemplates;
@@ -79,15 +81,9 @@ public class ItemUsage implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (this.indices != null) {
-            builder.stringListField("indices", this.indices);
-        }
-        if (this.dataStreams != null) {
-            builder.stringListField("data_streams", this.dataStreams);
-        }
-        if (this.composableTemplates != null) {
-            builder.stringListField("composable_templates", this.composableTemplates);
-        }
+        builder.stringListField("indices", this.indices != null ? this.indices : Set.of());
+        builder.stringListField("data_streams", this.dataStreams != null ? this.dataStreams : Set.of());
+        builder.stringListField("composable_templates", this.composableTemplates != null ? this.composableTemplates : Set.of());
         builder.endObject();
         return builder;
     }

@@ -48,7 +48,7 @@ public class MvMinBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.Do
         String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
         DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
         assert countsSkipper != null : "no skipper for counts field [" + countsFieldName + "]";
-        if (countsSkipper.minValue() == 1 && countsSkipper.maxValue() == 1) {
+        if (countsSkipper.maxValue() == 1) {
             return new BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary(values);
         }
 

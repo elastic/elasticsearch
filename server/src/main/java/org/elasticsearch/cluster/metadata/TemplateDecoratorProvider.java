@@ -79,7 +79,7 @@ public interface TemplateDecoratorProvider extends Supplier<Template.TemplateDec
     }
 
     class InstanceHolder {
-        private AtomicReference<Template.TemplateDecorator> instance = new AtomicReference<>();
+        private final AtomicReference<Template.TemplateDecorator> instance = new AtomicReference<>();
 
         Template.TemplateDecorator getAndSet(Template.TemplateDecorator decorator) {
             return instance.getAndSet(decorator);

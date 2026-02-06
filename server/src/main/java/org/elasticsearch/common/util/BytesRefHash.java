@@ -244,13 +244,6 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
         return bytesRefs;
     }
 
-    public BytesRefArray takeBytesRefsOwnership() {
-        try (Releasable releasable = Releasables.wrap(this)) {
-            bytesRefs.incRef();
-            return bytesRefs;
-        }
-    }
-
     @Override
     public long ramBytesUsed() {
         return BASE_RAM_BYTES_USED + bytesRefs.ramBytesUsed() + ids.ramBytesUsed() + hashes.ramBytesUsed() + spare.bytes.length;

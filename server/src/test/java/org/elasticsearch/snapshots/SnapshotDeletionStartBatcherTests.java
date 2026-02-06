@@ -69,6 +69,7 @@ import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.SnapshotShardContext;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -1074,6 +1075,32 @@ public class SnapshotDeletionStartBatcherTests extends ESTestCase {
         assertTrue(deleteFinishedFuture.isSuccess());
         assertTrue(deleteRunningFuture.isSuccess());
         assertTrue(deleteAllFuture.isSuccess());
+    }
+
+    public void testPermitsNoOpDeleteOnReadOnlyRepository() {
+        updateClusterState(currentState -> {
+            final var projectMetadata = currentState.projectState(ProjectId.DEFAULT).metadata();
+            final var oldRepoMetadata = RepositoriesMetadata.get(projectMetadata).repository(repoName);
+            final var newRepoMetadata = oldRepoMetadata.withSettings(
+                Settings.builder().put(oldRepoMetadata.settings()).put(BlobStoreRepository.READONLY_SETTING_KEY, true).build()
+            );
+            return ClusterState.builder(currentState)
+                .putProjectMetadata(
+                    ProjectMetadata.builder(projectMetadata)
+                        .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(List.of(newRepoMetadata)))
+                )
+                .build();
+        });
+
+        final var deleteFuture = startDeletion("*");
+
+        deterministicTaskQueue.runAllTasksInTimeOrder();
+
+        assertTrue(deleteFuture.isSuccess());
+        assertTrue(snapshotEndNotifications.isEmpty());
+        assertTrue(snapshotAbortNotifications.isEmpty());
+        assertTrue(startedDeletions.isEmpty());
+        assertTrue(completionHandlers.isEmpty());
     }
 
     public void testSubscribesToRunningDeletionEvenIfBatchCreatesWaitingDeletion() {

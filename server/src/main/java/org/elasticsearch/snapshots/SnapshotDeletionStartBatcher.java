@@ -506,7 +506,6 @@ final class SnapshotDeletionStartBatcher {
 
             final var projectMetadata = initialState.metadata().getProject(projectId);
             SnapshotsServiceUtils.ensureRepositoryExists(repositoryName, projectMetadata);
-            SnapshotsServiceUtils.ensureNotReadOnly(projectMetadata, repositoryName);
             SnapshotsServiceUtils.ensureNoCleanupInProgress(initialState, repositoryName, "<delete>", "delete snapshot");
 
             assert batchExecutionContext.taskContexts().size() == 1;
@@ -551,6 +550,9 @@ final class SnapshotDeletionStartBatcher {
                 logger.debug("snapshot deletion targets no snapshots");
                 return initialState;
             }
+
+            // Check readonly flag _after_ checking to make sure the request is not a no-op because no-op deletes on readonly repos are ok
+            SnapshotsServiceUtils.ensureNotReadOnly(projectMetadata, repositoryName);
 
             // Snapshot ids that will have to be physically deleted from the repository
             final Set<SnapshotId> snapshotIdsRequiringCleanup = new HashSet<>(snapshotIds);

@@ -257,6 +257,7 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
     }
 
     private void updateDoneState(DoneState newState) {
+        assert newState.done() : "We only ever update to done states";
         this.doneState.updateAndGet(existing -> {
             // If we're not already done, allow the update
             if (existing.done() == false) {

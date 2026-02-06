@@ -89,7 +89,7 @@ public class ElasticInferenceServiceAuthorizationModel {
                 case CHAT_COMPLETION -> createCompletionModel(authorizedEndpoint, TaskType.CHAT_COMPLETION, components);
                 case COMPLETION -> createCompletionModel(authorizedEndpoint, TaskType.COMPLETION, components);
                 case SPARSE_EMBEDDING -> createSparseTextEmbeddingsModel(authorizedEndpoint, components);
-                case TEXT_EMBEDDING -> createDenseTextEmbeddingsModel(authorizedEndpoint, components);
+                case TEXT_EMBEDDING, EMBEDDING -> createDenseEmbeddingsModel(authorizedEndpoint, components, taskType);
                 case RERANK -> createRerankModel(authorizedEndpoint, components);
                 default -> {
                     logger.info(UNSUPPORTED_TASK_TYPE_LOG_MESSAGE, authorizedEndpoint.id(), taskType);
@@ -166,16 +166,17 @@ public class ElasticInferenceServiceAuthorizationModel {
         return Objects.requireNonNullElse(configuration.chunkingSettings(), new HashMap<>());
     }
 
-    private static ElasticInferenceServiceDenseEmbeddingsModel createDenseTextEmbeddingsModel(
+    private static ElasticInferenceServiceDenseEmbeddingsModel createDenseEmbeddingsModel(
         ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint,
-        ElasticInferenceServiceComponents components
+        ElasticInferenceServiceComponents components,
+        TaskType taskType
     ) {
         var config = getConfigurationOrEmpty(authorizedEndpoint);
-        validateConfigurationForTextEmbedding(config);
+        validateConfigurationForDenseEmbedding(config, taskType);
 
         return new ElasticInferenceServiceDenseEmbeddingsModel(
             authorizedEndpoint.id(),
-            TaskType.TEXT_EMBEDDING,
+            taskType,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceDenseEmbeddingsServiceSettings(
                 authorizedEndpoint.modelName(),
@@ -190,22 +191,13 @@ public class ElasticInferenceServiceAuthorizationModel {
         );
     }
 
-    private static void validateConfigurationForTextEmbedding(ElasticInferenceServiceAuthorizationResponseEntity.Configuration config) {
-        validateFieldPresent(
-            ElasticInferenceServiceAuthorizationResponseEntity.Configuration.ELEMENT_TYPE,
-            config.elementType(),
-            TaskType.TEXT_EMBEDDING
-        );
-        validateFieldPresent(
-            ElasticInferenceServiceAuthorizationResponseEntity.Configuration.DIMENSIONS,
-            config.dimensions(),
-            TaskType.TEXT_EMBEDDING
-        );
-        validateFieldPresent(
-            ElasticInferenceServiceAuthorizationResponseEntity.Configuration.SIMILARITY,
-            config.similarity(),
-            TaskType.TEXT_EMBEDDING
-        );
+    private static void validateConfigurationForDenseEmbedding(
+        ElasticInferenceServiceAuthorizationResponseEntity.Configuration config,
+        TaskType taskType
+    ) {
+        validateFieldPresent(ElasticInferenceServiceAuthorizationResponseEntity.Configuration.ELEMENT_TYPE, config.elementType(), taskType);
+        validateFieldPresent(ElasticInferenceServiceAuthorizationResponseEntity.Configuration.DIMENSIONS, config.dimensions(), taskType);
+        validateFieldPresent(ElasticInferenceServiceAuthorizationResponseEntity.Configuration.SIMILARITY, config.similarity(), taskType);
 
         var configElementType = config.elementType().toLowerCase(Locale.ROOT);
         var supportedElementTypes = getSupportedElementTypes();

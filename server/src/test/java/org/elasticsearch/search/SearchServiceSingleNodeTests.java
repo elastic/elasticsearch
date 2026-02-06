@@ -1344,7 +1344,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
      */
     public void testMaxDocvalueFieldsSearch() throws IOException {
         final Settings settings = Settings.builder().put(IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey(), 1).build();
-        createIndex("index", settings, null, "field1", "keyword", "field2", "keyword");
+        createIndex("index", settings);
         prepareIndex("index").setId("1").setSource("field1", "value1", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
 
         final SearchService service = getInstanceFromNode(SearchService.class);

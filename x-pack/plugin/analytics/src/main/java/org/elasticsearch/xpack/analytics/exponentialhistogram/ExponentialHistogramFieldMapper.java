@@ -61,13 +61,13 @@ import org.elasticsearch.xcontent.CopyingXContentParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentSubParser;
+import org.elasticsearch.xpack.analytics.exponentialhistogram.fielddata.IndexExponentialHistogramFieldData;
 import org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramParser;
 import org.elasticsearch.xpack.analytics.mapper.HistogramParser;
 import org.elasticsearch.xpack.analytics.mapper.IndexWithCount;
 import org.elasticsearch.xpack.analytics.mapper.ParsedHistogramConverter;
 import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
 import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.LeafExponentialHistogramFieldData;
-import org.elasticsearch.xpack.analytics.exponentialhistogram.fielddata.IndexExponentialHistogramFieldData;
 
 import java.io.IOException;
 import java.util.ArrayList;

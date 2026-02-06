@@ -12,9 +12,9 @@ import org.elasticsearch.index.fielddata.DocValueBits;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
 import org.elasticsearch.xpack.analytics.exponentialhistogram.ExponentialHistogramFieldMapper;
 import org.elasticsearch.xpack.analytics.exponentialhistogram.fielddata.IndexExponentialHistogramFieldData;
+import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
 
 import java.io.IOException;
 import java.util.function.Function;

@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.analytics.exponentialhistogram.fielddata;
 
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.LeafExponentialHistogramFieldData;
 import org.elasticsearch.xpack.analytics.exponentialhistogram.aggregations.support.ExponentialHistogramValuesSourceType;
+import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.LeafExponentialHistogramFieldData;
 
 /**
  * Specialization of {@link IndexFieldData} for exponential_histogram fields.

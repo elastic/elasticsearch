@@ -1398,7 +1398,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testDeduplicateDocValuesFields() throws Exception {
-        createIndex("index", Settings.EMPTY, "_doc", "field1", "type=date", "field2", "type=date");
+        createIndex("index", Settings.EMPTY, "field1", "type=date", "field2", "type=date");
         prepareIndex("index").setId("1").setSource("field1", "2022-08-03", "field2", "2022-08-04").setRefreshPolicy(IMMEDIATE).get();
         SearchService service = getInstanceFromNode(SearchService.class);
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);

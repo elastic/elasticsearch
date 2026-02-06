@@ -1,0 +1,5 @@
+pr: 140259
+summary: "[GPU] Add a setting to optionally enable memory pooling"
+area: Vector Search
+type: enhancement
+issues: []

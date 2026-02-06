@@ -28,7 +28,10 @@ import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
+import java.util.Collection;
 import java.util.List;
+
+import static org.elasticsearch.gpu.GPUSupport.MIN_DEVICE_MEMORY_IN_BYTES;
 
 public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlugin {
 
@@ -41,9 +44,11 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
     );
 
     private final GpuMode gpuMode;
+    private final int memoryPoolingPercent;
 
     public GPUPlugin(Settings settings) {
         this.gpuMode = VECTORS_INDEXING_USE_GPU_NODE_SETTING.get(settings);
+        this.memoryPoolingPercent = VECTORS_INDEXING_GPU_MEMORY_POOLING_PERCENT_NODE_SETTING.get(settings);
     }
 
     /**
@@ -58,11 +63,12 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
     /**
      * Node-level setting to control whether to use GPU for vectors indexing across the node.
      * This is a static, node-scoped setting.
-     *
+     * <p>
      * If unset or "auto", an automatic decision is made based on the presence of GPU and necessary libraries.
      * If set to <code>true</code>, GPU must be used for vectors indexing, and if GPU or necessary libraries are not available,
      * the node will refuse to start and throw an exception.
      * If set to <code>false</code>, GPU will not be used for vectors indexing.
+     * </p>
      */
     public static final Setting<GpuMode> VECTORS_INDEXING_USE_GPU_NODE_SETTING = Setting.enumSetting(
         GpuMode.class,
@@ -71,9 +77,29 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Integer> VECTORS_INDEXING_GPU_MEMORY_POOLING_PERCENT_NODE_SETTING = Setting.intSetting(
+        "vectors.indexing.gpu_memory_pooling_percent",
+        0,
+        0,
+        value -> {
+            if (value > 95) {
+                throw new IllegalArgumentException("GPU memory pool cannot be more than 95% of the total GPU memory");
+            }
+            if (value > 0 && ((double) GPUSupport.getTotalGpuMemoryInBytes() * (double) value / 100.0) < MIN_DEVICE_MEMORY_IN_BYTES) {
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "GPU memory pool cannot be less than the minimum required memory of [%d] bytes",
+                        MIN_DEVICE_MEMORY_IN_BYTES
+                    )
+                );
+            }
+        },
+        Setting.Property.NodeScope
+    );
+
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(VECTORS_INDEXING_USE_GPU_NODE_SETTING);
+        return List.of(VECTORS_INDEXING_USE_GPU_NODE_SETTING, VECTORS_INDEXING_GPU_MEMORY_POOLING_PERCENT_NODE_SETTING);
     }
 
     // Allow tests to override the license state
@@ -85,6 +111,14 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
     @Override
     public List<BootstrapCheck> getBootstrapChecks() {
         return List.of(new GpuModeBootstrapCheck());
+    }
+
+    @Override
+    public Collection<?> createComponents(PluginServices services) {
+        if ((gpuMode == GpuMode.TRUE || (gpuMode == GpuMode.AUTO && GPUSupport.isSupported())) && memoryPoolingPercent > 0) {
+            GPUSupport.enableMemoryPooling(memoryPoolingPercent);
+        }
+        return super.createComponents(services);
     }
 
     /**

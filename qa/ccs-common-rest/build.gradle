@@ -41,12 +41,6 @@ tasks.named("yamlRestTest") {
     'search.aggregation/50_filter/Terms lookup gets cached', // terms lookup by "index" doesn't seem to work correctly
     'search.aggregation/70_adjacency_matrix/Terms lookup' // terms lookup by "index" doesn't seem to work correctly
   ]
-  if (buildParams.snapshotBuild == false) {
-    blacklist += [
-      // doc_values.cardinality option not available in snapshots
-      "search/395_binary_doc_values_search/*"
-    ]
-  }
   systemProperty 'tests.rest.blacklist', blacklist.join(',')
 }
 

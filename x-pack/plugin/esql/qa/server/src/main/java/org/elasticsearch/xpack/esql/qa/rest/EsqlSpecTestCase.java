@@ -435,8 +435,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         MappedFieldType.FieldExtractPreference preference = fieldExtractPreference();
         Settings.Builder pragmaBuilder = Settings.builder();
         if (preference != null) {
-            Settings settings = Settings.builder().put(QueryPragmas.FIELD_EXTRACT_PREFERENCE.getKey(), preference.toString()).build();
-            builder.pragmas(settings).pragmasOk();
+            pragmaBuilder.put(QueryPragmas.FIELD_EXTRACT_PREFERENCE.getKey(), preference.toString()).build();
         }
         if (randomBoolean()) {
             addRandomPragma(pragmaBuilder);
@@ -446,7 +445,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             builder.pragmas(pragma);
             builder.pragmasOk();
         }
-
     }
 
     /**

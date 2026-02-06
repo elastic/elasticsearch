@@ -171,7 +171,8 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             ExponentialHistogramAggregatorsRegistrar::registerHistogramAggregator,
             ExponentialHistogramAggregatorsRegistrar::registerMinAggregator,
             ExponentialHistogramAggregatorsRegistrar::registerMaxAggregator,
-            ExponentialHistogramAggregatorsRegistrar::registerPercentilesAggregator
+            ExponentialHistogramAggregatorsRegistrar::registerPercentilesAggregator,
+            ExponentialHistogramAggregatorsRegistrar::registerPercentileRanksAggregator
         );
     }
 

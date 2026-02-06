@@ -17,15 +17,17 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 
 public class StatsGenerator implements CommandGenerator {
 
     public static final String STATS = "stats";
+    public static final String INLINE_STATS = "inline stats";
     public static final CommandGenerator INSTANCE = new StatsGenerator();
 
     public String commandName() {
-        return STATS;
+        return randomFrom(STATS, INLINE_STATS);
     }
 
     @Override
@@ -56,7 +58,7 @@ public class StatsGenerator implements CommandGenerator {
                     name = EsqlQueryGenerator.randomIdentifier();
                 }
             }
-            String expression = EsqlQueryGenerator.agg(nonNull);
+            String expression = EsqlQueryGenerator.agg(nonNull, previousCommands);
             if (i > 0) {
                 cmd.append(",");
             }

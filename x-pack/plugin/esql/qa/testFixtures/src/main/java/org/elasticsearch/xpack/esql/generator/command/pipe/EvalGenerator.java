@@ -49,7 +49,7 @@ public class EvalGenerator implements CommandGenerator {
                     name = EsqlQueryGenerator.randomIdentifier();
                 }
             }
-            String expression = EsqlQueryGenerator.expression(usablePrevious.values().stream().toList(), true);
+            String expression = EsqlQueryGenerator.expression(usablePrevious.values().stream().toList(), true, previousCommands);
             if (i > 0) {
                 cmd.append(",");
             }

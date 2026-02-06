@@ -19,6 +19,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 
 public class KeepGenerator implements CommandGenerator {
@@ -26,6 +27,7 @@ public class KeepGenerator implements CommandGenerator {
     public static final String KEEP = "keep";
 
     public static final CommandGenerator INSTANCE = new KeepGenerator();
+    public static final String[] UNMAPPED_FIELD_NAMES = {"foo", "foobar", "bar", "baz"};
 
     @Override
     public CommandDescription generate(
@@ -37,8 +39,12 @@ public class KeepGenerator implements CommandGenerator {
         int n = randomIntBetween(1, previousOutput.size());
         Set<String> proj = new HashSet<>();
         for (int i = 0; i < n; i++) {
-            if (randomIntBetween(0, 100) < 5) {
+            var x = randomIntBetween(0, 100);
+            if (x < 5) {
                 proj.add("*");
+            } else if (x >= 95) {
+                String name = randomUnmappedFieldName();
+                proj.add(name);
             } else {
                 String name = EsqlQueryGenerator.randomName(previousOutput);
                 if (name == null) {
@@ -59,6 +65,10 @@ public class KeepGenerator implements CommandGenerator {
         }
         String cmdString = " | keep " + proj.stream().collect(Collectors.joining(", "));
         return new CommandDescription(KEEP, this, cmdString, Map.of());
+    }
+
+    public static String randomUnmappedFieldName() {
+        return randomFrom(UNMAPPED_FIELD_NAMES);
     }
 
     @Override

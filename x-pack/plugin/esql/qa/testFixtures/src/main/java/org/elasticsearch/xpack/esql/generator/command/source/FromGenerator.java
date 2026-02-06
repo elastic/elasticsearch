@@ -28,7 +28,7 @@ public class FromGenerator implements CommandGenerator {
         QuerySchema schema,
         QueryExecutor executor
     ) {
-        StringBuilder result = new StringBuilder("from ");
+        StringBuilder result = new StringBuilder("SET unmapped_fields=\"nullify\";from ");
         int items = randomIntBetween(1, 3);
         List<String> availableIndices = schema.baseIndices();
         for (int i = 0; i < items; i++) {

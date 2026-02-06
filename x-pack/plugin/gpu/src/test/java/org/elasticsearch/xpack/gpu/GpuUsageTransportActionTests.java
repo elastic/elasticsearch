@@ -7,25 +7,14 @@
 
 package org.elasticsearch.xpack.gpu;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.license.MockLicenseState;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockUtils;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.gpu.GpuVectorIndexingFeatureSetUsage;
 
 import java.util.Collections;
@@ -34,24 +23,21 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
+/** Unit test for how the action aggregates GPU stats responses from multiple nodes into a single cluster-wide usage report. */
 public class GpuUsageTransportActionTests extends ESTestCase {
 
-    @SuppressWarnings("unchecked")
+    private static final ClusterName CLUSTER_NAME = new ClusterName("test");
+
     public void testAggregation_mixedNodes() throws Exception {
-        List<NodeGpuStatsResponse> nodeResponses = List.of(
+        var nodeResponses = List.of(
             new NodeGpuStatsResponse(DiscoveryNodeUtils.create("node1"), true, true, 5, 24_000_000_000L, "NVIDIA L4"),
-            new NodeGpuStatsResponse(DiscoveryNodeUtils.create("node2"), true, true, 0, 24_000_000_000L, "NVIDIA L4"),
+            new NodeGpuStatsResponse(DiscoveryNodeUtils.create("node2"), true, false, 0, 24_000_000_000L, "NVIDIA L4"),
             new NodeGpuStatsResponse(DiscoveryNodeUtils.create("node3"), false, false, 0, -1L, null),
             new NodeGpuStatsResponse(DiscoveryNodeUtils.create("node4"), true, true, 3, 80_000_000_000L, "NVIDIA A100")
         );
 
-        GpuVectorIndexingFeatureSetUsage usage = executeUsageAction(nodeResponses, true);
+        var usage = GpuUsageTransportAction.buildUsage(new GpuStatsResponse(CLUSTER_NAME, nodeResponses, Collections.emptyList()), true);
 
         assertThat(usage.available(), equalTo(true));
         assertThat(usage.enabled(), equalTo(true));
@@ -62,16 +48,28 @@ public class GpuUsageTransportActionTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> nodes = (List<Map<String, Object>>) xContent.get("nodes");
         assertThat(nodes, hasSize(3));
+
+        // Verify per-node details (node3 excluded - no GPU)
+        assertThat(nodes.get(0).get("type"), equalTo("NVIDIA L4"));
+        assertThat(((Number) nodes.get(0).get("memory_in_bytes")).longValue(), equalTo(24_000_000_000L));
+        assertThat(nodes.get(0).get("enabled"), equalTo(true));
+        assertThat(((Number) nodes.get(0).get("index_build_count")).longValue(), equalTo(5L));
+
+        assertThat(nodes.get(1).get("type"), equalTo("NVIDIA L4"));
+        assertThat(nodes.get(1).get("enabled"), equalTo(false));
+
+        assertThat(nodes.get(2).get("type"), equalTo("NVIDIA A100"));
+        assertThat(((Number) nodes.get(2).get("memory_in_bytes")).longValue(), equalTo(80_000_000_000L));
+        assertThat(((Number) nodes.get(2).get("index_build_count")).longValue(), equalTo(3L));
     }
 
-    @SuppressWarnings("unchecked")
     public void testAggregation_noGpuNodes() throws Exception {
-        List<NodeGpuStatsResponse> nodeResponses = List.of(
+        var nodeResponses = List.of(
             new NodeGpuStatsResponse(DiscoveryNodeUtils.create("node1"), false, false, 0, -1L, null),
             new NodeGpuStatsResponse(DiscoveryNodeUtils.create("node2"), false, false, 0, -1L, null)
         );
 
-        GpuVectorIndexingFeatureSetUsage usage = executeUsageAction(nodeResponses, false);
+        var usage = GpuUsageTransportAction.buildUsage(new GpuStatsResponse(CLUSTER_NAME, nodeResponses, Collections.emptyList()), false);
 
         assertThat(usage.available(), equalTo(false));
         assertThat(usage.enabled(), equalTo(false));
@@ -84,43 +82,53 @@ public class GpuUsageTransportActionTests extends ESTestCase {
         assertThat(nodes, hasSize(0));
     }
 
-    @SuppressWarnings("unchecked")
-    public void testAggregation_nodeDetails() throws Exception {
-        List<NodeGpuStatsResponse> nodeResponses = List.of(
-            new NodeGpuStatsResponse(DiscoveryNodeUtils.create("node1"), true, true, 10, 24_000_000_000L, "NVIDIA L4"),
-            new NodeGpuStatsResponse(DiscoveryNodeUtils.create("node2"), true, false, 5, 80_000_000_000L, "NVIDIA A100")
-        );
+    public void testAggregation_emptyClusterResponse() throws Exception {
+        var usage = GpuUsageTransportAction.buildUsage(new GpuStatsResponse(CLUSTER_NAME, List.of(), Collections.emptyList()), true);
 
-        GpuVectorIndexingFeatureSetUsage usage = executeUsageAction(nodeResponses, true);
+        assertThat(usage.available(), equalTo(true));
+        assertThat(usage.enabled(), equalTo(false));
         Map<String, Object> xContent = toMap(usage);
+        assertThat(((Number) xContent.get("index_build_count")).longValue(), equalTo(0L));
+        assertThat(xContent.get("nodes_with_gpu"), equalTo(0));
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> nodes = (List<Map<String, Object>>) xContent.get("nodes");
-        assertThat(nodes, hasSize(2));
-
-        Map<String, Object> node1 = nodes.get(0);
-        assertThat(node1.get("type"), equalTo("NVIDIA L4"));
-        assertThat(((Number) node1.get("memory_in_bytes")).longValue(), equalTo(24_000_000_000L));
-        assertThat(node1.get("enabled"), equalTo(true));
-        assertThat(((Number) node1.get("index_build_count")).longValue(), equalTo(10L));
-
-        Map<String, Object> node2 = nodes.get(1);
-        assertThat(node2.get("type"), equalTo("NVIDIA A100"));
-        assertThat(((Number) node2.get("memory_in_bytes")).longValue(), equalTo(80_000_000_000L));
-        assertThat(node2.get("enabled"), equalTo(false));
-        assertThat(((Number) node2.get("index_build_count")).longValue(), equalTo(5L));
+        assertThat(nodes, hasSize(0));
     }
 
-    @SuppressWarnings("unchecked")
+    public void testAggregation_licenseNotAvailable() throws Exception {
+        // When license is not available, GPU format is not used, so index_build_count must be 0.
+        // However, GPU hardware can still be detected (enabled=true, name/memory reported).
+        var nodeResponses = List.of(
+            new NodeGpuStatsResponse(DiscoveryNodeUtils.create("node1"), true, true, 0, 24_000_000_000L, "NVIDIA L4")
+        );
+
+        var usage = GpuUsageTransportAction.buildUsage(new GpuStatsResponse(CLUSTER_NAME, nodeResponses, Collections.emptyList()), false);
+
+        assertThat(usage.available(), equalTo(false));
+        assertThat(usage.enabled(), equalTo(true));
+        Map<String, Object> xContent = toMap(usage);
+        assertThat(((Number) xContent.get("index_build_count")).longValue(), equalTo(0L));
+        assertThat(xContent.get("nodes_with_gpu"), equalTo(1));
+    }
+
     public void testAggregation_enabledBasedOnSetting() throws Exception {
         // All nodes have GPU but all disabled via setting -> enabled=false
-        List<NodeGpuStatsResponse> nodeResponses = List.of(
+        var nodeResponses = List.of(
             new NodeGpuStatsResponse(DiscoveryNodeUtils.create("node1"), true, false, 0, 24_000_000_000L, "NVIDIA L4"),
             new NodeGpuStatsResponse(DiscoveryNodeUtils.create("node2"), true, false, 0, 24_000_000_000L, "NVIDIA L4")
         );
 
-        GpuVectorIndexingFeatureSetUsage usage = executeUsageAction(nodeResponses, true);
+        var usage = GpuUsageTransportAction.buildUsage(new GpuStatsResponse(CLUSTER_NAME, nodeResponses, Collections.emptyList()), true);
         assertThat(usage.enabled(), equalTo(false));
+
+        // GPU nodes are still reported even when setting is disabled
+        Map<String, Object> xContent = toMap(usage);
+        assertThat(xContent.get("nodes_with_gpu"), equalTo(2));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> nodes = (List<Map<String, Object>>) xContent.get("nodes");
+        assertThat(nodes.get(0).get("type"), equalTo("NVIDIA L4"));
+        assertThat(nodes.get(1).get("type"), equalTo("NVIDIA L4"));
 
         // One node has GPU enabled via setting -> enabled=true
         nodeResponses = List.of(
@@ -128,47 +136,11 @@ public class GpuUsageTransportActionTests extends ESTestCase {
             new NodeGpuStatsResponse(DiscoveryNodeUtils.create("node2"), true, false, 0, 24_000_000_000L, "NVIDIA L4")
         );
 
-        usage = executeUsageAction(nodeResponses, true);
+        usage = GpuUsageTransportAction.buildUsage(new GpuStatsResponse(CLUSTER_NAME, nodeResponses, Collections.emptyList()), true);
         assertThat(usage.enabled(), equalTo(true));
     }
 
-    @SuppressWarnings("unchecked")
-    private GpuVectorIndexingFeatureSetUsage executeUsageAction(List<NodeGpuStatsResponse> nodeResponses, boolean licenseAvailable)
-        throws Exception {
-        GpuStatsResponse statsResponse = new GpuStatsResponse(new ClusterName("test"), nodeResponses, Collections.emptyList());
-
-        MockLicenseState licenseState = mock(MockLicenseState.class);
-        when(licenseState.isAllowed(GPUPlugin.GPU_INDEXING_FEATURE)).thenReturn(licenseAvailable);
-
-        ClusterService clusterService = mock(ClusterService.class);
-        DiscoveryNode mockNode = DiscoveryNodeUtils.create("local");
-        when(clusterService.localNode()).thenReturn(mockNode);
-
-        var client = mock(org.elasticsearch.client.internal.Client.class);
-        doAnswer(invocation -> {
-            ActionListener<GpuStatsResponse> listener = (ActionListener<GpuStatsResponse>) invocation.getArguments()[2];
-            listener.onResponse(statsResponse);
-            return null;
-        }).when(client).execute(eq(GpuStatsAction.INSTANCE), any(), any());
-
-        ThreadPool threadPool = mock(ThreadPool.class);
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
-
-        GpuUsageTransportAction action = new GpuUsageTransportAction(
-            transportService,
-            clusterService,
-            threadPool,
-            mock(ActionFilters.class),
-            client,
-            licenseState
-        );
-
-        PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        action.localClusterStateOperation(mock(Task.class), null, null, future);
-        return (GpuVectorIndexingFeatureSetUsage) future.get().getUsage();
-    }
-
-    private Map<String, Object> toMap(GpuVectorIndexingFeatureSetUsage usage) throws Exception {
+    private static Map<String, Object> toMap(GpuVectorIndexingFeatureSetUsage usage) throws Exception {
         try (var builder = XContentFactory.jsonBuilder()) {
             usage.toXContent(builder, ToXContent.EMPTY_PARAMS);
             return XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(builder), false);

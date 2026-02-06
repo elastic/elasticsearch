@@ -64,12 +64,14 @@ public class GpuUsageTransportAction extends XPackUsageFeatureTransportAction {
             GpuStatsAction.INSTANCE,
             new GpuStatsRequest(),
             listener.delegateFailureAndWrap((delegate, response) -> {
-                delegate.onResponse(new XPackUsageFeatureResponse(buildUsage(response)));
+                boolean available = GPUPlugin.GPU_INDEXING_FEATURE.checkWithoutTracking(licenseState);
+                delegate.onResponse(new XPackUsageFeatureResponse(buildUsage(response, available)));
             })
         );
     }
 
-    private GpuVectorIndexingFeatureSetUsage buildUsage(GpuStatsResponse response) {
+    // package-private for testing
+    static GpuVectorIndexingFeatureSetUsage buildUsage(GpuStatsResponse response, boolean available) {
         int nodesWithGpu = 0;
         long indexBuildCount = 0;
         boolean enabled = false;
@@ -92,8 +94,6 @@ public class GpuUsageTransportAction extends XPackUsageFeatureTransportAction {
             }
             indexBuildCount += nodeResponse.getGpuUsageCount();
         }
-
-        boolean available = GPUPlugin.GPU_INDEXING_FEATURE.checkWithoutTracking(licenseState);
 
         return new GpuVectorIndexingFeatureSetUsage(available, enabled, indexBuildCount, nodesWithGpu, nodes);
     }

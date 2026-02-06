@@ -31,6 +31,10 @@ public class GpuVectorIndexingFeatureSetUsageTests extends AbstractWireSerializi
     }
 
     static GpuVectorIndexingFeatureSetUsage randomUsage() {
+        if (randomBoolean()) {
+            // No GPU scenario
+            return new GpuVectorIndexingFeatureSetUsage(false, false, 0, 0, List.of());
+        }
         boolean available = randomBoolean();
         boolean enabled = randomBoolean();
         long indexBuildCount = randomLongBetween(0, 100_000);

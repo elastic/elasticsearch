@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -50,7 +52,8 @@ public class ToDenseVector extends AbstractConvertFunction {
         returnType = "dense_vector",
         description = "Converts a multi-valued input of numbers, or a hexadecimal string, to a dense_vector.",
         preview = true,
-        examples = @Example(file = "dense_vector", tag = "to_dense_vector-ints")
+        examples = @Example(file = "dense_vector", tag = "to_dense_vector-ints"),
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") }
     )
     public ToDenseVector(
         Source source,

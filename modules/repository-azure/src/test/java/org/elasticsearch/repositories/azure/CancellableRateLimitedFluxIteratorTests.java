@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
@@ -34,6 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
@@ -198,7 +200,8 @@ public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
         assertThat(iterator.next(), equalTo(1));
         assertThat(iterator.next(), equalTo(2));
         iterator.cancel();
-        assertThrows(RuntimeException.class, iterator::hasNext);
+        final var runtimeException = assertThrows(RuntimeException.class, iterator::hasNext);
+        assertThat(runtimeException.getCause(), instanceOf(CancellationException.class));
 
         assertBusy(() -> assertThat(cleanedElements, equalTo(Set.of(3, 4))));
         assertThat(iterator.getQueue(), is(empty()));
@@ -314,6 +317,85 @@ public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
             running.set(false);
             safeAwait(endBarrier);
         }
+    }
+
+    public void testCancellationAfterError() {
+        final var failure = new RuntimeException("This is the end");
+        final var requestLatch = new CountDownLatch(1);
+        final var subscription = new Subscription() {
+            @Override
+            public void request(long n) {
+                requestLatch.countDown();
+            }
+
+            @Override
+            public void cancel() {}
+        };
+        final var iterator = new CancellableRateLimitedFluxIterator<>(1, nextItem -> {});
+
+        // producer thread
+        runOnNewThread(() -> {
+            safeAwait(requestLatch);
+            iterator.onError(failure);
+        });
+
+        // consumer thread
+        runOnNewThread(() -> {
+            iterator.onSubscribe(subscription);
+            assertSame(failure, assertThrows(RuntimeException.class, iterator::hasNext).getCause());
+
+            // After cancellation, we should still see the original error thrown
+            iterator.cancel();
+            assertSame(failure, assertThrows(RuntimeException.class, iterator::hasNext).getCause());
+        });
+    }
+
+    public void testCompleteAfterCancellation() {
+        final var failure = new RuntimeException("This is the end");
+        final var barrier = new CyclicBarrier(2);
+        final var subscription = new Subscription() {
+            @Override
+            public void request(long n) {
+                logger.info("--> Client requesting {} elements", n);
+                safeAwait(barrier);
+            }
+
+            @Override
+            public void cancel() {
+                logger.info("--> Client cancelling subscription");
+                safeAwait(barrier);
+            }
+        };
+        final var iterator = new CancellableRateLimitedFluxIterator<>(randomIntBetween(3, 10), nextItem -> {});
+
+        // producer thread
+        runOnNewThread(() -> {
+            safeAwait(barrier); // wait for request
+            iterator.onNext(randomInt());
+            safeAwait(barrier); // wait for cancellation
+            iterator.onNext(randomInt());
+            logger.info("--> Sending completion");
+            iterator.onComplete();
+            safeAwait(barrier);
+        });
+
+        // consumer thread
+        runOnNewThread(() -> {
+            iterator.onSubscribe(subscription);
+            assertTrue(iterator.hasNext());
+            iterator.cancel();
+            assertThat(assertThrows(RuntimeException.class, iterator::hasNext).getCause(), instanceOf(CancellationException.class));
+            safeAwait(barrier); // wait for after-cancel-complete
+            // After cancellation, we should still see the original error thrown
+            assertThat(assertThrows(RuntimeException.class, iterator::hasNext).getCause(), instanceOf(CancellationException.class));
+        });
+
+        assertThat(iterator.hasNext(), equalTo(true));
+        iterator.cancel();
+        safeAwait(barrier); // indicate we cancelled
+        assertThat(assertThrows(RuntimeException.class, iterator::hasNext).getCause(), instanceOf(CancellationException.class));
+        safeAwait(barrier); // wait for complete
+        assertThat(assertThrows(RuntimeException.class, iterator::hasNext).getCause(), instanceOf(CancellationException.class));
     }
 
     public void runOnNewThread(Runnable runnable) {

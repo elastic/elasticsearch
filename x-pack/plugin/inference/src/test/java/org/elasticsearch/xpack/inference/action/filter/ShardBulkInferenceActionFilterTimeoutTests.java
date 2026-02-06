@@ -44,12 +44,12 @@ import static org.mockito.Mockito.when;
  *
  * <p>Timeout scenarios tested:</p>
  * <ul>
- *   <li><b>Batch-level timeout</b>: When earlier batches consume time, later batches fail at the
- *       batch-level check in {@code addFieldInferenceRequests()} before inference starts.</li>
- *   <li><b>Inference service timeout</b>: The timeout is passed to {@code chunkedInfer()} and the
- *       inference service enforces it. Different inference IDs are processed independently.</li>
+ *   <li><b>Batch-level timeout</b>: When earlier batches consume time, later batches fail
+ *       before inference starts.</li>
  *   <li><b>Pre-inference timeout after model loading</b>: If model loading takes long enough to
  *       exceed timeout, inference is skipped and items fail at the pre-inference check.</li>
+ *   <li><b>Inference service timeout</b>: The timeout is passed to {@code chunkedInfer()} and the
+ *       inference service enforces it. Different inference IDs are processed independently.</li>
  *   <li><b>Items without inference fields</b>: These pass through successfully even after timeout,
  *       since they don't require inference processing.</li>
  *   <li><b>Blank values</b>: Empty/whitespace values skip inference and don't trigger timeout failures.</li>
@@ -141,7 +141,8 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends AbstractShardBul
     }
 
     /**
-     * Tests that timeout is passed to inference service and failures propagate correctly.
+     * Tests that the timeout parameter is correctly passed to the inference service
+     * and that the service enforces the timeout.
      * Items using different inference IDs are processed independently.
      */
     public void testInferenceServiceTimeout() throws Exception {
@@ -270,8 +271,6 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends AbstractShardBul
         assertFalse("chunkedInfer should not have been called", chunkedInferCalled.get());
     }
 
-    // ========== Helper Methods ==========
-
     private String[] createTextsAndRegisterResults(StaticModel model, int count) {
         String[] texts = new String[count];
         for (int i = 0; i < count; i++) {
@@ -320,8 +319,6 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends AbstractShardBul
         }
         runFilterAndVerify(filter, fieldMap, items, verifier);
     }
-
-    // ========== Filter Creation ==========
 
     private ShardBulkInferenceActionFilter createFilter(StaticModel model, InferenceDelayController delayController) {
         return createFilter(Map.of(model.getInferenceEntityId(), model), delayController);
@@ -408,8 +405,6 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends AbstractShardBul
             .build();
         return createClusterService(useLegacyFormat, settings);
     }
-
-    // ========== Supporting Types ==========
 
     @FunctionalInterface
     private interface InferenceDelayController {

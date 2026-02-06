@@ -106,8 +106,6 @@ public abstract class AbstractShardBulkInferenceActionFilterTestCase extends EST
         terminate(threadPool);
     }
 
-    // ========== Cluster Service ==========
-
     protected static ClusterService createClusterService(boolean useLegacyFormat) {
         long batchSizeInBytes = randomLongBetween(1, ByteSizeValue.ofKb(1).getBytes());
         Settings settings = Settings.builder().put(INDICES_INFERENCE_BATCH_SIZE.getKey(), ByteSizeValue.ofBytes(batchSizeInBytes)).build();

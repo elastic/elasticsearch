@@ -1,0 +1,126 @@
+---
+setup:
+  - requires:
+      cluster_features: prometheus_plugin
+      reason: Prometheus plugin only available in snapshot builds
+  - do:
+      cluster.health:
+        wait_for_events: languid
+  - do:
+      cluster.put_component_template:
+        name: metrics-prometheus@custom
+        body:
+          template:
+            settings:
+              index:
+                time_series:
+                  start_time: 2024-07-01T13:03:08.138Z
+---
+"Test index template exists":
+  - do:
+      indices.get_index_template:
+        name: metrics-prometheus@template
+  - length: { index_templates: 1 }
+---
+"Test bulk ingest and query":
+  - do:
+      bulk:
+        index: metrics-generic.prometheus-default
+        refresh: true
+        body:
+          - create: { }
+          - "@timestamp": "2024-07-18T14:48:33.467654000Z"
+            data_stream:
+              dataset: "generic.prometheus"
+              namespace: "default"
+              type: "metrics"
+            labels:
+              job: "node_exporter"
+              instance: "localhost:9100"
+  - is_false: errors
+  - do:
+      search:
+        index: metrics-generic.prometheus-default
+        body:
+          fields: [ "job", "instance" ]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.job: [ "node_exporter" ] }
+  - match: { hits.hits.0.fields.instance: [ "localhost:9100" ] }
+---
+"Test counter metric":
+  - do:
+      bulk:
+        index: metrics-generic.prometheus-default
+        refresh: true
+        body:
+          - create: {"dynamic_templates":{"node_cpu_seconds_total":"counter"}}
+          - "@timestamp": "2024-07-18T14:48:33.467654000Z"
+            data_stream:
+              dataset: "generic.prometheus"
+              namespace: "default"
+              type: "metrics"
+            labels:
+              job: "node_exporter"
+              instance: "localhost:9100"
+              __name__: "node_cpu_seconds_total"
+            node_cpu_seconds_total: 12345.67
+  - is_false: errors
+  - do:
+      search:
+        index: metrics-generic.prometheus-default
+        body:
+          query:
+            exists:
+              field: node_cpu_seconds_total
+  - length: { hits.hits: 1 }
+
+  - do:
+      indices.get_data_stream:
+        name: metrics-generic.prometheus-default
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
+  - do:
+      indices.get_mapping:
+        index: $idx0name
+        expand_wildcards: hidden
+  - match: { .$idx0name.mappings.properties.node_cpu_seconds_total.type: 'double' }
+  - match: { .$idx0name.mappings.properties.node_cpu_seconds_total.time_series_metric: 'counter' }
+---
+"Test gauge metric":
+  - do:
+      bulk:
+        index: metrics-generic.prometheus-default
+        refresh: true
+        body:
+          - create: {"dynamic_templates":{"node_memory_MemFree_bytes":"gauge"}}
+          - "@timestamp": "2024-07-18T14:48:33.467654000Z"
+            data_stream:
+              dataset: "generic.prometheus"
+              namespace: "default"
+              type: "metrics"
+            labels:
+              job: "node_exporter"
+              instance: "localhost:9100"
+              __name__: "node_memory_MemFree_bytes"
+            node_memory_MemFree_bytes: 8589934592
+  - is_false: errors
+  - do:
+      search:
+        index: metrics-generic.prometheus-default
+        body:
+          query:
+            exists:
+              field: node_memory_MemFree_bytes
+  - length: { hits.hits: 1 }
+
+  - do:
+      indices.get_data_stream:
+        name: metrics-generic.prometheus-default
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
+  - do:
+      indices.get_mapping:
+        index: $idx0name
+        expand_wildcards: hidden
+  - match: { .$idx0name.mappings.properties.node_memory_MemFree_bytes.type: 'double' }
+  - match: { .$idx0name.mappings.properties.node_memory_MemFree_bytes.time_series_metric: 'gauge' }

@@ -5,8 +5,7 @@
       "description": "Get a specific running ES|QL query information"
     },
     "stability": "experimental",
-    "visibility": "feature_flag",
-    "feature_flag": "esql_views",
+    "visibility": "public",
     "headers": {
       "accept": [
         "application/json"

@@ -60,6 +60,11 @@
           "$id": "#root/source/runtime_mappings",
           "title": "runtime mappings",
           "type": "object"
+        },
+        "project_routing": {
+          "$id": "#root/source/project_routing",
+          "title": "project routing",
+          "type": "string"
         }
       }
     },

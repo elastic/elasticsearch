@@ -130,7 +130,7 @@ public class Similarities {
         }
     }
 
-    static void dotProductI1I4BulkWithOffsets(
+    public static void dotProductI1I4BulkWithOffsets(
         MemorySegment a,
         MemorySegment query,
         int length,

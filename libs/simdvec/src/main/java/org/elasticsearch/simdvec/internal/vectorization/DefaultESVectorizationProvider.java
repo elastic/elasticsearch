@@ -12,6 +12,7 @@ package org.elasticsearch.simdvec.internal.vectorization;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
+import org.elasticsearch.simdvec.ES93BinaryQuantizedVectorsScorer;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 
 final class DefaultESVectorizationProvider extends ESVectorizationProvider {
@@ -46,5 +47,10 @@ final class DefaultESVectorizationProvider extends ESVectorizationProvider {
     @Override
     public ES92Int7VectorsScorer newES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) {
         return new ES92Int7VectorsScorer(input, dimension, bulkSize);
+    }
+
+    @Override
+    public ES93BinaryQuantizedVectorsScorer newES93BinaryQuantizedVectorsScorer(IndexInput input, int dimension, int vectorLengthInBytes) {
+        return new DefaultES93BinaryQuantizedVectorsScorer(input, dimension, vectorLengthInBytes);
     }
 }

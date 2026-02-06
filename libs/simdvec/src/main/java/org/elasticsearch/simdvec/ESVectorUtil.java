@@ -66,6 +66,14 @@ public class ESVectorUtil {
         return ESVectorizationProvider.getInstance().newES92Int7VectorsScorer(input, dimension, bulkSize);
     }
 
+    public static ES93BinaryQuantizedVectorsScorer getES93BinaryQuantizedVectorsScorer(
+        IndexInput input,
+        int dimension,
+        int vectorLengthInBytes
+    ) throws IOException {
+        return ESVectorizationProvider.getInstance().newES93BinaryQuantizedVectorsScorer(input, dimension, vectorLengthInBytes);
+    }
+
     public static float dotProduct(float[] a, float[] b) {
         if (a.length != b.length) {
             throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);

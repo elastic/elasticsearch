@@ -105,7 +105,11 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     }
 
     @Override
-    public PhysicalOperation fieldExtractPhysicalOperation(FieldExtractExec fieldExtractExec, PhysicalOperation source) {
+    public PhysicalOperation fieldExtractPhysicalOperation(
+        FieldExtractExec fieldExtractExec,
+        PhysicalOperation source,
+        LocalExecutionPlannerContext context
+    ) {
         Layout.Builder layout = source.layout.builder();
         PhysicalOperation op = source;
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {

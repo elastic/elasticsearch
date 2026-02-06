@@ -1,5 +1,0 @@
-pr: 137694
-summary: Iterate directly over contents of `RoutingNode`
-area: Allocation
-type: enhancement
-issues: []

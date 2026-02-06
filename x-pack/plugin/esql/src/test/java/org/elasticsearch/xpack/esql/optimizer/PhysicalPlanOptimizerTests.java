@@ -21,6 +21,7 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geometry.Circle;
@@ -3373,6 +3374,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             () -> testData.physicalOptimizer().verify(planWithInvalidJoinRightSide, plan.output())
         );
         assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references from right hand side [language_code"));
+        assertWarnings(
+            "No limit defined, adding default limit of [1000]",
+            "Line 3:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
+                + "add another SORT after the LOOKUP JOIN if order is required"
+        );
     }
 
     public void testVerifierOnDuplicateOutputAttributes() {
@@ -9568,6 +9574,34 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.names(aggregate.aggregates()), contains("c", "n"));
         assertThat(Expressions.names(aggregate.groupings()), contains("n"));
         var stubRelation = as(aggregate.child(), StubRelation.class);
+    }
+
+    /**
+     * ProjectExec[[first_name{f}#6]]
+     * \_TopNExec[[Order[last_name{f}#9,ASC,LAST]],1000[INTEGER],null]
+     *   \_ExchangeExec[[],false]
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[
+     *                    TopN[[Order[last_name{f}#9,ASC,LAST]],1000[INTEGER],false]
+     *       \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]]]
+     */
+    public void testTopNUsesSortedInputFromDataNodes() {
+        String query = """
+              from test
+            | sort last_name
+            | keep first_name
+            """;
+        var plan = physicalPlan(query);
+
+        var project = as(plan, ProjectExec.class);
+        var topNExec = as(project.child(), TopNExec.class);
+        assertThat(topNExec.inputOrdering(), equalTo(TopNOperator.InputOrdering.SORTED));
+        var exchangeExec = as(topNExec.child(), ExchangeExec.class);
+        var fragmentExec = as(exchangeExec.child(), FragmentExec.class);
+        var topN = as(fragmentExec.fragment(), TopN.class);
+        var sorts = topN.order();
+        assertThat(sorts.size(), equalTo(1));
+        assertThat(as(sorts.getFirst().child(), FieldAttribute.class).field().getName(), equalTo("last_name"));
+        var esRelation = as(topN.child(), EsRelation.class);
     }
 
     @Override

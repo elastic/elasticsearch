@@ -50,10 +50,11 @@ public class Last extends AggregateFunction implements ToAggregator {
         description = """
             This function calculates the latest occurrence of the search field
             (the first parameter), where sorting order is determined by the sort
-            field (the second parameter). Both fields support null, single-valued,
-            and multi-valued input. If the latest sort field value appears in
-            multiple documents, this function is allowed to return any corresponding
-            search field value. Null values of the sort field always sort last.""",
+            field (the second parameter). This sorting order is always ascending
+            and null values always sort last. Both fields support null,
+            single-valued, and multi-valued input. If the latest sort field
+            value appears in multiple documents, this function is allowed to
+            return any corresponding search field value.""",
         appendix = """
             ::::{warning}
             This can use a significant amount of memory and ES|QL doesn’t yet
@@ -71,11 +72,11 @@ public class Last extends AggregateFunction implements ToAggregator {
     public Last(
         Source source,
         @Param(
-            name = "value",
+            name = "field",
             type = { "long", "integer", "double", "keyword", "text", "ip", "boolean" },
-            description = "Values to return"
+            description = "The search field"
         ) Expression field,
-        @Param(name = "sort", type = { "long", "date", "date_nanos" }, description = "Sort key") Expression sort
+        @Param(name = "sortField", type = { "long", "date", "date_nanos" }, description = "The sort field") Expression sort
     ) {
         this(source, field, Literal.TRUE, NO_WINDOW, sort);
     }

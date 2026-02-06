@@ -605,7 +605,7 @@ static inline __m256i dot_bit_256(const __m256i a, const int8_t* b) {
    return local;
 }
 
-static inline int64_t doti1i4_inner(const int8_t* a, const int8_t* query, const int32_t length) {
+static inline int64_t dotd1q4_inner(const int8_t* a, const int8_t* query, const int32_t length) {
     int r = 0;
 
     __m256i acc0 = _mm256_setzero_si256();
@@ -661,26 +661,26 @@ static inline int64_t doti1i4_inner(const int8_t* a, const int8_t* query, const 
     return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
 }
 
-EXPORT int64_t vec_doti1i4(
+EXPORT int64_t vec_dotd1q4(
     const int8_t* a_ptr,
     const int8_t* query_ptr,
     const int32_t length
 ) {
-    return doti1i4_inner(a_ptr, query_ptr, length);
+    return dotd1q4_inner(a_ptr, query_ptr, length);
 }
 
-EXPORT int64_t vec_doti2i4(
+EXPORT int64_t vec_dotd2q4(
     const int8_t* a_ptr,
     const int8_t* query_ptr,
     const int32_t length
 ) {
-    int64_t lower = doti1i4_inner(a_ptr, query_ptr, length/2);
-    int64_t upper = doti1i4_inner(a_ptr + length/2, query_ptr, length/2);
+    int64_t lower = dotd1q4_inner(a_ptr, query_ptr, length/2);
+    int64_t upper = dotd1q4_inner(a_ptr + length/2, query_ptr, length/2);
     return lower + (upper << 1);
 }
 
 template <int64_t(*mapper)(const int32_t, const int32_t*)>
-static inline void doti1i4_inner_bulk(
+static inline void dotd1q4_inner_bulk(
     const int8_t* a,
     const int8_t* query,
     const int32_t length,
@@ -712,10 +712,10 @@ static inline void doti1i4_inner_bulk(
         prefetch(next_a2, lines_to_fetch);
         prefetch(next_a3, lines_to_fetch);
 
-        results[c + 0] = (f32_t)doti1i4_inner(a0, query, length);
-        results[c + 1] = (f32_t)doti1i4_inner(a1, query, length);
-        results[c + 2] = (f32_t)doti1i4_inner(a2, query, length);
-        results[c + 3] = (f32_t)doti1i4_inner(a3, query, length);
+        results[c + 0] = (f32_t)dotd1q4_inner(a0, query, length);
+        results[c + 1] = (f32_t)dotd1q4_inner(a1, query, length);
+        results[c + 2] = (f32_t)dotd1q4_inner(a2, query, length);
+        results[c + 3] = (f32_t)dotd1q4_inner(a3, query, length);
 
         a0 = next_a0;
         a1 = next_a1;
@@ -726,20 +726,20 @@ static inline void doti1i4_inner_bulk(
     // Tail-handling: remaining vectors
     for (; c < count; c++) {
         const int8_t* a0 = a + mapper(c, offsets) * pitch;
-        results[c] = (f32_t)doti1i4_inner(a0, query, length);
+        results[c] = (f32_t)dotd1q4_inner(a0, query, length);
     }
 }
 
-EXPORT void vec_doti1i4_bulk(
+EXPORT void vec_dotd1q4_bulk(
     const int8_t* a,
     const int8_t* query,
     const int32_t length,
     const int32_t count,
     f32_t* results) {
-    doti1i4_inner_bulk<identity_mapper>(a, query, length, length, NULL, count, results);
+    dotd1q4_inner_bulk<identity_mapper>(a, query, length, length, NULL, count, results);
 }
 
-EXPORT void vec_doti1i4_bulk_offsets(
+EXPORT void vec_dotd1q4_bulk_offsets(
     const int8_t* a,
     const int8_t* query,
     const int32_t length,
@@ -747,11 +747,11 @@ EXPORT void vec_doti1i4_bulk_offsets(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    doti1i4_inner_bulk<array_mapper>(a, query, length, pitch, offsets, count, results);
+    dotd1q4_inner_bulk<array_mapper>(a, query, length, pitch, offsets, count, results);
 }
 
 template <int64_t(*mapper)(const int32_t, const int32_t*)>
-static inline void doti2i4_inner_bulk(
+static inline void dotd2q4_inner_bulk(
     const int8_t* a,
     const int8_t* query,
     const int32_t length,
@@ -778,10 +778,10 @@ static inline void doti2i4_inner_bulk(
         prefetch(next_a0, lines_to_fetch);
         prefetch(next_a1, lines_to_fetch);
 
-        int64_t lower0 = doti1i4_inner(a0, query, bit_length);
-        int64_t lower1 = doti1i4_inner(a1, query, bit_length);
-        int64_t upper0 = doti1i4_inner(a0 + bit_length, query, bit_length);
-        int64_t upper1 = doti1i4_inner(a1 + bit_length, query, bit_length);
+        int64_t lower0 = dotd1q4_inner(a0, query, bit_length);
+        int64_t lower1 = dotd1q4_inner(a1, query, bit_length);
+        int64_t upper0 = dotd1q4_inner(a0 + bit_length, query, bit_length);
+        int64_t upper1 = dotd1q4_inner(a1 + bit_length, query, bit_length);
 
         results[c + 0] = (f32_t)(lower0 + (upper0 << 1));
         results[c + 1] = (f32_t)(lower1 + (upper1 << 1));
@@ -793,22 +793,22 @@ static inline void doti2i4_inner_bulk(
     // Tail-handling: remaining vectors
     for (; c < count; c++) {
         const int8_t* a0 = a + mapper(c, offsets) * pitch;
-        int64_t lower = doti1i4_inner(a0, query, length/2);
-        int64_t upper = doti1i4_inner(a0 + length/2, query, length/2);
+        int64_t lower = dotd1q4_inner(a0, query, length/2);
+        int64_t upper = dotd1q4_inner(a0 + length/2, query, length/2);
         results[c] = (f32_t)(lower + (upper << 1));
     }
 }
 
-EXPORT void vec_doti2i4_bulk(
+EXPORT void vec_dotd2q4_bulk(
     const int8_t* a,
     const int8_t* query,
     const int32_t length,
     const int32_t count,
     f32_t* results) {
-    doti2i4_inner_bulk<identity_mapper>(a, query, length, length, NULL, count, results);
+    dotd2q4_inner_bulk<identity_mapper>(a, query, length, length, NULL, count, results);
 }
 
-EXPORT void vec_doti2i4_bulk_offsets(
+EXPORT void vec_dotd2q4_bulk_offsets(
     const int8_t* a,
     const int8_t* query,
     const int32_t length,
@@ -816,5 +816,5 @@ EXPORT void vec_doti2i4_bulk_offsets(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    doti2i4_inner_bulk<array_mapper>(a, query, length, pitch, offsets, count, results);
+    dotd2q4_inner_bulk<array_mapper>(a, query, length, pitch, offsets, count, results);
 }

@@ -140,8 +140,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
                             if (f == Function.SQUARE_DISTANCE) continue;
 
                             String typeName = switch (type) {
-                                case D1Q4 -> "i1i4";
-                                case D2Q4 -> "i2i4";
+                                case D1Q4 -> "d1q4";
+                                case D2Q4 -> "d2q4";
                             };
 
                             FunctionDescriptor descriptor = switch (op) {

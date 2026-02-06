@@ -101,6 +101,9 @@ public interface Rewriteable<T> {
         Executor responseExecutor,
         ActionListener<T> rewriteResponse
     ) {
+        // Thread context is passed as null, meaning the listener will execute in the thread context
+        // of the completing thread rather than capturing the caller's context. This is consistent
+        // with the behavior of rewriteAndFetch(original, context, listener)
         SubscribableListener.<T>newForked(l -> rewriteAndFetch(original, context, l, 0))
             .addListener(rewriteResponse, Objects.requireNonNull(responseExecutor), null);
     }

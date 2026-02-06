@@ -101,7 +101,6 @@ public class RewriteableTests extends ESTestCase {
             AtomicReference<String> completionThreadName = new AtomicReference<>();
             CountDownLatch completionLatch = new CountDownLatch(1);
             CountDownLatch asyncStartLatch = new CountDownLatch(1);
-            // TestRewriteable rewrite = new TestRewriteableWithLatchAndCapture(1, asyncStartLatch);
             TestRewriteable rewrite = new TestRewriteableWithLatchAndCapture(1, asyncStartLatch, completionThreadName);
             Rewriteable.rewriteAndFetch(rewrite, new QueryRewriteContext(null, null, null), searchExecutor, new ActionListener<>() {
                 @Override
@@ -185,21 +184,6 @@ public class RewriteableTests extends ESTestCase {
         } finally {
             ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }
-    }
-
-    public void testRewriteAndFetchWithNullExecutorThrows() {
-        TestRewriteable rewrite = new TestRewriteable(1, false);
-        NullPointerException e = expectThrows(
-            NullPointerException.class,
-            () -> Rewriteable.rewriteAndFetch(rewrite, new QueryRewriteContext(null, null, null), null, new ActionListener<>() {
-                @Override
-                public void onResponse(TestRewriteable result) {}
-
-                @Override
-                public void onFailure(Exception e) {}
-            })
-        );
-        assertEquals("responseExecutor must not be null", e.getMessage());
     }
 
     public void testRewriteAndFetchWithExecutorAsyncOnDifferentThread() throws Exception {

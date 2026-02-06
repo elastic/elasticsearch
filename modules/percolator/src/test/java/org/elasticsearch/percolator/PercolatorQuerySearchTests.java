@@ -281,7 +281,6 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex(
             "test",
             Settings.builder().put("index.number_of_shards", 1).build(),
-            "_doc",
             "field1",
             "type=keyword",
             "field2",

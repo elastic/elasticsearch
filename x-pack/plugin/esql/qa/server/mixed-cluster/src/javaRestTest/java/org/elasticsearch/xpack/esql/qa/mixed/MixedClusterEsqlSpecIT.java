@@ -104,4 +104,10 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
          */
         return true;
     }
+
+    @Override
+    protected boolean supportsViews() {
+        // TODO: Change to support views in follow up. Since the action names changed these tests won't work
+        return false;
+    }
 }

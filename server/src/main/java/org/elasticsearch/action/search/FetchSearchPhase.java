@@ -237,6 +237,7 @@ class FetchSearchPhase extends SearchPhase {
                 }
             }
         };
+
         final Transport.Connection connection;
         try {
             connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
@@ -257,7 +258,8 @@ class FetchSearchPhase extends SearchPhase {
                     shardPhaseResult.getRescoreDocIds(),
                     aggregatedDfs
                 ),
-                context.getTask(),
+                context,
+                shardTarget,
                 listener
             );
     }

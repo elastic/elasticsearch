@@ -101,6 +101,7 @@ import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
+import org.elasticsearch.search.fetch.chunk.FetchPhaseResponseChunk;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField;
@@ -255,6 +256,23 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.Dynamic
     );
 
+    private static final boolean CHUNKED_FETCH_PHASE_FEATURE_FLAG = new FeatureFlag("chunked_fetch_phase_enabled").isEnabled();
+
+    public static final Setting<Boolean> FETCH_PHASE_CHUNKED_ENABLED = Setting.boolSetting(
+        "search.fetch_phase_chunked_enabled",
+        CHUNKED_FETCH_PHASE_FEATURE_FLAG,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<Integer> FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS = Setting.intSetting(
+        "search.fetch_phase_chunked_max_in_flight_chunks",
+        3,
+        0,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     public static final Setting<Integer> MAX_OPEN_SCROLL_CONTEXT = Setting.intSetting(
         "search.max_open_scroll_context",
         500,
@@ -348,6 +366,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final int prewarmingMaxPoolFactorThreshold;
     private volatile Executor searchExecutor;
     private volatile boolean enableQueryPhaseParallelCollection;
+    private volatile boolean enableFetchPhaseChunked;
 
     private volatile long defaultKeepAlive;
 
@@ -449,6 +468,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_WORKER_THREADS_ENABLED, this::setEnableSearchWorkerThreads);
 
         enableQueryPhaseParallelCollection = QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.get(settings);
+        enableFetchPhaseChunked = FETCH_PHASE_CHUNKED_ENABLED.get(settings);
         if (BATCHED_QUERY_PHASE_FEATURE_FLAG.isEnabled()) {
             batchQueryPhase = BATCHED_QUERY_PHASE.get(settings);
         } else {
@@ -456,6 +476,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED, this::setEnableQueryPhaseParallelCollection);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(FETCH_PHASE_CHUNKED_ENABLED, this::setEnableFetchPhaseChunked);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(BATCHED_QUERY_PHASE, bulkExecuteQueryPhase -> this.batchQueryPhase = bulkExecuteQueryPhase);
         memoryAccountingBufferSize = MEMORY_ACCOUNTING_BUFFER_SIZE.get(settings).getBytes();
@@ -494,6 +515,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void setEnableQueryPhaseParallelCollection(boolean enableQueryPhaseParallelCollection) {
         this.enableQueryPhaseParallelCollection = enableQueryPhaseParallelCollection;
+    }
+
+    private void setEnableFetchPhaseChunked(boolean enableFetchPhaseChunked) {
+        this.enableFetchPhaseChunked = enableFetchPhaseChunked;
+    }
+
+    public boolean fetchPhaseChunked() {
+        return enableFetchPhaseChunked;
     }
 
     private static void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
@@ -914,6 +943,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     private SearchPhaseResult executeQueryPhase(ShardSearchRequest request, CancellableTask task) throws Exception {
         final ReaderContext readerContext = createOrGetReaderContext(request);
+
         try (
             Releasable scope = tracer.withScope(task);
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
@@ -1028,6 +1058,160 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         // This will incRef the QuerySearchResult when it gets created
         return QueryFetchSearchResult.of(context.queryResult(), context.fetchResult());
+    }
+
+    /*
+     * Fetch phase lifecycle overview:
+     *
+     * 1. Fetch build phase:
+     *    - Executes fetch sub-phases and builds hits
+     *    - Signals success/failure via buildListener
+     *    - Records stats and releases shard search context
+     *
+     * 2. Final completion phase:
+     *    - For streaming responses, waits for all chunk ACKs
+     *    - Completes the request listener
+     */
+    public void executeFetchPhase(
+        ShardFetchRequest request,
+        CancellableTask task,
+        FetchPhaseResponseChunk.Writer writer,
+        ActionListener<FetchSearchResult> listener
+    ) {
+        // Wrap listener to release circuit breaker bytes when response is sent
+        // This is for the traditional path scenarios
+        final ActionListener<FetchSearchResult> releaseListener = releaseCircuitBreakerOnResponse(listener, result -> result);
+
+        final ReaderContext readerContext = findReaderContext(request.contextId(), request);
+        final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
+        final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
+
+        // Changed from runAsync to AbstractRunnable with ActionListener callback.
+        // This allows FetchPhase.execute() to complete asynchronously:
+        // - Non-streaming: callback fires immediately after hits are built
+        // - Streaming: callback fires after all chunk ACKs are received
+        rewriteAndFetchShardRequest(readerContext.indexShard(), shardSearchRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(ShardSearchRequest rewritten) {
+                try {
+                    getExecutor(readerContext.indexShard()).execute(new AbstractRunnable() {
+                        private final AtomicBoolean closed = new AtomicBoolean();
+                        private volatile SearchContext searchContext;
+
+                        // Guard to ensure SearchContext and reader resources are released.
+                        private final Runnable closeOnce = () -> {
+                            if (closed.compareAndSet(false, true)) {
+                                try {
+                                    if (readerContext.singleSession()) {
+                                        freeReaderContext(request.contextId());
+                                    }
+                                } finally {
+                                    try {
+                                        if (searchContext != null) {
+                                            searchContext.close();
+                                        }
+                                    } finally {
+                                        Releasables.close(markAsUsed);
+                                    }
+                                }
+                            }
+                        };
+
+                        @Override
+                        protected void doRun() throws Exception {
+                            final long startTime;
+                            final SearchOperationListener opsListener;
+
+                            try {
+                                this.searchContext = createContext(readerContext, rewritten, task, ResultsType.FETCH, false);
+
+                                startTime = System.nanoTime();
+                                opsListener = searchContext.indexShard().getSearchOperationListener();
+                                opsListener.onPreFetchPhase(searchContext);
+                            } catch (Exception e) {
+                                Releasables.close(markAsUsed);
+                                throw e;
+                            }
+
+                            // Retain the fetch result so it can outlive the SearchContext close which is closed on fetch build completion.
+                            final FetchSearchResult fetchResult = searchContext.fetchResult();
+                            fetchResult.incRef();
+
+                            try {
+                                if (request.lastEmittedDoc() != null) {
+                                    searchContext.scrollContext().lastEmittedDoc = request.lastEmittedDoc();
+                                }
+                                searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(request.getRescoreDocIds()));
+                                searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(request.getAggregatedDfs()));
+
+                                // This listener is invoked when the fetch build has completed (hits built or failed), responsible for
+                                // - recording fetch-phase success/failure stats
+                                // - closing the SearchContext and releasing shard resources
+                                final ActionListener<Void> buildListener = ActionListener.wrap(ignored -> {
+                                    opsListener.onFetchPhase(searchContext, System.nanoTime() - startTime);
+                                    closeOnce.run();
+                                }, e -> {
+                                    opsListener.onFailedFetchPhase(searchContext);
+                                    closeOnce.run();
+                                });
+
+                                // Completion happens via ActionListener:
+                                // Non-streaming: callback fires immediately after hits are built
+                                // Streaming: invoked only after all response chunks have been ACKed
+                                fetchPhase.execute(
+                                    searchContext,
+                                    request.docIds(),
+                                    request.getRankDocks(),
+                                    null,
+                                    writer,
+                                    buildListener,
+                                    ActionListener.wrap(ignored -> {
+                                        try {
+                                            releaseListener.onResponse(fetchResult);
+                                        } finally {
+                                            fetchResult.decRef();
+                                        }
+                                    }, e -> {
+                                        try {
+                                            releaseListener.onFailure(e);
+                                        } finally {
+                                            fetchResult.decRef();
+                                        }
+                                    })
+                                );
+                            } catch (Exception e) {
+                                try {
+                                    opsListener.onFailedFetchPhase(searchContext);
+                                } finally {
+                                    try {
+                                        closeOnce.run();
+                                    } finally {
+                                        fetchResult.decRef();
+                                    }
+                                }
+                                throw e;
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
+                            Releasables.close(markAsUsed);
+                            releaseListener.onFailure(e);
+                        }
+                    });
+                } catch (Exception e) {
+                    Releasables.close(markAsUsed);
+                    releaseListener.onFailure(e);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Releasables.close(markAsUsed);
+                releaseListener.onFailure(e);
+            }
+        });
     }
 
     public void executeQueryPhase(
@@ -1222,46 +1406,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         );
     }
 
-    public void executeFetchPhase(ShardFetchRequest request, CancellableTask task, ActionListener<FetchSearchResult> listener) {
-        final ReaderContext readerContext = findReaderContext(request.contextId(), request);
-        final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
-        final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
-        rewriteAndFetchShardRequest(readerContext.indexShard(), shardSearchRequest, listener.delegateFailure((l, rewritten) -> {
-            runAsync(getExecutor(readerContext.indexShard()), () -> {
-                try (SearchContext searchContext = createContext(readerContext, rewritten, task, ResultsType.FETCH, false)) {
-                    if (request.lastEmittedDoc() != null) {
-                        searchContext.scrollContext().lastEmittedDoc = request.lastEmittedDoc();
-                    }
-                    searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(request.getRescoreDocIds()));
-                    searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(request.getAggregatedDfs()));
-                    final long startTime = System.nanoTime();
-                    var opsListener = searchContext.indexShard().getSearchOperationListener();
-                    opsListener.onPreFetchPhase(searchContext);
-                    try {
-                        fetchPhase.execute(searchContext, request.docIds(), request.getRankDocks());
-                        if (readerContext.singleSession()) {
-                            freeReaderContext(request.contextId());
-                        }
-                        opsListener.onFetchPhase(searchContext, System.nanoTime() - startTime);
-                        opsListener = null;
-                    } finally {
-                        if (opsListener != null) {
-                            opsListener.onFailedFetchPhase(searchContext);
-                        }
-                    }
-                    var fetchResult = searchContext.fetchResult();
-                    // inc-ref fetch result because we close the SearchContext that references it in this try-with-resources block
-                    fetchResult.incRef();
-                    return fetchResult;
-                } catch (Exception e) {
-                    assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
-                    // we handle the failure in the failure listener below
-                    throw e;
-                }
-            }, wrapFailureListener(releaseCircuitBreakerOnResponse(listener, result -> result), readerContext, markAsUsed));
-        }));
-    }
-
     protected void checkCancelled(CancellableTask task) {
         // check cancellation as early as possible, as it avoids opening up a Lucene reader on FrozenEngine
         try {
@@ -1280,6 +1424,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (reader == null) {
             throw new SearchContextMissingException(id);
         }
+
         try {
             reader.validate(request);
         } catch (Exception exc) {

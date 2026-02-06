@@ -75,6 +75,20 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public int dotProduct(byte[] a, byte[] b) {
+        return SUPPORTS_HEAP_SEGMENTS
+            ? Similarities.dotProductI8(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length)
+            : VectorUtil.dotProduct(a, b);
+    }
+
+    @Override
+    public int squareDistance(byte[] a, byte[] b) {
+        return SUPPORTS_HEAP_SEGMENTS
+            ? Similarities.squareDistanceI8(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length)
+            : VectorUtil.squareDistance(a, b);
+    }
+
+    @Override
     public long ipByteBinByte(byte[] q, byte[] d) {
         // 128 / 8 == 16
         if (d.length >= 16 && HAS_FAST_INTEGER_VECTORS) {

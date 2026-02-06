@@ -35,6 +35,16 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public int dotProduct(byte[] a, byte[] b) {
+        return VectorUtil.dotProduct(a, b);
+    }
+
+    @Override
+    public int squareDistance(byte[] a, byte[] b) {
+        return VectorUtil.squareDistance(a, b);
+    }
+
+    @Override
     public long ipByteBinByte(byte[] q, byte[] d) {
         return ipByteBinByteImpl(q, d);
     }

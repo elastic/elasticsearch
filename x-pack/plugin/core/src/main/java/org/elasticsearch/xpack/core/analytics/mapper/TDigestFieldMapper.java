@@ -55,7 +55,6 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.tdigest.parsing.TDigestParser;
 import org.elasticsearch.xcontent.CopyingXContentParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;

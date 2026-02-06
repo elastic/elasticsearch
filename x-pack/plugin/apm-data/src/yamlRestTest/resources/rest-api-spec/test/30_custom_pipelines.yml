@@ -1,5 +1,7 @@
 ---
 setup:
+  - skip:
+      features: [allowed_warnings]
   - do:
       cluster.health:
         wait_for_events: languid
@@ -220,6 +222,8 @@ setup:
 ---
 "Test logs @custom ingest pipelines":
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       bulk:
         refresh: true
         body:
@@ -243,6 +247,8 @@ setup:
 ---
 "Test metrics @custom ingest pipelines":
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       bulk:
         refresh: true
         body:
@@ -294,6 +300,8 @@ setup:
 ---
 "Test traces @custom ingest pipelines":
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       bulk:
         refresh: true
         body:

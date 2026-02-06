@@ -1,4 +1,8 @@
 ---
+setup:
+  - requires:
+      test_runner_features: [allowed_warnings]
+---
 "A flattened label field":
   - do:
       indices.create:
@@ -64,6 +68,8 @@
           index.blocks.write: true
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: source_index
         target_index: target_index
@@ -167,6 +173,8 @@
           index.blocks.write: true
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: source_index
         target_index: target_index
@@ -270,6 +278,8 @@
           index.blocks.write: true
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: source_index
         target_index: target_index

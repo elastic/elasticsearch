@@ -2,6 +2,7 @@ setup:
   - requires:
       cluster_features: ["gte_v8.5.0"]
       reason: "rollup renamed to downsample in 8.5.0"
+      test_runner_features: allowed_warnings
 
   - do:
       indices.create:
@@ -305,6 +306,8 @@ setup:
       reason: _tsid hashing introduced in 8.13
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test
         target_index: test-downsample
@@ -368,7 +371,6 @@ setup:
   - match: { test-downsample.mappings.properties.@timestamp.meta.time_zone: UTC }
   - match: { test-downsample.mappings.properties.k8s\.pod\.multi-gauge.type: aggregate_metric_double }
   - match: { test-downsample.mappings.properties.k8s\.pod\.multi-gauge.metrics: [ "min", "max", "sum", "value_count" ] }
-  - match: { test-downsample.mappings.properties.k8s\.pod\.multi-gauge.default_metric: max }
   - match: { test-downsample.mappings.properties.k8s\.pod\.multi-gauge.time_series_metric: gauge }
   - match: { test-downsample.mappings.properties.k8s\.pod\.multi-counter.type: long }
   - match: { test-downsample.mappings.properties.k8s\.pod\.multi-counter.time_series_metric: counter }
@@ -377,7 +379,6 @@ setup:
   - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-counter.time_series_metric: counter }
   - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-gauge.type: aggregate_metric_double }
   - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-gauge.metrics: [ "min", "max", "sum", "value_count" ] }
-  - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-gauge.default_metric: max }
   - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-gauge.time_series_metric: gauge }
   - match: { test-downsample.mappings.properties.k8s\.pod\.uid.type: keyword }
   - match: { test-downsample.mappings.properties.k8s\.pod\.uid.time_series_dimension: true }
@@ -686,6 +687,8 @@ setup:
           index.blocks.write: true
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: no-metric-index
         target_index: test-downsample-no-metric
@@ -777,6 +780,8 @@ setup:
           index.blocks.write: true
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: no-metric-no-label-index
         target_index: test-downsample-no-metric-no-label
@@ -814,6 +819,8 @@ setup:
       reason: _tsid hashing introduced in 8.13
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test
         target_index: test-downsample
@@ -824,6 +831,8 @@ setup:
   - is_true: acknowledged
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-downsample
         target_index: test-downsample-2
@@ -844,7 +853,6 @@ setup:
   - match: { test-downsample-2.mappings.properties.@timestamp.meta.time_zone: UTC }
   - match: { test-downsample-2.mappings.properties.k8s\.pod\.multi-gauge.type: aggregate_metric_double }
   - match: { test-downsample-2.mappings.properties.k8s\.pod\.multi-gauge.metrics: [ "min", "max", "sum", "value_count" ] }
-  - match: { test-downsample-2.mappings.properties.k8s\.pod\.multi-gauge.default_metric: max }
   - match: { test-downsample-2.mappings.properties.k8s\.pod\.multi-gauge.time_series_metric: gauge }
   - match: { test-downsample-2.mappings.properties.k8s\.pod\.multi-counter.type: long }
   - match: { test-downsample-2.mappings.properties.k8s\.pod\.multi-counter.time_series_metric: counter }
@@ -852,7 +860,6 @@ setup:
   - match: { test-downsample-2.mappings.properties.k8s\.pod\.uid.time_series_dimension: true }
   - match: { test-downsample-2.mappings.properties.k8s\.pod\.network\.tx.type: aggregate_metric_double }
   - match: { test-downsample-2.mappings.properties.k8s\.pod\.network\.tx.metrics: [ "min", "max", "sum", "value_count" ] }
-  - match: { test-downsample-2.mappings.properties.k8s\.pod\.network\.tx.default_metric: max }
   - match: { test-downsample-2.mappings.properties.k8s\.pod\.network\.tx.time_series_metric: gauge }
 
   - do:
@@ -891,6 +898,8 @@ setup:
   - match: { hits.hits.2._source._doc_count: 2 }
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-downsample
         target_index: test-downsample-3
@@ -907,6 +916,8 @@ setup:
       reason: "Rollup of rollups introduced in 8.5.0"
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test
         target_index: test-downsample
@@ -957,6 +968,8 @@ setup:
       reason: Last value sampling method was added in 9.3
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test
         target_index: test-downsample-default
@@ -1016,6 +1029,8 @@ setup:
       reason: _tsid hashing introduced in 8.13
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-histogram
         target_index: test-downsample-histogram
@@ -1040,7 +1055,6 @@ setup:
   - match: { test-downsample-histogram.mappings.properties.k8s\.pod\.uid.time_series_dimension: true }
   - match: { test-downsample-histogram.mappings.properties.k8s\.pod\.network\.tx.type: aggregate_metric_double }
   - match: { test-downsample-histogram.mappings.properties.k8s\.pod\.network\.tx.metrics: [ "min", "max", "sum", "value_count" ] }
-  - match: { test-downsample-histogram.mappings.properties.k8s\.pod\.network\.tx.default_metric: max }
   - match: { test-downsample-histogram.mappings.properties.k8s\.pod\.network\.tx.time_series_metric: gauge }
 
   - do:
@@ -1173,6 +1187,8 @@ setup:
   - is_true: acknowledged
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-timestamp
         target_index: test-downsample-timestamp
@@ -1276,6 +1292,8 @@ setup:
   - is_true: acknowledged
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-timestamp
         target_index: test-downsample-timestamp
@@ -1379,6 +1397,8 @@ setup:
   - is_true: acknowledged
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-timestamp-daily
         target_index: test-downsample-timestamp-hourly
@@ -1431,6 +1451,8 @@ setup:
       reason: _tsid hashing introduced in 8.13
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-object
         target_index: test-downsample-object
@@ -1499,6 +1521,8 @@ setup:
       reason: _tsid hashing introduced in 8.13
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-empty-missing
         target_index: test-downsample-empty-missing
@@ -1621,6 +1645,8 @@ setup:
           index.blocks.write: true
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-label-ignore-above
         target_index: test-downsample-label-ignore-above
@@ -1741,6 +1767,8 @@ setup:
           index.blocks.write: true
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-empty-dim
         target_index: test-empty-dim-downsample
@@ -1824,6 +1852,8 @@ setup:
           index.blocks.write: true
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-empty-dim-routing
         target_index: test-empty-dim-routing-downsample

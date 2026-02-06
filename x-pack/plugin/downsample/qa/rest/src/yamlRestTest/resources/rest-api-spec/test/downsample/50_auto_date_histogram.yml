@@ -2,6 +2,7 @@ setup:
   - requires:
       cluster_features: ["gte_v8.7.0"]
       reason: "Downsample GA version 8.7.0"
+      test_runner_features: [ "allowed_warnings" ]
 
   - do:
       indices.create:
@@ -99,6 +100,8 @@ setup:
           index.blocks.write: true
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test1-raw
         target_index: test1-downsample

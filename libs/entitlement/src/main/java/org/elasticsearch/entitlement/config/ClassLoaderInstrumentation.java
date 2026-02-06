@@ -23,49 +23,36 @@ public class ClassLoaderInstrumentation implements InstrumentationConfig {
     public void init(InternalInstrumentationRegistry registry) {
         EntitlementRulesBuilder builder = new EntitlementRulesBuilder(registry);
 
-        builder.on(ClassLoader.class)
-            .protectedCtor()
-            .enforce(Policies::createClassLoader)
-            .elseThrowNotEntitled()
-            .protectedCtor(ClassLoader.class)
-            .enforce(Policies::createClassLoader)
-            .elseThrowNotEntitled()
-            .protectedCtor(String.class, ClassLoader.class)
-            .enforce(Policies::createClassLoader)
-            .elseThrowNotEntitled();
+        builder.on(ClassLoader.class, rule -> {
+            rule.protectedCtor().enforce(Policies::createClassLoader).elseThrowNotEntitled();
+            rule.protectedCtor(ClassLoader.class).enforce(Policies::createClassLoader).elseThrowNotEntitled();
+            rule.protectedCtor(String.class, ClassLoader.class).enforce(Policies::createClassLoader).elseThrowNotEntitled();
+        });
 
-        builder.on(URLClassLoader.class)
-            .callingStatic(URLClassLoader::new, URL[].class)
-            .enforce(Policies::createClassLoader)
-            .elseThrowNotEntitled()
-            .callingStatic(URLClassLoader::new, URL[].class, ClassLoader.class)
-            .enforce(Policies::createClassLoader)
-            .elseThrowNotEntitled()
-            .callingStatic(URLClassLoader::new, URL[].class, ClassLoader.class, URLStreamHandlerFactory.class)
-            .enforce(Policies::createClassLoader)
-            .elseThrowNotEntitled()
-            .callingStatic(URLClassLoader::new, String.class, URL[].class, ClassLoader.class)
-            .enforce(Policies::createClassLoader)
-            .elseThrowNotEntitled()
-            .callingStatic(URLClassLoader::new, String.class, URL[].class, ClassLoader.class, URLStreamHandlerFactory.class)
-            .enforce(Policies::createClassLoader)
-            .elseThrowNotEntitled()
-            .callingStatic(URLClassLoader::newInstance, URL[].class)
-            .enforce(Policies::createClassLoader)
-            .elseThrowNotEntitled()
-            .callingStatic(URLClassLoader::newInstance, URL[].class, ClassLoader.class)
-            .enforce(Policies::createClassLoader)
-            .elseThrowNotEntitled();
+        builder.on(URLClassLoader.class, rule -> {
+            rule.callingStatic(URLClassLoader::new, URL[].class).enforce(Policies::createClassLoader).elseThrowNotEntitled();
+            rule.callingStatic(URLClassLoader::new, URL[].class, ClassLoader.class)
+                .enforce(Policies::createClassLoader)
+                .elseThrowNotEntitled();
+            rule.callingStatic(URLClassLoader::new, URL[].class, ClassLoader.class, URLStreamHandlerFactory.class)
+                .enforce(Policies::createClassLoader)
+                .elseThrowNotEntitled();
+            rule.callingStatic(URLClassLoader::new, String.class, URL[].class, ClassLoader.class)
+                .enforce(Policies::createClassLoader)
+                .elseThrowNotEntitled();
+            rule.callingStatic(URLClassLoader::new, String.class, URL[].class, ClassLoader.class, URLStreamHandlerFactory.class)
+                .enforce(Policies::createClassLoader)
+                .elseThrowNotEntitled();
+            rule.callingStatic(URLClassLoader::newInstance, URL[].class).enforce(Policies::createClassLoader).elseThrowNotEntitled();
+            rule.callingStatic(URLClassLoader::newInstance, URL[].class, ClassLoader.class)
+                .enforce(Policies::createClassLoader)
+                .elseThrowNotEntitled();
+        });
 
-        builder.on(SecureClassLoader.class)
-            .protectedCtor()
-            .enforce(Policies::createClassLoader)
-            .elseThrowNotEntitled()
-            .protectedCtor(ClassLoader.class)
-            .enforce(Policies::createClassLoader)
-            .elseThrowNotEntitled()
-            .protectedCtor(String.class, ClassLoader.class)
-            .enforce(Policies::createClassLoader)
-            .elseThrowNotEntitled();
+        builder.on(SecureClassLoader.class, rule -> {
+            rule.protectedCtor().enforce(Policies::createClassLoader).elseThrowNotEntitled();
+            rule.protectedCtor(ClassLoader.class).enforce(Policies::createClassLoader).elseThrowNotEntitled();
+            rule.protectedCtor(String.class, ClassLoader.class).enforce(Policies::createClassLoader).elseThrowNotEntitled();
+        });
     }
 }

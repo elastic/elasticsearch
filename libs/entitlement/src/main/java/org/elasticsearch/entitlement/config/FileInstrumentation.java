@@ -438,11 +438,6 @@ public class FileInstrumentation implements InstrumentationConfig {
             rule.callingStatic(BodySubscribers::ofFile, Path.class, OpenOption[].class).enforce(Policies::fileWrite).elseThrowNotEntitled();
         });
 
-        builder.on(
-            FileSystemProvider.class,
-            rule -> { rule.protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled(); }
-        );
-
         builder.on(FileURLConnection.class, rule -> {
             rule.callingVoid(FileURLConnection::connect).enforce(f -> Policies.urlFileRead(f.getURL())).elseThrowNotEntitled();
             rule.calling(FileURLConnection::getHeaderFields).enforce(f -> Policies.urlFileRead(f.getURL())).elseThrowNotEntitled();

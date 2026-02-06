@@ -21,29 +21,20 @@ public class SelectorProviderInstrumentation implements InstrumentationConfig {
     public void init(InternalInstrumentationRegistry registry) {
         EntitlementRulesBuilder builder = new EntitlementRulesBuilder(registry);
 
-        var selectorProviderClass = SelectorProvider.provider().getClass();
-
-        builder.on(selectorProviderClass)
-            .calling(SelectorProvider::inheritedChannel)
-            .enforce(Policies::changeNetworkHandling)
-            .elseThrowNotEntitled()
-            .calling(SelectorProvider::openDatagramChannel)
-            .enforce(Policies::outboundNetworkAccess)
-            .elseThrowNotEntitled()
-            .calling(SelectorProvider::openDatagramChannel, ProtocolFamily.class)
-            .enforce(Policies::outboundNetworkAccess)
-            .elseThrowNotEntitled()
-            .calling(SelectorProvider::openServerSocketChannel)
-            .enforce(Policies::inboundNetworkAccess)
-            .elseThrowNotEntitled()
-            .calling(SelectorProvider::openServerSocketChannel, ProtocolFamily.class)
-            .enforce(Policies::inboundNetworkAccess)
-            .elseThrowNotEntitled()
-            .calling(SelectorProvider::openSocketChannel)
-            .enforce(Policies::outboundNetworkAccess)
-            .elseThrowNotEntitled()
-            .calling(SelectorProvider::openSocketChannel, ProtocolFamily.class)
-            .enforce(Policies::outboundNetworkAccess)
-            .elseThrowNotEntitled();
+        builder.on(SelectorProvider.provider().getClass(), rule -> {
+            rule.calling(SelectorProvider::inheritedChannel).enforce(Policies::changeNetworkHandling).elseThrowNotEntitled();
+            rule.calling(SelectorProvider::openDatagramChannel).enforce(Policies::outboundNetworkAccess).elseThrowNotEntitled();
+            rule.calling(SelectorProvider::openDatagramChannel, ProtocolFamily.class)
+                .enforce(Policies::outboundNetworkAccess)
+                .elseThrowNotEntitled();
+            rule.calling(SelectorProvider::openServerSocketChannel).enforce(Policies::inboundNetworkAccess).elseThrowNotEntitled();
+            rule.calling(SelectorProvider::openServerSocketChannel, ProtocolFamily.class)
+                .enforce(Policies::inboundNetworkAccess)
+                .elseThrowNotEntitled();
+            rule.calling(SelectorProvider::openSocketChannel).enforce(Policies::outboundNetworkAccess).elseThrowNotEntitled();
+            rule.calling(SelectorProvider::openSocketChannel, ProtocolFamily.class)
+                .enforce(Policies::outboundNetworkAccess)
+                .elseThrowNotEntitled();
+        });
     }
 }

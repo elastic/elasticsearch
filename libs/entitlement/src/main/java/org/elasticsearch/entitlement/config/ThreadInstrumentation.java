@@ -20,40 +20,27 @@ public class ThreadInstrumentation implements InstrumentationConfig {
     public void init(InternalInstrumentationRegistry registry) {
         EntitlementRulesBuilder builder = new EntitlementRulesBuilder(registry);
 
-        builder.on(Thread.class)
-            .callingVoid(Thread::start)
-            .enforce(Policies::manageThreads)
-            .elseThrowNotEntitled()
-            .callingVoid(Thread::setPriority, Integer.class)
-            .enforce(Policies::manageThreads)
-            .elseThrowNotEntitled()
-            .callingVoid(Thread::setName, String.class)
-            .enforce(Policies::manageThreads)
-            .elseThrowNotEntitled()
-            .callingVoidStatic(Thread::setDefaultUncaughtExceptionHandler, Thread.UncaughtExceptionHandler.class)
-            .enforce(Policies::changeJvmGlobalState)
-            .elseThrowNotEntitled()
-            .callingVoid(Thread::setDaemon, Boolean.class)
-            .enforce(Policies::manageThreads)
-            .elseThrowNotEntitled()
-            .callingVoid(Thread::setUncaughtExceptionHandler, Thread.UncaughtExceptionHandler.class)
-            .enforce(Policies::manageThreads)
-            .elseThrowNotEntitled();
+        builder.on(Thread.class, rule -> {
+            rule.callingVoid(Thread::start).enforce(Policies::manageThreads).elseThrowNotEntitled();
+            rule.callingVoid(Thread::setPriority, Integer.class).enforce(Policies::manageThreads).elseThrowNotEntitled();
+            rule.callingVoid(Thread::setName, String.class).enforce(Policies::manageThreads).elseThrowNotEntitled();
+            rule.callingVoidStatic(Thread::setDefaultUncaughtExceptionHandler, Thread.UncaughtExceptionHandler.class)
+                .enforce(Policies::changeJvmGlobalState)
+                .elseThrowNotEntitled();
+            rule.callingVoid(Thread::setDaemon, Boolean.class).enforce(Policies::manageThreads).elseThrowNotEntitled();
+            rule.callingVoid(Thread::setUncaughtExceptionHandler, Thread.UncaughtExceptionHandler.class)
+                .enforce(Policies::manageThreads)
+                .elseThrowNotEntitled();
+        });
 
-        builder.on(ThreadGroup.class)
-            .callingVoid(ThreadGroup::setMaxPriority, Integer.class)
-            .enforce(Policies::manageThreads)
-            .elseThrowNotEntitled()
-            .callingVoid(ThreadGroup::setDaemon, Boolean.class)
-            .enforce(Policies::manageThreads)
-            .elseThrowNotEntitled();
+        builder.on(ThreadGroup.class, rule -> {
+            rule.callingVoid(ThreadGroup::setMaxPriority, Integer.class).enforce(Policies::manageThreads).elseThrowNotEntitled();
+            rule.callingVoid(ThreadGroup::setDaemon, Boolean.class).enforce(Policies::manageThreads).elseThrowNotEntitled();
+        });
 
-        builder.on(ForkJoinPool.class)
-            .callingVoid(ForkJoinPool::execute, Runnable.class)
-            .enforce(Policies::manageThreads)
-            .elseThrowNotEntitled()
-            .callingVoid(ForkJoinPool::setParallelism, Integer.class)
-            .enforce(Policies::manageThreads)
-            .elseThrowNotEntitled();
+        builder.on(ForkJoinPool.class, rule -> {
+            rule.callingVoid(ForkJoinPool::execute, Runnable.class).enforce(Policies::manageThreads).elseThrowNotEntitled();
+            rule.callingVoid(ForkJoinPool::setParallelism, Integer.class).enforce(Policies::manageThreads).elseThrowNotEntitled();
+        });
     }
 }

@@ -29,35 +29,18 @@ public class FileStoreInstrumentation implements InstrumentationConfig {
             .distinct()
             .toList();
 
-        builder.on(
-            fileStoreClasses,
-            c -> c.calling(FileStore::getFileStoreAttributeView, new TypeToken<Class<? extends FileStoreAttributeView>>() {})
+        builder.on(fileStoreClasses, rule -> {
+            rule.calling(FileStore::getFileStoreAttributeView, new TypeToken<Class<? extends FileStoreAttributeView>>() {})
                 .enforce(Policies::getFileAttributeView)
-                .elseThrowNotEntitled()
-                .calling(FileStore::getAttribute, String.class)
-                .enforce(Policies::readStoreAttributes)
-                .elseThrowNotEntitled()
-                .calling(FileStore::getBlockSize)
-                .enforce(Policies::readStoreAttributes)
-                .elseThrowNotEntitled()
-                .calling(FileStore::getTotalSpace)
-                .enforce(Policies::readStoreAttributes)
-                .elseThrowNotEntitled()
-                .calling(FileStore::getUnallocatedSpace)
-                .enforce(Policies::readStoreAttributes)
-                .elseThrowNotEntitled()
-                .calling(FileStore::getUsableSpace)
-                .enforce(Policies::readStoreAttributes)
-                .elseThrowNotEntitled()
-                .calling(FileStore::isReadOnly)
-                .enforce(Policies::readStoreAttributes)
-                .elseThrowNotEntitled()
-                .calling(FileStore::name)
-                .enforce(Policies::readStoreAttributes)
-                .elseThrowNotEntitled()
-                .calling(FileStore::type)
-                .enforce(Policies::readStoreAttributes)
-                .elseThrowNotEntitled()
-        );
+                .elseThrowNotEntitled();
+            rule.calling(FileStore::getAttribute, String.class).enforce(Policies::readStoreAttributes).elseThrowNotEntitled();
+            rule.calling(FileStore::getBlockSize).enforce(Policies::readStoreAttributes).elseThrowNotEntitled();
+            rule.calling(FileStore::getTotalSpace).enforce(Policies::readStoreAttributes).elseThrowNotEntitled();
+            rule.calling(FileStore::getUnallocatedSpace).enforce(Policies::readStoreAttributes).elseThrowNotEntitled();
+            rule.calling(FileStore::getUsableSpace).enforce(Policies::readStoreAttributes).elseThrowNotEntitled();
+            rule.calling(FileStore::isReadOnly).enforce(Policies::readStoreAttributes).elseThrowNotEntitled();
+            rule.calling(FileStore::name).enforce(Policies::readStoreAttributes).elseThrowNotEntitled();
+            rule.calling(FileStore::type).enforce(Policies::readStoreAttributes).elseThrowNotEntitled();
+        });
     }
 }

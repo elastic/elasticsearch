@@ -59,6 +59,25 @@ public class EntitlementRulesBuilder {
     }
 
     /**
+     * Starts defining rules for a class specified by name and applies the specified configuration.
+     * <p>
+     * This method is useful when the class may not be available at compile time
+     * or when working with dynamically loaded classes.
+     *
+     * @param <T> the type of the class
+     * @param className the fully qualified name of the class
+     * @param publicType the public type/interface used for type safety
+     * @param builderConsumer a consumer that configures the rules for the class
+     * @return a class method builder for the specified class
+     * @throws IllegalArgumentException if the class cannot be found
+     */
+    public <T> ClassMethodBuilder<T> on(String className, Class<? extends T> publicType, Consumer<ClassMethodBuilder<T>> builderConsumer) {
+        ClassMethodBuilder<T> classMethodBuilder = on(className, publicType);
+        builderConsumer.accept(classMethodBuilder);
+        return classMethodBuilder;
+    }
+
+    /**
      * Starts defining rules for the specified class.
      *
      * @param <T> the type of the class

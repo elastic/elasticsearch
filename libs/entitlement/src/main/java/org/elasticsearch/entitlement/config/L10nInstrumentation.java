@@ -68,12 +68,11 @@ public class L10nInstrumentation implements InstrumentationConfig {
 
         builder.on(NumberFormatProvider.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
 
-        builder.on(Locale.class)
-            .callingVoidStatic(Locale::setDefault, Locale.Category.class, Locale.class)
-            .enforce(Policies::changeJvmGlobalState)
-            .elseThrowNotEntitled()
-            .callingVoidStatic(Locale::setDefault, Locale.class)
-            .enforce(Policies::changeJvmGlobalState)
-            .elseThrowNotEntitled();
+        builder.on(Locale.class, rule -> {
+            rule.callingVoidStatic(Locale::setDefault, Locale.Category.class, Locale.class)
+                .enforce(Policies::changeJvmGlobalState)
+                .elseThrowNotEntitled();
+            rule.callingVoidStatic(Locale::setDefault, Locale.class).enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
+        });
     }
 }

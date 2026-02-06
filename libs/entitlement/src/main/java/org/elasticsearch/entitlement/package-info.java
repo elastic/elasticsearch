@@ -10,10 +10,10 @@
 /// Implements the Elasticsearch Entitlement System. The Entitlement system has some basic ingredients:
 ///
 ///   -
-///     **Load policies**for the various layers
+///     **Load policies** for the various layers
 ///
 ///   -
-///     **Instrumentation**of JDK methods that perform sensitive actions to inject calls to a checker
+///     **Instrumentation** of JDK methods that perform sensitive actions to inject calls to a checker
 ///
 ///   -
 ///     **Caller identification**: identify the class that is responsible for the sensitive action
@@ -73,51 +73,63 @@
 ///
 /// ### How we identify the methods to instrument
 ///
-/// [org.elasticsearch.entitlement.initialization.EntitlementInitialization] builds the set of methods to instrument using
-/// [org.elasticsearch.entitlement.bridge.InstrumentationRegistry].
-/// [org.elasticsearch.entitlement.bridge.InstrumentationRegistry] is the interface that contains the definition of all the check
-/// methods; it needs to be accessible by both this project and the code injected by the agent, therefore is located in a small,
-/// self-contained library ({@see the {@code bridge} subproject}).
+/// [org.elasticsearch.entitlement.initialization.EntitlementInitialization] builds the set of methods to instrument using a
+/// declarative configuration system. Instrumentation rules are defined in implementation classes of
+/// [org.elasticsearch.entitlement.config.InstrumentationConfig]. The main provider
+/// [org.elasticsearch.entitlement.config.MainInstrumentationProvider] aggregates instrumentation configurations organized by
+/// functional area (e.g., [org.elasticsearch.entitlement.config.FileInstrumentation],
+/// [org.elasticsearch.entitlement.config.NetworkInstrumentation], [org.elasticsearch.entitlement.config.SystemInstrumentation]).
+///
+///
+/// These configurations use a fluent builder API provided by [org.elasticsearch.entitlement.rules.EntitlementRulesBuilder]
+/// to declaratively specify which methods to instrument. The builder provides:
+///
+///
+///   - **Method selection**: Use [org.elasticsearch.entitlement.rules.ClassMethodBuilder] to select target methods via method
+///     references, supporting both instance and static methods.
+///
+///   - **Check specification**: Define the policy check to perform using factory methods in [org.elasticsearch.entitlement.rules.Policies],
+///     which create [org.elasticsearch.entitlement.rules.function.CheckMethod] instances.
+///
+///   - **Denial strategies**: Specify what happens when an entitlement check fails using
+///     [org.elasticsearch.entitlement.rules.DeniedEntitlementStrategy], such as throwing
+///     [org.elasticsearch.entitlement.bridge.NotEntitledException] or returning early with a specific value.
+///
+///
+/// These rules are registered with [org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry], which
+/// stores [org.elasticsearch.entitlement.runtime.registry.InstrumentationInfo] objects containing the method signature,
+/// check method, and denial strategy. The registry is accessible via
+/// [org.elasticsearch.entitlement.bridge.InstrumentationRegistry], which needs to be accessible by both this project and the
+/// code injected by the agent, and is therefore located in the `bridge` subproject.
 ///
 /// ### How that works across different Java versions
 ///
-/// The `bridge` subproject uses multi-release jars via the `mrjar` plugin, which makes it is possible to specify classes for
-/// specific Java versions in specific `src` folders (e.g. `main23` for classes available to Java 23+).
+/// The entitlement project uses multi-release jars via the `mrjar` plugin, which makes it possible to specify classes for
+/// specific Java versions in version-specific `src` folders (e.g., `src/main22` for classes available to Java 22+).
 ///
 ///
-/// At runtime, we identify and instantiate the correct class using the runtime Java version to prepend the correct prefix to the class
-/// name, e.g. `Java21EntitlementChecker` for Java version 21 (see `EntitlementInitialization#getVersionSpecificCheckerClass`).
+/// Version-specific instrumentation rules are provided by overriding [org.elasticsearch.entitlement.config.MainInstrumentationProvider]
+/// in these version-specific source sets. At runtime, the JVM automatically loads the appropriate version of
+/// `MainInstrumentationProvider` based on the running Java version. These version-specific providers typically extend the base
+/// provider by adding instrumentation configurations for APIs that were introduced or changed in that Java version.
 ///
 ///
-/// These different classes are needed to hold entitlements check definitions that are specific to a Java version.
-/// As an example, consider the Linker API.
+/// For example, the Java 22+ version of `MainInstrumentationProvider` (located in `src/main22`) includes
+/// [org.elasticsearch.entitlement.config.ClassFileInstrumentation] in addition to all the base instrumentation configurations.
+/// This allows instrumenting `ClassFile` API methods that were introduced in Java 22 without affecting earlier Java versions.
 ///
 ///
-/// **Note:** the current version of Elasticsearch supports Java 21+; this is only an example (taken from the 8.x branch) that
-/// illustrates a complex scenario.
+/// This approach provides clean separation of version-specific instrumentation rules while maintaining a consistent declarative
+/// configuration style across all Java versions. Each version-specific provider can:
 ///
 ///
-/// The API went through multiple previews, and therefore changes between Java 19, 20 and 21; in order to support this correctly on these
-/// versions, we should introduce 2 utility interfaces, "preview" and "stable".
-/// For example, for the Java 20 specific signatures and functions, we would create `Java20StableEntitlementChecker` and
-/// `Java20PreviewEntitlementChecker`.
+///   - Add new instrumentation configurations for APIs introduced in that Java version
+///   - Override base configurations if method signatures changed between versions
+///   - Selectively include or exclude specific instrumentation rules
 ///
 ///
-/// The linker API in Java 20 introduces the final form for `downcallHandle`, which has different argument types from the one in
-/// Java 19. To instrument and check it, we would add a
-/// `check$jdk_internal_foreign_abi_AbstractLinker$downcallHandle(FunctionDescriptor, Linker.Option...)` method for it to the
-/// `Java20StableEntitlementChecker` interface, which extends org.elasticsearch.entitlement.bridge.EntitlementChecker.
-/// This interface would then be used by both the Java 20 specific interface (`Java20EntitlementChecker`) and any interface for newer
-/// Java versions (e.g. `Java21EntitlementChecker`, which extends `Java20StableEntitlementChecker`): this way when we run on
-/// either Java 20, Java 21, or following versions, we always instrument `downcallHandle` with the Java 20+ signature defined in
-/// `Java20StableEntitlementChecker`.
-/// Java 20 also introduces the `upcallStub` function; this function is not in its final form, as it has different parameters in the
-/// following (21+) previews and in the final API.
-/// In this case, we would add a `jdk_internal_foreign_abi_AbstractLinker$upcallStub(MethodHandle, FunctionDescriptor, SegmentScope)`
-/// function to the `Java20PreviewEntitlementChecker` interface. `Java20EntitlementChecker` would inherit from this interface
-/// too, but `Java21EntitlementChecker` and following would not. This way when we run on Java 20 we would instrument `upcallStub`
-/// with the Java 20 signature `(FunctionDescriptor, Linker.Option...)`, but we would not when we run on following (Java 21+) versions.
-/// Those will have the newer (final) `upcallStub` definition introduced in `Java21EntitlementChecker`.
+/// The multi-release jar mechanism ensures that only the appropriate version-specific code is loaded at runtime, preventing
+/// `ClassNotFoundException` or `NoSuchMethodError` issues when running on different Java versions.
 ///
 /// ## Prologue injection
 ///
@@ -169,12 +181,17 @@
 ///
 /// ## Checks
 ///
-/// The injected prologue calls a `check$` method on [org.elasticsearch.entitlement.bridge.InstrumentationRegistry]; its
-/// implementation (normally on org.elasticsearch.entitlement.runtime.policy.ElasticsearchEntitlementChecker, unless it is a
-/// version-specific method) calls the appropriate methods on [org.elasticsearch.entitlement.runtime.policy.PolicyManager],
-/// forwarding the caller class and a specific set of arguments. These methods all start with check, roughly matching an entitlement type
-/// (e.g. [org.elasticsearch.entitlement.runtime.policy.PolicyChecker#checkInboundNetworkAccess],
+/// The injected prologue retrieves the [org.elasticsearch.entitlement.rules.function.CheckMethod] associated with the instrumented
+/// method from [org.elasticsearch.entitlement.bridge.InstrumentationRegistry] and invokes it with the caller class. The check method
+/// implementation calls the appropriate methods on [org.elasticsearch.entitlement.runtime.policy.PolicyChecker], forwarding the
+/// caller class and method-specific arguments. These checker methods correspond to specific entitlement types (e.g.,
+/// [org.elasticsearch.entitlement.runtime.policy.PolicyChecker#checkInboundNetworkAccess],
 /// [org.elasticsearch.entitlement.runtime.policy.PolicyChecker#checkFileRead]).
+///
+///
+/// If the check fails, the configured [org.elasticsearch.entitlement.rules.DeniedEntitlementStrategy] determines the behavior:
+/// most commonly throwing [org.elasticsearch.entitlement.bridge.NotEntitledException], but potentially returning early with a
+/// default value or the original method argument.
 ///
 ///
 /// Most of the entitlements are "flag" entitlements: when present, it grants the caller the right to perform an action (or a set of

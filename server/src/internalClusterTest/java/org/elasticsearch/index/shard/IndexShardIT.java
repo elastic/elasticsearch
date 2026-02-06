@@ -554,7 +554,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             .put("index.number_of_shards", 1)
             .put("index.translog.generation_threshold_size", generationThreshold + "b")
             .build();
-        createIndex("test", settings, "foo", "type=keyword");
+        createIndex("test", settings);
         ensureGreen("test");
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexService test = indicesService.indexService(resolveIndex("test"));

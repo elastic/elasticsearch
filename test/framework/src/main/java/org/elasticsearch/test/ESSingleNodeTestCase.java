@@ -375,9 +375,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      */
     protected IndexService createIndex(String index, Settings settings, String... mappings) {
         CreateIndexRequestBuilder createIndexRequestBuilder = indicesAdmin().prepareCreate(index).setSettings(settings);
-        if (mappings.length > 0) {
-            createIndexRequestBuilder.setMapping(mappings);
-        }
+        createIndexRequestBuilder.setMapping(mappings);
         return createIndex(index, createIndexRequestBuilder);
     }
 

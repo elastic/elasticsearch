@@ -103,9 +103,9 @@ public class ExactKnnQueryBuilderTests extends AbstractQueryTestCase<ExactKnnQue
         if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.NORMALIZED_VECTOR_COSINE)
             && DenseVectorFieldMapper.FLOAT_ELEMENT.isUnitVector(magnitude) == false) {
             VectorUtil.l2normalize(expected);
-            assertArrayEquals(expected, denseVectorQuery.getQuery(), 0.00001f);
+            assertArrayEquals(expected, denseVectorQuery.getQuery(), 0.0f);
         } else {
-            assertArrayEquals(expected, denseVectorQuery.getQuery(), 0.00001f);
+            assertArrayEquals(expected, denseVectorQuery.getQuery(), 0.0f);
         }
     }
 

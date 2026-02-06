@@ -300,11 +300,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                 if (unmappedResolution == UnmappedResolution.NULLIFY) {
                     yield getNullsBlock(indexDoc);
                 }
-                throw new EsqlIllegalArgumentException(
-                    "Cannot find column named [{}] in {}",
-                    missing.columnName,
-                    missing.columnNames
-                );
+                throw new EsqlIllegalArgumentException("Cannot find column named [{}] in {}", missing.columnName, missing.columnNames);
             }
             case BlockResultSuccess success -> success.block;
         };

@@ -250,8 +250,7 @@ public class InferencePlugin extends Plugin
      * Defines the timeout for bulk inference operations.
      * If the bulk inference takes longer than this timeout, the affected bulk items will fail.
      * This should not affect items that do not require inference.
-     * Defaults to {@link TimeValue#MINUS_ONE} (meaning no timeout).
-     * Maximum value is 30 days to prevent overflow in time calculations.
+     * Defaults to 8 hours. Minimum value is 1ms, maximum value is 30 days.
      */
     public static final Setting<TimeValue> INDICES_INFERENCE_BULK_TIMEOUT = Setting.timeSetting(
         "indices.inference.bulk.timeout",

@@ -294,16 +294,19 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         /**
          * Calculates the remaining time before the inference timeout expires.
          *
-         * @return the remaining time, or {@link TimeValue#ZERO} if the timeout has already expired,
-         * or {@link TimeValue#MAX_VALUE} if no timeout is configured (i.e., {@link TimeValue#MINUS_ONE})
+         * @return the remaining time, or {@link TimeValue#ZERO} if the timeout has already expired
          */
         private TimeValue getRemainingTimeout() {
-            if (inferenceTimeout.equals(TimeValue.MINUS_ONE)) {
-                return TimeValue.MAX_VALUE;
-            }
-            long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTimeNanos);
+            long elapsedMillis = getElapsedTimeMillis();
             long remainingMillis = inferenceTimeout.millis() - elapsedMillis;
             return remainingMillis > 0 ? TimeValue.timeValueMillis(remainingMillis) : TimeValue.ZERO;
+        }
+
+        /**
+         * Returns the elapsed time in milliseconds since this bulk inference operation started.
+         */
+        private long getElapsedTimeMillis() {
+            return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTimeNanos);
         }
 
         @Override
@@ -512,7 +515,11 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             if (actualRemaining.equals(TimeValue.ZERO)) {
                 completionListener.onFailure(
                     new ElasticsearchStatusException(
-                        "Bulk inference timed out after [" + inferenceTimeout + "]",
+                        "Bulk inference timed out after ["
+                            + TimeValue.timeValueMillis(getElapsedTimeMillis())
+                            + "] (configured timeout for bulk request: ["
+                            + inferenceTimeout
+                            + "])",
                         RestStatus.REQUEST_TIMEOUT
                     )
                 );

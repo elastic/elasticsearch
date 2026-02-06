@@ -721,6 +721,61 @@ EXPORT int64_t vec_dotd2q4(
     return lower + (upper << 1);
 }
 
+EXPORT int64_t vec_dotd4q4(const int8_t* a, const int8_t* query, const int32_t length) {
+    const int32_t bit_length = length / 4;
+    int64_t p0 = dotd1q4_inner(a + 0 * bit_length, query, bit_length);
+    int64_t p1 = dotd1q4_inner(a + 1 * bit_length, query, bit_length);
+    int64_t p2 = dotd1q4_inner(a + 2 * bit_length, query, bit_length);
+    int64_t p3 = dotd1q4_inner(a + 3 * bit_length, query, bit_length);
+    return p0 + (p1 << 1) + (p2 << 2) + (p3 << 3);
+}
+
+template <int64_t(*mapper)(const int32_t, const int32_t*)>
+static inline void dotd4q4_inner_bulk(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results
+) {
+    const int32_t bit_length = length / 4;
+
+    for (int c = 0; c < count; c++) {
+        const int8_t* a0 = a + mapper(c, offsets) * pitch;
+
+        int64_t p0 = dotd1q4_inner(a0 + 0 * bit_length, query, bit_length);
+        int64_t p1 = dotd1q4_inner(a0 + 1 * bit_length, query, bit_length);
+        int64_t p2 = dotd1q4_inner(a0 + 2 * bit_length, query, bit_length);
+        int64_t p3 = dotd1q4_inner(a0 + 3 * bit_length, query, bit_length);
+
+        results[c] = (f32_t)(p0 + (p1 << 1) + (p2 << 2) + (p3 << 3));
+    }
+}
+
+EXPORT void vec_dotd4q4_bulk(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t count,
+    f32_t* results
+) {
+    dotd4q4_inner_bulk<identity_mapper>(a, query, length, length, NULL, count, results);
+}
+
+EXPORT void vec_dotd4q4_bulk_offsets(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results
+) {
+    dotd4q4_inner_bulk<array_mapper>(a, query, length, pitch, offsets, count, results);
+}
+
 template <int64_t(*mapper)(const int32_t, const int32_t*)>
 static inline void dotd1q4_inner_bulk(
     const int8_t* a,

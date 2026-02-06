@@ -16,8 +16,8 @@ import jdk.incubator.vector.VectorSpecies;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 
 import java.io.IOException;

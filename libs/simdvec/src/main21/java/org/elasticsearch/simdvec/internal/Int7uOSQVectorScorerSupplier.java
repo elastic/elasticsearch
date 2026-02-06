@@ -27,9 +27,9 @@ import static org.elasticsearch.simdvec.internal.Similarities.dotProduct7uBulkWi
 /**
  * Int7 OSQ scorer supplier backed by {@link MemorySegmentAccessInput} storage.
  */
-public abstract sealed class Int7OSQVectorScorerSupplier implements RandomVectorScorerSupplier permits
-    Int7OSQVectorScorerSupplier.DotProductSupplier, Int7OSQVectorScorerSupplier.EuclideanSupplier,
-    Int7OSQVectorScorerSupplier.MaxInnerProductSupplier {
+public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVectorScorerSupplier permits
+    Int7uOSQVectorScorerSupplier.DotProductSupplier, Int7uOSQVectorScorerSupplier.EuclideanSupplier,
+    Int7uOSQVectorScorerSupplier.MaxInnerProductSupplier {
 
     private static final float LIMIT_SCALE = 1f / ((1 << 7) - 1);
 
@@ -38,7 +38,7 @@ public abstract sealed class Int7OSQVectorScorerSupplier implements RandomVector
     protected final int dims;
     protected final int maxOrd;
 
-    Int7OSQVectorScorerSupplier(MemorySegmentAccessInput input, QuantizedByteVectorValues values) {
+    Int7uOSQVectorScorerSupplier(MemorySegmentAccessInput input, QuantizedByteVectorValues values) {
         this.input = input;
         this.values = values;
         this.dims = values.dimension();
@@ -47,24 +47,16 @@ public abstract sealed class Int7OSQVectorScorerSupplier implements RandomVector
 
     protected abstract float applyCorrections(float rawScore, int ord, QueryContext query) throws IOException;
 
-    protected abstract float applyCorrections(MemorySegment scores, MemorySegment ordinals, int numNodes, QueryContext query)
+    protected abstract float applyCorrectionsBulk(MemorySegment scores, MemorySegment ordinals, int numNodes, QueryContext query)
         throws IOException;
 
-    protected static final class QueryContext {
-        final int ord;
-        final float lowerInterval;
-        final float upperInterval;
-        final float additionalCorrection;
-        final int quantizedComponentSum;
-
-        QueryContext(int ord, float lowerInterval, float upperInterval, float additionalCorrection, int quantizedComponentSum) {
-            this.ord = ord;
-            this.lowerInterval = lowerInterval;
-            this.upperInterval = upperInterval;
-            this.additionalCorrection = additionalCorrection;
-            this.quantizedComponentSum = quantizedComponentSum;
-        }
-    }
+    protected record QueryContext(
+        int ord,
+        float lowerInterval,
+        float upperInterval,
+        float additionalCorrection,
+        int quantizedComponentSum
+    ) {}
 
     protected QueryContext createQueryContext(int ord) throws IOException {
         var correctiveTerms = values.getCorrectiveTerms(ord);
@@ -115,14 +107,14 @@ public abstract sealed class Int7OSQVectorScorerSupplier implements RandomVector
             var ordinalsSeg = MemorySegment.ofArray(ordinals);
             var scoresSeg = MemorySegment.ofArray(scores);
             computeBulkForQuery(query, vectors, ordinalsSeg, scoresSeg, numNodes);
-            return applyCorrections(scoresSeg, ordinalsSeg, numNodes, query);
+            return applyCorrectionsBulk(scoresSeg, ordinalsSeg, numNodes, query);
         } else {
             try (Arena arena = Arena.ofConfined()) {
                 MemorySegment ordinalsSeg = arena.allocate((long) numNodes * Integer.BYTES, Integer.BYTES);
                 MemorySegment scoresSeg = arena.allocate((long) numNodes * Float.BYTES, Float.BYTES);
                 MemorySegment.copy(ordinals, 0, ordinalsSeg, ValueLayout.JAVA_INT, 0, numNodes);
                 computeBulkForQuery(query, vectors, ordinalsSeg, scoresSeg, numNodes);
-                float max = applyCorrections(scoresSeg, ordinalsSeg, numNodes, query);
+                float max = applyCorrectionsBulk(scoresSeg, ordinalsSeg, numNodes, query);
                 MemorySegment.copy(scoresSeg, ValueLayout.JAVA_FLOAT, 0, scores, 0, numNodes);
                 return max;
             }
@@ -195,7 +187,7 @@ public abstract sealed class Int7OSQVectorScorerSupplier implements RandomVector
         return values;
     }
 
-    public static final class DotProductSupplier extends Int7OSQVectorScorerSupplier {
+    public static final class DotProductSupplier extends Int7uOSQVectorScorerSupplier {
         public DotProductSupplier(MemorySegmentAccessInput input, QuantizedByteVectorValues values) {
             super(input, values);
         }
@@ -220,7 +212,7 @@ public abstract sealed class Int7OSQVectorScorerSupplier implements RandomVector
         }
 
         @Override
-        protected float applyCorrections(MemorySegment scoreSeg, MemorySegment ordinalsSeg, int numNodes, QueryContext query)
+        protected float applyCorrectionsBulk(MemorySegment scoreSeg, MemorySegment ordinalsSeg, int numNodes, QueryContext query)
             throws IOException {
             float ay = query.lowerInterval;
             float ly = (query.upperInterval - ay) * LIMIT_SCALE;
@@ -244,7 +236,7 @@ public abstract sealed class Int7OSQVectorScorerSupplier implements RandomVector
 
     }
 
-    public static final class EuclideanSupplier extends Int7OSQVectorScorerSupplier {
+    public static final class EuclideanSupplier extends Int7uOSQVectorScorerSupplier {
         public EuclideanSupplier(MemorySegmentAccessInput input, QuantizedByteVectorValues values) {
             super(input, values);
         }
@@ -269,7 +261,7 @@ public abstract sealed class Int7OSQVectorScorerSupplier implements RandomVector
         }
 
         @Override
-        protected float applyCorrections(MemorySegment scoreSeg, MemorySegment ordinalsSeg, int numNodes, QueryContext query)
+        protected float applyCorrectionsBulk(MemorySegment scoreSeg, MemorySegment ordinalsSeg, int numNodes, QueryContext query)
             throws IOException {
             float ay = query.lowerInterval;
             float ly = (query.upperInterval - ay) * LIMIT_SCALE;
@@ -292,7 +284,7 @@ public abstract sealed class Int7OSQVectorScorerSupplier implements RandomVector
         }
     }
 
-    public static final class MaxInnerProductSupplier extends Int7OSQVectorScorerSupplier {
+    public static final class MaxInnerProductSupplier extends Int7uOSQVectorScorerSupplier {
         public MaxInnerProductSupplier(MemorySegmentAccessInput input, QuantizedByteVectorValues values) {
             super(input, values);
         }
@@ -317,7 +309,7 @@ public abstract sealed class Int7OSQVectorScorerSupplier implements RandomVector
         }
 
         @Override
-        protected float applyCorrections(MemorySegment scoreSeg, MemorySegment ordinalsSeg, int numNodes, QueryContext query)
+        protected float applyCorrectionsBulk(MemorySegment scoreSeg, MemorySegment ordinalsSeg, int numNodes, QueryContext query)
             throws IOException {
             float ay = query.lowerInterval;
             float ly = (query.upperInterval - ay) * LIMIT_SCALE;

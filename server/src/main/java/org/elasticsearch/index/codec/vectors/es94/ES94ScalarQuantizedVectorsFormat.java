@@ -116,7 +116,7 @@ public class ES94ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
                     return super.getRandomVectorScorerSupplier(sim, values);
                 }
                 if (factory != null) {
-                    var scorer = factory.getInt7OSQVectorScorerSupplier(
+                    var scorer = factory.getInt7uOSQVectorScorerSupplier(
                         VectorSimilarityType.of(sim),
                         quantizedValues.getSlice(),
                         quantizedValues
@@ -153,7 +153,7 @@ public class ES94ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
                         quantizedQueryBytes[i] = (byte) quantizedQuery[i];
                     }
 
-                    var scorer = factory.getInt7OSQVectorScorer(
+                    var scorer = factory.getInt7uOSQVectorScorer(
                         sim,
                         quantizedValues,
                         quantizedQueryBytes,

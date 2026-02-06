@@ -49,7 +49,7 @@ import static org.elasticsearch.simdvec.VectorSimilarityType.MAXIMUM_INNER_PRODU
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.hamcrest.Matchers.equalTo;
 
-public class Int7OSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.AbstractVectorTestCase {
+public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.AbstractVectorTestCase {
     private static final float LIMIT_SCALE = 1f / ((1 << 7) - 1);
 
     @SuppressForbidden(reason = "require usage of OptimizedScalarQuantizer")
@@ -120,13 +120,13 @@ public class Int7OSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.A
                         var luceneSupplier = luceneScoreSupplier(values, sim.function()).scorer();
                         luceneSupplier.setScoringOrdinal(1);
                         assertFloatEquals(expected, luceneSupplier.score(0), 1e-6f);
-                        var supplier = factory.getInt7OSQVectorScorerSupplier(sim, in, values).get();
+                        var supplier = factory.getInt7uOSQVectorScorerSupplier(sim, in, values).get();
                         var scorer = supplier.scorer();
                         scorer.setScoringOrdinal(1);
                         assertFloatEquals(expected, scorer.score(0), 1e-6f);
 
                         if (supportsHeapSegments()) {
-                            var qScorer = factory.getInt7OSQVectorScorer(
+                            var qScorer = factory.getInt7uOSQVectorScorer(
                                 sim.function(),
                                 values,
                                 vec2,
@@ -218,7 +218,7 @@ public class Int7OSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.A
                             quantizationResults[idx0],
                             quantizationResults[idx1]
                         );
-                        var supplier = factory.getInt7OSQVectorScorerSupplier(sim, in, values).get();
+                        var supplier = factory.getInt7uOSQVectorScorerSupplier(sim, in, values).get();
                         var scorer = supplier.scorer();
                         scorer.setScoringOrdinal(idx1);
                         assertFloatEquals(expected, scorer.score(idx0), 1e-6f);
@@ -288,7 +288,7 @@ public class Int7OSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.A
                         var values = vectorValues(dims, size, centroid, centroidDP, in, sim.function());
 
                         var expected = luceneScore(sim, qVectors[idx0], qVectors[idx1], centroidDP, corrections[idx0], corrections[idx1]);
-                        var scorer = factory.getInt7OSQVectorScorer(
+                        var scorer = factory.getInt7uOSQVectorScorer(
                             sim.function(),
                             values,
                             qVectors[idx0],
@@ -351,7 +351,7 @@ public class Int7OSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.A
                                 corrections[idx0],
                                 corrections[idx1]
                             );
-                            var supplier = factory.getInt7OSQVectorScorerSupplier(sim, in, values).get();
+                            var supplier = factory.getInt7uOSQVectorScorerSupplier(sim, in, values).get();
                             var scorer = supplier.scorer();
                             scorer.setScoringOrdinal(idx1);
                             assertFloatEquals(expected, scorer.score(idx0), 1e-6f);
@@ -399,7 +399,7 @@ public class Int7OSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.A
                             corrections[idx0],
                             corrections[idx1]
                         );
-                        var supplier = factory.getInt7OSQVectorScorerSupplier(sim, in, values).get();
+                        var supplier = factory.getInt7uOSQVectorScorerSupplier(sim, in, values).get();
                         var scorer = supplier.scorer();
                         scorer.setScoringOrdinal(idx1);
                         assertFloatEquals(expected, scorer.score(idx0), 1e-6f);
@@ -440,7 +440,7 @@ public class Int7OSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.A
                     for (var sim : List.of(DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
                         var values = vectorValues(dims, size, centroid, centroidDP, in, sim.function());
                         float expected = luceneScore(sim, vectors[idx0], vectors[idx1], centroidDP, corrections[idx0], corrections[idx1]);
-                        var supplier = factory.getInt7OSQVectorScorerSupplier(sim, in, values).get();
+                        var supplier = factory.getInt7uOSQVectorScorerSupplier(sim, in, values).get();
                         var scorer = supplier.scorer();
                         scorer.setScoringOrdinal(idx1);
                         assertFloatEquals(expected, scorer.score(idx0), 1e-6f);
@@ -486,7 +486,7 @@ public class Int7OSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.A
                         var referenceScorer = luceneScoreSupplier(values, sim.function()).scorer();
                         referenceScorer.setScoringOrdinal(idx0);
                         referenceScorer.bulkScore(nodes, expected, nodes.length);
-                        var supplier = factory.getInt7OSQVectorScorerSupplier(sim, in, values).orElseThrow();
+                        var supplier = factory.getInt7uOSQVectorScorerSupplier(sim, in, values).orElseThrow();
                         var testScorer = supplier.scorer();
                         testScorer.setScoringOrdinal(idx0);
                         testScorer.bulkScore(nodes, scores, nodes.length);
@@ -535,7 +535,7 @@ public class Int7OSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.A
                         var referenceScorer = luceneScoreSupplier(values, sim.function()).scorer();
                         referenceScorer.setScoringOrdinal(idx0);
                         referenceScorer.bulkScore(nodes, expected, nodes.length);
-                        var supplier = factory.getInt7OSQVectorScorerSupplier(sim, in, values).orElseThrow();
+                        var supplier = factory.getInt7uOSQVectorScorerSupplier(sim, in, values).orElseThrow();
                         var testScorer = supplier.scorer();
                         testScorer.setScoringOrdinal(idx0);
                         testScorer.bulkScore(nodes, scores, nodes.length);
@@ -580,7 +580,7 @@ public class Int7OSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.A
 
             try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
                 var values = vectorValues(dims, 4, centroid, centroidDP, in, sim.function());
-                var scoreSupplier = factory.getInt7OSQVectorScorerSupplier(sim, in, values).get();
+                var scoreSupplier = factory.getInt7uOSQVectorScorerSupplier(sim, in, values).get();
                 var tasks = List.<Callable<Optional<Throwable>>>of(
                     new ScoreCallable(scoreSupplier.copy().scorer(), 0, 1, expectedScore1),
                     new ScoreCallable(scoreSupplier.copy().scorer(), 2, 3, expectedScore2)
@@ -671,7 +671,7 @@ public class Int7OSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.A
         return scorer.score(a, b, centroidDP, aCorrection, bCorrection);
     }
 
-    private static abstract class OSQScorer {
+    private abstract static class OSQScorer {
         static OSQScorer fromSimilarity(org.elasticsearch.simdvec.VectorSimilarityType sim) {
             return switch (sim) {
                 case DOT_PRODUCT -> new DotProductOSQScorer();

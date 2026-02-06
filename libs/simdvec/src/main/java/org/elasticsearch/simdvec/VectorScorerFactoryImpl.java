@@ -62,7 +62,7 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
     }
 
     @Override
-    public Optional<RandomVectorScorerSupplier> getInt7OSQVectorScorerSupplier(
+    public Optional<RandomVectorScorerSupplier> getInt7uOSQVectorScorerSupplier(
         VectorSimilarityType similarityType,
         IndexInput input,
         org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values
@@ -71,7 +71,7 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
     }
 
     @Override
-    public Optional<RandomVectorScorer> getInt7OSQVectorScorer(
+    public Optional<RandomVectorScorer> getInt7uOSQVectorScorer(
         VectorSimilarityFunction sim,
         org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values,
         byte[] quantizedQuery,

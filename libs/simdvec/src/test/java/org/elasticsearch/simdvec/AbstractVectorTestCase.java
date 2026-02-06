@@ -71,11 +71,6 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
         return ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putFloat(value).array();
     }
 
-    /** Converts an int value to a byte array. */
-    public static byte[] intToByteArray(float value) {
-        return ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt((int) value).array();
-    }
-
     /** Concatenates byte arrays. */
     public static byte[] concat(byte[]... arrays) throws IOException {
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {

@@ -27,8 +27,8 @@ import static org.elasticsearch.simdvec.internal.Similarities.dotProduct7uBulkWi
 /**
  * JDK-22+ implementation for Int7 OSQ query-time scorers.
  */
-public abstract sealed class Int7OSQVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer permits
-    Int7OSQVectorScorer.DotProductScorer, Int7OSQVectorScorer.EuclideanScorer, Int7OSQVectorScorer.MaxInnerProductScorer {
+public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer permits
+    Int7uOSQVectorScorer.DotProductScorer, Int7uOSQVectorScorer.EuclideanScorer, Int7uOSQVectorScorer.MaxInnerProductScorer {
 
     private static final float LIMIT_SCALE = 1f / ((1 << 7) - 1);
 
@@ -105,7 +105,7 @@ public abstract sealed class Int7OSQVectorScorer extends RandomVectorScorer.Abst
     final int quantizedComponentSum;
     byte[] scratch;
 
-    Int7OSQVectorScorer(
+    Int7uOSQVectorScorer(
         MemorySegmentAccessInput input,
         QuantizedByteVectorValues values,
         byte[] quantizedQuery,
@@ -127,7 +127,7 @@ public abstract sealed class Int7OSQVectorScorer extends RandomVectorScorer.Abst
 
     abstract float applyCorrections(float rawScore, int ord) throws IOException;
 
-    abstract float applyCorrections(float[] scores, int[] ords, int numNodes) throws IOException;
+    abstract float applyCorrectionsBulk(float[] scores, int[] ords, int numNodes) throws IOException;
 
     @Override
     public float score(int node) throws IOException {
@@ -147,7 +147,7 @@ public abstract sealed class Int7OSQVectorScorer extends RandomVectorScorer.Abst
 
             var vectorPitch = vectorByteSize + 3 * Float.BYTES + Integer.BYTES;
             dotProduct7uBulkWithOffsets(vectorsSeg, query, vectorByteSize, vectorPitch, ordinalsSeg, numNodes, scoresSeg);
-            return applyCorrections(scores, nodes, numNodes);
+            return applyCorrectionsBulk(scores, nodes, numNodes);
         }
     }
 
@@ -171,7 +171,7 @@ public abstract sealed class Int7OSQVectorScorer extends RandomVectorScorer.Abst
         }
     }
 
-    public static final class DotProductScorer extends Int7OSQVectorScorer {
+    public static final class DotProductScorer extends Int7uOSQVectorScorer {
         public DotProductScorer(
             MemorySegmentAccessInput input,
             QuantizedByteVectorValues values,
@@ -200,7 +200,7 @@ public abstract sealed class Int7OSQVectorScorer extends RandomVectorScorer.Abst
         }
 
         @Override
-        float applyCorrections(float[] scores, int[] ords, int numNodes) throws IOException {
+        float applyCorrectionsBulk(float[] scores, int[] ords, int numNodes) throws IOException {
             float ay = lowerInterval;
             float ly = (upperInterval - ay) * LIMIT_SCALE;
             float y1 = quantizedComponentSum;
@@ -223,7 +223,7 @@ public abstract sealed class Int7OSQVectorScorer extends RandomVectorScorer.Abst
         }
     }
 
-    public static final class EuclideanScorer extends Int7OSQVectorScorer {
+    public static final class EuclideanScorer extends Int7uOSQVectorScorer {
         public EuclideanScorer(
             MemorySegmentAccessInput input,
             QuantizedByteVectorValues values,
@@ -251,7 +251,7 @@ public abstract sealed class Int7OSQVectorScorer extends RandomVectorScorer.Abst
         }
 
         @Override
-        float applyCorrections(float[] scores, int[] ords, int numNodes) throws IOException {
+        float applyCorrectionsBulk(float[] scores, int[] ords, int numNodes) throws IOException {
             float ay = lowerInterval;
             float ly = (upperInterval - ay) * LIMIT_SCALE;
             float y1 = quantizedComponentSum;
@@ -273,7 +273,7 @@ public abstract sealed class Int7OSQVectorScorer extends RandomVectorScorer.Abst
         }
     }
 
-    public static final class MaxInnerProductScorer extends Int7OSQVectorScorer {
+    public static final class MaxInnerProductScorer extends Int7uOSQVectorScorer {
         public MaxInnerProductScorer(
             MemorySegmentAccessInput input,
             QuantizedByteVectorValues values,
@@ -301,7 +301,7 @@ public abstract sealed class Int7OSQVectorScorer extends RandomVectorScorer.Abst
         }
 
         @Override
-        float applyCorrections(float[] scores, int[] ords, int numNodes) throws IOException {
+        float applyCorrectionsBulk(float[] scores, int[] ords, int numNodes) throws IOException {
             float ay = lowerInterval;
             float ly = (upperInterval - ay) * LIMIT_SCALE;
             float y1 = quantizedComponentSum;

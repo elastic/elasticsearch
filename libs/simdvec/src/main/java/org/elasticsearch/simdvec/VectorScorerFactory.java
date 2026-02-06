@@ -92,7 +92,7 @@ public interface VectorScorerFactory {
      * @param values         the random access vector values
      * @return an optional containing the vector scorer supplier, or empty
      */
-    Optional<RandomVectorScorerSupplier> getInt7OSQVectorScorerSupplier(
+    Optional<RandomVectorScorerSupplier> getInt7uOSQVectorScorerSupplier(
         VectorSimilarityType similarityType,
         IndexInput input,
         org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values
@@ -106,7 +106,7 @@ public interface VectorScorerFactory {
      * @param values the random access vector values
      * @return an optional containing the vector scorer, or empty
      */
-    Optional<RandomVectorScorer> getInt7OSQVectorScorer(
+    Optional<RandomVectorScorer> getInt7uOSQVectorScorer(
         VectorSimilarityFunction sim,
         org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values,
         byte[] quantizedQuery,

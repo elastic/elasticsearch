@@ -20,7 +20,7 @@ import java.util.Optional;
  * connect to the native OSQ routines and apply the similarity-specific
  * corrections.
  */
-public final class Int7OSQVectorScorer {
+public final class Int7uOSQVectorScorer {
 
     public static Optional<RandomVectorScorer> create(
         VectorSimilarityFunction sim,
@@ -35,5 +35,5 @@ public final class Int7OSQVectorScorer {
         return Optional.empty();
     }
 
-    private Int7OSQVectorScorer() {}
+    private Int7uOSQVectorScorer() {}
 }

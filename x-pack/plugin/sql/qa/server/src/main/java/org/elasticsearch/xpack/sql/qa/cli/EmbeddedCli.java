@@ -433,12 +433,7 @@ public class EmbeddedCli implements Closeable {
         @Nullable
         private final String keystorePassword;
 
-        public ApiKeySecurityConfig(
-            boolean https,
-            String apiKey,
-            @Nullable String keystoreLocation,
-            @Nullable String keystorePassword
-        ) {
+        public ApiKeySecurityConfig(boolean https, String apiKey, @Nullable String keystoreLocation, @Nullable String keystorePassword) {
             if (apiKey == null) {
                 throw new IllegalArgumentException("[apiKey] is required.");
             }

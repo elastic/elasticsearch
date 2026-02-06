@@ -520,7 +520,7 @@ final class SnapshotDeletionStartBatcher {
                 // allow updating of task.repositoryData while the task is in the queue, ideally by subscribing to repositoryData updates
                 // from the repository itself, but that kind of subscription mechanism does not exist today. If we had that, we could just
                 // use a regular master task queue to do this batching work for us.
-                logger.trace("--> repo metadata changed: expected {} but got {}, retrying", task.repositoryMetadata, repositoryMetadata);
+                logger.trace("repo metadata changed: expected {} but got {}, retrying", task.repositoryMetadata, repositoryMetadata);
                 taskContext.success(SnapshotDeletionStartBatcher.this::runQueueProcessor);
                 return initialState;
             }

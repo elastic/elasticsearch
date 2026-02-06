@@ -250,6 +250,11 @@ public class EsqlCapabilities {
         FN_IP_PREFIX,
 
         /**
+         * Fix a bug leading to the scratch leaking data to other rows.
+         */
+        FN_IP_PREFIX_FIX_DIRTY_SCRATCH_LEAK,
+
+        /**
          * Fix on function {@code SUBSTRING} that makes it not return null on empty strings.
          */
         FN_SUBSTRING_EMPTY_NULL,
@@ -1481,12 +1486,6 @@ public class EsqlCapabilities {
         DECAY_FUNCTION,
 
         /**
-         * FIRST and LAST aggregate functions.
-         */
-        AGG_FIRST_LAST(Build.current().isSnapshot()),
-        AGG_FIRST_LAST_STRING(Build.current().isSnapshot()),
-
-        /**
          * Support correct counting of skipped shards.
          */
         CORRECT_SKIPPED_SHARDS_COUNT,
@@ -1841,12 +1840,12 @@ public class EsqlCapabilities {
         /**
          * Make FIRST agg work with null and multi-value fields.
          */
-        FIRST_AGG_WITH_NULL_AND_MV_SUPPORT(),
+        FIRST_AGG_WITH_NULL_AND_MV_SUPPORT,
 
         /**
          * Make LAST agg work with null and multi-value fields.
          */
-        LAST_AGG_WITH_NULL_AND_MV_SUPPORT(),
+        LAST_AGG_WITH_NULL_AND_MV_SUPPORT,
 
         /**
          * Allow ST_EXTENT_AGG to gracefully handle missing spatial shapes
@@ -2051,6 +2050,12 @@ public class EsqlCapabilities {
          * Support for requesting the "_size" metadata field when the mapper-size plugin is enabled.
          */
         METADATA_SIZE_FIELD,
+
+        /**
+         * Fix for <a href="https://github.com/elastic/elasticsearch/issues/141627">141627</a>,
+         * TO_IP with leading_zeros=octal generates proper warning and returns null when given invalid input.
+         */
+        FIX_TO_IP_LEADING_ZEROS_OCTAL,
 
         /**
          * Support for configuring T-Digest elasticsearch field as a time series metric.

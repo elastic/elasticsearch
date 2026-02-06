@@ -65,7 +65,7 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
                 }
 
                 var thisDocVector = context.getFieldVector(docRank);
-                if (thisDocVector == null) {
+                if (thisDocVector == null || thisDocVector.size() == 0) {
                     continue;
                 }
 
@@ -136,6 +136,11 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
             if (similarityScore == null) {
                 VectorData comparisonVector = context.getFieldVector(compareToDocRank);
                 if (comparisonVector != null) {
+                    if (comparisonVector.size() == 0) {
+                        cachedScoresForDoc.put(compareToDocRank, Float.NEGATIVE_INFINITY);
+                        continue;
+                    }
+
                     similarityScore = getVectorComparisonScore(similarityFunction, thisDocVector, comparisonVector);
                     cachedScoresForDoc.put(compareToDocRank, similarityScore);
                 }

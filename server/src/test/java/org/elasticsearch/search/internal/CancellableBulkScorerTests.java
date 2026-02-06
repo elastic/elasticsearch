@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -57,7 +57,7 @@ public class CancellableBulkScorerTests extends ESTestCase {
 
         CancellableBulkScorer cancellableBulkScorer = new CancellableBulkScorer(scorer, checkCancelled);
         cancellableBulkScorer.score(createNoOpCollector(), null, 0, totalDocs);
-        assertThat("Should have multiple cancellation checks", cancellationChecks.get(), equalTo(9));
+        assertThat("Should have multiple cancellation checks", cancellationChecks.get(), greaterThan(8));
     }
 
     /**

@@ -76,7 +76,7 @@ public interface Rewriteable<T> {
     /**
      * Rewrites the given rewriteable and fetches pending async tasks for each round before rewriting again.
      * The listener may be called on any thread, including a transport thread.
-     * Forthe listener to be called on a specific thread pool, use
+     * For the listener to be called on a specific thread pool, use
      * {@link #rewriteAndFetch(Rewriteable, QueryRewriteContext, Executor, ActionListener)} instead.
      */
     static <T extends Rewriteable<T>> void rewriteAndFetch(T original, QueryRewriteContext context, ActionListener<T> rewriteResponse) {

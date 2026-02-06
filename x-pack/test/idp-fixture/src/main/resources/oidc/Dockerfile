@@ -4,8 +4,10 @@
 #   docker buildx build --platform linux/amd64,linux/arm64 -t <tag> .
 #
 # NOTE: c2id/c2id-server-demo only provides amd64 images, so we force the platform
-# for that stage. The extract and final stages use the build target platform.
-FROM --platform=linux/amd64 c2id/c2id-server-demo:16.1.1 AS c2id
+# for the COPY stage via build-arg (avoids BuildKit FromPlatformFlagConstDisallowed).
+# The runtime stage uses the native platform.
+ARG C2ID_PLATFORM=linux/amd64
+FROM --platform=${C2ID_PLATFORM} c2id/c2id-server-demo:16.1.1 AS c2id
 
 # Extract WAR using JDK's jar (avoids apt-get + unzip in final image).
 # No platform pin: uses build target so we get native arm64 or amd64 image.

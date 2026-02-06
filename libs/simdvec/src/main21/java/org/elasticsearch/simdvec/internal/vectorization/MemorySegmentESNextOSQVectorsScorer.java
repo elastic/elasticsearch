@@ -119,12 +119,55 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
     }
 
     @Override
+    public float scoreBulk(
+        byte[] q,
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum,
+        float queryAdditionalCorrection,
+        VectorSimilarityFunction similarityFunction,
+        float centroidDp,
+        float[] scores,
+        int bulkSize
+    ) throws IOException {
+        float score = scorer.scoreBulk(
+            q,
+            queryLowerInterval,
+            queryUpperInterval,
+            queryComponentSum,
+            queryAdditionalCorrection,
+            similarityFunction,
+            centroidDp,
+            scores,
+            bulkSize
+        );
+        if (score != Float.NEGATIVE_INFINITY) {
+            return score;
+        }
+        return super.scoreBulk(
+            q,
+            queryLowerInterval,
+            queryUpperInterval,
+            queryComponentSum,
+            queryAdditionalCorrection,
+            similarityFunction,
+            centroidDp,
+            scores,
+            bulkSize
+        );
+    }
+
+    @Override
     public void close() {
         scorer.close();
     }
 
     abstract static sealed class MemorySegmentScorer implements Releasable permits MSBitToInt4ESNextOSQVectorsScorer,
         MSDibitToInt4ESNextOSQVectorsScorer, MSInt4SymmetricESNextOSQVectorsScorer {
+
+        // TODO: split Panama and Native implementations
+        static final boolean NATIVE_SUPPORTED = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
+        static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
 
         static final float ONE_BIT_SCALE = ESNextOSQVectorsScorer.BIT_SCALES[0];
         static final float FOUR_BIT_SCALE = ESNextOSQVectorsScorer.BIT_SCALES[3];
@@ -172,7 +215,7 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
 
         abstract boolean quantizeScoreBulk(byte[] q, int count, float[] scores) throws IOException;
 
-        abstract float scoreBulk(
+        float scoreBulk(
             byte[] q,
             float queryLowerInterval,
             float queryUpperInterval,
@@ -181,6 +224,30 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
             VectorSimilarityFunction similarityFunction,
             float centroidDp,
             float[] scores
+        ) throws IOException {
+            return scoreBulk(
+                q,
+                queryLowerInterval,
+                queryUpperInterval,
+                queryComponentSum,
+                queryAdditionalCorrection,
+                similarityFunction,
+                centroidDp,
+                scores,
+                BULK_SIZE
+            );
+        }
+
+        abstract float scoreBulk(
+            byte[] q,
+            float queryLowerInterval,
+            float queryUpperInterval,
+            int queryComponentSum,
+            float queryAdditionalCorrection,
+            VectorSimilarityFunction similarityFunction,
+            float centroidDp,
+            float[] scores,
+            int bulkSize
         ) throws IOException;
     }
 }

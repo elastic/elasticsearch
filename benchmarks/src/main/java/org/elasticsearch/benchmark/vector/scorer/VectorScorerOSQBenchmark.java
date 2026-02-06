@@ -297,7 +297,7 @@ public class VectorScorerOSQBenchmark {
                     result.upperInterval(),
                     result.quantizedComponentSum(),
                     result.additionalCorrection(),
-                    VectorSimilarityFunction.EUCLIDEAN,
+                    similarityFunction,
                     centroidDp,
                     corrections[0],
                     corrections[1],

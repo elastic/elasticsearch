@@ -59,9 +59,9 @@ import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.CannedSourceOperator;
-import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
@@ -129,7 +129,7 @@ public class OperatorTests extends MapperServiceTestCase {
                     DriverContext driverContext = driverContext();
                     drivers.add(TestDriverFactory.create(driverContext, factory.get(driverContext), List.of(), docCollector));
                 }
-                OperatorTestCase.runDriver(drivers);
+                new TestDriverRunner().run(drivers);
                 Set<Integer> expectedDocIds = searchForDocIds(reader, query);
                 assertThat("query=" + query, actualDocIds, equalTo(expectedDocIds));
                 drivers.stream().map(Driver::driverContext).forEach(OperatorTests::assertDriverContext);
@@ -190,6 +190,7 @@ public class OperatorTests extends MapperServiceTestCase {
                 new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths) -> {
                     throw new UnsupportedOperationException();
                 }, 0.8)),
+                randomBoolean(),
                 0
             );
             List<Page> pages = new ArrayList<>();
@@ -202,7 +203,7 @@ public class OperatorTests extends MapperServiceTestCase {
                     new TestResultPageSinkOperator(pages::add)
                 )
             ) {
-                OperatorTestCase.runDriver(driver);
+                new TestDriverRunner().run(driver);
             }
             assertDriverContext(driverContext);
 
@@ -355,7 +356,7 @@ public class OperatorTests extends MapperServiceTestCase {
                     })
                 )
             ) {
-                OperatorTestCase.runDriver(driver);
+                new TestDriverRunner().run(driver);
             }
 
             assertThat(actualValues, equalTo(expectedValues));
@@ -397,7 +398,7 @@ public class OperatorTests extends MapperServiceTestCase {
                         new TestResultPageSinkOperator(dataDriverPages::add)
                     )
                 ) {
-                    OperatorTestCase.runDriver(driver);
+                    new TestDriverRunner().run(driver);
                 }
                 assertDriverContext(driverContext);
             }
@@ -424,7 +425,7 @@ public class OperatorTests extends MapperServiceTestCase {
                         new TestResultPageSinkOperator(reduceDriverPages::add)
                     )
                 ) {
-                    OperatorTestCase.runDriver(driver);
+                    new TestDriverRunner().run(driver);
                 }
                 assertDriverContext(driverContext);
             }

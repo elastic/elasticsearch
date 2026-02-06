@@ -62,6 +62,7 @@ public final class SearchCapabilities {
     private static final String CLUSTER_STATS_EXTENDED_USAGE = "extended-search-usage-stats";
     private static final String REJECT_INVALID_REVERSE_NESTING = "reject_invalid_reverse_nesting";
     private static final String DENSE_VECTOR_DOCVALUE_FIELDS_FORMAT = "dense_vector_docvalue_fields_format";
+    private static final String AGGREGATE_METRIC_DOUBLE_DEFAULTS_TO_AVERAGE = "aggregate_metric_double_defaults_to_average";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -94,6 +95,7 @@ public final class SearchCapabilities {
         capabilities.add(CLUSTER_STATS_EXTENDED_USAGE);
         capabilities.add(REJECT_INVALID_REVERSE_NESTING);
         capabilities.add(DENSE_VECTOR_DOCVALUE_FIELDS_FORMAT);
+        capabilities.add(AGGREGATE_METRIC_DOUBLE_DEFAULTS_TO_AVERAGE);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

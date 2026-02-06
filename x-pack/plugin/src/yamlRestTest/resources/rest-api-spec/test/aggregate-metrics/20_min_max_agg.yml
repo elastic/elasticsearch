@@ -11,7 +11,7 @@ setup:
             properties:
               metric:
                 type: aggregate_metric_double
-                metrics: [min, max]
+                metrics: [min, max, sum, value_count]
                 default_metric: max
 
   - do:
@@ -20,15 +20,15 @@ setup:
         refresh: true
         body:
           - '{"index": {}}'
-          - '{"metric": {"min": 0, "max": 100} }'
+          - '{"metric": {"min": 0, "max": 100, "sum": 10000, "value_count": 100} }'
           - '{"index": {}}'
-          - '{"metric": {"min": 60, "max": 100} }'
+          - '{"metric": {"min": 60, "max": 100, "sum": 6000, "value_count": 60} }'
           - '{"index": {}}'
-          - '{"metric": {"min": -400.50, "max": 1000} }'
+          - '{"metric": {"min": -400.50, "max": 1000, "sum": 2000, "value_count": 2} }'
           - '{"index": {}}'
-          - '{"metric": {"min": 1, "max": 99.3} }'
+          - '{"metric": {"min": 1, "max": 99.3, "sum": 198.6, "value_count": 2} }'
           - '{"index": {}}'
-          - '{"metric": {"min": -100, "max": -40} }'
+          - '{"metric": {"min": -100, "max": -40, "sum": -80, "value_count": 2} }'
 ---
 "Test min_max aggs":
   - requires:
@@ -56,8 +56,12 @@ setup:
 ---
 "Test min_max aggs with query":
   - requires:
-      cluster_features: ["gte_v7.11.0"]
-      reason: "Aggregate metric fields have been added in 7.11"
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ aggregate_metric_double_defaults_to_average ]
+      test_runner_features: capabilities
+      reason: "Aggregate metric double fields use average as default since 9.4"
 
   - do:
       search:

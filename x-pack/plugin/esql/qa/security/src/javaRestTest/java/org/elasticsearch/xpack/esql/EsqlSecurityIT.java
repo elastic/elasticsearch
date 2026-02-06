@@ -1076,6 +1076,26 @@ public class EsqlSecurityIT extends ESRestTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public void testGetViewWildcardNoIndices() throws Exception {
+        var resp = getView("user1", "view-user2*");
+        assertOK(resp);
+        var respMap = entityAsMap(resp);
+        var views = (List<Map<String, Object>>) respMap.get("views");
+        assertThat(views, hasSize(0));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetViewWildcardAndConcrete() throws Exception {
+        var resp = getView("user1", "view-user1", "vie*");
+        assertOK(resp);
+        var respMap = entityAsMap(resp);
+        var views = (List<Map<String, Object>>) respMap.get("views");
+        var viewNames = views.stream().map(entry -> entry.get("name")).collect(Collectors.toSet());
+        assertThat(viewNames, hasSize(2));
+        assertThat(viewNames, containsInAnyOrder("view", "view-user1"));
+    }
+
     public void testCreateViewAllowed() throws Exception {
         createView("user1", "other-view-user1", "FROM index | KEEP value, org");
         createView("user2", "other-view-user2", "FROM index | KEEP value, org");
@@ -1214,7 +1234,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testGetViewWildcard() throws Exception {
-        Response resp = getView("user1", randomFrom("vie*", "*", "*iew*", null));
+        Response resp = getView("user1", randomFrom("vie*", "*", "*iew*"));
         assertOK(resp);
         Map<String, Object> respMap = entityAsMap(resp);
         List<Map<String, Object>> views = (List<Map<String, Object>>) respMap.get("views");

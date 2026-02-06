@@ -66,13 +66,14 @@ public class TransportGetViewAction extends TransportLocalProjectMetadataAction<
         Collection<View> views = new LinkedHashSet<>();
         List<String> missing = new ArrayList<>();
         String[] names = request.indices();
-        // TODO currently doesn't support multi-target when security is off
+        // TODO currently doesn't support wildcards when security is off
         if (names == null || names.length == 0 || (names.length == 1 && Regex.isMatchAllPattern(names[0]))) {
             views = viewService.getMetadata(projectId).views().values();
         } else if (Arrays.equals(names, IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY) == false) {
             for (String name : names) {
                 View view = viewService.get(projectId, name);
                 if (view == null) {
+                    // TODO currently doesn't throw an error when a concrete existing index is used as a view name in the API, returns empty
                     if (project.metadata().getIndicesLookup().containsKey(name) == false) {
                         missing.add(name);
                     }

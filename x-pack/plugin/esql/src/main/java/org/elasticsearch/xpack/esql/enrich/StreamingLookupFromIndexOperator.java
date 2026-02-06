@@ -73,7 +73,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
 
     // State
     private final AtomicLong batchIdGenerator = new AtomicLong(0);
-    private final Map<Long, BatchState> activeBatches = new HashMap<>();
+    private final Map<Long, PendingJoin> activeBatches = new HashMap<>();
     private BidirectionalBatchExchangeClient client;
     private final SubscribableListener<Void> clientReadyListener = new SubscribableListener<>();
     private final IsBlockedResult waitingForClientResult = new IsBlockedResult(clientReadyListener, "waiting for client");
@@ -102,14 +102,14 @@ public class StreamingLookupFromIndexOperator implements Operator {
     private final Map<String, Set<String>> planToWorkers = new ConcurrentHashMap<>();
 
     /**
-     * State for a single batch (one input page).
+     * State for a pending join operation (one input page being processed).
      */
-    private static class BatchState {
+    private static class PendingJoin {
         final long batchId;
         final RightChunkedLeftJoin join;
         boolean receivedLastPage = false;
 
-        BatchState(long batchId, Page inputPage, int loadFieldCount) {
+        PendingJoin(long batchId, Page inputPage, int loadFieldCount) {
             this.batchId = batchId;
             this.join = new RightChunkedLeftJoin(inputPage, loadFieldCount);
         }
@@ -279,7 +279,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
         // Note: BatchPage constructor calls incRef() on blocks, so we need to release the batchPage on failure
         BatchPage batchPage = null;
         try {
-            Block[] inputBlocks = applyMatchFieldsMapping(page);
+            Block[] inputBlocks = matchFieldsMapping.applyTo(page);
             batchPage = new BatchPage(new Page(inputBlocks), batchId, 0, true);
             client.sendPage(batchPage);
             logger.trace("addInput: sent batchId={} to worker", batchId);
@@ -306,38 +306,14 @@ public class StreamingLookupFromIndexOperator implements Operator {
         }
 
         // Track batch for receiving results
-        BatchState batch = new BatchState(batchId, page, loadFields.size());
+        PendingJoin batch = new PendingJoin(batchId, page, loadFields.size());
         activeBatches.put(batchId, batch);
         pagesReceived++;
     }
 
-    private Block[] applyMatchFieldsMapping(Page inputPage) {
-        Map<Integer, Integer> channelMapping = matchFieldsMapping.channelMapping();
-        Block[] result = new Block[channelMapping.size()];
-        for (Map.Entry<Integer, Integer> entry : channelMapping.entrySet()) {
-            int newIndex = entry.getKey();
-            int originalChannel = entry.getValue();
-            result[newIndex] = inputPage.getBlock(originalChannel);
-        }
-        return result;
-    }
-
     @Override
     public Page getOutput() {
-        Exception ex = failure.get();
-        if (ex != null) {
-            // Clean up resources before throwing - release activeBatches
-            // This is necessary because the exception may have occurred on the server side,
-            // and we're holding resources (like inputPage in RightChunkedLeftJoin) that need releasing
-            cleanupBatchResources();
-
-            // Rethrow RuntimeExceptions directly (e.g., CircuitBreakingException)
-            // to allow proper handling by the driver and test framework
-            if (ex instanceof RuntimeException rte) {
-                throw rte;
-            }
-            throw new IllegalStateException("Batch exchange failed", ex);
-        }
+        checkFailureAndMaybeThrow();
 
         // If missing markers were detected, wait for client to close (which waits for server response).
         // This ensures we give real errors time to arrive before throwing a synthetic error.
@@ -349,14 +325,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
                 logger.warn("Error closing client while waiting for server response", e);
             }
             // Check again for real error after waiting for server response
-            ex = failure.get();
-            if (ex != null) {
-                cleanupBatchResources();
-                if (ex instanceof RuntimeException rte) {
-                    throw rte;
-                }
-                throw new IllegalStateException("Batch exchange failed", ex);
-            }
+            checkFailureAndMaybeThrow();
             // No real error arrived after waiting - throw synthetic error
             cleanupBatchResources();
             throw new IllegalStateException(
@@ -384,9 +353,9 @@ public class StreamingLookupFromIndexOperator implements Operator {
         while (true) {
             // First, check for batches that received all results and need trailing nulls computed
             // We compute trailing nulls lazily - only when we're ready to output them
-            Iterator<Map.Entry<Long, BatchState>> it = activeBatches.entrySet().iterator();
+            Iterator<Map.Entry<Long, PendingJoin>> it = activeBatches.entrySet().iterator();
             while (it.hasNext()) {
-                BatchState batch = it.next().getValue();
+                PendingJoin batch = it.next().getValue();
                 if (batch.receivedLastPage) {
                     Optional<Page> trailingNulls = batch.join.noMoreRightHandPages();
                     if (trailingNulls.isPresent()) {
@@ -413,8 +382,8 @@ public class StreamingLookupFromIndexOperator implements Operator {
                 // we must wait for the server response to know if it succeeded or failed.
                 // We can't compute trailing nulls until we know the server completed successfully,
                 // otherwise we might produce wrong results (NULLs for rows that actually had matches).
-                if (client.isPageCacheDone()) {
-                    for (BatchState batch : activeBatches.values()) {
+                if (client.isExchangeDone()) {
+                    for (PendingJoin batch : activeBatches.values()) {
                         if (batch.receivedLastPage == false) {
                             // Check if server failed - if so, let the failure propagate
                             if (client.hasFailed()) {
@@ -430,10 +399,10 @@ public class StreamingLookupFromIndexOperator implements Operator {
                     }
                 }
                 logger.trace(
-                    "getOutput: pollPage returned null, activeBatches={}, pageCacheSize={}, pageCacheDone={}",
+                    "getOutput: pollPage returned null, activeBatches={}, bufferedPageCount={}, exchangeDone={}",
                     activeBatches.size(),
-                    client.pageCacheSize(),
-                    client.isPageCacheDone()
+                    client.bufferedPageCount(),
+                    client.isExchangeDone()
                 );
                 return null;
             }
@@ -445,7 +414,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
             resultPage.allowPassingToDifferentDriver();
 
             // Look up the batch by ID
-            BatchState batch = activeBatches.get(resultPage.batchId());
+            PendingJoin batch = activeBatches.get(resultPage.batchId());
             if (batch == null) {
                 resultPage.releaseBlocks();
                 throw new IllegalStateException("Received result for unknown batch: batchId=" + resultPage.batchId());
@@ -479,7 +448,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
         }
     }
 
-    private void completeBatch(BatchState batch, Iterator<?> it) {
+    private void completeBatch(PendingJoin batch, Iterator<?> it) {
         if (batch != null) {
             if (client != null) {
                 logger.debug("completeBatch: batchId={}", batch.batchId);
@@ -490,7 +459,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
             pagesCompleted++;
             // Recompute cached flag - check if any remaining batch has receivedLastPage
             hasBatchReadyToOutput = false;
-            for (BatchState remaining : activeBatches.values()) {
+            for (PendingJoin remaining : activeBatches.values()) {
                 if (remaining.receivedLastPage) {
                     hasBatchReadyToOutput = true;
                     break;
@@ -500,11 +469,26 @@ public class StreamingLookupFromIndexOperator implements Operator {
     }
 
     /**
+     * Check for failure and throw if one has occurred.
+     * Cleans up batch resources before throwing.
+     */
+    private void checkFailureAndMaybeThrow() {
+        Exception ex = failure.get();
+        if (ex != null) {
+            cleanupBatchResources();
+            if (ex instanceof RuntimeException rte) {
+                throw rte;
+            }
+            throw new IllegalStateException("Batch exchange failed", ex);
+        }
+    }
+
+    /**
      * Clean up all batch resources (activeBatches).
      * Called when an error is detected to release resources before throwing.
      */
     private void cleanupBatchResources() {
-        for (BatchState batch : activeBatches.values()) {
+        for (PendingJoin batch : activeBatches.values()) {
             logger.debug("cleanupBatchResources: cleaning batch batchId={}", batch.batchId);
             Releasables.closeExpectNoException(batch.join);
         }
@@ -558,7 +542,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
             return true;
         }
         // Check if there are pages ready to output (in correct order).
-        // Using hasReadyPages() instead of pageCacheSize() > 0 prevents busy-spinning
+        // Using hasReadyPages() instead of bufferedPageCount() > 0 prevents busy-spinning
         // when pages arrive out-of-order and are buffered waiting for earlier pages.
         if (client != null && client.hasReadyPages()) {
             return true;
@@ -592,29 +576,29 @@ public class StreamingLookupFromIndexOperator implements Operator {
         if (activeBatches.isEmpty() == false) {
             // If page cache is done but we have batches without markers, wait for server response
             // to know if the server succeeded or failed before deciding what to do
-            if (client.isPageCacheDone()) {
-                logger.debug("isBlocked: pageCacheDone but missing markers, waiting for server response");
+            if (client.isExchangeDone()) {
+                logger.debug("isBlocked: exchangeDone but missing markers, waiting for server response");
                 return client.waitForServerResponse();
             }
 
             // No batch has data ready, wait for pages from client
             // waitUntilPageReady() guarantees that when it returns done, either:
             // - hasReadyPages() == true (pollPage will return a page)
-            // - isPageCacheDone() == true (no more pages expected)
+            // - isExchangeDone() == true (no more pages expected)
             IsBlockedResult waitResult = client.waitUntilPageReady();
             if (waitResult.listener().isDone() == false) {
                 logger.trace(
-                    "isBlocked: waiting for page, activeBatches={}, pageCacheSize={}, pageCacheDone={}",
+                    "isBlocked: waiting for page, activeBatches={}, bufferedPageCount={}, exchangeDone={}",
                     activeBatches.size(),
-                    client.pageCacheSize(),
-                    client.isPageCacheDone()
+                    client.bufferedPageCount(),
+                    client.isExchangeDone()
                 );
                 return waitResult;
             }
             // waitUntilPageReady() returned done - pages are ready or cache is done
             // If cache is done but no pages ready, we need to wait for server response
-            if (client.hasReadyPages() == false && client.isPageCacheDone()) {
-                logger.debug("isBlocked: no ready pages and pageCacheDone, waiting for server response");
+            if (client.hasReadyPages() == false && client.isExchangeDone()) {
+                logger.debug("isBlocked: no ready pages and exchangeDone, waiting for server response");
                 return client.waitForServerResponse();
             }
         }
@@ -637,7 +621,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
         processEndNanos = System.nanoTime();
         closed = true;
 
-        for (BatchState batch : activeBatches.values()) {
+        for (PendingJoin batch : activeBatches.values()) {
             Releasables.closeExpectNoException(batch.join);
         }
         activeBatches.clear();

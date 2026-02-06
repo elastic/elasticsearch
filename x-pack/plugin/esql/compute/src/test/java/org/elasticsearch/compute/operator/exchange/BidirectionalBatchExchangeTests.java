@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
@@ -42,17 +44,21 @@ import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
+import static org.junit.Assert.assertNotEquals;
 import static org.mockito.Mockito.mock;
 
 @TestLogging(
@@ -64,6 +70,21 @@ import static org.mockito.Mockito.mock;
 )
 public class BidirectionalBatchExchangeTests extends ESTestCase {
     private static final Logger logger = LogManager.getLogger(BidirectionalBatchExchangeTests.class);
+
+    private static final String MULTI_NODE = "multiNode";
+    private static final String SINGLE_NODE = "singleNode";
+    private static final int NUM_SERVER_NODES = 2;
+
+    private final boolean useMultiNode;
+
+    @ParametersFactory
+    public static Iterable<Object[]> parametersFactory() {
+        return List.of(new Object[] { SINGLE_NODE }, new Object[] { MULTI_NODE });
+    }
+
+    public BidirectionalBatchExchangeTests(String nodeMode) {
+        this.useMultiNode = MULTI_NODE.equals(nodeMode);
+    }
 
     /**
      * Settings to use only 1 channel for bidirectional exchange to avoid out-of-order page delivery.
@@ -85,95 +106,63 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
     private static final long GIANT_BATCH_TEST_TIMEOUT_SECONDS = 300;
 
     /**
-     * Test with only a single batch.
+     * Helper that runs a bidirectional batch test with the standard timeout,
+     * managing threadPool and blockFactory lifecycle.
      */
-    public void testSingleBatch() throws Exception {
+    private void runSimpleBatchTest(int numBatches, BatchGenerator batchGenerator) throws Exception {
+        runSimpleBatchTest(numBatches, batchGenerator, TEST_TIMEOUT_SECONDS);
+    }
+
+    private void runSimpleBatchTest(int numBatches, BatchGenerator batchGenerator, long timeoutSeconds) throws Exception {
         ThreadPool threadPool = threadPool();
         BlockFactory blockFactory = blockFactory();
         try {
-            int numBatches = 1;
-            runBidirectionalBatchTestOnDemand(
-                threadPool,
-                blockFactory,
-                numBatches,
-                batchId -> generateBatchPages(blockFactory, batchId, 1, 1, 3, 3),
-                TEST_TIMEOUT_SECONDS
-            );
+            runBidirectionalBatchTestOnDemand(threadPool, blockFactory, numBatches, batchGenerator, timeoutSeconds);
         } finally {
             terminate(threadPool);
         }
+    }
+
+    /**
+     * Test with only a single batch.
+     */
+    public void testSingleBatch() throws Exception {
+        BlockFactory blockFactory = blockFactory();
+        runSimpleBatchTest(1, batchId -> generateBatchPages(blockFactory, batchId, 1, 1, 3, 3));
     }
 
     /**
      * Test with an empty batch (0 pages) using a marker page.
      */
     public void testEmptyBatch() throws Exception {
-        ThreadPool threadPool = threadPool();
         BlockFactory blockFactory = blockFactory();
-        try {
-            int numBatches = 1;
-            runBidirectionalBatchTestOnDemand(
-                threadPool,
-                blockFactory,
-                numBatches,
-                batchId -> generateBatchPages(blockFactory, batchId, 0, 0, 1, 1),
-                TEST_TIMEOUT_SECONDS
-            );
-        } finally {
-            terminate(threadPool);
-        }
-    }
-
-    /**
-     * Test with a batch containing exactly one page.
-     */
-    public void testSinglePageBatch() throws Exception {
-        ThreadPool threadPool = threadPool();
-        BlockFactory blockFactory = blockFactory();
-        try {
-            int numBatches = 1;
-            runBidirectionalBatchTestOnDemand(
-                threadPool,
-                blockFactory,
-                numBatches,
-                batchId -> generateBatchPages(blockFactory, batchId, 1, 1, 3, 3),
-                TEST_TIMEOUT_SECONDS
-            );
-        } finally {
-            terminate(threadPool);
-        }
+        runSimpleBatchTest(1, batchId -> generateBatchPages(blockFactory, batchId, 0, 0, 1, 1));
     }
 
     /**
      * Test with mixed batches: empty and single-page batches with varying positions.
      */
     public void testMixedBatches() throws Exception {
-        ThreadPool threadPool = threadPool();
         BlockFactory blockFactory = blockFactory();
-        try {
-            int numBatches = 4;
-            runBidirectionalBatchTestOnDemand(threadPool, blockFactory, numBatches, batchId -> {
-                // Batch 0: Empty batch
-                if (batchId == 0) {
-                    return new ArrayList<>();
-                }
-                // Batch 1: Single page with 2 positions
-                if (batchId == 1) {
-                    return createBatchWithPages(blockFactory, batchId, 1, 2).batches().get(0);
-                }
-                // Batch 2: Single page with 5 positions
-                if (batchId == 2) {
-                    return createBatchWithPages(blockFactory, batchId, 1, 5).batches().get(0);
-                }
-                // Batch 3: Single page with 1 position
-                if (batchId == 3) {
-                    return createBatchWithPages(blockFactory, batchId, 1, 1).batches().get(0);
-                }
-                throw new IllegalArgumentException("Unexpected batchId: " + batchId);
-            }, TEST_TIMEOUT_SECONDS);
-        } finally {
-            terminate(threadPool);
-        }
+        runSimpleBatchTest(4, batchId -> {
+            // Batch 0: Empty batch
+            if (batchId == 0) {
+                return new ArrayList<>();
+            }
+            // Batch 1: Single page with 2 positions
+            if (batchId == 1) {
+                return createBatchWithPages(blockFactory, batchId, 1, 2).batches().get(0);
+            }
+            // Batch 2: Single page with 5 positions
+            if (batchId == 2) {
+                return createBatchWithPages(blockFactory, batchId, 1, 5).batches().get(0);
+            }
+            // Batch 3: Single page with 1 position
+            if (batchId == 3) {
+                return createBatchWithPages(blockFactory, batchId, 1, 1).batches().get(0);
+            }
+            throw new IllegalArgumentException("Unexpected batchId: " + batchId);
+        });
     }
 
     /**
@@ -184,57 +173,87 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
         ThreadPool threadPool = threadPool();
         BlockFactory blockFactory = blockFactory();
         TestInfrastructure infra = setupTestInfrastructure(threadPool, blockFactory);
+
+        int numBatches = between(2, 10);
+        TestData testData = createSimpleTestBatches(blockFactory, numBatches, 1, 1, 1, 10);
+        List<List<Page>> batches = testData.batches();
+        List<List<Page>> expectedOutputBatches = testData.expectedOutputBatches();
+
+        // Track results
+        AtomicInteger processedBatches = new AtomicInteger(0);
+        List<Long> callbackBatchIds = new ArrayList<>();
+        AtomicInteger batchesSent = new AtomicInteger(0);
+        AtomicReference<List<Page>> allOutputPagesRef = new AtomicReference<>(new ArrayList<>());
+
+        // Set up batch exchange status listener
+        PlainActionFuture<Void> batchExchangeStatusFuture = new PlainActionFuture<>();
+
+        // Generate unique session ID for this test
+        String sessionId = "test-session-" + UUID.randomUUID().toString().substring(0, 8);
+
+        // Track which server nodes workers are created on
+        List<String> createdWorkerNodeIds = new ArrayList<>();
+
+        BidirectionalBatchExchangeClient client = setupClient(
+            infra,
+            threadPool,
+            batchExchangeStatusFuture,
+            sessionId,
+            createdWorkerNodeIds
+        );
+
         try {
-            int numBatches = between(2, 10);
-            TestData testData = createSimpleTestBatches(blockFactory, numBatches, 1, 1, 1, 10);
-            List<List<Page>> batches = testData.batches();
-            List<List<Page>> expectedOutputBatches = testData.expectedOutputBatches();
 
-            // Track results
-            AtomicInteger processedBatches = new AtomicInteger(0);
-            List<Long> callbackBatchIds = new ArrayList<>();
-            AtomicInteger batchesSent = new AtomicInteger(0);
-            AtomicReference<List<Page>> allOutputPagesRef = new AtomicReference<>(new ArrayList<>());
-            AtomicReference<Exception> serverException = new AtomicReference<>();
+            logger.debug("[TEST] Number of batches to send: {}", numBatches);
 
-            // Set up batch exchange status listener
-            PlainActionFuture<Void> batchExchangeStatusFuture = new PlainActionFuture<>();
+            sendAllBatchesUpfront(client, batches, batchesSent);
 
-            // Generate unique session ID for this test
-            String sessionId = "test-session-" + UUID.randomUUID().toString().substring(0, 8);
-
-            // Create client holder
-            AtomicReference<BidirectionalBatchExchangeClient> clientHolder = new AtomicReference<>();
-
-            // Set up client on main thread
-            // Note: Using pull-based model - pages are polled from client.pollPage()
-            BidirectionalBatchExchangeClient client = setupClient(infra, threadPool, batchExchangeStatusFuture, sessionId);
-            clientHolder.set(client);
-
-            // Start server thread, wait for initialization, and connect client
-            Thread serverThread = startServerAndConnectClient(infra, threadPool, serverException, client, TEST_TIMEOUT_SECONDS, sessionId);
-
-            // Log number of batches to send
-            logger.info("[TEST] Number of batches to send: {}", numBatches);
-
-            // Client sends all batches upfront
-            DiscoveryNode serverNode = infra.serverTransportService().getLocalNode();
-            sendAllBatchesUpfront(client, batches, batchesSent, serverNode);
-
-            // Poll for all result pages and mark batches as complete
+            // Poll for all result pages and mark batches as complete.
+            // Pages may arrive out of batch-ID order (e.g., batch 3 before batch 2) when multiple
+            // servers process at different speeds. Track which batches have been received so we don't
+            // lose pages consumed while waiting for an earlier batch.
+            Set<Long> receivedBatchIds = new HashSet<>();
             for (int batchId = 0; batchId < numBatches; batchId++) {
-                logger.info("[TEST-CLIENT] Polling for batch {} results", batchId);
-                boolean batchComplete = false;
+                logger.debug("[TEST-CLIENT] Polling for batch {} results", batchId);
+                boolean batchComplete = receivedBatchIds.contains((long) batchId);
                 long pollStartTime = System.currentTimeMillis();
                 long pollTimeoutMs = TEST_TIMEOUT_SECONDS * 1000;
 
+                int pollIterations = 0;
                 while (batchComplete == false) {
-                    if (System.currentTimeMillis() - pollStartTime > pollTimeoutMs) {
-                        throw new AssertionError("Timeout waiting for batch " + batchId + " to complete");
+                    long elapsed = System.currentTimeMillis() - pollStartTime;
+                    if (elapsed > pollTimeoutMs) {
+                        throw new AssertionError(
+                            "Timeout waiting for batch "
+                                + batchId
+                                + " to complete after "
+                                + elapsed
+                                + "ms. Client state: isFinished="
+                                + client.isFinished()
+                                + ", isExchangeDone="
+                                + client.isExchangeDone()
+                                + ", hasFailed="
+                                + client.hasFailed()
+                                + ", sortedSource="
+                                + client.getSortedSource()
+                                + ", pollIterations="
+                                + pollIterations
+                        );
                     }
 
                     if (client.hasFailed()) {
                         throw new AssertionError("Client failed while waiting for batch " + batchId);
+                    }
+
+                    pollIterations++;
+                    if (pollIterations % 10 == 0) {
+                        logger.debug(
+                            "[TEST-CLIENT] Still waiting for batch {}: elapsed={}ms, sortedSource={}, isExchangeDone={}",
+                            batchId,
+                            elapsed,
+                            client.getSortedSource(),
+                            client.isExchangeDone()
+                        );
                     }
 
                     IsBlockedResult blocked = client.waitForPage();
@@ -250,30 +269,49 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
 
                     BatchPage resultPage;
                     while ((resultPage = client.pollPage()) != null) {
+                        logger.debug(
+                            "[TEST-CLIENT] Received result page: batchId={}, pageIndex={}, isLast={}, positions={}",
+                            resultPage.batchId(),
+                            resultPage.pageIndexInBatch(),
+                            resultPage.isLastPageInBatch(),
+                            resultPage.getPositionCount()
+                        );
                         if (resultPage.isBatchMarkerOnly() == false) {
                             allOutputPagesRef.get().add(resultPage);
                         }
                         if (resultPage.isLastPageInBatch()) {
-                            batchComplete = true;
+                            receivedBatchIds.add(resultPage.batchId());
+                            if (resultPage.batchId() == batchId) {
+                                batchComplete = true;
+                            }
                         }
+                    }
+                    // Check if the current batch was received by a page polled in a previous iteration
+                    if (receivedBatchIds.contains((long) batchId)) {
+                        batchComplete = true;
                     }
                 }
 
                 client.markBatchCompleted(batchId);
                 callbackBatchIds.add((long) batchId);
                 processedBatches.incrementAndGet();
-                logger.info("[TEST-CLIENT] Batch {} completed", batchId);
+                logger.debug("[TEST-CLIENT] Batch {} completed", batchId);
             }
 
             // Signal no more batches
+            logger.debug("[TEST] All {} batches processed, calling client.finish()", numBatches);
             client.finish();
+            logger.debug("[TEST] client.finish() returned");
 
-            // Wait for client completion and server thread
+            // Wait for client completion (includes waiting for all server responses)
+            logger.debug(
+                "[TEST] Waiting for client completion: isFinished={}, isExchangeDone={}, hasFailed={}",
+                client.isFinished(),
+                client.isExchangeDone(),
+                client.hasFailed()
+            );
             waitForClientCompletion(client, batchExchangeStatusFuture, TEST_TIMEOUT_SECONDS);
-            waitForServerThreadAndCheckExceptions(serverThread, serverException);
-
-            // Cleanup
-            client.close();
+            logger.debug("[TEST] waitForClientCompletion() returned");
 
             // Verify results and release pages
             verifyResultsAndReleasePages(
@@ -284,130 +322,42 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
                 expectedOutputBatches,
                 numBatches
             );
+            allOutputPagesRef.set(null); // Prevent double-release in finally block
 
-            // Cleanup is done in the threads
-            logger.info("[TEST] Test completed successfully");
+            // Verify worker node usage
+            verifyWorkerNodes(infra, createdWorkerNodeIds, numBatches);
+
+            logger.debug("[TEST] Test completed successfully");
         } finally {
-            cleanupServices(infra, threadPool);
-        }
-    }
+            // Close client before transport services to avoid cascading disconnect errors
+            logger.debug("[TEST] Entering finally block, calling client.close()");
+            try {
+                client.close();
+                logger.debug("[TEST] client.close() completed");
+            } catch (Exception e) {
+                logger.error("[TEST] Error closing client", e);
+            }
 
-    /**
-     * Test case where 0 pages are sent to the server (not even a marker).
-     * This verifies that the driver can handle an empty exchange gracefully
-     * and still complete the batch exchange status.
-     */
-    public void testZeroPagesSent() throws Exception {
-        ThreadPool threadPool = threadPool();
-        TestInfrastructure infra = setupTestInfrastructure(threadPool, blockFactory());
-        try {
-            // Track results
-            AtomicInteger processedBatches = new AtomicInteger(0);
-            List<Long> callbackBatchIds = Collections.synchronizedList(new ArrayList<>());
-            AtomicReference<List<Page>> allOutputPagesRef = new AtomicReference<>(new ArrayList<>());
-            AtomicReference<Exception> serverException = new AtomicReference<>();
-
-            // Set up batch exchange status listener
-            PlainActionFuture<Void> batchExchangeStatusFuture = new PlainActionFuture<>();
-
-            // Generate unique session ID for this test
-            String sessionId = "test-session-" + UUID.randomUUID().toString().substring(0, 8);
-
-            // Set up client on main thread
-            // Note: Using pull-based model - pages are polled from client.pollPage()
-            BidirectionalBatchExchangeClient client = setupClient(infra, threadPool, batchExchangeStatusFuture, sessionId);
-
-            // Start server thread, wait for initialization, and connect client
-            Thread serverThread = startServerAndConnectClient(infra, threadPool, serverException, client, TEST_TIMEOUT_SECONDS, sessionId);
-
-            // Log number of batches to send
-            logger.info("[TEST] Number of batches to send: 1 (marker batch)");
-
-            // Client sends NO pages - send a marker batch to represent "no data"
-            logger.info("[TEST-CLIENT] Sending no pages, sending marker batch");
-            client.sendBatchMarker(0);
-
-            // Poll for the response marker from the server
-            logger.info("[TEST-CLIENT] Polling for response marker");
-            boolean batchComplete = false;
-            long pollStartTime = System.currentTimeMillis();
-            long pollTimeoutMs = TEST_TIMEOUT_SECONDS * 1000;
-
-            while (batchComplete == false) {
-                if (System.currentTimeMillis() - pollStartTime > pollTimeoutMs) {
-                    throw new AssertionError("Timeout waiting for batch 0 marker response");
-                }
-
-                if (client.hasFailed()) {
-                    throw new AssertionError("Client failed while waiting for batch 0 marker response");
-                }
-
-                // Wait for a page to be available
-                IsBlockedResult blocked = client.waitForPage();
-                if (blocked.listener().isDone() == false) {
-                    PlainActionFuture<Void> waitFuture = new PlainActionFuture<>();
-                    blocked.listener().addListener(waitFuture);
+            // Release any collected output pages that weren't released by verification
+            List<Page> remainingPages = allOutputPagesRef.get();
+            if (remainingPages != null) {
+                for (Page page : remainingPages) {
                     try {
-                        waitFuture.actionGet(1, TimeUnit.SECONDS);
+                        page.releaseBlocks();
                     } catch (Exception e) {
-                        continue;
-                    }
-                }
-
-                // Poll pages
-                BatchPage resultPage;
-                while ((resultPage = client.pollPage()) != null) {
-                    logger.info(
-                        "[TEST-CLIENT] Received result page: batchId={}, pageIndex={}, isLast={}, positions={}, isMarker={}",
-                        resultPage.batchId(),
-                        resultPage.pageIndexInBatch(),
-                        resultPage.isLastPageInBatch(),
-                        resultPage.getPositionCount(),
-                        resultPage.isBatchMarkerOnly()
-                    );
-
-                    // For a marker batch, we should receive a marker response
-                    if (resultPage.isBatchMarkerOnly() == false) {
-                        allOutputPagesRef.get().add(resultPage);
-                    }
-
-                    if (resultPage.isLastPageInBatch()) {
-                        batchComplete = true;
+                        logger.error("[TEST] Error releasing page", e);
                     }
                 }
             }
 
-            // Mark batch as completed and update tracking
-            client.markBatchCompleted(0);
-            callbackBatchIds.add(0L);
-            processedBatches.incrementAndGet();
-            logger.info("[TEST-CLIENT] Batch 0 (marker) completed");
-
-            // Signal no more batches will be sent
-            client.finish();
-            logger.info("[TEST-CLIENT] Called finish()");
-
-            // Wait for client completion and server thread
-            waitForClientCompletion(client, batchExchangeStatusFuture, TEST_TIMEOUT_SECONDS);
-            waitForServerThreadAndCheckExceptions(serverThread, serverException);
-
-            // Cleanup
-            client.close();
-
-            // Verify that one empty marker batch was processed (batch 0, which is empty)
-            assertThat("One empty marker batch should be processed", processedBatches.get(), equalTo(1));
-            assertThat("One batch callback should be called for the empty marker batch", callbackBatchIds.size(), equalTo(1));
-            assertThat("The processed batch should be batch 0", callbackBatchIds.get(0), equalTo(0L));
-            assertThat("No output pages should be received from empty batch", allOutputPagesRef.get().size(), equalTo(0));
-
-            logger.info("[TEST] Test completed successfully");
-        } finally {
+            logger.debug("[TEST] Calling cleanupServices()");
             cleanupServices(infra, threadPool);
+            logger.debug("[TEST] cleanupServices() completed");
         }
     }
 
     /**
-     * Test that sending a multi-page batch (page with isLastPageInBatch=false) throws an IllegalArgumentException.
+     * Test that sending a multipage batch (page with isLastPageInBatch=false) throws an IllegalArgumentException.
      * Currently only single-page batches are supported.
      */
     public void testMultiPageBatchNotSupported() throws Exception {
@@ -422,7 +372,13 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             String sessionId = "test-session-" + UUID.randomUUID().toString().substring(0, 8);
 
             // Set up client
-            BidirectionalBatchExchangeClient client = setupClient(infra, threadPool, batchExchangeStatusFuture, sessionId);
+            BidirectionalBatchExchangeClient client = setupClient(
+                infra,
+                threadPool,
+                batchExchangeStatusFuture,
+                sessionId,
+                new ArrayList<>()
+            );
 
             // Create a page to send
             IntBlock.Builder builder = blockFactory.newIntBlockBuilder(1);
@@ -432,11 +388,11 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
 
             // Try to send a page with isLastPageInBatch=false (multi-page batch)
             // This should throw an IllegalArgumentException because only single-page batches are supported
-            logger.info("[TEST] About to call sendPage with isLastPageInBatch=false");
+            logger.debug("[TEST] About to call sendPage with isLastPageInBatch=false");
             IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> {
                 client.sendPage(new BatchPage(page, 0, 0, false));  // isLastPageInBatch=false
             });
-            logger.info("[TEST] Caught expected IllegalArgumentException: {}", error.getMessage());
+            logger.debug("[TEST] Caught expected IllegalArgumentException: {}", error.getMessage());
 
             // Verify the error message
             assertThat(error.getMessage(), containsString("Multi-page batches are not yet supported"));
@@ -447,11 +403,15 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             page.releaseBlocks();
 
             // Clean up client
+            logger.debug("[TEST] Calling client.close()");
             client.close();
+            logger.debug("[TEST] client.close() completed");
 
-            logger.info("[TEST] Test completed successfully - IllegalArgumentException was thrown as expected");
+            logger.debug("[TEST] Test completed successfully - IllegalArgumentException was thrown as expected");
         } finally {
+            logger.debug("[TEST] Entering finally block, calling cleanupServices()");
             cleanupServices(infra, threadPool);
+            logger.debug("[TEST] cleanupServices() completed");
         }
     }
 
@@ -459,42 +419,18 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
      * A randomized test for BidirectionalBatchExchange.
      */
     public void testBatchProcessingRandom() throws Exception {
-        ThreadPool threadPool = threadPool();
         BlockFactory blockFactory = blockFactory();
-        try {
-            int numBatches = between(100, 1000);
-            runBidirectionalBatchTestOnDemand(
-                threadPool,
-                blockFactory,
-                numBatches,
-                batchId -> generateBatchPages(blockFactory, batchId, 1, 1, 1, 10),
-                TEST_TIMEOUT_SECONDS
-            );
-        } finally {
-            terminate(threadPool);
-        }
+        runSimpleBatchTest(between(100, 1000), batchId -> generateBatchPages(blockFactory, batchId, 1, 1, 1, 10));
     }
 
     /**
-     * A randomized test for BidirectionalBatchExchange with 100,000 batches.
+     * A randomized test for BidirectionalBatchExchange with 20,000 batches.
      * Batches are generated on demand and verified incrementally
      * to avoid the test running out of memory.
      */
     public void testBatchProcessingRandomGiant() throws Exception {
-        ThreadPool threadPool = threadPool();
         BlockFactory blockFactory = blockFactory();
-        try {
-            int numBatches = 20_000;
-            runBidirectionalBatchTestOnDemand(
-                threadPool,
-                blockFactory,
-                numBatches,
-                batchId -> generateBatchPages(blockFactory, batchId, 1, 1, 1, 10),
-                GIANT_BATCH_TEST_TIMEOUT_SECONDS
-            );
-        } finally {
-            terminate(threadPool);
-        }
+        runSimpleBatchTest(20_000, batchId -> generateBatchPages(blockFactory, batchId, 1, 1, 1, 10), GIANT_BATCH_TEST_TIMEOUT_SECONDS);
     }
 
     private MockTransportService newTransportService(ThreadPool threadPool) {
@@ -516,26 +452,78 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
 
     /**
      * Set up and initialize the client side of the bidirectional batch exchange.
+     * Servers are created lazily inside the ServerSetupCallback, matching production behavior.
      *
      * @param infra test infrastructure containing exchange services and IDs
      * @param threadPool thread pool
      * @param batchExchangeStatusListener listener for batch exchange status completion
+     * @param sessionId unique session ID for this test
      * @return initialized client
      */
     private BidirectionalBatchExchangeClient setupClient(
         TestInfrastructure infra,
         ThreadPool threadPool,
         ActionListener<Void> batchExchangeStatusListener,
-        String sessionId
+        String sessionId,
+        List<String> createdWorkerNodeIds
     ) throws Exception {
-        logger.info("[TEST-CLIENT] Creating BidirectionalBatchExchangeClient with sessionId={}", sessionId);
+        logger.debug(
+            "[TEST-CLIENT] Creating BidirectionalBatchExchangeClient with sessionId={}, numServers={}",
+            sessionId,
+            infra.numServers()
+        );
         Task mockTask = mock(Task.class);
-        DiscoveryNode serverNode = infra.serverTransportService().getLocalNode();
-        // Test callback that immediately succeeds - server is set up manually in tests
+
+        // Map node IDs to their index in the server lists for lookup in the callback
+        Map<String, Integer> nodeIdToIndex = new HashMap<>();
+        for (int i = 0; i < infra.numServers(); i++) {
+            nodeIdToIndex.put(infra.serverTransportServices().get(i).getLocalNode().getId(), i);
+        }
+
+        // Lazy server setup callback - creates the BidirectionalBatchExchangeServer on demand,
+        // matching production behavior where servers are created when the client needs them.
+        // The server lifecycle is self-managing: driver completion triggers server.close() and
+        // sends BatchExchangeStatusResponse back to the client.
         BidirectionalBatchExchangeClient.ServerSetupCallback testCallback = (node, clientToServerId, serverToClientId, listener) -> {
-            logger.debug("[TEST] ServerSetupCallback called for node={}", node.getId());
-            listener.onResponse("test-plan");
+            try {
+                int idx = nodeIdToIndex.get(node.getId());
+                logger.debug("[TEST] ServerSetupCallback creating server for node={}, worker index={}", node.getId(), idx);
+
+                DriverContext driverContext = driverContext();
+                EvalOperator addOneOperator = createAddOneOperator(driverContext);
+
+                BidirectionalBatchExchangeServer server = new BidirectionalBatchExchangeServer(
+                    sessionId,
+                    clientToServerId,
+                    serverToClientId,
+                    infra.serverExchangeServices().get(idx),
+                    threadPool.executor(ThreadPool.Names.SEARCH),
+                    10,
+                    infra.serverTransportServices().get(idx),
+                    mock(Task.class),
+                    infra.clientTransportService().getLocalNode(),
+                    SINGLE_CLIENT_SETTINGS
+                );
+                server.startWithOperators(
+                    driverContext,
+                    threadPool.getThreadContext(),
+                    List.of(addOneOperator),
+                    "test-cluster",
+                    () -> {},
+                    ActionListener.noop()
+                );
+                logger.debug("[TEST] Server created and started for node={}", node.getId());
+                createdWorkerNodeIds.add(node.getId());
+                listener.onResponse("test-plan");
+            } catch (Exception e) {
+                logger.error("[TEST] ServerSetupCallback failed for node={}", node.getId(), e);
+                listener.onFailure(e);
+            }
         };
+
+        // Round-robin server node supplier across all server nodes
+        List<DiscoveryNode> serverNodes = infra.serverTransportServices().stream().map(MockTransportService::getLocalNode).toList();
+        AtomicInteger serverNodeIndex = new AtomicInteger(0);
         BidirectionalBatchExchangeClient client = new BidirectionalBatchExchangeClient(
             sessionId,
             infra.clientExchangeService(),
@@ -547,19 +535,13 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             SINGLE_CLIENT_SETTINGS,
             testCallback,
             null, // lookupPlanConsumer
-            1, // maxWorkers
-            () -> serverNode // serverNodeSupplier
+            infra.numServers(), // maxWorkers
+            () -> serverNodes.get(serverNodeIndex.getAndIncrement() % serverNodes.size()) // serverNodeSupplier
         );
-        logger.info("[TEST-CLIENT] Client initialized successfully");
+        logger.debug("[TEST-CLIENT] Client initialized successfully");
 
         return client;
     }
-
-    /**
-     * Set up and initialize the server side of the bidirectional batch exchange.
-     * Creates operators internally (e.g., addOneOperator).
-     * The driver is started automatically and a future is returned.
-     */
 
     /**
      * Functional interface for generating batches on demand.
@@ -580,7 +562,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
         BatchGenerator batchGenerator,
         long timeoutSeconds
     ) throws Exception {
-        logger.info("[TEST] Starting bidirectional batch test: numBatches={}", numBatches);
+        logger.debug("[TEST] Starting bidirectional batch test: numBatches={}", numBatches);
 
         TestInfrastructure infra = setupTestInfrastructure(threadPool, blockFactory);
 
@@ -588,9 +570,6 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
         AtomicInteger processedBatches = new AtomicInteger(0);
         List<Long> callbackBatchIds = new ArrayList<>();
         AtomicInteger batchesSent = new AtomicInteger(0);
-
-        // Track exceptions
-        AtomicReference<Exception> serverException = new AtomicReference<>();
 
         // Per-batch data - stored and verified after each batch completes
         AtomicReference<List<Page>> currentBatchInputPages = new AtomicReference<>();
@@ -602,16 +581,22 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
         // Generate unique session ID for this test
         String sessionId = "test-session-" + UUID.randomUUID().toString().substring(0, 8);
 
-        // Initialize client on main thread
-        // Note: Using pull-based model - pages are polled from client.pollPage()
-        BidirectionalBatchExchangeClient client = setupClient(infra, threadPool, batchExchangeStatusFuture, sessionId);
+        // Track which server nodes workers are created on
+        List<String> createdWorkerNodeIds = new ArrayList<>();
 
-        // Start server thread, wait for initialization, and connect client
-        Thread serverThread = startServerAndConnectClient(infra, threadPool, serverException, client, timeoutSeconds, sessionId);
+        // Initialize client on main thread - servers are created lazily inside the callback
+        // Note: Using pull-based model - pages are polled from client.pollPage()
+        BidirectionalBatchExchangeClient client = setupClient(
+            infra,
+            threadPool,
+            batchExchangeStatusFuture,
+            sessionId,
+            createdWorkerNodeIds
+        );
 
         try {
             // Log number of batches to send
-            logger.info("[TEST] Number of batches to send: {}", numBatches);
+            logger.debug("[TEST] Number of batches to send: {}", numBatches);
 
             // Process batches using pull-based model with per-batch verification
             for (int batchId = 0; batchId < numBatches; batchId++) {
@@ -630,23 +615,51 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
                     currentBatchOutputPages.set(new ArrayList<>());
                 }
 
-                // Send the batch pages to the server
-                DiscoveryNode serverNode = infra.serverTransportService().getLocalNode();
-                sendBatchFromPages(client, batchPages, batchId, batchesSent, serverNode);
+                // Send the batch pages (client routes to servers internally via serverNodeSupplier)
+                sendBatchFromPages(client, batchPages, batchId, batchesSent);
 
                 // Poll for result pages until we receive the last page of this batch
                 boolean batchComplete = false;
                 long pollStartTime = System.currentTimeMillis();
                 long pollTimeoutMs = timeoutSeconds * 1000;
+                int pollIterations = 0;
                 while (batchComplete == false) {
                     // Check for timeout
-                    if (System.currentTimeMillis() - pollStartTime > pollTimeoutMs) {
-                        throw new AssertionError("Timeout waiting for batch " + batchId + " to complete");
+                    long elapsed = System.currentTimeMillis() - pollStartTime;
+                    if (elapsed > pollTimeoutMs) {
+                        throw new AssertionError(
+                            "Timeout waiting for batch "
+                                + batchId
+                                + " to complete after "
+                                + elapsed
+                                + "ms. Client state: isFinished="
+                                + client.isFinished()
+                                + ", isExchangeDone="
+                                + client.isExchangeDone()
+                                + ", hasFailed="
+                                + client.hasFailed()
+                                + ", sortedSource="
+                                + client.getSortedSource()
+                                + ", pollIterations="
+                                + pollIterations
+                        );
                     }
 
                     // Check for client failures
                     if (client.hasFailed()) {
                         throw new AssertionError("Client failed while waiting for batch " + batchId + " to complete");
+                    }
+
+                    pollIterations++;
+                    if (pollIterations % 10 == 0) {
+                        logger.debug(
+                            "[TEST-CLIENT] Still waiting for batch {}/{}: elapsed={}ms, sortedSource={}, isExchangeDone={}",
+                            batchId,
+                            numBatches,
+                            elapsed,
+                            client.getSortedSource(),
+                            client.isExchangeDone()
+                        );
                     }
 
                     // Wait for a page to be available (with timeout)
@@ -691,7 +704,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
                     }
 
                     // If no pages polled and cache not done, wait a bit before retrying
-                    if (batchComplete == false && client.isPageCacheDone() == false) {
+                    if (batchComplete == false && client.isExchangeDone() == false) {
                         try {
                             Thread.sleep(10);  // Small sleep to avoid busy spinning
                         } catch (InterruptedException e) {
@@ -744,26 +757,40 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             }
 
             // All batches sent and processed - finish the client
-            logger.info("[TEST] All {} batches processed, finishing client", numBatches);
+            logger.debug("[TEST] All {} batches processed, calling client.finish()", numBatches);
             client.finish();
+            logger.debug("[TEST] client.finish() returned");
 
             // Wait for client to fully finish (page cache done AND server response received)
+            logger.debug(
+                "[TEST] Waiting for client.isFinished(): isFinished={}, isExchangeDone={}, hasFailed={}",
+                client.isFinished(),
+                client.isExchangeDone(),
+                client.hasFailed()
+            );
             assertBusy(() -> assertTrue("Client should be fully finished", client.isFinished()), timeoutSeconds, TimeUnit.SECONDS);
+            logger.debug("[TEST] client.isFinished() is now true");
 
             // Wait for batch exchange status response (should indicate success)
+            // This completes when all servers have finished and sent their responses back
+            logger.debug("[TEST] Waiting for batchExchangeStatusFuture (isDone={})", batchExchangeStatusFuture.isDone());
             batchExchangeStatusFuture.actionGet(timeoutSeconds, TimeUnit.SECONDS);
-
-            // Wait for server thread and check exceptions
-            waitForServerThreadAndCheckExceptions(serverThread, serverException, timeoutSeconds * 1000);
+            logger.debug("[TEST] batchExchangeStatusFuture completed");
 
             // Verify basic batch processing completion
-            logger.info("[TEST] Verifying batch processing results");
+            logger.debug("[TEST] Verifying batch processing results");
             verifyBasicBatchResults(batchesSent, processedBatches, callbackBatchIds, numBatches);
-            logger.info("[TEST] Test completed successfully");
+
+            // Verify worker node usage
+            verifyWorkerNodes(infra, createdWorkerNodeIds, numBatches);
+
+            logger.debug("[TEST] Test completed successfully");
         } finally {
             // Cleanup client
+            logger.debug("[TEST] Entering finally block, calling client.close()");
             try {
                 client.close();
+                logger.debug("[TEST] client.close() completed");
             } catch (Exception e) {
                 logger.error("[TEST] Error closing client", e);
             }
@@ -783,82 +810,57 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             }
 
             // Cleanup exchange services and transport services
+            logger.debug("[TEST] Calling cleanupServices()");
             cleanupServices(infra, threadPool);
+            logger.debug("[TEST] cleanupServices() completed");
         }
-    }
-
-    /**
-     * Helper method to start server thread, wait for initialization, and connect client to server sink.
-     * This is a common pattern used across multiple tests.
-     */
-    private Thread startServerAndConnectClient(
-        TestInfrastructure infra,
-        ThreadPool threadPool,
-        AtomicReference<Exception> serverException,
-        BidirectionalBatchExchangeClient client,
-        long timeoutSeconds,
-        String sessionId
-    ) throws InterruptedException {
-        // Pre-register BOTH directions' sink handlers BEFORE starting the server.
-        // In production, both sides would create their handlers before the other tries to connect.
-        // Here we do it explicitly to avoid race conditions where one side tries to connect
-        // before the other has created the handler.
-
-        // Pre-register client-to-server sink handler (on client's exchange service)
-        // This is the handler that the SERVER fetches from to get pages sent by the client.
-        String clientToServerId = BidirectionalBatchExchangeBase.buildClientToServerId(sessionId) + "/worker0";
-        infra.clientExchangeService().getOrCreateSinkHandler(clientToServerId, 10);
-        logger.info("[TEST] Pre-registered client-to-server sink handler: {}", clientToServerId);
-
-        // Pre-register server-to-client sink handler (on server's exchange service)
-        // This is the handler that the CLIENT fetches from to get result pages from the server.
-        String serverToClientId = BidirectionalBatchExchangeBase.buildServerToClientId(sessionId) + "/worker0";
-        infra.serverExchangeService().getOrCreateSinkHandler(serverToClientId, 10);
-        logger.info("[TEST] Pre-registered server-to-client sink handler: {}", serverToClientId);
-
-        // Create latch to synchronize server initialization
-        CountDownLatch serverInitializedLatch = new CountDownLatch(1);
-
-        // Start server thread - it will initialize and connect to the pre-registered sink handlers
-        Thread serverThread = createServerThread(infra, threadPool, serverException, timeoutSeconds, serverInitializedLatch, sessionId);
-        serverThread.start();
-
-        // Wait for server to initialize BEFORE client sends pages
-        try {
-            serverInitializedLatch.await(timeoutSeconds, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            throw new AssertionError("Interrupted while waiting for server to initialize", e);
-        }
-
-        // Client will connect to server sink lazily when first page is sent
-        // The connection happens automatically in getOrCreateServerConnection()
-
-        return serverThread;
     }
 
     /**
      * Test infrastructure record containing transport services, exchange services, and exchange IDs.
+     * Server services are lists to support multi-node mode (one per server node).
      */
     private record TestInfrastructure(
         MockTransportService clientTransportService,
-        MockTransportService serverTransportService,
+        List<MockTransportService> serverTransportServices,
         ExchangeService clientExchangeService,
-        ExchangeService serverExchangeService
-    ) {}
+        List<ExchangeService> serverExchangeServices
+    ) {
+        int numServers() {
+            return serverTransportServices.size();
+        }
+    }
 
     /**
      * Set up test infrastructure: transport services, exchange services, and exchange IDs.
+     * In single-node mode, creates 1 server. In multi-node mode, creates NUM_SERVER_NODES servers.
      */
     private TestInfrastructure setupTestInfrastructure(ThreadPool threadPool, BlockFactory blockFactory) {
-        // Set up transport services for client and server
         MockTransportService clientTransportService = newTransportService(threadPool);
-        MockTransportService serverTransportService = newTransportService(threadPool);
 
-        // Connect both ways for bidirectional communication
-        AbstractSimpleTransportTestCase.connectToNode(clientTransportService, serverTransportService.getLocalNode());
-        AbstractSimpleTransportTestCase.connectToNode(serverTransportService, clientTransportService.getLocalNode());
+        int numServers = useMultiNode ? NUM_SERVER_NODES : 1;
+        List<MockTransportService> serverTransportServices = new ArrayList<>();
+        List<ExchangeService> serverExchangeServices = new ArrayList<>();
 
-        // Create separate exchange services for client and server, registered with their transport services
+        for (int i = 0; i < numServers; i++) {
+            MockTransportService serverTransportService = newTransportService(threadPool);
+            // Connect both ways for bidirectional communication (client <-> server, no server-to-server)
+            AbstractSimpleTransportTestCase.connectToNode(clientTransportService, serverTransportService.getLocalNode());
+            AbstractSimpleTransportTestCase.connectToNode(serverTransportService, clientTransportService.getLocalNode());
+
+            ExchangeService serverExchangeService = new ExchangeService(
+                SINGLE_CLIENT_SETTINGS,
+                threadPool,
+                ThreadPool.Names.SEARCH,
+                blockFactory
+            );
+            serverExchangeService.registerTransportHandler(serverTransportService);
+
+            serverTransportServices.add(serverTransportService);
+            serverExchangeServices.add(serverExchangeService);
+        }
+
+        // Create client exchange service
         ExchangeService clientExchangeService = new ExchangeService(
             SINGLE_CLIENT_SETTINGS,
             threadPool,
@@ -866,34 +868,47 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             blockFactory
         );
         clientExchangeService.registerTransportHandler(clientTransportService);
-        ExchangeService serverExchangeService = new ExchangeService(
-            SINGLE_CLIENT_SETTINGS,
-            threadPool,
-            ThreadPool.Names.SEARCH,
-            blockFactory
-        );
-        serverExchangeService.registerTransportHandler(serverTransportService);
 
-        return new TestInfrastructure(clientTransportService, serverTransportService, clientExchangeService, serverExchangeService);
+        return new TestInfrastructure(clientTransportService, serverTransportServices, clientExchangeService, serverExchangeServices);
     }
 
     /**
      * Cleanup exchange services and transport services.
      */
     private void cleanupServices(TestInfrastructure infra, ThreadPool threadPool) {
+        logger.debug("[TEST-CLEANUP] Closing client exchange service");
         if (infra.clientExchangeService() != null) {
             infra.clientExchangeService().close();
         }
-        if (infra.serverExchangeService() != null) {
-            infra.serverExchangeService().close();
+        logger.debug("[TEST-CLEANUP] Client exchange service closed");
+
+        for (int i = 0; i < infra.serverExchangeServices().size(); i++) {
+            ExchangeService serverExchangeService = infra.serverExchangeServices().get(i);
+            if (serverExchangeService != null) {
+                logger.debug("[TEST-CLEANUP] Closing server exchange service {}", i);
+                serverExchangeService.close();
+                logger.debug("[TEST-CLEANUP] Server exchange service {} closed", i);
+            }
         }
+
+        logger.debug("[TEST-CLEANUP] Closing client transport service");
         if (infra.clientTransportService() != null) {
             infra.clientTransportService().close();
         }
-        if (infra.serverTransportService() != null) {
-            infra.serverTransportService().close();
+        logger.debug("[TEST-CLEANUP] Client transport service closed");
+
+        for (int i = 0; i < infra.serverTransportServices().size(); i++) {
+            MockTransportService serverTransportService = infra.serverTransportServices().get(i);
+            if (serverTransportService != null) {
+                logger.debug("[TEST-CLEANUP] Closing server transport service {}", i);
+                serverTransportService.close();
+                logger.debug("[TEST-CLEANUP] Server transport service {} closed", i);
+            }
         }
+
+        logger.debug("[TEST-CLEANUP] Terminating thread pool");
         terminate(threadPool);
+        logger.debug("[TEST-CLEANUP] Thread pool terminated");
     }
 
     /**
@@ -905,28 +920,20 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
         long timeoutSeconds
     ) throws Exception {
         // Wait for client to finish receiving all pages (including marker pages)
+        logger.debug(
+            "[TEST] waitForClientCompletion: waiting for source handler to finish (isFinished={})",
+            client.getServerToClientSourceHandler().isFinished()
+        );
         assertBusy(() -> assertTrue("Client source should be finished", client.getServerToClientSourceHandler().isFinished()));
+        logger.debug("[TEST] waitForClientCompletion: source handler finished");
 
         // Wait for batch exchange status response (should indicate success)
+        logger.debug(
+            "[TEST] waitForClientCompletion: waiting for batchExchangeStatusFuture (isDone={})",
+            batchExchangeStatusFuture.isDone()
+        );
         batchExchangeStatusFuture.actionGet(timeoutSeconds, TimeUnit.SECONDS);
-    }
-
-    /**
-     * Wait for server thread to complete and check for exceptions.
-     */
-    private void waitForServerThreadAndCheckExceptions(Thread serverThread, AtomicReference<Exception> serverException)
-        throws InterruptedException {
-        waitForServerThreadAndCheckExceptions(serverThread, serverException, TEST_TIMEOUT_SECONDS * 1000);
-    }
-
-    private void waitForServerThreadAndCheckExceptions(Thread serverThread, AtomicReference<Exception> serverException, long timeoutMs)
-        throws InterruptedException {
-        serverThread.join(timeoutMs);
-        assertFalse("Server thread should have completed", serverThread.isAlive());
-
-        if (serverException.get() != null) {
-            throw new AssertionError("Server thread failed", serverException.get());
-        }
+        logger.debug("[TEST] waitForClientCompletion: batchExchangeStatusFuture completed");
     }
 
     /**
@@ -941,103 +948,29 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
         int numBatches
     ) {
         // Verify batch processing completion
-        logger.info("[TEST] Verifying batch processing results");
+        logger.debug("[TEST] Verifying batch processing results");
         verifyBasicBatchResults(batchesSent, processedBatches, callbackBatchIds, numBatches);
 
         // Verify we received result pages
         List<Page> receivedOutputPages = allOutputPagesRef.get();
         int expectedTotalPages = expectedOutputBatches.stream().mapToInt(List::size).sum();
-        logger.info("[TEST] Received {} result pages, expected {} total pages", receivedOutputPages.size(), expectedTotalPages);
+        logger.debug("[TEST] Received {} result pages, expected {} total pages", receivedOutputPages.size(), expectedTotalPages);
 
         // Verify data correctness
-        logger.info("[TEST] Verifying data correctness");
+        logger.debug("[TEST] Verifying data correctness");
         verifyBidirectionalBatchDataCorrectness(expectedOutputBatches, receivedOutputPages, numBatches);
-        logger.info("[TEST] Data verification passed");
+        logger.debug("[TEST] Data verification passed");
 
         // Verify pageIndexInBatch is sequential within each batch
-        logger.info("[TEST] Verifying pageIndexInBatch ordering");
+        logger.debug("[TEST] Verifying pageIndexInBatch ordering");
         verifyPageIndexInBatchOrdering(receivedOutputPages);
-        logger.info("[TEST] pageIndexInBatch verification passed");
+        logger.debug("[TEST] pageIndexInBatch verification passed");
 
         // Release collected pages
-        logger.info("[TEST] Releasing collected pages");
+        logger.debug("[TEST] Releasing collected pages");
         for (Page page : receivedOutputPages) {
             page.releaseBlocks();
         }
-    }
-
-    private Thread createServerThread(
-        TestInfrastructure infra,
-        ThreadPool threadPool,
-        AtomicReference<Exception> serverException,
-        long driverTimeoutSeconds,
-        CountDownLatch serverInitializedLatch,
-        String sessionId
-    ) {
-        return new Thread(() -> {
-            try {
-                // In production workflow, the server would send a Transport Request to the client that includes the plan and exchange IDs.
-                // Then the server will Reply with an acknowledgment and that it is ready to receive data.
-                // Here, for testing purposes, we skip those steps and use the method signature to pass parameters directly.
-                // And the serverInitializedLatch tells the main thread when the server is ready for the client to connect.
-                logger.info("[TEST-SERVER] Creating BidirectionalBatchExchangeServer with sessionId={}", sessionId);
-                Task mockTask = mock(Task.class);
-
-                // Create operators for server (server creates its own operators)
-                logger.info("[TEST-SERVER] Creating server driver context");
-                DriverContext driverContext = driverContext();
-                logger.info("[TEST-SERVER] Creating operators for server");
-                EvalOperator addOneOperator = createAddOneOperator(driverContext);
-
-                // Stage 1: Create BidirectionalBatchExchangeServer
-                // Use worker-specific IDs to match what the client's worker will use (worker0)
-                String clientToServerId = BidirectionalBatchExchangeBase.buildClientToServerId(sessionId) + "/worker0";
-                String serverToClientId = BidirectionalBatchExchangeBase.buildServerToClientId(sessionId) + "/worker0";
-                BidirectionalBatchExchangeServer server = new BidirectionalBatchExchangeServer(
-                    sessionId,
-                    clientToServerId,
-                    serverToClientId,
-                    infra.serverExchangeService(),
-                    threadPool.executor(ThreadPool.Names.SEARCH),
-                    10,
-                    infra.serverTransportService(),
-                    mockTask,
-                    infra.clientTransportService().getLocalNode(),
-                    SINGLE_CLIENT_SETTINGS
-                );
-
-                // Stage 2: Start with operators
-                server.startWithOperators(
-                    driverContext,
-                    threadPool.getThreadContext(),
-                    List.of(addOneOperator),
-                    "test-cluster",
-                    () -> {},
-                    ActionListener.noop()
-                );
-                logger.info("[TEST-SERVER] Server initialized successfully");
-
-                // Batch processing is already started in the constructor
-                // This connects to the client's sink handler (client is already initialized on the main thread)
-                logger.info("[TEST-SERVER] Getting driver future");
-                PlainActionFuture<Void> driverFuture = server.getDriverFuture();
-                logger.info("[TEST-SERVER] Driver future retrieved");
-
-                // Signal that server has initialized (sink handler created) - client can now connect
-                if (serverInitializedLatch != null) {
-                    serverInitializedLatch.countDown();
-                }
-
-                // Wait for driver to complete
-                driverFuture.actionGet(driverTimeoutSeconds, TimeUnit.SECONDS);
-
-                // Cleanup
-                server.close();
-            } catch (Exception e) {
-                logger.error("[TEST-SERVER] Error in server thread", e);
-                serverException.set(e);
-            }
-        }, "server-thread");
     }
 
     /**
@@ -1105,15 +1038,10 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
     /**
      * Send all batches upfront from a list of batches.
      */
-    private void sendAllBatchesUpfront(
-        BidirectionalBatchExchangeClient client,
-        List<List<Page>> batches,
-        AtomicInteger batchesSent,
-        DiscoveryNode serverNode
-    ) {
+    private void sendAllBatchesUpfront(BidirectionalBatchExchangeClient client, List<List<Page>> batches, AtomicInteger batchesSent) {
         for (int batchId = 0; batchId < batches.size(); batchId++) {
             List<Page> batchPages = batches.get(batchId);
-            sendBatchFromPages(client, batchPages, batchId, batchesSent, serverNode);
+            sendBatchFromPages(client, batchPages, batchId, batchesSent);
         }
     }
 
@@ -1124,8 +1052,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
         BidirectionalBatchExchangeClient client,
         List<Page> batchPages,
         int batchId,
-        AtomicInteger batchesSent,
-        DiscoveryNode serverNode
+        AtomicInteger batchesSent
     ) {
         if (batchPages.isEmpty()) {
             logger.debug("[TEST-CLIENT] Sending empty batch marker for batchId={}", batchId);
@@ -1246,6 +1173,38 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
         // Verify batch IDs in callbacks
         for (int i = 0; i < numBatches; i++) {
             assertThat("Callback batch ID " + i + " should match", callbackBatchIds.get(i), equalTo((long) i));
+        }
+    }
+
+    /**
+     * Verify that the correct number of workers were created on the correct server nodes.
+     * In multiNode mode with enough batches, all server nodes should be used.
+     * Workers should always be on server nodes, never on the client node.
+     */
+    private void verifyWorkerNodes(TestInfrastructure infra, List<String> createdWorkerNodeIds, int numBatches) {
+        // Determine expected number of workers: min(numBatches, numServers)
+        // because workers are created lazily, one per batch until maxWorkers is reached
+        int expectedWorkers = Math.min(numBatches, infra.numServers());
+        assertThat("Expected " + expectedWorkers + " workers to be created", createdWorkerNodeIds.size(), equalTo(expectedWorkers));
+
+        // Collect the set of unique node IDs used
+        Set<String> uniqueNodeIds = new HashSet<>(createdWorkerNodeIds);
+        // Collect the server node IDs from infra
+        Set<String> serverNodeIds = infra.serverTransportServices()
+            .stream()
+            .map(ts -> ts.getLocalNode().getId())
+            .collect(Collectors.toSet());
+        String clientNodeId = infra.clientTransportService().getLocalNode().getId();
+
+        // All worker nodes must be server nodes, not the client node
+        for (String nodeId : uniqueNodeIds) {
+            assertThat("Worker node " + nodeId + " should be a server node", serverNodeIds, hasItem(nodeId));
+            assertNotEquals("Worker node should not be the client node", clientNodeId, nodeId);
+        }
+
+        // In multiNode mode with enough batches, all server nodes should be used
+        if (useMultiNode && numBatches >= infra.numServers()) {
+            assertThat("All server nodes should be used in multiNode mode", uniqueNodeIds, equalTo(serverNodeIds));
         }
     }
 
@@ -1431,7 +1390,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
         }
 
         assertThat("Should have verified at least one batch", expectedNextIndexByBatch.size(), greaterThan(0));
-        logger.info("[TEST] Verified pageIndexInBatch ordering for {} batches", expectedNextIndexByBatch.size());
+        logger.debug("[TEST] Verified pageIndexInBatch ordering for {} batches", expectedNextIndexByBatch.size());
     }
 
     /**

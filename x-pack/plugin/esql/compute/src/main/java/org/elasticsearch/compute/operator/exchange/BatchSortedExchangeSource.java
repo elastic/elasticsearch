@@ -37,9 +37,9 @@ public class BatchSortedExchangeSource implements Closeable {
     private final ExchangeSource delegate;
 
     /**
-     * Tracks state for a single batch.
+     * Tracks page ordering state for a single batch.
      */
-    private static class BatchState {
+    private static class PageOrderingState {
         /** The next pageIndexInBatch we expect to output */
         int nextExpectedIndex = 0;
         /** Pages waiting to be output, keyed by pageIndexInBatch */
@@ -54,7 +54,7 @@ public class BatchSortedExchangeSource implements Closeable {
     }
 
     /** State for each active batch, keyed by batchId */
-    private final Map<Long, BatchState> activeBatches = new HashMap<>();
+    private final Map<Long, PageOrderingState> activeBatches = new HashMap<>();
 
     /** Queue of pages ready to be output (in correct order) */
     private final Queue<BatchPage> outputQueue = new ArrayDeque<>();
@@ -124,7 +124,7 @@ public class BatchSortedExchangeSource implements Closeable {
         );
 
         // Get or create batch state
-        BatchState state = activeBatches.computeIfAbsent(batchId, k -> new BatchState());
+        PageOrderingState state = activeBatches.computeIfAbsent(batchId, k -> new PageOrderingState());
 
         // Record the last page index if this is the last page
         if (isLast) {
@@ -171,7 +171,7 @@ public class BatchSortedExchangeSource implements Closeable {
     /**
      * Flush any buffered pages that are now in sequence.
      */
-    private void flushBufferedPages(BatchState state) {
+    private void flushBufferedPages(PageOrderingState state) {
         while (state.bufferedPages.isEmpty() == false) {
             Integer nextKey = state.bufferedPages.firstKey();
             if (nextKey == state.nextExpectedIndex) {
@@ -284,7 +284,7 @@ public class BatchSortedExchangeSource implements Closeable {
      * Check if there are any buffered pages waiting for missing pages.
      */
     private boolean hasNoBufferedPages() {
-        for (BatchState state : activeBatches.values()) {
+        for (PageOrderingState state : activeBatches.values()) {
             if (state.bufferedPages.isEmpty() == false) {
                 return false;
             }
@@ -309,7 +309,7 @@ public class BatchSortedExchangeSource implements Closeable {
     @Override
     public void close() {
         // Release any buffered pages
-        for (BatchState state : activeBatches.values()) {
+        for (PageOrderingState state : activeBatches.values()) {
             for (BatchPage page : state.bufferedPages.values()) {
                 page.releaseBlocks();
             }

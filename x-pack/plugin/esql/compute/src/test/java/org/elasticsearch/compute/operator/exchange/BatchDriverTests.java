@@ -77,9 +77,7 @@ public class BatchDriverTests extends ESTestCase {
             List<List<Page>> batches = testData.batches();
             List<List<Page>> expectedOutputBatches = testData.expectedOutputBatches();
 
-            // Track processed batches and callbacks
-            AtomicInteger processedBatches = new AtomicInteger(0);
-            List<Long> callbackBatchIds = new ArrayList<>();
+            // Track processed batches
             List<List<Page>> actualOutputBatches = new ArrayList<>();
             for (int i = 0; i < numBatches; i++) {
                 actualOutputBatches.add(new ArrayList<>());
@@ -142,13 +140,8 @@ public class BatchDriverTests extends ESTestCase {
             List<Page> allOutputPages = new ArrayList<>();
             TestResultPageSinkOperator sinkOperator = createSinkOperatorWithBatchDetection(allOutputPages, actualOutputBatches, numBatches);
 
-            // Create BatchDriver
-            BatchDriver batchDriver = createBatchDriver(driverContext, exchange.sourceOperator, addOneOperator, sinkOperator);
-
-            // Set up callback (but batches are already fed, so this just tracks completion)
-            setupBatchDoneCallback(batchDriver, threadPool, () -> {
-                // No-op since all batches are already fed
-            }, processedBatches, callbackBatchIds);
+            // Create BatchDriver - no callback needed since all batches are fed upfront
+            BatchDriver batchDriver = createBatchDriver(driverContext, exchange.sourceOperator, addOneOperator, sinkOperator, () -> {});
 
             // Start driver first
             ThreadContext threadContext = threadPool.getThreadContext();
@@ -174,7 +167,7 @@ public class BatchDriverTests extends ESTestCase {
             assertThat("Batch feeding thread should have completed", batchFeedingThread.isAlive(), equalTo(false));
 
             // Verify batch processing completion
-            verifyBasicBatchResults(batchesSent, processedBatches, callbackBatchIds, numBatches);
+            verifyBasicBatchResults(batchesSent, numBatches);
 
             // Verify data correctness
             verifyDataCorrectness(expectedOutputBatches, actualOutputBatches, numBatches, 1);
@@ -186,114 +179,27 @@ public class BatchDriverTests extends ESTestCase {
 
     /**
      * Test that verifies we fail when receiving a page for batch 2 while still processing batch 1,
-     * even after finish() is called.
+     * even after finish() is called on the exchange sink.
      */
     public void testOutOfOrderBatchPagesAfterFinish() throws Exception {
-        DriverContext driverContext = driverContext();
-        ThreadPool threadPool = threadPool();
-        try {
-            // Create test data: 3 batches
-            TestData testData = createSimpleTestBatches(driverContext, 3, 2, 2, 3, 3);
-            List<List<Page>> batches = testData.batches();
-
-            // Set up exchange
-            ExchangeSetup exchange = setupExchange(driverContext, threadPool);
-
-            // Create operators
-            EvalOperator addOneOperator = createAddOneOperator(driverContext);
-            List<Page> allOutputPages = new ArrayList<>();
-            TestResultPageSinkOperator sinkOperator = new TestResultPageSinkOperator(allOutputPages::add);
-
-            // Create BatchDriver
-            BatchDriver batchDriver = createBatchDriver(driverContext, exchange.sourceOperator, addOneOperator, sinkOperator);
-
-            // Start driver
-            ThreadContext threadContext = threadPool.getThreadContext();
-            PlainActionFuture<Void> driverFuture = new PlainActionFuture<>();
-            Driver.start(threadContext, threadPool.executor(ThreadPool.Names.SEARCH), batchDriver, 1000, driverFuture);
-
-            // Feed batches in a way that triggers out-of-order error:
-            // 1. Send batch 0 completely
-            // 2. Send batch 1 pages but NOT the last page (so batch 1 is still processing)
-            // 3. Send batch 2 page (should trigger error)
-            // 4. Call finish() - driver should still process buffered pages and detect error
-            Thread batchFeedingThread = new Thread(() -> {
-                try {
-                    // Send batch 0 completely
-                    List<Page> batch0Pages = batches.get(0);
-                    for (int pageIdx = 0; pageIdx < batch0Pages.size(); pageIdx++) {
-                        Page page = batch0Pages.get(pageIdx);
-                        boolean isLastPageInBatch = (pageIdx == batch0Pages.size() - 1);
-                        BatchPage batchPage = new BatchPage(page, 0, pageIdx, isLastPageInBatch);
-                        waitForExchangeSink(exchange.exchangeSink);
-                        exchange.exchangeSink.addPage(batchPage);
-                    }
-
-                    // Send batch 1 pages but NOT the last page (so batch 1 is still processing)
-                    List<Page> batch1Pages = batches.get(1);
-                    for (int pageIdx = 0; pageIdx < batch1Pages.size() - 1; pageIdx++) {
-                        Page page = batch1Pages.get(pageIdx);
-                        BatchPage batchPage = new BatchPage(page, 1, pageIdx, false); // Not last page
-                        waitForExchangeSink(exchange.exchangeSink);
-                        exchange.exchangeSink.addPage(batchPage);
-                    }
-
-                    // Now send a page for batch 2 while batch 1 is still processing (not ended)
-                    // This should trigger the IllegalStateException
-                    List<Page> batch2Pages = batches.get(2);
-                    if (batch2Pages.isEmpty() == false) {
-                        Page page = batch2Pages.get(0);
-                        BatchPage batchPage = new BatchPage(page, 2, 0, false);
-                        waitForExchangeSink(exchange.exchangeSink);
-                        exchange.exchangeSink.addPage(batchPage);
-                    } else {
-                        // If batch 2 is empty, send a marker
-                        BatchPage marker = BatchPage.createMarker(2, 0);
-                        waitForExchangeSink(exchange.exchangeSink);
-                        exchange.exchangeSink.addPage(marker);
-                    }
-
-                    // Finish the sink - driver should still process buffered pages and detect error
-                    exchange.exchangeSink.finish();
-                } catch (Exception e) {
-                    logger.error("[TEST] Error in batch feeding thread", e);
-                    throw new AssertionError("Error in batch feeding thread", e);
-                }
-            }, "batch-feeding-thread");
-            batchFeedingThread.start();
-
-            // Wait for driver to fail with IllegalStateException
-            // Even though finish() was called, the driver should process all buffered pages
-            // and detect the out-of-order batch error
-            Exception driverException = expectThrows(Exception.class, () -> { driverFuture.actionGet(30, TimeUnit.SECONDS); });
-
-            // Unwrap the exception - actionGet wraps exceptions, so check the cause chain
-            Throwable cause = ExceptionsHelper.unwrap(driverException, IllegalStateException.class);
-            assertNotNull(
-                "Driver should throw IllegalStateException when receiving page for batch 2 while processing batch 1, even after finish()",
-                cause
-            );
-            assertThat("Cause should be IllegalStateException", cause, instanceOf(IllegalStateException.class));
-            assertThat(
-                "Exception message should indicate batch mismatch",
-                cause.getMessage(),
-                containsString("Received page for batch 2 but currently processing batch 1")
-            );
-
-            // Wait for batch feeding thread to finish
-            batchFeedingThread.join(30000);
-            assertThat("Batch feeding thread should have completed", batchFeedingThread.isAlive(), equalTo(false));
-
-        } finally {
-            terminate(threadPool);
-        }
+        assertOutOfOrderBatchPagesDetected(true);
     }
 
     /**
-     * Test that verifies we fail when receiving a page for batch 2 while still processing batch 1.
-     * This tests the out-of-order batch page detection.
+     * Test that verifies we fail when receiving a page for batch 2 while still processing batch 1,
+     * without calling finish() on the exchange sink.
      */
     public void testOutOfOrderBatchPages() throws Exception {
+        assertOutOfOrderBatchPagesDetected(false);
+    }
+
+    /**
+     * Helper that sets up a BatchDriver, feeds batches out of order (batch 2 page while batch 1 is still
+     * processing), and asserts that the driver fails with the expected IllegalStateException.
+     *
+     * @param callFinish whether to call finish() on the exchange sink after sending the out-of-order page
+     */
+    private void assertOutOfOrderBatchPagesDetected(boolean callFinish) throws Exception {
         DriverContext driverContext = driverContext();
         ThreadPool threadPool = threadPool();
         try {
@@ -301,29 +207,15 @@ public class BatchDriverTests extends ESTestCase {
             TestData testData = createSimpleTestBatches(driverContext, 3, 2, 2, 3, 3);
             List<List<Page>> batches = testData.batches();
 
-            // Track processed batches and callbacks
-            AtomicInteger processedBatches = new AtomicInteger(0);
-            List<Long> callbackBatchIds = new ArrayList<>();
-            List<List<Page>> actualOutputBatches = new ArrayList<>();
-            for (int i = 0; i < 3; i++) {
-                actualOutputBatches.add(new ArrayList<>());
-            }
-
             // Set up exchange
             ExchangeSetup exchange = setupExchange(driverContext, threadPool);
 
             // Create operators
             EvalOperator addOneOperator = createAddOneOperator(driverContext);
-            List<Page> allOutputPages = new ArrayList<>();
-            TestResultPageSinkOperator sinkOperator = createSinkOperatorWithBatchDetection(allOutputPages, actualOutputBatches, 3);
+            SinkOperator sinkOperator = new TestResultPageSinkOperator(page -> {});
 
-            // Create BatchDriver
-            BatchDriver batchDriver = createBatchDriver(driverContext, exchange.sourceOperator, addOneOperator, sinkOperator);
-
-            // Set up callback
-            setupBatchDoneCallback(batchDriver, threadPool, () -> {
-                // No-op - we expect failure before callbacks
-            }, processedBatches, callbackBatchIds);
+            // Create BatchDriver - no callback needed for this error test
+            BatchDriver batchDriver = createBatchDriver(driverContext, exchange.sourceOperator, addOneOperator, sinkOperator, () -> {});
 
             // Start driver
             ThreadContext threadContext = threadPool.getThreadContext();
@@ -334,6 +226,7 @@ public class BatchDriverTests extends ESTestCase {
             // 1. Send batch 0 completely
             // 2. Send batch 1 pages but NOT the last page (so batch 1 is still processing)
             // 3. Send batch 2 page (should trigger error)
+            // 4. Optionally call finish()
             Thread batchFeedingThread = new Thread(() -> {
                 try {
                     // Send batch 0 completely
@@ -370,8 +263,9 @@ public class BatchDriverTests extends ESTestCase {
                         exchange.exchangeSink.addPage(marker);
                     }
 
-                    // Finish the sink
-                    exchange.exchangeSink.finish();
+                    if (callFinish) {
+                        exchange.exchangeSink.finish();
+                    }
                 } catch (Exception e) {
                     logger.error("[TEST] Error in batch feeding thread", e);
                     throw new AssertionError("Error in batch feeding thread", e);
@@ -548,38 +442,6 @@ public class BatchDriverTests extends ESTestCase {
     }
 
     /**
-     * Set up batch done callback that feeds the next batch.
-     */
-    private void setupBatchDoneCallback(
-        BatchDriver batchDriver,
-        ThreadPool threadPool,
-        Runnable feedBatch,
-        AtomicInteger processedBatches,
-        List<Long> callbackBatchIds
-    ) {
-        batchDriver.onBatchDone().addListener(new ActionListener<Long>() {
-            @Override
-            public void onResponse(Long batchId) {
-                logger.info("[TEST] Batch callback: Batch {} completed", batchId);
-                callbackBatchIds.add(batchId);
-                processedBatches.incrementAndGet();
-
-                // Feed the next batch asynchronously in the callback
-                threadPool.executor(ThreadPool.Names.SEARCH).execute(() -> {
-                    logger.info("[TEST] Batch callback: Executing feedBatch for next batch after batch {}", batchId);
-                    feedBatch.run();
-                });
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.error("[TEST] Batch callback failed", e);
-                throw new AssertionError("Batch callback failed", e);
-            }
-        });
-    }
-
-    /**
      * Start the driver and wait for completion.
      * The driver runs in the executor thread pool, while batch feeding runs in a separate thread
      * to help catch timing-related issues.
@@ -615,33 +477,8 @@ public class BatchDriverTests extends ESTestCase {
     /**
      * Verify basic batch processing results.
      */
-    private void verifyBasicBatchResults(
-        AtomicInteger batchesSent,
-        AtomicInteger processedBatches,
-        List<Long> callbackBatchIds,
-        int numBatches
-    ) {
+    private void verifyBasicBatchResults(AtomicInteger batchesSent, int numBatches) {
         assertThat("All batches should be sent", batchesSent.get(), equalTo(numBatches));
-        assertThat("All batches should be processed", processedBatches.get(), equalTo(numBatches));
-        assertThat("All callbacks should be called", callbackBatchIds.size(), equalTo(numBatches));
-
-        // Verify batch IDs in callbacks
-        for (int i = 0; i < numBatches; i++) {
-            assertThat(
-                "Callback batch ID " + i + " should match BatchPage batchId when isLastPageInBatch=true",
-                callbackBatchIds.get(i),
-                equalTo((long) i)
-            );
-        }
-
-        // Verify that BatchDriver detected batch IDs correctly from BatchPage
-        for (int i = 0; i < numBatches; i++) {
-            assertThat(
-                "BatchDriver should have detected batch " + i + " from BatchPage",
-                callbackBatchIds.contains((long) i),
-                equalTo(true)
-            );
-        }
     }
 
     /**
@@ -669,39 +506,9 @@ public class BatchDriverTests extends ESTestCase {
         ThreadPool threadPool = threadPool();
         try {
             int numBatches = 1;
-            List<List<Page>> batches = new ArrayList<>();
-            List<List<Page>> expectedOutputBatches = new ArrayList<>();
-
-            // Create an empty batch (no pages, will use marker)
-            batches.add(new ArrayList<>());
-            expectedOutputBatches.add(new ArrayList<>());
-
-            // Set up exchange
-            ExchangeSetup exchange = setupExchange(driverContext, threadPool);
-
-            // Create feed batch runnable
-            AtomicInteger batchesSent = new AtomicInteger(0);
-            Runnable feedBatch = createFeedBatchRunnable(batches, exchange.exchangeSink, numBatches, batchesSent);
-
-            // Create operators
-            EvalOperator addOneOperator = createAddOneOperator(driverContext);
-            List<Page> allOutputPages = new ArrayList<>();
-            TestResultPageSinkOperator sinkOperator = new TestResultPageSinkOperator(allOutputPages::add);
-
-            // Create BatchDriver
-            BatchDriver batchDriver = createBatchDriver(driverContext, exchange.sourceOperator, addOneOperator, sinkOperator);
-
-            // Set up callback
-            AtomicInteger processedBatches = new AtomicInteger(0);
-            List<Long> callbackBatchIds = new ArrayList<>();
-            setupBatchDoneCallback(batchDriver, threadPool, feedBatch, processedBatches, callbackBatchIds);
-
-            // Run driver and wait (batch feeding runs in a separate thread)
-            runDriverAndWait(threadPool, batchDriver, feedBatch);
-
-            // Verify batch processing completion: all batches sent, processed, and callbacks received
-            verifyBasicBatchResults(batchesSent, processedBatches, callbackBatchIds, numBatches);
-            assertThat("Empty batch should have no output pages", allOutputPages.size(), equalTo(0));
+            List<List<Page>> batches = List.of(new ArrayList<>());
+            List<List<Page>> expectedOutputBatches = List.of(new ArrayList<>());
+            runBatchTest(driverContext, threadPool, batches, expectedOutputBatches, numBatches);
         } finally {
             terminate(threadPool);
         }
@@ -731,122 +538,9 @@ public class BatchDriverTests extends ESTestCase {
         DriverContext driverContext = driverContext();
         ThreadPool threadPool = threadPool();
         try {
-            int numBatches = 4;
-            List<List<Page>> batches = new ArrayList<>();
-            List<List<Page>> expectedOutputBatches = new ArrayList<>();
-
-            // Batch 0: Empty batch
-            batches.add(new ArrayList<>());
-            expectedOutputBatches.add(new ArrayList<>());
-
-            // Batch 1: Single page
-            // Use values that match batchId 1: batchId * 100 + pageIdx * 10 = 1 * 100 + 0 * 10 = 100
-            List<Page> singlePageBatch = new ArrayList<>();
-            List<Page> singlePageExpected = new ArrayList<>();
-            int batchId1 = 1;
-            int pageIdx1 = 0;
-            IntBlock inputBlock1 = driverContext.blockFactory()
-                .newIntBlockBuilder(2)
-                .appendInt(batchId1 * 100 + pageIdx1 * 10)
-                .appendInt(batchId1 * 100 + pageIdx1 * 10 + 1)
-                .build();
-            Page inputPage1 = new Page(inputBlock1);
-            IntBlock expectedBlock1 = driverContext.blockFactory()
-                .newIntBlockBuilder(2)
-                .appendInt(batchId1 * 100 + pageIdx1 * 10 + 1)
-                .appendInt(batchId1 * 100 + pageIdx1 * 10 + 2)
-                .build();
-            Page expectedPage1 = new Page(expectedBlock1);
-            singlePageBatch.add(inputPage1);
-            singlePageExpected.add(expectedPage1);
-            batches.add(singlePageBatch);
-            expectedOutputBatches.add(singlePageExpected);
-
-            // Batch 2: Multi-page (3 pages)
-            // Use values that match batchId 2: batchId * 100 + pageIdx * 10
-            List<Page> multiPageBatch = new ArrayList<>();
-            List<Page> multiPageExpected = new ArrayList<>();
-            int batchId2 = 2;
-            for (int pageIdx = 0; pageIdx < 3; pageIdx++) {
-                IntBlock inputBlock = driverContext.blockFactory()
-                    .newIntBlockBuilder(2)
-                    .appendInt(batchId2 * 100 + pageIdx * 10)
-                    .appendInt(batchId2 * 100 + pageIdx * 10 + 1)
-                    .build();
-                Page inputPage = new Page(inputBlock);
-                IntBlock expectedBlock = driverContext.blockFactory()
-                    .newIntBlockBuilder(2)
-                    .appendInt(batchId2 * 100 + pageIdx * 10 + 1)
-                    .appendInt(batchId2 * 100 + pageIdx * 10 + 2)
-                    .build();
-                Page expectedPage = new Page(expectedBlock);
-                multiPageBatch.add(inputPage);
-                multiPageExpected.add(expectedPage);
-            }
-            batches.add(multiPageBatch);
-            expectedOutputBatches.add(multiPageExpected);
-
-            // Batch 3: Another single page
-            // Use values that match batchId 3: batchId * 100 + pageIdx * 10 = 3 * 100 + 0 * 10 = 300
-            List<Page> singlePageBatch2 = new ArrayList<>();
-            List<Page> singlePageExpected2 = new ArrayList<>();
-            int batchId3 = 3;
-            int pageIdx3 = 0;
-            IntBlock inputBlock2 = driverContext.blockFactory().newIntBlockBuilder(1).appendInt(batchId3 * 100 + pageIdx3 * 10).build();
-            Page inputPage2 = new Page(inputBlock2);
-            IntBlock expectedBlock2 = driverContext.blockFactory()
-                .newIntBlockBuilder(1)
-                .appendInt(batchId3 * 100 + pageIdx3 * 10 + 1)
-                .build();
-            Page expectedPage2 = new Page(expectedBlock2);
-            singlePageBatch2.add(inputPage2);
-            singlePageExpected2.add(expectedPage2);
-            batches.add(singlePageBatch2);
-            expectedOutputBatches.add(singlePageExpected2);
-
-            // Set up exchange
-            ExchangeSetup exchange = setupExchange(driverContext, threadPool);
-
-            // Track processed batches and callbacks
-            AtomicInteger processedBatches = new AtomicInteger(0);
-            List<Long> callbackBatchIds = new ArrayList<>();
-            List<List<Page>> actualOutputBatches = new ArrayList<>();
-            for (int i = 0; i < numBatches; i++) {
-                actualOutputBatches.add(new ArrayList<>());
-            }
-
-            // Create feed batch runnable
-            AtomicInteger batchesSent = new AtomicInteger(0);
-            Runnable feedBatch = createFeedBatchRunnable(batches, exchange.exchangeSink, numBatches, batchesSent);
-
-            // Create operators
-            EvalOperator addOneOperator = createAddOneOperator(driverContext);
-            List<Page> allOutputPages = new ArrayList<>();
-            TestResultPageSinkOperator sinkOperator = createSinkOperatorWithBatchDetection(allOutputPages, actualOutputBatches, numBatches);
-
-            // Create BatchDriver
-            BatchDriver batchDriver = createBatchDriver(driverContext, exchange.sourceOperator, addOneOperator, sinkOperator);
-
-            // Set up callback
-            setupBatchDoneCallback(batchDriver, threadPool, feedBatch, processedBatches, callbackBatchIds);
-
-            // Run driver and wait (batch feeding runs in a separate thread)
-            runDriverAndWait(threadPool, batchDriver, feedBatch);
-
-            // Verify batch processing completion: all batches sent, processed, and callbacks received
-            verifyBasicBatchResults(batchesSent, processedBatches, callbackBatchIds, numBatches);
-
-            // Verify batch 0 (empty) has no output
-            assertThat("Empty batch should have no output", actualOutputBatches.get(0).size(), equalTo(0));
-
-            // Verify batch 1 (single page)
-            assertThat("Single page batch should have 1 output page", actualOutputBatches.get(1).size(), equalTo(1));
-
-            // Verify batch 2 (multi-page)
-            assertThat("Multi-page batch should have 3 output pages", actualOutputBatches.get(2).size(), equalTo(3));
-
-            // Verify batch 3 (single page)
-            assertThat("Second single page batch should have 1 output page", actualOutputBatches.get(3).size(), equalTo(1));
+            // Batch 0: empty, Batch 1: 1 page, Batch 2: 3 pages, Batch 3: 1 page
+            TestData testData = createTestBatchesWithPageCounts(driverContext, 2, 0, 1, 3, 1);
+            runBatchTest(driverContext, threadPool, testData.batches(), testData.expectedOutputBatches(), 4);
         } finally {
             terminate(threadPool);
         }
@@ -915,9 +609,7 @@ public class BatchDriverTests extends ESTestCase {
                 expectedOutputBatches.add(expectedOutputPages);
             }
 
-            // Track processed batches and callbacks
-            AtomicInteger processedBatches = new AtomicInteger(0);
-            List<Long> callbackBatchIds = new ArrayList<>();
+            // Track processed batches
             List<List<Page>> actualOutputBatches = new ArrayList<>();
             for (int i = 0; i < numBatches; i++) {
                 actualOutputBatches.add(new ArrayList<>());
@@ -951,19 +643,16 @@ public class BatchDriverTests extends ESTestCase {
                 () -> "test",
                 exchange.sourceOperator,
                 List.of(addOneOperator, filterOperator),
-                BatchDriver.wrapSink(new MarkerFilteringSinkOperator(sinkOperator)),
+                BatchDriver.wrapSink(new MarkerFilteringSinkOperator(sinkOperator, feedBatch)),
                 TimeValue.timeValueSeconds(1),
                 () -> {}
             );
 
-            // Set up callback
-            setupBatchDoneCallback(batchDriver, threadPool, feedBatch, processedBatches, callbackBatchIds);
-
             // Run driver and wait (batch feeding runs in a separate thread)
             runDriverAndWait(threadPool, batchDriver, feedBatch);
 
-            // Verify batch processing completion: all batches sent, processed, and callbacks received
-            verifyBasicBatchResults(batchesSent, processedBatches, callbackBatchIds, numBatches);
+            // Verify batch processing completion
+            verifyBasicBatchResults(batchesSent, numBatches);
 
             // Verify output data - batches 2 and 3 should have no output (filtered out)
             assertThat("Batch 0 should have 2 output pages", actualOutputBatches.get(0).size(), equalTo(2));
@@ -1119,9 +808,7 @@ public class BatchDriverTests extends ESTestCase {
                 expectedOutputBatches.add(expectedOutputPages);
             }
 
-            // Track processed batches and callbacks
-            AtomicInteger processedBatches = new AtomicInteger(0);
-            List<Long> callbackBatchIds = new ArrayList<>();
+            // Track processed batches
             List<List<Page>> actualOutputBatches = new ArrayList<>();
             for (int i = 0; i < numBatches; i++) {
                 actualOutputBatches.add(new ArrayList<>());
@@ -1155,19 +842,16 @@ public class BatchDriverTests extends ESTestCase {
                 () -> "test",
                 exchange.sourceOperator,
                 List.of(mvExpandOperator, addOneOperator),
-                BatchDriver.wrapSink(new MarkerFilteringSinkOperator(sinkOperator)),
+                BatchDriver.wrapSink(new MarkerFilteringSinkOperator(sinkOperator, feedBatch)),
                 TimeValue.timeValueSeconds(1),
                 () -> {}
             );
 
-            // Set up callback
-            setupBatchDoneCallback(batchDriver, threadPool, feedBatch, processedBatches, callbackBatchIds);
-
             // Run driver and wait (batch feeding runs in a separate thread)
             runDriverAndWait(threadPool, batchDriver, feedBatch);
 
-            // Verify batch processing completion: all batches sent, processed, and callbacks received
-            verifyBasicBatchResults(batchesSent, processedBatches, callbackBatchIds, numBatches);
+            // Verify batch processing completion
+            verifyBasicBatchResults(batchesSent, numBatches);
 
             // Verify that we got more output pages than input pages due to MvExpand splitting
             int totalInputPages = batches.stream().mapToInt(List::size).sum();
@@ -1243,9 +927,7 @@ public class BatchDriverTests extends ESTestCase {
         List<List<Page>> expectedOutputBatches,
         int numBatches
     ) throws Exception {
-        // Track processed batches and callbacks
-        AtomicInteger processedBatches = new AtomicInteger(0);
-        List<Long> callbackBatchIds = new ArrayList<>();
+        // Track processed batches
         List<List<Page>> actualOutputBatches = new ArrayList<>();
         for (int i = 0; i < numBatches; i++) {
             actualOutputBatches.add(new ArrayList<>());
@@ -1263,17 +945,14 @@ public class BatchDriverTests extends ESTestCase {
         List<Page> allOutputPages = new ArrayList<>();
         TestResultPageSinkOperator sinkOperator = createSinkOperatorWithBatchDetection(allOutputPages, actualOutputBatches, numBatches);
 
-        // Create BatchDriver
-        BatchDriver batchDriver = createBatchDriver(driverContext, exchange.sourceOperator, addOneOperator, sinkOperator);
-
-        // Set up callback
-        setupBatchDoneCallback(batchDriver, threadPool, feedBatch, processedBatches, callbackBatchIds);
+        // Create BatchDriver with callback to feed next batch
+        BatchDriver batchDriver = createBatchDriver(driverContext, exchange.sourceOperator, addOneOperator, sinkOperator, feedBatch);
 
         // Run driver and wait (batch feeding runs in a separate thread)
         runDriverAndWait(threadPool, batchDriver, feedBatch);
 
         // Verify basic results
-        verifyBasicBatchResults(batchesSent, processedBatches, callbackBatchIds, numBatches);
+        verifyBasicBatchResults(batchesSent, numBatches);
 
         // Verify data correctness: compare actual output data with expected values
         // Assumes addOneOperator was used, so output block is at index 1 (new block created by EvalOperator)
@@ -1325,6 +1004,41 @@ public class BatchDriverTests extends ESTestCase {
 
                 batchPages.add(inputPage);
                 expectedOutputPages.add(expectedOutputPage);
+            }
+
+            batches.add(batchPages);
+            expectedOutputBatches.add(expectedOutputPages);
+        }
+
+        return new TestData(batches, expectedOutputBatches);
+    }
+
+    /**
+     * Create test batches with exact page counts per batch.
+     * Values follow the pattern: batchId * 100 + pageIdx * 10 + pos. Expected output is input + 1.
+     * A page count of 0 creates an empty batch (will use a marker page).
+     *
+     * @param positionsPerPage number of positions per page
+     * @param pagesPerBatch exact page counts for each batch
+     */
+    private TestData createTestBatchesWithPageCounts(DriverContext driverContext, int positionsPerPage, int... pagesPerBatch) {
+        List<List<Page>> batches = new ArrayList<>();
+        List<List<Page>> expectedOutputBatches = new ArrayList<>();
+
+        for (int batchId = 0; batchId < pagesPerBatch.length; batchId++) {
+            List<Page> batchPages = new ArrayList<>();
+            List<Page> expectedOutputPages = new ArrayList<>();
+
+            for (int pageIdx = 0; pageIdx < pagesPerBatch[batchId]; pageIdx++) {
+                IntBlock.Builder inputBuilder = driverContext.blockFactory().newIntBlockBuilder(positionsPerPage);
+                IntBlock.Builder expectedBuilder = driverContext.blockFactory().newIntBlockBuilder(positionsPerPage);
+                for (int pos = 0; pos < positionsPerPage; pos++) {
+                    int inputValue = batchId * 100 + pageIdx * 10 + pos;
+                    inputBuilder.appendInt(inputValue);
+                    expectedBuilder.appendInt(inputValue + 1);
+                }
+                batchPages.add(new Page(inputBuilder.build()));
+                expectedOutputPages.add(new Page(expectedBuilder.build()));
             }
 
             batches.add(batchPages);
@@ -1472,7 +1186,8 @@ public class BatchDriverTests extends ESTestCase {
         DriverContext driverContext,
         ExchangeSourceOperator sourceOperator,
         EvalOperator addOneOperator,
-        TestResultPageSinkOperator sinkOperator
+        SinkOperator sinkOperator,
+        Runnable onBatchEnd
     ) {
         return new BatchDriver(
             "test-session",
@@ -1485,7 +1200,7 @@ public class BatchDriverTests extends ESTestCase {
             () -> "test",
             sourceOperator,
             List.of(addOneOperator),
-            BatchDriver.wrapSink(new MarkerFilteringSinkOperator(sinkOperator)),
+            BatchDriver.wrapSink(new MarkerFilteringSinkOperator(sinkOperator, onBatchEnd)),
             TimeValue.timeValueSeconds(1),
             () -> {}
         );
@@ -1495,12 +1210,15 @@ public class BatchDriverTests extends ESTestCase {
      * A sink operator wrapper that filters out BatchPage markers (empty batch signals).
      * This is needed because TestResultPageSinkOperator cannot handle pages with 0 blocks,
      * but PageToBatchPageOperator.flushBatch() sends marker pages for empty batches.
+     * Also triggers onBatchEnd callback when a batch ends (detected via isLastPageInBatch).
      */
     private static class MarkerFilteringSinkOperator extends SinkOperator {
         private final SinkOperator delegate;
+        private final Runnable onBatchEnd;
 
-        MarkerFilteringSinkOperator(SinkOperator delegate) {
+        MarkerFilteringSinkOperator(SinkOperator delegate, Runnable onBatchEnd) {
             this.delegate = delegate;
+            this.onBatchEnd = onBatchEnd;
         }
 
         @Override
@@ -1510,6 +1228,11 @@ public class BatchDriverTests extends ESTestCase {
 
         @Override
         protected void doAddInput(Page page) {
+            // Detect batch end and trigger callback (before filtering)
+            if (page instanceof BatchPage batchPage && batchPage.isLastPageInBatch()) {
+                onBatchEnd.run();
+            }
+
             // Filter out marker pages (BatchPages with isBatchMarkerOnly=true)
             if (page instanceof BatchPage batchPage && batchPage.isBatchMarkerOnly()) {
                 // Just release the marker page, don't pass to delegate

@@ -9,7 +9,6 @@ package org.elasticsearch.compute.operator.exchange;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
@@ -23,7 +22,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Supplier;
 
 /**
@@ -44,7 +42,6 @@ public final class BatchDriver extends Driver {
 
     private final BatchContext batchContext;
     private final PageToBatchPageOperator wrappedSink;
-    private final BatchDoneNotifier batchDoneNotifier = new BatchDoneNotifier();
 
     public BatchDriver(
         String sessionId,
@@ -124,13 +121,6 @@ public final class BatchDriver extends Driver {
     }
 
     /**
-     * Get the notifier for batch completion events.
-     */
-    public BatchDoneNotifier onBatchDone() {
-        return batchDoneNotifier;
-    }
-
-    /**
      * Get the current batch ID.
      */
     public long getBatchId() {
@@ -147,7 +137,7 @@ public final class BatchDriver extends Driver {
         );
 
         // Only complete batch when in DRAINING state
-        if (batchContext.getState() != BatchContext.BatchState.DRAINING) {
+        if (batchContext.getState() != BatchContext.BatchLifecycle.DRAINING) {
             logger.trace("[BatchDriver] Not in DRAINING state, returning early");
             return;
         }
@@ -192,9 +182,6 @@ public final class BatchDriver extends Driver {
         // Transition to IDLE
         batchContext.endBatch();
 
-        // Notify listeners
-        batchDoneNotifier.notifyBatchDone(batchId);
-
         logger.debug("[BatchDriver] Batch {} complete, state is now {}", batchId, batchContext.getState());
     }
 
@@ -232,7 +219,7 @@ public final class BatchDriver extends Driver {
         @Override
         public Page getOutput() {
             // Don't poll new pages while draining
-            if (driver.batchContext.getState() == BatchContext.BatchState.DRAINING) {
+            if (driver.batchContext.getState() == BatchContext.BatchLifecycle.DRAINING) {
                 return null;
             }
 
@@ -300,7 +287,7 @@ public final class BatchDriver extends Driver {
         @Override
         public IsBlockedResult isBlocked() {
             // During DRAINING, don't block - keep driver looping to drain intermediate operators
-            if (driver.batchContext.getState() == BatchContext.BatchState.DRAINING) {
+            if (driver.batchContext.getState() == BatchContext.BatchLifecycle.DRAINING) {
                 return Operator.NOT_BLOCKED;
             }
             return delegate.isBlocked();
@@ -309,7 +296,7 @@ public final class BatchDriver extends Driver {
         @Override
         public boolean canProduceMoreDataWithoutExtraInput() {
             // Can't produce more if we're draining
-            if (driver.batchContext.getState() == BatchContext.BatchState.DRAINING) {
+            if (driver.batchContext.getState() == BatchContext.BatchLifecycle.DRAINING) {
                 return false;
             }
             return delegate.canProduceMoreDataWithoutExtraInput();
@@ -318,28 +305,6 @@ public final class BatchDriver extends Driver {
         @Override
         public void close() {
             delegate.close();
-        }
-    }
-
-    /**
-     * Notifier for batch completion events.
-     */
-    public static class BatchDoneNotifier {
-        private final List<ActionListener<Long>> listeners = new CopyOnWriteArrayList<>();
-
-        public void addListener(ActionListener<Long> listener) {
-            listeners.add(listener);
-        }
-
-        void notifyBatchDone(long batchId) {
-            for (ActionListener<Long> listener : listeners) {
-                try {
-                    listener.onResponse(batchId);
-                } catch (Exception e) {
-                    logger.error("[BatchDriver] Error notifying batch done listener", e);
-                    throw new RuntimeException("Failed to notify batch done listener", e);
-                }
-            }
         }
     }
 }

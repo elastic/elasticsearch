@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.compute.operator.Operator.NOT_BLOCKED;
@@ -72,6 +73,9 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     // Supplier for getting server nodes for new workers
     private final Supplier<DiscoveryNode> serverNodeSupplier;
 
+    // Shared exchange ID for the server-to-client direction (all workers share this exchange)
+    private final String sharedExchangeId;
+
     // Shared state (single instance for all workers)
     private ExchangeSourceHandler serverToClientSourceHandler;
     private BatchSortedExchangeSource sortedSource; // Wraps ExchangeSource with sorting
@@ -95,7 +99,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     // Callback for when lookup plan is received from server (for profiling)
     // BiConsumer takes (workerKey, planString) where workerKey is "nodeId:workerN"
     @Nullable
-    private final java.util.function.BiConsumer<String, String> lookupPlanConsumer;
+    private final BiConsumer<String, String> lookupPlanConsumer;
 
     /**
      * Create a new BidirectionalBatchExchangeClient.
@@ -123,31 +127,20 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         ActionListener<Void> batchExchangeStatusListener,
         Settings settings,
         ServerSetupCallback serverSetupCallback,
-        @Nullable java.util.function.BiConsumer<String, String> lookupPlanConsumer,
+        @Nullable BiConsumer<String, String> lookupPlanConsumer,
         int maxWorkers,
         Supplier<DiscoveryNode> serverNodeSupplier
     ) {
-        // Client uses per-worker clientToServerIds, but base class needs a value.
-        // Pass the base clientToServerId which is used as a prefix for per-worker IDs.
-        super(
-            sessionId,
-            buildClientToServerId(sessionId),
-            buildServerToClientId(sessionId),
-            exchangeService,
-            executor,
-            maxBufferSize,
-            transportService,
-            task,
-            settings
-        );
+        super(sessionId, exchangeService, executor, maxBufferSize, transportService, task, settings);
+        this.sharedExchangeId = buildServerToClientId(sessionId);
         this.batchExchangeStatusListener = batchExchangeStatusListener;
         this.serverSetupCallback = serverSetupCallback;
         this.lookupPlanConsumer = lookupPlanConsumer;
         this.maxWorkers = maxWorkers;
         this.serverNodeSupplier = serverNodeSupplier;
         logger.debug(
-            "[LookupJoinClient] Created BidirectionalBatchExchangeClient: serverToClientId={}, maxBufferSize={}, maxWorkers={}",
-            serverToClientId,
+            "[LookupJoinClient] Created BidirectionalBatchExchangeClient: sharedExchangeId={}, maxBufferSize={}, maxWorkers={}",
+            sharedExchangeId,
             maxBufferSize,
             maxWorkers
         );
@@ -164,13 +157,13 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
 
         // Create source handler for server-to-client direction (shared for all servers)
         serverToClientSourceHandler = new ExchangeSourceHandler(maxBufferSize, executor);
-        exchangeService.addExchangeSourceHandler(serverToClientId, serverToClientSourceHandler);
+        exchangeService.addExchangeSourceHandler(sharedExchangeId, serverToClientSourceHandler);
 
         // Create BatchSortedExchangeSource that wraps ExchangeSource with sorting
         // All servers send results to the same source handler, sorted by batchId
         ExchangeSource exchangeSource = serverToClientSourceHandler.createExchangeSource();
         sortedSource = new BatchSortedExchangeSource(exchangeSource);
-        logger.debug("[LookupJoinClient] Created shared server-to-client sorted source: exchangeId={}", serverToClientId);
+        logger.debug("[LookupJoinClient] Created shared server-to-client sorted source: exchangeId={}", sharedExchangeId);
     }
 
     /**
@@ -278,27 +271,13 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                     worker.setupReadyListener.onResponse(null);
                 } catch (Exception e) {
                     logger.error("[LookupJoinClient] Server setup callback failed for worker={}: {}", worker.workerId, e.getMessage());
-                    // Decrement pending connections so finish() can proceed
-                    int remaining = pendingWorkerConnections.decrementAndGet();
-                    logger.debug("[LookupJoinClient] Worker setup callback failed, remaining pending={}", remaining);
-                    if (remaining == 0 && finishRequested) {
-                        synchronized (sendFinishLock) {
-                            doFinish();
-                        }
-                    }
+                    onWorkerConnectionComplete(worker, "Setup callback failed");
                     handleFailure("worker setup callback for worker " + worker.workerId, e);
                     worker.setupReadyListener.onFailure(e);
                 }
             }, e -> {
                 logger.error("[LookupJoinClient] Server setup failed for worker={}: {}", worker.workerId, e.getMessage());
-                // Decrement pending connections so finish() can proceed
-                int remaining = pendingWorkerConnections.decrementAndGet();
-                logger.debug("[LookupJoinClient] Worker setup failed, remaining pending={}", remaining);
-                if (remaining == 0 && finishRequested) {
-                    synchronized (sendFinishLock) {
-                        doFinish();
-                    }
-                }
+                onWorkerConnectionComplete(worker, "Setup failed");
                 handleFailure("worker setup for worker " + worker.workerId, e);
                 worker.setupReadyListener.onFailure(e);
             })
@@ -322,21 +301,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         }, failure -> { handleFailure("server-to-client exchange for worker " + worker.workerId, failure); }), "server sink handler");
 
         // Connection is now established (addRemoteSink was called synchronously in connectRemoteSink)
-        // Decrement pending connections and check if finish was requested
-        int remaining = pendingWorkerConnections.decrementAndGet();
-        logger.debug(
-            "[LookupJoinClient] Worker connection established: workerId={}, node={}, remaining pending={}",
-            worker.workerId,
-            worker.serverNode.getId(),
-            remaining
-        );
-        if (remaining == 0 && finishRequested) {
-            // All connections established and finish was requested - now we can finish
-            logger.debug("[LookupJoinClient] All pending connections established, executing deferred finish");
-            synchronized (sendFinishLock) {
-                doFinish();
-            }
-        }
+        onWorkerConnectionComplete(worker, "Connection established");
 
         // Send batch exchange status request
         sendBatchExchangeStatusRequest(worker);
@@ -475,7 +440,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
      * This guarantees that when NOT_BLOCKED is returned, either:
      * <ul>
      *   <li>{@link #hasReadyPages()} == true (pollPage will return a page)</li>
-     *   <li>{@link #isPageCacheDone()} == true (no more pages expected)</li>
+     *   <li>{@link #isExchangeDone()} == true (no more pages expected)</li>
      * </ul>
      * This prevents busy-spinning when pages arrive out of order in multi-node scenarios.
      *
@@ -486,9 +451,9 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     }
 
     /**
-     * Returns true if the sorted source is done (upstream finished and no buffered pages).
+     * Returns true if the exchange is done (upstream finished and no buffered pages).
      */
-    public boolean isPageCacheDone() {
+    public boolean isExchangeDone() {
         return sortedSource.isFinished();
     }
 
@@ -508,8 +473,8 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         if (started > 0 && completed >= started) {
             return true;
         }
-        // Also check page cache for edge cases (e.g., no batches sent)
-        return isPageCacheDone();
+        // Also check exchange for edge cases (e.g., no batches sent)
+        return isExchangeDone();
     }
 
     /**
@@ -542,20 +507,27 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     }
 
     /**
-     * Returns the current number of pages in the cache.
+     * Returns the current number of buffered pages.
      */
-    public int pageCacheSize() {
+    public int bufferedPageCount() {
         return sortedSource.bufferSize();
     }
 
     /**
      * Returns true if there are pages ready to be output (in correct order).
-     * Unlike {@link #pageCacheSize()}, this only returns true when pages are
+     * Unlike {@link #bufferedPageCount()}, this only returns true when pages are
      * actually ready for consumption, not when they're buffered waiting for
      * out-of-order pages to arrive.
      */
     public boolean hasReadyPages() {
         return sortedSource.hasReadyPages();
+    }
+
+    /**
+     * Returns the sorted source for diagnostic purposes (e.g. toString in timeout messages).
+     */
+    public BatchSortedExchangeSource getSortedSource() {
+        return sortedSource;
     }
 
     /**
@@ -651,6 +623,23 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                 return;
             }
             doFinish();
+        }
+    }
+
+    /**
+     * Called when a worker connection attempt completes (success or failure).
+     * Decrements pending connection count and triggers deferred finish if needed.
+     *
+     * @param worker the worker whose connection completed
+     * @param reason description of what completed (for logging)
+     */
+    private void onWorkerConnectionComplete(Worker worker, String reason) {
+        int remaining = pendingWorkerConnections.decrementAndGet();
+        logger.debug("[LookupJoinClient] {} for worker {}, remaining pending={}", reason, worker.workerId, remaining);
+        if (remaining == 0 && finishRequested) {
+            synchronized (sendFinishLock) {
+                doFinish();
+            }
         }
     }
 
@@ -825,7 +814,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         // Remove the source handler from the exchange service
         if (serverToClientSourceHandler != null) {
             logger.debug("[LookupJoinClient] Removing server-to-client source handler");
-            exchangeService.removeExchangeSourceHandler(serverToClientId);
+            exchangeService.removeExchangeSourceHandler(sharedExchangeId);
         }
 
         logger.debug("[LookupJoinClient] BidirectionalBatchExchangeClient closed");

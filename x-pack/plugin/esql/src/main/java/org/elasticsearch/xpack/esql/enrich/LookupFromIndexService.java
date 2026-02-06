@@ -329,15 +329,11 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 joinOnConditions = planIn.readOptionalNamedWriteable(Expression.class);
             }
             String clientToServerId = null;
-            if (in.getTransportVersion().supports(ESQL_STREAMING_LOOKUP_JOIN)) {
-                clientToServerId = in.readOptionalString();
-            }
             String serverToClientId = null;
-            if (in.getTransportVersion().supports(ESQL_STREAMING_LOOKUP_JOIN)) {
-                serverToClientId = in.readOptionalString();
-            }
             boolean profile = false;
             if (in.getTransportVersion().supports(ESQL_STREAMING_LOOKUP_JOIN)) {
+                clientToServerId = in.readOptionalString();
+                serverToClientId = in.readOptionalString();
                 profile = in.readBoolean();
             }
             TransportRequest result = new TransportRequest(
@@ -425,11 +421,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             }
             if (out.getTransportVersion().supports(ESQL_STREAMING_LOOKUP_JOIN)) {
                 out.writeOptionalString(clientToServerId);
-            }
-            if (out.getTransportVersion().supports(ESQL_STREAMING_LOOKUP_JOIN)) {
                 out.writeOptionalString(serverToClientId);
-            }
-            if (out.getTransportVersion().supports(ESQL_STREAMING_LOOKUP_JOIN)) {
                 out.writeBoolean(profile);
             }
         }

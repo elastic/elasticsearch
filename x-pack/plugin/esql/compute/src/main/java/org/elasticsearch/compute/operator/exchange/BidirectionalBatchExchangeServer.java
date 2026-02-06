@@ -55,6 +55,8 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
      */
     private static final long CLIENT_READY_TIMEOUT_SECONDS = 30;
 
+    private final String clientToServerId;
+    private final String serverToClientId;
     private ExchangeSourceHandler clientToServerSourceHandler;
     private ExchangeSourceOperator clientToServerSource;
     private ExchangeSinkHandler serverToClientSinkHandler;
@@ -102,7 +104,9 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         DiscoveryNode clientNode,
         Settings settings
     ) throws Exception {
-        super(sessionId, clientToServerId, serverToClientId, exchangeService, executor, maxBufferSize, transportService, task, settings);
+        super(sessionId, exchangeService, executor, maxBufferSize, transportService, task, settings);
+        this.clientToServerId = clientToServerId;
+        this.serverToClientId = serverToClientId;
         this.clientNode = clientNode;
         logger.debug(
             "[LookupJoinServer] Created BidirectionalBatchExchangeServer: clientToServerId={}, serverToClientId={}, maxBufferSize={}",
@@ -491,27 +495,6 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
             }
         );
         logger.debug("[LookupJoinServer] BatchDriver created");
-
-        // Set up batch done callback listener
-        // Note: The batch marker (last page with isLastPageInBatch=true) is now sent by
-        // PageToBatchPageOperator.flushBatch() which is called by BatchDriver.completeBatch()
-        // before this callback is invoked. This callback is just for logging/monitoring.
-        logger.debug("[LookupJoinServer] Registering batch done callback listener");
-        ActionListener<Long> batchDoneListener = new ActionListener<Long>() {
-            @Override
-            public void onResponse(Long batchId) {}
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.error("[LookupJoinServer] Batch done callback onFailure() invoked", e);
-                // Propagate failure to exchange
-                if (serverToClientSinkHandler != null) {
-                    serverToClientSinkHandler.onFailure(e);
-                }
-            }
-        };
-        batchDriver.onBatchDone().addListener(batchDoneListener);
-        logger.debug("[LookupJoinServer] Batch done callback listener registered successfully");
 
         // Store thread context for later driver startup
         this.threadContext = threadContext;

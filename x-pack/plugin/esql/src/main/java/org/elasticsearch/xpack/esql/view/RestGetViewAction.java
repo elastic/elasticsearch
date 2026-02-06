@@ -47,7 +47,7 @@ public class RestGetViewAction extends BaseRestHandler {
     }
 
     private boolean isGetAllViews(String[] requestedViews) {
-        return requestedViews.length == 0 || requestedViews[1].equals(Metadata.ALL);
+        return requestedViews.length == 0 || requestedViews[0].equals(Metadata.ALL);
     }
 
     @Override

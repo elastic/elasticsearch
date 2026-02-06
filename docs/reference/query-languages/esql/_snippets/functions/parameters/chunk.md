@@ -3,7 +3,7 @@
 **Parameters**
 
 `field`
-:   The input to chunk.
+:   The input to chunk. The input can be a single-valued or multi-valued field. In the case of a multi-valued argument, each value is chunked separately.
 
 `chunking_settings`
 :   Options to customize chunking behavior. Defaults to {"strategy":"sentence","max_chunk_size":300,"sentence_overlap":0}.

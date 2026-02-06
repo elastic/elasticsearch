@@ -10,7 +10,6 @@
 package org.elasticsearch.entitlement.config;
 
 import jdk.nio.Channels;
-
 import sun.net.www.protocol.file.FileURLConnection;
 import sun.net.www.protocol.jar.JarURLConnection;
 

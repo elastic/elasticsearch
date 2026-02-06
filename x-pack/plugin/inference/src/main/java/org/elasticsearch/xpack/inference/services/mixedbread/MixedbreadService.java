@@ -123,14 +123,12 @@ public class MixedbreadService extends SenderService implements RerankingInferen
             Map<String, Object> serviceSettingsMap = ServiceUtils.removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
             Map<String, Object> taskSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
-            ChunkingSettings chunkingSettings = null;
-
             MixedbreadModel model = createModel(
                 inferenceEntityId,
                 taskType,
                 serviceSettingsMap,
                 taskSettingsMap,
-                chunkingSettings,
+                null,
                 serviceSettingsMap,
                 ConfigurationParseContext.REQUEST
             );
@@ -208,14 +206,12 @@ public class MixedbreadService extends SenderService implements RerankingInferen
         Map<String, Object> taskSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = ServiceUtils.removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
 
-        ChunkingSettings chunkingSettings = null;
-
         return parsePersistedConfigWithSecrets(
             inferenceEntityId,
             taskType,
             serviceSettingsMap,
             taskSettingsMap,
-            chunkingSettings,
+            null,
             secretSettingsMap
         );
     }
@@ -236,9 +232,7 @@ public class MixedbreadService extends SenderService implements RerankingInferen
         Map<String, Object> serviceSettingsMap = ServiceUtils.removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
-        ChunkingSettings chunkingSettings = null;
-
-        return parsePersistedConfigWithSecrets(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, chunkingSettings, null);
+        return parsePersistedConfigWithSecrets(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, null, null);
     }
 
     @Override

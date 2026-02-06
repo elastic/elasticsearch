@@ -60,12 +60,12 @@ public class MixedbreadRerankServiceSettings extends FilteredXContentObject impl
     private final RateLimitSettings rateLimitSettings;
 
     public MixedbreadRerankServiceSettings(String modelId, @Nullable RateLimitSettings rateLimitSettings) {
-        this.modelId = modelId;
+        this.modelId = Objects.requireNonNull(modelId);
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
     public MixedbreadRerankServiceSettings(StreamInput in) throws IOException {
-        this.modelId = in.readOptionalString();
+        this.modelId = in.readString();
         this.rateLimitSettings = new RateLimitSettings(in);
     }
 
@@ -96,10 +96,7 @@ public class MixedbreadRerankServiceSettings extends FilteredXContentObject impl
 
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
-        if (modelId != null) {
-            builder.field(MODEL_ID, modelId);
-        }
-
+        builder.field(MODEL_ID, modelId);
         rateLimitSettings.toXContent(builder, params);
 
         return builder;
@@ -118,7 +115,7 @@ public class MixedbreadRerankServiceSettings extends FilteredXContentObject impl
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(modelId);
+        out.writeString(modelId);
         rateLimitSettings.writeTo(out);
     }
 

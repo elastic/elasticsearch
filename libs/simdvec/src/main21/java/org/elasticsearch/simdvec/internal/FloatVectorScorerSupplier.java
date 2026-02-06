@@ -49,25 +49,25 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
         }
     }
 
-    final void bulkScoreFromOrds(int firstOrd, int[] ordinals, float[] scores, int numNodes) throws IOException {
+    final float bulkScoreFromOrds(int firstOrd, int[] ordinals, float[] scores, int numNodes) throws IOException {
         MemorySegment vectorsSeg = input.segmentSliceOrNull(0, input.length());
         if (vectorsSeg == null) {
             // we might be able to get segments for individual vectors, so try separately
-            scoreSeparately(firstOrd, ordinals, scores, numNodes);
+            return scoreSeparately(firstOrd, ordinals, scores, numNodes);
         } else {
             final int vectorLength = dims * Float.BYTES;
             final int vectorPitch = vectorLength;
             if (SUPPORTS_HEAP_SEGMENTS) {
                 var ordinalsSeg = MemorySegment.ofArray(ordinals);
                 var scoresSeg = MemorySegment.ofArray(scores);
-                bulkScoreFromSegment(vectorsSeg, vectorLength, vectorPitch, firstOrd, ordinalsSeg, scoresSeg, numNodes);
+                return bulkScoreFromSegment(vectorsSeg, vectorLength, vectorPitch, firstOrd, ordinalsSeg, scoresSeg, numNodes);
             } else {
                 try (var arena = Arena.ofConfined()) {
                     var ordinalsMemorySegment = arena.allocate((long) numNodes * Integer.BYTES, 32);
                     var scoresMemorySegment = arena.allocate((long) numNodes * Float.BYTES, 32);
                     MemorySegment.copy(ordinals, 0, ordinalsMemorySegment, ValueLayout.JAVA_INT, 0, numNodes);
 
-                    bulkScoreFromSegment(
+                    float max = bulkScoreFromSegment(
                         vectorsSeg,
                         vectorLength,
                         vectorPitch,
@@ -78,21 +78,24 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
                     );
 
                     MemorySegment.copy(scoresMemorySegment, ValueLayout.JAVA_FLOAT, 0, scores, 0, numNodes);
+                    return max;
                 }
             }
         }
     }
 
-    private void scoreSeparately(int firstOrd, int[] ordinals, float[] scores, int numNodes) throws IOException {
+    private float scoreSeparately(int firstOrd, int[] ordinals, float[] scores, int numNodes) throws IOException {
         final int length = dims * Float.BYTES;
         long firstByteOffset = (long) firstOrd * Float.BYTES;
         float[] firstVector = null;
+        float max = Float.NEGATIVE_INFINITY;
 
         MemorySegment firstSeg = input.segmentSliceOrNull(firstByteOffset, length);
         if (firstSeg == null) {
             firstVector = values.vectorValue(firstOrd).clone();
             for (int i = 0; i < numNodes; i++) {
                 scores[i] = fallbackScorer.compare(firstVector, values.vectorValue(ordinals[i]));
+                max = Math.max(max, scores[i]);
             }
         } else {
             for (int i = 0; i < numNodes; i++) {
@@ -106,8 +109,10 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
                 } else {
                     scores[i] = scoreFromSegments(firstSeg, secondSeg);
                 }
+                max = Math.max(max, scores[i]);
             }
         }
+        return max;
     }
 
     final float scoreFromOrds(int firstOrd, int secondOrd) throws IOException {
@@ -130,7 +135,7 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
 
     abstract float scoreFromSegments(MemorySegment a, MemorySegment b);
 
-    abstract void bulkScoreFromSegment(
+    abstract float bulkScoreFromSegment(
         MemorySegment vectors,
         int vectorLength,
         int vectorPitch,
@@ -158,8 +163,8 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
             }
 
             @Override
-            public void bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
-                bulkScoreFromOrds(ord, nodes, scores, numNodes);
+            public float bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
+                return bulkScoreFromOrds(ord, nodes, scores, numNodes);
             }
 
             @Override
@@ -182,7 +187,7 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
         }
 
         @Override
-        protected void bulkScoreFromSegment(
+        protected float bulkScoreFromSegment(
             MemorySegment vectors,
             int vectorLength,
             int vectorPitch,
@@ -195,10 +200,14 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
             var firstVector = vectors.asSlice(firstByteOffset, vectorPitch);
             Similarities.squareDistanceF32BulkWithOffsets(vectors, firstVector, dims, vectorPitch, ordinals, numNodes, scores);
 
+            float max = Float.NEGATIVE_INFINITY;
             for (int i = 0; i < numNodes; ++i) {
                 float squareDistance = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
-                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, VectorUtil.normalizeDistanceToUnitInterval(squareDistance));
+                float normalizedScore = VectorUtil.normalizeDistanceToUnitInterval(squareDistance);
+                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, normalizedScore);
+                max = Math.max(max, normalizedScore);
             }
+            return max;
         }
 
         @Override
@@ -219,7 +228,7 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
         }
 
         @Override
-        protected void bulkScoreFromSegment(
+        protected float bulkScoreFromSegment(
             MemorySegment vectors,
             int vectorLength,
             int vectorPitch,
@@ -232,10 +241,14 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
             var firstVector = vectors.asSlice(firstByteOffset, vectorPitch);
             Similarities.dotProductF32BulkWithOffsets(vectors, firstVector, dims, vectorPitch, ordinals, numNodes, scores);
 
+            float max = Float.NEGATIVE_INFINITY;
             for (int i = 0; i < numNodes; ++i) {
                 float dotProduct = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
-                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, VectorUtil.normalizeToUnitInterval(dotProduct));
+                float normalizedScore = VectorUtil.normalizeToUnitInterval(dotProduct);
+                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, normalizedScore);
+                max = Math.max(max, normalizedScore);
             }
+            return max;
         }
 
         @Override
@@ -256,7 +269,7 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
         }
 
         @Override
-        protected void bulkScoreFromSegment(
+        protected float bulkScoreFromSegment(
             MemorySegment vectors,
             int vectorLength,
             int vectorPitch,
@@ -269,10 +282,14 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
             var firstVector = vectors.asSlice(firstByteOffset, vectorPitch);
             Similarities.dotProductF32BulkWithOffsets(vectors, firstVector, dims, vectorPitch, ordinals, numNodes, scores);
 
+            float max = Float.NEGATIVE_INFINITY;
             for (int i = 0; i < numNodes; ++i) {
                 float dotProduct = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
-                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, VectorUtil.scaleMaxInnerProductScore(dotProduct));
+                float scaledScore = VectorUtil.scaleMaxInnerProductScore(dotProduct);
+                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, scaledScore);
+                max = Math.max(max, scaledScore);
             }
+            return max;
         }
 
         @Override

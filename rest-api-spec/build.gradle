@@ -113,6 +113,7 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.skipTest("tsdb/10_settings/set start_time and end_time without timeseries mode", "we don't validate for index_mode=tsdb when setting start_date/end_date anymore")
   task.skipTest("tsdb/10_settings/set start_time, end_time and routing_path via put settings api without time_series mode", "we don't validate for index_mode=tsdb when setting start_date/end_date anymore")
   task.skipTest("search/140_pre_filter_search_shards/prefilter on non-indexed date fields", "prefiltering can now use skippers on dv-only fields")
+  task.skipTest("search.vectors/42_knn_search_bbq_flat/Vector rescoring has same scoring as exact search for kNN section", "rescoring is now bulk, floating point values are slightly different")
   // Expected deprecation warning to compat yaml tests:
   task.addAllowedWarningRegex("Use of the \\[max_size\\] rollover condition has been deprecated in favour of the \\[max_primary_shard_size\\] condition and will be removed in a later version")
   task.skipTest("search.vectors/42_knn_search_bbq_flat/Vector rescoring has same scoring as exact search for kNN section", "scores have changed slightly with native implementations")

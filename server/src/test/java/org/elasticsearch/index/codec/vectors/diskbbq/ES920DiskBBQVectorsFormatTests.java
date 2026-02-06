@@ -61,6 +61,11 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
+    @Override
+    protected boolean supportsFloatVectorFallback() {
+        return false;
+    }
+
     private KnnVectorsFormat format;
     private ExecutorService executorService;
 

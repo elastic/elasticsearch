@@ -43,6 +43,6 @@ class ES816HnswBinaryQuantizedRWVectorsFormat extends ES816HnswBinaryQuantizedVe
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new Lucene99HnswVectorsWriter(state, maxConn, beamWidth, flatVectorsFormat.fieldsWriter(state), 1, null);
+        return new Lucene99HnswVectorsWriter(state, maxConn, beamWidth, flatVectorsFormat.fieldsWriter(state), 1, null, 0);
     }
 }

@@ -115,10 +115,10 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
         }
 
         @Override
-        public void bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
+        public float bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
             MemorySegment vectorsSeg = input.segmentSliceOrNull(0, input.length());
             if (vectorsSeg == null) {
-                super.bulkScore(nodes, scores, numNodes);
+                return super.bulkScore(nodes, scores, numNodes);
             } else {
                 var ordinalsSeg = MemorySegment.ofArray(nodes);
                 var scoresSeg = MemorySegment.ofArray(scores);
@@ -126,6 +126,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
                 var vectorPitch = vectorByteSize + Float.BYTES;
                 dotProductI7uBulkWithOffsets(vectorsSeg, query, vectorByteSize, vectorPitch, ordinalsSeg, numNodes, scoresSeg);
 
+                float max = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < numNodes; ++i) {
                     var dotProduct = scores[i];
                     var secondOrd = nodes[i];
@@ -133,7 +134,9 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
                     var nodeCorrection = Float.intBitsToFloat(input.readInt(secondByteOffset + vectorByteSize));
                     float adjustedDistance = dotProduct * scoreCorrectionConstant + queryCorrection + nodeCorrection;
                     scores[i] = VectorUtil.normalizeToUnitInterval(adjustedDistance);
+                    max = Math.max(max, scores[i]);
                 }
+                return max;
             }
         }
     }
@@ -152,10 +155,10 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
         }
 
         @Override
-        public void bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
+        public float bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
             MemorySegment vectorsSeg = input.segmentSliceOrNull(0, input.length());
             if (vectorsSeg == null) {
-                super.bulkScore(nodes, scores, numNodes);
+                return super.bulkScore(nodes, scores, numNodes);
             } else {
                 var ordinalsSeg = MemorySegment.ofArray(nodes);
                 var scoresSeg = MemorySegment.ofArray(scores);
@@ -163,11 +166,14 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
                 var vectorPitch = vectorByteSize + Float.BYTES;
                 squareDistanceI7uBulkWithOffsets(vectorsSeg, query, vectorByteSize, vectorPitch, ordinalsSeg, numNodes, scoresSeg);
 
+                float max = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < numNodes; ++i) {
                     var squareDistance = scores[i];
                     float adjustedDistance = squareDistance * scoreCorrectionConstant;
                     scores[i] = VectorUtil.normalizeDistanceToUnitInterval(adjustedDistance);
+                    max = Math.max(max, scores[i]);
                 }
+                return max;
             }
         }
     }
@@ -189,10 +195,10 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
         }
 
         @Override
-        public void bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
+        public float bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
             MemorySegment vectorsSeg = input.segmentSliceOrNull(0, input.length());
             if (vectorsSeg == null) {
-                super.bulkScore(nodes, scores, numNodes);
+                return super.bulkScore(nodes, scores, numNodes);
             } else {
                 var ordinalsSeg = MemorySegment.ofArray(nodes);
                 var scoresSeg = MemorySegment.ofArray(scores);
@@ -200,6 +206,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
                 var vectorPitch = vectorByteSize + Float.BYTES;
                 dotProductI7uBulkWithOffsets(vectorsSeg, query, vectorByteSize, vectorPitch, ordinalsSeg, numNodes, scoresSeg);
 
+                float max = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < numNodes; ++i) {
                     var dotProduct = scores[i];
                     var secondOrd = nodes[i];
@@ -207,7 +214,9 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
                     var nodeCorrection = Float.intBitsToFloat(input.readInt(secondByteOffset + vectorByteSize));
                     float adjustedDistance = dotProduct * scoreCorrectionConstant + queryCorrection + nodeCorrection;
                     scores[i] = VectorUtil.scaleMaxInnerProductScore(adjustedDistance);
+                    max = Math.max(max, scores[i]);
                 }
+                return max;
             }
         }
     }

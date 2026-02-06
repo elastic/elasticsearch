@@ -19,29 +19,90 @@ import org.elasticsearch.xcontent.XContentType;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 /**
  * Operator for the ESQL {@code METRICS_INFO} command.
  * <p>
- * Returns one row per metric that matches all conditions and attaches metadata to it.
- * Expects deduplicated input (one row per {@code _tsid}) from upstream {@link DistinctByOperator}.
- * Aggregates metrics during {@link #addInput(Page)} without tracking {@code _tsid}.
+ * Expects deduplicated input (one row per {@code _tsid}) from upstream {@link DistinctByOperator},
+ * with blocks for {@code _timeseries_metadata} and {@code _index}. Produces one row per distinct
+ * metric signature, with metadata aggregated from all matching documents.
+ *
+ * <h2>Processing</h2>
+ * <ol>
+ *   <li><b>During {@link #addInput(Page)}:</b> For each row, parses the {@code _timeseries_metadata}
+ *       JSON and walks the metadata map. For each leaf key, {@link MetricFieldLookup} is used to
+ *       determine if it is a metric field; if so, it is aggregated into an internal map keyed by
+ *       {@code (metricName, dataStreamName)}, where {@code dataStreamName} is the index name from
+ *       {@code _index}. Non-metric leaf keys are collected as dimension keys and associated with
+ *       all metrics seen in that document.</li>
+ *   <li><b>When building output:</b> In {@link #getOutput()}, {@link #createOutputPage()} runs once.
+ *       It merges aggregated entries by {@link MetricSignature} (metric name plus units, field
+ *       types, and metric types). Data streams that share the same signature are combined into one
+ *       output row with multi-valued {@code data_stream} and a union of {@code dimension_fields}.</li>
+ * </ol>
  *
  * <h2>Output columns</h2>
  * <ul>
  *   <li>{@code metric_name} – keyword (single-valued)</li>
- *   <li>{@code data_stream} – keyword (multi-valued); indices/data streams that have this metric</li>
- *   <li>{@code unit} – keyword (multi-valued if different backing indices have different units; may be null)</li>
- *   <li>{@code metric_type} – keyword (multi-valued if conflicts within data streams)</li>
- *   <li>{@code field_type} – keyword (multi-valued if conflicts within data streams)</li>
- *   <li>{@code dimension_fields} – keyword (multi-valued); union of all dimension keys</li>
+ *   <li>{@code data_stream} – keyword (multi-valued); indices/data streams that have this metric
+ *       with the same signature</li>
+ *   <li>{@code unit} – keyword (multi-valued when backing indices differ; may be null)</li>
+ *   <li>{@code metric_type} – keyword (multi-valued when definitions differ across data)</li>
+ *   <li>{@code field_type} – keyword (multi-valued when definitions differ across data)</li>
+ *   <li>{@code dimension_fields} – keyword (multi-valued); union of dimension keys for this row</li>
  * </ul>
  */
 public class MetricsInfoOperator implements Operator {
 
     public static final int NUM_BLOCKS = 6;
+
+    private record MetricInfoKey(String metricName, String dataStreamName) {}
+
+    /**
+     * Represents an intermediate state grouped by name and dataStream.
+     */
+    private static class MetricInfo {
+        final String name;
+        final String dataStream;
+        final Set<String> units = new HashSet<>();
+        final Set<String> metricTypes = new HashSet<>();
+        final Set<String> fieldTypes = new HashSet<>();
+        final Set<String> dimensionFieldKeys = new HashSet<>();
+
+        MetricInfo(String name, String dataStream) {
+            this.name = name;
+            this.dataStream = dataStream;
+        }
+    }
+
+    /**
+     * Represents a merged output row where multiple data streams with the same
+     * signature are combined into one row.
+     */
+    private static class MetricInfoRow {
+        final String metricName;
+        final Set<String> dataStreams = new HashSet<>();
+        final Set<String> units;
+        final Set<String> fieldTypes;
+        final Set<String> metricTypes;
+        final Set<String> dimensionFieldKeys = new HashSet<>();
+
+        MetricInfoRow(String metricName, Set<String> units, Set<String> fieldTypes, Set<String> metricTypes) {
+            this.metricName = metricName;
+            this.units = units;
+            this.fieldTypes = fieldTypes;
+            this.metricTypes = metricTypes;
+        }
+    }
+
+    /**
+     * Signature for merging rows. Data streams with the same signature are merged
+     * into one row with multi-valued data_stream.
+     */
+    private record MetricSignature(String metricName, Set<String> units, Set<String> fieldTypes, Set<String> metricTypes) {}
 
     /**
      * Looks up metric field metadata on demand.
@@ -78,12 +139,13 @@ public class MetricsInfoOperator implements Operator {
         }
     }
 
+    private final Map<MetricInfoKey, MetricInfo> metricsByKey = new LinkedHashMap<>();
+
     private final BlockFactory blockFactory;
     private final MetricFieldLookup fieldLookup;
     private final int metadataSourceChannel;
     private final int indexChannel;
 
-    private final Map<String, MetricInfo> metricsByKey = new LinkedHashMap<>();
     private boolean finished = false;
     private boolean outputProduced = false;
 
@@ -123,20 +185,20 @@ public class MetricsInfoOperator implements Operator {
             }
 
             String indexName = indexBlock.getBytesRef(p, indexScratch).utf8ToString();
-            Map<String, Object> metadataMap = parseMetadataSource(metadataSource, p);
-            if (metadataMap == null) {
+            Map<String, Object> metadata = parseMetadataSource(metadataSource, p);
+            if (metadata == null) {
                 continue;
             }
 
-            collectAndAggregateFields(metadataMap, null, indexName, new HashSet<>());
+            collectAndAggregateFields(metadata, null, indexName, new HashSet<>());
         }
 
         page.releaseBlocks();
     }
 
     @SuppressWarnings("unchecked")
-    private void collectAndAggregateFields(Map<String, Object> map, String prefix, String indexName, Set<String> dimensionKeys) {
-        for (Map.Entry<String, Object> entry : map.entrySet()) {
+    private void collectAndAggregateFields(Map<String, Object> metadata, String prefix, String indexName, Set<String> dimensionKeys) {
+        for (Map.Entry<String, Object> entry : metadata.entrySet()) {
             String key = prefix == null ? entry.getKey() : prefix + "." + entry.getKey();
             Object value = entry.getValue();
             if (value instanceof Map<?, ?> nested) {
@@ -144,9 +206,10 @@ public class MetricsInfoOperator implements Operator {
             } else {
                 MetricFieldInfo fieldInfo = fieldLookup.lookup(indexName, key);
                 if (fieldInfo != null) {
-                    MetricInfo info = metricsByKey.computeIfAbsent(fieldInfo.name(), MetricInfo::new);
+                    // Step 1. Group by (metricName, dataStreamName)
+                    MetricInfoKey infoKey = new MetricInfoKey(fieldInfo.name(), indexName);
+                    MetricInfo info = metricsByKey.computeIfAbsent(infoKey, k -> new MetricInfo(k.metricName(), k.dataStreamName()));
 
-                    info.dataStreams.add(indexName);
                     if (fieldInfo.unit() != null) {
                         info.units.add(fieldInfo.unit());
                     }
@@ -164,11 +227,26 @@ public class MetricsInfoOperator implements Operator {
 
         if (prefix == null && dimensionKeys.isEmpty() == false) {
             for (MetricInfo info : metricsByKey.values()) {
-                if (info.dataStreams.contains(indexName)) {
-                    info.dimensionFieldKeys.addAll(dimensionKeys);
-                }
+                info.dimensionFieldKeys.addAll(dimensionKeys);
             }
         }
+    }
+
+    private List<MetricInfoRow> mergeRowsBySignature(Map<MetricInfoKey, MetricInfo> metricsByKey) {
+        Map<MetricSignature, MetricInfoRow> bySignature = new LinkedHashMap<>();
+
+        for (MetricInfo info : metricsByKey.values()) {
+            MetricSignature sig = new MetricSignature(info.name, info.units, info.fieldTypes, info.metricTypes);
+            MetricInfoRow row = bySignature.computeIfAbsent(
+                sig,
+                s -> new MetricInfoRow(s.metricName(), s.units(), s.fieldTypes(), s.metricTypes())
+            );
+
+            row.dataStreams.add(info.dataStream);
+            row.dimensionFieldKeys.addAll(info.dimensionFieldKeys);
+        }
+
+        return new ArrayList<>(bySignature.values());
     }
 
     @Override
@@ -210,58 +288,36 @@ public class MetricsInfoOperator implements Operator {
     }
 
     private Page createOutputPage() {
-        ArrayList<MetricInfo> metrics = new ArrayList<>(metricsByKey.values());
-        int rowCount = metrics.size();
+        // Step 2: Merge data streams with the same signature into one row
+        List<MetricInfoRow> rows = mergeRowsBySignature(metricsByKey);
+        int rowCount = rows.size();
 
         Block[] blocks = new Block[NUM_BLOCKS];
-        try {
-            // Build metric_name column (single-valued keyword)
-            try (BytesRefBlock.Builder nameBuilder = blockFactory.newBytesRefBlockBuilder(rowCount)) {
-                for (MetricInfo metric : metrics) {
-                    nameBuilder.appendBytesRef(new BytesRef(metric.name));
-                }
-                blocks[0] = nameBuilder.build();
+
+        try (
+            BytesRefBlock.Builder nameBuilder = blockFactory.newBytesRefBlockBuilder(rowCount);
+            BytesRefBlock.Builder dsBuilder = blockFactory.newBytesRefBlockBuilder(rowCount);
+            BytesRefBlock.Builder unitBuilder = blockFactory.newBytesRefBlockBuilder(rowCount);
+            BytesRefBlock.Builder mtBuilder = blockFactory.newBytesRefBlockBuilder(rowCount);
+            BytesRefBlock.Builder ftBuilder = blockFactory.newBytesRefBlockBuilder(rowCount);
+            BytesRefBlock.Builder dfBuilder = blockFactory.newBytesRefBlockBuilder(rowCount)
+        ) {
+
+            for (MetricInfoRow row : rows) {
+                nameBuilder.appendBytesRef(new BytesRef(row.metricName));
+                appendMultiValued(dsBuilder, row.dataStreams);
+                appendMultiValued(unitBuilder, row.units);
+                appendMultiValued(mtBuilder, row.metricTypes);
+                appendMultiValued(ftBuilder, row.fieldTypes);
+                appendMultiValued(dfBuilder, row.dimensionFieldKeys);
             }
 
-            // Build data_stream column (multi-valued keyword)
-            try (BytesRefBlock.Builder dsBuilder = blockFactory.newBytesRefBlockBuilder(rowCount)) {
-                for (MetricInfo metric : metrics) {
-                    appendMultiValued(dsBuilder, metric.dataStreams);
-                }
-                blocks[1] = dsBuilder.build();
-            }
-
-            // Build unit column (multi-valued if different backing indices have different units)
-            try (BytesRefBlock.Builder unitBuilder = blockFactory.newBytesRefBlockBuilder(rowCount)) {
-                for (MetricInfo metric : metrics) {
-                    appendMultiValued(unitBuilder, metric.units);
-                }
-                blocks[2] = unitBuilder.build();
-            }
-
-            // Build metric_type column (multi-valued keyword if conflicts)
-            try (BytesRefBlock.Builder mtBuilder = blockFactory.newBytesRefBlockBuilder(rowCount)) {
-                for (MetricInfo metric : metrics) {
-                    appendMultiValued(mtBuilder, metric.metricTypes);
-                }
-                blocks[3] = mtBuilder.build();
-            }
-
-            // Build field_type column (multi-valued keyword if conflicts)
-            try (BytesRefBlock.Builder ftBuilder = blockFactory.newBytesRefBlockBuilder(rowCount)) {
-                for (MetricInfo metric : metrics) {
-                    appendMultiValued(ftBuilder, metric.fieldTypes);
-                }
-                blocks[4] = ftBuilder.build();
-            }
-
-            // Build dimension_fields column (multi-valued keyword)
-            try (BytesRefBlock.Builder dfBuilder = blockFactory.newBytesRefBlockBuilder(rowCount)) {
-                for (MetricInfo metric : metrics) {
-                    appendMultiValued(dfBuilder, metric.dimensionFieldKeys);
-                }
-                blocks[5] = dfBuilder.build();
-            }
+            blocks[0] = nameBuilder.build();
+            blocks[1] = dsBuilder.build();
+            blocks[2] = unitBuilder.build();
+            blocks[3] = mtBuilder.build();
+            blocks[4] = ftBuilder.build();
+            blocks[5] = dfBuilder.build();
 
             return new Page(rowCount, blocks);
         } catch (Exception e) {
@@ -281,19 +337,6 @@ public class MetricsInfoOperator implements Operator {
                 builder.appendBytesRef(new BytesRef(v));
             }
             builder.endPositionEntry();
-        }
-    }
-
-    private static class MetricInfo {
-        final String name;
-        final Set<String> units = new HashSet<>();
-        final Set<String> dataStreams = new HashSet<>();
-        final Set<String> metricTypes = new HashSet<>();
-        final Set<String> fieldTypes = new HashSet<>();
-        final Set<String> dimensionFieldKeys = new HashSet<>();
-
-        MetricInfo(String name) {
-            this.name = name;
         }
     }
 

@@ -351,7 +351,6 @@ public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
     }
 
     public void testCompleteAfterCancellation() {
-        final var failure = new RuntimeException("This is the end");
         final var barrier = new CyclicBarrier(2);
         final var subscription = new Subscription() {
             @Override
@@ -362,8 +361,7 @@ public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
 
             @Override
             public void cancel() {
-                logger.info("--> Client cancelling subscription");
-                safeAwait(barrier);
+                logger.info("--> Client cancelled subscription");
             }
         };
         final var iterator = new CancellableRateLimitedFluxIterator<>(randomIntBetween(3, 10), nextItem -> {});
@@ -384,18 +382,51 @@ public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
             iterator.onSubscribe(subscription);
             assertTrue(iterator.hasNext());
             iterator.cancel();
+            safeAwait(barrier); // signal cancellation
             assertThat(assertThrows(RuntimeException.class, iterator::hasNext).getCause(), instanceOf(CancellationException.class));
             safeAwait(barrier); // wait for after-cancel-complete
             // After cancellation, we should still see the original error thrown
             assertThat(assertThrows(RuntimeException.class, iterator::hasNext).getCause(), instanceOf(CancellationException.class));
         });
+    }
 
-        assertThat(iterator.hasNext(), equalTo(true));
-        iterator.cancel();
-        safeAwait(barrier); // indicate we cancelled
-        assertThat(assertThrows(RuntimeException.class, iterator::hasNext).getCause(), instanceOf(CancellationException.class));
-        safeAwait(barrier); // wait for complete
-        assertThat(assertThrows(RuntimeException.class, iterator::hasNext).getCause(), instanceOf(CancellationException.class));
+    public void testCancelAfterCompletion() {
+        final var barrier = new CyclicBarrier(2);
+        final var subscription = new Subscription() {
+            @Override
+            public void request(long n) {
+                logger.info("--> Client requesting {} elements", n);
+                safeAwait(barrier);
+            }
+
+            @Override
+            public void cancel() {
+                logger.info("--> Client cancelled subscription");
+            }
+        };
+        int elementsPerBatch = randomIntBetween(3, 10);
+        final var iterator = new CancellableRateLimitedFluxIterator<>(elementsPerBatch, nextItem -> {});
+
+        // producer thread
+        runOnNewThread(() -> {
+            safeAwait(barrier); // wait for request
+            for (int i = 0; i < randomIntBetween(0, elementsPerBatch); i++) {
+                iterator.onNext(randomInt());
+            }
+            logger.info("--> Sending completion");
+            iterator.onComplete();
+            safeAwait(barrier); // signal completion
+        });
+
+        // consumer thread
+        runOnNewThread(() -> {
+            iterator.onSubscribe(subscription);
+            assertTrue(iterator.hasNext());
+            safeAwait(barrier); // wait for completion
+            logger.info("--> Cancelling subscription");
+            iterator.cancel();
+            assertThat(assertThrows(RuntimeException.class, iterator::hasNext).getCause(), instanceOf(CancellationException.class));
+        });
     }
 
     public void runOnNewThread(Runnable runnable) {

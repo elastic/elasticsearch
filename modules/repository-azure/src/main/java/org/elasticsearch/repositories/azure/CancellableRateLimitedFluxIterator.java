@@ -263,6 +263,11 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
                 return newState;
             }
 
+            // Errors always overwrite non-errors
+            if (existing.error() == null && newState.error() != null) {
+                return newState;
+            }
+
             // If the existing error is not from the producer, allow it to be overwritten by one from the producer
             if (existing.error() != null && existing.fromProducer() == false && newState.isErrorFromProducer()) {
                 return newState;

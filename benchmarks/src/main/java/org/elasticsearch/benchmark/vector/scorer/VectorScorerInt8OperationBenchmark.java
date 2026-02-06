@@ -31,9 +31,10 @@ import org.openjdk.jmh.annotations.Warmup;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.randomInt7BytesBetween;
+import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.rethrow;
 
 @Fork(value = 3, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
@@ -42,7 +43,7 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.rethrow;
 @State(Scope.Benchmark)
 @Warmup(iterations = 3, time = 1)
 @Measurement(iterations = 5, time = 1)
-public class VectorScorerInt7uOperationBenchmark {
+public class VectorScorerInt8OperationBenchmark {
 
     static {
         NodeNamePatternConverter.setGlobalNodeName("foo");
@@ -50,8 +51,9 @@ public class VectorScorerInt7uOperationBenchmark {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
-    byte[] byteArrayA;
-    byte[] byteArrayB;
+    byte[] bytesA;
+    byte[] bytesB;
+    byte[] scratch;
     MemorySegment heapSegA, heapSegB;
     MemorySegment nativeSegA, nativeSegB;
 
@@ -73,20 +75,21 @@ public class VectorScorerInt7uOperationBenchmark {
 
     @Setup(Level.Iteration)
     public void init() {
-        byteArrayA = new byte[size];
-        byteArrayB = new byte[size];
-        for (int i = 0; i < size; ++i) {
-            randomInt7BytesBetween(byteArrayA);
-            randomInt7BytesBetween(byteArrayB);
-        }
-        heapSegA = MemorySegment.ofArray(byteArrayA);
-        heapSegB = MemorySegment.ofArray(byteArrayB);
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+
+        bytesA = new byte[size];
+        bytesB = new byte[size];
+        scratch = new byte[size];
+        random.nextBytes(bytesA);
+        random.nextBytes(bytesB);
+        heapSegA = MemorySegment.ofArray(bytesA);
+        heapSegB = MemorySegment.ofArray(bytesB);
 
         arena = Arena.ofConfined();
-        nativeSegA = arena.allocate(byteArrayA.length);
-        MemorySegment.copy(MemorySegment.ofArray(byteArrayA), 0L, nativeSegA, 0L, byteArrayA.length);
-        nativeSegB = arena.allocate(byteArrayB.length);
-        MemorySegment.copy(MemorySegment.ofArray(byteArrayB), 0L, nativeSegB, 0L, byteArrayB.length);
+        nativeSegA = arena.allocate(bytesA.length);
+        MemorySegment.copy(MemorySegment.ofArray(bytesA), JAVA_BYTE, 0L, nativeSegA, JAVA_BYTE, 0L, bytesA.length);
+        nativeSegB = arena.allocate(bytesB.length);
+        MemorySegment.copy(MemorySegment.ofArray(bytesB), JAVA_BYTE, 0L, nativeSegB, JAVA_BYTE, 0L, bytesB.length);
 
         luceneImpl = switch (function) {
             case DOT_PRODUCT -> VectorUtil::dotProduct;
@@ -97,7 +100,7 @@ public class VectorScorerInt7uOperationBenchmark {
             case DOT_PRODUCT -> VectorSimilarityFunctions.Function.DOT_PRODUCT;
             case EUCLIDEAN -> VectorSimilarityFunctions.Function.SQUARE_DISTANCE;
             default -> throw new IllegalArgumentException(function.toString());
-        }, VectorSimilarityFunctions.DataType.INT7U, VectorSimilarityFunctions.Operation.SINGLE);
+        }, VectorSimilarityFunctions.DataType.INT8, VectorSimilarityFunctions.Operation.SINGLE);
     }
 
     @TearDown
@@ -107,7 +110,14 @@ public class VectorScorerInt7uOperationBenchmark {
 
     @Benchmark
     public float lucene() {
-        return luceneImpl.run(byteArrayA, byteArrayB);
+        return luceneImpl.run(bytesA, bytesB);
+    }
+
+    @Benchmark
+    public float luceneWithCopy() {
+        // add a copy to better reflect what Lucene has to do to get the target vector on-heap
+        MemorySegment.copy(nativeSegB, JAVA_BYTE, 0L, scratch, 0, scratch.length);
+        return luceneImpl.run(bytesA, scratch);
     }
 
     @Benchmark
@@ -120,7 +130,7 @@ public class VectorScorerInt7uOperationBenchmark {
     }
 
     @Benchmark
-    public float nativeWithHeapSeg() {
+    public int nativeWithHeapSeg() {
         try {
             return (int) nativeImpl.invokeExact(heapSegA, heapSegB, size);
         } catch (Throwable t) {

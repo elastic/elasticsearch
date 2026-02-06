@@ -977,7 +977,7 @@ public final class TextFieldMapper extends FieldMapper {
 
             failIfNotIndexedNorDocValuesFallback(context);
 
-            Collection<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
+            List<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
             if (usesBinaryDocValues) {
                 return new SlowCustomBinaryDocValuesTermInSetQuery(name(), bytesRefs);
             } else {

@@ -678,7 +678,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (indexType.hasTerms()) {
                 return super.termsQuery(values, context);
             } else if (usesBinaryDocValues) {
-                Collection<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
+                List<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
                 return new SlowCustomBinaryDocValuesTermInSetQuery(name(), bytesRefs);
             } else {
                 Collection<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();

@@ -14,9 +14,13 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.BytesRefComparator;
 import org.apache.lucene.util.StringSorter;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
 
-import java.util.Collection;
+import java.io.UncheckedIOException;
+import java.util.List;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 /**
  * A query for matching any value from a set of BytesRef values for a specific field.
@@ -28,32 +32,29 @@ public final class SlowCustomBinaryDocValuesTermInSetQuery extends AbstractBinar
     private final PrefixCodedTerms termData;
     private final int termDataHashCode;
 
-    public SlowCustomBinaryDocValuesTermInSetQuery(String fieldName, Collection<BytesRef> terms) {
+    public SlowCustomBinaryDocValuesTermInSetQuery(String fieldName, List<BytesRef> terms) {
         this(fieldName, packTerms(fieldName, Objects.requireNonNull(terms)));
     }
 
     private SlowCustomBinaryDocValuesTermInSetQuery(String fieldName, PrefixCodedTerms termData) {
-        super(fieldName, term -> containsTerm(termData, term));
+        super(fieldName, buildMatchPredicate(termData));
         this.termData = termData;
         this.termDataHashCode = termData.hashCode();
     }
 
-    private static boolean containsTerm(PrefixCodedTerms termData, BytesRef term) {
-        PrefixCodedTerms.TermIterator iterator = termData.iterator();
-        for (BytesRef t = iterator.next(); t != null; t = iterator.next()) {
-            int cmp = t.compareTo(term);
-            if (cmp == 0) {
-                return true;
-            }
-            if (cmp > 0) {
-                // terms are sorted, so we've passed where it would be
-                return false;
-            }
+    private static Predicate<BytesRef> buildMatchPredicate(PrefixCodedTerms termData) {
+        try {
+            var automaton = Automata.makeBinaryStringUnion(termData.iterator());
+            var runAutomaton = new ByteRunAutomaton(automaton, true);
+            return term -> runAutomaton.run(term.bytes, term.offset, term.length);
+        } catch (java.io.IOException e) {
+            // Shouldn't happen since termData.iterator() provides an iterator implementation that never throws
+            assert false : e;
+            throw new UncheckedIOException(e);
         }
-        return false;
     }
 
-    private static PrefixCodedTerms packTerms(String field, Collection<BytesRef> terms) {
+    private static PrefixCodedTerms packTerms(String field, List<BytesRef> terms) {
         BytesRef[] sortedTerms = terms.toArray(new BytesRef[0]);
         new StringSorter(BytesRefComparator.NATURAL) {
 
@@ -88,9 +89,9 @@ public final class SlowCustomBinaryDocValuesTermInSetQuery extends AbstractBinar
 
     @Override
     protected float matchCost() {
-        // SlowCustomBinaryDocValuesTermQuery uses 10 for a single term, and since we perform a linear scan across all terms, we take the
-        // number of terms into account
-        return 10 + termData.size();
+        // the cost for single term matching is 10, ByteRunAutomaton.run() is O(term length)
+        // so this is only slightly slower than single term
+        return 11;
     }
 
     @Override

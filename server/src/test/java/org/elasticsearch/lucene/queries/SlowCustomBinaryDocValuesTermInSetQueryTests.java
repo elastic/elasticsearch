@@ -25,7 +25,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 public class SlowCustomBinaryDocValuesTermInSetQueryTests extends ESTestCase {
 
@@ -61,7 +60,7 @@ public class SlowCustomBinaryDocValuesTermInSetQueryTests extends ESTestCase {
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
                     for (var entry : expectedCounts.entrySet()) {
-                        Set<BytesRef> terms = Set.of(new BytesRef(entry.getKey()));
+                        List<BytesRef> terms = List.of(new BytesRef(entry.getKey()));
                         long count = searcher.count(new SlowCustomBinaryDocValuesTermInSetQuery(fieldName, terms));
                         assertEquals(entry.getValue().longValue(), count);
                     }
@@ -72,28 +71,28 @@ public class SlowCustomBinaryDocValuesTermInSetQueryTests extends ESTestCase {
                     IndexSearcher searcher = newSearcher(reader);
 
                     // Query for "a" or "b" should return count of a + count of b
-                    Set<BytesRef> terms = Set.of(new BytesRef("a"), new BytesRef("b"));
+                    List<BytesRef> terms = List.of(new BytesRef("a"), new BytesRef("b"));
                     long count = searcher.count(new SlowCustomBinaryDocValuesTermInSetQuery(fieldName, terms));
                     assertEquals(expectedCounts.get("a") + expectedCounts.get("b"), count);
 
                     // Query for "c", "d", "e" should return sum of their counts
-                    Set<BytesRef> terms2 = Set.of(new BytesRef("c"), new BytesRef("d"), new BytesRef("e"));
+                    List<BytesRef> terms2 = List.of(new BytesRef("c"), new BytesRef("d"), new BytesRef("e"));
                     long count2 = searcher.count(new SlowCustomBinaryDocValuesTermInSetQuery(fieldName, terms2));
                     assertEquals(expectedCounts.get("c") + expectedCounts.get("d") + expectedCounts.get("e"), count2);
                 }
 
-                // search with set containing non-existent term
+                // search with list containing non-existent term
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Set<BytesRef> terms = Set.of(new BytesRef("nonexistent"));
+                    List<BytesRef> terms = List.of(new BytesRef("nonexistent"));
                     long count = searcher.count(new SlowCustomBinaryDocValuesTermInSetQuery(fieldName, terms));
                     assertEquals(0, count);
                 }
 
-                // search with set containing mix of existent and non-existent terms
+                // search with list containing mix of existent and non-existent terms
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Set<BytesRef> terms = Set.of(new BytesRef("a"), new BytesRef("nonexistent"));
+                    List<BytesRef> terms = List.of(new BytesRef("a"), new BytesRef("nonexistent"));
                     long count = searcher.count(new SlowCustomBinaryDocValuesTermInSetQuery(fieldName, terms));
                     assertEquals(expectedCounts.get("a").longValue(), count);
                 }
@@ -110,7 +109,7 @@ public class SlowCustomBinaryDocValuesTermInSetQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new SlowCustomBinaryDocValuesTermInSetQuery(fieldName, Set.of(new BytesRef("a")));
+                    Query query = new SlowCustomBinaryDocValuesTermInSetQuery(fieldName, List.of(new BytesRef("a")));
                     assertEquals(0, searcher.count(query));
                 }
             }
@@ -132,7 +131,7 @@ public class SlowCustomBinaryDocValuesTermInSetQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new SlowCustomBinaryDocValuesTermInSetQuery(fieldName, Set.of(new BytesRef("a")));
+                    Query query = new SlowCustomBinaryDocValuesTermInSetQuery(fieldName, List.of(new BytesRef("a")));
                     assertEquals(1, searcher.count(query));
                 }
             }
@@ -145,9 +144,9 @@ public class SlowCustomBinaryDocValuesTermInSetQueryTests extends ESTestCase {
 
     public void testEqualsAndHashCode() {
         String fieldName = "field";
-        Set<BytesRef> terms1 = Set.of(new BytesRef("a"), new BytesRef("b"));
-        Set<BytesRef> terms2 = Set.of(new BytesRef("a"), new BytesRef("b"));
-        Set<BytesRef> terms3 = Set.of(new BytesRef("a"), new BytesRef("c"));
+        List<BytesRef> terms1 = List.of(new BytesRef("a"), new BytesRef("b"));
+        List<BytesRef> terms2 = List.of(new BytesRef("a"), new BytesRef("b"));
+        List<BytesRef> terms3 = List.of(new BytesRef("a"), new BytesRef("c"));
 
         SlowCustomBinaryDocValuesTermInSetQuery query1 = new SlowCustomBinaryDocValuesTermInSetQuery(fieldName, terms1);
         SlowCustomBinaryDocValuesTermInSetQuery query2 = new SlowCustomBinaryDocValuesTermInSetQuery(fieldName, terms2);
@@ -177,7 +176,7 @@ public class SlowCustomBinaryDocValuesTermInSetQueryTests extends ESTestCase {
             new BytesRef("b"),
             new BytesRef("a")
         );
-        Set<BytesRef> termsWithoutDuplicates = Set.of(new BytesRef("a"), new BytesRef("b"));
+        List<BytesRef> termsWithoutDuplicates = List.of(new BytesRef("a"), new BytesRef("b"));
 
         SlowCustomBinaryDocValuesTermInSetQuery query1 = new SlowCustomBinaryDocValuesTermInSetQuery("field", termsWithDuplicates);
         SlowCustomBinaryDocValuesTermInSetQuery query2 = new SlowCustomBinaryDocValuesTermInSetQuery("field", termsWithoutDuplicates);

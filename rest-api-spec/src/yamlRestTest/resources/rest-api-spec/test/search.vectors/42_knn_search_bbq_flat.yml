@@ -142,9 +142,9 @@ setup:
 
   # Get rescoring scores - hit ordering may change depending on how things are distributed
   - match: { hits.total: 3 }
-  - close_to: { hits.hits.0._score: { value: 6.336711, error: 0.000001 } }
-  - close_to: { hits.hits.1._score: { value: 5.919706, error: 0.000001 } }
-  - close_to: { hits.hits.2._score: { value: 5.493254, error: 0.000001 } }
+  - set: { hits.hits.0._score: rescore_score0 }
+  - set: { hits.hits.1._score: rescore_score1 }
+  - set: { hits.hits.2._score: rescore_score2 }
 
   # Exact knn via script score
   - do:

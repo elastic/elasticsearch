@@ -27,8 +27,8 @@ import java.nio.ByteOrder;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductI4I4;
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductI4I4Bulk;
+import static org.elasticsearch.simdvec.internal.Similarities.dotProductD4Q4;
+import static org.elasticsearch.simdvec.internal.Similarities.dotProductD4Q4Bulk;
 
 /** Panamized scorer for quantized vectors stored as a {@link MemorySegment}. */
 final class MSInt4SymmetricESNextOSQVectorsScorer extends MemorySegmentESNextOSQVectorsScorer.MemorySegmentScorer {
@@ -62,12 +62,12 @@ final class MSInt4SymmetricESNextOSQVectorsScorer extends MemorySegmentESNextOSQ
         final long qScore;
         if (SUPPORTS_HEAP_SEGMENTS) {
             var queryMemorySegment = MemorySegment.ofArray(q);
-            qScore = dotProductI4I4(datasetMemorySegment, queryMemorySegment, length);
+            qScore = dotProductD4Q4(datasetMemorySegment, queryMemorySegment, length);
         } else {
             try (var arena = Arena.ofConfined()) {
                 var queryMemorySegment = arena.allocate(q.length, 32);
                 MemorySegment.copy(q, 0, queryMemorySegment, ValueLayout.JAVA_BYTE, 0, q.length);
-                qScore = dotProductI4I4(datasetMemorySegment, queryMemorySegment, length);
+                qScore = dotProductD4Q4(datasetMemorySegment, queryMemorySegment, length);
             }
         }
         in.skipBytes(length);
@@ -254,13 +254,13 @@ final class MSInt4SymmetricESNextOSQVectorsScorer extends MemorySegmentESNextOSQ
         if (SUPPORTS_HEAP_SEGMENTS) {
             var queryMemorySegment = MemorySegment.ofArray(q);
             var scoresSegment = MemorySegment.ofArray(scores);
-            dotProductI4I4Bulk(datasetSegment, queryMemorySegment, length, count, scoresSegment);
+            dotProductD4Q4Bulk(datasetSegment, queryMemorySegment, length, count, scoresSegment);
         } else {
             try (var arena = Arena.ofConfined()) {
                 var queryMemorySegment = arena.allocate(q.length, 32);
                 var scoresSegment = arena.allocate((long) scores.length * Float.BYTES, 32);
                 MemorySegment.copy(q, 0, queryMemorySegment, ValueLayout.JAVA_BYTE, 0, q.length);
-                dotProductI4I4Bulk(datasetSegment, queryMemorySegment, length, count, scoresSegment);
+                dotProductD4Q4Bulk(datasetSegment, queryMemorySegment, length, count, scoresSegment);
                 MemorySegment.copy(scoresSegment, ValueLayout.JAVA_FLOAT, 0, scores, 0, scores.length);
             }
         }

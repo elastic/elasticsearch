@@ -20,7 +20,6 @@ import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.Operation;
 import org.elasticsearch.nativeaccess.lib.LoaderHelper;
 import org.elasticsearch.nativeaccess.lib.VectorLibrary;
 
-import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
@@ -182,22 +181,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
         /**
          * Invokes a similarity function between 1 "query" vector and a single "target" vector (as opposed to N target vectors in a bulk
-         * operation). The native function parameters are handled so to avoid the cost of shared MemorySegment checks, by reinterpreting
-         * the MemorySegment with a new local scope.
-         * <p>
-         * Vector data is consumed by native functions directly via a pointer to contiguous memory, represented in FFI by
-         * {@link MemorySegment}s, which safely encapsulate a memory location, off-heap or on-heap.
-         * We mainly use <b>shared</b> MemorySegments for off-heap vectors (via {@link Arena#ofShared} or via
-         * {@link java.nio.channels.FileChannel#map}).
-         * <p>
-         * Shared MemorySegments have a built-in check for liveness when accessed by native functions, implemented by JIT adding some
-         * additional instructions before/after the native function is actually called.
-         * While the cost of these instructions is usually negligible, single score distance functions are so heavily optimized that can
-         * execute in less than 50 CPU cycles, so every overhead shows. In contrast, there is no need to worry in the case of
-         * bulk functions, as the call cost is amortized over hundred or thousands of vectors and is practically invisible.
-         * <p>
-         * By reinterpreting the input MemorySegments with a new local scope, the JVM does not inject any additional check.
-         * Benchmarks show that this gives us a boost of ~15% on x64 and ~5% on ARM for single vector distance functions.
+         * operation).
+         *
          * @param mh        the {@link MethodHandle} of the "single" distance function to invoke
          * @param a         the {@link MemorySegment} for the first vector (first parameter to pass to the native function)
          * @param b         the {@link MemorySegment} for the second vector (second parameter to pass to the native function)
@@ -205,43 +190,28 @@ public final class JdkVectorLibrary implements VectorLibrary {
          * @return          the distance as computed by the native function
          */
         private static long callSingleDistanceLong(MethodHandle mh, MemorySegment a, MemorySegment b, int length) {
-            try (var arena = Arena.ofConfined()) {
-                var aSegment = a.isNative() ? a.reinterpret(arena, null) : a;
-                var bSegment = b.isNative() ? b.reinterpret(arena, null) : b;
-                return (long) mh.invokeExact(aSegment, bSegment, length);
+            try {
+                return (long) mh.invokeExact(a, b, length);
             } catch (Throwable t) {
                 throw invocationError(t, a, b);
-            } finally {
-                assert a.scope().isAlive();
-                assert b.scope().isAlive();
             }
         }
 
         /** See {@link JdkVectorSimilarityFunctions#callSingleDistanceLong} */
         private static int callSingleDistanceInt(MethodHandle mh, MemorySegment a, MemorySegment b, int length) {
-            try (var arena = Arena.ofConfined()) {
-                var aSegment = a.isNative() ? a.reinterpret(arena, null) : a;
-                var bSegment = b.isNative() ? b.reinterpret(arena, null) : b;
-                return (int) mh.invokeExact(aSegment, bSegment, length);
+            try {
+                return (int) mh.invokeExact(a, b, length);
             } catch (Throwable t) {
                 throw invocationError(t, a, b);
-            } finally {
-                assert a.scope().isAlive();
-                assert b.scope().isAlive();
             }
         }
 
         /** See {@link JdkVectorSimilarityFunctions#callSingleDistanceLong} */
         private static float callSingleDistanceFloat(MethodHandle mh, MemorySegment a, MemorySegment b, int length) {
-            try (var arena = Arena.ofConfined()) {
-                var aSegment = a.isNative() ? a.reinterpret(arena, null) : a;
-                var bSegment = b.isNative() ? b.reinterpret(arena, null) : b;
-                return (float) mh.invokeExact(aSegment, bSegment, length);
+            try {
+                return (float) mh.invokeExact(a, b, length);
             } catch (Throwable t) {
                 throw invocationError(t, a, b);
-            } finally {
-                assert a.scope().isAlive();
-                assert b.scope().isAlive();
             }
         }
 

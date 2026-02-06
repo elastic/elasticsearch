@@ -340,7 +340,7 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
                 }
             }, new AllocationDecider() {
                 @Override
-                public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                public Decision canRebalance(RoutingAllocation allocation) {
                     if (ALLOCATION_DISABLED) {
                         return Decision.NO;
                     } else {

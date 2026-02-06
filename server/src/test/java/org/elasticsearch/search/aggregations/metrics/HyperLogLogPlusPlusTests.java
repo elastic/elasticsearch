@@ -265,10 +265,12 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
         while (true) {
             final long hash = BitMixer.mix64(seed[0]++);
             final int encoded = AbstractLinearCounting.encodeHash(hash, p);
-            if (seen.add(encoded)) {
-                counts.collect(bucket, hash);
-                return;
+            if (seen.contains(encoded)) {
+                continue;
             }
+            counts.collect(bucket, hash);
+            seen.add(encoded);
+            return;
         }
     }
 }

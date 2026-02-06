@@ -177,11 +177,9 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
             .put(BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey(), 0.0f)
             .build();
 
-        internalCluster().startMasterOnlyNode(settings);
-
         /* set up a node that has a few indices, hotspot it against a not preferred node,
         and see that it doesn't move any shards onto it */
-        final String sourceNode = internalCluster().startDataOnlyNode(settings);
+        final String sourceNode = internalCluster().startNode(settings);
         final String sourceNodeId = getNodeId(sourceNode);
 
         final int numberOfNodes = randomIntBetween(5, 20);
@@ -208,7 +206,7 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
 
         // turn off allocation, and add a bunch of nodes
         ALLOCATION_DISABLED = true;
-        List<String> nodeNames = internalCluster().startDataOnlyNodes(numberOfNodes, settings);
+        List<String> nodeNames = internalCluster().startNodes(numberOfNodes, settings);
         Set<String> nodeIds = new HashSet<>(nodeNames.stream().map(nodeName -> getNodeId(nodeName)).collect(Collectors.toSet()));
         Set<String> notPreferredNodeIds = new HashSet<>(randomSubsetOf(numberOfNotPreferredNodes, nodeIds));
         Set<String> preferredNodeIds = Sets.difference(nodeIds, notPreferredNodeIds);

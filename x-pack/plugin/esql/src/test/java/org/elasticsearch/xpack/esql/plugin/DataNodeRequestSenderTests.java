@@ -696,6 +696,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             null,
             null,
             transportService,
+            null,
             executor,
             task,
             new OriginalIndices(new String[0], SearchRequest.DEFAULT_INDICES_OPTIONS),

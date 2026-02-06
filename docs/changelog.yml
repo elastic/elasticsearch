@@ -206,6 +206,7 @@ block:
       publish:
         types:
           - docs
+          - other
     'cloud-serverless':
       create: ">non-issue, >test, >refactoring, :Delivery/Build, :Delivery/Tooling"
       publish:
@@ -240,4 +241,3 @@ block:
           - Watcher
         types:
           - docs
-          - other

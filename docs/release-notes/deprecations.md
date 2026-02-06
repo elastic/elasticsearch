@@ -23,6 +23,7 @@ To give you insight into what deprecated features you’re using, {{es}}:
 :subsections:
 :type: deprecation
 :config: /changelog.yml
+:product: elasticsearch
 :::
 
 ## 9.3.0 [elasticsearch-9.3.0-deprecations]

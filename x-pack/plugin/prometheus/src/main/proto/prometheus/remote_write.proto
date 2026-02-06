@@ -1,0 +1,34 @@
+syntax = "proto3";
+package prometheus;
+
+option java_package = "org.elasticsearch.xpack.prometheus.proto";
+
+// WriteRequest represents a batch of time series data to be written.
+message WriteRequest {
+  repeated TimeSeries timeseries = 1;
+  // Cortex uses this field to determine the source of the write request.
+  // We reserve it to avoid any compatibility issues.
+  reserved  2;
+
+  // Prometheus uses this field to send metadata, but this is
+  // omitted from v1 of the spec as it is experimental.
+  reserved  3;
+}
+
+// TimeSeries represents a single time series with its labels and samples.
+message TimeSeries {
+  repeated Label labels   = 1;
+  repeated Sample samples = 2;
+}
+
+// Label is a name-value pair that describes a time series. It's what we call "dimensions" in Elasticsearch.
+message Label {
+  string name  = 1;
+  string value = 2;
+}
+
+// Sample is a single data point with a value and timestamp.
+message Sample {
+  double value    = 1;
+  int64 timestamp = 2;
+}

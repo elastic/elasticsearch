@@ -28,14 +28,14 @@ import java.util.stream.Stream;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
 import static org.hamcrest.Matchers.containsString;
 
-public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
+public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
 
     private final VectorSimilarityFunctions.BBQType type;
 
     private final byte maxQueryValue;
     private final byte maxIndexValue;
 
-    public JDKVectorLibraryInt4Tests(VectorSimilarityFunctions.BBQType type, VectorSimilarityFunctions.Function function, int size) {
+    public JDKVectorLibraryBBQTests(VectorSimilarityFunctions.BBQType type, VectorSimilarityFunctions.Function function, int size) {
         super(function, size);
         this.type = type;
         this.maxQueryValue = (byte) ((1 << type.queryBits()) - 1);
@@ -384,14 +384,14 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
 
     void scalarSimilarityBulk(byte[] query, byte[][] data, float[] scores) {
         switch (function) {
-            case DOT_PRODUCT -> bulkScalar(JDKVectorLibraryInt4Tests::dotProductScalar, query, data, scores);
+            case DOT_PRODUCT -> bulkScalar(JDKVectorLibraryBBQTests::dotProductScalar, query, data, scores);
             case SQUARE_DISTANCE -> throw new AssumptionViolatedException("square distance not implemented");
         }
     }
 
     void scalarSimilarityBulkWithOffsets(byte[] query, byte[][] data, int[] offsets, float[] scores) {
         switch (function) {
-            case DOT_PRODUCT -> bulkWithOffsetsScalar(JDKVectorLibraryInt4Tests::dotProductScalar, query, data, offsets, scores);
+            case DOT_PRODUCT -> bulkWithOffsetsScalar(JDKVectorLibraryBBQTests::dotProductScalar, query, data, offsets, scores);
             case SQUARE_DISTANCE -> throw new AssumptionViolatedException("square distance not implemented");
         }
     }

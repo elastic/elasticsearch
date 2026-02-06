@@ -2,6 +2,9 @@
 # claude
 .claude
 
+# JetBrainsAI/Junie
+.junie/
+
 # intellij files
 .idea/
 *.iml

@@ -72,8 +72,9 @@ public class NotPreferredAllocationRebalancingIT extends ESIntegTestCase {
             .put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), 1.0f)
             .build();
 
-        /* set up a node that has a few indices, hotspot it against a not preferred node,
-        and see that it doesn't move any shards onto it */
+        /* set up a node that has a bunch of indices, add a bunch of nodes with allocation turned off,
+        enable allocation with a subset of the new nodes returning not preferred in canAllocate,
+        and see that it doesn't move any shards onto this subset when balancing happens */
         final String sourceNode = internalCluster().startNode(settings);
         final String sourceNodeId = getNodeId(sourceNode);
 

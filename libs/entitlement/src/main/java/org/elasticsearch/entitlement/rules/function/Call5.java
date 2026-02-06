@@ -11,9 +11,37 @@ package org.elasticsearch.entitlement.rules.function;
 
 import java.io.Serializable;
 
+/**
+ * Functional interface for functions with five parameters that return a value.
+ * <p>
+ * This interface extends {@link Serializable} to support lambda serialization
+ * for method reference resolution, and {@link VarargCallAdapter} to allow
+ * conversion to variable-argument form.
+ *
+ * @param <R> the return type of the function
+ * @param <A> the type of the first parameter
+ * @param <B> the type of the second parameter
+ * @param <C> the type of the third parameter
+ * @param <D> the type of the fourth parameter
+ * @param <E> the type of the fifth parameter
+ */
 public interface Call5<R, A, B, C, D, E> extends Serializable, VarargCallAdapter<R> {
+    /**
+     * Invokes the function with five arguments.
+     *
+     * @param arg0 the first argument
+     * @param arg1 the second argument
+     * @param arg2 the third argument
+     * @param arg3 the fourth argument
+     * @param arg4 the fifth argument
+     * @return the result of the function call
+     * @throws Exception if the function call fails
+     */
     R call(A arg0, B arg1, C arg2, D arg3, E arg4) throws Exception;
 
+    /**
+     * {@inheritDoc}
+     */
     @SuppressWarnings("unchecked")
     @Override
     default VarargCall<R> asVarargCall() {

@@ -11,6 +11,26 @@ package org.elasticsearch.entitlement.rules.function;
 
 import java.io.Serializable;
 
+/**
+ * Functional interface for functions with four parameters that return void.
+ * <p>
+ * This interface extends {@link Serializable} to support lambda serialization
+ * for method reference resolution.
+ *
+ * @param <A> the type of the first parameter
+ * @param <B> the type of the second parameter
+ * @param <C> the type of the third parameter
+ * @param <D> the type of the fourth parameter
+ */
 public interface VoidCall4<A, B, C, D> extends Serializable {
+    /**
+     * Invokes the function with four arguments.
+     *
+     * @param arg0 the first argument
+     * @param arg1 the second argument
+     * @param arg2 the third argument
+     * @param arg3 the fourth argument
+     * @throws Exception if the function call fails
+     */
     void call(A arg0, B arg1, C arg2, D arg3) throws Exception;
 }

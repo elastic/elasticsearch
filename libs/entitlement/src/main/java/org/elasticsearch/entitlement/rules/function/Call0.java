@@ -11,9 +11,27 @@ package org.elasticsearch.entitlement.rules.function;
 
 import java.io.Serializable;
 
+/**
+ * Functional interface for functions with no parameters that return a value.
+ * <p>
+ * This interface extends {@link Serializable} to support lambda serialization
+ * for method reference resolution, and {@link VarargCallAdapter} to allow
+ * conversion to variable-argument form.
+ *
+ * @param <R> the return type of the function
+ */
 public interface Call0<R> extends Serializable, VarargCallAdapter<R> {
+    /**
+     * Invokes the function with no arguments.
+     *
+     * @return the result of the function call
+     * @throws Exception if the function call fails
+     */
     R call() throws Exception;
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     default VarargCall<R> asVarargCall() {
         return args -> call();

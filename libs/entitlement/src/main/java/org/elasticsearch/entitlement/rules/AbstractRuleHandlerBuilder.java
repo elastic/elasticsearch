@@ -17,7 +17,16 @@ import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationReg
 
 import java.util.function.Function;
 
-public class AbstractRuleHandlerBuilder<T> {
+/**
+ * Abstract base builder for configuring failure handling strategies for entitlement rules.
+ * <p>
+ * This class provides common failure handling strategies that apply to both void and
+ * non-void methods, including throwing exceptions when entitlement checks fail.
+ * Subclasses extend this with method-signature-specific strategies.
+ *
+ * @param <T> the type of the class containing the method
+ */
+public abstract class AbstractRuleHandlerBuilder<T> {
     protected final InternalInstrumentationRegistry registry;
     protected final Class<? extends T> clazz;
     protected final MethodKey methodKey;
@@ -35,6 +44,12 @@ public class AbstractRuleHandlerBuilder<T> {
         this.checkMethod = checkMethod;
     }
 
+    /**
+     * Specifies that when the entitlement check fails, a {@link NotEntitledException}
+     * should be thrown.
+     *
+     * @return a class method builder for continuing rule definition
+     */
     public ClassMethodBuilder<T> elseThrowNotEntitled() {
         registry.registerRule(
             new EntitlementRule(methodKey, checkMethod, new DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy())
@@ -42,6 +57,14 @@ public class AbstractRuleHandlerBuilder<T> {
         return new ClassMethodBuilder<>(registry, clazz);
     }
 
+    /**
+     * Specifies that when the entitlement check fails, a custom exception should be thrown.
+     * The exception is created by the provided function, which receives the original
+     * {@link NotEntitledException} as input.
+     *
+     * @param exceptionSupplier a function that creates the exception to throw
+     * @return a class method builder for continuing rule definition
+     */
     public ClassMethodBuilder<T> elseThrow(Function<NotEntitledException, ? extends Exception> exceptionSupplier) {
         registry.registerRule(
             new EntitlementRule(methodKey, checkMethod, new DeniedEntitlementStrategy.ExceptionDeniedEntitlementStrategy(exceptionSupplier))

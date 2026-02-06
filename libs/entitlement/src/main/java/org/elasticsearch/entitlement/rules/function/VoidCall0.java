@@ -11,7 +11,18 @@ package org.elasticsearch.entitlement.rules.function;
 
 import java.io.Serializable;
 
+/**
+ * Functional interface for functions with no parameters that return void.
+ * <p>
+ * This interface extends {@link Serializable} to support lambda serialization
+ * for method reference resolution.
+ */
 @FunctionalInterface
 public interface VoidCall0 extends Serializable {
+    /**
+     * Invokes the function with no arguments.
+     *
+     * @throws Exception if the function call fails
+     */
     void call() throws Exception;
 }

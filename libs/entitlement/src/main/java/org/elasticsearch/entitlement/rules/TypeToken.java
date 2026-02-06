@@ -14,10 +14,34 @@ import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 
+/**
+ * Utility class for capturing and representing generic type information at runtime.
+ * <p>
+ * This class allows preserving type parameter information that would normally be erased
+ * due to Java's type erasure. It's particularly useful when working with generic methods
+ * and APIs that need to maintain type information.
+ * <p>
+ * Example usage:
+ * <pre>{@code
+ * TypeToken<List<String>> token = new TypeToken<List<String>>() {};
+ * Type type = token.getType(); // Returns ParameterizedType for List<String>
+ * Class<?> rawType = token.getRawType(); // Returns List.class
+ * }</pre>
+ *
+ * @param <T> the type this token represents
+ */
 public abstract class TypeToken<T> {
     private final Type type;
     private final Class<? super T> rawType;
 
+    /**
+     * Protected constructor for subclasses to capture generic type information.
+     * <p>
+     * Subclasses must be instantiated with explicit type parameters to capture
+     * the generic type information.
+     *
+     * @throws IllegalArgumentException if instantiated without generic type information
+     */
     protected TypeToken() {
         Type superclass = getClass().getGenericSuperclass();
         if (superclass instanceof ParameterizedType parameterizedType) {
@@ -28,19 +52,41 @@ public abstract class TypeToken<T> {
         this.rawType = resolveRawType(type);
     }
 
+    /**
+     * Private constructor for creating simple type tokens from class objects.
+     *
+     * @param rawType the raw class type
+     */
     private TypeToken(Class<? super T> rawType) {
         this.type = rawType;
         this.rawType = rawType;
     }
 
+    /**
+     * Creates a type token for a simple (non-generic) class.
+     *
+     * @param <T> the type parameter
+     * @param clazz the class to create a type token for
+     * @return a type token representing the specified class
+     */
     public static <T> TypeToken<T> of(Class<? super T> clazz) {
         return new SimpleTypeToken<>(clazz);
     }
 
+    /**
+     * Returns the generic type information captured by this token.
+     *
+     * @return the type represented by this token
+     */
     public Type getType() {
         return type;
     }
 
+    /**
+     * Returns the raw class type, erasing any generic type information.
+     *
+     * @return the raw class of the type represented by this token
+     */
     public Class<? super T> getRawType() {
         return rawType;
     }

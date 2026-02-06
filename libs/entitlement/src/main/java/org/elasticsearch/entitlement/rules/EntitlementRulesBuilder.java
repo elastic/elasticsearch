@@ -14,6 +14,22 @@ import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationReg
 import java.util.List;
 import java.util.function.Consumer;
 
+/**
+ * Entry point builder for defining entitlement rules.
+ * <p>
+ * This builder provides methods to start defining entitlement rules for specific classes.
+ * It serves as the top-level entry point in the fluent API for creating entitlement
+ * rule definitions.
+ * <p>
+ * Example usage:
+ * <pre>{@code
+ * EntitlementRulesBuilder builder = new EntitlementRulesBuilder(registry);
+ * builder.on(File.class)
+ *     .calling(File::exists)
+ *     .enforce(Policies::fileRead)
+ *     .elseThrowNotEntitled();
+ * }</pre>
+ */
 public class EntitlementRulesBuilder {
     private final InternalInstrumentationRegistry registry;
 
@@ -21,6 +37,18 @@ public class EntitlementRulesBuilder {
         this.registry = registry;
     }
 
+    /**
+     * Starts defining rules for a class specified by name.
+     * <p>
+     * This method is useful when the class may not be available at compile time
+     * or when working with dynamically loaded classes.
+     *
+     * @param <T> the type of the class
+     * @param className the fully qualified name of the class
+     * @param publicType the public type/interface used for type safety
+     * @return a class method builder for the specified class
+     * @throws IllegalArgumentException if the class cannot be found
+     */
     @SuppressWarnings("unchecked")
     public <T> ClassMethodBuilder<T> on(String className, Class<? extends T> publicType) {
         try {
@@ -30,10 +58,27 @@ public class EntitlementRulesBuilder {
         }
     }
 
+    /**
+     * Starts defining rules for the specified class.
+     *
+     * @param <T> the type of the class
+     * @param clazz the class to define rules for
+     * @return a class method builder for the specified class
+     */
     public <T> ClassMethodBuilder<T> on(Class<? extends T> clazz) {
         return new ClassMethodBuilder<>(registry, clazz);
     }
 
+    /**
+     * Applies the same rule configuration to multiple classes.
+     * <p>
+     * This method is useful when multiple classes share the same entitlement
+     * requirements and rule definitions.
+     *
+     * @param <T> the common type of the classes
+     * @param classes the list of classes to apply rules to
+     * @param builderConsumer a consumer that configures the rules for each class
+     */
     public <T> void on(List<? extends Class<? extends T>> classes, Consumer<ClassMethodBuilder<T>> builderConsumer) {
         classes.forEach(clazz -> builderConsumer.accept(on(clazz)));
     }

@@ -14,6 +14,15 @@ import org.elasticsearch.entitlement.rules.function.CheckMethod;
 import org.elasticsearch.entitlement.rules.function.VarargCall;
 import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 
+/**
+ * Builder for configuring failure handling strategies for void methods.
+ * <p>
+ * This class extends {@link AbstractRuleHandlerBuilder} and adds a strategy
+ * specific to void methods: returning early when an entitlement check fails,
+ * which effectively converts the method into a no-op.
+ *
+ * @param <T> the type of the class containing the method
+ */
 public class VoidRuleHandlerBuilder<T> extends AbstractRuleHandlerBuilder<T> {
 
     public VoidRuleHandlerBuilder(
@@ -25,6 +34,12 @@ public class VoidRuleHandlerBuilder<T> extends AbstractRuleHandlerBuilder<T> {
         super(registry, clazz, methodKey, checkMethod);
     }
 
+    /**
+     * Specifies that when the entitlement check fails, the method should return
+     * early without executing its body, effectively making it a no-op.
+     *
+     * @return a class method builder for continuing rule definition
+     */
     public ClassMethodBuilder<T> elseReturnEarly() {
         registry.registerRule(
             new EntitlementRule(methodKey, checkMethod, new DeniedEntitlementStrategy.ReturnEarlyDeniedEntitlementStrategy())

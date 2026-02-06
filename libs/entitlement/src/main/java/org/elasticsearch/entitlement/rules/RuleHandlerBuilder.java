@@ -14,6 +14,16 @@ import org.elasticsearch.entitlement.rules.function.CheckMethod;
 import org.elasticsearch.entitlement.rules.function.VarargCall;
 import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 
+/**
+ * Builder for configuring failure handling strategies for methods that return values.
+ * <p>
+ * This class extends {@link VoidRuleHandlerBuilder} and adds additional strategies
+ * specific to methods with return values, such as returning a default value or
+ * returning one of the method's arguments when an entitlement check fails.
+ *
+ * @param <T> the type of the class containing the method
+ * @param <R> the return type of the method
+ */
 public class RuleHandlerBuilder<T, R> extends VoidRuleHandlerBuilder<T> {
 
     public RuleHandlerBuilder(
@@ -25,6 +35,13 @@ public class RuleHandlerBuilder<T, R> extends VoidRuleHandlerBuilder<T> {
         super(registry, clazz, methodKey, checkMethod);
     }
 
+    /**
+     * Specifies that when the entitlement check fails, the method should return
+     * the provided default value instead of throwing an exception.
+     *
+     * @param defaultValue the value to return when the entitlement check fails
+     * @return a class method builder for continuing rule definition
+     */
     public ClassMethodBuilder<T> elseReturn(R defaultValue) {
         registry.registerRule(
             new EntitlementRule(methodKey, checkMethod, new DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy<>(defaultValue))
@@ -32,6 +49,13 @@ public class RuleHandlerBuilder<T, R> extends VoidRuleHandlerBuilder<T> {
         return new ClassMethodBuilder<>(registry, clazz);
     }
 
+    /**
+     * Specifies that when the entitlement check fails, the method should return
+     * the value of the argument at the specified index.
+     *
+     * @param index the zero-based index of the method argument to return
+     * @return a class method builder for continuing rule definition
+     */
     public ClassMethodBuilder<T> elseReturnArg(int index) {
         registry.registerRule(
             new EntitlementRule(methodKey, checkMethod, new DeniedEntitlementStrategy.MethodArgumentValueDeniedEntitlementStrategy(index))

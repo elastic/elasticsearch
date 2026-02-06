@@ -9,6 +9,21 @@
 
 package org.elasticsearch.entitlement.rules.function;
 
+/**
+ * Functional interface for calling functions with variable arguments.
+ * <p>
+ * This interface is used internally by the entitlement system to represent
+ * method calls with varying numbers of arguments in a uniform way.
+ *
+ * @param <R> the return type of the function
+ */
 public interface VarargCall<R> {
+    /**
+     * Invokes the function with the specified arguments.
+     *
+     * @param args the arguments to pass to the function
+     * @return the result of the function call
+     * @throws Exception if the function call fails
+     */
     R call(Object... args) throws Exception;
 }

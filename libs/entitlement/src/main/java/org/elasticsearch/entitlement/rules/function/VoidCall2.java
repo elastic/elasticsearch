@@ -11,6 +11,22 @@ package org.elasticsearch.entitlement.rules.function;
 
 import java.io.Serializable;
 
+/**
+ * Functional interface for functions with two parameters that return void.
+ * <p>
+ * This interface extends {@link Serializable} to support lambda serialization
+ * for method reference resolution.
+ *
+ * @param <A> the type of the first parameter
+ * @param <B> the type of the second parameter
+ */
 public interface VoidCall2<A, B> extends Serializable {
+    /**
+     * Invokes the function with two arguments.
+     *
+     * @param arg0 the first argument
+     * @param arg1 the second argument
+     * @throws Exception if the function call fails
+     */
     void call(A arg0, B arg1) throws Exception;
 }

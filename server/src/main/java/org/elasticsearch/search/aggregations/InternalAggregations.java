@@ -285,4 +285,8 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
             internalAggregations.aggregations.stream().map(agg -> agg.finalizeSampling(samplingContext)).collect(Collectors.toList())
         );
     }
+
+    public void close() {
+        this.forEach(aggregation -> { aggregation.close(); });
+    }
 }

@@ -181,6 +181,9 @@ class TopHitsAggregator extends MetricsAggregator {
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         Collectors collectors = topDocsCollectors.get(owningBucketOrdinal);
         if (collectors == null) {
+            // var empty = buildEmptyAggregation();
+            // empty.decRef(); // no closing from collector
+            // return empty;
             return buildEmptyAggregation();
         }
         TopDocsCollector<?> topDocsCollector = collectors.topDocsCollector;
@@ -222,7 +225,8 @@ class TopHitsAggregator extends MetricsAggregator {
                 searchHitFields.sortValues(fieldDoc.fields, subSearchContext.sort().formats);
             }
         }
-        return new InternalTopHits(
+
+        final InternalTopHits internalTopHits = new InternalTopHits(
             name,
             subSearchContext.from(),
             subSearchContext.size(),
@@ -230,6 +234,11 @@ class TopHitsAggregator extends MetricsAggregator {
             fetchResult.hits(),
             metadata()
         );
+        fetchResult.hits().incRef();
+        fetchResult.addAggregation(internalTopHits);
+
+        // subSearchContext.addReleasable(internalTopHits);
+        return internalTopHits;
     }
 
     private FetchSearchResult runFetchPhase(int[] docIdsToLoad, IntConsumer memoryChecker) {
@@ -299,7 +308,8 @@ class TopHitsAggregator extends MetricsAggregator {
         } else {
             topDocs = Lucene.EMPTY_TOP_DOCS;
         }
-        return new InternalTopHits(
+
+        final InternalTopHits internalTopHits = new InternalTopHits(
             name,
             subSearchContext.from(),
             subSearchContext.size(),
@@ -307,6 +317,9 @@ class TopHitsAggregator extends MetricsAggregator {
             SearchHits.EMPTY_WITH_TOTAL_HITS,
             metadata()
         );
+        internalTopHits.incRef();
+        subSearchContext.addReleasable(internalTopHits);
+        return internalTopHits;
     }
 
     @Override

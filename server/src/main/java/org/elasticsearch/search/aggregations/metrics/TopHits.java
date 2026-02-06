@@ -8,13 +8,14 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
 
 /**
  * Accumulation of the most relevant hits for a bucket this aggregation falls into.
  */
-public interface TopHits extends Aggregation {
+public interface TopHits extends Aggregation, RefCounted {
 
     /**
      * @return The top matching hits for the bucket

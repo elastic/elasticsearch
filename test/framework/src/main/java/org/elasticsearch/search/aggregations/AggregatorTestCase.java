@@ -599,7 +599,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
         CircuitBreakerService crankyService = new CrankyCircuitBreakerService();
         for (int i = 0; i < 5; i++) {
             try {
-                searchAndReduce(indexSettings, searcher, crankyService, aggTestConfig, this::createAggregationContext);
+                var agg = searchAndReduce(indexSettings, searcher, crankyService, aggTestConfig, this::createAggregationContext);
+                agg.close();
             } catch (CircuitBreakingException e) {
                 // Circuit breaks from the cranky breaker are expected - it randomly fails, after all
                 assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
@@ -615,8 +616,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
     ) throws IOException {
         for (int i = 0; i < 5; i++) {
             try {
-                searchAndReduce(indexSettings, searcher, breakerService, aggTestConfig, this::createCancellingAggregationContext);
+                var agg = searchAndReduce(indexSettings, searcher, breakerService, aggTestConfig, this::createCancellingAggregationContext);
+                agg.close();
             } catch (TaskCancelledException e) {
+                e.printStackTrace();
                 // we don't want to expectThrows this because the randomizer might just never report cancellation,
                 // but it's also normal that it should throw here.
             }
@@ -657,20 +660,51 @@ public abstract class AggregatorTestCase extends ESTestCase {
         Query rewritten = searcher.rewrite(query);
         BigArrays bigArraysForReduction = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService);
 
-        if (splitLeavesIntoSeparateAggregators
-            && searcher.getIndexReader().leaves().size() > 0
-            && builder.isInSortOrderExecutionRequired() == false) {
-            assertThat(ctx, instanceOf(CompositeReaderContext.class));
-            final CompositeReaderContext compCTX = (CompositeReaderContext) ctx;
-            final int size = compCTX.leaves().size();
-            final ShardSearcher[] subSearchers = new ShardSearcher[size];
-            for (int searcherIDX = 0; searcherIDX < subSearchers.length; searcherIDX++) {
-                final LeafReaderContext leave = compCTX.leaves().get(searcherIDX);
-                subSearchers[searcherIDX] = new ShardSearcher(leave, compCTX);
-            }
-            for (ShardSearcher subSearcher : subSearchers) {
+        try {
+            if (splitLeavesIntoSeparateAggregators
+                && searcher.getIndexReader().leaves().size() > 0
+                && builder.isInSortOrderExecutionRequired() == false) {
+                assertThat(ctx, instanceOf(CompositeReaderContext.class));
+                final CompositeReaderContext compCTX = (CompositeReaderContext) ctx;
+                final int size = compCTX.leaves().size();
+                final ShardSearcher[] subSearchers = new ShardSearcher[size];
+                for (int searcherIDX = 0; searcherIDX < subSearchers.length; searcherIDX++) {
+                    final LeafReaderContext leave = compCTX.leaves().get(searcherIDX);
+                    subSearchers[searcherIDX] = new ShardSearcher(leave, compCTX);
+                }
+                for (ShardSearcher subSearcher : subSearchers) {
+                    AggregationContext context = contextSupplier.get(
+                        subSearcher,
+                        indexSettings,
+                        query,
+                        breakerService,
+                        randomBoolean() ? 0 : builder.bytesToPreallocate(),
+                        maxBucket,
+                        builder.isInSortOrderExecutionRequired(),
+                        fieldTypes
+                    );
+                    try {
+                        C a = createAggregator(builder, context);
+                        a.preCollection();
+                        if (context.isInSortOrderExecutionRequired()) {
+                            new TimeSeriesIndexSearcher(subSearcher, List.of()).search(rewritten, a);
+                        } else {
+                            Weight weight = subSearcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
+                            subSearcher.search(weight, a.asCollector());
+                            a.postCollection();
+                        }
+                        assertEquals(shouldBeCached, context.isCacheable());
+                        List<InternalAggregation> internalAggregations = List.of(a.buildTopLevel());
+                        aggTestConfig.checkAggregator().accept(a);
+                        assertRoundTrip(internalAggregations);
+                        internalAggs.add(InternalAggregations.from(internalAggregations));
+                    } finally {
+                        Releasables.close(context);
+                    }
+                }
+            } else {
                 AggregationContext context = contextSupplier.get(
-                    subSearcher,
+                    searcher,
                     indexSettings,
                     query,
                     breakerService,
@@ -679,120 +713,105 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     builder.isInSortOrderExecutionRequired(),
                     fieldTypes
                 );
+                List<C> aggregators = new ArrayList<>();
                 try {
-                    C a = createAggregator(builder, context);
-                    a.preCollection();
                     if (context.isInSortOrderExecutionRequired()) {
-                        new TimeSeriesIndexSearcher(subSearcher, List.of()).search(rewritten, a);
+                        C root = createAggregator(builder, context);
+                        root.preCollection();
+                        aggregators.add(root);
+                        new TimeSeriesIndexSearcher(searcher, List.of()).search(rewritten, MultiBucketCollector.wrap(true, List.of(root)));
+                        List<InternalAggregation> internalAggregations = List.of(root.buildTopLevel());
+                        assertRoundTrip(internalAggregations);
+                        internalAggs.add(InternalAggregations.from(internalAggregations));
                     } else {
-                        Weight weight = subSearcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
-                        subSearcher.search(weight, a.asCollector());
-                        a.postCollection();
+                        Supplier<AggregatorCollector> aggregatorSupplier = () -> {
+                            try {
+                                C aggregator = createAggregator(builder, context);
+                                aggregator.preCollection();
+                                aggregators.add(aggregator);
+                                BucketCollector bucketCollector = MultiBucketCollector.wrap(true, List.of(aggregator));
+                                return new AggregatorCollector(new Aggregator[] { aggregator }, bucketCollector);
+                            } catch (IOException e) {
+                                throw new AggregationInitializationException("Could not initialize aggregators", e);
+                            }
+                        };
+                        Supplier<AggregationReduceContext> reduceContextSupplier = () -> new AggregationReduceContext.ForPartial(
+                            bigArraysForReduction,
+                            getMockScriptService(),
+                            () -> false,
+                            builder,
+                            b -> {}
+                        );
+                        AggregatorCollectorManager aggregatorCollectorManager = new AggregatorCollectorManager(
+                            aggregatorSupplier,
+                            internalAggs::add,
+                            reduceContextSupplier
+                        );
+                        searcher.search(rewritten, aggregatorCollectorManager);
                     }
-                    assertEquals(shouldBeCached, context.isCacheable());
-                    List<InternalAggregation> internalAggregations = List.of(a.buildTopLevel());
-                    aggTestConfig.checkAggregator().accept(a);
-                    assertRoundTrip(internalAggregations);
-                    internalAggs.add(InternalAggregations.from(internalAggregations));
                 } finally {
                     Releasables.close(context);
+                    // aggregators.forEach(aggregator -> {
+                    // aggregator.releaseAggregations();
+                    // });
                 }
             }
-        } else {
-            AggregationContext context = contextSupplier.get(
-                searcher,
-                indexSettings,
-                query,
-                breakerService,
-                randomBoolean() ? 0 : builder.bytesToPreallocate(),
-                maxBucket,
-                builder.isInSortOrderExecutionRequired(),
-                fieldTypes
-            );
-            try {
-                List<C> aggregators = new ArrayList<>();
-                if (context.isInSortOrderExecutionRequired()) {
-                    C root = createAggregator(builder, context);
-                    root.preCollection();
-                    aggregators.add(root);
-                    new TimeSeriesIndexSearcher(searcher, List.of()).search(rewritten, MultiBucketCollector.wrap(true, List.of(root)));
-                    List<InternalAggregation> internalAggregations = List.of(root.buildTopLevel());
-                    assertRoundTrip(internalAggregations);
-                    internalAggs.add(InternalAggregations.from(internalAggregations));
-                } else {
-                    Supplier<AggregatorCollector> aggregatorSupplier = () -> {
-                        try {
-                            Aggregator aggregator = createAggregator(builder, context);
-                            aggregator.preCollection();
-                            BucketCollector bucketCollector = MultiBucketCollector.wrap(true, List.of(aggregator));
-                            return new AggregatorCollector(new Aggregator[] { aggregator }, bucketCollector);
-                        } catch (IOException e) {
-                            throw new AggregationInitializationException("Could not initialize aggregators", e);
-                        }
-                    };
-                    Supplier<AggregationReduceContext> reduceContextSupplier = () -> new AggregationReduceContext.ForPartial(
-                        bigArraysForReduction,
-                        getMockScriptService(),
-                        () -> false,
-                        builder,
-                        b -> {}
-                    );
-                    AggregatorCollectorManager aggregatorCollectorManager = new AggregatorCollectorManager(
-                        aggregatorSupplier,
-                        internalAggs::add,
-                        reduceContextSupplier
-                    );
-                    searcher.search(rewritten, aggregatorCollectorManager);
+            if (aggTestConfig.incrementalReduce() && internalAggs.size() > 1) {
+                // sometimes do an incremental reduce
+                int toReduceSize = internalAggs.size();
+                Collections.shuffle(internalAggs, random());
+                int r = randomIntBetween(1, toReduceSize);
+                List<InternalAggregations> toReduce = internalAggs.subList(0, r);
+                AggregationReduceContext reduceContext = new AggregationReduceContext.ForPartial(
+                    bigArraysForReduction,
+                    getMockScriptService(),
+                    () -> false,
+                    builder,
+                    b -> {}
+                );
+                internalAggs = new ArrayList<>(internalAggs.subList(r, toReduceSize));
+                internalAggs.add(InternalAggregations.topLevelReduce(toReduce, reduceContext));
+                toReduce.forEach(InternalAggregations::close);
+                for (InternalAggregations internalAggregation : internalAggs) {
+                    assertRoundTrip(internalAggregation.copyResults());
                 }
-            } finally {
-                Releasables.close(context);
             }
-        }
-        if (aggTestConfig.incrementalReduce() && internalAggs.size() > 1) {
-            // sometimes do an incremental reduce
-            int toReduceSize = internalAggs.size();
-            Collections.shuffle(internalAggs, random());
-            int r = randomIntBetween(1, toReduceSize);
-            List<InternalAggregations> toReduce = internalAggs.subList(0, r);
-            AggregationReduceContext reduceContext = new AggregationReduceContext.ForPartial(
-                bigArraysForReduction,
-                getMockScriptService(),
-                () -> false,
-                builder,
-                b -> {}
-            );
-            internalAggs = new ArrayList<>(internalAggs.subList(r, toReduceSize));
-            internalAggs.add(InternalAggregations.topLevelReduce(toReduce, reduceContext));
-            for (InternalAggregations internalAggregation : internalAggs) {
-                assertRoundTrip(internalAggregation.copyResults());
+            /* Verify that cancellation during final reduce correctly throws.
+             * We check reduce time cancellation only when consuming buckets.
+             */
+            if (aggTestConfig.testReductionCancellation()) {
+                try {
+                    // I can't remember if we mutate the InternalAggregations list, so make a defensive copy
+                    List<InternalAggregations> internalAggsCopy = new ArrayList<>(internalAggs);
+                    A internalAgg = doFinalReduce(maxBucket, bigArraysForReduction, builder, internalAggsCopy, true);
+                    if (internalAgg instanceof MultiBucketsAggregation mb) {
+                        // Empty mutli-bucket aggs are expected to return before even getting to the cancellation check
+                        assertEquals("Got non-empty result for a cancelled reduction", 0, mb.getBuckets().size());
+                    } // other cases?
+                    internalAgg.close();
+                } catch (TaskCancelledException e) {
+                    /* We may not always honor cancellation in reduce, for example if we are returning no results, so we can't
+                     * just expectThrows here.
+                     */
+                }
             }
-        }
-        /* Verify that cancellation during final reduce correctly throws.
-         * We check reduce time cancellation only when consuming buckets.
-         */
-        if (aggTestConfig.testReductionCancellation()) {
-            try {
-                // I can't remember if we mutate the InternalAggregations list, so make a defensive copy
-                List<InternalAggregations> internalAggsCopy = new ArrayList<>(internalAggs);
-                A internalAgg = doFinalReduce(maxBucket, bigArraysForReduction, builder, internalAggsCopy, true);
-                if (internalAgg instanceof MultiBucketsAggregation mb) {
-                    // Empty mutli-bucket aggs are expected to return before even getting to the cancellation check
-                    assertEquals("Got non-empty result for a cancelled reduction", 0, mb.getBuckets().size());
-                } // other cases?
-            } catch (TaskCancelledException e) {
-                /* We may not always honor cancellation in reduce, for example if we are returning no results, so we can't
-                 * just expectThrows here.
-                 */
-            }
-        }
 
-        // now do the final reduce
-        A internalAgg = doFinalReduce(maxBucket, bigArraysForReduction, builder, internalAggs, false);
-        assertRoundTrip(internalAgg);
-        if (aggTestConfig.builder instanceof ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?>) {
-            verifyMetricNames((ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?>) aggTestConfig.builder, internalAgg);
+            // now do the final reduce
+            A internalAgg = doFinalReduce(maxBucket, bigArraysForReduction, builder, internalAggs, false);
+            assertRoundTrip(internalAgg);
+            if (aggTestConfig.builder instanceof ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?>) {
+                verifyMetricNames((ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?>) aggTestConfig.builder, internalAgg);
+            }
+            internalAggs.forEach(agg -> { agg.close(); });
+            return internalAgg;
+        } catch (Exception e) {
+            for (InternalAggregations aggs : internalAggs) {
+                for (InternalAggregation agg : aggs) {
+                    agg.close();
+                }
+            }
+            throw e;
         }
-        return internalAgg;
     }
 
     private <A extends InternalAggregation> A doFinalReduce(
@@ -873,9 +892,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 DirectoryReader indexReader = wrapDirectoryReader(unwrapped)
             ) {
                 V agg = searchAndReduce(indexReader, aggTestConfig);
-                verify.accept(agg);
-
-                verifyOutputFieldNames(aggTestConfig.builder(), agg);
+                try {
+                    verify.accept(agg);
+                    verifyOutputFieldNames(aggTestConfig.builder(), agg);
+                } finally {
+                    agg.close();
+                }
             }
         }
     }
@@ -1501,6 +1523,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         assertThat(roundTripped, not(sameInstance(result)));
         assertThat(roundTripped, equalTo(result));
         assertThat(roundTripped.hashCode(), equalTo(result.hashCode()));
+        roundTripped.close();
     }
 
     @Override

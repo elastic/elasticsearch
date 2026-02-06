@@ -19,12 +19,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -41,7 +44,8 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
     private final int from;
     private final int size;
     private final TopDocsAndMaxScore topDocs;
-    private final SearchHits searchHits;
+    private SearchHits searchHits;
+    private final RefCounted refCounted;
 
     public InternalTopHits(
         String name,
@@ -55,7 +59,8 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         this.from = from;
         this.size = size;
         this.topDocs = topDocs;
-        this.searchHits = searchHits.asUnpooled();
+        this.searchHits = searchHits;
+        this.refCounted = LeakTracker.wrap(new SimpleRefCounted());
     }
 
     /**
@@ -66,7 +71,8 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         from = in.readVInt();
         size = in.readVInt();
         topDocs = Lucene.readTopDocs(in);
-        searchHits = SearchHits.readFrom(in, false);
+        searchHits = SearchHits.readFrom(in, true);
+        this.refCounted = LeakTracker.wrap(new SimpleRefCounted());
     }
 
     @Override
@@ -108,6 +114,15 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
             public void accept(InternalAggregation aggregation) {
                 // TODO: Can we do this better?
                 aggregations.add((InternalTopHits) aggregation);
+                // aggregations.getLast().incRef();
+            }
+
+            @Override
+            public void close() {
+                // for (InternalTopHits internalTopHits : aggregations) {
+                // internalTopHits.decRef();
+                // }
+                aggregations.clear();
             }
 
             @Override
@@ -167,9 +182,10 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
                 position = tracker[shardIndex]++;
             } while (topDocsForShard.scoreDocs[position] != scoreDoc);
             hits[i] = aggregations.get(shardIndex).searchHits.getAt(position);
-            assert hits[i].isPooled() == false;
+            assert hits[i].isPooled();
+            hits[i].incRef();
         }
-        return SearchHits.unpooled(hits, reducedTopDocs.totalHits, maxScore);
+        return new SearchHits(hits, reducedTopDocs.totalHits, maxScore);
     }
 
     private static float reduceAndFindMaxScore(List<InternalTopHits> aggregations, TopDocs[] shardDocs) {
@@ -302,4 +318,43 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         hashCode = 31 * hashCode + searchHits.hashCode();
         return hashCode;
     }
+
+    @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        if (refCounted.decRef()) {
+            deallocate();
+            return true;
+        }
+        return false;
+    }
+
+    private void deallocate() {
+        if (searchHits != null) {
+            searchHits.decRef();
+            searchHits = null;
+        }
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
+    }
+
+    @Override
+    public void close() {
+        // while (refCounted.hasReferences()) {
+        decRef();
+        // }
+    }
+
 }

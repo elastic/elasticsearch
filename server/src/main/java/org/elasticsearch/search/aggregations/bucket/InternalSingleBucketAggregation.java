@@ -221,4 +221,9 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     public int hashCode() {
         return Objects.hash(super.hashCode(), docCount, aggregations);
     }
+
+    @Override
+    public void close() {
+        aggregations.asList().forEach(agg -> { agg.close(); });
+    }
 }

@@ -59,10 +59,17 @@ public final class AggregatorsReducer implements Releasable {
     public InternalAggregations get() {
         final Collection<AggregatorReducer> reducers = aggByName.values();
         final List<InternalAggregation> aggs = new ArrayList<>(reducers.size());
-        for (AggregatorReducer reducer : reducers) {
-            aggs.add(reducer.get());
+        try {
+            for (AggregatorReducer reducer : reducers) {
+                aggs.add(reducer.get());
+            }
+            return InternalAggregations.from(aggs);
+        } catch (Exception e) {
+            for (InternalAggregation agg : aggs) {
+                agg.close();
+            }
+            throw e;
         }
-        return InternalAggregations.from(aggs);
     }
 
     @Override

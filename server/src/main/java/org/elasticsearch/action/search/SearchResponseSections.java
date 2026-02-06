@@ -46,7 +46,7 @@ public class SearchResponseSections implements Releasable {
         null
     );
     protected final SearchHits hits;
-    protected final InternalAggregations aggregations;
+    protected InternalAggregations aggregations;
     protected final Suggest suggest;
     protected final SearchProfileResults profileResults;
     protected final boolean timedOut;
@@ -97,6 +97,9 @@ public class SearchResponseSections implements Releasable {
 
     @Override
     public void close() {
+        if (aggregations != null) {
+            aggregations.close();
+        }
         hits.decRef();
     }
 }

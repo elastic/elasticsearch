@@ -76,6 +76,10 @@ public class TopHitsAggExtractor implements BucketExtractor {
             throw new SqlIllegalArgumentException("Cannot find an aggregation named {}", name);
         }
 
+        if (agg.getHits() == null) {
+            return null;
+        }
+
         if (agg.getHits().getTotalHits() == null || agg.getHits().getTotalHits().value() == 0) {
             return null;
         }

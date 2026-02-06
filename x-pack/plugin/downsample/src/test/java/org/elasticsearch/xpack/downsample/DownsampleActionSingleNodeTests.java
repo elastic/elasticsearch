@@ -28,6 +28,7 @@ import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -1186,13 +1187,9 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         return response;
     }
 
-    private InternalAggregations aggregate(final String index, AggregationBuilder aggregationBuilder) {
+    private SearchResponse aggregate(final String index, AggregationBuilder aggregationBuilder) {
         var resp = client().prepareSearch(index).setSize(0).addAggregation(aggregationBuilder).get();
-        try {
-            return resp.getAggregations();
-        } finally {
-            resp.decRef();
-        }
+        return resp;
     }
 
     @SuppressWarnings("unchecked")
@@ -1311,8 +1308,10 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         Map<String, String> labelFields
     ) {
         final AggregationBuilder aggregations = buildAggregations(config, metricFields, labelFields, config.getTimestampField());
-        List<InternalAggregation> origList = aggregate(sourceIndex, aggregations).asList();
-        List<InternalAggregation> downsampleList = aggregate(downsampleIndex, aggregations).asList();
+        var origResponse = aggregate(sourceIndex, aggregations);
+        List<InternalAggregation> origList = origResponse.getAggregations().asList();
+        var downsampleResponse = aggregate(downsampleIndex, aggregations);
+        List<InternalAggregation> downsampleList = downsampleResponse.getAggregations().asList();
         assertEquals(origList.size(), downsampleList.size());
         for (int i = 0; i < origList.size(); i++) {
             assertEquals(origList.get(i).getName(), downsampleList.get(i).getName());
@@ -1417,6 +1416,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 }
             }
         });
+        origResponse.decRef();
+        downsampleResponse.decRef();
     }
 
     @SuppressWarnings("unchecked")

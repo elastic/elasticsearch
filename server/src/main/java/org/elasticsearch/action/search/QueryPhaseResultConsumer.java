@@ -298,6 +298,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             long finalSize = DelayableWriteable.getSerializedSize(reducePhase.aggregations()) - breakerSize;
             addWithoutBreaking(finalSize);
             logger.trace("aggs final reduction [{}] max [{}]", aggsCurrentBufferSize, maxAggsCurrentBufferSize);
+            // aggs.close();
         }
         if (progressListener != SearchProgressListener.NOOP) {
             progressListener.notifyFinalReduce(
@@ -416,20 +417,24 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         int resultSetSize,
         AggregationReduceContext reduceContext
     ) {
+        List<InternalAggregations> usedAggregations = new ArrayList<>();
         try {
             Iterator<InternalAggregations> aggsIter = Iterators.map(toConsume, r -> {
                 try (var res = r.consumeAggs()) {
-                    return res.expand();
+                    usedAggregations.add(res.expand());
+                    return usedAggregations.getLast();
                 }
             });
             return InternalAggregations.topLevelReduce(partialResults.hasNext() ? Iterators.concat(Iterators.map(partialResults, r -> {
                 try (r) {
-                    return r.expand();
+                    usedAggregations.add(r.expand());
+                    return usedAggregations.getLast();
                 }
             }), aggsIter) : aggsIter, resultSetSize, reduceContext);
         } finally {
             toConsume.forEachRemaining(QuerySearchResult::releaseAggs);
             partialResults.forEachRemaining(Releasable::close);
+            usedAggregations.forEach(InternalAggregations::close);
         }
     }
 

@@ -216,54 +216,63 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
                 InternalBucket lastBucket = null;
                 final List<InternalBucket> buckets = new ArrayList<>();
                 final List<InternalBucket> result = new ArrayList<>();
-                while (pq.size() > 0) {
-                    IteratorAndCurrent<InternalBucket> top = pq.top();
-                    if (lastBucket != null && top.current().compareKey(lastBucket, reverseMuls, missingOrders) != 0) {
-                        InternalBucket reduceBucket = reduceBucket(buckets, reduceContext);
-                        buckets.clear();
-                        result.add(reduceBucket);
-                        if (result.size() >= getSize()) {
-                            break;
+                try {
+                    while (pq.size() > 0) {
+                        IteratorAndCurrent<InternalBucket> top = pq.top();
+                        if (lastBucket != null && top.current().compareKey(lastBucket, reverseMuls, missingOrders) != 0) {
+                            InternalBucket reduceBucket = reduceBucket(buckets, reduceContext);
+                            buckets.clear();
+                            result.add(reduceBucket);
+                            if (result.size() >= getSize()) {
+                                break;
+                            }
+                        }
+                        lastBucket = top.current();
+                        buckets.add(top.current());
+                        if (top.hasNext()) {
+                            top.next();
+                            pq.updateTop();
+                        } else {
+                            pq.pop();
                         }
                     }
-                    lastBucket = top.current();
-                    buckets.add(top.current());
-                    if (top.hasNext()) {
-                        top.next();
-                        pq.updateTop();
-                    } else {
-                        pq.pop();
+                    if (buckets.size() > 0) {
+                        InternalBucket reduceBucket = reduceBucket(buckets, reduceContext);
+                        result.add(reduceBucket);
                     }
-                }
-                if (buckets.size() > 0) {
-                    InternalBucket reduceBucket = reduceBucket(buckets, reduceContext);
-                    result.add(reduceBucket);
-                }
 
-                List<DocValueFormat> reducedFormats = formats;
-                CompositeKey lastKey = null;
-                if (result.size() > 0) {
-                    lastBucket = result.get(result.size() - 1);
-                    /* Attach the formats from the last bucket to the reduced composite
-                     * so that we can properly format the after key. */
-                    reducedFormats = lastBucket.formats;
-                    lastKey = lastBucket.getRawKey();
+                    List<DocValueFormat> reducedFormats = formats;
+                    CompositeKey lastKey = null;
+                    if (result.size() > 0) {
+                        lastBucket = result.get(result.size() - 1);
+                        /* Attach the formats from the last bucket to the reduced composite
+                         * so that we can properly format the after key. */
+                        reducedFormats = lastBucket.formats;
+                        lastKey = lastBucket.getRawKey();
+                    }
+                    reduceContext.consumeBucketsAndMaybeBreak(result.size());
+                    final InternalComposite reduced = new InternalComposite(
+                        name,
+                        getSize(),
+                        sourceNames,
+                        reducedFormats,
+                        result,
+                        lastKey,
+                        reverseMuls,
+                        missingOrders,
+                        earlyTerminated,
+                        metadata
+                    );
+                    reduced.validateAfterKey();
+                    return reduced;
+                } catch (Exception e) {
+                    for (InternalBucket bucket : result) {
+                        for (InternalAggregation agg : bucket.getAggregations()) {
+                            agg.close();
+                        }
+                    }
+                    throw e;
                 }
-                reduceContext.consumeBucketsAndMaybeBreak(result.size());
-                final InternalComposite reduced = new InternalComposite(
-                    name,
-                    getSize(),
-                    sourceNames,
-                    reducedFormats,
-                    result,
-                    lastKey,
-                    reverseMuls,
-                    missingOrders,
-                    earlyTerminated,
-                    metadata
-                );
-                reduced.validateAfterKey();
-                return reduced;
             }
         };
     }

@@ -52,6 +52,9 @@ public class BucketHelpersTests extends ESTestCase {
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 return null;
             }
+
+            @Override
+            public void close() {}
         };
 
         InternalMultiBucketAggregation.InternalBucket bucket = new InternalMultiBucketAggregation.InternalBucket() {
@@ -123,6 +126,9 @@ public class BucketHelpersTests extends ESTestCase {
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 return null;
             }
+
+            @Override
+            public void close() {}
         };
 
         InternalMultiBucketAggregation.InternalBucket bucket = new InternalMultiBucketAggregation.InternalBucket() {

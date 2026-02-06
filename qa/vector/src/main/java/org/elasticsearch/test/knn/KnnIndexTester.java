@@ -39,9 +39,9 @@ import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
-import org.elasticsearch.index.codec.vectors.es93.ES93HnswScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
-import org.elasticsearch.index.codec.vectors.es93.ES93ScalarQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es94.ES94HnswScalarQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es94.ES94ScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
@@ -189,15 +189,13 @@ public class KnnIndexTester {
                 }
             } else if (quantizeBits < 32) {
                 if (args.indexType() == IndexType.FLAT) {
-                    format = new ES93ScalarQuantizedVectorsFormat(elementType, null, quantizeBits, true, false);
+                    format = new ES94ScalarQuantizedVectorsFormat(elementType, quantizeBits, false);
                 } else {
-                    format = new ES93HnswScalarQuantizedVectorsFormat(
+                    format = new ES94HnswScalarQuantizedVectorsFormat(
                         args.hnswM(),
                         args.hnswEfConstruction(),
                         elementType,
-                        null,
                         quantizeBits,
-                        true,
                         false,
                         exec != null ? args.numMergeWorkers() : 1,
                         exec

@@ -72,6 +72,7 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.keyword.high_cardinality_length_function_fuse_to_load"
     );
     static final NodeFeature TDIGEST_TYPE = new NodeFeature("mapper.tdigest_type");
+    public static final NodeFeature TEXT_FIELD_DOC_VALUES = new NodeFeature("mapper.text.doc_values");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -123,7 +124,8 @@ public class MapperFeatures implements FeatureSpecification {
             EXPONENTIAL_HISTOGRAM_TYPE,
             STORE_HIGH_CARDINALITY_KEYWORDS_IN_BINARY_DOC_VALUES,
             HIGH_CARDINALITY_LENGTH_FUNCTION_FUSE_TO_LOAD,
-            TDIGEST_TYPE
+            TDIGEST_TYPE,
+            TEXT_FIELD_DOC_VALUES
         );
     }
 }

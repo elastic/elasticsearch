@@ -1242,7 +1242,9 @@ setup:
 
 ---
 "Text similarity rank retriever with a rerank service that sets top_n":
-  # TODO: Add cluster feature
+  - requires:
+      cluster_features: "text_similarity_reranker.comprehensive_top_n_handling"
+      reason: Comprehensive top N parameter handling for the text similarity reranker
 
   - do:
       inference.put:
@@ -1309,7 +1311,9 @@ setup:
 
 ---
 "Text similarity rank retriever with a rerank service that truncates via an unreported top_n":
-  # TODO: Add cluster feature
+  - requires:
+      cluster_features: "text_similarity_reranker.comprehensive_top_n_handling"
+      reason: Comprehensive top N parameter handling for the text similarity reranker
 
   # This test simulates using a rerank service with a top_n setting that is not reported via TopNProvider
   - do:

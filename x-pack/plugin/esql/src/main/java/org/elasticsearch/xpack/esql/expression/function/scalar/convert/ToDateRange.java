@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -23,6 +24,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 
 public class ToDateRange extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -31,19 +34,26 @@ public class ToDateRange extends AbstractConvertFunction {
         ToDateRange::new
     );
 
-    private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(Map.entry(DATE_RANGE, (source, fieldEval) -> fieldEval));
+    private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
+        Map.entry(DATE_RANGE, (source, fieldEval) -> fieldEval),
+        Map.entry(KEYWORD, ToDateRangeFromStringEvaluator.Factory::new),
+        Map.entry(TEXT, ToDateRangeFromStringEvaluator.Factory::new)
+    );
 
     @FunctionInfo(
         returnType = "date_range",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
-        description = "Converts an input value to a `date_range` value."
+        description = """
+            Converts an input value to a `date_range` value.
+            A string will be parsed as a date range in the format `start..end`, where start and end are dates in ISO format.""",
+        examples = { @Example(file = "date_range", tag = "to_date_range-str") }
     )
     public ToDateRange(
         Source source,
         @Param(
             name = "field",
-            type = { "date_range" },
+            type = { "date_range", "keyword", "text" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression field
     ) {

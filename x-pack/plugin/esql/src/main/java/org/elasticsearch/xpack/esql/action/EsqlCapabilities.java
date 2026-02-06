@@ -250,6 +250,11 @@ public class EsqlCapabilities {
         FN_IP_PREFIX,
 
         /**
+         * Fix a bug leading to the scratch leaking data to other rows.
+         */
+        FN_IP_PREFIX_FIX_DIRTY_SCRATCH_LEAK,
+
+        /**
          * Fix on function {@code SUBSTRING} that makes it not return null on empty strings.
          */
         FN_SUBSTRING_EMPTY_NULL,
@@ -2045,6 +2050,12 @@ public class EsqlCapabilities {
          * Support for requesting the "_size" metadata field when the mapper-size plugin is enabled.
          */
         METADATA_SIZE_FIELD,
+
+        /**
+         * Fix for <a href="https://github.com/elastic/elasticsearch/issues/141627">141627</a>,
+         * TO_IP with leading_zeros=octal generates proper warning and returns null when given invalid input.
+         */
+        FIX_TO_IP_LEADING_ZEROS_OCTAL,
 
         /**
          * Support for configuring T-Digest elasticsearch field as a time series metric.

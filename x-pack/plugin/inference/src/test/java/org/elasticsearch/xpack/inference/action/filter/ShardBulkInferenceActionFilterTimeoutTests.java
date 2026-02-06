@@ -302,6 +302,46 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends AbstractShardBul
         );
     }
 
+    /**
+     * Tests that when timeout is set to zero, all inference items fail immediately
+     * and items without inference fields still pass through.
+     */
+    public void testZeroTimeoutFailsAllInferenceItems() throws Exception {
+        StaticModel model = StaticModel.createRandomInstance();
+        String text = "some_text";
+        model.putResult(text, randomChunkedInferenceEmbedding(model, List.of(text)));
+
+        AtomicBoolean chunkedInferCalled = new AtomicBoolean(false);
+
+        ShardBulkInferenceActionFilter filter = createFilterInternal(
+            Map.of(model.getInferenceEntityId(), model),
+            (inputs, listener) -> {
+                chunkedInferCalled.set(true);
+                return DelayResult.immediate();
+            },
+            TimeValue.ZERO,
+            () -> 0
+        );
+
+        Map<String, InferenceFieldMetadata> fieldMap = Map.of(
+            "semantic_field", inferenceFieldMetadata("semantic_field", model)
+        );
+
+        BulkItemRequest[] items = {
+            bulkItemRequest(0, "semantic_field", text),
+            bulkItemRequest(1, "semantic_field", text),
+            bulkItemRequest(2, "other_field", "no inference needed")
+        };
+
+        runFilterAndVerify(filter, fieldMap, items, results -> {
+            assertTimeout(results[0].getPrimaryResponse(), "Item 0 (inference field)");
+            assertTimeout(results[1].getPrimaryResponse(), "Item 1 (inference field)");
+            assertNull("Item 2 (no inference field) should pass through", results[2].getPrimaryResponse());
+        });
+
+        assertFalse("chunkedInfer should not have been called", chunkedInferCalled.get());
+    }
+
     // ========== Helper Methods ==========
 
     private String[] createTextsAndRegisterResults(StaticModel model, int count) {

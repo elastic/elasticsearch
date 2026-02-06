@@ -24,10 +24,12 @@
     "params": {
       "type": {
         "type": "string",
+        "default": "trial",
         "description": "The type of trial license to generate (default: \"trial\")"
       },
       "acknowledge": {
         "type": "boolean",
+        "default": false,
         "description": "whether the user has acknowledged acknowledge messages (default: false)"
       },
       "master_timeout": {

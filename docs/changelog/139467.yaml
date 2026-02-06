@@ -1,5 +1,0 @@
-pr: 139467
-summary: Ensure initial state discovery does not block indefinitely on startup
-area: Infra/Node Lifecycle
-type: bug
-issues: []

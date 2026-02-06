@@ -339,7 +339,8 @@ public class DiskThresholdDecider extends AllocationDecider {
         );
     }
 
-    private static boolean isNewCloneTarget(ShardRouting shardRouting, RoutingAllocation allocation) {
+    // package private for testing
+    static boolean isNewCloneTarget(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (shardRouting.unassigned() == false
             || shardRouting.primary() == false
             || shardRouting.recoverySource() != RecoverySource.LocalShardsRecoverySource.INSTANCE) {
@@ -352,7 +353,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             return false;
         }
 
-        final var sourceMetadata = allocation.metadata().indexMetadata(sourceIndex);
+        final var sourceMetadata = allocation.metadata().findIndex(sourceIndex).orElse(null);
         return sourceMetadata != null && sourceMetadata.getNumberOfShards() == targetMetadata.getNumberOfShards();
     }
 

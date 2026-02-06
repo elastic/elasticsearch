@@ -65,7 +65,7 @@ public class DeflateCompressedXContentTests extends ESTestCase {
     public void testDifferentCompressedRepresentation() throws Exception {
         byte[] b = "---\nf:abcdefghijabcdefghij".getBytes(StandardCharsets.UTF_8);
         BytesStreamOutput bout = new BytesStreamOutput();
-        try (OutputStream out = compressor.threadLocalOutputStream(bout)) {
+        try (OutputStream out = compressor.threadLocalStreamOutput(bout)) {
             out.write(b);
             out.flush();
             out.write(b);
@@ -73,7 +73,7 @@ public class DeflateCompressedXContentTests extends ESTestCase {
         final BytesReference b1 = bout.bytes();
 
         bout = new BytesStreamOutput();
-        try (OutputStream out = compressor.threadLocalOutputStream(bout)) {
+        try (OutputStream out = compressor.threadLocalStreamOutput(bout)) {
             out.write(b);
             out.write(b);
         }

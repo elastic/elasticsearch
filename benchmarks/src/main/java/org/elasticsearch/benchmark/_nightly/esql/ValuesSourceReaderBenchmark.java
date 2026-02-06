@@ -46,6 +46,7 @@ import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -59,6 +60,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -159,22 +161,29 @@ public class ValuesSourceReaderBenchmark {
                     "keyword_1",
                     ElementType.BYTES_REF,
                     false,
-                    shardIdx -> blockLoader("stored_keyword_1")
+                    shardIdx -> ValuesSourceReaderOperator.load(blockLoader("stored_keyword_1"))
                 ),
                 new ValuesSourceReaderOperator.FieldInfo(
                     "keyword_2",
                     ElementType.BYTES_REF,
                     false,
-                    shardIdx -> blockLoader("stored_keyword_2")
+                    shardIdx -> ValuesSourceReaderOperator.load(blockLoader("stored_keyword_2"))
                 ),
                 new ValuesSourceReaderOperator.FieldInfo(
                     "keyword_3",
                     ElementType.BYTES_REF,
                     false,
-                    shardIdx -> blockLoader("stored_keyword_3")
+                    shardIdx -> ValuesSourceReaderOperator.load(blockLoader("stored_keyword_3"))
                 )
             );
-            default -> List.of(new ValuesSourceReaderOperator.FieldInfo(name, elementType(name), false, shardIdx -> blockLoader(name)));
+            default -> List.of(
+                new ValuesSourceReaderOperator.FieldInfo(
+                    name,
+                    elementType(name),
+                    false,
+                    shardIdx -> ValuesSourceReaderOperator.load(blockLoader(name))
+                )
+            );
         };
     }
 
@@ -298,13 +307,16 @@ public class ValuesSourceReaderBenchmark {
     @Benchmark
     @OperationsPerInvocation(INDEX_SIZE)
     public void benchmark() {
+        List<ValuesSourceReaderOperator.FieldInfo> fields = fields(name);
+        boolean reuseColumnLoaders = fields.size() <= PlannerSettings.REUSE_COLUMN_LOADERS_THRESHOLD.get(Settings.EMPTY);
         ValuesSourceReaderOperator op = new ValuesSourceReaderOperator(
-            blockFactory,
+            new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null),
             ByteSizeValue.ofMb(1).getBytes(),
-            fields(name),
+            fields,
             new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths) -> {
                 throw new UnsupportedOperationException("can't load _source here");
             }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY))),
+            reuseColumnLoaders,
             0
         );
         long sum = 0;

@@ -14,6 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.repositories.FinalizeSnapshotContext.UpdatedShardGenerations;
@@ -32,6 +33,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -345,6 +347,15 @@ public class RepositoryDataTests extends ESTestCase {
         }
     }
 
+    private Map<IndexId, Collection<String>> processIndicesToUpdate(Iterator<Tuple<IndexId, Collection<String>>> iterator) {
+        final var result = new HashMap<IndexId, Collection<String>>();
+        while (iterator.hasNext()) {
+            var tuple = iterator.next();
+            assertNull("duplicates not expected", result.put(tuple.v1(), tuple.v2()));
+        }
+        return result;
+    }
+
     // Test removing snapshot from random data where no two snapshots share any index metadata blobs
     public void testIndexMetaDataToRemoveAfterRemovingSnapshotNoSharing() {
         final RepositoryData repositoryData = generateRandomRepoData();
@@ -358,7 +369,11 @@ public class RepositoryDataTests extends ESTestCase {
             .collect(
                 Collectors.toMap(Map.Entry::getKey, e -> Collections.singleton(indexMetaDataGenerations.getIndexMetaBlobId(e.getValue())))
             );
-        assertEquals(repositoryData.indexMetaDataToRemoveAfterRemovingSnapshots(Collections.singleton(snapshotId)), identifiersToRemove);
+
+        assertEquals(
+            identifiersToRemove,
+            processIndicesToUpdate(repositoryData.indexMetaDataToRemoveAfterRemovingSnapshots(List.of(snapshotId)))
+        );
     }
 
     // Test removing snapshot from random data that has some or all index metadata shared
@@ -409,12 +424,13 @@ public class RepositoryDataTests extends ESTestCase {
             newIdentifiers
         );
         assertEquals(
-            newRepoData.indexMetaDataToRemoveAfterRemovingSnapshots(Collections.singleton(newSnapshot)),
-            newIndices.entrySet()
-                .stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> Collections.singleton(newIdentifiers.get(e.getValue()))))
+            newIndices.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> Set.of(newIdentifiers.get(e.getValue())))),
+            processIndicesToUpdate(newRepoData.indexMetaDataToRemoveAfterRemovingSnapshots(List.of(newSnapshot)))
         );
-        assertEquals(newRepoData.indexMetaDataToRemoveAfterRemovingSnapshots(Collections.singleton(otherSnapshotId)), removeFromOther);
+        assertEquals(
+            removeFromOther,
+            processIndicesToUpdate(newRepoData.indexMetaDataToRemoveAfterRemovingSnapshots(List.of(otherSnapshotId)))
+        );
     }
 
     public void testFailsIfMinVersionNotSatisfied() throws IOException {

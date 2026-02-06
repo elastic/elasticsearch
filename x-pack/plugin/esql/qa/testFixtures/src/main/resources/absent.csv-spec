@@ -139,3 +139,25 @@ ROW a = 3
 x:boolean
 true
 ;
+
+fixAbsentOnLiteralNull
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = null
+| STATS ABSENT(x)
+;
+
+ABSENT(x):boolean
+true
+;
+
+fixAbsentOnChildLiteralNull
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = 0
+| STATS ABSENT(null)
+;
+
+ABSENT(null):boolean
+true
+;

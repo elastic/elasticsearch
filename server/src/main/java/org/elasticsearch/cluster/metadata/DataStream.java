@@ -556,8 +556,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             Index index = backingIndices.indices.get(i);
             IndexMetadata im = project.index(index);
 
-            // TODO: make index_mode, start and end time fields in IndexMetadata class.
-            // (this to avoid the overhead that occurs when reading a setting)
             if (im.getIndexMode() != IndexMode.TIME_SERIES) {
                 // Not a tsdb backing index, so skip.
                 // (This can happen if this is a migrated tsdb data stream)
@@ -566,6 +564,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
             Instant start = im.getTimeSeriesStart();
             Instant end = im.getTimeSeriesEnd();
+            assert start != null && end != null : "start and end markers cannot be null";
             // Check should be in sync with DataStreamTimestampFieldMapper#validateTimestamp(...) method
             if (timestamp.compareTo(start) >= 0 && timestamp.compareTo(end) < 0) {
                 return index;
@@ -1225,18 +1224,53 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         TimeValue effectiveRetention,
         boolean failureStore
     ) {
+        return getIndicesPastRetention(
+            indexMetadataSupplier,
+            nowSupplier,
+            effectiveRetention,
+            failureStore ? DatastreamIndexTypes.FAILURE_INDICES : DatastreamIndexTypes.BACKING_INDICES
+        );
+    }
+
+    /**
+     * Iterate over all backing indices and return the ones that are managed by the
+     * data stream lifecycle and past the configured retention in their lifecycle.
+     * NOTE that this specifically does not return the write index of the data stream as usually retention
+     * is treated differently for the write index (i.e. they first need to be rolled over)
+     */
+    public List<Index> getIndicesPastRetention(
+        Function<String, IndexMetadata> indexMetadataSupplier,
+        LongSupplier nowSupplier,
+        TimeValue effectiveRetention
+    ) {
+        return getIndicesPastRetention(indexMetadataSupplier, nowSupplier, effectiveRetention, DatastreamIndexTypes.ALL);
+    }
+
+    private List<Index> getIndicesPastRetention(
+        Function<String, IndexMetadata> indexMetadataSupplier,
+        LongSupplier nowSupplier,
+        TimeValue effectiveRetention,
+        DatastreamIndexTypes types
+    ) {
         if (effectiveRetention == null) {
             return List.of();
         }
 
-        List<Index> indicesPastRetention = getNonWriteIndicesOlderThan(
-            getDataStreamIndices(failureStore).getIndices(),
+        List<Index> indices = new ArrayList<>();
+        if (types == DatastreamIndexTypes.ALL || types == DatastreamIndexTypes.BACKING_INDICES) {
+            indices.addAll(getDataStreamIndices(false).getIndices());
+        }
+        if (types == DatastreamIndexTypes.ALL || types == DatastreamIndexTypes.FAILURE_INDICES) {
+            indices.addAll(getDataStreamIndices(true).getIndices());
+        }
+
+        return getNonWriteIndicesOlderThan(
+            indices,
             effectiveRetention,
             indexMetadataSupplier,
             this::isIndexManagedByDataStreamLifecycle,
             nowSupplier
         );
-        return indicesPastRetention;
     }
 
     /**
@@ -2169,4 +2203,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             super(message);
         }
     }
+
+    private enum DatastreamIndexTypes {
+        BACKING_INDICES,
+        FAILURE_INDICES,
+        ALL
+    }
+
 }

@@ -72,6 +72,9 @@ public class SearchPhaseCoordinatorAPMMetricsTests extends ESSingleNodeTestCase 
         prepareIndex(indexName).setId("1").setSource("body", "doc1", "@timestamp", "2024-11-01").setRefreshPolicy(IMMEDIATE).get();
         prepareIndex(indexName).setId("2").setSource("body", "doc2", "@timestamp", "2024-12-01").setRefreshPolicy(IMMEDIATE).get();
         prepareIndex(indexName).setId("3").setSource("body", "doc3", "@timestamp", "2025-01-01").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex(indexName).setId("4").setSource("body", "doc4", "@timestamp", "2025-02-01").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex(indexName).setId("5").setSource("body", "doc5", "@timestamp", "2025-03-01").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex(indexName).setId("6").setSource("body", "doc6", "@timestamp", "2025-04-01").setRefreshPolicy(IMMEDIATE).get();
 
         createIndex(
             secondIndexName,
@@ -82,9 +85,12 @@ public class SearchPhaseCoordinatorAPMMetricsTests extends ESSingleNodeTestCase 
         );
         ensureGreen(secondIndexName);
 
-        prepareIndex(secondIndexName).setId("4").setSource("body", "doc1", "@timestamp", "2025-11-01").setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex(secondIndexName).setId("5").setSource("body", "doc2", "@timestamp", "2025-12-01").setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex(secondIndexName).setId("6").setSource("body", "doc3", "@timestamp", "2026-01-01").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex(secondIndexName).setId("7").setSource("body", "doc1", "@timestamp", "2025-11-01").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex(secondIndexName).setId("8").setSource("body", "doc2", "@timestamp", "2025-12-01").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex(secondIndexName).setId("9").setSource("body", "doc3", "@timestamp", "2026-01-01").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex(secondIndexName).setId("10").setSource("body", "doc4", "@timestamp", "2026-02-01").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex(secondIndexName).setId("11").setSource("body", "doc5", "@timestamp", "2026-03-01").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex(secondIndexName).setId("12").setSource("body", "doc6", "@timestamp", "2026-04-01").setRefreshPolicy(IMMEDIATE).get();
     }
 
     @After
@@ -151,7 +157,7 @@ public class SearchPhaseCoordinatorAPMMetricsTests extends ESSingleNodeTestCase 
                     .setSize(1)
                     .setPreFilterShardSize(1)
                     .setQuery(simpleQueryStringQuery("doc3")),
-                "6"
+                "9"
             );
             assertMeasurements(List.of(OPEN_PIT_SEARCH_PHASE_METRIC, QUERY_SEARCH_PHASE_METRIC, FETCH_SEARCH_PHASE_METRIC), 1);
             assertMeasurements(

@@ -84,7 +84,7 @@ public class PutSamlServiceProviderRequestTests extends ESTestCase {
     public void testSerialization() throws IOException {
         final SamlServiceProviderDocument doc = SamlServiceProviderTestUtils.randomDocument();
         final PutSamlServiceProviderRequest request = new PutSamlServiceProviderRequest(doc, RefreshPolicy.NONE);
-        final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+        final TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
         final PutSamlServiceProviderRequest read = copyWriteable(
             request,
             new NamedWriteableRegistry(List.of()),

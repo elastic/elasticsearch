@@ -53,6 +53,8 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
     public static TestRule clusterRule = RuleChain.outerRule(remoteCluster).around(localCluster);
     private static RestClient remoteClient;
 
+    private boolean isCCSRequest;
+
     @Override
     protected String getTestRestCluster() {
         return localCluster.getHttpAddresses();
@@ -64,9 +66,8 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
             var clusterHosts = parseClusterHosts(remoteCluster.getHttpAddresses());
             remoteClient = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[0]));
         }
+        isCCSRequest = randomBoolean();
     }
-
-    private boolean isCCSRequest;
 
     @AfterClass
     public static void closeRemoteClients() throws IOException {
@@ -85,7 +86,6 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
 
     @Override
     protected String from(String... indexName) {
-        isCCSRequest = randomBoolean();
         if (isCCSRequest) {
             return "FROM *:" + String.join(",*:", indexName);
         } else {
@@ -152,8 +152,13 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
     }
 
     private static boolean checkVersion(org.elasticsearch.Version version) {
-        return version.onOrAfter(Version.fromString("9.1.0"))
-            || (version.onOrAfter(Version.fromString("8.19.0")) && version.before(Version.fromString("9.0.0")));
+        return version.onOrAfter(Version.V_9_1_0) || (version.onOrAfter(Version.V_8_19_0) && version.before(Version.V_9_0_0));
+    }
+
+    @Override
+    public void testIndicesDontExist() throws IOException {
+        assumeFalse("skip_unavailable=true causes partial result with corresponding remote being skipped", isCCSRequest);
+        super.testIndicesDontExist();
     }
 
     public void testIndicesDontExistWithRemoteLookupJoin() throws IOException {

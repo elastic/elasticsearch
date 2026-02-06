@@ -21,8 +21,8 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
-import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
@@ -89,7 +89,7 @@ public class ElasticInferenceServiceAuthorizationModel {
                 case CHAT_COMPLETION -> createCompletionModel(authorizedEndpoint, TaskType.CHAT_COMPLETION, components);
                 case COMPLETION -> createCompletionModel(authorizedEndpoint, TaskType.COMPLETION, components);
                 case SPARSE_EMBEDDING -> createSparseTextEmbeddingsModel(authorizedEndpoint, components);
-                case TEXT_EMBEDDING -> createDenseTextEmbeddingsModel(authorizedEndpoint, components);
+                case TEXT_EMBEDDING, EMBEDDING -> createDenseEmbeddingsModel(authorizedEndpoint, components, taskType);
                 case RERANK -> createRerankModel(authorizedEndpoint, components);
                 default -> {
                     logger.info(UNSUPPORTED_TASK_TYPE_LOG_MESSAGE, authorizedEndpoint.id(), taskType);
@@ -140,7 +140,7 @@ public class ElasticInferenceServiceAuthorizationModel {
             authorizedEndpoint.id(),
             TaskType.SPARSE_EMBEDDING,
             ElasticInferenceService.NAME,
-            new ElasticInferenceServiceSparseEmbeddingsServiceSettings(authorizedEndpoint.modelName(), null),
+            new ElasticInferenceServiceSparseEmbeddingsServiceSettings(authorizedEndpoint.modelName(), null, null),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
             components,
@@ -166,18 +166,19 @@ public class ElasticInferenceServiceAuthorizationModel {
         return Objects.requireNonNullElse(configuration.chunkingSettings(), new HashMap<>());
     }
 
-    private static ElasticInferenceServiceDenseTextEmbeddingsModel createDenseTextEmbeddingsModel(
+    private static ElasticInferenceServiceDenseEmbeddingsModel createDenseEmbeddingsModel(
         ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint,
-        ElasticInferenceServiceComponents components
+        ElasticInferenceServiceComponents components,
+        TaskType taskType
     ) {
         var config = getConfigurationOrEmpty(authorizedEndpoint);
-        validateConfigurationForTextEmbedding(config);
+        validateConfigurationForDenseEmbedding(config, taskType);
 
-        return new ElasticInferenceServiceDenseTextEmbeddingsModel(
+        return new ElasticInferenceServiceDenseEmbeddingsModel(
             authorizedEndpoint.id(),
-            TaskType.TEXT_EMBEDDING,
+            taskType,
             ElasticInferenceService.NAME,
-            new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
+            new ElasticInferenceServiceDenseEmbeddingsServiceSettings(
                 authorizedEndpoint.modelName(),
                 getSimilarityMeasure(config),
                 config.dimensions(),
@@ -190,22 +191,13 @@ public class ElasticInferenceServiceAuthorizationModel {
         );
     }
 
-    private static void validateConfigurationForTextEmbedding(ElasticInferenceServiceAuthorizationResponseEntity.Configuration config) {
-        validateFieldPresent(
-            ElasticInferenceServiceAuthorizationResponseEntity.Configuration.ELEMENT_TYPE,
-            config.elementType(),
-            TaskType.TEXT_EMBEDDING
-        );
-        validateFieldPresent(
-            ElasticInferenceServiceAuthorizationResponseEntity.Configuration.DIMENSIONS,
-            config.dimensions(),
-            TaskType.TEXT_EMBEDDING
-        );
-        validateFieldPresent(
-            ElasticInferenceServiceAuthorizationResponseEntity.Configuration.SIMILARITY,
-            config.similarity(),
-            TaskType.TEXT_EMBEDDING
-        );
+    private static void validateConfigurationForDenseEmbedding(
+        ElasticInferenceServiceAuthorizationResponseEntity.Configuration config,
+        TaskType taskType
+    ) {
+        validateFieldPresent(ElasticInferenceServiceAuthorizationResponseEntity.Configuration.ELEMENT_TYPE, config.elementType(), taskType);
+        validateFieldPresent(ElasticInferenceServiceAuthorizationResponseEntity.Configuration.DIMENSIONS, config.dimensions(), taskType);
+        validateFieldPresent(ElasticInferenceServiceAuthorizationResponseEntity.Configuration.SIMILARITY, config.similarity(), taskType);
 
         var configElementType = config.elementType().toLowerCase(Locale.ROOT);
         var supportedElementTypes = getSupportedElementTypes();
@@ -218,7 +210,7 @@ public class ElasticInferenceServiceAuthorizationModel {
     }
 
     private static Set<String> getSupportedElementTypes() {
-        return Set.of(ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.SUPPORTED_ELEMENT_TYPE.toString().toLowerCase(Locale.ROOT));
+        return Set.of(ElasticInferenceServiceDenseEmbeddingsServiceSettings.SUPPORTED_ELEMENT_TYPE.toString().toLowerCase(Locale.ROOT));
     }
 
     private static void validateFieldPresent(String field, Object fieldValue, TaskType taskType) {

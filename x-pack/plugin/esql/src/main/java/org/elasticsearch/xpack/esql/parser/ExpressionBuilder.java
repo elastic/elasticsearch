@@ -96,7 +96,6 @@ import static org.elasticsearch.xpack.esql.core.util.StringUtils.isInteger;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.PATTERN;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.VALUE;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.nameOrPosition;
-import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
@@ -126,10 +125,49 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     protected final ParsingContext context;
 
-    public record ParsingContext(QueryParams params, PlanTelemetry telemetry, InferenceSettings inferenceSettings) {}
+    public record ParsingContext(QueryParams params, PlanTelemetry telemetry, InferenceSettings inferenceSettings, String viewName) {}
 
     ExpressionBuilder(ParsingContext context) {
         this.context = context;
+    }
+
+    /**
+     * Creates a Source from the given parse tree context, tagged with the view name if parsing a view.
+     * This shadows the static import from ParserUtils to ensure all Sources are properly tagged.
+     */
+    protected Source source(ParseTree ctx) {
+        return tagSource(ParserUtils.source(ctx));
+    }
+
+    protected Source source(TerminalNode terminalNode) {
+        return tagSource(ParserUtils.source(terminalNode));
+    }
+
+    protected Source source(ParserRuleContext parserRuleContext) {
+        return tagSource(ParserUtils.source(parserRuleContext));
+    }
+
+    protected Source source(Token token) {
+        return tagSource(ParserUtils.source(token));
+    }
+
+    protected Source source(ParserRuleContext begin, ParserRuleContext end) {
+        return tagSource(ParserUtils.source(begin, end));
+    }
+
+    protected Source source(TerminalNode begin, ParserRuleContext end) {
+        return tagSource(ParserUtils.source(begin, end));
+    }
+
+    protected Source source(Token start, Token stop) {
+        return tagSource(ParserUtils.source(start, stop));
+    }
+
+    private Source tagSource(Source source) {
+        if (context.viewName() == null || source == Source.EMPTY) {
+            return source;
+        }
+        return source.withViewName(context.viewName());
     }
 
     protected Expression expression(ParseTree ctx) {
@@ -408,7 +446,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                     }
                 } else if (exp instanceof UnresolvedAttribute ua) { // identifier provided in QueryParam is treated as unquoted string
                     String unquotedIdentifier = ua.name();
-                    String quotedIdentifier = quoteIdString(unquotedIdentifier);
+                    String quotedIdentifier = ParserUtils.quoteIdString(unquotedIdentifier);
                     patternString.append(quotedIdentifier);
                     objects.add(unquotedIdentifier);
                     nameString.append(unquotedIdentifier);
@@ -472,7 +510,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 // quoted - definitely no pattern
                 else {
                     patternString.append(fragment);
-                    var unquotedString = unquoteIdString(fragment);
+                    var unquotedString = ParserUtils.unquoteIdString(fragment);
                     objects.add(unquotedString);
                     nameString.append(unquotedString);
                 }
@@ -765,7 +803,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             throw new ParsingException(source, "Unsupported conversion to type [{}]", dataType);
         }
         Expression expr = expression(parseTree);
-        var convertFunction = converterToFactory.apply(source, expr);
+        var convertFunction = converterToFactory.apply(source, expr, ConfigurationAware.CONFIGURATION_MARKER);
         context.telemetry().function(convertFunction.getClass());
         return convertFunction;
     }
@@ -1068,25 +1106,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Alias visitRerankField(EsqlBaseParser.RerankFieldContext ctx) {
-        return visitRerankField(ctx, source(ctx));
-    }
-
-    private Alias visitRerankField(EsqlBaseParser.RerankFieldContext ctx, Source source) {
-        UnresolvedAttribute id = visitQualifiedName(ctx.qualifiedName());
-        assert id != null;
-
-        var boolExprCtx = ctx.booleanExpression();
-        Expression value = boolExprCtx == null ? id : expression(boolExprCtx);
-        return new Alias(source, id.qualifier() != null ? id.qualifiedName() : id.name(), value);
-    }
-
-    @Override
-    public List<Alias> visitRerankFields(EsqlBaseParser.RerankFieldsContext ctx) {
-        return ctx != null ? visitList(this, ctx.rerankField(), Alias.class) : new ArrayList<>();
-    }
-
-    @Override
     public NamedExpression visitAggField(EsqlBaseParser.AggFieldContext ctx) {
         Source source = source(ctx);
         Alias field = visitField(ctx.field(), source);
@@ -1205,6 +1224,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     QueryParam paramByNameOrPosition(TerminalNode node) {
+        return paramByNameOrPosition(node, source(node), context.params());
+    }
+
+    public static QueryParam paramByNameOrPosition(TerminalNode node, Source nodeSource, QueryParams params) {
         if (node == null) {
             return null;
         }
@@ -1213,28 +1236,26 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         String nameOrPosition = nameOrPosition(token);
         if (isInteger(nameOrPosition)) {
             int index = Integer.parseInt(nameOrPosition);
-            if (context.params().get(index) == null) {
+            if (params.get(index) == null) {
                 String message = "";
-                int np = context.params().size();
+                int np = params.size();
                 if (np > 0) {
                     message = ", did you mean " + (np == 1 ? "position 1?" : "any position between 1 and " + np + "?");
                 }
-                context.params()
-                    .addParsingError(new ParsingException(source(node), "No parameter is defined for position " + index + message));
+                params.addParsingError(new ParsingException(nodeSource, "No parameter is defined for position " + index + message));
             }
-            return context.params().get(index);
+            return params.get(index);
         } else {
-            if (context.params().contains(nameOrPosition) == false) {
+            if (params.contains(nameOrPosition) == false) {
                 String message = "";
-                List<String> potentialMatches = StringUtils.findSimilar(nameOrPosition, context.params().namedParams().keySet());
+                List<String> potentialMatches = StringUtils.findSimilar(nameOrPosition, params.namedParams().keySet());
                 if (potentialMatches.size() > 0) {
                     message = ", did you mean "
                         + (potentialMatches.size() == 1 ? "[" + potentialMatches.get(0) + "]?" : "any of " + potentialMatches + "?");
                 }
-                context.params()
-                    .addParsingError(new ParsingException(source(node), "Unknown query parameter [" + nameOrPosition + "]" + message));
+                params.addParsingError(new ParsingException(nodeSource, "Unknown query parameter [" + nameOrPosition + "]" + message));
             }
-            return context.params().get(nameOrPosition);
+            return params.get(nameOrPosition);
         }
     }
 

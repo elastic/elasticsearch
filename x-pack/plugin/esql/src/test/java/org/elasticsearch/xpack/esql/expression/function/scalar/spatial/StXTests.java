@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -22,6 +23,8 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 
 @FunctionName("st_x")
@@ -32,15 +35,25 @@ public class StXTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        String expectedEvaluator = "StXFromWKBEvaluator[in=Attribute[channel=0]]";
+        String expectedGeo = "StXFromGeoWKBEvaluator[in=Attribute[channel=0]]";
+        String expectedCartesian = "StXFromCartesianWKBEvaluator[in=Attribute[channel=0]]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
-        TestCaseSupplier.forUnaryGeoPoint(suppliers, expectedEvaluator, DOUBLE, StXTests::valueOf, List.of());
-        TestCaseSupplier.forUnaryCartesianPoint(suppliers, expectedEvaluator, DOUBLE, StXTests::valueOf, List.of());
+        TestCaseSupplier.forUnaryGeoPoint(suppliers, expectedGeo, DOUBLE, StXTests::valueOfGeo, List.of());
+        TestCaseSupplier.forUnaryCartesianPoint(suppliers, expectedCartesian, DOUBLE, StXTests::valueOfCartesian, List.of());
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
-    private static double valueOf(BytesRef wkb) {
-        return UNSPECIFIED.wkbAsPoint(wkb).getX();
+    private static double quantize(double value, SpatialCoordinateTypes type) {
+        long encoded = type.pointAsLong(value, 0);
+        return type.decodeX(encoded);
+    }
+
+    private static double valueOfGeo(BytesRef wkb) {
+        return quantize(UNSPECIFIED.wkbAsPoint(wkb).getX(), GEO);
+    }
+
+    private static double valueOfCartesian(BytesRef wkb) {
+        return quantize(UNSPECIFIED.wkbAsPoint(wkb).getX(), CARTESIAN);
     }
 
     @Override

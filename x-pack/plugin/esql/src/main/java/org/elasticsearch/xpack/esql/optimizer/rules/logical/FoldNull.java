@@ -43,6 +43,9 @@ public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression>
         // Non-evaluatable functions stay as a STATS grouping (It isn't moved to an early EVAL like other groupings),
         // so folding it to null would currently break the plan, as we don't create an attribute/channel for that null value.
             && e instanceof GroupingFunction.NonEvaluatableGroupingFunction == false
+            // We cannot fold aggregate functions until we resolve https://github.com/elastic/elasticsearch/issues/100634.
+            // AggregateMapper cannot handle aggregate functions with literal values.
+            && e instanceof AggregateFunction == false
             && e.children().stream().anyMatch(FoldNull::isNull)) {
                 return Literal.of(e, null);
             }

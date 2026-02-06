@@ -20,7 +20,7 @@
 
 ARG BASE_REGISTRY=registry1.dso.mil
 ARG BASE_IMAGE=ironbank/redhat/ubi/ubi9
-ARG BASE_TAG=9.6
+ARG BASE_TAG=9.7
 
 ################################################################################
 # Build stage 1 `builder`:

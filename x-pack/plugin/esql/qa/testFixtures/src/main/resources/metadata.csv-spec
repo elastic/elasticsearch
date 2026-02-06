@@ -186,7 +186,6 @@ FROM ul_logs, apps METADATA _index, _version
 ;
 
 indexMetadata
-required_capability: metadata_tier_field
 FROM employees METADATA _index | KEEP _index | LIMIT 1;
 
 _index:keyword

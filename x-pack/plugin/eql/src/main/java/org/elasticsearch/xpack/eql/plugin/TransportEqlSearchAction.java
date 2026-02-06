@@ -324,7 +324,10 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
     private static void qualifyEvents(List<EqlSearchResponse.Event> events, String clusterAlias) {
         if (events != null) {
             for (EqlSearchResponse.Event e : events) {
-                e.index(buildRemoteIndexName(clusterAlias, e.index()));
+                // missing events don't have an index, we dont' have to
+                if (e.missing() == false) {
+                    e.index(buildRemoteIndexName(clusterAlias, e.index()));
+                }
             }
         }
     }

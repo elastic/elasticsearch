@@ -9,11 +9,15 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.TransportBulkAction;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -25,6 +29,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 
 import java.util.Collection;
@@ -38,6 +43,7 @@ public class CreateIndexPriorityIT extends ESIntegTestCase {
         public List<Setting<?>> getSettings() {
             return CollectionUtils.appendToCopyNoNullElements(
                 super.getSettings(),
+                AutoCreateAction.AUTO_CREATE_INDEX_PRIORITY_SETTING,
                 MetadataCreateIndexService.CREATE_INDEX_PRIORITY_SETTING,
                 MetadataMappingService.PUT_MAPPING_PRIORITY_SETTING
             );
@@ -107,6 +113,7 @@ public class CreateIndexPriorityIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(otherSettings)
+            .put(AutoCreateAction.AUTO_CREATE_INDEX_PRIORITY_SETTING.getKey(), "NORMAL")
             .put(MetadataCreateIndexService.CREATE_INDEX_PRIORITY_SETTING.getKey(), "NORMAL")
             .put(MetadataMappingService.PUT_MAPPING_PRIORITY_SETTING.getKey(), "NORMAL")
             .build();
@@ -129,6 +136,23 @@ public class CreateIndexPriorityIT extends ESIntegTestCase {
                 cs -> cs.metadata().getProject(ProjectId.DEFAULT).index(indexName) != null
             ),
             client().execute(TransportCreateIndexAction.TYPE, new CreateIndexRequest(indexName))
+        );
+
+        // starve all tasks at NORMAL or below again
+        final var autoCreateIndexBlockingTask = new RepeatingTask(masterClusterService);
+        autoCreateIndexBlockingTask.submitTask();
+
+        // now submit an auto-create task, wait for it to be enqueued, verify its priority by the fact that it doesn't execute,
+        // then remove the starvation to allow it through
+        final var autoIndexName = randomIndexName();
+        final var indexRequest = new IndexRequest().source("{}", XContentType.JSON);
+        autoCreateIndexBlockingTask.awaitPendingAndStop(
+            "auto create [" + autoIndexName + "]",
+            ClusterServiceUtils.addTemporaryStateListener(
+                masterClusterService,
+                cs -> cs.metadata().getProject(ProjectId.DEFAULT).index(autoIndexName) != null
+            ),
+            client().execute(TransportBulkAction.TYPE, new BulkRequest(autoIndexName).add(indexRequest))
         );
 
         // starve all tasks at NORMAL or below again

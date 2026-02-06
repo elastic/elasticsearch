@@ -1,5 +1,0 @@
-pr: 140149
-summary: Always log connection failure at WARN level for sniffed node
-area: Network
-type: enhancement
-issues: []

@@ -1,6 +1,0 @@
-pr: 140116
-summary: Fix ST_DISTANCE handling of invalid geometry literals that fold to null
-area: ES|QL
-type: bug
-issues:
- - 138594

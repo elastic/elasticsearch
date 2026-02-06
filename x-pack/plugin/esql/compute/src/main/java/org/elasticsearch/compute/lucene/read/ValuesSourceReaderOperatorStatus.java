@@ -27,6 +27,7 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         "values_source_reader",
         ValuesSourceReaderOperatorStatus::readFrom
     );
+    private static final TransportVersion CONVERTERS_USED = TransportVersion.fromName("esql_vsr_converters_used");
 
     private static final TransportVersion ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED = TransportVersion.fromName(
         "esql_documents_found_and_values_loaded"
@@ -34,10 +35,12 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
     private static final TransportVersion ESQL_SPLIT_ON_BIG_VALUES = TransportVersion.fromName("esql_split_on_big_values");
 
     private final Map<String, Integer> readersBuilt;
+    private final Map<String, Integer> convertersUsed;
     private final long valuesLoaded;
 
     public ValuesSourceReaderOperatorStatus(
         Map<String, Integer> readersBuilt,
+        Map<String, Integer> convertersUsed,
         long processNanos,
         int pagesReceived,
         int pagesEmitted,
@@ -47,6 +50,7 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
     ) {
         super(processNanos, pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
         this.readersBuilt = readersBuilt;
+        this.convertersUsed = convertersUsed;
         this.valuesLoaded = valuesLoaded;
     }
 
@@ -72,9 +76,13 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
             rowsEmitted = status.rowsEmitted();
         }
         Map<String, Integer> readersBuilt = in.readOrderedMap(StreamInput::readString, StreamInput::readVInt);
+        Map<String, Integer> convertersUsed = in.getTransportVersion().supports(CONVERTERS_USED)
+            ? in.readOrderedMap(StreamInput::readString, StreamInput::readVInt)
+            : Map.of();
         long valuesLoaded = supportsValuesLoaded(in.getTransportVersion()) ? in.readVLong() : 0;
         return new ValuesSourceReaderOperatorStatus(
             readersBuilt,
+            convertersUsed,
             processNanos,
             pagesReceived,
             pagesEmitted,
@@ -96,6 +104,9 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
             new AbstractPageMappingOperator.Status(processNanos(), pagesEmitted(), rowsReceived(), rowsEmitted()).writeTo(out);
         }
         out.writeMap(readersBuilt, StreamOutput::writeVInt);
+        if (out.getTransportVersion().supports(CONVERTERS_USED)) {
+            out.writeMap(convertersUsed, StreamOutput::writeVInt);
+        }
         if (supportsValuesLoaded(out.getTransportVersion())) {
             out.writeVLong(valuesLoaded);
         }
@@ -118,6 +129,10 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         return readersBuilt;
     }
 
+    public Map<String, Integer> convertersUsed() {
+        return convertersUsed;
+    }
+
     @Override
     public long valuesLoaded() {
         return valuesLoaded;
@@ -131,6 +146,13 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
             builder.field(e.getKey(), e.getValue());
         }
         builder.endObject();
+        if (convertersUsed.isEmpty() == false) {
+            builder.startObject("converters_used");
+            for (Map.Entry<String, Integer> e : convertersUsed.entrySet()) {
+                builder.field(e.getKey(), e.getValue());
+            }
+            builder.endObject();
+        }
         builder.field("values_loaded", valuesLoaded);
         innerToXContent(builder);
         return builder.endObject();
@@ -140,7 +162,9 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
     public boolean equals(Object o) {
         if (super.equals(o) == false) return false;
         ValuesSourceReaderOperatorStatus status = (ValuesSourceReaderOperatorStatus) o;
-        return readersBuilt.equals(status.readersBuilt) && valuesLoaded == status.valuesLoaded;
+        return readersBuilt.equals(status.readersBuilt)
+            && convertersUsed.equals(status.convertersUsed)
+            && valuesLoaded == status.valuesLoaded;
     }
 
     @Override

@@ -12,6 +12,7 @@ id:l | bit_vector:dense_vector
 1    | [45, 9]
 2    | [127, 0]
 3    | [88, 53]
+4    | null
 ;
 
 denseBitVectorWithEval
@@ -29,6 +30,7 @@ id:l | v:dense_vector
 1    | [45, 9]
 2    | [127, 0]
 3    | [88, 53]
+4    | null
 ;
 
 denseBitVectorWithRenameAndDrop
@@ -47,4 +49,28 @@ id:l | new_vector:dense_vector
 1    | [45, 9]
 2    | [127, 0]
 3    | [88, 53]
+4    | null
+;
+
+
+denseVectorAggregationFunctions
+required_capability: dense_vector_agg_functions
+
+from dense_vector
+| stats count_all = count(*), count_vectors = count(bit_vector), present = present(bit_vector), absent = absent(bit_vector)
+;
+
+count_all:long | count_vectors:long | present:boolean | absent:boolean
+5              | 4                  | true            | false
+;
+
+denseVectorCount
+required_capability: dense_vector_agg_functions
+
+from dense_vector
+| stats count_vectors = count(bit_vector)
+;
+
+count_vectors:long
+4               
 ;

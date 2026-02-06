@@ -10,9 +10,11 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -223,6 +225,27 @@ public interface BlockLoader {
         ) throws IOException;
     }
 
+    /**
+     * An interface for readers that attempt to load BytesRef length values directly without loading BytesRefs.
+     * <p>
+     * Implementations may return {@code null} if they are unable to load the requested values,
+     * for example due to unsupported underlying data.
+     * This allows callers to optimistically try optimized loading strategies first, and fall back if necessary.
+     */
+    interface OptionalLengthReader {
+        /**
+         * Attempts to read the values of all documents in {@code docs}
+         * Returns {@code null} if unable to load the values.
+         *
+         * @param nullsFiltered  if {@code true}, then target docs are guaranteed to have a value for the field.
+         *                       see {@link ColumnAtATimeReader#read(BlockFactory, Docs, int, boolean)}
+         */
+        @Nullable
+        BlockLoader.Block tryReadLength(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException;
+
+        NumericDocValues toLengthValues();
+    }
+
     interface RowStrideReader extends Reader {
         /**
          * Reads the values of the given document into the builder.
@@ -252,6 +275,12 @@ public interface BlockLoader {
          * @return stored fields for the current document
          */
         Map<String, List<Object>> storedFields() throws IOException;
+
+        /**
+         * Whether stored fields have already been loaded for the current document.
+         * If the stored fields are not loaded yet, the block loader might avoid loading them when not needed.
+         */
+        boolean loaded();
     }
 
     /**
@@ -267,7 +296,7 @@ public interface BlockLoader {
      * {@code null} or if they can't load column-at-a-time themselves.
      */
     @Nullable
-    ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException;
+    IOSupplier<ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) throws IOException;
 
     /**
      * Build a row-by-row reader. Must <strong>never</strong> return {@code null},
@@ -293,13 +322,104 @@ public interface BlockLoader {
     SortedSetDocValues ordinals(LeafReaderContext context) throws IOException;
 
     /**
-     * In support of 'Union Types', we sometimes desire that Blocks loaded from source are immediately
-     * converted in some way. Typically, this would be a type conversion, or an encoding conversion.
-     * @param block original block loaded from source
-     * @return converted block (or original if no conversion required)
+     * A {@link BlockLoader} that conditionally selects one of two underlying loaders based on the underlying data.
+     * It prefers the {@code preferLoader} when possible, falling back to the {@code fallbackLoader} otherwise.
+     * <p>
+     * For example, a text field with a synthetic source can be loaded from its child keyword field when possible,
+     * which is faster than loading from stored fields:
+     * <pre>
+     * {
+     *     "parent_text_field": {
+     *         "type": "text",
+     *         "fields": {
+     *             "child_keyword_field": {
+     *                 "type": "keyword",
+     *                 "ignore_above": 256
+     *             }
+     *         }
+     *     }
+     * }
+     * </pre>
+     * If no values in a segment exceed the 256-character limit, then we can safely use the block loader from the
+     * keyword field for the entire segment. Alternatively, on a per-document basis, if doc-1 has the value "a"
+     * (under the limit) and doc-2 has the value "bcd..." (exceeds the limit), we can load doc-1 from the doc_values
+     * of keyword field and doc-2 from the slower stored fields.
      */
-    default Block convert(Block block) {
-        return block;
+    abstract class ConditionalBlockLoader implements BlockLoader {
+        private final BlockLoader preferLoader;
+        private final BlockLoader fallbackLoader;
+
+        protected ConditionalBlockLoader(BlockLoader preferLoader, BlockLoader fallbackLoader) {
+            this.preferLoader = preferLoader;
+            this.fallbackLoader = fallbackLoader;
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return fallbackLoader.builder(factory, expectedCount);
+        }
+
+        /**
+         * Determines whether the preferred loader can be used for all documents in the given leaf context.
+         */
+        protected abstract boolean canUsePreferLoaderForLeaf(LeafReaderContext context) throws IOException;
+
+        /**
+         * Whether we can use the prefer loader for the given doc ID. If {@code true}, then the preferred loader is used
+         * to avoid loading stored fields or source.
+         */
+        protected abstract boolean canUsePreferLoaderForDoc(int docId) throws IOException;
+
+        @Override
+        public IOSupplier<ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) throws IOException {
+            if (canUsePreferLoaderForLeaf(context)) {
+                return preferLoader.columnAtATimeReader(context);
+            } else {
+                return fallbackLoader.columnAtATimeReader(context);
+            }
+        }
+
+        @Override
+        public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
+            if (preferLoader.rowStrideStoredFieldSpec().noRequirements() == false) {
+                return fallbackLoader.rowStrideReader(context);
+            }
+            RowStrideReader preferReader = preferLoader.rowStrideReader(context);
+            if (canUsePreferLoaderForLeaf(context)) {
+                return preferReader;
+            }
+            RowStrideReader fallbackReader = fallbackLoader.rowStrideReader(context);
+            return new RowStrideReader() {
+                @Override
+                public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
+                    if (storedFields.loaded() == false && canUsePreferLoaderForDoc(docId)) {
+                        preferReader.read(docId, storedFields, builder);
+                    } else {
+                        fallbackReader.read(docId, storedFields, builder);
+                    }
+                }
+
+                @Override
+                public boolean canReuse(int startingDocID) {
+                    return fallbackReader.canReuse(startingDocID) && preferReader.canReuse(startingDocID);
+                }
+            };
+        }
+
+        @Override
+        public StoredFieldsSpec rowStrideStoredFieldSpec() {
+            return fallbackLoader.rowStrideStoredFieldSpec();
+        }
+
+        @Override
+        public boolean supportsOrdinals() {
+            return false;
+        }
+
+        @Override
+        public SortedSetDocValues ordinals(LeafReaderContext context) throws IOException {
+            return null;
+        }
     }
 
     /**

@@ -18,6 +18,7 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Queue;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -52,9 +53,20 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
     private final Consumer<T> cleaner;
     private final AtomicReference<Subscription> subscription = new AtomicReference<>();
     private static final Logger logger = LogManager.getLogger(CancellableRateLimitedFluxIterator.class);
-    private volatile Throwable error;
-    private volatile boolean done;
+    private volatile DoneState doneState = DoneState.STILL_READING;
     private int emittedElements;
+
+    /**
+     * This is used to set 'done' and 'error' atomically
+     */
+    private record DoneState(boolean done, Throwable error) {
+        static final DoneState STILL_READING = new DoneState(false, null);
+        static final DoneState FINISHED = new DoneState(true, null);
+
+        public DoneState {
+            assert done || error == null : "Must be done to specify an error";
+        }
+    }
 
     /**
      * Creates a new CancellableRateLimitedFluxIterator that would request to it's upstream publisher
@@ -78,11 +90,11 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
         // and it's possible that the consumer thread is blocked
         // waiting until the producer emits an element.
         for (;;) {
-            boolean isDone = done;
+            final DoneState lastDoneState = this.doneState;
             boolean isQueueEmpty = queue.isEmpty();
 
-            if (isDone) {
-                Throwable e = error;
+            if (lastDoneState.done()) {
+                Throwable e = lastDoneState.error();
                 if (e != null) {
                     throw new RuntimeException(e);
                 } else if (isQueueEmpty) {
@@ -97,7 +109,7 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
             // Provide visibility guarantees for the modified queue
             lock.lock();
             try {
-                while (done == false && queue.isEmpty()) {
+                while (doneState.done() == false && queue.isEmpty()) {
                     condition.await();
                 }
             } catch (InterruptedException e) {
@@ -118,11 +130,21 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
 
         T nextElement = queue.poll();
 
-        if (nextElement == null) {
+        if (doneState.done() && doneState.error() != null) {
+            // We can't trust anything we read after doneState is done with an error or cancellation
+            // as we may have begun clearing the queue
+            if (nextElement != null) {
+                cleanElement(nextElement);
+            }
+            throw new RuntimeException(doneState.error());
+        } else if (nextElement == null) {
+            final var illegalStateException = new IllegalStateException(
+                "Queue is empty: Expected one element to be available from the Reactive Streams source."
+            );
+            doneState = new DoneState(true, illegalStateException);
             cancelSubscription();
             signalConsumer();
-
-            throw new IllegalStateException("Queue is empty: Expected one element to be available from the Reactive Streams source.");
+            throw illegalStateException;
         }
 
         int totalEmittedElements = emittedElements + 1;
@@ -150,7 +172,7 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
         // It's possible that we receive more elements after cancelling the subscription
         // since it might have outstanding requests before the cancellation. In that case
         // we just clean the resources.
-        if (done) {
+        if (doneState.done()) {
             cleanElement(element);
             return;
         }
@@ -166,7 +188,7 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
     }
 
     public void cancel() {
-        done = true;
+        doneState = new DoneState(true, new CancellationException());
         cancelSubscription();
         clearQueue();
         // cancel should be called from the consumer
@@ -178,15 +200,14 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
 
     @Override
     public void onError(Throwable t) {
-        done = true;
+        doneState = new DoneState(true, t);
         clearQueue();
-        error = t;
         signalConsumer();
     }
 
     @Override
     public void onComplete() {
-        done = true;
+        doneState = DoneState.FINISHED;
         signalConsumer();
     }
 

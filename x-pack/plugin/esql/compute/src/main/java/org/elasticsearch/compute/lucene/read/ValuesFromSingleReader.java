@@ -10,6 +10,7 @@ package org.elasticsearch.compute.lucene.read;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DocVector;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
@@ -89,18 +90,19 @@ class ValuesFromSingleReader extends ValuesReader {
 
         List<ColumnAtATimeWork> columnAtATimeReaders = new ArrayList<>(operator.fields.length);
         List<RowStrideReaderWork> rowStrideReaders = new ArrayList<>(operator.fields.length);
-        try (ComputeBlockLoaderFactory loaderBlockFactory = new ComputeBlockLoaderFactory(operator.blockFactory)) {
+        try (ComputeBlockLoaderFactory loaderBlockFactory = new ComputeBlockLoaderFactory(operator.driverContext.blockFactory())) {
             for (int f = 0; f < operator.fields.length; f++) {
                 ValuesSourceReaderOperator.FieldWork field = operator.fields[f];
                 BlockLoader.ColumnAtATimeReader columnAtATime = field.columnAtATime(ctx);
                 if (columnAtATime != null) {
-                    columnAtATimeReaders.add(new ColumnAtATimeWork(columnAtATime, f));
+                    columnAtATimeReaders.add(new ColumnAtATimeWork(columnAtATime, field.converter, f));
                 } else {
                     rowStrideReaders.add(
                         new RowStrideReaderWork(
                             field.rowStride(ctx),
                             (Block.Builder) field.loader.builder(loaderBlockFactory, docs.count() - offset),
                             field.loader,
+                            field.converter,
                             f
                         )
                     );
@@ -112,7 +114,9 @@ class ValuesFromSingleReader extends ValuesReader {
                 loadFromRowStrideReaders(jumboBytes, target, storedFieldsSpec, rowStrideReaders, ctx, docs, offset);
             }
             for (ColumnAtATimeWork r : columnAtATimeReaders) {
-                target[r.idx] = (Block) r.reader.read(loaderBlockFactory, docs, offset, operator.fields[r.idx].info.nullsFiltered());
+                target[r.idx] = r.convert(
+                    (Block) r.reader.read(loaderBlockFactory, docs, offset, operator.fields[r.idx].info.nullsFiltered())
+                );
                 operator.sanityCheckBlock(r.reader, docs.count() - offset, target[r.idx], r.idx);
             }
             if (log.isDebugEnabled()) {
@@ -202,22 +206,36 @@ class ValuesFromSingleReader extends ValuesReader {
      * @param reader reads the values
      * @param idx destination in array of {@linkplain Block}s we build
      */
-    private record ColumnAtATimeWork(BlockLoader.ColumnAtATimeReader reader, int idx) {}
+    private record ColumnAtATimeWork(
+        BlockLoader.ColumnAtATimeReader reader,
+        @Nullable ValuesSourceReaderOperator.ConverterEvaluator converter,
+        int idx
+    ) {
+        Block convert(Block block) {
+            return converter == null ? block : converter.convert(block);
+        }
+    }
 
     /**
      * Work for rows stride readers.
      * @param reader reads the values
+     * @param converter an optional conversion function to apply on load
      * @param idx destination in array of {@linkplain Block}s we build
      */
-    private record RowStrideReaderWork(BlockLoader.RowStrideReader reader, Block.Builder builder, BlockLoader loader, int idx)
-        implements
-            Releasable {
+    private record RowStrideReaderWork(
+        BlockLoader.RowStrideReader reader,
+        Block.Builder builder,
+        BlockLoader loader,
+        @Nullable ValuesSourceReaderOperator.ConverterEvaluator converter,
+        int idx
+    ) implements Releasable {
         void read(int doc, BlockLoaderStoredFieldsFromLeafLoader storedFields) throws IOException {
             reader.read(doc, storedFields, builder);
         }
 
         Block build() {
-            return (Block) loader.convert(builder.build());
+            Block result = builder.build();
+            return converter == null ? result : converter.convert(result);
         }
 
         @Override

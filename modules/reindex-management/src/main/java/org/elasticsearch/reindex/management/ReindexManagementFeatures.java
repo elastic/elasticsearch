@@ -21,6 +21,9 @@ public class ReindexManagementFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return ReindexPlugin.REINDEX_RESILIENCE_ENABLED ? Set.of(NEW_ENDPOINTS) : Set.of();
+        // TODO: Before we release this functionality by removing the REINDEX_RESILIENCE_ENABLED checks, we should see whether we can
+        // consolidate the node features. These are a constrained resource, so we should combine the features for anything that is being
+        // released at the same time while we still can.
+        return ReindexPlugin.REINDEX_RESILIENCE_ENABLED ? Set.of(NEW_ENDPOINTS, ReindexPlugin.RELOCATE_ON_SHUTDOWN_NODE_FEATURE) : Set.of();
     }
 }

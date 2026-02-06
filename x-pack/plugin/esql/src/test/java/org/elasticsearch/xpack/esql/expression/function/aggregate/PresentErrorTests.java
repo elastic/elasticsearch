@@ -35,7 +35,7 @@ public class PresentErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
         return equalTo(
             "argument of ["
                 + signature.getFirst().esType()
-                + "] must be [any type except counter types, dense_vector or date_range], found value [] type ["
+                + "] must be [any type except counter types or date_range], found value [] type ["
                 + signature.getFirst().esType()
                 + "]"
         );
@@ -43,6 +43,6 @@ public class PresentErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected void assertCheckedSignatures(Set<List<DataType>> invalidSignatureSamples) {
-        assertThat(invalidSignatureSamples, equalTo(Set.of(List.of(DataType.DENSE_VECTOR))));
+        assertThat(invalidSignatureSamples, equalTo(Set.of()));
     }
 }

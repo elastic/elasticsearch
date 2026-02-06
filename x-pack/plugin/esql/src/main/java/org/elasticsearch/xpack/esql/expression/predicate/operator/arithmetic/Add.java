@@ -41,20 +41,50 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
 
     @FunctionInfo(
         operator = "+",
-        returnType = { "double", "integer", "long", "date_nanos", "date_period", "datetime", "time_duration", "unsigned_long" },
-        description = "Add two numbers together. If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`."
+        returnType = {
+            "double",
+            "integer",
+            "long",
+            "date_nanos",
+            "date_period",
+            "datetime",
+            "time_duration",
+            "unsigned_long",
+            "dense_vector" },
+        description = """
+            Add two values. In case of numeric fields, if either field is <<esql-multivalued-fields,multivalued>> then the result is `null`.
+            For dense_vector operations, both arguments should be dense_vectors. Inequal vector dimensions generate null result.
+            """
     )
     public Add(
         Source source,
         @Param(
             name = "lhs",
-            description = "A numeric value or a date time value.",
-            type = { "double", "integer", "long", "date_nanos", "date_period", "datetime", "time_duration", "unsigned_long" }
+            description = "A numeric value, dense_vector or a date time value.",
+            type = {
+                "double",
+                "integer",
+                "long",
+                "date_nanos",
+                "date_period",
+                "datetime",
+                "time_duration",
+                "unsigned_long",
+                "dense_vector" }
         ) Expression left,
         @Param(
             name = "rhs",
-            description = "A numeric value or a date time value.",
-            type = { "double", "integer", "long", "date_nanos", "date_period", "datetime", "time_duration", "unsigned_long" }
+            description = "A numeric value, dense_vector or a date time value.",
+            type = {
+                "double",
+                "integer",
+                "long",
+                "date_nanos",
+                "date_period",
+                "datetime",
+                "time_duration",
+                "unsigned_long",
+                "dense_vector" }
         ) Expression right,
         Configuration configuration
     ) {
@@ -67,6 +97,7 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
             AddLongsEvaluator.Factory::new,
             AddUnsignedLongsEvaluator.Factory::new,
             AddDoublesEvaluator.Factory::new,
+            DenseVectorsEvaluator.AddFactory::new,
             AddDatetimesEvaluator.Factory::new,
             AddDateNanosEvaluator.Factory::new
         );
@@ -81,6 +112,7 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
             AddLongsEvaluator.Factory::new,
             AddUnsignedLongsEvaluator.Factory::new,
             AddDoublesEvaluator.Factory::new,
+            DenseVectorsEvaluator.AddFactory::new,
             AddDatetimesEvaluator.Factory::new,
             AddDateNanosEvaluator.Factory::new
         );

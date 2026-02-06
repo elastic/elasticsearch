@@ -21,6 +21,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ReleaseVersions;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.logging.LogConfigurator;
@@ -76,7 +77,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler.CTRL_CLOSE_EVENT;
+import static org.elasticsearch.nativeaccess.WindowsNativeAccess.ConsoleCtrlHandler.CTRL_CLOSE_EVENT;
 
 /**
  * This class starts elasticsearch.
@@ -145,6 +146,7 @@ class Elasticsearch {
 
             // DO NOT MOVE THIS
             // Logging must remain the last step of phase 1. Anything init steps needing logging should be in phase 2.
+            LogConfigurator.setClusterName(ClusterName.CLUSTER_NAME_SETTING.get(args.nodeSettings()).value());
             LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(args.nodeSettings()));
             LogConfigurator.configure(nodeEnv, args.quiet() == false);
         } catch (Throwable t) {
@@ -468,9 +470,8 @@ class Elasticsearch {
 
         // listener for windows close event
         if (ctrlHandler) {
-            var windowsFunctions = nativeAccess.getWindowsFunctions();
-            if (windowsFunctions != null) {
-                windowsFunctions.addConsoleCtrlHandler(code -> {
+            NativeAccess.onWindows(windowsNativeAccess -> {
+                windowsNativeAccess.addConsoleCtrlHandler(code -> {
                     if (CTRL_CLOSE_EVENT == code) {
                         logger.info("running graceful exit on windows");
                         shutdown();
@@ -478,7 +479,7 @@ class Elasticsearch {
                     }
                     return false;
                 });
-            }
+            });
         }
 
         if (IOUtils.LINUX) {

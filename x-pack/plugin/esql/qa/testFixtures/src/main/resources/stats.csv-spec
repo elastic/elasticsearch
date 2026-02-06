@@ -994,6 +994,22 @@ M
 null
 ;
 
+
+aggsByFirstNameWithoutStats
+from employees | stats by f=first_name | stats c = count(f);
+
+c:long
+90
+;
+
+aggsByLastNameWithoutStats
+from employees | stats by f=last_name | stats c = count(f);
+
+c:long
+96
+;
+
+
 aggsWithoutStatsTwo
 FROM employees | STATS BY gender, still_hired | SORT gender, still_hired;
 
@@ -1554,6 +1570,33 @@ COUNT(n):long
 // end::count-where-result[]
 ;
 
+count_where_many
+// tag::count-where-many[]
+FROM employees
+| STATS
+    gte20 = COUNT(*) WHERE height >= 2,
+    lte18 = COUNT(*) WHERE height <= 1.8
+// end::count-where-many[]
+;
+
+// tag::count-where-many-result[]
+gte20:long | lte18:long
+        20 | 56
+// end::count-where-many-result[]
+;
+
+count_mv
+// tag::count-mv[]
+ROW mv = [1, 2], n = NULL, t = TRUE, f = FALSE
+| STATS COUNT(mv), COUNT(n), COUNT(t), COUNT(f)
+// end::count-mv[]
+;
+
+// tag::count-mv-result[]
+COUNT(mv):long | COUNT(n):long | COUNT(t):long | COUNT(f):long
+             2 |             0 |             1 |             1
+// end::count-mv-result[]
+;
 
 count_or_null#[skip:-8.14.1,reason:implemented in 8.14]
 // tag::count-or-null[]
@@ -3600,6 +3643,96 @@ a:double | b:double | c:long
 6.0      | 6.0      | 8
 ;
 
+fixStatsValuesOnReferenceToNullUncasted
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = null
+| STATS VALUES(x)
+;
+
+VALUES(x):null
+null
+;
+
+fixStatsValuesOnReferenceToNullCasted
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = null::long
+| STATS VALUES(x)
+;
+
+VALUES(x):long
+null
+;
+
+fixStatsValuesOnLiteralNull
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = 1
+| STATS y = VALUES(null)
+;
+
+y:null
+null
+;
+
+fixStatsAggOnNullGivenMultipleAggs
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW w = 1, x = null, y = null, z = 42
+| STATS a = MIN(w), b = MIN(x), c = MAX(y), d = MEDIAN(z)
+;
+
+a:integer | b:null | c:null | d:double
+1         | null   | null   | 42
+;
+
+fixStatsAggOnNullGivenMultipleAggsWithExpressionsAndBy
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW w = 1 * 10, x = null, y = null + 3, z = 42
+| STATS a = MIN(w), b = MIN(x), c = MAX(y), d = MEDIAN(z) + 1 by x
+;
+
+a:integer | b:null | c:integer | d:double | x:null
+10        | null   | null      | 43       | null
+;
+
+fixStatsAggOnNullGivenMultipleAggsWithWhereClauses
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = null, y = null, z = 1
+| STATS a = MIN(x) WHERE z + 1 == 2,
+        b = MAX(y) WHERE z + 1 == 3,
+        c = VALUES(z) WHERE z + 1 == 3
+;
+
+a:null | b:null | c:integer
+null   | null   | null
+;
+
+
+fixStatsAggOnNullWithSpecialReturnValueAggs
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = null
+| STATS a = COUNT(x), b = COUNT_DISTINCT(x), c = PRESENT(x), d = ABSENT(x)
+;
+
+a:long | b:long | c:boolean | d:boolean
+0      | 0      | false     | true
+;
+
+fixStatsAggOnNullAsChildWithSpecialReturnValueAggs
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = 0
+| STATS a = COUNT(null), b = COUNT_DISTINCT(null), c = PRESENT(null), d = ABSENT(null)
+;
+
+a:long | b:long | c:boolean | d:boolean
+0      | 0      | false     | true
+;
 
 statsMvConstantGroupByWhere
 required_capability: fix_stats_mv_constant_fold

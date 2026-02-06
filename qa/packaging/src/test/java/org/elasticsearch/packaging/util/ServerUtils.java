@@ -155,12 +155,12 @@ public class ServerUtils {
             return executor.execute(request).returnResponse();
         } catch (Exception e) {
             logger.warn(
-                "Failed to execute request [{}] with username/password [{}/{}] and caCert [{}]",
+                "Failed to execute request [{}] with username/password [{}/{}] and caCert [{}], exception: {}",
                 request.toString(),
                 username,
                 password,
                 caCert,
-                e
+                e.getMessage()
             );
             throw e;
         }
@@ -244,7 +244,7 @@ public class ServerUtils {
         Path caCert
     ) throws Exception {
         Objects.requireNonNull(status);
-        boolean shouldRetryOnAuthNFailure = false;
+
         // we loop here rather than letting httpclient handle retries so we can measure the entire waiting time
         final long startTime = System.currentTimeMillis();
         long lastRequest = 0;
@@ -266,10 +266,11 @@ public class ServerUtils {
                         password,
                         caCert
                     );
+
                     if (response.getStatusLine().getStatusCode() >= 300) {
                         // We create the security index on startup (in order to create an enrollment token and/or set the elastic password)
                         // In Docker, even when the ELASTIC_PASSWORD is set, when the security index exists and we get an authN attempt as
-                        // `elastic` , the reserved realm checks the security index first. It can happen that we check the security index
+                        // `elastic`, the reserved realm checks the security index first. It can happen that we check the security index
                         // too early after the security index creation in DockerTests causing an UnavailableShardsException. We retry
                         // authentication errors for a couple of seconds just to verify this is not the case.
                         if (timeElapsed < dockerWaitForSecurityIndex && response.getStatusLine().getStatusCode() == 401) {
@@ -277,7 +278,6 @@ public class ServerUtils {
                                 "Authentication against docker failed (possibly due to UnavailableShardsException for the security index)"
                                     + ", retrying..."
                             );
-                            shouldRetryOnAuthNFailure = true;
                         } else {
                             final String statusLine = response.getStatusLine().toString();
                             final String body = EntityUtils.toString(response.getEntity());
@@ -285,8 +285,9 @@ public class ServerUtils {
                                 "Connecting to elasticsearch cluster health API failed:\n" + statusLine + "\n" + body
                             );
                         }
+                    } else {
+                        started = true;
                     }
-                    started = true;
 
                 } catch (Exception e) {
                     if (thrownException == null) {
@@ -310,26 +311,24 @@ public class ServerUtils {
             throw new RuntimeException("Elasticsearch did not start", thrownException);
         }
 
-        if (shouldRetryOnAuthNFailure == false) {
-            final String url;
-            if (index == null) {
-                url = (caCert != null ? "https" : "http")
-                    + "://localhost:9200/_cluster/health?wait_for_status="
-                    + status
-                    + "&timeout=60s"
-                    + "&pretty";
-            } else {
-                url = (caCert != null ? "https" : "http")
-                    + "://localhost:9200/_cluster/health/"
-                    + index
-                    + "?wait_for_status="
-                    + status
-                    + "&timeout=60s&pretty";
-            }
-
-            final String body = makeRequest(Request.Get(url), username, password, caCert);
-            assertThat("cluster health response must contain desired status", body, containsString(status));
+        final String url;
+        if (index == null) {
+            url = (caCert != null ? "https" : "http")
+                + "://localhost:9200/_cluster/health?wait_for_status="
+                + status
+                + "&timeout=60s"
+                + "&pretty";
+        } else {
+            url = (caCert != null ? "https" : "http")
+                + "://localhost:9200/_cluster/health/"
+                + index
+                + "?wait_for_status="
+                + status
+                + "&timeout=60s&pretty";
         }
+
+        final String body = makeRequest(Request.Get(url), username, password, caCert);
+        assertThat("cluster health response must contain desired status", body, containsString(status));
     }
 
     public static void runElasticsearchTests() throws Exception {

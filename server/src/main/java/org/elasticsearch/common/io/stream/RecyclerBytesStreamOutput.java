@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -22,13 +23,42 @@ import org.elasticsearch.core.Releasables;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Objects;
 
 /**
- * A @link {@link StreamOutput} that uses {@link Recycler.V<BytesRef>} to acquire pages of bytes, which
- * avoids frequent reallocation &amp; copying of the internal data. When {@link #close()} is called,
- * the bytes will be released.
+ * A @link {@link StreamOutput} that uses a {@link Recycler<BytesRef>} to acquire pages of bytes, which avoids frequent reallocation &amp;
+ * copying of the internal data. When {@link #close()} is called, the bytes will be released.
+ * <p>
+ * Best only used for outputs which are either short-lived or large, because the resulting {@link ReleasableBytesReference} retains whole
+ * pages and this overhead may be significant on small and long-lived objects.
+ *
+ * A {@link RecyclerBytesStreamOutput} obtains pages (16kiB slices of a larger {@code byte[]}) from a {@code Recycler<BytesRef>} rather than
+ * using the {@link BigArrays} abstraction that {@link BytesStreamOutput} and {@link ReleasableBytesStreamOutput} both use. This means it
+ * can access the underlying {@code byte[]} directly and therefore avoids the intermediate buffer and the copy for almost all writes (the
+ * exception being occasional writes that get too close to the end of a page).
+ * <p>
+ * It does not attempt to grow its collector slowly in the same way that {@link BigArrays#resize} does. Instead, it always obtains from the
+ * recycler a whole new 16kiB page when the need arises. This works best when the serialized data has a short lifespan (e.g. it is an
+ * outbound network message) so the overhead has limited impact and the savings on allocations and copying (due to the absence of resize
+ * operations) are significant.
+ * <p>
+ * The resulting {@link ReleasableBytesReference} is a view over the underlying {@code byte[]} pages and involves no significant extra
+ * allocation to obtain. It is oversized: The worst case for overhead is when the data is a single byte, since this takes up a whole 16kiB
+ * page almost all of which is overhead. Nonetheless, if recycled pages are available then it may still be preferable to use them via a
+ * {@link RecyclerBytesStreamOutput}. If the result is large then the overhead is less important, and if the result will only be used for
+ * a short time, for instance soon being written to the network or to disk, then the imminent recycling of these pages may mean it is ok to
+ * keep it as-is. For results which are both small and long-lived it may be better to copy them into a freshly-allocated {@code byte[]}.
+ * <p>
+ * Any memory allocated in this way is not tracked by the {@link org.elasticsearch.common.breaker} subsystem, even if the
+ * {@code Recycler<BytesRef>} was obtained from {@link BigArrays#bytesRefRecycler()}, unless the caller takes steps to add this tracking
+ * themselves.
  */
 public class RecyclerBytesStreamOutput extends BytesStream implements Releasable {
 
@@ -166,7 +196,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         if (bytesNeeded > remainingBytesInPage) {
             super.writeVInt(i);
         } else {
-            this.currentOffset = currentOffset + StreamOutputHelper.putMultiByteVInt(this.currentBufferPool, i, currentOffset);
+            this.currentOffset = StreamOutputHelper.putMultiByteVInt(this.currentBufferPool, i, currentOffset);
         }
     }
 
@@ -390,7 +420,99 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         var pages = this.pages;
         closeFields();
 
-        return new ReleasableBytesReference(bytes, () -> Releasables.close(pages));
+        return new ReleasableBytesReference(bytes, pages.size() == 1 ? pages.getFirst() : Releasables.wrap(pages));
+    }
+
+    /**
+     * Base64-encode the contents of the stream and convert to a {@link String}, avoiding unnecessary allocation and copying as much as
+     * possible.
+     *
+     * @param encoder Encoder to use. Must not insert line-breaks.
+     * @return Base64-encoded copy of the contents of the stream.
+     */
+    public String toBase64String(Base64.Encoder encoder) {
+        assert encoder.encode(new byte[120]).length == 160 : "Line breaks not supported";
+        if (pageIndex == 0) {
+            // common case: small object that fits into one page, can be encoded directly
+            final var rawLength = pageSize - (maxOffset - currentOffset);
+
+            // allocates a new array for the output
+            final var encodedBuffer = encoder.encode(ByteBuffer.wrap(currentBufferPool, currentOffset - rawLength, rawLength));
+            assert encodedBuffer.hasArray();
+
+            // copies the buffer to a fresh array to ensure immutability
+            return new String(encodedBuffer.array(), encodedBuffer.arrayOffset(), encodedBuffer.remaining(), StandardCharsets.ISO_8859_1);
+        } else {
+            return toBase64StringMultiPage(encoder);
+        }
+    }
+
+    private String toBase64StringMultiPage(Base64.Encoder encoder) {
+        // probably a mistake to want such a massive string, but let's do our best
+
+        class ToAsciiStringStream extends OutputStream {
+            // possibly slightly oversized but NB no space for line-breaks
+            final byte[] encodedBytes = new byte[Math.multiplyExact(4, Math.addExact(Math.toIntExact(position()), 2) / 3)];
+            int position;
+
+            @Override
+            public void write(int b) {
+                encodedBytes[position++] = (byte) b;
+            }
+
+            @Override
+            public void write(byte[] b, int off, int len) {
+                System.arraycopy(b, off, encodedBytes, position, len);
+                position += len;
+            }
+
+            @Override
+            public String toString() {
+                return new String(encodedBytes, 0, position, StandardCharsets.ISO_8859_1);
+            }
+        }
+
+        try (var toAsciiStringStream = new ToAsciiStringStream()) {
+            try (var encoderStream = encoder.wrap(toAsciiStringStream)) {
+                int copyPageIndex = 0;
+                for (final var page : pages) {
+                    final var pageContents = page.v();
+                    if (copyPageIndex++ < pageIndex) {
+                        encoderStream.write(pageContents.bytes, pageContents.offset, pageContents.length);
+                    } else {
+                        encoderStream.write(pageContents.bytes, pageContents.offset, currentOffset - pageContents.offset);
+                        break;
+                    }
+                }
+            }
+            return toAsciiStringStream.toString();
+        } catch (IOException e) {
+            assert false : e; // no actual IO happens here
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Copies the entire remaining contents of the given {@link InputStream} directly into this output, avoiding the need for any
+     * intermediate buffers.
+     */
+    public void writeAllBytesFrom(InputStream in) throws IOException {
+        while (true) {
+            final var currentBufferPool = this.currentBufferPool;
+            final var maxOffset = this.maxOffset;
+            var currentOffset = this.currentOffset;
+            while (currentOffset < maxOffset) {
+                int readSize = in.read(currentBufferPool, currentOffset, maxOffset - currentOffset);
+                if (readSize == -1) {
+                    this.currentOffset = currentOffset;
+                    return;
+                }
+                currentOffset += readSize;
+            }
+            this.currentOffset = maxOffset;
+            ensureCapacity(1);
+            nextPage();
+        }
     }
 
     private void closeFields() {
@@ -416,34 +538,32 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
 
     @Override
     public BytesReference bytes() {
-        int position = (int) position();
+        final int position = (int) position();
         if (position == 0) {
             return BytesArray.EMPTY;
+        } else if (position <= pageSize) {
+            final var page = pages.getFirst().v();
+            return new BytesArray(page.bytes, page.offset, position);
         } else {
-            final int adjustment;
-            final int bytesInLastPage;
-            final int remainder = position % pageSize;
-            if (remainder != 0) {
-                adjustment = 1;
-                bytesInLastPage = remainder;
+            return bytesMultiPage(position);
+        }
+    }
+
+    private BytesReference bytesMultiPage(int position) {
+        final int pageCount = (position + pageSize - 1) / pageSize;
+        assert pageCount > 1;
+        final BytesReference[] references = new BytesReference[pageCount];
+        int pageIndex = 0;
+        for (var page : pages) {
+            if (pageIndex < pageCount - 1) {
+                references[pageIndex++] = new BytesArray(page.v());
             } else {
-                adjustment = 0;
-                bytesInLastPage = pageSize;
-            }
-            final int pageCount = (position / pageSize) + adjustment;
-            if (pageCount == 1) {
-                BytesRef page = pages.get(0).v();
-                return new BytesArray(page.bytes, page.offset, bytesInLastPage);
-            } else {
-                BytesReference[] references = new BytesReference[pageCount];
-                for (int i = 0; i < pageCount - 1; ++i) {
-                    references[i] = new BytesArray(this.pages.get(i).v());
-                }
-                BytesRef last = this.pages.get(pageCount - 1).v();
-                references[pageCount - 1] = new BytesArray(last.bytes, last.offset, bytesInLastPage);
-                return CompositeBytesReference.of(references);
+                final var pageBytes = page.v();
+                references[pageIndex] = new BytesArray(pageBytes.bytes, pageBytes.offset, position - pageIndex * pageSize);
+                break;
             }
         }
+        return CompositeBytesReference.of(references);
     }
 
     private void ensureCapacity(int bytesNeeded) {

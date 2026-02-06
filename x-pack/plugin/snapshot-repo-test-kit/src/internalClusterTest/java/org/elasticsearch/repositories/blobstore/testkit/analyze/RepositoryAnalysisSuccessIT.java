@@ -170,7 +170,12 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
             final var responseMap = convertToMap(response);
             final var responseString = Strings.toString(response);
             assertThat(responseString, ObjectPath.eval("summary.write.count", responseMap), equalTo(request.getBlobCount()));
-            assertThat(responseString, ObjectPath.eval("summary.read.count", responseMap), greaterThanOrEqualTo(request.getBlobCount()));
+
+            // extraordinarily unlikely but in theory up to half of the writes could be copies, and each of those writes could attempt the
+            // copy early, fail with a NoSuchFileException, and thus not attempt to read the copy, so we can only assert this:
+            final var minReadCount = request.getBlobCount() / 2;
+            assertThat(responseString, ObjectPath.eval("summary.read.count", responseMap), greaterThanOrEqualTo(minReadCount));
+
             assertThat(responseString, ObjectPath.eval("summary.write.total_throttled_nanos", responseMap), equalTo(0));
             assertThat(responseString, ObjectPath.eval("summary.read.total_throttled_nanos", responseMap), equalTo(0));
         } catch (IOException e) {

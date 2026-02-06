@@ -10,16 +10,18 @@ import groovy.json.JsonSlurper
 import javax.net.ssl.HttpsURLConnection
 import java.nio.charset.StandardCharsets
 
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 dependencies {
-  yamlRestTestImplementation project(':x-pack:plugin:core')
-  yamlRestTestImplementation project(path: xpackModule('watcher'))
+  yamlRestTestImplementation project(':x-pack:qa:third-party')
+
+  clusterModules project(xpackModule('watcher'))
+  clusterModules project(xpackModule('ilm'))
 }
 
 restResources {
   restApi {
-    include 'watcher'
+    include '_common', 'cluster', 'indices', 'search', 'watcher'
   }
 }
 
@@ -44,20 +46,7 @@ tasks.register("cleanJira", DefaultTask) {
 if (!jiraUrl && !jiraUser && !jiraPassword && !jiraProject) {
   tasks.named("yamlRestTest").configure { enabled = false }
 } else {
-  testClusters.matching { it.name == "yamlRestTest" }.configureEach {
-    testDistribution = 'DEFAULT'
-    setting 'xpack.security.enabled', 'false'
-    setting 'xpack.ml.enabled', 'false'
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
-    setting 'xpack.notification.jira.account.test.issue_defaults.issuetype.name', 'Bug'
-    setting 'xpack.notification.jira.account.test.issue_defaults.labels.0', 'integration-tests'
-    setting 'xpack.notification.jira.account.test.issue_defaults.project.key', jiraProject
-    keystore 'xpack.notification.jira.account.test.secure_url', jiraUrl
-    keystore 'xpack.notification.jira.account.test.secure_user', jiraUser
-    keystore 'xpack.notification.jira.account.test.secure_password', jiraPassword
-  }
-  tasks.named("yamlRestTest")configure { finalizedBy "cleanJira" }
+  tasks.named("yamlRestTest").configure { finalizedBy "cleanJira" }
 }
 
 if (buildParams.inFipsJvm){

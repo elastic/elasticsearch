@@ -20,12 +20,17 @@ public interface CustomTokenAuthenticator extends CustomAuthenticator {
      * Called to extract {@code AuthenticationToken} for the {@link Grant#ACCESS_TOKEN_GRANT_TYPE}.
      *
      * <p>
-     * Note: Currently, this method is only called to extract token during user profile activation.
-     * The extracted token will be used to call the {@link #authenticate(AuthenticationToken, ActionListener)}
-     * method, before creating a user profile.
+     * This method is called to extract an access token during:
+     * <ul>
+     *   <li>User profile activation - the extracted token is used to authenticate the user before creating a user profile</li>
+     *   <li>Grant API key - the extracted token is used to authenticate the user on whose behalf the API key is being created</li>
+     * </ul>
      *
      * <p>
-     * To opt-out, implementors should return {@code null} if profile activation is not supported.
+     * The extracted token is then used to call the {@link #authenticate(AuthenticationToken, ActionListener)} method.
+     *
+     * <p>
+     * To opt-out, implementors should return {@code null} if using token for grant endpoints is not supported.
      *
      * @param grant grant that holds end-user credentials
      * @return an authentication token if grant holds credentials

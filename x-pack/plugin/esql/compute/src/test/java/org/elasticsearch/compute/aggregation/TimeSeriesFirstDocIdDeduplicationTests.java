@@ -28,6 +28,7 @@ import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
@@ -81,7 +82,7 @@ public class TimeSeriesFirstDocIdDeduplicationTests extends OperatorTestCase {
                 new TestResultPageSinkOperator(results::add)
             )
         ) {
-            runDriver(d);
+            new TestDriverRunner().run(d);
         }
 
         assertSimpleOutput(origInput, results);
@@ -134,7 +135,7 @@ public class TimeSeriesFirstDocIdDeduplicationTests extends OperatorTestCase {
                 new TestResultPageSinkOperator(results::add)
             )
         ) {
-            runDriver(d);
+            new TestDriverRunner().run(d);
         }
 
         assertThat("Should have at least one result page", results.size(), equalTo(1));
@@ -273,7 +274,10 @@ public class TimeSeriesFirstDocIdDeduplicationTests extends OperatorTestCase {
 
     @Override
     protected final Matcher<String> expectedToStringOfSimple() {
-        String hash = "blockHash=BytesRefLongBlockHash{keys=[BytesRefKey[channel=0], LongKey[channel=1]], entries=0, size=213112b}";
+        String hash = "blockHash=BytesRefLongBlockHash{keys=[BytesRefKey[channel=0], LongKey[channel=1]], entries=0, size=%size%}".replace(
+            "%size%",
+            byteRefBlockHashSize()
+        );
         return equalTo(
             "TimeSeriesAggregationOperator["
                 + hash

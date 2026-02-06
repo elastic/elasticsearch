@@ -9,10 +9,6 @@ mapped_pages:
 
 The *Elastic GMail connector* is a [connector](/reference/search-connectors/index.md) for GMail.
 
-::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
-::::
-
 ## **Self-managed connector reference** [es-connectors-gmail-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-gmail-client-availability]

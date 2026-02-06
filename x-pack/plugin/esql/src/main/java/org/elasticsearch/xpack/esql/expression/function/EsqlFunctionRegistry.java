@@ -21,8 +21,6 @@ import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.AllFirst;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.AllLast;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -162,6 +160,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCoun
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFirst;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersection;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLast;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
@@ -195,6 +194,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StYMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StYMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.BitLength;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ByteLength;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Chicken;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Chunk;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
@@ -235,6 +235,7 @@ import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -381,7 +382,9 @@ public class EsqlFunctionRegistry {
                 def(Values.class, uni(Values::new), "values"),
                 def(WeightedAvg.class, bi(WeightedAvg::new), "weighted_avg"),
                 def(Present.class, uni(Present::new), "present"),
-                def(Absent.class, uni(Absent::new), "absent") },
+                def(Absent.class, uni(Absent::new), "absent"),
+                def(First.class, bi(First::new), "first"),
+                def(Last.class, bi(Last::new), "last"), },
             // math
             new FunctionDefinition[] {
                 def(Abs.class, Abs::new, "abs"),
@@ -420,6 +423,7 @@ public class EsqlFunctionRegistry {
             new FunctionDefinition[] {
                 def(BitLength.class, BitLength::new, "bit_length"),
                 def(ByteLength.class, ByteLength::new, "byte_length"),
+                def(Chicken.class, Chicken::new, "chicken", Chicken.CHICKEN_EMOJI),
                 def(Concat.class, Concat::new, "concat"),
                 def(Contains.class, Contains::new, "contains"),
                 def(EndsWith.class, EndsWith::new, "ends_with"),
@@ -529,6 +533,7 @@ public class EsqlFunctionRegistry {
                 def(MvMedian.class, MvMedian::new, "mv_median"),
                 def(MvMedianAbsoluteDeviation.class, MvMedianAbsoluteDeviation::new, "mv_median_absolute_deviation"),
                 def(MvMin.class, MvMin::new, "mv_min"),
+                def(MvIntersects.class, MvIntersects::new, "mv_intersects"),
                 def(MvPercentile.class, MvPercentile::new, "mv_percentile"),
                 def(MvPSeriesWeightedSum.class, MvPSeriesWeightedSum::new, "mv_pseries_weighted_sum"),
                 def(MvSort.class, MvSort::new, "mv_sort"),
@@ -584,10 +589,6 @@ public class EsqlFunctionRegistry {
                 // The delay() function is for debug/snapshot environments only and should never be enabled in a non-snapshot build.
                 // This is an experimental function and can be removed without notice.
                 def(Delay.class, Delay::new, "delay"),
-                def(First.class, bi(First::new), "first"),
-                def(AllFirst.class, bi(AllFirst::new), "all_first"),
-                def(AllLast.class, bi(AllLast::new), "all_last"),
-                def(Last.class, bi(Last::new), "last"),
                 // dense vector functions
                 def(Magnitude.class, Magnitude::new, "v_magnitude"),
                 def(ToDateRange.class, ToDateRange::new, "to_date_range", "to_daterange") } };
@@ -798,7 +799,7 @@ public class EsqlFunctionRegistry {
 
         return types.stream()
             .filter(DATA_TYPE_CASTING_PRIORITY::containsKey)
-            .min((dt1, dt2) -> DATA_TYPE_CASTING_PRIORITY.get(dt1).compareTo(DATA_TYPE_CASTING_PRIORITY.get(dt2)))
+            .min(Comparator.comparing(DATA_TYPE_CASTING_PRIORITY::get))
             .orElse(UNSUPPORTED);
     }
 

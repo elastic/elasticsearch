@@ -40,7 +40,7 @@ public class ResizeAllocationDecider extends AllocationDecider {
             final IndexMetadata indexMetadata = allocation.metadata().indexMetadata(shardRouting.index());
             final Index resizeSourceIndex = indexMetadata.getResizeSourceIndex();
             assert resizeSourceIndex != null;
-            final IndexMetadata sourceIndexMetadata = allocation.metadata().projectFor(resizeSourceIndex).index(resizeSourceIndex);
+            final IndexMetadata sourceIndexMetadata = allocation.metadata().findIndex(resizeSourceIndex).orElse(null);
             if (sourceIndexMetadata == null) {
                 return allocation.decision(Decision.NO, NAME, "resize source index [%s] doesn't exists", resizeSourceIndex.toString());
             }

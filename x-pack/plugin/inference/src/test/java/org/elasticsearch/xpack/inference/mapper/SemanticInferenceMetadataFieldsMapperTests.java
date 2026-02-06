@@ -96,7 +96,7 @@ public class SemanticInferenceMetadataFieldsMapperTests extends MapperServiceTes
         settings = Settings.builder()
             .put(
                 IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
-                IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT)
+                IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT)
             )
             .build();
         assertFalse(InferenceMetadataFieldsMapper.isEnabled(settings));

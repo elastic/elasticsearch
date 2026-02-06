@@ -17,11 +17,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
 import java.util.NavigableSet;
-import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import static org.apache.lucene.tests.util.LuceneTestCase.random;
 
 public class IndexVersionUtils {
 
@@ -45,12 +42,12 @@ public class IndexVersionUtils {
 
     /** Returns a random {@link IndexVersion} from all available versions. */
     public static IndexVersion randomVersion() {
-        return VersionUtils.randomFrom(random(), ALL_VERSIONS);
+        return VersionUtils.randomFrom(ALL_VERSIONS);
     }
 
     /** Returns a random {@link IndexVersion} from all versions that can be written to. */
     public static IndexVersion randomWriteVersion() {
-        return VersionUtils.randomFrom(random(), ALL_WRITE_VERSIONS);
+        return VersionUtils.randomFrom(ALL_WRITE_VERSIONS);
     }
 
     /** Returns a random {@link IndexVersion} from all available versions without the ignore set */
@@ -60,11 +57,6 @@ public class IndexVersionUtils {
 
     /** Returns a random {@link IndexVersion} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
     public static IndexVersion randomVersionBetween(@Nullable IndexVersion minVersion, @Nullable IndexVersion maxVersion) {
-        return randomVersionBetween(random(), minVersion, maxVersion);
-    }
-
-    /** Returns a random {@link IndexVersion} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
-    public static IndexVersion randomVersionBetween(Random random, @Nullable IndexVersion minVersion, @Nullable IndexVersion maxVersion) {
         if (minVersion != null && maxVersion != null && maxVersion.before(minVersion)) {
             throw new IllegalArgumentException("maxVersion [" + maxVersion + "] cannot be less than minVersion [" + minVersion + "]");
         }
@@ -83,7 +75,7 @@ public class IndexVersionUtils {
             versions = versions.headSet(maxVersion, true);
         }
 
-        return VersionUtils.randomFrom(random, versions);
+        return VersionUtils.randomFrom(versions);
     }
 
     public static IndexVersion getPreviousVersion() {
@@ -113,22 +105,22 @@ public class IndexVersionUtils {
     }
 
     /** Returns a random {@code IndexVersion} that is compatible with {@link IndexVersion#current()} */
-    public static IndexVersion randomCompatibleVersion(Random random) {
-        return randomVersionBetween(random, IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersion.current());
+    public static IndexVersion randomCompatibleVersion() {
+        return randomVersionBetween(IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersion.current());
     }
 
     /** Returns a random {@code IndexVersion} that is compatible with {@link IndexVersion#current()} and can be written to */
-    public static IndexVersion randomCompatibleWriteVersion(Random random) {
-        return randomVersionBetween(random, IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current());
+    public static IndexVersion randomCompatibleWriteVersion() {
+        return randomVersionBetween(IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current());
     }
 
     /** Returns a random {@code IndexVersion} that is compatible with the previous version to {@code version} */
-    public static IndexVersion randomPreviousCompatibleVersion(Random random, IndexVersion version) {
-        return randomVersionBetween(random, IndexVersions.MINIMUM_READONLY_COMPATIBLE, getPreviousVersion(version));
+    public static IndexVersion randomPreviousCompatibleVersion(IndexVersion version) {
+        return randomVersionBetween(IndexVersions.MINIMUM_READONLY_COMPATIBLE, getPreviousVersion(version));
     }
 
     /** Returns a random {@code IndexVersion} that is compatible with the previous version to {@code version} and can be written to */
-    public static IndexVersion randomPreviousCompatibleWriteVersion(Random random, IndexVersion version) {
-        return randomVersionBetween(random, IndexVersions.MINIMUM_COMPATIBLE, getPreviousVersion(version));
+    public static IndexVersion randomPreviousCompatibleWriteVersion(IndexVersion version) {
+        return randomVersionBetween(IndexVersions.MINIMUM_COMPATIBLE, getPreviousVersion(version));
     }
 }

@@ -20,7 +20,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializingTestCase<ValuesSourceReaderOperatorStatus> {
     public static ValuesSourceReaderOperatorStatus simple() {
-        return new ValuesSourceReaderOperatorStatus(Map.of("ReaderType", 3), 1022323, 123, 200, 111, 222, 1000);
+        return new ValuesSourceReaderOperatorStatus(Map.of("ReaderType", 3), Map.of(), 1022323, 123, 200, 111, 222, 1000);
     }
 
     public static String simpleToJson() {
@@ -51,7 +51,8 @@ public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializi
     @Override
     public ValuesSourceReaderOperatorStatus createTestInstance() {
         return new ValuesSourceReaderOperatorStatus(
-            randomReadersBuilt(),
+            randomReadersBuiltOrConvertersUsed(),
+            randomReadersBuiltOrConvertersUsed(),
             randomNonNegativeLong(),
             randomNonNegativeInt(),
             randomNonNegativeInt(),
@@ -61,7 +62,7 @@ public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializi
         );
     }
 
-    private Map<String, Integer> randomReadersBuilt() {
+    private Map<String, Integer> randomReadersBuiltOrConvertersUsed() {
         int size = between(0, 10);
         Map<String, Integer> result = new TreeMap<>();
         while (result.size() < size) {
@@ -73,24 +74,27 @@ public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializi
     @Override
     protected ValuesSourceReaderOperatorStatus mutateInstance(ValuesSourceReaderOperatorStatus instance) throws IOException {
         Map<String, Integer> readersBuilt = instance.readersBuilt();
+        Map<String, Integer> convertersUsed = instance.convertersUsed();
         long processNanos = instance.processNanos();
         int pagesReceived = instance.pagesReceived();
         int pagesEmitted = instance.pagesEmitted();
         long rowsReceived = instance.rowsReceived();
         long rowsEmitted = instance.rowsEmitted();
         long valuesLoaded = instance.valuesLoaded();
-        switch (between(0, 6)) {
-            case 0 -> readersBuilt = randomValueOtherThan(readersBuilt, this::randomReadersBuilt);
-            case 1 -> processNanos = randomValueOtherThan(processNanos, ESTestCase::randomNonNegativeLong);
-            case 2 -> pagesReceived = randomValueOtherThan(pagesReceived, ESTestCase::randomNonNegativeInt);
-            case 3 -> pagesEmitted = randomValueOtherThan(pagesEmitted, ESTestCase::randomNonNegativeInt);
-            case 4 -> rowsReceived = randomValueOtherThan(rowsReceived, ESTestCase::randomNonNegativeLong);
-            case 5 -> rowsEmitted = randomValueOtherThan(rowsEmitted, ESTestCase::randomNonNegativeLong);
-            case 6 -> valuesLoaded = randomValueOtherThan(valuesLoaded, ESTestCase::randomNonNegativeLong);
+        switch (between(0, 7)) {
+            case 0 -> readersBuilt = randomValueOtherThan(readersBuilt, this::randomReadersBuiltOrConvertersUsed);
+            case 1 -> convertersUsed = randomValueOtherThan(convertersUsed, this::randomReadersBuiltOrConvertersUsed);
+            case 2 -> processNanos = randomValueOtherThan(processNanos, ESTestCase::randomNonNegativeLong);
+            case 3 -> pagesReceived = randomValueOtherThan(pagesReceived, ESTestCase::randomNonNegativeInt);
+            case 4 -> pagesEmitted = randomValueOtherThan(pagesEmitted, ESTestCase::randomNonNegativeInt);
+            case 5 -> rowsReceived = randomValueOtherThan(rowsReceived, ESTestCase::randomNonNegativeLong);
+            case 6 -> rowsEmitted = randomValueOtherThan(rowsEmitted, ESTestCase::randomNonNegativeLong);
+            case 7 -> valuesLoaded = randomValueOtherThan(valuesLoaded, ESTestCase::randomNonNegativeLong);
             default -> throw new UnsupportedOperationException();
         }
         return new ValuesSourceReaderOperatorStatus(
             readersBuilt,
+            convertersUsed,
             processNanos,
             pagesReceived,
             pagesEmitted,

@@ -44,7 +44,7 @@ public final class AllLastIntByTimestampAggregatorFunction implements Aggregator
 
   public static AllLastIntByTimestampAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels) {
-    return new AllLastIntByTimestampAggregatorFunction(driverContext, channels, AllLastIntByTimestampAggregator.initSingle());
+    return new AllLastIntByTimestampAggregatorFunction(driverContext, channels, AllLastIntByTimestampAggregator.initSingle(driverContext));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

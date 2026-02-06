@@ -45,7 +45,9 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.mapper.blockloader.DelegatingBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -77,12 +79,12 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() {
         MappedFieldType ft = createFieldType();
-        assertEquals(new TermQuery(new Term("field", "foo")), ft.termQuery("foo", null));
+        assertEquals(new TermQuery(new Term("field", "foo")), ft.termQuery("foo", MOCK_CONTEXT));
         assertEquals(AutomatonQueries.caseInsensitiveTermQuery(new Term("field", "fOo")), ft.termQueryCaseInsensitive("fOo", null));
 
         MappedFieldType unsearchable = new TextFieldType("field", false, false, Collections.emptyMap());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("bar", null));
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("bar", MOCK_CONTEXT));
+        assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
     }
 
     public void testTermsQuery() {
@@ -90,14 +92,14 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         List<BytesRef> terms = new ArrayList<>();
         terms.add(new BytesRef("foo"));
         terms.add(new BytesRef("bar"));
-        assertEquals(new TermInSetQuery("field", terms), ft.termsQuery(Arrays.asList("foo", "bar"), null));
+        assertEquals(new TermInSetQuery("field", terms), ft.termsQuery(Arrays.asList("foo", "bar"), MOCK_CONTEXT));
 
         MappedFieldType unsearchable = new TextFieldType("field", false, false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> unsearchable.termsQuery(Arrays.asList("foo", "bar"), null)
+            () -> unsearchable.termsQuery(Arrays.asList("foo", "bar"), MOCK_CONTEXT)
         );
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
     }
 
     public void testRangeQuery() {
@@ -474,7 +476,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         assertThat(blockLoader, instanceOf(BlockStoredFieldsReader.BytesFromStringsBlockLoader.class));
     }
 
-    public void testBlockLoaderLoadsFromFallbackFieldWhenSyntheticSourceIsEnabled() {
+    public void testBlockLoaderLoadsFromFallbackStoredFieldWhenSyntheticSourceIsEnabled() {
         // given - text field thats not stored and has no synthetic source delegate
         TextFieldType ft = new TextFieldType("field", true, false);
 
@@ -483,7 +485,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         BlockLoader blockLoader = ft.blockLoader(context);
 
         // then
-        assertThat(blockLoader, instanceOf(BytesRefsFromCustomBinaryBlockLoader.class));
+        assertThat(blockLoader, instanceOf(BlockStoredFieldsReader.BytesFromStringsBlockLoader.class));
     }
 
     public void testBlockLoaderDelegatesToSyntheticSourceDelegate() {
@@ -540,6 +542,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             "field",
             true,
             false,
+            false,
             new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
             true,
             false,
@@ -547,7 +550,9 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             false,
             false,
-            IndexVersions.KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED
+            IndexVersions.KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED,
+            true,
+            false
         );
 
         // when
@@ -577,6 +582,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             "field",
             true,
             false,
+            false,
             new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
             true,
             false,
@@ -584,7 +590,9 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             false,
             false,
-            legacyVersion
+            legacyVersion,
+            false,
+            false
         );
 
         // when
@@ -595,6 +603,101 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
 
         // then
         assertThat(blockLoader, instanceOf(BlockStoredFieldsReader.BytesFromStringsBlockLoader.class));
+    }
+
+    public void testBlockLoaderLoadsFromFallbackBinaryDocValuesWhenSyntheticSourceIsEnabled() {
+        // given
+        IndexVersion legacyVersion = IndexVersions.PATTERN_TEXT_ARGS_IN_BINARY_DOC_VALUES;
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, legacyVersion)
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings);
+
+        TextFieldType ft = new TextFieldType(
+            "field",
+            true,
+            false,
+            false,
+            new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+            true,
+            false,
+            null,
+            Collections.emptyMap(),
+            false,
+            false,
+            legacyVersion,
+            true,
+            false
+        );
+
+        // when
+        var context = mock(MappedFieldType.BlockLoaderContext.class);
+        when(context.parentField("field")).thenReturn(null);
+        when(context.indexSettings()).thenReturn(indexSettings);
+        BlockLoader blockLoader = ft.blockLoader(context);
+
+        // then
+        assertThat(blockLoader, instanceOf(BytesRefsFromCustomBinaryBlockLoader.class));
+    }
+
+    public void testBlockLoaderWithDocValues() {
+        // given
+        TextFieldType ft = new TextFieldType(
+            "field",
+            true,
+            false,
+            true,
+            new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+            false,
+            false,
+            null,
+            Collections.emptyMap(),
+            false,
+            false,
+            IndexVersion.current(),
+            false,
+            false
+        );
+
+        // when
+        var context = mock(MappedFieldType.BlockLoaderContext.class);
+        when(context.parentField("field")).thenReturn(null);
+        BlockLoader blockLoader = ft.blockLoader(context);
+
+        // then
+        assertThat(blockLoader, instanceOf(BytesRefsFromOrdsBlockLoader.class));
+    }
+
+    public void testBlockLoaderWithDocValuesHighCardinality() {
+        // given
+        TextFieldType ft = new TextFieldType(
+            "field",
+            true,
+            false,
+            true,
+            new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+            false,
+            false,
+            null,
+            Collections.emptyMap(),
+            false,
+            false,
+            IndexVersion.current(),
+            false,
+            true
+        );
+
+        // when
+        var context = mock(MappedFieldType.BlockLoaderContext.class);
+        when(context.parentField("field")).thenReturn(null);
+        BlockLoader blockLoader = ft.blockLoader(context);
+
+        // then
+        assertThat(blockLoader, instanceOf(BytesRefsFromBinaryMultiSeparateCountBlockLoader.class));
     }
 
 }

@@ -23,8 +23,14 @@ import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionReg
 import org.elasticsearch.xpack.esql.expression.promql.subquery.Subquery;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarFunction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.ValueTransformationFunction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.VectorConversionFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.WithinSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic.ArithmeticOp;
@@ -45,11 +51,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.expression.promql.function.FunctionType.ACROSS_SERIES_AGGREGATION;
-import static org.elasticsearch.xpack.esql.expression.promql.function.FunctionType.WITHIN_SERIES_AGGREGATION;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.AND;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.ASTERISK;
@@ -66,14 +70,16 @@ import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.PERCENT;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.PLUS;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.SLASH;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.UNLESS;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan.returnsRangeVector;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan.returnsScalar;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher.NAME;
 
 public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
 
     public static final Duration GLOBAL_EVALUATION_INTERVAL = Duration.ofMinutes(1);
 
-    PromqlLogicalPlanBuilder(Literal start, Literal end, int startLine, int startColumn) {
-        super(start, end, startLine, startColumn);
+    PromqlLogicalPlanBuilder(Literal start, Literal end, int startLine, int startColumn, QueryParams params) {
+        super(start, end, startLine, startColumn, params);
     }
 
     protected LogicalPlan plan(ParseTree ctx) {
@@ -85,18 +91,6 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
     @Override
     public LogicalPlan visitSingleStatement(PromqlBaseParser.SingleStatementContext ctx) {
         return plan(ctx.expression());
-    }
-
-    static boolean isRangeVector(LogicalPlan plan) {
-        return switch (plan) {
-            case RangeSelector r -> true;
-            case Subquery s -> true;
-            default -> false;
-        };
-    }
-
-    static boolean isScalar(LogicalPlan plan) {
-        return plan instanceof LiteralSelector;
     }
 
     private LogicalPlan wrapLiteral(ParseTree ctx) {
@@ -151,7 +145,6 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         }
 
         boolean nonEmptyMatcher = id != null;
-        Set<String> seenLabelNames = new LinkedHashSet<>();
 
         PromqlBaseParser.LabelsContext labelsCtx = seriesMatcher.labels();
         if (labelsCtx != null) {
@@ -175,10 +168,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
                     }
                     // always add as label matcher
                     labels.add(new LabelMatcher(NAME, labelName, LabelMatcher.Matcher.EQ));
-                    // add unresolved attribute on first encounter
-                    if (seenLabelNames.add(NAME)) {
-                        labelExpressions.add(new UnresolvedAttribute(source(nameCtx), NAME));
-                    }
+                    labelExpressions.add(new UnresolvedAttribute(source(nameCtx), NAME));
                     nonEmptyMatcher = true;
 
                     continue;
@@ -207,10 +197,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
                 // always add label matcher
                 LabelMatcher label = new LabelMatcher(labelName, labelValue, matcher);
                 labels.add(label);
-                // add unresolved attribute on first encounter
-                if (seenLabelNames.add(labelName)) {
-                    labelExpressions.add(new UnresolvedAttribute(source(nameCtx), labelName));
-                }
+                labelExpressions.add(new UnresolvedAttribute(source(nameCtx), labelName));
 
                 // require at least one non-empty matcher
                 if (nonEmptyMatcher == false && label.matchesEmpty() == false) {
@@ -252,11 +239,11 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             // optimize negation in case of literals
             if (ctx.operator.getType() == MINUS) {
                 Number negatedValue = Arithmetics.negate((Number) value);
-                unary = new LiteralSelector(source, new Literal(unary.source(), negatedValue, dataType));
+                return new LiteralSelector(source, new Literal(unary.source(), negatedValue, dataType));
             }
         }
         // forbid range selectors
-        else if (isRangeVector(unary)) {
+        else if (returnsRangeVector(unary)) {
             throw new ParsingException(
                 source,
                 "Unary expression only allowed on expressions of type numeric or instant vector, got [{}]",
@@ -284,8 +271,8 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         String opText = ctx.op.getText();
 
         // validate operation against expression types
-        boolean leftIsScalar = isScalar(le);
-        boolean rightIsScalar = isScalar(re);
+        boolean leftIsScalar = returnsScalar(le);
+        boolean rightIsScalar = returnsScalar(re);
 
         // comparisons against scalars require bool
         if (bool == false && leftIsScalar && rightIsScalar) {
@@ -341,7 +328,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         PromqlBaseParser.ModifierContext modifierCtx = ctx.modifier();
         if (modifierCtx != null) {
             // modifiers work only on vectors
-            if (isRangeVector(le) || isRangeVector(re) || isScalar(le) || isScalar(re)) {
+            if (returnsRangeVector(le) || returnsRangeVector(re) || returnsScalar(le) || returnsScalar(re)) {
                 throw new ParsingException(source, "Vector matching allowed only between instant vectors");
             }
 
@@ -435,7 +422,6 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         PromqlFunctionRegistry.INSTANCE.checkFunction(source, name);
         var metadata = PromqlFunctionRegistry.INSTANCE.functionMetadata(name);
 
-        // TODO: the list of params could contain literals so need to handle that
         var paramsCtx = ctx.functionParams();
         List<Node> params = paramsCtx != null ? visitList(this, paramsCtx.expression(), Node.class) : emptyList();
 
@@ -447,21 +433,42 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         if (paramCount > metadata.arity().max()) {
             throw new ParsingException(source, message, name, metadata.arity().max(), paramCount);
         }
+        LogicalPlan child = null;
+        List<Expression> extraParams = new ArrayList<>(Math.max(0, params.size() - 1));
+        List<PromqlFunctionRegistry.ParamInfo> functionParams = metadata.params();
+        for (int i = 0; i < functionParams.size() && params.size() > i; i++) {
+            PromqlFunctionRegistry.ParamInfo expectedParam = functionParams.get(i);
+            LogicalPlan providedParam = switch (params.get(i)) {
+                case LogicalPlan plan -> plan;
+                case Literal literal -> new LiteralSelector(source, literal);
+                case Node n -> throw new IllegalStateException("Unexpected value: " + n);
+            };
+            assert providedParam instanceof PromqlPlan;
+            PromqlDataType actualType = PromqlPlan.getType(providedParam);
+            PromqlDataType expectedType = expectedParam.type();
+            if (actualType != expectedType) {
+                throw new ParsingException(source, "expected type {} in call to function [{}], got {}", expectedType, name, actualType);
+            }
+            if (expectedParam.child()) {
+                child = providedParam;
+            } else if (providedParam instanceof LiteralSelector literalSelector) {
+                extraParams.add(literalSelector.literal());
+            } else {
+                throw new ParsingException(
+                    source,
+                    "expected literal parameter in call to function [{}], got {}",
+                    name,
+                    providedParam.nodeName()
+                );
+            }
+        }
 
-        // child plan is always the first parameter
-        LogicalPlan child = (LogicalPlan) params.get(0);
-
-        // PromQl expects early validation of the tree so let's do it here
         PromqlBaseParser.GroupingContext groupingContext = ctx.grouping();
 
         LogicalPlan plan = null;
         // explicit grouping
         if (groupingContext != null) {
             var grouping = groupingContext.BY() != null ? AcrossSeriesAggregate.Grouping.BY : AcrossSeriesAggregate.Grouping.WITHOUT;
-
-            if (grouping != AcrossSeriesAggregate.Grouping.BY) {
-                throw new ParsingException(source, "[{}] clause not supported yet", grouping.name().toLowerCase(Locale.ROOT), name);
-            }
 
             if (metadata.functionType() != ACROSS_SERIES_AGGREGATION) {
                 throw new ParsingException(
@@ -478,18 +485,28 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             for (int i = 0; i < groupingKeys.size(); i++) {
                 groupings.add(new UnresolvedAttribute(source(labelListCtx.labelName(i)), groupingKeys.get(i)));
             }
-            plan = new AcrossSeriesAggregate(source, child, name, List.of(), grouping, groupings);
+            plan = new AcrossSeriesAggregate(source, child, name, extraParams, grouping, groupings);
         } else {
-            if (metadata.functionType() == ACROSS_SERIES_AGGREGATION) {
-                plan = new AcrossSeriesAggregate(source, child, name, List.of(), AcrossSeriesAggregate.Grouping.NONE, List.of());
-            } else if (metadata.functionType() == WITHIN_SERIES_AGGREGATION) {
-                if (isRangeVector(child) == false) {
-                    throw new ParsingException(source, "expected type range vector in call to function [{}], got instant vector", name);
-                }
-
-                plan = new WithinSeriesAggregate(source, child, name, List.of());
-                // instant selector function - definitely no grouping
-            }
+            plan = switch (metadata.functionType()) {
+                case ACROSS_SERIES_AGGREGATION -> new AcrossSeriesAggregate(
+                    source,
+                    child,
+                    name,
+                    extraParams,
+                    AcrossSeriesAggregate.Grouping.NONE,
+                    List.of()
+                );
+                case WITHIN_SERIES_AGGREGATION -> new WithinSeriesAggregate(source, child, name, extraParams);
+                case VALUE_TRANSFORMATION -> new ValueTransformationFunction(source, child, name, extraParams);
+                case VECTOR_CONVERSION -> new VectorConversionFunction(source, child, name, extraParams);
+                case SCALAR -> new ScalarFunction(source, name);
+                default -> throw new ParsingException(
+                    source,
+                    "Unsupported function type [{}] for function [{}]",
+                    metadata.functionType(),
+                    name
+                );
+            };
         }
         //
         return plan;
@@ -500,7 +517,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         Source source = source(ctx);
         LogicalPlan plan = plan(ctx.expression());
 
-        if (isRangeVector(plan)) {
+        if (returnsRangeVector(plan)) {
             throw new ParsingException(source, "Subquery is only allowed on instant vector, got {}", plan.nodeName());
         }
 

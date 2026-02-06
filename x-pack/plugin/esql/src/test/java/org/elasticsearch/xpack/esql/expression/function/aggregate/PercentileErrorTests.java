@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.ErrorsForCasesWithoutExamplesTestCase;
@@ -15,9 +16,11 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class PercentileErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
@@ -32,6 +35,15 @@ public class PercentileErrorTests extends ErrorsForCasesWithoutExamplesTestCase 
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
+        if (signature.get(1) == DataType.NULL && validPerPosition.getFirst().contains(signature.get(0))) {
+            return is(
+                TypeResolutions.ParamOrdinal.fromIndex(1).name().toLowerCase(Locale.ROOT)
+                    + " argument of ["
+                    + sourceForSignature(signature)
+                    + "] cannot be null, received []"
+            );
+        }
+
         return equalTo(typeErrorMessage(true, validPerPosition, signature, (v, p) -> switch (p) {
             case 0 -> "exponential_histogram, tdigest or numeric except unsigned_long";
             case 1 -> "numeric except unsigned_long";

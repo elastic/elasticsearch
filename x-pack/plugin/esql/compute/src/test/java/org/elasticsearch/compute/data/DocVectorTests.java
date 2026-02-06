@@ -366,6 +366,6 @@ public class DocVectorTests extends ComputeTestCase {
     }
 
     IntVector intRange(int startInclusive, int endExclusive) {
-        return IntVector.range(startInclusive, endExclusive, TestBlockFactory.getNonBreakingInstance());
+        return TestBlockFactory.getNonBreakingInstance().newIntRangeVector(startInclusive, endExclusive);
     }
 }

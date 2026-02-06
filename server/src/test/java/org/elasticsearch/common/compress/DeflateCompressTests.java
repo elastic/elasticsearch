@@ -342,7 +342,7 @@ public class DeflateCompressTests extends ESTestCase {
         int postpadding = r.nextInt(70000);
         byte[] buffer = new byte[prepadding + bufferSize + postpadding];
         int len;
-        try (OutputStream os = c.threadLocalOutputStream(bos)) {
+        try (OutputStream os = c.threadLocalStreamOutput(bos)) {
             r.nextBytes(buffer); // fill block completely with junk
             while ((len = rawIn.read(buffer, prepadding, bufferSize)) != -1) {
                 os.write(buffer, prepadding, len);

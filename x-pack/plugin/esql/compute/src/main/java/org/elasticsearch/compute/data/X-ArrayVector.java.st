@@ -260,6 +260,14 @@ $elseif(boolean)$
     }
 $endif$
 
+$if(BytesRef)$
+$else$
+    @Override
+    public $type$[] backing$Type$Array() {
+        return values;
+    }
+$endif$
+
     @Override
     public long ramBytesUsed() {
         return ramBytesEstimated(values);

@@ -14,6 +14,7 @@ $endif$
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
@@ -100,6 +101,18 @@ $elseif(boolean)$
      * Are all values {@code false}? This will scan all values to check and always answer accurately.
      */
     boolean allFalse();
+$endif$
+
+$if(BytesRef)$
+$else$
+    /**
+    * Returns the backing array of this vector if exists. The caller must not modify the returned array,
+    * and should not retain a reference to it beyond the lifetime of this vector.
+    */
+    @Nullable
+    default $type$[] backing$Type$Array() {
+        return null;
+    }
 $endif$
 
     /**

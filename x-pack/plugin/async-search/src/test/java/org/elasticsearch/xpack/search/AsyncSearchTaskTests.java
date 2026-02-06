@@ -324,7 +324,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
                 .onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false, createTimeProvider());
             for (int i = 0; i < numShards; i++) {
                 task.getSearchProgressActionListener()
-                    .onPartialReduce(shards.subList(i, i + 1), new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), aggs, 0);
+                    .onPartialReduce(shards.subList(i, i + 1), new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
                 assertCompletionListeners(task, totalShards, 1 + numSkippedShards, numSkippedShards, 0, true, false, true);
             }
 

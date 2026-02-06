@@ -80,7 +80,7 @@ public class DisableGraphQueryTests extends ESSingleNodeTestCase {
             "text_shingle_unigram",
             "type=text,analyzer=text_shingle_unigram"
         );
-        searchExecutionContext = indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap());
+        searchExecutionContext = indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap(), null, null);
 
         // parsed queries for "text_shingle_unigram:(foo bar baz)" with query parsers
         // that ignores position length attribute

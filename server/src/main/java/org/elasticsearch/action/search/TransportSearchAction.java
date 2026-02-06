@@ -1734,7 +1734,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchRequest,
                 searchRequest.getLocalClusterAlias(),
                 indicesAndAliases,
-                concreteLocalIndices
+                concreteLocalIndices,
+                false
             );
 
             // localShardIterators is empty since there are no matching indices. In such cases,
@@ -1791,6 +1792,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             localShardIterators.size() + remoteShardIterators.size(),
             defaultPreFilterShardSize
         );
+
+        // CanMatch will sort iterators after coordinator filtering. If filtering isn't done, we need to sort before the next phase
+        if (preFilterSearchShards == false) {
+            shardIterators.sort(SearchShardIterator::compareTo);
+        }
+
         final Map<String, Object> searchRequestAttributes = SearchRequestAttributesExtractor.extractAttributes(
             searchRequest,
             concreteLocalIndices
@@ -1909,7 +1916,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         } else {
             shards = CollectionUtils.concatLists(remoteShardIterators, localShardIterators);
         }
-        shards.sort(SearchShardIterator::compareTo);
         return shards;
     }
 
@@ -2367,7 +2373,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchRequest searchRequest,
         String clusterAlias,
         Set<ResolvedExpression> indicesAndAliases,
-        String[] concreteIndices
+        String[] concreteIndices,
+        boolean shouldSort
     ) {
         concreteIndices = ignoreBlockedIndices(projectState, concreteIndices);
         var routingMap = indexNameExpressionResolver.resolveSearchRouting(
@@ -2382,7 +2389,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 routingMap,
                 searchRequest.preference(),
                 responseCollectorService,
-                searchTransportService.getPendingSearchRequests()
+                searchTransportService.getPendingSearchRequests(),
+                shouldSort
             );
         final Map<String, OriginalIndices> originalIndices = buildPerIndexOriginalIndices(
             projectState,

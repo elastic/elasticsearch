@@ -994,21 +994,34 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                     var binaryFixedDV = getES819BinaryValues(leaf.reader(), binaryFixedField);
                     var binaryVariableDV = getES819BinaryValues(leaf.reader(), binaryVariableField);
 
+                    int maxDoc = leaf.reader().maxDoc();
+                    // No docs in this segment had these fields, so doc values are null
+                    if (binaryFixedDV == null) {
+                        assertNull(binaryVariableDV);
+                        for (int i = 0; i < maxDoc; i++) {
+                            assertNull(binaryFixedValues.removeLast());
+                            assertNull(binaryVariableValues.removeLast());
+                        }
+                        continue;
+                    }
+
                     NumericDocValues fixedLengthReader = binaryFixedDV.toLengthValues();
                     NumericDocValues variableLengthReader = binaryVariableDV.toLengthValues();
 
-                    int maxDoc = leaf.reader().maxDoc();
                     for (int i = 0; i < maxDoc; i++) {
-                        BytesRef expectedVariableLength = binaryVariableValues.removeLast();
-                        if (expectedVariableLength == null) {
+                        BytesRef expectedFixed = binaryFixedValues.removeLast();
+                        BytesRef expectedVariable = binaryVariableValues.removeLast();
+                        if (expectedFixed == null) {
+                            assertNull(expectedVariable);
                             assertFalse(fixedLengthReader.advanceExact(i));
                             assertFalse(variableLengthReader.advanceExact(i));
                         } else {
+                            assertNotNull(expectedVariable);
                             assertTrue(fixedLengthReader.advanceExact(i));
-                            assertEquals(binaryFixedLength, fixedLengthReader.longValue());
+                            assertEquals(expectedFixed.length, fixedLengthReader.longValue());
 
                             assertTrue(variableLengthReader.advanceExact(i));
-                            assertEquals(expectedVariableLength.length, variableLengthReader.longValue());
+                            assertEquals(expectedVariable.length, variableLengthReader.longValue());
                         }
                     }
                 }

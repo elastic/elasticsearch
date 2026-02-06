@@ -15,7 +15,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.ql.util.StringUtils;
@@ -32,6 +31,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.sql.execution.search.Querier.closePointInTime;
 import static org.elasticsearch.xpack.sql.execution.search.Querier.logSearchResponse;
 import static org.elasticsearch.xpack.sql.execution.search.Querier.prepareRequest;
+import static org.elasticsearch.xpack.sql.execution.search.Querier.refreshPointInTime;
 
 public class SearchHitCursor implements Cursor {
 
@@ -161,9 +161,7 @@ public class SearchHitCursor implements Cursor {
         } else {
             updateSearchAfter(response.getHits().getHits(), source);
             // Refresh the PIT ID with the new value returned in the response
-            if (response.pointInTimeId() != null) {
-                source.pointInTimeBuilder(new PointInTimeBuilder(response.pointInTimeId()));
-            }
+            refreshPointInTime(response, source);
 
             SearchHitCursor nextCursor = new SearchHitCursor(
                 source,

@@ -46,3 +46,27 @@ setup:
   - match: {columns.0.type: "double"}
   - length: {values.0: 1}
   - match: {values.0.0: 4.5}
+
+---
+"Test mv max":
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          keyword: ["abcdef", "abc", "abcdefg"]
+  - do:
+      indices.refresh: { }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | EVAL l = mv_max(keyword) | KEEP l | LIMIT 10'
+
+  - length: {columns: 1}
+  - length: {values: 3}
+  - match: {columns.0.name: "l"}
+  - match: {columns.0.type: "keyword"}
+  - length: {values.0: 1}
+  - match: {values.0.0: "abc"}
+  - match: {values.1.0: "abcdef"}
+  - match: {values.2.0: "abcdefg"}

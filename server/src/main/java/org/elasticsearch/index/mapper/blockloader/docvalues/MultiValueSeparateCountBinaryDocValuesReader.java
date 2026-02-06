@@ -58,6 +58,24 @@ public final class MultiValueSeparateCountBinaryDocValuesReader {
         return false;
     }
 
+    public void readMax(BytesRef bytes, long count, BlockLoader.BytesRefBuilder builder) throws IOException {
+        if (count == 1) {
+            builder.appendBytesRef(bytes);
+            return;
+        }
+
+        BytesRef max = null;
+        scratch.bytes = bytes.bytes;
+        in.reset(bytes.bytes, bytes.offset, bytes.length);
+        for (int v = 0; v < count; v++) {
+            initializeScratch();
+            if (max == null || scratch.compareTo(max) > 0) {
+                max = BytesRef.deepCopyOf(scratch);
+            }
+        }
+        builder.appendBytesRef(max);
+    }
+
     private void initializeScratch() throws IOException {
         scratch.length = in.readVInt();
         scratch.offset = in.getPosition();

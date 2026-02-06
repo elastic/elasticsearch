@@ -294,6 +294,8 @@ Machine Learning:
 * Nightly maintenance for anomaly detection results indices to keep to manageable size. [#136065](https://github.com/elastic/elasticsearch/pull/136065)
 * Require basic licence for the Elastic Inference Service [#137434](https://github.com/elastic/elasticsearch/pull/137434)
 * Transition EIS auth polling to persistent task on a single node [#136713](https://github.com/elastic/elasticsearch/pull/136713)
+* Downgrade log severity for a batch of recoverable errors [#2889](https://github.com/elastic/ml-cpp/pull/2889)
+
 
 Mapping:
 * Add `index.mapping.nested_parents.limit` and raise nested fields limit to 100 [#138961](https://github.com/elastic/elasticsearch/pull/138961)

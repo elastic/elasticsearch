@@ -101,16 +101,9 @@ public interface Rewriteable<T> {
         Executor responseExecutor,
         ActionListener<T> rewriteResponse
     ) {
-        Objects.requireNonNull(responseExecutor, "responseExecutor must not be null");
-
-        SubscribableListener<T> subscribableListener = new SubscribableListener<>();
-        rewriteAndFetch(original, context, subscribableListener, 0);
-
-        if (subscribableListener.isDone()) {
-            subscribableListener.addListener(rewriteResponse);
-        } else {
-            subscribableListener.addListener(rewriteResponse, responseExecutor, null);
-        }
+        SubscribableListener
+            .<T>newForked(l -> rewriteAndFetch(original, context, l, 0))
+            .addListener(rewriteResponse, Objects.requireNonNull(responseExecutor), null);
     }
 
     /**

@@ -244,7 +244,7 @@ public class HttpClientRequestTests extends ESTestCase {
         }
         assertEquals(1, webServer.requests().size());
         RawRequest recordedRequest = webServer.takeRequest();
-        String expectedAuth = "Basic " + java.util.Base64.getEncoder().encodeToString((user + ":" + pass).getBytes());
+        String expectedAuth = "Basic " + java.util.Base64.getEncoder().encodeToString((user + ":" + pass).getBytes(StandardCharsets.UTF_8));
         assertEquals(expectedAuth, recordedRequest.getHeader("Authorization"));
     }
 

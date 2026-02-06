@@ -340,9 +340,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 float expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, expectedDocs / 2f);
                 while (centroidPrefetchingIterator.hasNext() && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
                     PostingMetadata postingMetadata = centroidPrefetchingIterator.nextPosting();
-                    // todo do we need direct access to the raw centroid???, this is used for quantizing, maybe hydrating and quantizing
-                    // is enough?
-                    expectedDocs += scorer.resetPostingsScorer(postingMetadata);
+                    scorer.resetPostingsScorer(postingMetadata);
                     actualDocs += scorer.visit(knnCollector);
                     if (knnCollector.getSearchStrategy() != null) {
                         knnCollector.getSearchStrategy().nextVectorsBlock();

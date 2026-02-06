@@ -13,6 +13,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -174,7 +175,7 @@ record TestConfiguration(
         private List<Integer> numCandidates = List.of(1000);
         private List<Integer> k = List.of(10);
         private List<Double> visitPercentages = List.of(1.0);
-        private int ivfClusterSize = 1000;
+        private int ivfClusterSize = ESNextDiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER;
         private List<Float> overSamplingFactor = List.of(0f);
         private int hnswM = 16;
         private int hnswEfConstruction = 200;

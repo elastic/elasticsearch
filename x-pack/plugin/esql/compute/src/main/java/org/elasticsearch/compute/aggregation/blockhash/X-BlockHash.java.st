@@ -7,56 +7,35 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
-$if(BytesRef)$
+// begin generated imports
 import org.apache.lucene.util.BytesRef;
-$endif$
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.$Hash$Table;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
-$if(BytesRef)$
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
-import org.elasticsearch.compute.data.OrdinalBytesRefVector;
-$elseif(double)$
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-$elseif(int)$
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
-$elseif(long)$
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.$Type$Vector;
-$endif$
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe$Type$;
-$if(BytesRef)$
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
-$endif$
 import org.elasticsearch.core.ReleasableIterator;
-
-$if(BytesRef)$
-$else$
 import java.util.BitSet;
+// end generated imports
 
-$endif$
 /**
  * Maps a {@link $Type$Block} column to group ids.
  * This class is generated. Edit {@code X-BlockHash.java.st} instead.
@@ -270,12 +249,10 @@ $if(BytesRef)$
                 return new BytesRefBlock[] { builder.build() };
             }
         }
-        try (var builder = blockFactory.newBytesRefBlockBuilder(Math.toIntExact(hash.size()))) {
-            for (long i = 0; i < hash.size(); i++) {
-                builder.appendBytesRef(hash.get(i, spare));
-            }
-            return new BytesRefBlock[] { builder.build() };
-        }
+        var bytes = hash.getBytesRefs();
+        var bytesVector = blockFactory.newBytesRefArrayVector(bytes, Math.toIntExact(hash.size()));
+        bytes.incRef(); // increase the reference for bytesVector
+        return new BytesRefBlock[] { bytesVector.asBlock() };
 $else$
         if (seenNull) {
             final int size = Math.toIntExact(hash.size() + 1);

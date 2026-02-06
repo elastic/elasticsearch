@@ -595,7 +595,8 @@ public final class EsqlTestUtils {
         10_000,
         ByteSizeValue.ofMb(1),
         1000,
-        0.1
+        0.1,
+        PlannerSettings.REUSE_COLUMN_LOADERS_THRESHOLD.get(Settings.EMPTY)
     );
 
     public static final TransportActionServices MOCK_TRANSPORT_ACTION_SERVICES = new TransportActionServices(
@@ -655,7 +656,8 @@ public final class EsqlTestUtils {
             false,
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
-            null
+            null,
+            Map.of()
         );
     }
 

@@ -330,8 +330,9 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
 
         resetWebServerQueues();
         // Simulate that a text embedding model is now authorized
-        var jinaEmbedResponseBody = ElasticInferenceServiceAuthorizationResponseEntityTests.getEisJinaEmbedAuthorizationResponse(gatewayUrl)
-            .responseJson();
+        var jinaEmbedResponseBody = ElasticInferenceServiceAuthorizationResponseEntityTests.getEisJinaTextEmbedAuthorizationResponse(
+            gatewayUrl
+        ).responseJson();
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(jinaEmbedResponseBody));
 
         restartPollingTaskAndWaitForAuthResponse();

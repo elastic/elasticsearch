@@ -43,6 +43,10 @@
 #define STRIDE_BYTES_LEN sizeof(__m512i) // Must be a power of 2
 #endif
 
+#ifndef STRIDE
+#define STRIDE(size, num) STRIDE_BYTES_LEN / size * num
+#endif
+
 // Returns acc + ( p1 * p2 ), for 64-wide int lanes.
 template<int offsetRegs>
 inline __m512i fma8(__m512i acc, const int8_t* p1, const int8_t* p2) {
@@ -225,7 +229,7 @@ inline __m512i sqr8(__m512i acc, const int8_t* p1, const int8_t* p2) {
     return _mm512_add_epi32(_mm512_madd_epi16(ones, sqr_add), acc);
 }
 
-static inline int32_t sqr7u_inner_avx512(const int8_t *a, const int8_t *b, const int32_t dims) {
+static inline int32_t sqr7u_inner_avx512(const int8_t* a, const int8_t* b, const int32_t dims) {
     constexpr int stride8 = 8 * STRIDE_BYTES_LEN;
     constexpr int stride4 = 4 * STRIDE_BYTES_LEN;
     const int8_t* p1 = a;
@@ -302,7 +306,7 @@ static inline void sqr7u_inner_bulk(
     const int32_t count,
     f32_t* results
 ) {
-    for (size_t c = 0; c < count; c++) {
+    for (int c = 0; c < count; c++) {
         const int8_t* a0 = a + mapper(c, offsets) * pitch;
         results[c] = (f32_t)vec_sqr7u_2(a0, b, dims);
     }
@@ -328,7 +332,7 @@ static inline __m512i dot_bit_512(const __m512i a, const int8_t* b) {
     return _mm512_popcnt_epi64(_mm512_and_si512(q0, a));
 }
 
-static inline int64_t dot_int1_int4_inner(const int8_t* a, const int8_t* query, const int32_t length) {
+static inline int64_t dotd1q4_inner(const int8_t* a, const int8_t* query, const int32_t length) {
     int r = 0;
 
     // Init accumulator(s) with 0
@@ -337,9 +341,9 @@ static inline int64_t dot_int1_int4_inner(const int8_t* a, const int8_t* query, 
     __m512i acc2 = _mm512_setzero_si512();
     __m512i acc3 = _mm512_setzero_si512();
 
-    int upperBound = length & ~(sizeof(__m512i) - 1);
-    for (; r < upperBound; r += sizeof(__m512i)) {
-        const __m512i value = _mm512_loadu_si512((const __m512i *)(a + r));
+    int upperBound = length & ~(STRIDE_BYTES_LEN - 1);
+    for (; r < upperBound; r += STRIDE_BYTES_LEN) {
+        const __m512i value = _mm512_loadu_si512((const __m512i*)(a + r));
 
         acc0 = _mm512_add_epi64(acc0, dot_bit_512(value, query + r));
         acc1 = _mm512_add_epi64(acc1, dot_bit_512(value, query + r + length));
@@ -367,12 +371,12 @@ static inline int64_t dot_int1_int4_inner(const int8_t* a, const int8_t* query, 
     return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
 }
 
-EXPORT int64_t vec_dot_int1_int4_2(const int8_t* a, const int8_t* query, const int32_t length) {
-    return dot_int1_int4_inner(a, query, length);
+EXPORT int64_t vec_dotd1q4_2(const int8_t* a, const int8_t* query, const int32_t length) {
+    return dotd1q4_inner(a, query, length);
 }
 
 template <int64_t(*mapper)(const int32_t, const int32_t*)>
-static inline void dot_int1_int4_inner_bulk(
+static inline void dotd1q4_inner_bulk(
     const int8_t* a,
     const int8_t* query,
     const int32_t length,
@@ -381,7 +385,6 @@ static inline void dot_int1_int4_inner_bulk(
     const int32_t count,
     f32_t* results
 ) {
-    const int blk = length & ~(STRIDE_BYTES_LEN - 1);
     const int lines_to_fetch = length / CACHE_LINE_SIZE + 1;
     int c = 0;
 
@@ -390,7 +393,7 @@ static inline void dot_int1_int4_inner_bulk(
     const int8_t* a2 = safe_mapper_offset<int8_t, 2, mapper>(a, pitch, offsets, count);
     const int8_t* a3 = safe_mapper_offset<int8_t, 3, mapper>(a, pitch, offsets, count);
 
-    // Process a batch of 2 vectors at a time, after instructing the CPU to
+    // Process a batch of 4 vectors at a time, after instructing the CPU to
     // prefetch the next batch.
     // Prefetching multiple memory locations while computing keeps the CPU
     // execution units busy.
@@ -405,10 +408,10 @@ static inline void dot_int1_int4_inner_bulk(
         prefetch(next_a2, lines_to_fetch);
         prefetch(next_a3, lines_to_fetch);
 
-        results[c + 0] = (f32_t)dot_int1_int4_inner(a0, query, length);
-        results[c + 1] = (f32_t)dot_int1_int4_inner(a1, query, length);
-        results[c + 2] = (f32_t)dot_int1_int4_inner(a2, query, length);
-        results[c + 3] = (f32_t)dot_int1_int4_inner(a3, query, length);
+        results[c + 0] = (f32_t)dotd1q4_inner(a0, query, length);
+        results[c + 1] = (f32_t)dotd1q4_inner(a1, query, length);
+        results[c + 2] = (f32_t)dotd1q4_inner(a2, query, length);
+        results[c + 3] = (f32_t)dotd1q4_inner(a3, query, length);
 
         a0 = next_a0;
         a1 = next_a1;
@@ -419,20 +422,20 @@ static inline void dot_int1_int4_inner_bulk(
     // Tail-handling: remaining vectors
     for (; c < count; c++) {
         const int8_t* a0 = a + mapper(c, offsets) * pitch;
-        results[c] = (f32_t)dot_int1_int4_inner(a0, query, length);
+        results[c] = (f32_t)dotd1q4_inner(a0, query, length);
     }
 }
 
-EXPORT void vec_dot_int1_int4_bulk_2(
+EXPORT void vec_dotd1q4_bulk_2(
     const int8_t* a,
     const int8_t* query,
     const int32_t length,
     const int32_t count,
     f32_t* results) {
-    dot_int1_int4_inner_bulk<identity_mapper>(a, query, length, length, NULL, count, results);
+    dotd1q4_inner_bulk<identity_mapper>(a, query, length, length, NULL, count, results);
 }
 
-EXPORT void vec_dot_int1_int4_bulk_offsets_2(
+EXPORT void vec_dotd1q4_bulk_offsets_2(
     const int8_t* a,
     const int8_t* query,
     const int32_t length,
@@ -440,7 +443,7 @@ EXPORT void vec_dot_int1_int4_bulk_offsets_2(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    dot_int1_int4_inner_bulk<array_mapper>(a, query, length, pitch, offsets, count, results);
+    dotd1q4_inner_bulk<array_mapper>(a, query, length, pitch, offsets, count, results);
 }
 
 #ifdef __clang__

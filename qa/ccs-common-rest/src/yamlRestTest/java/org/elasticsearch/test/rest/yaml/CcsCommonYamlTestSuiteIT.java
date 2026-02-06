@@ -421,7 +421,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 }
                 params.put(parameterName, String.join(",", expandedIndices));
             }
-            return super.callApi(apiName, null, params, entity, headers, nodeSelector, pathPredicate);
+            return super.callApi(apiName, method, params, entity, headers, nodeSelector, pathPredicate);
         }
 
         private boolean shouldReplaceIndexWithRemote(String apiName) {

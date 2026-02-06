@@ -351,7 +351,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
      * Process a scroll response.
      * @param lastBatchStartTimeNS the time when the last batch started. Used to calculate the throttling delay.
      * @param lastBatchSizeToUse the size of the last batch. Used to calculate the throttling delay.
-     * @param asyncResponse the response to process from HitSource
+     * @param asyncResponse the response to process from {@link HitSource}
      */
     void onScrollResponse(long lastBatchStartTimeNS, int lastBatchSizeToUse, ScrollConsumableHitsResponse asyncResponse) {
         HitSource.Response response = asyncResponse.response();

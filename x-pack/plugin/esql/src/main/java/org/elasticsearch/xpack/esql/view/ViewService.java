@@ -32,7 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
-import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
+import org.elasticsearch.xpack.core.esql.EsqlFeatureFlags;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.HashMap;
@@ -224,6 +224,6 @@ public class ViewService {
     }
 
     protected boolean viewsFeatureEnabled() {
-        return EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG.isEnabled();
+        return EsqlFeatureFlags.ESQL_VIEWS_FEATURE_FLAG.isEnabled();
     }
 }

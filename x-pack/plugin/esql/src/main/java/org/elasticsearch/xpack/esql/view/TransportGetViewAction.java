@@ -27,6 +27,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -68,7 +69,7 @@ public class TransportGetViewAction extends TransportLocalProjectMetadataAction<
         // TODO currently doesn't support multi-target when security is off
         if (names == null || names.length == 0 || (names.length == 1 && Regex.isMatchAllPattern(names[0]))) {
             views = viewService.getMetadata(projectId).views().values();
-        } else if (names != IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY) {
+        } else if (Arrays.equals(names, IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY) == false) {
             for (String name : names) {
                 View view = viewService.get(projectId, name);
                 if (view == null) {

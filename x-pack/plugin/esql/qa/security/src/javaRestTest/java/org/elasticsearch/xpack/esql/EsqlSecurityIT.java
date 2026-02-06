@@ -208,8 +208,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertOK(client().performRequest(request));
     }
 
-    private Response getView(String user, String viewName) throws IOException {
-        String path = viewName != null ? "/_query/view/" + viewName : "/_query/view";
+    private Response getView(String user, String... viewNames) throws IOException {
+        String path = viewNames.length != 0 ? "/_query/view/" + String.join(",", viewNames) : "/_query/view";
         Request request = new Request("GET", path);
         setUser(request, user);
         return client().performRequest(request);
@@ -1033,15 +1033,15 @@ public class EsqlSecurityIT extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     public void testGetViewAllowed() throws Exception {
         {
-            var resp = getView("user1", "view-user1");
+            var resp = getView("user1", randomFrom(new String[] { "view-user1", "view" }, new String[] { "*" }, new String[] { "_all" }));
             assertOK(resp);
             var respMap = entityAsMap(resp);
             var views = (List<Map<String, Object>>) respMap.get("views");
-            assertThat(views.size(), equalTo(1));
+            assertThat(views.size(), equalTo(2));
             assertThat(views.getFirst().get("name"), equalTo("view-user1"));
         }
         {
-            var resp = getView("user2", "view-user2");
+            var resp = getView("user2", randomFrom("view-user2", "*", "_all"));
             assertOK(resp);
             var respMap = entityAsMap(resp);
             var views = (List<Map<String, Object>>) respMap.get("views");
@@ -1049,7 +1049,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
             assertThat(views.getFirst().get("name"), equalTo("view-user2"));
         }
         {
-            var resp = getView("test-admin", null);
+            var resp = getView("test-admin");
             assertOK(resp);
             var respMap = entityAsMap(resp);
             var views = (List<Map<String, Object>>) respMap.get("views");

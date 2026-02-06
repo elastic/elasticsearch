@@ -356,18 +356,16 @@ public final class TextStructureUtils {
      * @return A flattened map with dot-notation keys, where each key maps to a list of values.
      */
     private static Map<String, List<Object>> flattenRecord(Map<String, ?> record, TimeoutChecker timeoutChecker, int mappingDepthLimit) {
-        Map<String, List<Object>> flattened = new LinkedHashMap<>();
-        ImmutableLeavesTrie keysPointingToConcreteValues = new ImmutableLeavesTrie();
+        ObjectValueTrie objectValueTrie = new ObjectValueTrie();
         List<String> keyParts = new ArrayList<>();
-        flattenRecordRecursive(keyParts, record, flattened, keysPointingToConcreteValues, timeoutChecker, mappingDepthLimit);
-        return flattened;
+        flattenRecordRecursive(keyParts, record, objectValueTrie, timeoutChecker, mappingDepthLimit);
+        return objectValueTrie.flatten();
     }
 
     private static void flattenRecordRecursive(
         List<String> keyParts,
         Object record,
-        Map<String, List<Object>> flattenedResult,
-        ImmutableLeavesTrie keysPointingToConcreteValues,
+        ObjectValueTrie objectValueTrie,
         TimeoutChecker timeoutChecker,
         int remainingDepth
     ) {
@@ -375,74 +373,33 @@ public final class TextStructureUtils {
         if (record instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, ?> nestedMap = (Map<String, ?>) record;
-            flattenMap(keyParts, nestedMap, flattenedResult, keysPointingToConcreteValues, timeoutChecker, remainingDepth);
+            flattenMap(keyParts, nestedMap, objectValueTrie, timeoutChecker, remainingDepth);
         } else if (record instanceof List) {
             @SuppressWarnings("unchecked")
             List<Object> list = (List<Object>) record;
-            flattenList(keyParts, list, flattenedResult, keysPointingToConcreteValues, timeoutChecker, remainingDepth);
+            flattenList(keyParts, list, objectValueTrie, timeoutChecker, remainingDepth);
         } else { // concrete value
-            tryAddConcreteValueToResultMap(keyParts, record, flattenedResult, keysPointingToConcreteValues);
+            tryAddConcreteValue(keyParts, record, objectValueTrie);
         }
-
     }
 
     /**
-     * If possible, adds a concrete value to the result map.
+     * Adds a concrete value to the objectValueTrie.
      * @param keyParts The current key parts.
      * @param value The concrete value to add.
-     * @param flattenedResult The result map to add the value to.
-     * @param keysPointingToConcreteValues A structure that helps keep track of keys which were used for concrete values.
+     * @param objectValueTrie A structure that helps keep track of keys which were used for concrete values
      */
-    private static void tryAddConcreteValueToResultMap(
-        List<String> keyParts,
-        Object value,
-        Map<String, List<Object>> flattenedResult,
-        ImmutableLeavesTrie keysPointingToConcreteValues
-    ) {
+    private static void tryAddConcreteValue(List<String> keyParts, Object value, ObjectValueTrie objectValueTrie) {
         if (value == null) {
             // null values are ignored
             return;
         }
 
-        if (keysPointingToConcreteValues.add(keyParts) == false) {
-            List<String> conflict = keysPointingToConcreteValues.findConflict(keyParts);
+        List<String> conflict = objectValueTrie.tryAdd(keyParts, value);
+        if (conflict != null) {
             String conflictPath = String.join(DOT_DELIMITER, conflict);
             throw new IllegalArgumentException(
                 "Field [" + conflictPath + "] has both object and non-object values - this is not supported by Elasticsearch"
-            );
-        }
-
-        String key = String.join(DOT_DELIMITER, keyParts);
-        List<Object> valueList = flattenedResult.get(key);
-        if (valueList != null) {
-            validateNewElement(keyParts, valueList, value);
-            valueList.add(value);
-        } else {
-            var newList = new ArrayList<>();
-            newList.add(value);
-            flattenedResult.put(key, newList);
-        }
-    }
-
-    /**
-     * Validates that we're not adding a concrete value to a list of objects
-     * (or an object to a list of concrete values).
-     * @param keyParts The current key parts.
-     * @param existingValues The list of values already stored for this key.
-     * @param newElement The new element being added.
-     */
-    private static void validateNewElement(List<String> keyParts, List<Object> existingValues, Object newElement) {
-        assert existingValues.isEmpty() == false;
-
-        Object oldElement = existingValues.getFirst();
-
-        boolean oldElementIsObject = oldElement instanceof Map;
-        boolean newElementIsObject = newElement instanceof Map;
-
-        if (oldElementIsObject ^ newElementIsObject) {
-            String key = String.join(DOT_DELIMITER, keyParts);
-            throw new IllegalArgumentException(
-                "Field [" + key + "] has both object and non-object values - this is not supported by Elasticsearch"
             );
         }
     }
@@ -450,8 +407,7 @@ public final class TextStructureUtils {
     private static void flattenMap(
         List<String> keyParts,
         Map<String, ?> record,
-        Map<String, List<Object>> flattenedResult,
-        ImmutableLeavesTrie keysPointingToConcreteValues,
+        ObjectValueTrie objectValueTrie,
         TimeoutChecker timeoutChecker,
         int remainingDepth
     ) {
@@ -459,21 +415,14 @@ public final class TextStructureUtils {
 
         if (record.isEmpty() || remainingDepth <= 0) {
             // Empty nested objects or max depth reached - will be mapped as "object" type
-            tryAddConcreteValueToResultMap(keyParts, Collections.emptyMap(), flattenedResult, keysPointingToConcreteValues);
+            objectValueTrie.markAsObject(keyParts);
             return;
         }
 
         for (Map.Entry<String, ?> entry : record.entrySet()) {
             keyParts.add(entry.getKey());
             var recordValue = (Object) entry.getValue();
-            flattenRecordRecursive(
-                keyParts,
-                recordValue,
-                flattenedResult,
-                keysPointingToConcreteValues,
-                timeoutChecker,
-                remainingDepth - 1
-            );
+            flattenRecordRecursive(keyParts, recordValue, objectValueTrie, timeoutChecker, remainingDepth - 1);
             keyParts.removeLast();
         }
     }
@@ -481,15 +430,14 @@ public final class TextStructureUtils {
     private static void flattenList(
         List<String> keyParts,
         List<Object> list,
-        Map<String, List<Object>> flattenedResult,
-        ImmutableLeavesTrie keysPointingToConcreteValues,
+        ObjectValueTrie objectValueTrie,
         TimeoutChecker timeoutChecker,
         int remainingDepth
     ) {
         timeoutChecker.check("list flattening");
 
         for (Object record : list) {
-            flattenRecordRecursive(keyParts, record, flattenedResult, keysPointingToConcreteValues, timeoutChecker, remainingDepth);
+            flattenRecordRecursive(keyParts, record, objectValueTrie, timeoutChecker, remainingDepth);
         }
     }
 

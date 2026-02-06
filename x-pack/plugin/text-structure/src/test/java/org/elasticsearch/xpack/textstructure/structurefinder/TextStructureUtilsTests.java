@@ -415,6 +415,27 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
     /**
      * Input:
      * {
+     *  "foo": [
+     *    {},
+     *    {"name": "value"},
+     *  ]
+     * }
+     */
+    public void testGuessMappingGivenEmptyObjectFollowedByAnotherObject() {
+        var input = Map.of("foo", Arrays.asList(Collections.emptyMap(), Collections.singletonMap("name", "value1")));
+
+        Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
+            .guessMappingsAndCalculateFieldStats(explanation, List.of(input), NOOP_TIMEOUT_CHECKER, null, 3);
+
+        Map<String, Object> mappings = mappingsAndFieldStats.v1();
+        assertNotNull(mappings);
+
+        assertKeyAndMappedType(mappings, "foo.name", "keyword");
+    }
+
+    /**
+     * Input:
+     * {
      *  "host": {"id": 1, "category": "NETWORKING DEVICE"},
      *  "timestamp": "1478261151445",
      *  "message": "Connection established"

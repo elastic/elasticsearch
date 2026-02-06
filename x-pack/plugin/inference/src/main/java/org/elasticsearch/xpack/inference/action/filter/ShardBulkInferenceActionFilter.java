@@ -510,7 +510,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 }
             });
 
-            // Re-check timeout before making inference call - model loading may have taken time
+            // Check timeout before making inference call.
+            // We could do it earlier, but this guarantees that the timeouts apply only
+            // to those fields that require inference.
             TimeValue actualRemaining = getRemainingTimeout();
             if (actualRemaining.equals(TimeValue.ZERO)) {
                 completionListener.onFailure(

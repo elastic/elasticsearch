@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.xpack.inference.InferencePlugin.INDICES_INFERENCE_BULK_TIMEOUT;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomChunkedInferenceEmbedding;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.when;
 
@@ -70,10 +71,15 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends AbstractShardBul
     // ========== Test Cases ==========
 
     /**
-     * Tests batch-level timeout: when an earlier batch takes too long, subsequent batches
-     * fail at the batch-level check before inference even starts.
+     * Tests that timeout causes remaining inference items to fail while blank/null items pass through.
+     * Randomly injects the timeout via one of two mechanisms:
+     * <ul>
+     *   <li><b>Inference delay</b>: a slow batch causes later batches to fail at the batch-level check.</li>
+     *   <li><b>Model loading delay</b>: model loading exceeds the timeout, so all inference items
+     *       fail at the pre-inference check and chunkedInfer is never called.</li>
+     * </ul>
      */
-    public void testBatchLevelTimeout() throws Exception {
+    public void testTimeoutBasic() throws Exception {
         StaticModel model = StaticModel.createRandomInstance();
         int totalBatches = randomIntBetween(2, 5);
         int itemsPerBatch = 2;  // 20-byte batch size, 10-byte texts
@@ -82,32 +88,68 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends AbstractShardBul
 
         String[] texts = createTextsAndRegisterResults(model, totalItems);
         AtomicInteger batchCount = new AtomicInteger(0);
+        boolean useModelLoadingDelay = randomBoolean();
 
-        ShardBulkInferenceActionFilter filter = createFilter(model, (inputs, listener) -> {
-            int batch = batchCount.incrementAndGet();
-            return batch == slowBatch ? DelayResult.delayThenComplete(SLOW_DELAY_MS) : DelayResult.immediate();
-        });
+        ShardBulkInferenceActionFilter filter;
+        if (useModelLoadingDelay) {
+            filter = createFilterInternal(
+                Map.of(model.getInferenceEntityId(), model),
+                (inputs, listener) -> {
+                    batchCount.incrementAndGet();
+                    return DelayResult.immediate();
+                },
+                DEFAULT_TIMEOUT,
+                () -> SLOW_DELAY_MS
+            );
+        } else {
+            filter = createFilter(model, (inputs, listener) -> {
+                int batch = batchCount.incrementAndGet();
+                return batch == slowBatch ? DelayResult.delayThenComplete(SLOW_DELAY_MS) : DelayResult.immediate();
+            });
+        }
 
-        int expectedSuccessItems = slowBatch * itemsPerBatch;
-        runFilterAndVerify(filter, model, "field1", texts, results -> {
+        // Model loading delay: all inference items fail (timeout before any inference)
+        // Inference delay: items before the slow batch succeed, rest fail
+        int expectedSuccessItems = useModelLoadingDelay ? 0 : slowBatch * itemsPerBatch;
+
+        Map<String, InferenceFieldMetadata> fieldMap = Map.of("field1", inferenceFieldMetadata("field1", model));
+
+        BulkItemRequest[] items = new BulkItemRequest[totalItems + 4];
+        for (int i = 0; i < totalItems; i++) {
+            items[i] = bulkItemRequest(i, "field1", texts[i]);
+        }
+        items[totalItems] = bulkItemRequest(totalItems, "other_field", "no inference needed");
+        items[totalItems + 1] = bulkItemRequest(totalItems + 1, "field1", "");
+        items[totalItems + 2] = bulkItemRequest(totalItems + 2, "field1", "   ");
+        items[totalItems + 3] = bulkItemRequest(totalItems + 3, "field1", null);
+
+        runFilterAndVerify(filter, fieldMap, items, results -> {
             for (int i = 0; i < totalItems; i++) {
                 BulkItemResponse response = results[i].getPrimaryResponse();
                 if (i < expectedSuccessItems) {
                     assertNull("Item " + i + " should succeed", response);
                 } else {
-                    assertTimeout(response, "Item " + i);
+                    assertTimeoutWithMessage(response, "Item " + i, DEFAULT_TIMEOUT);
                 }
             }
+            assertNull("Non-inference field should pass through", results[totalItems].getPrimaryResponse());
+            assertNull("Empty string should pass through", results[totalItems + 1].getPrimaryResponse());
+            assertNull("Whitespace should pass through", results[totalItems + 2].getPrimaryResponse());
+            assertNull("Null value should pass through", results[totalItems + 3].getPrimaryResponse());
         });
 
-        assertThat(batchCount.get(), equalTo(slowBatch));
+        if (useModelLoadingDelay) {
+            assertThat("chunkedInfer should not have been called", batchCount.get(), equalTo(0));
+        } else {
+            assertThat(batchCount.get(), equalTo(slowBatch));
+        }
     }
 
     /**
      * Tests that timeout is passed to inference service and failures propagate correctly.
      * Items using different inference IDs are processed independently.
      */
-    public void testInferenceServiceTimeoutPropagation() throws Exception {
+    public void testInferenceServiceTimeout() throws Exception {
         StaticModel fastModel = StaticModel.createRandomInstance();
         StaticModel slowModel = StaticModel.createRandomInstance();
 
@@ -140,108 +182,20 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends AbstractShardBul
             bulkItemRequest(0, "fast_field", fastText),
             bulkItemRequest(1, "slow_field", slowTexts[0]),
             bulkItemRequest(2, "slow_field", slowTexts[1]),
-            bulkItemRequest(3, "slow_field", slowTexts[2]) };
+            bulkItemRequest(3, "slow_field", slowTexts[2]),
+            bulkItemRequest(4, "slow_field", ""),
+            bulkItemRequest(5, "slow_field", null) };
 
         runFilterAndVerify(filter, fieldMap, items, results -> {
             assertNull("Fast model item should succeed", results[0].getPrimaryResponse());
             for (int i = 1; i <= 3; i++) {
                 assertTimeout(results[i].getPrimaryResponse(), "Slow model item " + i);
             }
+            assertNull("Item 4 (empty slow_field) should pass through", results[4].getPrimaryResponse());
+            assertNull("Item 5 (null slow_field) should pass through", results[5].getPrimaryResponse());
         });
 
         assertThat(inferenceCallCount.get(), equalTo(2));
-    }
-
-    /**
-     * Tests that items without inference fields pass through successfully even after timeout.
-     */
-    public void testTimeoutDoesNotAffectItemsWithoutInferenceFields() throws Exception {
-        StaticModel model = StaticModel.createRandomInstance();
-        String[] texts = createTextsAndRegisterResults(model, 4);
-        AtomicInteger batchCount = new AtomicInteger(0);
-
-        ShardBulkInferenceActionFilter filter = createFilter(model, (inputs, listener) -> {
-            int batch = batchCount.incrementAndGet();
-            return batch == 1 ? DelayResult.delayThenComplete(SLOW_DELAY_MS) : DelayResult.immediate();
-        });
-
-        Map<String, InferenceFieldMetadata> fieldMap = Map.of("semantic_field", inferenceFieldMetadata("semantic_field", model));
-
-        // Items 0,1 in batch 1 (succeed), item 2 has inference (timeout), item 3 has no inference (passes)
-        BulkItemRequest[] items = {
-            bulkItemRequest(0, "semantic_field", texts[0]),
-            bulkItemRequest(1, "semantic_field", texts[1]),
-            bulkItemRequest(2, "semantic_field", texts[2]),
-            bulkItemRequest(3, "other_field", texts[3])  // No inference field
-        };
-
-        runFilterAndVerify(filter, fieldMap, items, results -> {
-            assertNull("Item 0 should succeed", results[0].getPrimaryResponse());
-            assertNull("Item 1 should succeed", results[1].getPrimaryResponse());
-            assertTimeout(results[2].getPrimaryResponse(), "Item 2 (inference field after timeout)");
-            assertNull("Item 3 (no inference field) should pass through", results[3].getPrimaryResponse());
-        });
-
-        assertThat(batchCount.get(), equalTo(1));
-    }
-
-    /**
-     * Tests timeout check after model loading but before chunkedInfer is called.
-     */
-    public void testPreInferenceTimeoutAfterModelLoading() throws Exception {
-        StaticModel model = StaticModel.createRandomInstance();
-        String text = "test_input";
-        model.putResult(text, randomChunkedInferenceEmbedding(model, List.of(text)));
-
-        AtomicBoolean chunkedInferCalled = new AtomicBoolean(false);
-
-        ShardBulkInferenceActionFilter filter = createFilterWithModelLoadingDelay(model, (inputs, listener) -> {
-            chunkedInferCalled.set(true);
-            return DelayResult.immediate();
-        },
-            SLOW_DELAY_MS  // Model loading exceeds timeout
-        );
-
-        runFilterAndVerify(filter, model, "field1", new String[] { text }, results -> {
-            assertTimeout(results[0].getPrimaryResponse(), "Item should timeout after model loading");
-        });
-
-        assertFalse("chunkedInfer should not have been called", chunkedInferCalled.get());
-    }
-
-    /**
-     * Tests that blank values skip inference and don't trigger timeout failures.
-     */
-    public void testBlankValuesDoNotTriggerTimeoutFailures() throws Exception {
-        StaticModel model = StaticModel.createRandomInstance();
-        String realText = "0000000000";
-        model.putResult(realText, randomChunkedInferenceEmbedding(model, List.of(realText)));
-
-        AtomicInteger batchCount = new AtomicInteger(0);
-
-        ShardBulkInferenceActionFilter filter = createFilter(model, (inputs, listener) -> {
-            int batch = batchCount.incrementAndGet();
-            return batch == 1 ? DelayResult.delayThenComplete(SLOW_DELAY_MS) : DelayResult.immediate();
-        });
-
-        Map<String, InferenceFieldMetadata> fieldMap = Map.of("semantic_field", inferenceFieldMetadata("semantic_field", model));
-
-        // Real text in batch 1, blank values in batch 2 (after timeout)
-        BulkItemRequest[] items = {
-            bulkItemRequest(0, "semantic_field", realText),
-            bulkItemRequest(1, "semantic_field", ""),
-            bulkItemRequest(2, "semantic_field", "   "),
-            bulkItemRequest(3, "semantic_field", "\t\n") };
-
-        runFilterAndVerify(filter, fieldMap, items, results -> {
-            assertNull("Real text should succeed", results[0].getPrimaryResponse());
-            // Blank values should pass through despite timeout
-            for (int i = 1; i <= 3; i++) {
-                assertNull("Blank value " + i + " should succeed", results[i].getPrimaryResponse());
-            }
-        });
-
-        assertThat(batchCount.get(), equalTo(1));
     }
 
     /**
@@ -304,12 +258,18 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends AbstractShardBul
         BulkItemRequest[] items = {
             bulkItemRequest(0, "semantic_field", text),
             bulkItemRequest(1, "semantic_field", text),
-            bulkItemRequest(2, "other_field", "no inference needed") };
+            bulkItemRequest(2, "other_field", "no inference needed"),
+            bulkItemRequest(3, "semantic_field", ""),
+            bulkItemRequest(4, "semantic_field", "   "),
+            bulkItemRequest(5, "semantic_field", null) };
 
         runFilterAndVerify(filter, fieldMap, items, results -> {
-            assertTimeout(results[0].getPrimaryResponse(), "Item 0 (inference field)");
-            assertTimeout(results[1].getPrimaryResponse(), "Item 1 (inference field)");
+            assertTimeoutWithMessage(results[0].getPrimaryResponse(), "Item 0 (inference field)", TimeValue.timeValueMillis(1));
+            assertTimeoutWithMessage(results[1].getPrimaryResponse(), "Item 1 (inference field)", TimeValue.timeValueMillis(1));
             assertNull("Item 2 (no inference field) should pass through", results[2].getPrimaryResponse());
+            assertNull("Item 3 (empty string) should pass through", results[3].getPrimaryResponse());
+            assertNull("Item 4 (whitespace) should pass through", results[4].getPrimaryResponse());
+            assertNull("Item 5 (null value) should pass through", results[5].getPrimaryResponse());
         });
 
         assertFalse("chunkedInfer should not have been called", chunkedInferCalled.get());
@@ -330,6 +290,25 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends AbstractShardBul
         assertNotNull(itemDescription + " should have a response", response);
         assertTrue(itemDescription + " should be failed", response.isFailed());
         assertThat(itemDescription + " should have timeout status", response.getFailure().getStatus(), equalTo(RestStatus.REQUEST_TIMEOUT));
+    }
+
+    /**
+     * Asserts that the response is a timeout failure with the expected error message format
+     * from the pre-inference timeout check: "Bulk inference timed out after [elapsed] (configured timeout for bulk request: [timeout])".
+     * The {@link ElasticsearchStatusException} is wrapped in an {@code InferenceException}, so we check the cause chain.
+     */
+    private void assertTimeoutWithMessage(BulkItemResponse response, String itemDescription, TimeValue expectedConfiguredTimeout) {
+        assertTimeout(response, itemDescription);
+        Throwable cause = response.getFailure().getCause().getCause();
+        assertNotNull(itemDescription + " should have a root cause", cause);
+        String message = cause.getMessage();
+        assertThat(itemDescription + " should mention timed out", message, containsString("Bulk inference timed out after"));
+        assertThat(itemDescription + " should mention configured timeout", message, containsString("configured timeout for bulk request:"));
+        assertThat(
+            itemDescription + " should include configured timeout value",
+            message,
+            containsString(expectedConfiguredTimeout.toString())
+        );
     }
 
     private void runFilterAndVerify(
@@ -355,19 +334,6 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends AbstractShardBul
 
     private ShardBulkInferenceActionFilter createFilter(Map<String, StaticModel> modelMap, InferenceDelayController delayController) {
         return createFilterInternal(modelMap, delayController, DEFAULT_TIMEOUT, () -> 0);
-    }
-
-    private ShardBulkInferenceActionFilter createFilterWithModelLoadingDelay(
-        StaticModel model,
-        InferenceDelayController delayController,
-        long modelLoadingDelayMs
-    ) {
-        return createFilterInternal(
-            Map.of(model.getInferenceEntityId(), model),
-            delayController,
-            DEFAULT_TIMEOUT,
-            () -> modelLoadingDelayMs
-        );
     }
 
     @SuppressWarnings("unchecked")

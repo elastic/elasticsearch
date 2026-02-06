@@ -429,9 +429,8 @@ public class AnalyzerUnmappedGoldenTests extends GoldenTestCase {
             """);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/141912")
     public void testMappedToNonKeywordInOneIndexOnlyCast() throws Exception {
-        runTests("""
+        runTestsLoadOnly("""
             FROM sample_data, no_mapping_sample_data
             | EVAL x = event_duration :: DOUBLE
             """);
@@ -460,8 +459,8 @@ public class AnalyzerUnmappedGoldenTests extends GoldenTestCase {
     }
 
     private void runTests(String query) {
-        var nullifyException = runTestsNullifyOnly(query);
-        var loadException = runTestsLoadOnly(query);
+        var nullifyException = tryRunTestsNullifyOnly(query);
+        var loadException = tryRunTestsLoadOnly(query);
         if (nullifyException.isPresent() && loadException.isPresent()) {
             throw new AssertionError("Both nullify and load modes failed", nullifyException.get());
         } else if (nullifyException.isPresent()) {
@@ -471,13 +470,27 @@ public class AnalyzerUnmappedGoldenTests extends GoldenTestCase {
         }
     }
 
-    private Optional<Throwable> runTestsNullifyOnly(String query) {
+    private void runTestsNullifyOnly(String query) {
+        var nullifyException = tryRunTestsNullifyOnly(query);
+        if (nullifyException.isPresent()) {
+            throw new RuntimeException("Nullify mode failed", nullifyException.get());
+        }
+    }
+
+    private Optional<Throwable> tryRunTestsNullifyOnly(String query) {
         return EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled()
             ? builder(setUnmappedNullify(query)).nestedPath("nullify").stages(STAGES).tryRun()
             : Optional.empty();
     }
 
-    private Optional<Throwable> runTestsLoadOnly(String query) {
+    private void runTestsLoadOnly(String query) {
+        var loadException = tryRunTestsLoadOnly(query);
+        if (loadException.isPresent()) {
+            throw new RuntimeException("Load mode failed", loadException.get());
+        }
+    }
+
+    private Optional<Throwable> tryRunTestsLoadOnly(String query) {
         return EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled()
             ? builder(setUnmappedLoad(query)).nestedPath("load").stages(STAGES).tryRun()
             : Optional.empty();

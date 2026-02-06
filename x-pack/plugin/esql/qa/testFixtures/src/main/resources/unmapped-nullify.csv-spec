@@ -12,6 +12,22 @@ null
 null
 ;
 
+partialMappingUnmappedFromSource
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM partial_mapping_sample_data
+| KEEP @timestamp, unmapped_message
+| SORT @timestamp DESC
+| LIMIT 3
+;
+
+@timestamp:date          | unmapped_message:null
+2024-10-23T13:55:01.543Z | null
+2024-10-23T13:53:55.832Z | null
+2024-10-23T13:52:55.015Z | null
+;
+
 keepStar
 required_capability: optional_fields_nullify_tech_preview
 
@@ -481,4 +497,94 @@ ROW x = 1
 
 x:integer      |does_not_exist:null |y:keyword | language_name:keyword
 1              |null                |null      |null
+;
+
+partiallyUnmappedKeywordMultiIndex
+required_capability: optional_fields_nullify_tech_preview
+required_capability: index_metadata_field
+
+SET unmapped_fields="nullify"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| KEEP _index, @timestamp, message
+| SORT _index, @timestamp DESC
+;
+
+_index:keyword         | @timestamp:date           | message:keyword
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+sample_data            | 2023-10-23T13:55:01.543Z  | Connected to 10.1.0.1
+sample_data            | 2023-10-23T13:53:55.832Z  | Connection error
+sample_data            | 2023-10-23T13:52:55.015Z  | Connection error
+sample_data            | 2023-10-23T13:51:54.732Z  | Connection error
+sample_data            | 2023-10-23T13:33:34.937Z  | Disconnected
+sample_data            | 2023-10-23T12:27:28.948Z  | Connected to 10.1.0.2
+sample_data            | 2023-10-23T12:15:03.360Z  | Connected to 10.1.0.3
+;
+
+partiallyUnmappedNonKeywordMultiIndexCast
+required_capability: optional_fields_nullify_tech_preview
+required_capability: index_metadata_field
+
+SET unmapped_fields="nullify"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| EVAL duration = event_duration::DOUBLE
+| KEEP _index, @timestamp, duration
+| SORT _index, @timestamp DESC
+;
+
+_index:keyword         | @timestamp:date           | duration:double
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+sample_data            | 2023-10-23T13:55:01.543Z  | 1756467.0
+sample_data            | 2023-10-23T13:53:55.832Z  | 5033755.0
+sample_data            | 2023-10-23T13:52:55.015Z  | 8268153.0
+sample_data            | 2023-10-23T13:51:54.732Z  | 725448.0
+sample_data            | 2023-10-23T13:33:34.937Z  | 1232382.0
+sample_data            | 2023-10-23T12:27:28.948Z  | 2764889.0
+sample_data            | 2023-10-23T12:15:03.360Z  | 3450233.0
+;
+
+partiallyUnmappedMixedTypesMultiIndexCast
+required_capability: optional_fields_nullify_tech_preview
+required_capability: index_metadata_field
+
+SET unmapped_fields="nullify"\;
+FROM sample_data, logs, no_mapping_sample_data METADATA _index
+| EVAL msg = message::KEYWORD
+| KEEP _index, @timestamp, msg
+| SORT _index, @timestamp DESC
+;
+
+_index:keyword         | @timestamp:date           | msg:keyword
+logs                   | 2023-10-23T13:57:01.544Z  | Running cats (cycle 3)
+logs                   | 2023-10-23T13:56:01.544Z  | Running cats (cycle 2)
+logs                   | 2023-10-23T13:56:01.543Z  | No response
+logs                   | 2023-10-23T13:55:01.546Z  | More java stuff
+logs                   | 2023-10-23T13:55:01.545Z  | Doing java stuff for 192.168.86.038
+logs                   | 2023-10-23T13:55:01.544Z  | Running cats (cycle 1)
+logs                   | 2023-10-23T13:55:01.543Z  | Pinging 192.168.86.046
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+sample_data            | 2023-10-23T13:55:01.543Z  | Connected to 10.1.0.1
+sample_data            | 2023-10-23T13:53:55.832Z  | Connection error
+sample_data            | 2023-10-23T13:52:55.015Z  | Connection error
+sample_data            | 2023-10-23T13:51:54.732Z  | Connection error
+sample_data            | 2023-10-23T13:33:34.937Z  | Disconnected
+sample_data            | 2023-10-23T12:27:28.948Z  | Connected to 10.1.0.2
+sample_data            | 2023-10-23T12:15:03.360Z  | Connected to 10.1.0.3
 ;

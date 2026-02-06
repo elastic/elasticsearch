@@ -720,19 +720,35 @@ public class CsvTests extends ESTestCase {
 
     private static TestPhysicalOperationProviders testOperationProviders(
         FoldContext foldCtx,
-        Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> allDatasets
+        Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> allDatasets,
+        UnmappedResolution unmappedResolution
     ) throws Exception {
         var indexPages = new ArrayList<TestPhysicalOperationProviders.IndexPage>();
         for (CsvTestsDataLoader.MultiIndexTestDataset datasets : allDatasets.values()) {
             for (CsvTestsDataLoader.TestDataset dataset : datasets.datasets()) {
                 var testData = loadPageFromCsv(CsvTests.class.getResource("/data/" + dataset.dataFileName()), dataset.typeMapping());
-                Set<String> mappedFields = loadMapping(dataset.mappingFileName()).keySet();
+                Set<String> mappedFields = flattenMappingNames(loadMapping(dataset.mappingFileName()));
                 indexPages.add(
                     new TestPhysicalOperationProviders.IndexPage(dataset.indexName(), testData.v1(), testData.v2(), mappedFields)
                 );
             }
         }
-        return TestPhysicalOperationProviders.create(foldCtx, indexPages);
+        return TestPhysicalOperationProviders.create(foldCtx, indexPages, unmappedResolution);
+    }
+
+    private static Set<String> flattenMappingNames(Map<String, EsField> mapping) {
+        Set<String> result = new HashSet<>();
+        for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
+            collectFieldNames(entry.getKey(), entry.getValue(), result);
+        }
+        return result;
+    }
+
+    private static void collectFieldNames(String prefix, EsField field, Set<String> result) {
+        result.add(prefix);
+        for (Map.Entry<String, EsField> sub : field.getProperties().entrySet()) {
+            collectFieldNames(prefix + "." + sub.getKey(), sub.getValue(), result);
+        }
     }
 
     private ActualResults executePlan(BigArrays bigArrays) throws Exception {
@@ -748,7 +764,8 @@ public class CsvTests extends ESTestCase {
         var testDatasets = testDatasets(plan);
         // Specifically use the newest transport version; the csv tests correspond to a single node cluster on the current version.
         TransportVersion minimumVersion = TransportVersion.current();
-        LogicalPlan analyzed = analyzedPlan(plan, statement.setting(UNMAPPED_FIELDS), configuration, testDatasets, minimumVersion);
+        var unmappedResolution = statement.setting(UNMAPPED_FIELDS);
+        LogicalPlan analyzed = analyzedPlan(plan, unmappedResolution, configuration, testDatasets, minimumVersion);
 
         FoldContext foldCtx = FoldContext.small();
         EsqlSession session = new EsqlSession(
@@ -767,7 +784,7 @@ public class CsvTests extends ESTestCase {
             null,
             EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES
         );
-        TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(foldCtx, testDatasets);
+        TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(foldCtx, testDatasets, unmappedResolution);
 
         PlainActionFuture<ActualResults> listener = new PlainActionFuture<>();
         var logicalPlanPreOptimizer = new LogicalPlanPreOptimizer(

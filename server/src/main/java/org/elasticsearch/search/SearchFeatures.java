@@ -42,6 +42,7 @@ public final class SearchFeatures implements FeatureSpecification {
     public static final NodeFeature EXPONENTIAL_HISTOGRAM_QUERYDSL_MIN_MAX = new NodeFeature(
         "search.exponential_histogram_querydsl_min_max"
     );
+    public static final NodeFeature FUNCTION_SCORE_NAMED_QUERIES = new NodeFeature("search.function_score.named_queries");
     public static final NodeFeature EXPONENTIAL_HISTOGRAM_QUERYDSL_PERCENTILES = new NodeFeature(
         "search.exponential_histogram_querydsl_percentiles"
     );
@@ -67,7 +68,8 @@ public final class SearchFeatures implements FeatureSpecification {
             LIMIT_MAX_IDS_FEATURE,
             EXPONENTIAL_HISTOGRAM_QUERYDSL_MIN_MAX,
             EXPONENTIAL_HISTOGRAM_QUERYDSL_PERCENTILES,
-            EXPONENTIAL_HISTOGRAM_QUERYDSL_PERCENTILE_RANKS
+            EXPONENTIAL_HISTOGRAM_QUERYDSL_PERCENTILE_RANKS,
+            FUNCTION_SCORE_NAMED_QUERIES
         );
     }
 }

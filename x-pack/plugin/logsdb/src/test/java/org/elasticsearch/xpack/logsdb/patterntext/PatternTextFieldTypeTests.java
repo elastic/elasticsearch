@@ -224,7 +224,7 @@ public class PatternTextFieldTypeTests extends FieldTypeTestCase {
     public void testBlockLoaderWhenTemplatingIsEnabled() {
         PatternTextFieldType ft = new PatternTextFieldType("field", hasPositions, syntheticSource, useBinaryDocValueArgs);
         BlockLoader blockLoader = ft.blockLoader(null);
-        assertThat(blockLoader, Matchers.instanceOf(PatternTextBlockLoader.class));
+        assertThat(blockLoader, Matchers.instanceOf(BytesRefsFromBinaryBlockLoader.class));
     }
 
     public void testBlockLoaderWhenTemplatingIsDisabledAndBinaryDocValuesAreUsed() {

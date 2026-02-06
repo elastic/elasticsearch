@@ -30,14 +30,14 @@ import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedSumAggr
 import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedTDigestPercentileRanksAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedTDigestPercentilesAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedValueCountAggregator;
-import org.elasticsearch.xpack.core.analytics.mapper.TDigestBlockLoader;
+import org.elasticsearch.xpack.core.analytics.aggregations.support.AnalyticsValuesSourceType;
 
 public class AnalyticsAggregatorFactory {
 
     public static void registerPercentilesAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(
             PercentilesAggregationBuilder.REGISTRY_KEY,
-            TDigestBlockLoader.AnalyticsValuesSourceType.HISTOGRAM,
+            AnalyticsValuesSourceType.HISTOGRAM,
             (name, config, context, parent, percents, percentilesConfig, keyed, formatter, metadata) -> {
                 if (percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
                     double compression = ((PercentilesConfig.TDigest) percentilesConfig).getCompression();
@@ -81,7 +81,7 @@ public class AnalyticsAggregatorFactory {
     public static void registerPercentileRanksAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(
             PercentileRanksAggregationBuilder.REGISTRY_KEY,
-            TDigestBlockLoader.AnalyticsValuesSourceType.HISTOGRAM,
+            AnalyticsValuesSourceType.HISTOGRAM,
             (name, config, context, parent, percents, percentilesConfig, keyed, formatter, metadata) -> {
                 if (percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
                     double compression = ((PercentilesConfig.TDigest) percentilesConfig).getCompression();
@@ -123,63 +123,43 @@ public class AnalyticsAggregatorFactory {
     }
 
     public static void registerHistoBackedSumAggregator(ValuesSourceRegistry.Builder builder) {
-        builder.register(
-            SumAggregationBuilder.REGISTRY_KEY,
-            TDigestBlockLoader.AnalyticsValuesSourceType.HISTOGRAM,
-            HistoBackedSumAggregator::new,
-            true
-        );
+        builder.register(SumAggregationBuilder.REGISTRY_KEY, AnalyticsValuesSourceType.HISTOGRAM, HistoBackedSumAggregator::new, true);
     }
 
     public static void registerHistoBackedValueCountAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(
             ValueCountAggregationBuilder.REGISTRY_KEY,
-            TDigestBlockLoader.AnalyticsValuesSourceType.HISTOGRAM,
+            AnalyticsValuesSourceType.HISTOGRAM,
             HistoBackedValueCountAggregator::new,
             true
         );
     }
 
     public static void registerHistoBackedAverageAggregator(ValuesSourceRegistry.Builder builder) {
-        builder.register(
-            AvgAggregationBuilder.REGISTRY_KEY,
-            TDigestBlockLoader.AnalyticsValuesSourceType.HISTOGRAM,
-            HistoBackedAvgAggregator::new,
-            true
-        );
+        builder.register(AvgAggregationBuilder.REGISTRY_KEY, AnalyticsValuesSourceType.HISTOGRAM, HistoBackedAvgAggregator::new, true);
     }
 
     public static void registerHistoBackedHistogramAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(
             HistogramAggregationBuilder.REGISTRY_KEY,
-            TDigestBlockLoader.AnalyticsValuesSourceType.HISTOGRAM,
+            AnalyticsValuesSourceType.HISTOGRAM,
             HistoBackedHistogramAggregator::new,
             true
         );
     }
 
     public static void registerHistoBackedMinggregator(ValuesSourceRegistry.Builder builder) {
-        builder.register(
-            MinAggregationBuilder.REGISTRY_KEY,
-            TDigestBlockLoader.AnalyticsValuesSourceType.HISTOGRAM,
-            HistoBackedMinAggregator::new,
-            true
-        );
+        builder.register(MinAggregationBuilder.REGISTRY_KEY, AnalyticsValuesSourceType.HISTOGRAM, HistoBackedMinAggregator::new, true);
     }
 
     public static void registerHistoBackedMaxggregator(ValuesSourceRegistry.Builder builder) {
-        builder.register(
-            MaxAggregationBuilder.REGISTRY_KEY,
-            TDigestBlockLoader.AnalyticsValuesSourceType.HISTOGRAM,
-            HistoBackedMaxAggregator::new,
-            true
-        );
+        builder.register(MaxAggregationBuilder.REGISTRY_KEY, AnalyticsValuesSourceType.HISTOGRAM, HistoBackedMaxAggregator::new, true);
     }
 
     public static void registerHistoBackedRangeAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(
             RangeAggregationBuilder.REGISTRY_KEY,
-            TDigestBlockLoader.AnalyticsValuesSourceType.HISTOGRAM,
+            AnalyticsValuesSourceType.HISTOGRAM,
             HistoBackedRangeAggregator::build,
             true
         );

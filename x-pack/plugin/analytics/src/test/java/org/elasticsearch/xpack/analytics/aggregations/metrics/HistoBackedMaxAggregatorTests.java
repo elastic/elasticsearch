@@ -25,7 +25,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
-import org.elasticsearch.xpack.core.analytics.mapper.TDigestBlockLoader;
+import org.elasticsearch.xpack.core.analytics.aggregations.support.AnalyticsValuesSourceType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -125,7 +125,7 @@ public class HistoBackedMaxAggregatorTests extends AggregatorTestCase {
             CoreValuesSourceType.NUMERIC,
             CoreValuesSourceType.BOOLEAN,
             CoreValuesSourceType.DATE,
-            TDigestBlockLoader.AnalyticsValuesSourceType.HISTOGRAM
+            AnalyticsValuesSourceType.HISTOGRAM
         );
     }
 

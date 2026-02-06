@@ -54,7 +54,7 @@ import org.elasticsearch.xcontent.CopyingXContentParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentSubParser;
-import org.elasticsearch.xpack.core.analytics.mapper.TDigestBlockLoader;
+import org.elasticsearch.xpack.core.analytics.aggregations.support.AnalyticsValuesSourceType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -197,7 +197,7 @@ public class HistogramFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return (cache, breakerService) -> new IndexHistogramFieldData(name(), TDigestBlockLoader.AnalyticsValuesSourceType.HISTOGRAM) {
+            return (cache, breakerService) -> new IndexHistogramFieldData(name(), AnalyticsValuesSourceType.HISTOGRAM) {
 
                 @Override
                 public LeafHistogramFieldData load(LeafReaderContext context) {

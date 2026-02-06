@@ -19,7 +19,7 @@ import org.elasticsearch.search.aggregations.support.TimeSeriesValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.xpack.core.analytics.mapper.TDigestBlockLoader;
+import org.elasticsearch.xpack.core.analytics.aggregations.support.AnalyticsValuesSourceType;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,11 +35,7 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             BoxplotAggregationBuilder.REGISTRY_KEY,
-            List.of(
-                CoreValuesSourceType.NUMERIC,
-                TDigestBlockLoader.AnalyticsValuesSourceType.HISTOGRAM,
-                TimeSeriesValuesSourceType.COUNTER
-            ),
+            List.of(CoreValuesSourceType.NUMERIC, AnalyticsValuesSourceType.HISTOGRAM, TimeSeriesValuesSourceType.COUNTER),
             BoxplotAggregator::new,
             true
         );

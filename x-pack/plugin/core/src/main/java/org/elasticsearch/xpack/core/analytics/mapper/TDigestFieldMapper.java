@@ -60,6 +60,7 @@ import org.elasticsearch.xcontent.CopyingXContentParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentSubParser;
+import org.elasticsearch.xpack.core.analytics.aggregations.support.AnalyticsValuesSourceType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -243,7 +244,7 @@ public class TDigestFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
             // TODO - This needs to be changed to a custom values source type
-            return (cache, breakerService) -> new IndexHistogramFieldData(name(), TDigestBlockLoader.AnalyticsValuesSourceType.HISTOGRAM) {
+            return (cache, breakerService) -> new IndexHistogramFieldData(name(), AnalyticsValuesSourceType.HISTOGRAM) {
 
                 @Override
                 public LeafHistogramFieldData load(LeafReaderContext context) {
@@ -659,5 +660,5 @@ public class TDigestFieldMapper extends FieldMapper {
         public long valueCount() {
             return binaryValue != null ? 1 : 0;
         }
-    };
+    }
 }

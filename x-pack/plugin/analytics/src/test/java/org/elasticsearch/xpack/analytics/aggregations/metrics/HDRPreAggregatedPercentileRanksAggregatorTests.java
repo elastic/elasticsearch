@@ -29,7 +29,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
-import org.elasticsearch.xpack.core.analytics.mapper.TDigestBlockLoader;
+import org.elasticsearch.xpack.core.analytics.aggregations.support.AnalyticsValuesSourceType;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -57,7 +57,7 @@ public class HDRPreAggregatedPercentileRanksAggregatorTests extends AggregatorTe
             CoreValuesSourceType.NUMERIC,
             CoreValuesSourceType.DATE,
             CoreValuesSourceType.BOOLEAN,
-            TDigestBlockLoader.AnalyticsValuesSourceType.HISTOGRAM
+            AnalyticsValuesSourceType.HISTOGRAM
         );
     }
 

@@ -389,30 +389,24 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
         private final BigArrays bigArrays;
         private final int arrayLimit;
-        private final IntArray[] values;
+        private IntArray values;
         private ByteArray sizes;
 
         InlineSmallLinearCounting(int p, BigArrays bigArrays, long initialBuckets, int arrayLimit) {
             super(p);
             this.bigArrays = bigArrays;
             this.arrayLimit = arrayLimit;
-            IntArray[] values = null;
+            IntArray values = null;
             ByteArray sizes = null;
             boolean success = false;
             try {
-                values = new IntArray[arrayLimit];
-                for (int i = 0; i < arrayLimit; i++) {
-                    values[i] = bigArrays.newIntArray(initialBuckets);
-                }
+                long initialSize = Math.multiplyExact(initialBuckets, (long) arrayLimit);
+                values = bigArrays.newIntArray(initialSize);
                 sizes = bigArrays.newByteArray(initialBuckets);
                 success = true;
             } finally {
                 if (success == false) {
-                    if (values != null) {
-                        for (IntArray value : values) {
-                            Releasables.close(value);
-                        }
-                    }
+                    Releasables.close(values);
                     Releasables.close(sizes);
                 }
             }
@@ -424,16 +418,17 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         protected int addEncoded(long bucketOrd, int encoded) {
             ensureCapacity(bucketOrd);
             assert encoded != 0;
+            final long base = baseOffset(bucketOrd);
             int size = Byte.toUnsignedInt(sizes.get(bucketOrd));
             for (int i = 0; i < size; ++i) {
-                if (values[i].get(bucketOrd) == encoded) {
+                if (values.get(base + i) == encoded) {
                     return -1;
                 }
             }
             if (size >= arrayLimit) {
                 return size + 1;
             }
-            values[size].set(bucketOrd, encoded);
+            values.set(base + size, encoded);
             sizes.set(bucketOrd, (byte) (size + 1));
             return size + 1;
         }
@@ -461,19 +456,19 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             return addEncoded(bucketOrd, encoded);
         }
 
+        private long baseOffset(long bucketOrd) {
+            return Math.multiplyExact(bucketOrd, (long) arrayLimit);
+        }
+
         private void ensureCapacity(long bucketOrd) {
             sizes = bigArrays.grow(sizes, bucketOrd + 1);
-            for (int i = 0; i < values.length; i++) {
-                values[i] = bigArrays.grow(values[i], bucketOrd + 1);
-            }
+            long requiredSize = Math.multiplyExact(bucketOrd + 1, (long) arrayLimit);
+            values = bigArrays.grow(values, requiredSize);
         }
 
         @Override
         public void close() {
-            for (IntArray value : values) {
-                Releasables.close(value);
-            }
-            Releasables.close(sizes);
+            Releasables.close(values, sizes);
         }
     }
 
@@ -482,6 +477,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         private final InlineSmallLinearCounting small;
         private final long bucketOrd;
         private final int size;
+        private final long base;
         private int value;
         private long pos;
 
@@ -489,6 +485,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             this.small = small;
             this.bucketOrd = bucketOrd;
             this.size = small.size(bucketOrd);
+            this.base = size == 0 ? 0 : small.baseOffset(bucketOrd);
         }
 
         @Override
@@ -501,7 +498,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             if (pos >= size) {
                 return false;
             }
-            value = small.values[(int) pos++].get(bucketOrd);
+            value = small.values.get(base + pos++);
             return true;
         }
 

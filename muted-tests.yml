@@ -359,12 +359,18 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=esql/50_index_patterns/disjoint_mappings}
   issue: https://github.com/elastic/elasticsearch/issues/141856
-- class: org.elasticsearch.repositories.azure.CancellableRateLimitedFluxIteratorTests
-  method: testErrorPath
-  issue: https://github.com/elastic/elasticsearch/issues/141893
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/141894
+- class: org.elasticsearch.xpack.diskbbq.DirectIOIT
+  method: testDirectIOUsed {p0=bbq_disk}
+  issue: https://github.com/elastic/elasticsearch/issues/141942
+- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
+  method: testFuse
+  issue: https://github.com/elastic/elasticsearch/issues/141944
+- class: org.elasticsearch.compute.lucene.read.ValueSourceReaderTypeConversionTests
+  method: testLoadAll
+  issue: https://github.com/elastic/elasticsearch/issues/141954
 
 # Examples:
 #

@@ -18,7 +18,6 @@ import fixture.s3.S3HttpFixture;
 import io.netty.handler.codec.http.HttpMethod;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;

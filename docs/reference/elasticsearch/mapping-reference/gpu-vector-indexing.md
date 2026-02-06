@@ -44,12 +44,17 @@ node-level setting.
 
 ## Elasticsearch Docker image with GPU support
 
-An [example Dockerfile](docker_gpu_indexing.txt) is provided that extends the
-official {{es}} Docker image to add the dependencies required for GPU support.
+An example Dockerfile is provided that extends the official {{es}} Docker image
+to add the dependencies required for GPU support.
 
 ::::{warning}
 This Dockerfile serves as an example implementation, and is not fully supported
 like our official Docker images.
+::::
+
+::::{dropdown} Example Dockerfile
+:::{include} _snippets/docker-gpu-indexing.md
+:::
 ::::
 
 ### Requirements

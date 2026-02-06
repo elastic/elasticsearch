@@ -1,3 +1,4 @@
+```plaintext
 FROM docker.elastic.co/elasticsearch/elasticsearch:9.3.0
 
 USER root
@@ -84,3 +85,4 @@ RUN mkdir -p "$LIBCUVS_DIR" && \
 
 # Reset the user back to elasticsearch
 USER 1000:0
+```

@@ -100,7 +100,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     private static final Logger logger = LogManager.getLogger(ShardBulkInferenceActionFilter.class);
 
     private static final ByteSizeValue DEFAULT_BATCH_SIZE = ByteSizeValue.ofMb(1);
-    //sentinel value meaning effectively no timeout
+    // sentinel value meaning effectively no timeout
     private static final TimeValue DEFAULT_BULK_TIMEOUT = TimeValue.MINUS_ONE;
 
     /**
@@ -543,7 +543,15 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             }
 
             inferenceProvider.service()
-                .chunkedInfer(inferenceProvider.model(), null, inputs, Map.of(), InputType.INTERNAL_INGEST, actualRemaining, completionListener);
+                .chunkedInfer(
+                    inferenceProvider.model(),
+                    null,
+                    inputs,
+                    Map.of(),
+                    InputType.INTERNAL_INGEST,
+                    actualRemaining,
+                    completionListener
+                );
 
         }
 

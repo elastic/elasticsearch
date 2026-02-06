@@ -43,9 +43,7 @@ import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.MinimalServiceSettings;
-import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.UnparsedModel;
-import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.inference.telemetry.InferenceStatsTests;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -54,13 +52,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -196,16 +193,17 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends ESTestCase {
         );
 
         Map<String, InferenceFieldMetadata> fieldMap = Map.of(
-            "fast_field", inferenceFieldMetadata("fast_field", fastModel),
-            "slow_field", inferenceFieldMetadata("slow_field", slowModel)
+            "fast_field",
+            inferenceFieldMetadata("fast_field", fastModel),
+            "slow_field",
+            inferenceFieldMetadata("slow_field", slowModel)
         );
 
         BulkItemRequest[] items = {
             bulkItemRequest(0, "fast_field", fastText),
             bulkItemRequest(1, "slow_field", slowTexts[0]),
             bulkItemRequest(2, "slow_field", slowTexts[1]),
-            bulkItemRequest(3, "slow_field", slowTexts[2])
-        };
+            bulkItemRequest(3, "slow_field", slowTexts[2]) };
 
         runFilterAndVerify(filter, fieldMap, items, results -> {
             assertNull("Fast model item should succeed", results[0].getPrimaryResponse());
@@ -230,9 +228,7 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends ESTestCase {
             return batch == 1 ? DelayResult.delayThenComplete(SLOW_DELAY_MS) : DelayResult.immediate();
         });
 
-        Map<String, InferenceFieldMetadata> fieldMap = Map.of(
-            "semantic_field", inferenceFieldMetadata("semantic_field", model)
-        );
+        Map<String, InferenceFieldMetadata> fieldMap = Map.of("semantic_field", inferenceFieldMetadata("semantic_field", model));
 
         // Items 0,1 in batch 1 (succeed), item 2 has inference (timeout), item 3 has no inference (passes)
         BulkItemRequest[] items = {
@@ -262,12 +258,10 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends ESTestCase {
 
         AtomicBoolean chunkedInferCalled = new AtomicBoolean(false);
 
-        ShardBulkInferenceActionFilter filter = createFilterWithModelLoadingDelay(
-            model,
-            (inputs, listener) -> {
-                chunkedInferCalled.set(true);
-                return DelayResult.immediate();
-            },
+        ShardBulkInferenceActionFilter filter = createFilterWithModelLoadingDelay(model, (inputs, listener) -> {
+            chunkedInferCalled.set(true);
+            return DelayResult.immediate();
+        },
             SLOW_DELAY_MS  // Model loading exceeds timeout
         );
 
@@ -293,17 +287,14 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends ESTestCase {
             return batch == 1 ? DelayResult.delayThenComplete(SLOW_DELAY_MS) : DelayResult.immediate();
         });
 
-        Map<String, InferenceFieldMetadata> fieldMap = Map.of(
-            "semantic_field", inferenceFieldMetadata("semantic_field", model)
-        );
+        Map<String, InferenceFieldMetadata> fieldMap = Map.of("semantic_field", inferenceFieldMetadata("semantic_field", model));
 
         // Real text in batch 1, blank values in batch 2 (after timeout)
         BulkItemRequest[] items = {
             bulkItemRequest(0, "semantic_field", realText),
             bulkItemRequest(1, "semantic_field", ""),
             bulkItemRequest(2, "semantic_field", "   "),
-            bulkItemRequest(3, "semantic_field", "\t\n")
-        };
+            bulkItemRequest(3, "semantic_field", "\t\n") };
 
         runFilterAndVerify(filter, fieldMap, items, results -> {
             assertNull("Real text should succeed", results[0].getPrimaryResponse());
@@ -335,18 +326,21 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends ESTestCase {
         );
 
         Map<String, InferenceFieldMetadata> fieldMap = Map.of(
-            "fast_field", inferenceFieldMetadata("fast_field", fastModel),
-            "slow_field", inferenceFieldMetadata("slow_field", slowModel)
+            "fast_field",
+            inferenceFieldMetadata("fast_field", fastModel),
+            "slow_field",
+            inferenceFieldMetadata("slow_field", slowModel)
         );
 
         // Single document with both fields
-        BulkItemRequest[] items = {
-            new BulkItemRequest(0, randomDocWriteRequest(Map.of("fast_field", fastText, "slow_field", slowText)))
-        };
+        BulkItemRequest[] items = { new BulkItemRequest(0, randomDocWriteRequest(Map.of("fast_field", fastText, "slow_field", slowText))) };
 
-        runFilterAndVerify(filter, fieldMap, items, results -> {
-            assertTimeout(results[0].getPrimaryResponse(), "Document with partial timeout");
-        });
+        runFilterAndVerify(
+            filter,
+            fieldMap,
+            items,
+            results -> { assertTimeout(results[0].getPrimaryResponse(), "Document with partial timeout"); }
+        );
     }
 
     // ========== Helper Methods ==========
@@ -363,8 +357,7 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends ESTestCase {
     private void assertTimeout(BulkItemResponse response, String itemDescription) {
         assertNotNull(itemDescription + " should have a response", response);
         assertTrue(itemDescription + " should be failed", response.isFailed());
-        assertThat(itemDescription + " should have timeout status",
-            response.getFailure().getStatus(), equalTo(RestStatus.REQUEST_TIMEOUT));
+        assertThat(itemDescription + " should have timeout status", response.getFailure().getStatus(), equalTo(RestStatus.REQUEST_TIMEOUT));
     }
 
     private InferenceFieldMetadata inferenceFieldMetadata(String field, StaticModel model) {
@@ -395,10 +388,7 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends ESTestCase {
         return createFilter(Map.of(model.getInferenceEntityId(), model), delayController);
     }
 
-    private ShardBulkInferenceActionFilter createFilter(
-        Map<String, StaticModel> modelMap,
-        InferenceDelayController delayController
-    ) {
+    private ShardBulkInferenceActionFilter createFilter(Map<String, StaticModel> modelMap, InferenceDelayController delayController) {
         return createFilterInternal(modelMap, delayController, DEFAULT_TIMEOUT, () -> 0);
     }
 
@@ -433,13 +423,15 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends ESTestCase {
 
             Runnable response = () -> {
                 if (model != null) {
-                    listener.onResponse(new UnparsedModel(
-                        model.getInferenceEntityId(),
-                        model.getTaskType(),
-                        model.getServiceSettings().model(),
-                        XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(model.getTaskSettings()), false),
-                        XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(model.getSecretSettings()), false)
-                    ));
+                    listener.onResponse(
+                        new UnparsedModel(
+                            model.getInferenceEntityId(),
+                            model.getTaskType(),
+                            model.getServiceSettings().model(),
+                            XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(model.getTaskSettings()), false),
+                            XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(model.getSecretSettings()), false)
+                        )
+                    );
                 } else {
                     listener.onFailure(new ResourceNotFoundException("model id [{}] not found", id));
                 }
@@ -494,8 +486,8 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends ESTestCase {
             return null;
         }).when(inferenceService).chunkedInfer(any(), any(), any(), any(), any(), any(), any());
 
-        doAnswer(invocation -> modelMap.get((String) invocation.getArguments()[0]))
-            .when(inferenceService).parsePersistedConfigWithSecrets(any(), any(), any(), any());
+        doAnswer(invocation -> modelMap.get((String) invocation.getArguments()[0])).when(inferenceService)
+            .parsePersistedConfigWithSecrets(any(), any(), any(), any());
 
         InferenceServiceRegistry registry = mock(InferenceServiceRegistry.class);
         when(registry.getService(any())).thenReturn(Optional.of(inferenceService));
@@ -573,11 +565,7 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends ESTestCase {
             }
         };
 
-        BulkShardRequest request = new BulkShardRequest(
-            new ShardId("test", "test", 0),
-            WriteRequest.RefreshPolicy.NONE,
-            items
-        );
+        BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
         request.setInferenceFieldMap(fieldMap);
 
         filter.apply(mock(Task.class), TransportShardBulkAction.ACTION_NAME, request, mock(ActionListener.class), chain);
@@ -597,9 +585,17 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends ESTestCase {
     }
 
     private record DelayResult(boolean shouldTimeout, long delayBeforeCompletionMs) {
-        static DelayResult immediate() { return new DelayResult(false, 0); }
-        static DelayResult timeout() { return new DelayResult(true, 0); }
-        static DelayResult delayThenComplete(long delayMs) { return new DelayResult(false, delayMs); }
+        static DelayResult immediate() {
+            return new DelayResult(false, 0);
+        }
+
+        static DelayResult timeout() {
+            return new DelayResult(true, 0);
+        }
+
+        static DelayResult delayThenComplete(long delayMs) {
+            return new DelayResult(false, delayMs);
+        }
     }
 
     private static class StaticModel extends TestModel {
@@ -621,8 +617,14 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends ESTestCase {
             );
         }
 
-        StaticModel(String inferenceId, org.elasticsearch.inference.TaskType taskType, String service,
-                    TestServiceSettings serviceSettings, TestTaskSettings taskSettings, TestSecretSettings secretSettings) {
+        StaticModel(
+            String inferenceId,
+            org.elasticsearch.inference.TaskType taskType,
+            String service,
+            TestServiceSettings serviceSettings,
+            TestTaskSettings taskSettings,
+            TestSecretSettings secretSettings
+        ) {
             super(inferenceId, taskType, service, serviceSettings, taskSettings, secretSettings);
         }
 

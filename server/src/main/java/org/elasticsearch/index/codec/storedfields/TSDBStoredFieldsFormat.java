@@ -18,7 +18,12 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdStoredFieldsReader;
+import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.SyntheticIdField;
 
+import java.io.Closeable;
 import java.io.IOException;
 
 /**
@@ -42,25 +47,47 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
     }
 
     class TSDBStoredFieldsReader extends StoredFieldsReader {
+
         private final StoredFieldsReader storedFieldsReader;
+        private final @Nullable StoredFieldsReader syntheticIdStoredFieldsReader; // null if no synthetic _id
 
         TSDBStoredFieldsReader(Directory directory, SegmentInfo si, FieldInfos fn, IOContext context) throws IOException {
-            this.storedFieldsReader = delegate.fieldsReader(directory, si, fn, context);
+            Closeable closeable = null;
+            try {
+                this.storedFieldsReader = delegate.fieldsReader(directory, si, fn, context);
+                closeable = this.storedFieldsReader;
+                var fieldInfo = fn.fieldInfo(IdFieldMapper.NAME);
+                if (fieldInfo != null && SyntheticIdField.hasSyntheticIdAttributes(fieldInfo.attributes())) {
+                    this.syntheticIdStoredFieldsReader = TSDBSyntheticIdStoredFieldsReader.open(directory, si, fn, context);
+                } else {
+                    this.syntheticIdStoredFieldsReader = null;
+                }
+                closeable = null;
+            } finally {
+                IOUtils.close(closeable);
+            }
         }
 
-        TSDBStoredFieldsReader(StoredFieldsReader storedFieldsReader) {
+        TSDBStoredFieldsReader(StoredFieldsReader storedFieldsReader, @Nullable StoredFieldsReader syntheticIdStoredFieldsReader) {
             this.storedFieldsReader = storedFieldsReader;
+            assert syntheticIdStoredFieldsReader == null || syntheticIdStoredFieldsReader instanceof TSDBSyntheticIdStoredFieldsReader;
+            this.syntheticIdStoredFieldsReader = syntheticIdStoredFieldsReader;
         }
 
         @Override
         public StoredFieldsReader clone() {
-            return new TSDBStoredFieldsReader(storedFieldsReader.clone());
+            return new TSDBStoredFieldsReader(
+                storedFieldsReader.clone(),
+                syntheticIdStoredFieldsReader != null ? syntheticIdStoredFieldsReader.clone() : null
+            );
         }
 
         @Override
         public StoredFieldsReader getMergeInstance() {
-            // TODO: double check that this is enough to ensure that low-level optimizations work for merges
-            return storedFieldsReader.getMergeInstance();
+            return new TSDBStoredFieldsReader(
+                storedFieldsReader.getMergeInstance(),
+                syntheticIdStoredFieldsReader != null ? syntheticIdStoredFieldsReader.getMergeInstance() : null
+            );
         }
 
         @Override
@@ -70,7 +97,7 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
 
         @Override
         public void close() throws IOException {
-            IOUtils.close(storedFieldsReader);
+            IOUtils.close(storedFieldsReader, syntheticIdStoredFieldsReader);
         }
 
         @Override
@@ -78,7 +105,9 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
             // Some clients of this API expect that the _id is read before other fields,
             // therefore we call first to the bloom filter reader so we can synthesize the _id
             // and read it in the expected order.
-            // TODO: materialize the _id if it's expected
+            if (syntheticIdStoredFieldsReader != null) {
+                syntheticIdStoredFieldsReader.document(docID, visitor);
+            }
             storedFieldsReader.document(docID, visitor);
         }
     }

@@ -1,4 +1,7 @@
 redirects:
+  # Elastic managed connectors page consolidated into main index
+  'reference/search-connectors/elastic-managed-connectors.md': '!reference/search-connectors/index.md'
+
   # Redirect for bbq.md move
   'reference/elasticsearch/index-settings/bbq.md': 'reference/elasticsearch/mapping-reference/bbq.md'
 
@@ -108,6 +111,8 @@ redirects:
   'reference/query-languages/esql/kibana/docs/functions/st_geohash_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'
   'reference/query-languages/esql/kibana/docs/functions/st_geotile_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'
   'reference/query-languages/esql/kibana/docs/functions/st_geohex_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'reference/query-languages/esql/kibana/docs/functions/all_first.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'reference/query-languages/esql/kibana/docs/functions/all_last.md': 'reference/query-languages/esql/esql-functions-operators.md'
 
   'reference/elasticsearch/mapping-reference/text.md':
     to: 'reference/elasticsearch/mapping-reference/text.md'

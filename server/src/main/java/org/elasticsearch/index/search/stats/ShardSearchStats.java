@@ -26,7 +26,6 @@ import java.util.function.Consumer;
 import static java.util.Collections.emptyMap;
 
 public final class ShardSearchStats implements SearchOperationListener {
-
     private final StatsHolder totalStats;
     private final CounterMetric openContexts = new CounterMetric();
     private volatile Map<String, StatsHolder> groupsStats = emptyMap();

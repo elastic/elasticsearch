@@ -23,7 +23,13 @@ import org.elasticsearch.core.Releasables;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Objects;
 
 /**
@@ -171,26 +177,35 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     }
 
     @Override
-    public void writeVInt(int i) throws IOException {
-        int currentOffset = this.currentOffset;
-        final int remainingBytesInPage = maxOffset - currentOffset;
-
-        // Single byte values (most common)
-        if ((i & 0xFFFFFF80) == 0) {
-            if (1 > remainingBytesInPage) {
-                super.writeVInt(i);
-            } else {
-                this.currentBufferPool[currentOffset] = (byte) i;
-                this.currentOffset = currentOffset + 1;
-            }
+    public void writeVInt(int i) {
+        if ((i & 0xFFFF_FF80) != 0) {
+            // The cold-path multi-byte case is extracted to its own method so the hotter-path single-byte case can inline.
+            writeMultiByteVInt(i);
             return;
         }
 
-        int bytesNeeded = vIntLength(i);
-        if (bytesNeeded > remainingBytesInPage) {
-            super.writeVInt(i);
+        final var maxOffset = this.maxOffset;
+        var currentOffset = this.currentOffset;
+        if (currentOffset == maxOffset) {
+            ensureCapacityFromPosition(positionOffset + currentOffset + 1);
+            currentOffset = nextPage();
+        }
+
+        this.currentBufferPool[currentOffset] = (byte) i;
+        this.currentOffset = currentOffset + 1;
+    }
+
+    private void writeMultiByteVInt(int i) {
+        final int currentOffset = this.currentOffset;
+        final int remainingBytesInPage = maxOffset - currentOffset;
+        if (5 > remainingBytesInPage && vIntLength(i) > remainingBytesInPage) {
+            while ((i & 0xFFFF_FF80) != 0) {
+                writeByte((byte) ((i & 0x7F) | 0x80));
+                i >>>= 7;
+            }
+            writeByte((byte) (i & 0x7F));
         } else {
-            this.currentOffset = currentOffset + StreamOutputHelper.putMultiByteVInt(this.currentBufferPool, i, currentOffset);
+            this.currentOffset = StreamOutputHelper.putMultiByteVInt(this.currentBufferPool, i, currentOffset);
         }
     }
 
@@ -415,6 +430,98 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         closeFields();
 
         return new ReleasableBytesReference(bytes, pages.size() == 1 ? pages.getFirst() : Releasables.wrap(pages));
+    }
+
+    /**
+     * Base64-encode the contents of the stream and convert to a {@link String}, avoiding unnecessary allocation and copying as much as
+     * possible.
+     *
+     * @param encoder Encoder to use. Must not insert line-breaks.
+     * @return Base64-encoded copy of the contents of the stream.
+     */
+    public String toBase64String(Base64.Encoder encoder) {
+        assert encoder.encode(new byte[120]).length == 160 : "Line breaks not supported";
+        if (pageIndex == 0) {
+            // common case: small object that fits into one page, can be encoded directly
+            final var rawLength = pageSize - (maxOffset - currentOffset);
+
+            // allocates a new array for the output
+            final var encodedBuffer = encoder.encode(ByteBuffer.wrap(currentBufferPool, currentOffset - rawLength, rawLength));
+            assert encodedBuffer.hasArray();
+
+            // copies the buffer to a fresh array to ensure immutability
+            return new String(encodedBuffer.array(), encodedBuffer.arrayOffset(), encodedBuffer.remaining(), StandardCharsets.ISO_8859_1);
+        } else {
+            return toBase64StringMultiPage(encoder);
+        }
+    }
+
+    private String toBase64StringMultiPage(Base64.Encoder encoder) {
+        // probably a mistake to want such a massive string, but let's do our best
+
+        class ToAsciiStringStream extends OutputStream {
+            // possibly slightly oversized but NB no space for line-breaks
+            final byte[] encodedBytes = new byte[Math.multiplyExact(4, Math.addExact(Math.toIntExact(position()), 2) / 3)];
+            int position;
+
+            @Override
+            public void write(int b) {
+                encodedBytes[position++] = (byte) b;
+            }
+
+            @Override
+            public void write(byte[] b, int off, int len) {
+                System.arraycopy(b, off, encodedBytes, position, len);
+                position += len;
+            }
+
+            @Override
+            public String toString() {
+                return new String(encodedBytes, 0, position, StandardCharsets.ISO_8859_1);
+            }
+        }
+
+        try (var toAsciiStringStream = new ToAsciiStringStream()) {
+            try (var encoderStream = encoder.wrap(toAsciiStringStream)) {
+                int copyPageIndex = 0;
+                for (final var page : pages) {
+                    final var pageContents = page.v();
+                    if (copyPageIndex++ < pageIndex) {
+                        encoderStream.write(pageContents.bytes, pageContents.offset, pageContents.length);
+                    } else {
+                        encoderStream.write(pageContents.bytes, pageContents.offset, currentOffset - pageContents.offset);
+                        break;
+                    }
+                }
+            }
+            return toAsciiStringStream.toString();
+        } catch (IOException e) {
+            assert false : e; // no actual IO happens here
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Copies the entire remaining contents of the given {@link InputStream} directly into this output, avoiding the need for any
+     * intermediate buffers.
+     */
+    public void writeAllBytesFrom(InputStream in) throws IOException {
+        while (true) {
+            final var currentBufferPool = this.currentBufferPool;
+            final var maxOffset = this.maxOffset;
+            var currentOffset = this.currentOffset;
+            while (currentOffset < maxOffset) {
+                int readSize = in.read(currentBufferPool, currentOffset, maxOffset - currentOffset);
+                if (readSize == -1) {
+                    this.currentOffset = currentOffset;
+                    return;
+                }
+                currentOffset += readSize;
+            }
+            this.currentOffset = maxOffset;
+            ensureCapacity(1);
+            nextPage();
+        }
     }
 
     private void closeFields() {

@@ -2,7 +2,8 @@
 
 ## `LAST` [esql-last]
 ```{applies_to}
-stack: ga 9.3.0
+stack: preview
+serverless: preview
 ```
 
 **Syntax**
@@ -23,4 +24,7 @@ stack: ga 9.3.0
 :::
 
 :::{include} ../examples/last.md
+:::
+
+:::{include} ../appendix/last.md
 :::

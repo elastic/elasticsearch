@@ -12,8 +12,8 @@ package org.elasticsearch.reservedstate.service;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.node.FileSettingsHealthInfo;
 import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService;
-import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -22,14 +22,14 @@ import java.util.Map;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
+import static org.elasticsearch.health.node.FileSettingsHealthInfo.INDETERMINATE;
+import static org.elasticsearch.health.node.FileSettingsHealthInfo.INITIAL_ACTIVE;
 import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService.FAILURE_SYMPTOM;
 import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService.INACTIVE_SYMPTOM;
 import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService.NAME;
 import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService.NO_CHANGES_SYMPTOM;
 import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService.STALE_SETTINGS_IMPACT;
 import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService.SUCCESS_SYMPTOM;
-import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthInfo.INDETERMINATE;
-import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthInfo.INITIAL_ACTIVE;
 
 /**
  * Tests that {@link FileSettingsHealthIndicatorService} produces the right {@link HealthIndicatorResult}

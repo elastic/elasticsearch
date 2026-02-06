@@ -52,6 +52,8 @@ public class EsqlAsyncActionIT extends EsqlActionIT {
     public EsqlQueryResponse run(EsqlQueryRequest original) {
         EsqlQueryRequest request = EsqlQueryRequest.asyncEsqlQueryRequest(original.query());
         request.pragmas(original.pragmas());
+        request.profile(original.profile());
+        request.acceptedPragmaRisks(true);
         // deliberately small timeout, to frequently trigger incomplete response
         request.waitForCompletionTimeout(TimeValue.timeValueNanos(1));
         request.keepOnCompletion(randomBoolean());

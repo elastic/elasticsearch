@@ -446,9 +446,6 @@ public class IndexResolver {
         EsField.TimeSeriesFieldType timeSeriesFieldType = EsField.TimeSeriesFieldType.fromIndexFieldCapabilities(first);
         if (rest.isEmpty() == false) {
             for (IndexFieldCapabilities fc : rest) {
-                if (first.metricType() != fc.metricType()) {
-                    return conflictingMetricTypes(name, fullName, fieldsInfo.caps);
-                }
                 try {
                     timeSeriesFieldType = timeSeriesFieldType.merge(EsField.TimeSeriesFieldType.fromIndexFieldCapabilities(fc));
                 } catch (IllegalArgumentException e) {

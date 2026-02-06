@@ -109,7 +109,7 @@ public class InferenceFunctionEvaluator {
             }
         }, CircuitBreaker.REQUEST).withCircuitBreaking();
 
-        DriverContext driverContext = new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
+        DriverContext driverContext = new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays), null);
 
         // Create the inference operator for the specific function type using the provider
         try {
@@ -215,7 +215,8 @@ public class InferenceFunctionEvaluator {
                     case CompletionFunction completion -> new CompletionOperator.Factory(
                         inferenceService,
                         inferenceId(inferenceFunction, foldContext),
-                        expressionEvaluatorFactory(completion.prompt(), foldContext)
+                        expressionEvaluatorFactory(completion.prompt(), foldContext),
+                        completion.taskSettings().toFoldedMap(foldContext)
                     );
                     default -> throw new IllegalArgumentException("Unknown inference function: " + inferenceFunction.getClass().getName());
                 };

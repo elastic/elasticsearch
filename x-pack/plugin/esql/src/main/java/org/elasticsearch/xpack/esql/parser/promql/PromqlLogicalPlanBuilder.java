@@ -433,26 +433,34 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         if (paramCount > metadata.arity().max()) {
             throw new ParsingException(source, message, name, metadata.arity().max(), paramCount);
         }
-
-        // child plan is always the first parameter
-        // TODO this is not the case for the quantile function as the first parameter is the quantile value
-        LogicalPlan child = params.stream().findFirst().map(param -> switch (param) {
-            case LogicalPlan plan -> plan;
-            case Literal literal -> new LiteralSelector(source, literal);
-            case Node n -> throw new IllegalStateException("Unexpected value: " + n);
-        }).orElse(null);
-
-        // PromQL expects early validation of the tree so let's do it here
-        PromqlDataType expectedInputType = metadata.functionType().inputType();
-        PromqlDataType actualInputType = PromqlPlan.getReturnType(child);
-        if (actualInputType != expectedInputType) {
-            throw new ParsingException(
-                source,
-                "expected type {} in call to function [{}], got {}",
-                expectedInputType,
-                name,
-                actualInputType
-            );
+        LogicalPlan child = null;
+        List<Expression> extraParams = new ArrayList<>(Math.max(0, params.size() - 1));
+        List<PromqlFunctionRegistry.ParamInfo> functionParams = metadata.params();
+        for (int i = 0; i < functionParams.size() && params.size() > i; i++) {
+            PromqlFunctionRegistry.ParamInfo expectedParam = functionParams.get(i);
+            LogicalPlan providedParam = switch (params.get(i)) {
+                case LogicalPlan plan -> plan;
+                case Literal literal -> new LiteralSelector(source, literal);
+                case Node n -> throw new IllegalStateException("Unexpected value: " + n);
+            };
+            assert providedParam instanceof PromqlPlan;
+            PromqlDataType actualType = PromqlPlan.getType(providedParam);
+            PromqlDataType expectedType = expectedParam.type();
+            if (actualType != expectedType) {
+                throw new ParsingException(source, "expected type {} in call to function [{}], got {}", expectedType, name, actualType);
+            }
+            if (expectedParam.child()) {
+                child = providedParam;
+            } else if (providedParam instanceof LiteralSelector literalSelector) {
+                extraParams.add(literalSelector.literal());
+            } else {
+                throw new ParsingException(
+                    source,
+                    "expected literal parameter in call to function [{}], got {}",
+                    name,
+                    providedParam.nodeName()
+                );
+            }
         }
 
         PromqlBaseParser.GroupingContext groupingContext = ctx.grouping();
@@ -477,12 +485,8 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             for (int i = 0; i < groupingKeys.size(); i++) {
                 groupings.add(new UnresolvedAttribute(source(labelListCtx.labelName(i)), groupingKeys.get(i)));
             }
-            plan = new AcrossSeriesAggregate(source, child, name, List.of(), grouping, groupings);
+            plan = new AcrossSeriesAggregate(source, child, name, extraParams, grouping, groupings);
         } else {
-            List<Expression> extraParams = params.stream()
-                .skip(1) // skip first param (child)
-                .map(Expression.class::cast)
-                .toList();
             plan = switch (metadata.functionType()) {
                 case ACROSS_SERIES_AGGREGATION -> new AcrossSeriesAggregate(
                     source,

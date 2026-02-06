@@ -688,6 +688,14 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return vector;
     }
 
+    public static List<Float> randomDenseVector(int dimension) {
+        List<Float> vector = new ArrayList<>();
+        for (int i = 0; i < dimension; i++) {
+            vector.add(randomFloatBetween(-1.0f, +1.0f, true));
+        }
+        return vector;
+    }
+
     /**
      * Generate positive test cases for a unary function operating on an {@link DataType#BOOLEAN}.
      */
@@ -942,6 +950,16 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<String> warnings
     ) {
         unary(suppliers, expectedEvaluatorToString, histogramCases(), expectedType, v -> expectedValue.apply((BytesRef) v), warnings);
+    }
+
+    public static void forUnaryTDigest(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<TDigestHolder, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unary(suppliers, expectedEvaluatorToString, tdigestCases(), expectedType, v -> expectedValue.apply((TDigestHolder) v), warnings);
     }
 
     private static void unaryNumeric(
@@ -1728,7 +1746,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         private final List<TypedData> data;
 
         /**
-         * The expected toString output for the evaluator this function invocation should generate
+         * The expected toString output for the evaluator this function invocation should generate.
          */
         private final Matcher<String> evaluatorToString;
         /**
@@ -2010,6 +2028,24 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             );
         }
 
+        public TestCase withWarnings(Collection<String> warnings) {
+            return new TestCase(
+                source,
+                configuration,
+                data,
+                evaluatorToString,
+                expectedType,
+                matcher,
+                warnings == null ? null : warnings.toArray(new String[0]),
+                expectedBuildEvaluatorWarnings,
+                expectedTypeError,
+                foldingExceptionClass,
+                foldingExceptionMessage,
+                extra,
+                canBuildEvaluator
+            );
+        }
+
         /**
          * Warnings that are added by calling {@link AbstractFunctionTestCase#evaluator}
          * or {@link Expression#fold} on the expression built by this.
@@ -2132,6 +2168,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         public static final TypedData NULL = new TypedData(null, DataType.NULL, "<null>");
         public static final TypedData MULTI_ROW_NULL = TypedData.multiRow(Collections.singletonList(null), DataType.NULL, "<null>");
 
+        /**
+         * The original test data, without unsigned long conversion.
+         */
+        private final Object originalData;
         private final Object data;
         private final DataType type;
         private final String name;
@@ -2158,8 +2198,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             assert multiRow == false || data instanceof List : "multiRow data must be a List";
             assert multiRow == false || forceLiteral == false : "multiRow data can't be converted to a literal";
 
-            if (type == DataType.UNSIGNED_LONG && data instanceof BigInteger b) {
-                this.data = NumericUtils.asLongUnsigned(b);
+            this.originalData = data;
+            if (type == DataType.UNSIGNED_LONG) {
+                this.data = bigIntegersToLong(data);
             } else {
                 this.data = data;
             }
@@ -2306,11 +2347,26 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         /**
+         * The original data, without unsigned long conversion.
+         */
+        public Object originalData() {
+            return originalData;
+        }
+
+        /**
          * Values to test against.
          */
         @SuppressWarnings("unchecked")
         public List<Object> multiRowData() {
             return (List<Object>) data;
+        }
+
+        /**
+         * The original data, without unsigned long conversion.
+         */
+        @SuppressWarnings("unchecked")
+        public List<Object> originalMultiRowData() {
+            return (List<Object>) originalData;
         }
 
         /**
@@ -2350,6 +2406,21 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         public String name() {
             return name;
+        }
+
+        /**
+         * Converts a BigInteger ulong to a long value.
+         * <p>
+         *     If multivalue or multirow, converts them all.
+         * </p>
+         */
+        private static Object bigIntegersToLong(Object ulongs) {
+            if (ulongs instanceof BigInteger bi) {
+                return NumericUtils.asLongUnsigned(bi);
+            } else if (ulongs instanceof List<?> list) {
+                return list.stream().map(TypedData::bigIntegersToLong).toList();
+            }
+            return ulongs;
         }
     }
 

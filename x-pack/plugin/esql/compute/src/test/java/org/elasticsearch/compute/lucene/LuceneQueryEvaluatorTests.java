@@ -38,8 +38,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.ShuffleDocsOperator;
 import org.elasticsearch.compute.test.ComputeTestCase;
-import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
@@ -211,6 +211,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block
                     new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths) -> {
                         throw new UnsupportedOperationException();
                     }, 0.2)),
+                    true,
                     0
                 )
             );
@@ -223,7 +224,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block
                 operators,
                 new TestResultPageSinkOperator(results::add)
             );
-            OperatorTestCase.runDriver(driver);
+            new TestDriverRunner().run(driver);
             OperatorTests.assertDriverContext(driverContext);
             return results;
         });
@@ -256,7 +257,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block
      */
     private DriverContext driverContext() {
         BlockFactory blockFactory = blockFactory();
-        return new DriverContext(blockFactory.bigArrays(), blockFactory);
+        return new DriverContext(blockFactory.bigArrays(), blockFactory, null);
     }
 
     // Returns the initial block index, ignoring the score block if scoring is enabled

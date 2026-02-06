@@ -61,7 +61,7 @@ public final class TDigestStates {
                 return;
             }
             if (merger == null) {
-                merger = TDigestState.create(breaker, COMPRESSION, EXECUTION_HINT);
+                merger = TDigestState.createOfType(breaker, TDigestState.Type.MERGING, COMPRESSION);
             }
             histogram.addTo(merger);
             sum = nanAwareAgg(histogram.getSum(), sum, Double::sum);
@@ -160,7 +160,7 @@ public final class TDigestStates {
             double sum;
             long count;
             if (state == null) {
-                state = TDigestState.create(breaker, COMPRESSION, EXECUTION_HINT);
+                state = TDigestState.createOfType(breaker, TDigestState.Type.MERGING, COMPRESSION);
                 states.set(groupId, state);
                 min = Double.NaN;
                 max = Double.NaN;

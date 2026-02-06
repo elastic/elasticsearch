@@ -278,7 +278,15 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             10,
             null
         );
-        PlannerSettings plannerSettings = new PlannerSettings(DataPartitioning.AUTO, ByteSizeValue.ofMb(1), 10_000, ByteSizeValue.ofMb(1));
+        PlannerSettings plannerSettings = new PlannerSettings(
+            DataPartitioning.AUTO,
+            ByteSizeValue.ofMb(1),
+            10_000,
+            ByteSizeValue.ofMb(1),
+            between(1, 10000),
+            randomDoubleBetween(0.1, 1.0, true),
+            between(0, 1000)
+        );
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",
             FoldContext.small(),
@@ -372,7 +380,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             randomBoolean(),
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(null),
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(null),
-            null
+            null,
+            Map.of()
         );
     }
 

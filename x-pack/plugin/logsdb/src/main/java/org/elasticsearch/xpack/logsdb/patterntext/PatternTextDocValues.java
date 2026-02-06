@@ -27,26 +27,12 @@ public final class PatternTextDocValues extends BinaryDocValues {
         this.argsInfoDocValues = argsInfoDocValues;
     }
 
-    static BinaryDocValues from(
-        LeafReader leafReader,
-        String templateFieldName,
-        String argsFieldName,
-        String argsInfoFieldName,
-        boolean useBinaryDocValueArgs
-    ) throws IOException {
-        SortedSetDocValues templateDocValues = DocValues.getSortedSet(leafReader, templateFieldName);
-        BinaryDocValues argsDocValues = getArgsDocValues(leafReader, argsFieldName, useBinaryDocValueArgs);
-        SortedSetDocValues argsInfoDocValues = DocValues.getSortedSet(leafReader, argsInfoFieldName);
-        return new PatternTextDocValues(templateDocValues, argsDocValues, argsInfoDocValues);
-    }
-
     /**
      * Args columns was originally a SortedSetDocValues column and was replaced with BinaryDocValues.
      * To maintain backwards compatibility, if a BinaryDocValues column does not exist, use the old SortedSetDocValues.
      * Since pattern_text fields are not multivalued we can wrap the SortedSetDocValues in a BinaryDocValues interface.
      */
-    private static BinaryDocValues getArgsDocValues(LeafReader leafReader, String argsFieldName, boolean useBinaryDocValueArgs)
-        throws IOException {
+    static BinaryDocValues getArgsDocValues(LeafReader leafReader, String argsFieldName, boolean useBinaryDocValueArgs) throws IOException {
         if (useBinaryDocValueArgs) {
             return DocValues.getBinary(leafReader, argsFieldName);
         } else {
@@ -78,11 +64,15 @@ public final class PatternTextDocValues extends BinaryDocValues {
     }
 
     @Override
-    public boolean advanceExact(int i) throws IOException {
-        argsDocValues.advanceExact(i);
-        argsInfoDocValues.advanceExact(i);
-        // If template has a value, then message has a value. We don't have to check args here, since there may not be args for the doc
-        return templateDocValues.advanceExact(i);
+    public boolean advanceExact(int target) throws IOException {
+        if (templateDocValues.advanceExact(target)) {
+            // If template has a value, then message has a value. We don't have to check args here, since there may not be args for the doc
+            argsDocValues.advanceExact(target);
+            argsInfoDocValues.advanceExact(target);
+            return true;
+        } else {
+            return false;
+        }
     }
 
     @Override
@@ -96,7 +86,7 @@ public final class PatternTextDocValues extends BinaryDocValues {
     }
 
     @Override
-    public int advance(int i) throws IOException {
+    public int advance(int target) throws IOException {
         throw new UnsupportedOperationException();
     }
 

@@ -45,6 +45,11 @@ public class EsqlCapabilities {
         ST_X_Y,
 
         /**
+         * Quantize results of {@code ST_X} and {@code ST_Y} and related functions
+         */
+        ST_X_Y_QUANTIZED,
+
+        /**
          * Changed precision of {@code geo_point} and {@code cartesian_point} fields, by loading from source into WKB. Done in #103691.
          */
         SPATIAL_POINTS_FROM_SOURCE,
@@ -245,6 +250,11 @@ public class EsqlCapabilities {
         FN_IP_PREFIX,
 
         /**
+         * Fix a bug leading to the scratch leaking data to other rows.
+         */
+        FN_IP_PREFIX_FIX_DIRTY_SCRATCH_LEAK,
+
+        /**
          * Fix on function {@code SUBSTRING} that makes it not return null on empty strings.
          */
         FN_SUBSTRING_EMPTY_NULL,
@@ -274,6 +284,11 @@ public class EsqlCapabilities {
          * <a href="https://github.com/elastic/elasticsearch/pull/133099/">Add MV_CONTAINS function #133099</a>
          */
         FN_MV_CONTAINS_V1,
+
+        /**
+         * support for MV_INTERSECTS function
+         */
+        FN_MV_INTERSECTS,
 
         /**
          * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.
@@ -349,6 +364,11 @@ public class EsqlCapabilities {
          * {@code CASE} properly handling multivalue conditions.
          */
         CASE_MV,
+
+        /**
+         * {@code CASE} folding with DATE_PERIOD and TIME_DURATION return types.
+         */
+        CASE_FOLD_TEMPORAL_AMOUNT,
 
         /**
          * Support for loading values over enrich. This is supported by all versions of ESQL but not
@@ -1151,9 +1171,24 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT(Build.current().isSnapshot()),
 
         /**
+         * Append an implicit limit to unbounded sorts in subqueries in the FROM clause.
+         */
+        SUBQUERY_IN_FROM_COMMAND_APPEND_IMPLICIT_LIMIT_TO_UNBOUNDED_SORT_IN_SUBQUERY(Build.current().isSnapshot()),
+
+        /**
          * Support for views in cluster state (and REST API).
          */
         VIEWS_IN_CLUSTER_STATE(EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG.isEnabled()),
+
+        /**
+         * Basic Views with no branching (do not need subqueries or FORK).
+         */
+        VIEWS_WITH_NO_BRANCHING(VIEWS_IN_CLUSTER_STATE.isEnabled()),
+
+        /**
+         * Views with branching (requires subqueries/FORK).
+         */
+        VIEWS_WITH_BRANCHING(VIEWS_WITH_NO_BRANCHING.isEnabled() && SUBQUERY_IN_FROM_COMMAND.isEnabled()),
 
         /**
          * Support for the {@code leading_zeros} named parameter.
@@ -1359,32 +1394,32 @@ public class EsqlCapabilities {
         /**
          * Support timezones in DATE_TRUNC and dependent functions.
          */
-        DATE_TRUNC_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+        DATE_TRUNC_TIMEZONE_SUPPORT,
 
         /**
          * Support timezones in DATE_DIFF.
          */
-        DATE_DIFF_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+        DATE_DIFF_TIMEZONE_SUPPORT,
 
         /**
          * Support timezones in KQL and QSTR.
          */
-        KQL_QSTR_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+        KQL_QSTR_TIMEZONE_SUPPORT,
 
         /**
          * Support timezones in the conversion utils and functions, like TO_STRING.
          */
-        TYPE_CONVERSION_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+        TYPE_CONVERSION_TIMEZONE_SUPPORT,
 
         /**
          * Support timezones in DATE_FORMAT and DATE_PARSE.
          */
-        DATE_FORMAT_DATE_PARSE_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+        DATE_FORMAT_DATE_PARSE_TIMEZONE_SUPPORT,
 
         /**
          * Support timezones in + and - operators.
          */
-        ADD_SUB_OPERATOR_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+        ADD_SUB_OPERATOR_TIMEZONE_SUPPORT,
 
         /**
          * (Re)Added EXPLAIN command
@@ -1449,12 +1484,6 @@ public class EsqlCapabilities {
          * Decay function for custom scoring
          */
         DECAY_FUNCTION,
-
-        /**
-         * FIRST and LAST aggregate functions.
-         */
-        AGG_FIRST_LAST(Build.current().isSnapshot()),
-        AGG_FIRST_LAST_STRING(Build.current().isSnapshot()),
 
         /**
          * Support correct counting of skipped shards.
@@ -1630,6 +1659,13 @@ public class EsqlCapabilities {
         TS_PERMIT_TEXT_BECOMING_KEYWORD_WHEN_GROUPED_ON,
 
         /**
+         * Fix for a bug where if you queried multiple TS indices with a field
+         * mapped to different types, the original types/suggested cast sections
+         * of the return result would be empty.
+         */
+        TS_ORIGINAL_TYPES_BUG_FIXED,
+
+        /**
          * Fix management of plans with no columns
          * https://github.com/elastic/elasticsearch/issues/120272
          */
@@ -1671,9 +1707,26 @@ public class EsqlCapabilities {
         TDIGEST_TECH_PREVIEW,
 
         /**
+         * Adds the ability for the {@link org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case}
+         * to return values of type TDIGEST, type HISTOGRAM, and type AGGREGATE_METRIC_DOUBLE.
+         */
+        CASE_SUPPORT_FOR_SUMMARY_FIELDS,
+
+        /**
          * Histogram field integration
          */
         HISTOGRAM_RELEASE_VERSION,
+
+        /**
+         * Support for running the Count aggregation on t-digest and exponential histogram types
+         */
+        COUNT_OF_HISTOGRAM_TYPES,
+        /**
+         * Fix for <a href="https://github.com/elastic/elasticsearch/issues/140670">140670</a>,
+         * this allows for type conversion functions with no further computation to be
+         * evaluated inside default wrapping _over_time functions.
+         */
+        ALLOW_CASTING_IN_DEFAULT_TS_AGGS,
         /**
          * Create new block when filtering OrdinalBytesRefBlock
          */
@@ -1733,6 +1786,11 @@ public class EsqlCapabilities {
         LOOKUP_JOIN_SEMANTIC_FILTER_DEDUP,
 
         /**
+         * Warning when SORT is followed by LOOKUP JOIN which does not preserve order.
+         */
+        LOOKUP_JOIN_SORT_WARNING,
+
+        /**
          * Temporarily forbid the use of an explicit or implicit LIMIT before INLINE STATS.
          */
         FORBID_LIMIT_BEFORE_INLINE_STATS(INLINE_STATS.enabled),
@@ -1771,7 +1829,7 @@ public class EsqlCapabilities {
         CHUNK_FUNCTION_V2(),
 
         /**
-         * Support for vector similarity functtions pushdown
+         * Support for vector similarity functions pushdown
          */
         VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN,
 
@@ -1780,11 +1838,14 @@ public class EsqlCapabilities {
         FULL_TEXT_FUNCTIONS_ACCEPT_NULL_FIELD,
 
         /**
-         * Support for the temporary work to eventually allow FIRST to work with null and multi-value fields, among other things.
+         * Make FIRST agg work with null and multi-value fields.
          */
-        ALL_FIRST(Build.current().isSnapshot()),
+        FIRST_AGG_WITH_NULL_AND_MV_SUPPORT,
 
-        ALL_LAST(Build.current().isSnapshot()),
+        /**
+         * Make LAST agg work with null and multi-value fields.
+         */
+        LAST_AGG_WITH_NULL_AND_MV_SUPPORT,
 
         /**
          * Allow ST_EXTENT_AGG to gracefully handle missing spatial shapes
@@ -1802,15 +1863,31 @@ public class EsqlCapabilities {
         LIKE_PARAMETER_SUPPORT,
 
         /**
-         * PromQL support in ESQL, before it is released into tech preview.
-         * When implementing new functionality or breaking changes,
-         * we'll simply increment the version suffix at the end to prevent bwc tests from running.
-         * As soon as we move into tech preview, we'll replace this capability with a "PROMQL_TECH_PREVIEW" one.
-         * At this point, we need to add new capabilities for any further changes.
+         * PromQL support in ESQL, in the state it was when first available in non-snapshot builds.
          */
-        PROMQL_PRE_TECH_PREVIEW_V14(Build.current().isSnapshot()),
+        PROMQL_COMMAND_V0,
 
-        PROMQL_MULTIPLE_FILTERS_FOR_SAME_LABEL(PROMQL_PRE_TECH_PREVIEW_V14.isEnabled()),
+        /**
+         * Bundle flag for PromQL math functions.
+         */
+        PROMQL_MATH_V0(),
+
+        /**
+         * Initial support for simple binary comparisons in PromQL.
+         * Only top-level comparisons are supported where the right-hand side is a scalar.
+         */
+        PROMQL_BINARY_COMPARISON_V0(),
+
+        /**
+         * Support for PromQL time() function.
+         */
+        PROMQL_TIME,
+
+        /**
+         * Queries for unmapped fields return no data instead of an error.
+         * Also filters out nulls from results.
+         */
+        PROMQL_UNMAPPED_FIELDS_FILTER_NULLS,
 
         /**
          * KNN function adds support for k and visit_percentage options
@@ -1834,6 +1911,12 @@ public class EsqlCapabilities {
          * Returns the top snippets for given text content and associated query.
          */
         TOP_SNIPPETS_FUNCTION,
+
+        /**
+         * A fix allowing the {@code TOP_SNIPPETS} function to process string config
+         * parameters like the other functions.
+         */
+        TOP_SNIPPETS_FUNCTION_STRING_CONFIG,
 
         /**
          * Fix for multi-value constant propagation after GROUP BY.
@@ -1885,7 +1968,7 @@ public class EsqlCapabilities {
         METADATA_TIER_FIELD(Build.current().isSnapshot()),
         /**
          * Fix folding of coalesce function
-         * https://github.com/elastic/elasticsearch/issues/139887
+         * https://github.com/elastic/elasticsearch/issues/139344
          */
         FIX_FOLD_COALESCE,
 
@@ -1898,6 +1981,11 @@ public class EsqlCapabilities {
          * Enrich works with dense_vector fields
          */
         ENRICH_DENSE_VECTOR_BUGFIX,
+
+        /**
+         * Support for dense_vector arithmetic operations (+, -, *, /)
+         */
+        DENSE_VECTOR_ARITHMETIC,
 
         /**
          * Dense_vector aggregation functions
@@ -1914,6 +2002,16 @@ public class EsqlCapabilities {
         TS_STATS_BINARY_OPS,
 
         /**
+         * Fix for INLINE STATS GROUP BY null being incorrectly pruned by PruneLeftJoinOnNullMatchingField.
+         * For INLINE STATS, the right side of the join can be Aggregate or LocalRelation (when optimized).
+         * The join key is always the grouping, and since STATS supports GROUP BY null, pruning the join when
+         * the join key (grouping) is null would incorrectly change the query results. This fix ensures
+         * PruneLeftJoinOnNullMatchingField only applies to LOOKUP JOIN (where right side is EsRelation).
+         * https://github.com/elastic/elasticsearch/issues/139887
+         */
+        FIX_INLINE_STATS_GROUP_BY_NULL(INLINE_STATS.enabled),
+
+        /**
          * Adds a conditional block loader for text fields that prefers using the sub-keyword field whenever possible.
          */
         CONDITIONAL_BLOCK_LOADER_FOR_TEXT_FIELDS,
@@ -1922,6 +2020,52 @@ public class EsqlCapabilities {
          * MMR result diversification command
          */
         MMR(Build.current().isSnapshot()),
+
+        /**
+         * Allow wildcards in FROM METADATA, eg FROM idx METADATA _ind*
+         */
+        METADATA_WILDCARDS,
+
+        /**
+         * Fixes reset calculation in rates where partitioning data into multiple slices can lead to incorrect results.
+         */
+        RATE_FIX_RESETS_MULTIPLE_SEGMENTS,
+
+        /**
+         * Support query approximation.
+         */
+        APPROXIMATION(Build.current().isSnapshot()),
+
+        /**
+         * Create a ScoreOperator only when shard contexts are available
+         */
+        FIX_SCORE_OPERATOR_PLANNING,
+
+        /**
+         * Periodically emit partial aggregation results when the number of groups exceeds the threshold.
+         */
+        PERIODIC_EMIT_PARTIAL_AGGREGATION_RESULTS,
+
+        /**
+         * Support for requesting the "_size" metadata field when the mapper-size plugin is enabled.
+         */
+        METADATA_SIZE_FIELD,
+
+        /**
+         * Fix for <a href="https://github.com/elastic/elasticsearch/issues/141627">141627</a>,
+         * TO_IP with leading_zeros=octal generates proper warning and returns null when given invalid input.
+         */
+        FIX_TO_IP_LEADING_ZEROS_OCTAL,
+
+        /**
+         * Support for configuring T-Digest elasticsearch field as a time series metric.
+         */
+        TDIGEST_TIME_SERIES_METRIC,
+
+        /**
+         * Fix bug with TS command where you can't group on aliases (i.e. `by c = cluster`)
+         */
+        TS_COMMAND_GROUP_ON_ALIASES,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

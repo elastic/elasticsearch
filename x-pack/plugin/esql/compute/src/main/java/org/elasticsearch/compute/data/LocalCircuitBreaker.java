@@ -35,6 +35,9 @@ public final class LocalCircuitBreaker implements CircuitBreaker, Releasable {
     private volatile Thread activeThread;
 
     public record SizeSettings(long overReservedBytes, long maxOverReservedBytes) {
+
+        public static final SizeSettings DEFAULT_SETTINGS = new SizeSettings(Settings.EMPTY);
+
         public SizeSettings(Settings settings) {
             this(
                 settings.getAsBytesSize(
@@ -188,6 +191,12 @@ public final class LocalCircuitBreaker implements CircuitBreaker, Releasable {
         private final long overReservedBytes;
         private final long maxOverReservedBytes;
         private LocalCircuitBreaker localCircuitBreaker;
+
+        public SingletonService(CircuitBreakerService delegateService, SizeSettings settings) {
+            this.delegateService = delegateService;
+            this.overReservedBytes = settings.overReservedBytes();
+            this.maxOverReservedBytes = settings.maxOverReservedBytes();
+        }
 
         public SingletonService(CircuitBreakerService delegateService, long overReservedBytes, long maxOverReservedBytes) {
             this.delegateService = delegateService;

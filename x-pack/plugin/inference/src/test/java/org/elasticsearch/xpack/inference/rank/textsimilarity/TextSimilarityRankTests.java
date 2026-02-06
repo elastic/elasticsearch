@@ -265,10 +265,7 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
         assertThat(ex.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
         assertThat(
             ex.getDetailedMessage(),
-            containsString(
-                "Scores not computed for all feature docs. This is a sign that the reranker service may be unexpectedly truncating ranked"
-                    + " docs."
-            )
+            containsString("Expected ranked doc size to be 5, got 4. Is the reranker service using an unreported top N task setting?")
         );
     }
 

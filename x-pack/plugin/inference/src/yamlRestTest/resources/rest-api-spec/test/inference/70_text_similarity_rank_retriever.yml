@@ -1353,6 +1353,5 @@ setup:
 
   - match: { status: 500 }
   - match: { error.suppressed.0.caused_by.type: illegal_state_exception }
-  - match: { error.suppressed.0.caused_by.reason: "Scores not computed for all feature docs. This is a sign that the
-      reranker service may be unexpectedly truncating ranked docs. Is the reranker service using an unreported top N
-      task setting?" }
+  - match: { error.suppressed.0.caused_by.reason: "Expected ranked doc size to be 3, got 1. Is the reranker service
+      using an unreported top N task setting?" }

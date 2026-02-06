@@ -38,8 +38,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContextTests extends E
             () -> extractScoresFromRankedDocs(rankedDocs.subList(0, 1), featureDocs)
         );
         assertEquals(
-            "Scores not computed for all feature docs. This is a sign that the reranker service may be unexpectedly truncating"
-                + " ranked docs. Is the reranker service using an unreported top N task setting?",
+            "Expected ranked doc size to be 3, got 1. Is the reranker service using an unreported top N task setting?",
             e.getMessage()
         );
     }
@@ -66,11 +65,10 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContextTests extends E
         // happen if the service has an unreported top_n setting in use.
         IllegalStateException e = assertThrows(
             IllegalStateException.class,
-            () -> extractScoresFromRankedDocs(rankedDocs.subList(0, 2), featureDocs)
+            () -> extractScoresFromRankedDocs(rankedDocs.subList(0, 3), featureDocs)
         );
         assertEquals(
-            "Scores not computed for all feature docs. This is a sign that the reranker service may be unexpectedly truncating"
-                + " ranked docs. Is the reranker service using an unreported top N task setting?",
+            "Expected ranked doc size to be 6, got 3. Is the reranker service using an unreported top N task setting?",
             e.getMessage()
         );
     }

@@ -165,6 +165,16 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
             }
         }
 
+        if (rankedDocToFeatureDoc.size() != rankedDocs.size()) {
+            throw new IllegalStateException(
+                "Expected ranked doc size to be "
+                    + rankedDocToFeatureDoc.size()
+                    + ", got "
+                    + rankedDocs.size()
+                    + ". Is the reranker service using an unreported top N task setting?"
+            );
+        }
+
         for (RankedDocsResults.RankedDoc rankedDoc : rankedDocs) {
             int featureDocIndex = rankedDocToFeatureDoc.get(rankedDoc.index());
             float score = rankedDoc.relevanceScore();
@@ -173,15 +183,9 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
 
         float[] result = new float[featureDocs.length];
         for (int i = 0; i < featureDocs.length; i++) {
-            // This check is _technically_ incomplete, since it can miss when chunk rescoring is in use and some subset of the chunks are
-            // truncated by the reranker service. However, for all practical purposes it is fine because it ensures that at least one
-            // reranked chunk (the best matching one) is returned for each feature doc.
             Float score = scores.get(i);
             if (score == null) {
-                throw new IllegalStateException(
-                    "Scores not computed for all feature docs. This is a sign that the reranker service may be unexpectedly truncating"
-                        + " ranked docs. Is the reranker service using an unreported top N task setting?"
-                );
+                throw new IllegalStateException("No score for feature doc at index " + i);
             }
 
             result[i] = score;

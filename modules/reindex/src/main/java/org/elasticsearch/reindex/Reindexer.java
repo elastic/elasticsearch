@@ -50,7 +50,7 @@ import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
-import org.elasticsearch.index.reindex.ScrollableHitSource;
+import org.elasticsearch.index.reindex.HitSource;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.elasticsearch.reindex.remote.RemoteScrollableHitSource;
 import org.elasticsearch.script.CtxMap;
@@ -161,7 +161,7 @@ public class Reindexer {
                 var searchExceptionSample = Optional.ofNullable(bulkByScrollResponse.getSearchFailures())
                     .stream()
                     .flatMap(List::stream)
-                    .map(ScrollableHitSource.SearchFailure::getReason)
+                    .map(HitSource.SearchFailure::getReason)
                     .findFirst();
                 var bulkExceptionSample = Optional.ofNullable(bulkByScrollResponse.getBulkFailures())
                     .stream()
@@ -313,7 +313,7 @@ public class Reindexer {
         }
 
         @Override
-        protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
+        protected HitSource buildScrollableResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
             if (mainRequest.getRemoteInfo() != null) {
                 RemoteInfo remoteInfo = mainRequest.getRemoteInfo();
                 createdThreads = synchronizedList(new ArrayList<>());
@@ -338,7 +338,7 @@ public class Reindexer {
         protected void finishHim(
             Exception failure,
             List<BulkItemResponse.Failure> indexingFailures,
-            List<ScrollableHitSource.SearchFailure> searchFailures,
+            List<HitSource.SearchFailure> searchFailures,
             boolean timedOut
         ) {
             super.finishHim(failure, indexingFailures, searchFailures, timedOut);
@@ -352,7 +352,7 @@ public class Reindexer {
         }
 
         @Override
-        public BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> buildScriptApplier() {
+        public BiFunction<RequestWrapper<?>, HitSource.Hit, RequestWrapper<?>> buildScriptApplier() {
             Script script = mainRequest.getScript();
             if (script != null) {
                 assert scriptService != null : "Script service must be set";
@@ -362,7 +362,7 @@ public class Reindexer {
         }
 
         @Override
-        protected RequestWrapper<IndexRequest> buildRequest(ScrollableHitSource.Hit doc) {
+        protected RequestWrapper<IndexRequest> buildRequest(HitSource.Hit doc) {
             IndexRequest index = new IndexRequest();
 
             // Copy the index from the request so we always write where it asked to write
@@ -457,7 +457,7 @@ public class Reindexer {
             }
 
             @Override
-            protected CtxMap<ReindexMetadata> execute(ScrollableHitSource.Hit doc, Map<String, Object> source) {
+            protected CtxMap<ReindexMetadata> execute(HitSource.Hit doc, Map<String, Object> source) {
                 if (reindex == null) {
                     reindex = scriptService.compile(script, ReindexScript.CONTEXT);
                 }

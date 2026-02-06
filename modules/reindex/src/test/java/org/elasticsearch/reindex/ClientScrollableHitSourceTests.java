@@ -28,7 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.ClientScrollableHitSource;
-import org.elasticsearch.index.reindex.ScrollableHitSource;
+import org.elasticsearch.index.reindex.HitSource;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
@@ -87,7 +87,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
 
     private void dotestBasicsWithRetry(int retries, int minFailures, int maxFailures, Consumer<Exception> failureHandler)
         throws InterruptedException {
-        BlockingQueue<ScrollableHitSource.AsyncResponse> responses = new ArrayBlockingQueue<>(100);
+        BlockingQueue<HitSource.AsyncResponse> responses = new ArrayBlockingQueue<>(100);
         MockClient client = new MockClient(threadPool);
         TaskId parentTask = new TaskId("thenode", randomInt());
         AtomicInteger actualSearchRetries = new AtomicInteger();
@@ -118,7 +118,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
             client.respond(TransportSearchAction.TYPE, searchResponse);
 
             for (int i = 0; i < randomIntBetween(1, 10); ++i) {
-                ScrollableHitSource.AsyncResponse asyncResponse = responses.poll(10, TimeUnit.SECONDS);
+                HitSource.AsyncResponse asyncResponse = responses.poll(10, TimeUnit.SECONDS);
                 assertNotNull(asyncResponse);
                 assertEquals(responses.size(), 0);
                 assertSameHits(asyncResponse.response().getHits(), searchResponse.getHits().getHits());
@@ -172,7 +172,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
         return SearchResponseUtils.response(hits).scrollId(randomSimpleString(random(), 1, 10)).shards(5, 4, 0).build();
     }
 
-    private void assertSameHits(List<? extends ScrollableHitSource.Hit> actual, SearchHit[] expected) {
+    private void assertSameHits(List<? extends HitSource.Hit> actual, SearchHit[] expected) {
         assertEquals(actual.size(), expected.length);
         for (int i = 0; i < actual.size(); ++i) {
             assertThat(expected[i].getSourceRef(), equalBytes(actual.get(i).getSource()));

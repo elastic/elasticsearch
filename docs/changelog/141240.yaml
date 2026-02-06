@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 141240
+summary: ES|QL CHUNK function multi-valued field support
+type: enhancement

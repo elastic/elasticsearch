@@ -11,20 +11,30 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.features.TransportResetFeatureStateAction;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
+import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.junit.After;
 
+import java.time.Instant;
 import java.util.Collection;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public abstract class TransformSingleNodeTestCase extends ESSingleNodeTestCase {
 
@@ -72,6 +82,31 @@ public abstract class TransformSingleNodeTestCase extends ESSingleNodeTestCase {
 
         function.accept(listener);
         assertTrue("timed out after 20s", latch.await(20, TimeUnit.SECONDS));
+    }
+
+    protected void createSourceIndex(String index) {
+        indicesAdmin().create(new CreateIndexRequest(index)).actionGet();
+    }
+
+    protected void indexRandomDiceDoc(String index) {
+        client().bulk(
+            new BulkRequest().add(new IndexRequest(index).source(Map.of("time", Instant.now().toEpochMilli(), "roll", randomInt(20))))
+        ).actionGet(TimeValue.THIRTY_SECONDS);
+    }
+
+    protected void createTransform(TransformConfig transformConfig) {
+        var request = new PutTransformAction.Request(transformConfig, false, TimeValue.THIRTY_SECONDS);
+        client().execute(PutTransformAction.INSTANCE, request).actionGet(TimeValue.THIRTY_SECONDS);
+    }
+
+    protected TransformConfig getTransform(String transformId) {
+        var response = client().execute(
+            GetTransformAction.INSTANCE,
+            new GetTransformAction.Request(transformId, false, TimeValue.THIRTY_SECONDS)
+        ).actionGet(TimeValue.THIRTY_SECONDS);
+        var configs = response.getTransformConfigurations();
+        assertThat(configs, hasSize(1));
+        return configs.getFirst();
     }
 
 }

@@ -128,18 +128,11 @@ public class AggregatorBenchmark {
                 for (String op : AggregatorBenchmark.class.getField("op").getAnnotationsByType(Param.class)[0].value()) {
                     for (String blockType : AggregatorBenchmark.class.getField("blockType").getAnnotationsByType(Param.class)[0].value()) {
                         for (String filter : AggregatorBenchmark.class.getField("filter").getAnnotationsByType(Param.class)[0].value()) {
-                            for (String groups : AggregatorBenchmark.class.getField("groups").getAnnotationsByType(Param.class)[0].value()) {
+                            for (String groups : AggregatorBenchmark.class.getField("groups").getAnnotationsByType(Param.class)[0]
+                                .value()) {
                                 for (String distinctPerGroup : AggregatorBenchmark.class.getField("distinctPerGroup")
                                     .getAnnotationsByType(Param.class)[0].value()) {
-                                    run(
-                                        grouping,
-                                        op,
-                                        blockType,
-                                        filter,
-                                        Integer.parseInt(groups),
-                                        Integer.parseInt(distinctPerGroup),
-                                        10
-                                    );
+                                    run(grouping, op, blockType, filter, Integer.parseInt(groups), Integer.parseInt(distinctPerGroup), 10);
                                 }
                             }
                         }
@@ -656,9 +649,15 @@ public class AggregatorBenchmark {
     private static List<Block> groupingBlocks(String grouping, String blockType, int groupCount) {
         return switch (grouping) {
             case TWO_LONGS -> List.of(groupingBlock(LONGS, blockType, groupCount), groupingBlock(LONGS, blockType, groupCount));
-            case TWO_BYTES_REFS -> List.of(groupingBlock(BYTES_REFS, blockType, groupCount), groupingBlock(BYTES_REFS, blockType, groupCount));
+            case TWO_BYTES_REFS -> List.of(
+                groupingBlock(BYTES_REFS, blockType, groupCount),
+                groupingBlock(BYTES_REFS, blockType, groupCount)
+            );
             case TWO_ORDINALS -> List.of(groupingBlock(ORDINALS, blockType, groupCount), groupingBlock(ORDINALS, blockType, groupCount));
-            case LONGS_AND_BYTES_REFS -> List.of(groupingBlock(LONGS, blockType, groupCount), groupingBlock(BYTES_REFS, blockType, groupCount));
+            case LONGS_AND_BYTES_REFS -> List.of(
+                groupingBlock(LONGS, blockType, groupCount),
+                groupingBlock(BYTES_REFS, blockType, groupCount)
+            );
             case TWO_LONGS_AND_BYTES_REFS -> List.of(
                 groupingBlock(LONGS, blockType, groupCount),
                 groupingBlock(LONGS, blockType, groupCount),

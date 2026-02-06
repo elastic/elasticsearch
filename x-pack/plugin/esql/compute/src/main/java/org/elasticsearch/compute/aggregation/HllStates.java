@@ -14,7 +14,7 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
@@ -23,28 +23,27 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.metrics.AbstractHyperLogLogPlusPlus;
 import org.elasticsearch.search.aggregations.metrics.HyperLogLogPlusPlus;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
 final class HllStates {
     private HllStates() {}
 
-    static BytesRef serializeHLL(int groupId, HyperLogLogPlusPlus hll) {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        OutputStreamStreamOutput out = new OutputStreamStreamOutput(baos);
+    static BytesRef serializeHLL(int groupId, HyperLogLogPlusPlus hll, BytesStreamOutput scratch) {
+        if (scratch.size() > 0) {
+            scratch.seek(0);
+        }
         try {
-            hll.writeTo(groupId, out);
+            hll.writeTo(groupId, scratch);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        return new BytesRef(baos.toByteArray());
+        return scratch.bytes().toBytesRef();
     }
 
-    static AbstractHyperLogLogPlusPlus deserializeHLL(BytesRef bytesRef) {
-        ByteArrayStreamInput in = new ByteArrayStreamInput(bytesRef.bytes);
-        in.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+    static void mergeSerialized(HyperLogLogPlusPlus hll, int groupId, BytesRef bytesRef, ByteArrayStreamInput scratchInput) {
+        scratchInput.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
         try {
-            return HyperLogLogPlusPlus.readFrom(in, BigArrays.NON_RECYCLING_INSTANCE);
+            hll.mergeSerialized(groupId, scratchInput);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -77,9 +76,13 @@ final class HllStates {
         private static final int SINGLE_BUCKET_ORD = 0;
         final HyperLogLogPlusPlus hll;
         private final MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
+        private final BytesStreamOutput scratch;
+        private final ByteArrayStreamInput scratchInput;
 
         SingleState(BigArrays bigArrays, int precision) {
             this.hll = new HyperLogLogPlusPlus(HyperLogLogPlusPlus.precisionFromThreshold(precision), bigArrays, 1);
+            this.scratch = new BytesStreamOutput();
+            this.scratchInput = new ByteArrayStreamInput(new byte[0]);
         }
 
         void collect(long v) {
@@ -112,14 +115,15 @@ final class HllStates {
         }
 
         void merge(int groupId, BytesRef other, int otherGroup) {
-            hll.merge(groupId, deserializeHLL(other), otherGroup);
+            assert otherGroup == 0;
+            mergeSerialized(hll, groupId, other, scratchInput);
         }
 
         /** Extracts an intermediate view of the contents of this state.  */
         @Override
         public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
             assert blocks.length >= offset + 1;
-            blocks[offset] = driverContext.blockFactory().newConstantBytesRefBlockWith(serializeHLL(SINGLE_BUCKET_ORD, hll), 1);
+            blocks[offset] = driverContext.blockFactory().newConstantBytesRefBlockWith(serializeHLL(SINGLE_BUCKET_ORD, hll, scratch), 1);
         }
 
         @Override
@@ -133,9 +137,13 @@ final class HllStates {
         private final MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
 
         final HyperLogLogPlusPlus hll;
+        private final BytesStreamOutput scratch;
+        private final ByteArrayStreamInput scratchInput;
 
         GroupingState(BigArrays bigArrays, int precision) {
             this.hll = new HyperLogLogPlusPlus(HyperLogLogPlusPlus.precisionFromThreshold(precision), bigArrays, 1);
+            this.scratch = new BytesStreamOutput();
+            this.scratchInput = new ByteArrayStreamInput(new byte[0]);
         }
 
         @Override
@@ -169,7 +177,8 @@ final class HllStates {
         }
 
         void merge(int groupId, BytesRef other, int otherGroup) {
-            hll.merge(groupId, deserializeHLL(other), otherGroup);
+            assert otherGroup == 0;
+            mergeSerialized(hll, groupId, other, scratchInput);
         }
 
         /** Extracts an intermediate view of the contents of this state.  */
@@ -179,7 +188,7 @@ final class HllStates {
             try (var builder = driverContext.blockFactory().newBytesRefBlockBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     int group = selected.getInt(i);
-                    builder.appendBytesRef(serializeHLL(group, hll));
+                    builder.appendBytesRef(serializeHLL(group, hll, scratch));
                 }
                 blocks[offset] = builder.build();
             }

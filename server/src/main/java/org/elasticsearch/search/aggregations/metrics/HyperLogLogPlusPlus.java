@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.packed.PackedInts;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.ByteArray;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
@@ -280,29 +282,55 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
     }
 
-    private void merge(long thisBucket, AbstractLinearCounting.HashesIterator values) {
-        while (values.next()) {
-            final int encoded = values.value();
-            if (algorithm.get(thisBucket) == LINEAR_COUNTING) {
-                int denseOrd = denseOrd(thisBucket);
-                if (denseOrd < 0) {
-                    final int newSize = smallLc.addEncodedDirect(thisBucket, encoded);
-                    if (newSize > arrayLimit) {
-                        denseOrd = promoteArrayToHash(thisBucket);
-                        final int lcSize = lc.addEncoded(denseOrd, encoded);
-                        if (lcSize > lc.threshold) {
-                            upgradeToHll(thisBucket);
-                        }
-                    }
-                } else {
-                    final int newSize = lc.addEncoded(denseOrd, encoded);
-                    if (newSize > lc.threshold) {
+    public void mergeSerialized(long thisBucket, StreamInput in) throws IOException {
+        final int otherPrecision = in.readVInt();
+        if (precision() != otherPrecision) {
+            throw new IllegalArgumentException();
+        }
+        updateMaxBucketOrd(thisBucket);
+        final boolean otherAlgorithm = in.readBoolean();
+        if (otherAlgorithm == LINEAR_COUNTING) {
+            final int size = Math.toIntExact(in.readVLong());
+            for (int i = 0; i < size; ++i) {
+                mergeEncoded(thisBucket, in.readInt());
+            }
+        } else {
+            if (algorithm.get(thisBucket) != HYPERLOGLOG) {
+                upgradeToHll(thisBucket);
+            }
+            final int denseOrd = ensureDenseOrd(thisBucket);
+            for (int i = 0; i < hll.m; ++i) {
+                hll.addRunLen(denseOrd, i, in.readByte());
+            }
+        }
+    }
+
+    private void mergeEncoded(long thisBucket, int encoded) {
+        if (algorithm.get(thisBucket) == LINEAR_COUNTING) {
+            int denseOrd = denseOrd(thisBucket);
+            if (denseOrd < 0) {
+                final int newSize = smallLc.addEncodedDirect(thisBucket, encoded);
+                if (newSize > arrayLimit) {
+                    denseOrd = promoteArrayToHash(thisBucket);
+                    final int lcSize = lc.addEncoded(denseOrd, encoded);
+                    if (lcSize > lc.threshold) {
                         upgradeToHll(thisBucket);
                     }
                 }
             } else {
-                hll.collectEncoded(ensureDenseOrd(thisBucket), encoded);
+                final int newSize = lc.addEncoded(denseOrd, encoded);
+                if (newSize > lc.threshold) {
+                    upgradeToHll(thisBucket);
+                }
             }
+        } else {
+            hll.collectEncoded(ensureDenseOrd(thisBucket), encoded);
+        }
+    }
+
+    private void merge(long thisBucket, AbstractLinearCounting.HashesIterator values) {
+        while (values.next()) {
+            mergeEncoded(thisBucket, values.value());
         }
     }
 

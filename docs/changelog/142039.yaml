@@ -1,0 +1,5 @@
+area: Ranking
+issues: []
+pr: 142039
+summary: Implement comprehensive top N parameter handling for text similarity reranker
+type: bug

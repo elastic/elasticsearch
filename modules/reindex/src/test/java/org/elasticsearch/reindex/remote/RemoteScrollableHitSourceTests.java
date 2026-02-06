@@ -42,10 +42,10 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.reindex.HitSource;
+import org.elasticsearch.index.reindex.HitSource.Response;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.RemoteInfo;
-import org.elasticsearch.index.reindex.ScrollableHitSource;
-import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -90,7 +90,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     private SearchRequest searchRequest;
     private int retriesAllowed;
 
-    private final Queue<ScrollableHitSource.AsyncResponse> responseQueue = new LinkedBlockingQueue<>();
+    private final Queue<HitSource.AsyncResponse> responseQueue = new LinkedBlockingQueue<>();
 
     private final Queue<Throwable> failureQueue = new LinkedBlockingQueue<>();
 
@@ -324,7 +324,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     public void testRetryAndSucceed() throws Exception {
         retriesAllowed = between(1, Integer.MAX_VALUE);
         sourceWithMockedRemoteCall("fail:rejection.json", "start_ok.json", "fail:rejection.json", "scroll_ok.json").start();
-        ScrollableHitSource.AsyncResponse response = responseQueue.poll();
+        HitSource.AsyncResponse response = responseQueue.poll();
         assertNotNull(response);
         assertThat(response.response().getFailures(), empty());
         assertTrue(responseQueue.isEmpty());
@@ -351,7 +351,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         retries = 0;
         String[] searchOKPaths = Stream.concat(Stream.of("start_ok.json"), Stream.of(paths)).toArray(String[]::new);
         sourceWithMockedRemoteCall(searchOKPaths).start();
-        ScrollableHitSource.AsyncResponse response = responseQueue.poll();
+        HitSource.AsyncResponse response = responseQueue.poll();
         assertNotNull(response);
         assertThat(response.response().getFailures(), empty());
         assertTrue(responseQueue.isEmpty());

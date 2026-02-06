@@ -20,21 +20,21 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Iterator;
 import java.util.function.Consumer;
 
-class RetryListener extends DelegatingActionListener<ScrollableHitSource.Response, ScrollableHitSource.Response>
+class RetryListener extends DelegatingActionListener<HitSource.Response, HitSource.Response>
     implements
-        RejectAwareActionListener<ScrollableHitSource.Response> {
+        RejectAwareActionListener<HitSource.Response> {
     private final Logger logger;
     private final Iterator<TimeValue> retries;
     private final ThreadPool threadPool;
-    private final Consumer<RejectAwareActionListener<ScrollableHitSource.Response>> retryScrollHandler;
+    private final Consumer<RejectAwareActionListener<HitSource.Response>> retryScrollHandler;
     private int retryCount = 0;
 
     RetryListener(
         Logger logger,
         ThreadPool threadPool,
         BackoffPolicy backoffPolicy,
-        Consumer<RejectAwareActionListener<ScrollableHitSource.Response>> retryScrollHandler,
-        ActionListener<ScrollableHitSource.Response> delegate
+        Consumer<RejectAwareActionListener<HitSource.Response>> retryScrollHandler,
+        ActionListener<HitSource.Response> delegate
     ) {
         super(delegate);
         this.logger = logger;
@@ -44,7 +44,7 @@ class RetryListener extends DelegatingActionListener<ScrollableHitSource.Respons
     }
 
     @Override
-    public void onResponse(ScrollableHitSource.Response response) {
+    public void onResponse(HitSource.Response response) {
         delegate.onResponse(response);
     }
 

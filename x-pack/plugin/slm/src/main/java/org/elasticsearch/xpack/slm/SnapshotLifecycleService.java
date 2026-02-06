@@ -262,9 +262,8 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
      * Validates that the {@code repository} exists as a registered snapshot repository
      * @throws IllegalArgumentException if the repository does not exist
      */
-    @Deprecated(forRemoval = true)
-    public static void validateRepositoryExists(final String repository, final ClusterState state) {
-        if (RepositoriesMetadata.get(state).repository(repository) == null) {
+    public static void validateRepositoryExists(final ProjectMetadata projectMetadata, final String repository) {
+        if (RepositoriesMetadata.get(projectMetadata).repository(repository) == null) {
             throw new IllegalArgumentException("no such repository [" + repository + "]");
         }
     }
@@ -274,6 +273,7 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
      * (see {@link LifecycleSettings#SLM_MINIMUM_INTERVAL_SETTING})
      * @throws IllegalArgumentException if the interval is less than the minimum
      */
+    @FixForMultiProject(description = "Replace with project settings")
     public static void validateMinimumInterval(final SnapshotLifecyclePolicy lifecycle, final ClusterState state) {
         TimeValue minimum = LifecycleSettings.SLM_MINIMUM_INTERVAL_SETTING.get(state.metadata().settings());
         TimeValue next = lifecycle.calculateNextInterval(Clock.systemUTC());

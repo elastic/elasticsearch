@@ -35,13 +35,13 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Helps parallelize reindex requests using sliced scrolls.
+ * Helps parallelize reindex requests using slices. This is search agnostic, working for both scrolls and PITs (point-in-times)
  */
-class BulkByScrollParallelizationHelper {
+class BulkBySearchParallelizationHelper {
 
     static final int AUTO_SLICE_CEILING = 20;
 
-    private BulkByScrollParallelizationHelper() {}
+    private BulkBySearchParallelizationHelper() {}
 
     /**
      * Takes an action created by a {@link BulkByScrollTask} and runs it with regard to whether the request is sliced or not.

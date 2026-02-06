@@ -162,6 +162,7 @@ class DfsQueryPhase extends SearchPhase {
         int i = 0;
         for (DfsKnnResults dfsKnnResults : knnResults) {
             List<ScoreDoc> scoreDocs = new ArrayList<>();
+            // identify all docs for the specific shard from the combined result set
             for (ScoreDoc scoreDoc : dfsKnnResults.scoreDocs()) {
                 if (scoreDoc.shardIndex == request.shardRequestIndex()) {
                     scoreDocs.add(scoreDoc);
@@ -174,7 +175,9 @@ class DfsQueryPhase extends SearchPhase {
                 source.knnSearch().get(i).getField(),
                 source.knnSearch().get(i).getQueryVector(),
                 source.knnSearch().get(i).getSimilarity(),
-                source.knnSearch().get(i).getFilterQueries()
+                source.knnSearch().get(i).getFilterQueries(),
+                dfsKnnResults.oversample(),
+                dfsKnnResults.k()
             ).boost(source.knnSearch().get(i).boost()).queryName(source.knnSearch().get(i).queryName());
             if (nestedPath != null) {
                 query = new NestedQueryBuilder(nestedPath, query, ScoreMode.Max).innerHit(source.knnSearch().get(i).innerHit());
@@ -182,7 +185,6 @@ class DfsQueryPhase extends SearchPhase {
             subSearchSourceBuilders.add(new SubSearchSourceBuilder(query));
             i++;
         }
-
         source = source.shallowCopy().subSearches(subSearchSourceBuilders).knnSearch(List.of());
         request.source(source);
 
@@ -200,7 +202,8 @@ class DfsQueryPhase extends SearchPhase {
             topDocsLists.add(new ArrayList<>());
             nestedPath.add(new SetOnce<>());
         }
-
+        Float[] oversampling = new Float[source.knnSearch().size()];
+        Integer[] k = new Integer[source.knnSearch().size()];
         for (DfsSearchResult dfsSearchResult : dfsSearchResults) {
             if (dfsSearchResult.knnResults() != null) {
                 for (int i = 0; i < dfsSearchResult.knnResults().size(); i++) {
@@ -211,14 +214,26 @@ class DfsQueryPhase extends SearchPhase {
                     SearchPhaseController.setShardIndex(shardTopDocs, dfsSearchResult.getShardIndex());
                     topDocsLists.get(i).add(shardTopDocs);
                     nestedPath.get(i).trySet(knnResults.getNestedPath());
+                    // A knn search will spawn across multiple shards, and it is possible that some may be on older nodes that
+                    // do not support lazy oversampling. So, we want to read from the responses whether we should allow oversampling or not.
+                    // There are two options here:
+                    // * either the value is null indicating an older node
+                    // * or the value is consistent amongst all other nodes (it is picked up by the search request or the index settings)
+                    oversampling[i] = knnResults.oversample() != null ? knnResults.oversample() : null;
+                    k[i] = knnResults.k() != null ? knnResults.k() : null;
                 }
             }
         }
 
         List<DfsKnnResults> mergedResults = new ArrayList<>(source.knnSearch().size());
         for (int i = 0; i < source.knnSearch().size(); i++) {
-            TopDocs mergedTopDocs = TopDocs.merge(source.knnSearch().get(i).k(), topDocsLists.get(i).toArray(new TopDocs[0]));
-            mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), mergedTopDocs.scoreDocs));
+            int localK = k[i] != null ? k[i] : source.knnSearch().get(i).k();
+            int resultsToKeep = localK;
+            if (oversampling[i] != null && oversampling[i] > 1) {
+                resultsToKeep = (int) Math.ceil(oversampling[i] * localK);
+            }
+            TopDocs mergedTopDocs = TopDocs.merge(resultsToKeep, topDocsLists.get(i).toArray(new TopDocs[0]));
+            mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), mergedTopDocs.scoreDocs, oversampling[i], localK));
         }
         return mergedResults;
     }

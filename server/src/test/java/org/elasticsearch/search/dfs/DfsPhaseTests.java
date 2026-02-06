@@ -198,12 +198,12 @@ public class DfsPhaseTests extends IndexShardTestCase {
 
             int k = 10;
             // run without profiling enabled
-            DfsKnnResults dfsKnnResults = DfsPhase.singleKnnSearch(query, k, null, searcher, null);
+            DfsKnnResults dfsKnnResults = DfsPhase.singleKnnSearch(query, k, 1f, null, searcher, null);
             assertEquals(k, dfsKnnResults.scoreDocs().length);
 
             // run with profiling enabled
             Profilers profilers = new Profilers(searcher);
-            dfsKnnResults = DfsPhase.singleKnnSearch(query, k, profilers, searcher, null);
+            dfsKnnResults = DfsPhase.singleKnnSearch(query, k, 1f, profilers, searcher, null);
             assertEquals(k, dfsKnnResults.scoreDocs().length);
             SearchProfileDfsPhaseResult searchProfileDfsPhaseResult = profilers.getDfsProfiler().buildDfsPhaseResults();
             List<QueryProfileShardResult> queryProfileShardResult = searchProfileDfsPhaseResult.getQueryProfileShardResult();
@@ -222,6 +222,70 @@ public class DfsPhaseTests extends IndexShardTestCase {
                 }
                 assertEquals(totalTime, collectorResult.getTime());
             }
+            reader.close();
+        }
+    }
+
+    public void testOversampledKEqualsNonOversampledK() throws IOException {
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir, newIndexWriterConfig())) {
+            int numDocs = 100;
+            for (int i = 0; i < numDocs; i++) {
+                Document d = new Document();
+                d.add(new KnnFloatVectorField("float_vector", new float[] { i, 0, 0 }));
+                w.addDocument(d);
+            }
+            w.flush();
+
+            IndexReader reader = w.getReader();
+            ContextIndexSearcher searcher = new ContextIndexSearcher(
+                reader,
+                IndexSearcher.getDefaultSimilarity(),
+                IndexSearcher.getDefaultQueryCache(),
+                IndexSearcher.getDefaultQueryCachingPolicy(),
+                randomBoolean(),
+                threadPoolExecutor,
+                threadPoolExecutor.getMaximumPoolSize(),
+                1
+            );
+
+            Query query = new KnnFloatVectorQuery("float_vector", new float[] { 0, 0, 0 }, numDocs, null);
+
+            // k=2 with oversample=3 should collect ceil(2*3)=6 docs
+            int k1 = 2;
+            float oversample1 = 3.0f;
+            DfsKnnResults withOversample = DfsPhase.singleKnnSearch(query, k1, oversample1, null, searcher, null);
+
+            // k=6 with no oversample should also collect 6 docs
+            int k2 = 6;
+            DfsKnnResults withoutOversample = DfsPhase.singleKnnSearch(query, k2, 0f, null, searcher, null);
+
+            assertEquals(
+                "k=2 oversample=3 should collect same count as k=6 and no oversampling",
+                withOversample.scoreDocs().length,
+                withoutOversample.scoreDocs().length
+            );
+
+            assertEquals(6, withOversample.scoreDocs().length);
+            assertEquals(6, withoutOversample.scoreDocs().length);
+
+            for (int i = 0; i < 6; i++) {
+                assertEquals(
+                    "Doc at position " + i + " should be the same",
+                    withOversample.scoreDocs()[i].doc,
+                    withoutOversample.scoreDocs()[i].doc
+                );
+                assertEquals(
+                    "Score at position " + i + " should be the same",
+                    withOversample.scoreDocs()[i].score,
+                    withoutOversample.scoreDocs()[i].score,
+                    0.0001f
+                );
+            }
+            assertEquals(Float.valueOf(3.0f), withOversample.oversample());
+            assertEquals(Integer.valueOf(2), withOversample.k());
+            assertEquals(Float.valueOf(0f), withoutOversample.oversample());
+            assertEquals(Integer.valueOf(6), withoutOversample.k());
+
             reader.close();
         }
     }

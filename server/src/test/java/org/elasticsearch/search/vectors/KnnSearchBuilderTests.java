@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.OVERSAMPLE_LIMIT;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -251,10 +252,20 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
             builder.addFilterQuery(filter);
         }
 
-        QueryBuilder expected = new KnnVectorQueryBuilder(field, vector, k, numCands, visitPercentage, rescoreVectorBuilder, similarity)
-            .addFilterQueries(filterQueries)
-            .boost(boost);
-        assertEquals(expected, builder.toQueryBuilder());
+        int adjustedK = k;
+        if (rescoreVectorBuilder != null) {
+            adjustedK = Math.min((int) Math.ceil(k * rescoreVectorBuilder.oversample()), OVERSAMPLE_LIMIT);
+        }
+        QueryBuilder expected = new KnnVectorQueryBuilder(
+            field,
+            VectorData.fromFloats(vector),
+            adjustedK,
+            numCands,
+            visitPercentage,
+            rescoreVectorBuilder,
+            similarity
+        ).addFilterQueries(filterQueries).boost(boost);
+        assertEquals(expected, builder.toQueryBuilder(null));
     }
 
     public void testNumCandsLessThanK() {

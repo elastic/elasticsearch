@@ -14,11 +14,13 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -57,6 +59,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     public static final ParseField BOOST_FIELD = AbstractQueryBuilder.BOOST_FIELD;
     public static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
     public static final ParseField RESCORE_VECTOR_FIELD = new ParseField("rescore_vector");
+    public static final ParseField OPTIMIZED_RESCORING_FIELD = new ParseField("optimized_rescoring");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<KnnSearchBuilder.Builder, Void> PARSER = new ConstructingObjectParser<>("knn", args -> {
@@ -94,6 +97,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             RESCORE_VECTOR_FIELD,
             ObjectParser.ValueType.OBJECT
         );
+        PARSER.declareBoolean(KnnSearchBuilder.Builder::optimizedRescoring, OPTIMIZED_RESCORING_FIELD);
         PARSER.declareFieldArray(
             KnnSearchBuilder.Builder::addFilterQueries,
             (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p),
@@ -115,6 +119,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     }
 
     private static final TransportVersion VISIT_PERCENTAGE = TransportVersion.fromName("visit_percentage");
+    public static final TransportVersion KNN_DFS_RESCORING_TOP_K_ON_SHARDS = TransportVersion.fromName("knn_dfs_rescoring_top_k_on_shards");
 
     final String field;
     final VectorData queryVector;
@@ -129,15 +134,18 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     float boost = DEFAULT_BOOST;
     InnerHitBuilder innerHitBuilder;
     private final RescoreVectorBuilder rescoreVectorBuilder;
+    private boolean optimizedRescoring;
+
+    private static final RescoreVectorBuilder NO_RESCORING = new RescoreVectorBuilder(0);
 
     /**
      * Defines a kNN search.
      *
-     * @param field       the name of the vector field to search against
-     * @param queryVector the query vector
-     * @param k           the final number of nearest neighbors to return as top hits
-     * @param numCands    the number of nearest neighbor candidates to consider per shard
-     * @param visitPercentage percentage of the total number of vectors to visit per shard
+     * @param field                the name of the vector field to search against
+     * @param queryVector          the query vector
+     * @param k                    the final number of nearest neighbors to return as top hits
+     * @param numCands             the number of nearest neighbor candidates to consider per shard
+     * @param visitPercentage      percentage of the total number of vectors to visit per shard
      * @param rescoreVectorBuilder rescore vector information
      */
     public KnnSearchBuilder(
@@ -164,10 +172,10 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     /**
      * Defines a kNN search.
      *
-     * @param field       the name of the vector field to search against
-     * @param queryVector the query vector
-     * @param k           the final number of nearest neighbors to return as top hits
-     * @param numCands    the number of nearest neighbor candidates to consider per shard
+     * @param field           the name of the vector field to search against
+     * @param queryVector     the query vector
+     * @param k               the final number of nearest neighbors to return as top hits
+     * @param numCands        the number of nearest neighbor candidates to consider per shard
      * @param visitPercentage percentage of the total number of vectors to visit per shard
      */
     public KnnSearchBuilder(
@@ -234,7 +242,8 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             similarity,
             null,
             null,
-            DEFAULT_BOOST
+            DEFAULT_BOOST,
+            false
         );
     }
 
@@ -272,7 +281,8 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         Float similarity,
         InnerHitBuilder innerHitBuilder,
         String queryName,
-        float boost
+        float boost,
+        boolean optimizedRescoring
     ) {
         if (k < 1) {
             throw new IllegalArgumentException("[" + K_FIELD.getPreferredName() + "] must be greater than 0");
@@ -319,6 +329,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         this.boost = boost;
         this.filterQueries = filterQueries;
         this.querySupplier = null;
+        this.optimizedRescoring = optimizedRescoring;
     }
 
     public KnnSearchBuilder(StreamInput in) throws IOException {
@@ -339,6 +350,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         this.similarity = in.readOptionalFloat();
         this.innerHitBuilder = in.readOptionalWriteable(InnerHitBuilder::new);
         this.rescoreVectorBuilder = in.readOptional(RescoreVectorBuilder::new);
+        if (in.getTransportVersion().supports(KNN_DFS_RESCORING_TOP_K_ON_SHARDS)) {
+            this.optimizedRescoring = in.readBoolean();
+        }
     }
 
     public int k() {
@@ -427,7 +441,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             }
             return new KnnSearchBuilder(field, querySupplier.get(), k, numCands, visitPercentage, rescoreVectorBuilder, similarity).boost(
                 boost
-            ).queryName(queryName).addFilterQueries(filterQueries).innerHit(innerHitBuilder);
+            ).queryName(queryName).addFilterQueries(filterQueries).innerHit(innerHitBuilder).optimizedRescoring(optimizedRescoring);
         }
         if (queryVectorBuilder != null) {
             SetOnce<float[]> toSet = new SetOnce<>();
@@ -450,7 +464,8 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             return new KnnSearchBuilder(field, toSet::get, k, numCands, visitPercentage, rescoreVectorBuilder, filterQueries, similarity)
                 .boost(boost)
                 .queryName(queryName)
-                .innerHit(innerHitBuilder);
+                .innerHit(innerHitBuilder)
+                .optimizedRescoring(optimizedRescoring);
         }
         boolean changed = false;
         List<QueryBuilder> rewrittenQueries = new ArrayList<>(filterQueries.size());
@@ -465,18 +480,54 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             return new KnnSearchBuilder(field, queryVector, k, numCands, visitPercentage, rescoreVectorBuilder, similarity).boost(boost)
                 .queryName(queryName)
                 .addFilterQueries(rewrittenQueries)
-                .innerHit(innerHitBuilder);
+                .innerHit(innerHitBuilder)
+                .optimizedRescoring(optimizedRescoring);
         }
         return this;
     }
 
-    public KnnVectorQueryBuilder toQueryBuilder() {
+    private KnnSearchBuilder optimizedRescoring(boolean optimizedRescoring) {
+        this.optimizedRescoring = optimizedRescoring;
+        return this;
+    }
+
+    public KnnVectorQueryBuilder toQueryBuilder(SearchExecutionContext searchExecutionContext) {
         if (queryVectorBuilder != null) {
             throw new IllegalArgumentException("missing rewrite");
         }
-        return new KnnVectorQueryBuilder(field, queryVector, k, numCands, visitPercentage, rescoreVectorBuilder, similarity).boost(boost)
-            .queryName(queryName)
-            .addFilterQueries(filterQueries);
+        if (optimizedRescoring) {
+            Float oversample = getOversampleFactor(searchExecutionContext);
+            int localK = oversample <= 1 ? k : (int) Math.ceil(k * oversample);
+            int localNumcands = oversample == 0 ? numCands : Math.max(localK, numCands);
+            return new KnnVectorQueryBuilder(field, queryVector, localK, localNumcands, visitPercentage, NO_RESCORING, similarity).boost(
+                boost
+            ).queryName(queryName).addFilterQueries(filterQueries);
+        } else {
+            return new KnnVectorQueryBuilder(field, queryVector, k, numCands, visitPercentage, rescoreVectorBuilder, similarity).boost(
+                boost
+            ).queryName(queryName).addFilterQueries(filterQueries);
+        }
+    }
+
+    public Float getOversampleFactor(SearchExecutionContext searchExecutionContext) {
+        if (false == optimizedRescoring) {
+            return null;
+        }
+        return rescoreVectorBuilder != null
+            ? rescoreVectorBuilder.oversample()
+            : getDefaultOversampleForField(field, searchExecutionContext);
+    }
+
+    private static float getDefaultOversampleForField(String fieldName, SearchExecutionContext searchExecutionContext) {
+        assert searchExecutionContext != null : "[searchExecutionContext] should be available";
+        var fieldType = searchExecutionContext.getFieldType(fieldName);
+        var indexOptions = fieldType instanceof DenseVectorFieldMapper.DenseVectorFieldType
+            ? ((DenseVectorFieldMapper.DenseVectorFieldType) fieldType).getIndexOptions()
+            : null;
+        var quantizedIndexOptions = indexOptions instanceof DenseVectorFieldMapper.QuantizedIndexOptions
+            ? ((DenseVectorFieldMapper.QuantizedIndexOptions) indexOptions).getRescoreVector()
+            : null;
+        return quantizedIndexOptions != null ? quantizedIndexOptions.oversample() : 0f;
     }
 
     public Float getSimilarity() {
@@ -500,7 +551,8 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             && Objects.equals(similarity, that.similarity)
             && Objects.equals(innerHitBuilder, that.innerHitBuilder)
             && Objects.equals(queryName, that.queryName)
-            && boost == that.boost;
+            && boost == that.boost
+            && optimizedRescoring == that.optimizedRescoring;
     }
 
     @Override
@@ -518,7 +570,8 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             Objects.hashCode(filterQueries),
             innerHitBuilder,
             queryName,
-            boost
+            boost,
+            optimizedRescoring
         );
     }
 
@@ -564,6 +617,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (rescoreVectorBuilder != null) {
             builder.field(RESCORE_VECTOR_FIELD.getPreferredName(), rescoreVectorBuilder);
         }
+        builder.field(OPTIMIZED_RESCORING_FIELD.getPreferredName(), optimizedRescoring);
 
         return builder;
     }
@@ -587,6 +641,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         out.writeOptionalFloat(similarity);
         out.writeOptionalWriteable(innerHitBuilder);
         out.writeOptionalWriteable(rescoreVectorBuilder);
+        if (out.getTransportVersion().supports(KNN_DFS_RESCORING_TOP_K_ON_SHARDS)) {
+            out.writeBoolean(optimizedRescoring);
+        }
     }
 
     public static class Builder {
@@ -603,6 +660,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         private float boost = DEFAULT_BOOST;
         private InnerHitBuilder innerHitBuilder;
         private RescoreVectorBuilder rescoreVectorBuilder;
+        private boolean optimizedRescoring = true;
 
         public Builder addFilterQueries(List<QueryBuilder> filterQueries) {
             Objects.requireNonNull(filterQueries);
@@ -665,6 +723,11 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             return this;
         }
 
+        public Builder optimizedRescoring(boolean optimizedRescoring) {
+            this.optimizedRescoring = optimizedRescoring;
+            return this;
+        }
+
         public KnnSearchBuilder build(int size) {
             int requestSize = size < 0 ? DEFAULT_SIZE : size;
             int adjustedK = k == null ? requestSize : k;
@@ -683,7 +746,8 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
                 similarity,
                 innerHitBuilder,
                 queryName,
-                boost
+                boost,
+                optimizedRescoring
             );
         }
     }

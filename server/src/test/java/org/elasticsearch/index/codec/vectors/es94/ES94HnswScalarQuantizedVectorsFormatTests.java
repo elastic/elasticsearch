@@ -100,7 +100,8 @@ public class ES94HnswScalarQuantizedVectorsFormatTests extends BaseHnswVectorsFo
             hasToString(
                 is(
                     "ES94HnswScalarQuantizedVectorsFormat(name=ES94HnswScalarQuantizedVectorsFormat, maxConn=10, beamWidth=20, "
-                        + "flatVectorFormat=ES94ScalarQuantizedVectorsFormat(name=ES94ScalarQuantizedVectorsFormat, encoding=DIBIT_QUERY_NIBBLE, "
+                        + "flatVectorFormat=ES94ScalarQuantizedVectorsFormat("
+                        + "name=ES94ScalarQuantizedVectorsFormat, encoding=DIBIT_QUERY_NIBBLE, "
                         + "flatVectorScorer="
                         + ES94ScalarQuantizedVectorsFormat.flatVectorScorer
                         + ", rawVectorFormat="

@@ -371,6 +371,9 @@ tests:
 - class: org.elasticsearch.xpack.diskbbq.DirectIOIT
   method: testDirectIONotUsed {p0=bbq_disk}
   issue: https://github.com/elastic/elasticsearch/issues/141863
+- class: org.elasticsearch.search.vectors.ExactKnnQueryBuilderTests
+  method: testToQuery
+  issue: https://github.com/elastic/elasticsearch/issues/141946
 
 # Examples:
 #

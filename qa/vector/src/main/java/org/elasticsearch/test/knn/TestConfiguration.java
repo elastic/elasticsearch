@@ -52,7 +52,10 @@ record TestConfiguration(
     int forceMergeMaxNumSegments,
     boolean onDiskRescore,
     List<SearchParameters> searchParams,
-    int numMergeWorkers
+    int numMergeWorkers,
+    boolean doPrecondition,
+    int preconditioningBlockDims,
+    int secondaryClusterSize
 ) {
 
     static final ParseField DOC_VECTORS_FIELD = new ParseField("doc_vectors");
@@ -62,9 +65,9 @@ record TestConfiguration(
     static final ParseField INDEX_TYPE_FIELD = new ParseField("index_type");
     static final ParseField NUM_CANDIDATES_FIELD = new ParseField("num_candidates");
     static final ParseField K_FIELD = new ParseField("k");
-    // static final ParseField N_PROBE_FIELD = new ParseField("n_probe");
     static final ParseField VISIT_PERCENTAGE_FIELD = new ParseField("visit_percentage");
     static final ParseField IVF_CLUSTER_SIZE_FIELD = new ParseField("ivf_cluster_size");
+    static final ParseField SECONDARY_CLUSTER_SIZE = new ParseField("secondary_cluster_size");
     static final ParseField OVER_SAMPLING_FACTOR_FIELD = new ParseField("over_sampling_factor");
     static final ParseField HNSW_M_FIELD = new ParseField("hnsw_m");
     static final ParseField HNSW_EF_CONSTRUCTION_FIELD = new ParseField("hnsw_ef_construction");
@@ -86,6 +89,8 @@ record TestConfiguration(
     static final ParseField WRITER_BUFFER_MB_FIELD = new ParseField("writer_buffer_mb");
     static final ParseField WRITER_BUFFER_DOCS_FIELD = new ParseField("writer_buffer_docs");
     static final ParseField ON_DISK_RESCORE_FIELD = new ParseField("on_disk_rescore");
+    static final ParseField DO_PRECONDITION = new ParseField("precondition");
+    static final ParseField PRECONDITIONING_BLOCK_DIMS = new ParseField("preconditioning_block_dims");
     static final ParseField FILTER_CACHED = new ParseField("filter_cache");
     static final ParseField SEARCH_PARAMS = new ParseField("search_params");
 
@@ -138,9 +143,12 @@ record TestConfiguration(
         PARSER.declareInt(Builder::setWriterMaxBufferedDocs, WRITER_BUFFER_DOCS_FIELD);
         PARSER.declareInt(Builder::setForceMergeMaxNumSegments, FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD);
         PARSER.declareBoolean(Builder::setOnDiskRescore, ON_DISK_RESCORE_FIELD);
+        PARSER.declareBoolean(Builder::setDoPrecondition, DO_PRECONDITION);
+        PARSER.declareInt(Builder::setPreconditioningBlockDims, PRECONDITIONING_BLOCK_DIMS);
         PARSER.declareFieldArray(Builder::setFilterCached, (p, c) -> p.booleanValue(), FILTER_CACHED, ObjectParser.ValueType.VALUE_ARRAY);
         PARSER.declareObjectArray(Builder::setSearchParams, (p, c) -> SearchParameters.fromXContent(p), SEARCH_PARAMS);
         PARSER.declareInt(Builder::setMergeWorkers, MERGE_WORKERS_FIELD);
+        PARSER.declareInt(Builder::setSecondaryClusterSize, SECONDARY_CLUSTER_SIZE);
     }
 
     public int numberOfSearchRuns() {
@@ -186,9 +194,12 @@ record TestConfiguration(
         private KnnIndexTester.MergePolicyType mergePolicy = null;
         private double writerBufferSizeInMb = DEFAULT_WRITER_BUFFER_MB;
         private boolean onDiskRescore = false;
+        private boolean doPrecondition = false;
+        private int preconditioningBlockDims = 64;
         private List<Boolean> filterCached = List.of(Boolean.TRUE);
         private List<SearchParameters.Builder> searchParams = null;
         private int numMergeWorkers = 1;
+        private int secondaryClusterSize = -1;
 
         /**
          * Elasticsearch does not set this explicitly, and in Lucene this setting is
@@ -350,6 +361,16 @@ record TestConfiguration(
             return this;
         }
 
+        public Builder setDoPrecondition(boolean doPrecondition) {
+            this.doPrecondition = doPrecondition;
+            return this;
+        }
+
+        public Builder setPreconditioningBlockDims(int preconditioningBlockDims) {
+            this.preconditioningBlockDims = preconditioningBlockDims;
+            return this;
+        }
+
         public Builder setFilterCached(List<Boolean> filterCached) {
             this.filterCached = filterCached;
             return this;
@@ -357,6 +378,11 @@ record TestConfiguration(
 
         public Builder setSearchParams(List<SearchParameters.Builder> searchParams) {
             this.searchParams = searchParams;
+            return this;
+        }
+
+        public Builder setSecondaryClusterSize(int secondaryClusterSize) {
+            this.secondaryClusterSize = secondaryClusterSize;
             return this;
         }
 
@@ -428,7 +454,10 @@ record TestConfiguration(
                 forceMergeMaxNumSegments,
                 onDiskRescore,
                 searchRuns,
-                numMergeWorkers
+                numMergeWorkers,
+                doPrecondition,
+                preconditioningBlockDims,
+                secondaryClusterSize
             );
         }
 

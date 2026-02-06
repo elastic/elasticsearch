@@ -11,12 +11,12 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -40,6 +40,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -50,11 +52,12 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.hamcrest.Matcher;
 import org.junit.BeforeClass;
 
@@ -63,6 +66,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static java.util.Collections.emptyMap;
@@ -70,11 +74,12 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
-import static org.elasticsearch.xpack.esql.analysis.VerifierTests.error;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
@@ -85,8 +90,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
 
     @BeforeClass
     public static void initTest() {
-        assumeTrue("requires snapshot build with promql feature enabled", PromqlFeatures.isEnabled());
-
         var timeSeriesMapping = loadMapping("k8s-mappings.json");
         var timeSeriesIndex = IndexResolution.valid(
             new EsIndex("k8s", timeSeriesMapping, Map.of("k8s", IndexMode.TIME_SERIES), Map.of(), Map.of(), Set.of())
@@ -106,48 +109,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         );
     }
 
-    public void testExplainPromqlSimple() {
-        // TS metrics-hostmetricsreceiver.otel-default
-        // | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <=\"{{from}}\"
-        // | STATS AVG(AVG_OVER_TIME(`metrics.system.memory.utilization`)) BY host.name, TBUCKET(1h) | LIMIT 10000"
-        var plan = planPromql("""
-            TS k8s
-            | WHERE TRANGE($now-1h, $now)
-            | STATS AVG(AVG_OVER_TIME(network.bytes_in)) BY TBUCKET(1h)
-            """);
-        List<Attribute> output = plan.output();
-
-    }
-
-    /**
-     * Explain the following logical plan
-     *
-     * Project[[avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h])){r}#72, pod{r}#48, TBUCKET{r}#
-     * 73]]
-     * \_TopN[[Order[TBUCKET{r}#73,ASC,FIRST]],1000[INTEGER],false]
-     *   \_Eval[[$$SUM$avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h]))$0{r$}#81 / $$COUNT$avg
-     * by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h]))$1{r$}#82 AS avg by (pod)
-     *              (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h]))#72, UNPACKDIMENSION(grouppod_$1{r}#78) AS pod#48]]
-     *     \_Aggregate[[packpod_$1{r}#77, TBUCKET{r}#73],[SUM(AVGOVERTIME_$1{r}#75,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWO
-     * RD]) AS $$SUM$avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h]))$0#81,
-     *          COUNT(AVGOVERTIME_$1{r}#75,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$avg by (pod)
-     *         (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h]))$1#82, packpod_$1{r}#77 AS grouppod_$1#78,
-     *         TBUCKET{r}#73 AS TBUCKET#73]]
-     *       \_Eval[[$$SUM$AVGOVERTIME_$1$0{r$}#79 / $$COUNT$AVGOVERTIME_$1$1{r$}#80 AS AVGOVERTIME_$1#75, PACKDIMENSION(pod{r}#76
-     * ) AS packpod_$1#77]]
-     *         \_TimeSeriesAggregate[[_tsid{m}#74, TBUCKET{r}#73],
-     *             [SUM(network.bytes_in{f}#60,true[BOOLEAN],PT0S[TIME_DURATION],lossy[KEYWORD]) AS $
-     * $SUM$AVGOVERTIME_$1$0#79, COUNT(network.bytes_in{f}#60,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$AVGOVERTIME_$1$1#80,
-     * VALUES(pod{f}#48,true[BOOLEAN],PT0S[TIME_DURATION]) AS pod#76, TBUCKET{r}#73],
-     * BUCKET(@timestamp{f}#46,PT1H[TIME_DURATION])]
-     *           \_Eval[[BUCKET(@timestamp{f}#46,PT1H[TIME_DURATION]) AS TBUCKET#73]]
-     *             \_Filter[ISNOTNULL(network.bytes_in{f}#60) AND IN(host-0[KEYWORD],host-1[KEYWORD],host-2[KEYWORD],pod{f}#48)]
-     *               \_EsRelation[k8s][@timestamp{f}#46, client.ip{f}#50, cluster{f}#47, e..]
-     */
     public void testAvgAvgOverTimeOutput() {
-        // TS metrics-hostmetricsreceiver.otel-default
-        // | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <=\"{{from}}\"
-        // | STATS AVG(AVG_OVER_TIME(`metrics.system.memory.utilization`)) BY host.name, TBUCKET(1h) | LIMIT 10000"
         var plan = planPromql("""
             PROMQL index=k8s step=1h ( avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h])) )
             | LIMIT 1000
@@ -156,10 +118,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         var project = as(plan, Project.class);
         assertThat(project.projections(), hasSize(3));
 
-        var evalOuter = as(project.child(), Eval.class);
-        var limit = as(evalOuter.child(), Limit.class);
-
-        var aggregate = as(limit.child(), Aggregate.class);
+        var aggregate = plan.collect(Aggregate.class).getFirst();
         assertThat(aggregate.groupings(), hasSize(2));
 
         var evalMiddle = as(aggregate.child(), Eval.class);
@@ -187,99 +146,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(in.list(), hasSize(3));
 
         as(filter.child(), EsRelation.class);
-    }
-
-    /**
-     * Expect the following logical plan
-     *
-     * Project[[AVG(AVG_OVER_TIME(network.bytes_in)){r}#86, pod{r}#90, TBUCKET(1h){r}#84]]
-     * \_Eval[[UNPACKDIMENSION(grouppod_$1{r}#121) AS pod#90, $$SUM$AVG(AVG_OVER_TIME(network.bytes_in))$0{r$}#115 / $$COUNT
-     * $AVG(AVG_OVER_TIME(network.bytes_in))$1{r$}#116 AS AVG(AVG_OVER_TIME(network.bytes_in))#86]]
-     *   \_Limit[1000[INTEGER],false,false]
-     *     \_Aggregate[[packpod_$1{r}#120, BUCKET{r}#84],[SUM(AVGOVERTIME_$1{r}#118,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYW
-     * ORD]) AS $$SUM$AVG(AVG_OVER_TIME(network.bytes_in))$0#115, COUNT(AVGOVERTIME_$1{r}#118,true[BOOLEAN],PT0S[TIME_DURATION]) AS
-     *          $$COUNT$AVG(AVG_OVER_TIME(network.bytes_in))$1#116, packpod_$1{r}#120 AS grouppod_$1#121, BUCKET{r}#84 AS TBUCKET(1h)#84]]
-     *       \_Eval[[$$SUM$AVGOVERTIME_$1$0{r$}#122 / $$COUNT$AVGOVERTIME_$1$1{r$}#123 AS AVGOVERTIME_$1#118, PACKDIMENSION(pod{r}
-     * #119) AS packpod_$1#120]]
-     *         \_TimeSeriesAggregate[[_tsid{m}#117, BUCKET{r}#84],[SUM(network.bytes_in{f}#102,true[BOOLEAN],
-     *                                  PT0S[TIME_DURATION],lossy[KEYWORD]) AS
-     * $$SUM$AVGOVERTIME_$1$0#122, COUNT(network.bytes_in{f}#102,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$AVGOVERTIME_$1$1#123,
-     *              VALUES(pod{f}#90,true[BOOLEAN],PT0S[TIME_DURATION]) AS pod#119, BUCKET{r}#84],
-     * BUCKET(@timestamp{f}#88,PT1H[TIME_DURATION])]
-     *           \_Eval[[BUCKET(@timestamp{f}#88,PT1H[TIME_DURATION]) AS TBUCKET(1h)#84]]
-     *             \_EsRelation[k8s][@timestamp{f}#88, client.ip{f}#92, cluster{f}#89, e..]
-     */
-    public void testTSAvgAvgOverTimeOutput() {
-        // TS metrics-hostmetricsreceiver.otel-default
-        // | STATS AVG(AVG_OVER_TIME(`metrics.system.memory.utilization`)) BY host.name, TBUCKET(1h) | LIMIT 10000"
-        var plan = planPromql("""
-            TS k8s
-            | STATS AVG(AVG_OVER_TIME(network.bytes_in)) BY pod, TBUCKET(1h)
-            | LIMIT 1000
-            """);
-        List<Attribute> output = plan.output();
-
-    }
-
-    /**
-     * Expect the logical plan
-     *
-     * Project[[avg(avg_over_time(network.bytes_in)){r}#353, TBUCKET(1h){r}#351]]
-     * \_Eval[[$$SUM$avg(avg_over_time(network.bytes_in))$0{r$}#382 / $$COUNT$avg(avg_over_time(network.bytes_in))$1{r$}#383
-     *  AS avg(avg_over_time(network.bytes_in))#353]]
-     *   \_Limit[1000[INTEGER],false,false]
-     *     \_Aggregate[[BUCKET{r}#351],[SUM(AVGOVERTIME_$1{r}#385,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$avg
-     * (avg_over_time(network.bytes_in))$0#382, COUNT(AVGOVERTIME_$1{r}#385,true[BOOLEAN],PT0S[TIME_DURATION]) AS
-     *          $$COUNT$avg(avg_over_time(network.bytes_in))$1#383, BUCKET{r}#351 AS TBUCKET(1h)#351]]
-     *       \_Eval[[$$SUM$AVGOVERTIME_$1$0{r$}#386 / $$COUNT$AVGOVERTIME_$1$1{r$}#387 AS AVGOVERTIME_$1#385]]
-     *         \_TimeSeriesAggregate[[_tsid{m}#384, BUCKET{r}#351],[SUM(network.bytes_in{f}#369,true[BOOLEAN],PT0S[TIME_DURATION],
-     *         lossy[KEYWORD]) AS
-     *  $$SUM$AVGOVERTIME_$1$0#386, COUNT(network.bytes_in{f}#369,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$AVGOVERTIME_$1$1#387,
-     *  BUCKET{r}#351],
-     * BUCKET(@timestamp{f}#355,PT1H[TIME_DURATION])]
-     *           \_Eval[[BUCKET(@timestamp{f}#355,PT1H[TIME_DURATION]) AS TBUCKET(1h)#351]]
-     *             \_EsRelation[k8s][@timestamp{f}#355, client.ip{f}#359, cluster{f}#356, ..]
-     */
-    public void testTSAvgWithoutByDimension() {
-        // TS metrics-hostmetricsreceiver.otel-default
-        // | STATS AVG(AVG_OVER_TIME(`metrics.system.memory.utilization`)) BY TBUCKET(1h) | LIMIT 10000"
-        var plan = planPromql("""
-            TS k8s
-            | STATS avg(avg_over_time(network.bytes_in)) BY TBUCKET(1h)
-            | LIMIT 1000
-            """);
-    }
-
-    /**
-     * Expect the following logical plan
-     *
-     * Project[[avg(avg_over_time(network.bytes_in[1h])){r}#190, TBUCKET{r}#191]]
-     * \_TopN[[Order[TBUCKET{r}#191,ASC,FIRST]],1000[INTEGER],false]
-     *   \_Eval[[$$SUM$avg(avg_over_time(network.bytes_in[1h]))$0{r$}#196 / $$COUNT$avg(avg_over_time(network.bytes_in[1h]))$1
-     * {r$}#197 AS avg(avg_over_time(network.bytes_in[1h]))#190]]
-     *     \_Aggregate[[TBUCKET{r}#191],[SUM(AVGOVERTIME_$1{r}#193,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$av
-     * g(avg_over_time(network.bytes_in[1h]))$0#196, COUNT(AVGOVERTIME_$1{r}#193,true[BOOLEAN],PT0S[TIME_DURATION]) AS
-     *          $$COUNT$avg(avg_over_time(network.bytes_in[1h]))$1#197, TBUCKET{r}#191 AS TBUCKET#191]]
-     *       \_Eval[[$$SUM$AVGOVERTIME_$1$0{r$}#194 / $$COUNT$AVGOVERTIME_$1$1{r$}#195 AS AVGOVERTIME_$1#193]]
-     *         \_TimeSeriesAggregate[[_tsid{m}#192, TBUCKET{r}#191],
-     *                      [SUM(network.bytes_in{f}#178,true[BOOLEAN],PT0S[TIME_DURATION],lossy[KEYWORD]) A
-     * S $$SUM$AVGOVERTIME_$1$0#194, COUNT(network.bytes_in{f}#178,true[BOOLEAN],PT0S[TIME_DURATION]) AS
-     *              $$COUNT$AVGOVERTIME_$1$1#195, TBUCKET{r}#191],
-     * BUCKET(@timestamp{f}#164,PT1H[TIME_DURATION])]
-     *           \_Eval[[BUCKET(@timestamp{f}#164,PT1H[TIME_DURATION]) AS TBUCKET#191]]
-     *             \_Filter[ISNOTNULL(network.bytes_in{f}#178)]
-     *               \_EsRelation[k8s][@timestamp{f}#164, client.ip{f}#168, cluster{f}#165, ..]
-     */
-    public void testPromqlAvgWithoutByDimension() {
-        // TS metrics-hostmetricsreceiver.otel-default
-        // | STATS AVG(AVG_OVER_TIME(`metrics.system.memory.utilization`)) BY TBUCKET(1h) | LIMIT 10000"
-        var plan = planPromql("""
-            PROMQL index=k8s step=1h (
-                avg(avg_over_time(network.bytes_in[1h]))
-              )
-            | LIMIT 1000
-            """);
-
     }
 
     public void testPromqlTrailingSpaces() {
@@ -316,47 +182,13 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(order, equalTo(List.of("step", "pod", "avg(network.bytes_in) by (pod)")));
     }
 
-    /**
-     * Expect the following logical plan
-     *
-     * Project[[max by (pod) (avg_over_time(network.bytes_in[1h])){r}#342, pod{r}#318, TBUCKET{r}#343]]
-     * \_TopN[[Order[TBUCKET{r}#343,ASC,FIRST]],1000[INTEGER],false]
-     *   \_Eval[[UNPACKDIMENSION(grouppod_$1{r}#348) AS pod#318]]
-     *     \_Aggregate[[packpod_$1{r}#347, TBUCKET{r}#343],[MAX(AVGOVERTIME_$1{r}#345,true[BOOLEAN],PT0S[TIME_DURATION]) AS max by (po
-     * d) (avg_over_time(network.bytes_in[1h]))#342, packpod_$1{r}#347 AS grouppod_$1#348, TBUCKET{r}#343 AS TBUCKET#343]]
-     *       \_Eval[[$$SUM$AVGOVERTIME_$1$0{r$}#349 / $$COUNT$AVGOVERTIME_$1$1{r$}#350 AS AVGOVERTIME_$1#345, PACKDIMENSION(pod{r}
-     * #346) AS packpod_$1#347]]
-     *         \_TimeSeriesAggregate[[_tsid{m}#344, TBUCKET{r}#343],
-     *          [SUM(network.bytes_in{f}#330,true[BOOLEAN],PT0S[TIME_DURATION],lossy[KEYWORD]) A
-     * S $$SUM$AVGOVERTIME_$1$0#349, COUNT(network.bytes_in{f}#330,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$AVGOVERTIME_$1$1#350,
-     *                          VALUES(pod{f}#318,true[BOOLEAN],PT0S[TIME_DURATION]) AS pod#346, TBUCKET{r}#343],
-     * BUCKET(@timestamp{f}#316,PT1H[TIME_DURATION])]
-     *           \_Eval[[BUCKET(@timestamp{f}#316,PT1H[TIME_DURATION]) AS TBUCKET#343]]
-     *             \_Filter[ISNOTNULL(network.bytes_in{f}#330)]
-     *               \_EsRelation[k8s][@timestamp{f}#316, client.ip{f}#320, cluster{f}#317, ..]
-     */
     public void testRangeSelector() {
-        // TS metrics-hostmetricsreceiver.otel-default
-        // | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <=\"{{from}}\"
-        // | STATS AVG(AVG_OVER_TIME(`metrics.system.memory.utilization`)) BY host.name, TBUCKET(1h) | LIMIT 10000"
         var plan = planPromql("""
-            PROMQL index=k8s step=1h ( max by (pod) (avg_over_time(network.bytes_in[1h])) )
+            PROMQL index=k8s step=1h ( max by (pod) (last_over_time(network.bytes_in[1h])) )
             """);
-
-    }
-
-    @AwaitsFix(bugUrl = "Invalid call to dataType on an unresolved object ?RATE_$1")
-    public void testRate() {
-        // TS metrics-hostmetricsreceiver.otel-default
-        // | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <= \"{{from}}\"
-        // | STATS AVG(RATE(`metrics.system.cpu.time`)) BY host.name, TBUCKET(1h) | LIMIT 10000"
-        String testQuery = """
-            PROMQL index=k8s step=1h (
-                avg by (pod) (rate(network.bytes_in[1h]))
-                )
-            """;
-
-        var plan = planPromql(testQuery);
+        TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
+        LastOverTime lastOverTime = tsAggregate.aggregates().getFirst().collect(LastOverTime.class).getFirst();
+        assertThat(lastOverTime.window().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
     }
 
     /**
@@ -383,26 +215,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(sum.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
     }
 
-    /**
-     * Expect the following logical plan
-     *
-     * Project[[avg(avg_over_time(network.bytes_in[5m])){r}#423, TBUCKET{r}#424]]
-     * \_TopN[[Order[TBUCKET{r}#424,ASC,FIRST]],1000[INTEGER],false]
-     *   \_Eval[[$$SUM$avg(avg_over_time(network.bytes_in[5m]))$0{r$}#429 / $$COUNT$avg(avg_over_time(network.bytes_in[5m]))$1
-     * {r$}#430 AS avg(avg_over_time(network.bytes_in[5m]))#423]]
-     *     \_Aggregate[[TBUCKET{r}#424],[SUM(AVGOVERTIME_$1{r}#426,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$av
-     * g(avg_over_time(network.bytes_in[5m]))$0#429, COUNT(AVGOVERTIME_$1{r}#426,true[BOOLEAN],PT0S[TIME_DURATION]) AS
-     *              $$COUNT$avg(avg_over_time(network.bytes_in[5m]))$1#430, TBUCKET{r}#424 AS TBUCKET#424]]
-     *       \_Eval[[$$SUM$AVGOVERTIME_$1$0{r$}#427 / $$COUNT$AVGOVERTIME_$1$1{r$}#428 AS AVGOVERTIME_$1#426]]
-     *         \_TimeSeriesAggregate[[_tsid{m}#425, TBUCKET{r}#424],
-     *              [SUM(network.bytes_in{f}#411,true[BOOLEAN],PT0S[TIME_DURATION],lossy[KEYWORD]) A
-     * S $$SUM$AVGOVERTIME_$1$0#427, COUNT(network.bytes_in{f}#411,true[BOOLEAN],PT0S[TIME_DURATION]) AS
-     *                  $$COUNT$AVGOVERTIME_$1$1#428, TBUCKET{r}#424],
-     * BUCKET(@timestamp{f}#397,PT5M[TIME_DURATION])]
-     *           \_Eval[[BUCKET(@timestamp{f}#397,PT5M[TIME_DURATION]) AS TBUCKET#424]]
-     *             \_Filter[ISNOTNULL(network.bytes_in{f}#411)]
-     *               \_EsRelation[k8s][@timestamp{f}#397, client.ip{f}#401, cluster{f}#398, ..]
-     */
     public void testStartEndStep() {
         String testQuery = """
             PROMQL index=k8s start=$now-1h end=$now step=5m (
@@ -411,127 +223,77 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             """;
 
         var plan = planPromql(testQuery);
-        var filters = plan.collect(Filter.class::isInstance);
-        assertThat(filters, hasSize(1));
-        var filter = (Filter) filters.getFirst();
-        assertThat(filter.condition().collect(e -> e instanceof FieldAttribute a && a.name().equals("@timestamp")), hasSize(2));
+        var filters = plan.collect(Filter.class);
+        assertThat(
+            filters.stream()
+                .map(Filter::condition)
+                .flatMap(c -> c.collect(FieldAttribute.class).stream())
+                .map(FieldAttribute::name)
+                .filter("@timestamp"::equals)
+                .count(),
+            equalTo(2L)
+        );
     }
 
-    /**
-     * Expect the following logical plan
-     *
-     * Project[[max by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[5m])){r}#33, pod{r}#9, TBUCKET{r}#3
-     * 4]]
-     * \_TopN[[Order[TBUCKET{r}#34,ASC,FIRST]],1000[INTEGER],false]
-     *   \_Eval[[UNPACKDIMENSION(grouppod_$1{r}#39) AS pod#9]]
-     *     \_Aggregate[[packpod_$1{r}#38, TBUCKET{r}#34],[MAX(AVGOVERTIME_$1{r}#36,true[BOOLEAN],PT0S[TIME_DURATION]) AS max by (pod)
-     * (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[5m]))#33, packpod_$1{r}#38 AS grouppod_$1#39,
-     *                              TBUCKET{r}#34 AS TBUCKET#34]]
-     *       \_Eval[[$$SUM$AVGOVERTIME_$1$0{r$}#40 / $$COUNT$AVGOVERTIME_$1$1{r$}#41 AS AVGOVERTIME_$1#36, PACKDIMENSION(pod{r}#37
-     * ) AS packpod_$1#38]]
-     *         \_TimeSeriesAggregate[[_tsid{m}#35, TBUCKET{r}#34],
-     *                              [SUM(network.bytes_in{f}#21,true[BOOLEAN],PT0S[TIME_DURATION],lossy[KEYWORD]) AS $
-     * $SUM$AVGOVERTIME_$1$0#40, COUNT(network.bytes_in{f}#21,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$AVGOVERTIME_$1$1#41,
-     *                                      VALUES(pod{f}#9,true[BOOLEAN],PT0S[TIME_DURATION]) AS pod#37, TBUCKET{r}#34],
-     * BUCKET(@timestamp{f}#7,PT5M[TIME_DURATION])]
-     *           \_Eval[[BUCKET(@timestamp{f}#7,PT5M[TIME_DURATION]) AS TBUCKET#34]]
-     *             \_Filter[ISNOTNULL(network.bytes_in{f}#21) AND IN(host-0[KEYWORD],host-1[KEYWORD],host-2[KEYWORD],pod{f}#9)]
-     *               \_EsRelation[k8s][@timestamp{f}#7, client.ip{f}#11, cluster{f}#8, eve..]
-     */
-
-    @AwaitsFix(bugUrl = "Instant promql queries in are not supported at the moment")
     public void testLabelSelector() {
-        // TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <=
-        // \"{{from}}\"
-        // | WHERE host.name IN(\"host-0\", \"host-1\", \"host-2\")
-        // | STATS AVG(AVG_OVER_TIME(`system.cpu.load_average.1m`)) BY host.name, TBUCKET(5m) | LIMIT 10000"
-        String testQuery = """
-            PROMQL index=k8s time=$now (
+        var plan = planPromql("""
+            PROMQL index=k8s step=1m (
                 max by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[5m]))
               )
-            """;
-
-        var plan = planPromql(testQuery);
-        var filters = plan.collect(Filter.class::isInstance);
-        assertThat(filters, hasSize(1));
-        var filter = (Filter) filters.getFirst();
-        assertThat(filter.condition().anyMatch(In.class::isInstance), equalTo(true));
+            """);
+        var filters = plan.collect(Filter.class);
+        Optional<In> in = filters.stream().map(Filter::condition).filter(In.class::isInstance).map(In.class::cast).findAny();
+        assertThat(in.isPresent(), equalTo(true));
+        assertThat(in.get().value().sourceText(), equalTo("pod"));
+        assertThat(in.get().list().stream().map(Expression::toString).toList(), containsInAnyOrder("host-0", "host-1", "host-2"));
     }
 
-    @AwaitsFix(bugUrl = "Instant promql queries in are not supported at the moment")
     public void testLabelSelectorPrefix() {
-        // TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <=
-        // \"{{from}}\"
-        // | WHERE host.name LIKE \"host-*\"
-        // STATS AVG(AVG_OVER_TIME(`metrics.system.cpu.load_average.1m`)) BY host.name, TBUCKET(5 minutes)"
         String testQuery = """
-            PROMQL index=k8s time=$now (
+            PROMQL index=k8s step=1m (
                 avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-.*"}[5m]))
                 )
             """;
 
         var plan = planPromql(testQuery);
-        var filters = plan.collect(Filter.class::isInstance);
-        assertThat(filters, hasSize(1));
-        var filter = (Filter) filters.getFirst();
-        assertThat(filter.condition().anyMatch(StartsWith.class::isInstance), equalTo(true));
-        assertThat(filter.condition().anyMatch(NotEquals.class::isInstance), equalTo(false));
+        var filters = plan.collect(Filter.class);
+        assertThat(filters.stream().map(Filter::condition).anyMatch(StartsWith.class::isInstance), equalTo(true));
+        assertThat(filters.stream().map(Filter::condition).anyMatch(NotEquals.class::isInstance), equalTo(false));
     }
 
-    @AwaitsFix(bugUrl = "Instant promql queries in are not supported at the moment")
     public void testLabelSelectorProperPrefix() {
         var plan = planPromql("""
-            PROMQL index=k8s time=$now (
+            PROMQL index=k8s step=1m (
                 avg(avg_over_time(network.bytes_in{pod=~"host-.+"}[1h]))
               )
             """);
 
-        var filters = plan.collect(Filter.class::isInstance);
-        assertThat(filters, hasSize(1));
-        var filter = (Filter) filters.getFirst();
-        assertThat(filter.condition().anyMatch(StartsWith.class::isInstance), equalTo(true));
-        assertThat(filter.condition().anyMatch(NotEquals.class::isInstance), equalTo(true));
+        var filters = plan.collect(Filter.class);
+        assertThat(filters.stream().anyMatch(f -> f.condition().anyMatch(StartsWith.class::isInstance)), equalTo(true));
+        assertThat(filters.stream().anyMatch(f -> f.condition().anyMatch(NotEquals.class::isInstance)), equalTo(true));
     }
 
-    /**
-     * Expect the following logical plan
-     *
-     * Project[[avg(avg_over_time(network.bytes_in{pod=~"[a-z]+"}[1h])){r}#305, TBUCKET{r}#306]]
-     * \_TopN[[Order[TBUCKET{r}#306,ASC,FIRST]],1000[INTEGER],false]
-     *   \_Eval[[$$SUM$avg(avg_over_time(network.bytes_in{pod=~"[a-z]+"}[1h]))$0{r$}#311 / $$COUNT$avg(avg_over_time(network.b
-     * ytes_in{pod=~"[a-z]+"}[1h]))$1{r$}#312 AS avg(avg_over_time(network.bytes_in{pod=~"[a-z]+"}[1h]))#305]]
-     *     \_Aggregate[[TBUCKET{r}#306],[SUM(AVGOVERTIME_$1{r}#308,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$av
-     * g(avg_over_time(network.bytes_in{pod=~"[a-z]+"}[1h]))$0#311, COUNT(AVGOVERTIME_$1{r}#308,true[BOOLEAN],PT0S[TIME_DURATION]) AS
-     *                          $$COUNT$avg(avg_over_time(network.bytes_in{pod=~"[a-z]+"}[1h]))$1#312, TBUCKET{r}#306 AS TBUCKET#306]]
-     *       \_Eval[[$$SUM$AVGOVERTIME_$1$0{r$}#309 / $$COUNT$AVGOVERTIME_$1$1{r$}#310 AS AVGOVERTIME_$1#308]]
-     *         \_TimeSeriesAggregate[[_tsid{m}#307, TBUCKET{r}#306],
-     *                              [SUM(network.bytes_in{f}#293,true[BOOLEAN],PT0S[TIME_DURATION],lossy[KEYWORD]) A
-     * S $$SUM$AVGOVERTIME_$1$0#309, COUNT(network.bytes_in{f}#293,true[BOOLEAN],PT0S[TIME_DURATION]) AS
-     *                          $$COUNT$AVGOVERTIME_$1$1#310, TBUCKET{r}#306],
-     * BUCKET(@timestamp{f}#279,PT5M[TIME_DURATION])]
-     *           \_Eval[[BUCKET(@timestamp{f}#279,PT5M[TIME_DURATION]) AS TBUCKET#306]]
-     *             \_Filter[ISNOTNULL(network.bytes_in{f}#293) AND RLIKE(pod{f}#281, "[a-z]+", false)]
-     *               \_EsRelation[k8s][@timestamp{f}#279, client.ip{f}#283, cluster{f}#280, ..]
-     */
-    @AwaitsFix(bugUrl = "Instant promql queries in are not supported at the moment")
     public void testLabelSelectorRegex() {
         var plan = planPromql("""
-            PROMQL index=k8s time=$now (
+            PROMQL index=k8s step=1m (
                 avg(avg_over_time(network.bytes_in{pod=~"[a-z]+"}[1h]))
               )
             """);
 
-        var filters = plan.collect(Filter.class::isInstance);
-        assertThat(filters, hasSize(1));
-        var filter = (Filter) filters.getFirst();
-        assertThat(filter.condition().anyMatch(RegexMatch.class::isInstance), equalTo(true));
+        var filters = plan.collect(Filter.class);
+        assertThat(filters.stream().map(Filter::condition).anyMatch(RegexMatch.class::isInstance), equalTo(true));
     }
 
     public void testLabelSelectorNotEquals() {
         var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!=\"foo\"})");
 
-        var filter = plan.collect(Filter.class).getFirst();
-        var not = filter.condition().collect(Not.class).getFirst();
+        var not = plan.collect(Filter.class)
+            .stream()
+            .map(Filter::condition)
+            .filter(Not.class::isInstance)
+            .map(Not.class::cast)
+            .findFirst()
+            .get();
         var in = as(not.field(), In.class);
         assertThat(as(in.value(), FieldAttribute.class).name(), equalTo("pod"));
         assertThat(in.list(), hasSize(1));
@@ -541,8 +303,8 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
     public void testLabelSelectorRegexNegation() {
         var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!~\"f.o\"})");
 
-        var filter = plan.collect(Filter.class).getFirst();
-        var not = filter.condition().collect(Not.class).getFirst();
+        var filters = plan.collect(Filter.class);
+        var not = filters.stream().map(Filter::condition).filter(Not.class::isInstance).map(Not.class::cast).findFirst().get();
         var rLike = as(not.field(), RLike.class);
         assertThat(as(rLike.field(), FieldAttribute.class).name(), equalTo("pod"));
         assertThat(rLike.pattern().pattern(), equalTo("f.o"));
@@ -551,8 +313,8 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
     public void testLabelSelectors() {
         var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!=\"foo\",cluster=~\"bar|baz\",region!~\"us-.*\"})");
 
-        var filter = plan.collect(Filter.class).getFirst();
-        var and = as(filter.condition(), And.class);
+        var filters = plan.collect(Filter.class);
+        var and = filters.stream().map(Filter::condition).filter(And.class::isInstance).map(And.class::cast).findFirst().get();
         if (and.left() instanceof IsNotNull) {
             and = as(and.right(), And.class);
         }
@@ -570,48 +332,16 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(as(regionNotUs.prefix(), Literal.class).value(), equalTo(new BytesRef("us-")));
     }
 
-    @AwaitsFix(bugUrl = "This should never be called before the attribute is resolved")
-    public void testFsUsageTop5() {
-        // TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <=
-        // \"{{from}}\"
-        // | WHERE attributes.state IN (\"used\", \"free\")
-        // | STATS sums = SUM(LAST_OVER_TIME(system.filesystem.usage)) by host.name, attributes.mountpoint
-        // | STATS top = TOP(sums, 5, \"desc\") by host.name, attributes.mountpoint
-        // | LIMIT 5
-
-        // topk(5, sum by (host.name, mountpoint) (last_over_time(system.filesystem.usage{state=~"used|free"}[5m])))
-        String testQuery = """
-            PROMQL index=k8s step=5m (
-              sum by (host.name, mountpoint) (last_over_time(system.filesystem.usage{state=~"used|free"}[5m]))
-            )
-            """;
-
-        var plan = planPromql(testQuery);
-    }
-
-    @AwaitsFix(bugUrl = "only aggregations across timeseries are supported at this time (found [foo or bar])")
-    public void testGrammar() {
-        // TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <=
-        // \"{{from}}\"
-        // | WHERE attributes.state IN (\"used\", \"free\")
-        // | STATS sums = SUM(LAST_OVER_TIME(system.filesystem.usage)) by host.name, attributes.mountpoint
-        // | STATS top = TOP(sums, 5, \"desc\") by host.name, attributes.mountpoint
-        // | LIMIT 5
-
-        // topk(5, sum by (host.name, mountpoint) (last_over_time(system.filesystem.usage{state=~"used|free"}[5m])))
-        String testQuery = """
-            PROMQL index=k8s step=5m (
-              foo or bar
-            )
-            """;
-
-        var plan = planPromql(testQuery);
-    }
-
     public void testScalarAndInstantVectorArithmeticOperators() {
         LogicalPlan plan;
         plan = planPromql("PROMQL index=k8s step=5m max(network.bytes_in / 1024) by (pod)");
-        Div div = as(plan.collect(Eval.class).get(1).fields().getLast().child(), Div.class);
+        Div div = plan.collect(Eval.class)
+            .stream()
+            .map(e -> e.fields().getLast().child())
+            .filter(Div.class::isInstance)
+            .map(Div.class::cast)
+            .findFirst()
+            .get();
         assertThat(div.left().sourceText(), equalTo("network.bytes_in"));
         assertThat(as(div.right(), Literal.class).value(), equalTo(1024.0));
     }
@@ -623,17 +353,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(literal.value(), equalTo(2.0));
     }
 
-    public void testUnsupportedBinaryOperators() {
-        assertThat(
-            error("PROMQL index=k8s step=5m foo or bar", tsAnalyzer),
-            containsString("VectorBinarySet queries are not supported at this time [foo or bar]")
-        );
-        assertThat(
-            error("PROMQL index=k8s step=5m foo > bar", tsAnalyzer),
-            containsString("VectorBinaryComparison queries are not supported at this time [foo > bar]")
-        );
-    }
-
     public void testTopLevelBinaryArithmeticQuery() {
         var plan = planPromql("""
             PROMQL index=k8s step=1m in_n_out=(
@@ -641,9 +360,14 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
               )
             | SORT in_n_out""");
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("in_n_out", "step", "_timeseries")));
-        Add add = as(plan.collect(Eval.class).get(1).fields().getLast().child(), Add.class);
-        assertThat(add.left().sourceText(), equalTo("network.eth0.rx"));
-        assertThat(add.right().sourceText(), equalTo("network.eth0.tx"));
+        Add add = plan.collect(Eval.class)
+            .stream()
+            .map(e -> e.fields().getLast().child())
+            .filter(Add.class::isInstance)
+            .map(Add.class::cast)
+            .findFirst()
+            .get();
+        assertThat(add.children().stream().map(Expression::sourceText).toList(), containsInAnyOrder("network.eth0.rx", "network.eth0.tx"));
     }
 
     public void testGroupByAllWithinSeriesAggregate() {
@@ -655,13 +379,51 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         var plan = planPromql("PROMQL index=k8s step=1m bits=(network.bytes_in * 8)");
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("bits", "step", "_timeseries")));
 
-        Mul mul = as(plan.collect(Eval.class).get(1).fields().getLast().child(), Mul.class);
+        Mul mul = plan.collect(Eval.class)
+            .stream()
+            .map(e -> e.fields().getLast().child())
+            .filter(Mul.class::isInstance)
+            .map(Mul.class::cast)
+            .findFirst()
+            .get();
         assertThat(as(as(mul.left(), ToDouble.class).field(), ReferenceAttribute.class).sourceText(), equalTo("network.bytes_in"));
         assertThat(as(mul.right(), Literal.class).fold(null), equalTo(8.0));
 
         TimeSeriesAggregate tsAgg = plan.collect(TimeSeriesAggregate.class).getFirst();
         LastOverTime last = as(Alias.unwrap(tsAgg.aggregates().getFirst()), LastOverTime.class);
         assertThat(as(last.field(), FieldAttribute.class).sourceText(), equalTo("network.bytes_in"));
+    }
+
+    public void testBinaryArithmeticInstantSelectorAndScalarFunction() {
+        boolean piFirst = randomBoolean();
+        LogicalPlan plan;
+        if (piFirst) {
+            plan = planPromql("PROMQL index=k8s step=1m bits=(pi() - network.bytes_in)");
+        } else {
+            plan = planPromql("PROMQL index=k8s step=1m bits=(network.bytes_in - pi())");
+        }
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("bits", "step", "_timeseries")));
+
+        Sub sub = plan.collect(Eval.class)
+            .stream()
+            .map(e -> e.fields().getLast().child())
+            .filter(Sub.class::isInstance)
+            .map(Sub.class::cast)
+            .findFirst()
+            .get();
+        Expression piExpression = piFirst ? sub.left() : sub.right();
+        assertThat((double) as(piExpression, Literal.class).fold(null), closeTo(Math.PI, 1e-9));
+
+        Expression bytesInExpression = piFirst ? sub.right() : sub.left();
+        assertThat(as(as(bytesInExpression, ToDouble.class).field(), ReferenceAttribute.class).sourceText(), equalTo("network.bytes_in"));
+
+        TimeSeriesAggregate tsAgg = plan.collect(TimeSeriesAggregate.class).getFirst();
+        LastOverTime last = as(Alias.unwrap(tsAgg.aggregates().getFirst()), LastOverTime.class);
+        assertThat(as(last.field(), FieldAttribute.class).sourceText(), equalTo("network.bytes_in"));
+    }
+
+    public void testBinaryArithmeticScalarFunctions() {
+        assertConstantResult("pi() - pi()", equalTo(0.0));
     }
 
     public void testBinaryAcrossSeriesAndLiteral() {
@@ -716,6 +478,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertConstantResult("ceil(vector(3.14159))", equalTo(4.0));
         assertConstantResult("pi()", equalTo(Math.PI));
         assertConstantResult("abs(vector(-1))", equalTo(1.0));
+        assertConstantResult("quantile(0.5, vector(1))", equalTo(1.0));
     }
 
     public void testRound() {
@@ -725,6 +488,67 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertConstantResult("round(vector(pi()), 0.001)", equalTo(3.142)); // round up 3 decimal places
         assertConstantResult("round(vector(pi()), 0.15)", equalTo(3.15)); // rounds up to nearest
         assertConstantResult("round(vector(pi()), 0.5)", equalTo(3.0)); // rounds down to nearest
+    }
+
+    public void testClamp() {
+        assertConstantResult("clamp(vector(5), 0, 10)", equalTo(5.0));
+        assertConstantResult("clamp(vector(-5), 0, 10)", equalTo(0.0));
+        assertConstantResult("clamp(vector(15), 0, 10)", equalTo(10.0));
+        assertConstantResult("clamp(vector(0), 0, 10)", equalTo(0.0));
+        assertConstantResult("clamp(vector(10), 0, 10)", equalTo(10.0));
+    }
+
+    public void testClampMin() {
+        assertConstantResult("clamp_min(vector(5), 0)", equalTo(5.0));
+        assertConstantResult("clamp_min(vector(-5), 0)", equalTo(0.0));
+        assertConstantResult("clamp_min(vector(0), 0)", equalTo(0.0));
+    }
+
+    public void testClampMax() {
+        assertConstantResult("clamp_max(vector(5), 10)", equalTo(5.0));
+        assertConstantResult("clamp_max(vector(15), 10)", equalTo(10.0));
+        assertConstantResult("clamp_max(vector(10), 10)", equalTo(10.0));
+    }
+
+    public void testComparisonAcrossSeriesWithScalar() {
+        var plan = planPromql("PROMQL index=k8s step=1m max(network.eth0.rx) > 1000");
+        GreaterThan gt = plan.collect(Filter.class)
+            .stream()
+            .map(Filter::condition)
+            .filter(GreaterThan.class::isInstance)
+            .map(GreaterThan.class::cast)
+            .findAny()
+            .get();
+        assertThat(gt.left().sourceText(), equalTo("max(network.eth0.rx)"));
+        assertThat(as(gt.right(), Literal.class).fold(null), equalTo(1000.0));
+
+        Aggregate acrossSeries = plan.collect(Aggregate.class).getFirst();
+        Max max = as(Alias.unwrap(acrossSeries.aggregates().getFirst()), Max.class);
+        assertThat(as(max.field(), ReferenceAttribute.class).sourceText(), equalTo("network.eth0.rx"));
+    }
+
+    public void testNonExistentFieldsOptimizesToEmptyPlan() {
+        List.of("non_existent_metric", "network.eth0.rx{non_existent_label=\"value\"}", "avg(non_existent_metric)"
+        // TODO because we wrap group-by-all aggregates into Values, this does not optimize away yet
+        // "rate(non_existent_metric[5m])"
+        ).forEach(query -> {
+            var plan = planPromql("PROMQL index=k8s step=1m " + query);
+            assertThat(as(plan, LocalRelation.class).supplier(), equalTo(EmptyLocalSupplier.EMPTY));
+        });
+    }
+
+    public void testGroupByNonExistentLabel() {
+        var plan = planPromql("PROMQL index=k8s step=1m result=(sum by (non_existent_label) (network.eth0.rx))");
+        // equivalent to avg(network.eth0.rx) since the label does not exist
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
+        // the non-existent label should not appear in the groupings
+        plan.collect(Aggregate.class)
+            .forEach(
+                agg -> assertThat(
+                    agg.groupings().stream().map(Attribute.class::cast).map(Attribute::name).toList(),
+                    not(hasItem("non_existent_label"))
+                )
+            );
     }
 
     private void assertConstantResult(String query, Matcher<Double> matcher) {

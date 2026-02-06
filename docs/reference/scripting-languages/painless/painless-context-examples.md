@@ -1,118 +1,220 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-context-examples.html
+applies_to:
+  stack: ga
+  serverless: ga
 products:
   - id: painless
 ---
 
-# Context example data [painless-context-examples]
+# Context example data (eCommerce) [painless-context-examples]
 
-Complete the following steps to index the `seat` sample data into {{es}}. You can run any of the context examples against this sample data after you configure it.
+Complete the following installation steps to index the sample eCommerce orders data into {{es}}. You can run any of the context examples against this sample data after you've configured it. To add the eCommerce data you need to have {{kib}} installed.
 
-Each document in the `seat` data contains the following fields:
+Each document in this dataset represents a complete eCommerce order. Every order contains complete transaction data including product details, pricing information, customer data, and geographic location. Orders might include multiple products, with product-specific information stored as values within individual fields.
 
-`theatre` ([`keyword`](/reference/elasticsearch/mapping-reference/keyword.md))
-:   The name of the theater the play is in.
+## Install the eCommerce sample data [painless-sample-data-install]
 
-`play` ([`keyword`](/reference/elasticsearch/mapping-reference/keyword.md))
-:   The name of the play.
-
-`actors` ([`keyword`](/reference/elasticsearch/mapping-reference/keyword.md))
-:   A list of actors in the play.
-
-`date` ([`keyword`](/reference/elasticsearch/mapping-reference/keyword.md))
-:   The date of the play as a keyword.
-
-`time` ([`keyword`](/reference/elasticsearch/mapping-reference/keyword.md))
-:   The time of the play as a keyword.
-
-`cost` ([`long`](/reference/elasticsearch/mapping-reference/number.md))
-:   The cost of the ticket for the seat.
-
-`row` ([`long`](/reference/elasticsearch/mapping-reference/number.md))
-:   The row of the seat.
-
-`number` ([`long`](/reference/elasticsearch/mapping-reference/number.md))
-:   The number of the seat within a row.
-
-`sold` ([`boolean`](/reference/elasticsearch/mapping-reference/boolean.md))
-:   Whether or not the seat is sold.
-
-`datetime` ([`date`](/reference/elasticsearch/mapping-reference/date.md))
-:   The date and time of the play as a date object.
-
-## Prerequisites [_prerequisites]
-
-Start an [{{es}} instance](docs-content://deploy-manage/deploy/self-managed/installing-elasticsearch.md), and then access the [Console](docs-content://explore-analyze/query-filter/tools/console.md) in {{kib}}.
+1. Go to **Integrations** and search for **Sample Data**.   
+2. On the **Sample data** page, expand the **Other sample data sets**.
+3. Click **Add data** to install **Sample eCommerce orders**.   
+4. **Verify Installation:** Navigate to **Analytics \> Discover** and select the `kibana_sample_data_ecommerce` data view. You should see eCommerce order documents with complete customer, product, and transaction information.
 
 
-## Configure the `seat` sample data [_configure_the_seat_sample_data]
+## Sample document structure
 
-1. From the {{kib}} Console, create [mappings](docs-content://manage-data/data-store/mapping.md) for the sample data:
+Here’s an example of a complete eCommerce order document with two products (basic T-shirt and boots):
 
-    ```console
-    PUT /seats
-    {
-      "mappings": {
-        "properties": {
-          "theatre":  { "type": "keyword" },
-          "play":     { "type": "keyword" },
-          "actors":   { "type": "keyword" },
-          "date":     { "type": "keyword" },
-          "time":     { "type": "keyword" },
-          "cost":     { "type": "double"  },
-          "row":      { "type": "integer" },
-          "number":   { "type": "integer" },
-          "sold":     { "type": "boolean" },
-          "datetime": { "type": "date"    }
-        }
-      }
+```json
+{
+  "order_id": 578286,
+  "order_date": "2025-08-13T16:53:46+00:00",
+  "type": "order",
+  "currency": "EUR",
+  "customer_id": 39,
+  "customer_full_name": "Kamal Brock",
+  "customer_first_name": "Kamal",
+  "customer_last_name": "Brock",
+  "customer_gender": "MALE",
+  "customer_phone": "",
+  "email": "kamal@brock-family.zzz",
+  "user": "kamal",
+  "day_of_week": "Wednesday",
+  "day_of_week_i": 2,
+  "geoip": {
+    "city_name": "Istanbul",
+    "region_name": "Istanbul",
+    "country_iso_code": "TR",
+    "continent_name": "Asia",
+    "location": {
+  "lat": 41,
+  "lon": 29
     }
-    ```
-
-2. Configure a script ingest processor that parses each document as {{es}} ingests the `seat` data. The following ingest script processes the `date` and `time` fields and stores the result in a `datetime` field:
-
-    ```console
-    PUT /_ingest/pipeline/seats
+  },
+  "category": [
+    "Men's Clothing",
+    "Men's Shoes"
+  ],
+  "manufacturer": [
+    "Elitelligence",
+    "Oceanavigations"
+  ],
+  "sku": [
+    "ZO0548305483",
+    "ZO0256702567"
+  ],
+  "products": [
     {
-      "description": "update datetime for seats",
-      "processors": [
-        {
-          "script": {
-            "source": "String[] dateSplit = ctx.date.splitOnToken('-'); String year = dateSplit[0].trim(); String month = dateSplit[1].trim(); if (month.length() == 1) { month = '0' + month; } String day = dateSplit[2].trim(); if (day.length() == 1) { day = '0' + day; } boolean pm = ctx.time.substring(ctx.time.length() - 2).equals('PM'); String[] timeSplit = ctx.time.substring(0, ctx.time.length() - 2).splitOnToken(':'); int hours = Integer.parseInt(timeSplit[0].trim()); int minutes = Integer.parseInt(timeSplit[1].trim()); if (pm) { hours += 12; } String dts = year + '-' + month + '-' + day + 'T' + (hours < 10 ? '0' + hours : '' + hours) + ':' + (minutes < 10 ? '0' + minutes : '' + minutes) + ':00+08:00'; ZonedDateTime dt = ZonedDateTime.parse(dts, DateTimeFormatter.ISO_OFFSET_DATE_TIME); ctx.datetime = dt.getLong(ChronoField.INSTANT_SECONDS)*1000L;"
-          }
-        }
-      ]
+  "_id": "sold_product_578286_15939",
+  "product_id": 15939,
+  "product_name": "Basic T-shirt - khaki",
+  "category": "Men's Clothing",
+  "manufacturer": "Elitelligence",
+  "sku": "ZO0548305483",
+  "base_price": 7.99,
+  "base_unit_price": 7.99,
+  "price": 7.99,
+  "taxful_price": 7.99,
+  "taxless_price": 7.99,
+  "quantity": 1,
+  "discount_amount": 0,
+  "discount_percentage": 0,
+  "tax_amount": 0,
+  "created_on": "2016-12-21T16:53:46+00:00"
+    },
+    {
+  "_id": "sold_product_578286_1844",
+  "product_id": 1844,
+  "product_name": "Boots - beige",
+  "category": "Men's Shoes",
+  "manufacturer": "Oceanavigations",
+  "sku": "ZO0256702567",
+  "base_price": 84.99,
+  "base_unit_price": 84.99,
+  "price": 84.99,
+  "taxful_price": 84.99,
+  "taxless_price": 84.99,
+  "quantity": 1,
+  "discount_amount": 0,
+  "discount_percentage": 0,
+  "tax_amount": 0,
+  "created_on": "2016-12-21T16:53:46+00:00"
     }
-    ```
+  ],
+  "taxful_total_price": 92.98,
+  "taxless_total_price": 92.98,
+  "total_quantity": 2,
+  "total_unique_products": 2,
+  "event": {
+    "dataset": "sample_ecommerce"
+  }
+}
+```
 
-3. Ingest some sample data using the `seats` ingest pipeline that you defined in the previous step.
+## Field Reference
 
-    ```console
-    POST seats/_bulk?pipeline=seats&refresh=true
-    {"create":{"_index":"seats","_id":"1"}}
-    {"theatre":"Skyline","play":"Rent","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2021-4-1","time":"3:00PM","cost":37,"row":1,"number":7,"sold":false}
-    {"create":{"_index":"seats","_id":"2"}}
-    {"theatre":"Graye","play":"Rent","actors":["Dave Christmas"],"date":"2021-4-1","time":"3:00PM","cost":30,"row":3,"number":5,"sold":false}
-    {"create":{"_index":"seats","_id":"3"}}
-    {"theatre":"Graye","play":"Rented","actors":["Dave Christmas"],"date":"2021-4-1","time":"3:00PM","cost":33,"row":2,"number":6,"sold":false}
-    {"create":{"_index":"seats","_id":"4"}}
-    {"theatre":"Skyline","play":"Rented","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2021-4-1","time":"3:00PM","cost":20,"row":5,"number":2,"sold":false}
-    {"create":{"_index":"seats","_id":"5"}}
-    {"theatre":"Down Port","play":"Pick It Up","actors":["Joel Madigan","Jessica Brown","Baz Knight","Jo Hangum","Rachel Grass","Phoebe Miller"],"date":"2018-4-2","time":"8:00PM","cost":27.5,"row":3,"number":2,"sold":false}
-    {"create":{"_index":"seats","_id":"6"}}
-    {"theatre":"Down Port","play":"Harriot","actors":["Phoebe Miller","Sarah Notch","Brayden Green","Joshua Iller","Jon Hittle","Rob Kettleman","Laura Conrad","Simon Hower","Nora Blue","Mike Candlestick","Jacey Bell"],"date":"2018-8-7","time":"8:00PM","cost":30,"row":1,"number":10,"sold":false}
-    {"create":{"_index":"seats","_id":"7"}}
-    {"theatre":"Skyline","play":"Auntie Jo","actors":["Jo Hangum","Jon Hittle","Rob Kettleman","Laura Conrad","Simon Hower","Nora Blue"],"date":"2018-10-2","time":"5:40PM","cost":22.5,"row":7,"number":10,"sold":false}
-    {"create":{"_index":"seats","_id":"8"}}
-    {"theatre":"Skyline","play":"Test Run","actors":["Joe Muir","Ryan Earns","Joel Madigan","Jessica Brown"],"date":"2018-8-5","time":"7:30PM","cost":17.5,"row":11,"number":12,"sold":true}
-    {"create":{"_index":"seats","_id":"9"}}
-    {"theatre":"Skyline","play":"Sunnyside Down","actors":["Krissy Smith","Joe Muir","Ryan Earns","Nora Blue","Mike Candlestick","Jacey Bell"],"date":"2018-6-12","time":"4:00PM","cost":21.25,"row":8,"number":15,"sold":true}
-    {"create":{"_index":"seats","_id":"10"}}
-    {"theatre":"Graye","play":"Line and Single","actors":["Nora Blue","Mike Candlestick"],"date":"2018-6-5","time":"2:00PM","cost":30,"row":1,"number":2,"sold":false}
-    {"create":{"_index":"seats","_id":"11"}}
-    {"theatre":"Graye","play":"Hamilton","actors":["Lin-Manuel Miranda","Leslie Odom Jr."],"date":"2018-6-5","time":"2:00PM","cost":5000,"row":1,"number":20,"sold":true}
-    ```
+* **Order information**
 
+    `order_id` ([`keyword`](/reference/elasticsearch/mapping-reference/keyword.md)): Unique identifier for each order.
+    
+    `order_date` ([`date`](/reference/elasticsearch/mapping-reference/date.md)): Timestamp when the order was placed.
+    
+    `type` ([`keyword`](/reference/elasticsearch/mapping-reference/keyword.md)): Document type (always "order").
+    
+    `currency` ([`keyword`](/reference/elasticsearch/mapping-reference/keyword.md)): Transaction currency (EUR, USD, etc.).
+    
+* **Customer information**
+    
+    `customer_id` ([`keyword`](/reference/elasticsearch/mapping-reference/keyword.md)): Unique customer identifier.
+    
+    `customer_full_name` ([`text`](/reference/elasticsearch/mapping-reference/text.md)): Complete customer name with keyword subfield.
+    
+    `customer_first_name` ([`text`](/reference/elasticsearch/mapping-reference/text.md)): Customer's first name with keyword subfield.
+    
+    `customer_last_name` ([`text`](/reference/elasticsearch/mapping-reference/text.md)): Customer's last name with keyword subfield.
+    
+    `customer_gender` ([`keyword`](/reference/elasticsearch/mapping-reference/keyword.md)): Customer gender (MALE, FEMALE).
+    
+    `email` ([`keyword`](/reference/elasticsearch/mapping-reference/keyword.md)): Customer email address.
+    
+    `user` ([`keyword`](/reference/elasticsearch/mapping-reference/keyword.md)): Username derived from customer name.
 
+* **Geographic Information**
+
+    `geoip.city_name` ([`keyword`](/reference/elasticsearch/mapping-reference/keyword.md)): City where the order was placed.
+    
+    `geoip.continent_name` ([`keyword`](/reference/elasticsearch/mapping-reference/keyword.md)): Continent of order origin.
+    
+    `geoip.country_iso_code` ([`keyword`](/reference/elasticsearch/mapping-reference/keyword.md)): Two-letter country code.
+    
+    `geoip.location` ([`geo_point`](/reference/elasticsearch/mapping-reference/geo-point.md)): Geographic coordinates of order location.
+    
+    `geoip.region_name` ([`keyword`](/reference/elasticsearch/mapping-reference/keyword.md)): State or region name.
+
+* **Order timing**
+
+    `day_of_week` ([`keyword`](/reference/elasticsearch/mapping-reference/keyword.md)): Day when the order was placed (Monday, Tuesday, and so on).
+    
+    `day_of_week_i` ([`integer`](/reference/elasticsearch/mapping-reference/number.md)): Numeric day of week (0-6).
+
+* **Product information**
+
+    `category` ([`text`](/reference/elasticsearch/mapping-reference/text.md)): Primary product categories with keyword subfield.
+    
+    `manufacturer` ([`text`](/reference/elasticsearch/mapping-reference/text.md)): Manufacturer names with keyword subfield.
+    
+    `sku` ([`keyword`](/reference/elasticsearch/mapping-reference/keyword.md)): Stock Keeping Unit codes.
+    
+    `products.product_name` ([`text`](/reference/elasticsearch/mapping-reference/text.md)): Product names (comma-separated for multiple products).
+    
+    `products.product_id` ([`long`](/reference/elasticsearch/mapping-reference/number.md)): Product identifiers.
+    
+    `products._id` ([`text`](/reference/elasticsearch/mapping-reference/text.md)): Internal product identifiers with keyword subfield.
+    
+    `products.sku` ([`keyword`](/reference/elasticsearch/mapping-reference/keyword.md)): Product-specific SKU codes.
+    
+    `products.category` ([`text`](/reference/elasticsearch/mapping-reference/text.md)): Individual product categories with keyword subfield.
+    
+    `products.manufacturer` ([`text`](/reference/elasticsearch/mapping-reference/text.md)): Product-specific manufacturers with keyword subfield.
+    
+    `products.created_on` ([`date`](/reference/elasticsearch/mapping-reference/date.md)): Product catalog creation dates.
+    
+    `products.quantity` ([`integer`](/reference/elasticsearch/mapping-reference/number.md)): Quantity of each product ordered.
+
+* **Pricing and financial information**
+
+    `products.base_price` ([`half_float`](/reference/elasticsearch/mapping-reference/number.md)): Original product prices before discounts.
+    
+    `products.base_unit_price` ([`half_float`](/reference/elasticsearch/mapping-reference/number.md)): Base price per unit.
+    
+    `products.price` ([`half_float`](/reference/elasticsearch/mapping-reference/number.md)): Final product prices.
+    
+    `products.min_price` ([`half_float`](/reference/elasticsearch/mapping-reference/number.md)): Minimum price thresholds.
+    
+    `products.discount_amount` ([`half_float`](/reference/elasticsearch/mapping-reference/number.md)): Discount amounts applied.
+    
+    `products.discount_percentage` ([`half_float`](/reference/elasticsearch/mapping-reference/number.md)) : Percentage discounts applied.
+    
+    `products.unit_discount_amount` ([`half_float`](/reference/elasticsearch/mapping-reference/number.md)): Discount amount per unit.
+    
+    `products.tax_amount` ([`half_float`](/reference/elasticsearch/mapping-reference/number.md)): Tax amounts for products.
+    
+    `products.taxful_price` ([`half_float`](/reference/elasticsearch/mapping-reference/number.md)): Product prices including tax.
+    
+    `products.taxless_price` ([`half_float`](/reference/elasticsearch/mapping-reference/number.md)): Product prices excluding tax.
+    
+    `taxful_total_price` ([`half_float`](/reference/elasticsearch/mapping-reference/number.md)): Total order amount including tax.
+    
+    `taxless_total_price` ([`half_float`](/reference/elasticsearch/mapping-reference/number.md)): Total order amount excluding tax.
+
+* **Order summary**
+
+    `total_quantity` ([`integer`](/reference/elasticsearch/mapping-reference/number.md)): Total items in the order.
+    
+    `total_unique_products` ([`integer`](/reference/elasticsearch/mapping-reference/number.md)): Number of different products in the order.
+
+* **Metadata**
+
+    `event.dataset` ([`keyword`](/reference/elasticsearch/mapping-reference/keyword.md)): Dataset identifier ("sample\_ecommerce").
 

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
@@ -17,7 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Removes FORK branches that only contain an empty LocalRelation.
+ * Removes FORK branches or subqueries from UnionAll that only contain an empty LocalRelation.
  * The simplest case where this can happen is when a FORK branch contains {@code WHERE false}.
  * In practice, empty FORK branches can also happen when FORK is used for conditional execution of the query
  * based on query parameters:
@@ -29,14 +28,8 @@ import java.util.List;
  * }</pre>
  */
 public class PruneEmptyForkBranches extends OptimizerRules.OptimizerRule<Fork> {
-
     @Override
     protected LogicalPlan rule(Fork fork) {
-        // ideally we should extend this to UnionAll
-        if (fork instanceof UnionAll) {
-            return fork;
-        }
-
         List<LogicalPlan> newChildren = new ArrayList<>();
         for (LogicalPlan forkChild : fork.children()) {
             if (forkChild instanceof LocalRelation localRelation && localRelation.hasEmptySupplier()) {

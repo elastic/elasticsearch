@@ -160,8 +160,7 @@ public class IndexModuleTests extends ESTestCase {
         public void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path[] shardPaths, IndexRemovalReason reason) {}
     };
 
-    private final IndexFieldDataCache.Listener listener = new IndexFieldDataCache.Listener() {
-    };
+    private final IndexFieldDataCache.Listener listener = new IndexFieldDataCache.Listener() {};
     private MapperRegistry mapperRegistry;
     private ThreadPool threadPool;
     private ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
@@ -258,7 +257,7 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-            mock(SlowLogFieldProvider.class),
+            mock(ActionLoggingFieldsProvider.class),
             MapperMetrics.NOOP,
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
@@ -289,7 +288,7 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-            mock(SlowLogFieldProvider.class),
+            mock(ActionLoggingFieldsProvider.class),
             MapperMetrics.NOOP,
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
@@ -318,7 +317,7 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-            mock(SlowLogFieldProvider.class),
+            mock(ActionLoggingFieldsProvider.class),
             MapperMetrics.NOOP,
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
@@ -675,7 +674,7 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             recoveryStateFactories,
-            mock(SlowLogFieldProvider.class),
+            mock(ActionLoggingFieldsProvider.class),
             MapperMetrics.NOOP,
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
@@ -701,7 +700,7 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-            mock(SlowLogFieldProvider.class),
+            mock(ActionLoggingFieldsProvider.class),
             MapperMetrics.NOOP,
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
@@ -807,7 +806,7 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-            mock(SlowLogFieldProvider.class),
+            mock(ActionLoggingFieldsProvider.class),
             MapperMetrics.NOOP,
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),

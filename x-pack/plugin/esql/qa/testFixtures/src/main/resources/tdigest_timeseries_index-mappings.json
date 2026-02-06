@@ -8,7 +8,12 @@
       "time_series_dimension": true
     },
     "responseTime": {
-      "type": "tdigest"
+      "type": "tdigest",
+      "time_series_metric": "histogram"
+    },
+    "caseTestPlaceholder": {
+      "type": "tdigest",
+      "time_series_metric": "histogram"
     }
   }
 }

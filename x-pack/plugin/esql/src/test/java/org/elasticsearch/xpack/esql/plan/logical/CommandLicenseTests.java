@@ -124,7 +124,9 @@ public class CommandLicenseTests extends ESTestCase {
             "Stats",
             "Aggregate",
             "Join",
-            "LookupJoin"
+            "LookupJoin",
+            "Mmr",
+            "MMR"
         );
         Map<String, String> commandNameMapper = Map.of(
             "ChangePoint",

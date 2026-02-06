@@ -17,6 +17,7 @@ import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeAsyncClient;
 import software.amazon.awssdk.services.bedrockruntime.model.BedrockRuntimeException;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseResponse;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamOutput;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamResponseHandler;
 import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelRequest;
@@ -31,6 +32,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
 import org.reactivestreams.FlowAdapters;
 import org.slf4j.LoggerFactory;
@@ -90,13 +92,30 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
     @Override
     public Flow.Publisher<? extends InferenceServiceResults.Result> converseStream(ConverseStreamRequest request)
         throws ElasticsearchException {
-        var awsResponseProcessor = new AmazonBedrockStreamingChatProcessor(threadPool);
+        return getAmazonBedrockStreamingProcessor(request, new AmazonBedrockCompletionStreamingProcessor(threadPool));
+    }
+
+    @Override
+    public Flow.Publisher<StreamingUnifiedChatCompletionResults.Results> converseUnifiedStream(
+        ConverseStreamRequest request,
+        AmazonBedrockModel bedrockModel
+    ) throws ElasticsearchException {
+        return getAmazonBedrockStreamingProcessor(
+            request,
+            new AmazonBedrockChatCompletionStreamingProcessor(threadPool, bedrockModel.model())
+        );
+    }
+
+    private <T, R extends Flow.Processor<ConverseStreamOutput, T>> R getAmazonBedrockStreamingProcessor(
+        ConverseStreamRequest request,
+        R awsResponseProcessor
+    ) {
         internalClient.converseStream(
             request,
             ConverseStreamResponseHandler.builder().subscriber(() -> FlowAdapters.toSubscriber(awsResponseProcessor)).build()
         ).exceptionally(e -> {
             awsResponseProcessor.onError(e);
-            return null; // Void
+            return null; // return value ignored
         });
         return awsResponseProcessor;
     }

@@ -168,6 +168,17 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         return result;
     }
 
+    /**
+     * Traverse the plan tree from the current node to the leaves, checking the given
+     * predicate.  This function will short circuit and return early if it is able to.
+     *
+     * @param predicate condition to check against all nodes
+     * @return true iff the given predicate is true for all nodes
+     */
+    public boolean allMatch(Predicate<? super T> predicate) {
+        return anyMatch(Predicate.not(predicate)) == false;
+    }
+
     public List<T> collect(Predicate<? super T> predicate) {
         List<T> l = new ArrayList<>();
         forEachDown(n -> {

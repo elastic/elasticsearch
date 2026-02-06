@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.operator.mvdedupe;
 
-import org.elasticsearch.common.util.LongLongHash;
+import org.elasticsearch.common.util.LongLongHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.AddPage;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
@@ -15,7 +15,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
 
 public class LongLongBlockAdd extends AddPage {
-    private final LongLongHash hash;
+    private final LongLongHashTable hash;
     private final MultivalueDedupeLong block1;
     private final MultivalueDedupeLong block2;
 
@@ -23,7 +23,7 @@ public class LongLongBlockAdd extends AddPage {
         BlockFactory blockFactory,
         int emitBatchSize,
         GroupingAggregatorFunction.AddInput addInput,
-        LongLongHash hash,
+        LongLongHashTable hash,
         LongBlock block1,
         LongBlock block2
     ) {

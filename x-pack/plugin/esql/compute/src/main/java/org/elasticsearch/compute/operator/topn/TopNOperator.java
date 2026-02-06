@@ -46,6 +46,11 @@ public class TopNOperator implements Operator, Accountable {
     private static final byte SMALL_NULL = 0x01; // "null" representation for "nulls first"
     private static final byte BIG_NULL = 0x02; // "null" representation for "nulls last"
 
+    public enum InputOrdering {
+        SORTED,
+        NOT_SORTED
+    }
+
     /**
      * Internal row to be used in the PriorityQueue instead of the full blown Page.
      * It mirrors somehow the Block build in the sense that it keeps around an array of offsets and a count of values (to account for
@@ -252,7 +257,8 @@ public class TopNOperator implements Operator, Accountable {
         List<ElementType> elementTypes,
         List<TopNEncoder> encoders,
         List<SortOrder> sortOrders,
-        int maxPageSize
+        int maxPageSize,
+        InputOrdering inputOrdering
     ) implements OperatorFactory {
         public TopNOperatorFactory {
             for (ElementType e : elementTypes) {
@@ -271,7 +277,8 @@ public class TopNOperator implements Operator, Accountable {
                 elementTypes,
                 encoders,
                 sortOrders,
-                maxPageSize
+                maxPageSize,
+                inputOrdering
             );
         }
 
@@ -285,6 +292,8 @@ public class TopNOperator implements Operator, Accountable {
                 + encoders
                 + ", sortOrders="
                 + sortOrders
+                + ", inputOrdering="
+                + inputOrdering
                 + "]";
         }
     }
@@ -328,6 +337,8 @@ public class TopNOperator implements Operator, Accountable {
      */
     private long rowsEmitted;
 
+    private final InputOrdering inputOrdering;
+
     public TopNOperator(
         BlockFactory blockFactory,
         CircuitBreaker breaker,
@@ -335,7 +346,8 @@ public class TopNOperator implements Operator, Accountable {
         List<ElementType> elementTypes,
         List<TopNEncoder> encoders,
         List<SortOrder> sortOrders,
-        int maxPageSize
+        int maxPageSize,
+        InputOrdering inputOrdering
     ) {
         this.blockFactory = blockFactory;
         this.breaker = breaker;
@@ -344,6 +356,7 @@ public class TopNOperator implements Operator, Accountable {
         this.encoders = encoders;
         this.sortOrders = sortOrders;
         this.inputQueue = Queue.build(breaker, topCount);
+        this.inputOrdering = inputOrdering;
     }
 
     static int compareRows(Row r1, Row r2) {
@@ -399,6 +412,9 @@ public class TopNOperator implements Operator, Accountable {
          * inputQueue or because we hit an allocation failure while building it.
          */
         try {
+            if (inputQueue.topCount <= 0) {
+                return;
+            }
             RowFiller rowFiller = new RowFiller(elementTypes, encoders, sortOrders, page);
 
             for (int i = 0; i < page.getPositionCount(); i++) {
@@ -430,6 +446,16 @@ public class TopNOperator implements Operator, Accountable {
                     spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
                     inputQueue.updateTop(spare);
                     spare = nextSpare;
+                } else if (inputOrdering == InputOrdering.SORTED) {
+                    /*
+                     The queue (min-heap) is full and we have sorted input for the input page. Any other element that comes after the one
+                     we just compared will be greater or equal than any other one in the queue, so we can short circuit the execution here.
+
+                     Note we always need to check whether the min-heap top's is greater or equal than the current element. For example: we
+                     could have processed all the data from a first data node, have a full queue (a partial result), but a page from a
+                     second data node could interleave with our partial result in arbitrary ways.
+                     */
+                    break;
                 }
             }
         } finally {
@@ -543,6 +569,8 @@ public class TopNOperator implements Operator, Accountable {
             + encoders
             + ", sortOrders="
             + sortOrders
+            + ", inputOrdering="
+            + inputOrdering
             + "]";
     }
 
@@ -611,7 +639,7 @@ public class TopNOperator implements Operator, Accountable {
             );
         }
 
-        public static long sizeOf(int topCount) {
+        private static long sizeOf(int topCount) {
             long total = SHALLOW_SIZE;
             total += RamUsageEstimator.alignObjectSize(
                 RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * ((long) topCount + 1)

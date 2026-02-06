@@ -300,6 +300,11 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public String format(long value) {
+            // Handle missing values, represented as Long.MIN_VALUE or Long.MAX_VALUE depending on the sort order
+            if (value == Long.MIN_VALUE || value == Long.MAX_VALUE) {
+                return null;
+            }
+
             try {
                 return formatter.format(resolution.toInstant(value).atZone(timeZone));
             } catch (DateTimeException dte) {

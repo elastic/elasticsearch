@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.inference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -17,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -51,11 +51,13 @@ public class CompletionFunction extends InferenceFunction<CompletionFunction> {
 
     private final Expression inferenceId;
     private final Expression prompt;
+    private final MapExpression taskSettings;
 
-    public CompletionFunction(Source source, Expression prompt, Expression inferenceId) {
-        super(source, List.of(prompt, inferenceId));
+    public CompletionFunction(Source source, Expression prompt, Expression inferenceId, MapExpression taskSettings) {
+        super(source, List.of(prompt, inferenceId, taskSettings));
         this.inferenceId = inferenceId;
         this.prompt = prompt;
+        this.taskSettings = taskSettings;
     }
 
     @Override
@@ -72,6 +74,10 @@ public class CompletionFunction extends InferenceFunction<CompletionFunction> {
         return prompt;
     }
 
+    public MapExpression taskSettings() {
+        return taskSettings;
+    }
+
     @Override
     public Expression inferenceId() {
         return inferenceId;
@@ -79,7 +85,18 @@ public class CompletionFunction extends InferenceFunction<CompletionFunction> {
 
     @Override
     public boolean foldable() {
-        return inferenceId.foldable() && prompt.foldable();
+        if (inferenceId.foldable() == false || prompt.foldable() == false) {
+            return false;
+        }
+        if (taskSettings.resolved() == false) {
+            return false;
+        }
+        for (Expression e : taskSettings.children()) {
+            if (e.foldable() == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override
@@ -118,34 +135,21 @@ public class CompletionFunction extends InferenceFunction<CompletionFunction> {
 
     @Override
     public CompletionFunction withInferenceResolutionError(String inferenceId, String error) {
-        return new CompletionFunction(source(), prompt, new UnresolvedAttribute(inferenceId().source(), inferenceId, error));
+        return new CompletionFunction(source(), prompt, new UnresolvedAttribute(inferenceId().source(), inferenceId, error), taskSettings);
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new CompletionFunction(source(), newChildren.get(0), newChildren.get(1));
+        return new CompletionFunction(source(), newChildren.get(0), newChildren.get(1), (MapExpression) newChildren.get(2));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, CompletionFunction::new, prompt, inferenceId);
+        return NodeInfo.create(this, CompletionFunction::new, prompt, inferenceId, taskSettings);
     }
 
     @Override
     public String toString() {
-        return "COMPLETION(" + prompt + ", " + inferenceId + ")";
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
-        CompletionFunction completionFunction = (CompletionFunction) o;
-        return Objects.equals(inferenceId, completionFunction.inferenceId) && Objects.equals(prompt, completionFunction.prompt);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), inferenceId, prompt);
+        return "COMPLETION(" + prompt + ", " + inferenceId + ", " + taskSettings + ")";
     }
 }

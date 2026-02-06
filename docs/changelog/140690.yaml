@@ -1,0 +1,6 @@
+pr: 140690
+summary: Fix to tdigest implicit eval
+area: ES|QL
+type: bug
+issues:
+ - 140670

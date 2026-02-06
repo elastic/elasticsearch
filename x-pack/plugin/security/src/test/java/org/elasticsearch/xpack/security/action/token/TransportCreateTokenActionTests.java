@@ -27,8 +27,10 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.node.Node;
@@ -93,6 +95,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
     private AuthenticationService authenticationService;
     private MockLicenseState license;
     private SecurityContext securityContext;
+    private MockBytesRefRecycler bytesRefRecycler;
 
     @Before
     public void setupClient() {
@@ -192,6 +195,8 @@ public class TransportCreateTokenActionTests extends ESTestCase {
 
         this.license = mock(MockLicenseState.class);
         when(license.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);
+
+        this.bytesRefRecycler = new MockBytesRefRecycler();
     }
 
     @After
@@ -199,6 +204,11 @@ public class TransportCreateTokenActionTests extends ESTestCase {
         if (threadPool != null) {
             terminate(threadPool);
         }
+    }
+
+    @After
+    public void cleanupMocks() {
+        Releasables.closeExpectNoException(bytesRefRecycler);
     }
 
     public void testClientCredentialsCreatesWithoutRefreshToken() throws Exception {
@@ -210,7 +220,8 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             securityContext,
             securityIndex,
             securityIndex,
-            clusterService
+            clusterService,
+            bytesRefRecycler
         );
         Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User("joe"))
@@ -251,7 +262,8 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             securityContext,
             securityIndex,
             securityIndex,
-            clusterService
+            clusterService,
+            bytesRefRecycler
         );
         Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User("joe"))
@@ -294,7 +306,8 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             securityContext,
             securityIndex,
             securityIndex,
-            clusterService
+            clusterService,
+            bytesRefRecycler
         );
         Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User("joe"))
@@ -347,7 +360,8 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             securityContext,
             securityIndex,
             securityIndex,
-            clusterService
+            clusterService,
+            bytesRefRecycler
         );
         Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User("joe"))
@@ -389,7 +403,8 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             securityContext,
             securityIndex,
             securityIndex,
-            clusterService
+            clusterService,
+            bytesRefRecycler
         );
         Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build(false);
         authentication.writeToContext(threadPool.getThreadContext());

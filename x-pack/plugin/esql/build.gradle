@@ -47,6 +47,7 @@ dependencies {
   api "org.antlr:antlr4-runtime:${versions.antlr4}"
   api project(":libs:h3")
   implementation project('arrow')
+  implementation "org.apache.commons:commons-math3:${versions.commons_math3}"
 
   // Also contains a dummy processor to allow compilation with unused annotations.
   annotationProcessor project('compute:gen')
@@ -75,8 +76,10 @@ dependencies {
   testImplementation('org.webjars.npm:fontsource__roboto-mono:4.5.7')
 
   internalClusterTestImplementation project(":modules:mapper-extras")
+  internalClusterTestImplementation project(":plugins:mapper-size")
   internalClusterTestImplementation project(xpackModule('inference:qa:test-service-plugin'))
   internalClusterTestImplementation(testArtifact(project(xpackModule('inference'))))
+  internalClusterTestImplementation project(path: xpackModule('mapper-constant-keyword'))
 }
 
 tasks.named('splitPackagesAudit').configure {
@@ -116,152 +119,159 @@ tasks.named("test").configure {
   // https://github.com/elastic/elasticsearch/issues/135009
   jvmArgs '-XX:-OmitStackTraceInFastThrow'
 
-  def injected = project.objects.newInstance(Injected)
-  // Define the folder to delete and recreate
-  def tempDir = file("build/testrun/test/temp/esql")
-  def commandsExamplesFile = new File(tempDir, "commands.examples")
-  // Find all matching .md files for commands examples
-  def mdFiles = fileTree("${rootDir}/docs/reference/query-languages/esql/_snippets/commands/examples/") {
-    include("**/*.csv-spec/*.md")
-  }
-  def esqlDocFolder = file("${rootDir}/docs/reference/query-languages/esql").toPath()
-  def imagesDocFolder = file("${esqlDocFolder}/images")
-  def snippetsDocFolder = file("${esqlDocFolder}/_snippets")
-  def kibanaDocFolder = file("${esqlDocFolder}/kibana")
-  File imagesFolder = file("build/testrun/test/temp/esql/images")
-  File snippetsFolder = file("build/testrun/test/temp/esql/_snippets")
-  File kibanaFolder = file("build/testrun/test/temp/esql/kibana")
-
-  // BuildParams isn't available inside doFirst with --configuration-cache
-  def buildParams = buildParams
-  doFirst {
-    injected.fs.delete {
-      it.delete(tempDir)
+  ['esql', 'promql'].forEach {folder ->
+    def injected = project.objects.newInstance(Injected)
+    // Define the folder to delete and recreate
+    def tempDir = file("build/testrun/test/temp/${folder}")
+    def commandsExamplesFile = new File(tempDir, "commands.examples")
+    // Find all matching .md files for commands examples
+    def mdFiles = fileTree("${rootDir}/docs/reference/query-languages/${folder}/_snippets/commands/examples/") {
+      include("**/*.csv-spec/*.md")
     }
-    // Re-create this folder so we can save a table of generated examples to extract from csv-spec tests
-    tempDir.mkdirs() // Recreate the folder
+    def docFolder = file("${rootDir}/docs/reference/query-languages/${folder}").toPath()
+    def imagesDocFolder = file("${docFolder}/images")
+    def snippetsDocFolder = file("${docFolder}/_snippets")
+    def kibanaDocFolder = file("${docFolder}/kibana")
+    File imagesFolder = file("build/testrun/test/temp/${folder}/images")
+    File snippetsFolder = file("build/testrun/test/temp/${folder}/_snippets")
+    File kibanaFolder = file("build/testrun/test/temp/${folder}/kibana")
 
-    // Write directory name and filename of each .md file to the output file
-    commandsExamplesFile.withWriter { writer ->
-      mdFiles.each { file ->
-        writer.writeLine("${file.parentFile.name}/${file.name}")
+    // BuildParams isn't available inside doFirst with --configuration-cache
+    def buildParams = buildParams
+    doFirst {
+      injected.fs.delete {
+        it.delete(tempDir)
+      }
+      // Re-create this folder so we can save a table of generated examples to extract from csv-spec tests
+      tempDir.mkdirs() // Recreate the folder
+
+      // Write directory name and filename of each .md file to the output file
+      commandsExamplesFile.withWriter { writer ->
+        mdFiles.each { file ->
+          writer.writeLine("${file.parentFile.name}/${file.name}")
+        }
+      }
+      println "File 'commands.examples' created with ${mdFiles.size()} example specifications from csv-spec files."
+      if (buildParams.ci) {
+        injected.fs.sync {
+          from snippetsDocFolder
+          into snippetsFolder
+        }
+        injected.fs.sync {
+          from imagesDocFolder
+          into imagesFolder
+        }
+        injected.fs.sync {
+          from kibanaDocFolder
+          into kibanaFolder
+        }
       }
     }
-    println "File 'commands.examples' created with ${mdFiles.size()} example specifications from csv-spec files."
     if (buildParams.ci) {
-      injected.fs.sync {
-        from snippetsDocFolder
-        into snippetsFolder
+      systemProperty 'generateDocs', 'assert'
+    } else {
+      systemProperty 'generateDocs', 'write'
+      def snippetsTree = fileTree(snippetsFolder).matching {
+        include "**/types/*.md"  // Recursively include all types/*.md files (effectively counting functions and operators)
       }
-      injected.fs.sync {
-        from imagesDocFolder
-        into imagesFolder
+      def settingsTree = fileTree(snippetsFolder).matching {
+        include "**/settings/*.md"  // Recursively include all settings/*.md files
       }
-      injected.fs.sync {
-        from kibanaDocFolder
-        into kibanaFolder
+      def commandsExamplesTree = fileTree(snippetsFolder).matching {
+        include "**/*.csv-spec/*.md"  // Recursively include all generated *.csv-spec/*.md files (created by CommandDocsTests)
       }
-    }
-  }
-  if (buildParams.ci) {
-    systemProperty 'generateDocs', 'assert'
-  } else {
-    systemProperty 'generateDocs', 'write'
-    def snippetsTree = fileTree(snippetsFolder).matching {
-      include "**/types/*.md"  // Recursively include all types/*.md files (effectively counting functions and operators)
-    }
-    def commandsExamplesTree = fileTree(snippetsFolder).matching {
-      include "**/*.csv-spec/*.md"  // Recursively include all generated *.csv-spec/*.md files (created by CommandDocsTests)
-    }
-    def imagesTree = fileTree(imagesFolder).matching {
-      include "**/*.svg"  // Recursively include all SVG files
-    }
-    def kibanaTree = fileTree(kibanaFolder).matching {
-      include "**/*.json"  // Recursively include all JSON files
-    }
+      def imagesTree = fileTree(imagesFolder).matching {
+        include "**/*.svg"  // Recursively include all SVG files
+      }
+      def kibanaTree = fileTree(kibanaFolder).matching {
+        include "**/*.json"  // Recursively include all JSON files
+      }
 
-    doLast {
-      def snippets = snippetsTree.files.collect { it.name }
-      int countSnippets = snippets.size()
-      def commandsExamples = commandsExamplesTree.files.collect { it.name }
-      int countCommandsExamples = commandsExamples.size()
-      if (countSnippets == 0 && countCommandsExamples == 0) {
-        logger.quiet("ESQL Docs: No function/operator snippets created. Skipping sync.")
-      } else {
-        logger.quiet("ESQL Docs: Found $countSnippets generated function/operator snippets and $countCommandsExamples command examples to patch into docs")
-        injected.fs.sync {
-          from snippetsFolder
-          into snippetsDocFolder
-          include '**/*.md'
-          if (countSnippets <= 100) {
-            // If we do not run the full test of tests, do not attempt to remove potentially unused files
-            preserve {
-              // The snippets directory contains generated and static content, so we must preserve all MD files.
-              include '**/*.md'
-            }
-          } else {
-            // If we do run the full test of tests, be careful about what we need to preserve
-            preserve {
-              // The lists and commands are static, and the operators are a mix of generated and static content
-              include '*.md', '**/operators/*.md', '**/operators/**/*.md', '**/lists/*.md', '**/commands/**/*.md', '**/common/**/*.md'
+      doLast {
+        def snippets = snippetsTree.files.collect { it.name }
+        int countSnippets = snippets.size()
+        def querySettings = settingsTree.files.collect { it.name }
+        int countQuerySettings = querySettings.size()
+        def commandsExamples = commandsExamplesTree.files.collect { it.name }
+        int countCommandsExamples = commandsExamples.size()
+        if (countSnippets == 0 && countCommandsExamples == 0 && countQuerySettings == 0) {
+          logger.quiet("${folder.toUpperCase()} Docs: No function/operator snippets created. Skipping sync.")
+        } else {
+          logger.quiet("${folder.toUpperCase()} Docs: Found $countSnippets generated function/operator snippets and $countCommandsExamples command examples to patch into docs")
+          injected.fs.sync {
+            from snippetsFolder
+            into snippetsDocFolder
+            include '**/*.md'
+            if (countSnippets <= 100) {
+              // If we do not run the full test of tests, do not attempt to remove potentially unused files
+              preserve {
+                // The snippets directory contains generated and static content, so we must preserve all MD files.
+                include '**/*.md'
+              }
+            } else {
+              // If we do run the full test of tests, be careful about what we need to preserve
+              preserve {
+                // The lists and commands are static, and the operators are a mix of generated and static content
+                include '*.md', '**/operators/*.md', '**/operators/**/*.md', '**/lists/*.md', '**/commands/**/*.md', '**/common/**/*.md'
+              }
             }
           }
         }
-      }
 
-      List images = imagesTree.files.collect { it.name }
-      int countImages = images.size()
-      Closure replaceFont = line -> {
-        // The es-docs team has a recommended set of fonts for use with code, and they size similarly to the previous Roboto Mono, which is no longer available in the docs webpage
-        // We do not change the original SVG generator to use these because it requires the fonts to exist in the JVM running the code
-        line.replaceAll(
-          /font-family:\s*Roboto Mono[^;]*;/,
-          'font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;'
-        )
-      }
-      if (countImages == 0) {
-        logger.quiet("ESQL Docs: No function signatures created. Skipping sync.")
-      } else {
-        logger.quiet("ESQL Docs: Found $countImages generated SVG files to patch into docs")
-        injected.fs.sync {
-          from imagesFolder
-          into imagesDocFolder
-          include '**/*.svg'
-          if (countImages <= 100) {
-            // If we do not run the full test of tests, do not attempt to remove potentially unused files
-            preserve {
-              // Some operator files are currently static, so we must preserve them all
-              include '**/*.svg'
-            }
-          }
-          filter replaceFont
+        List images = imagesTree.files.collect { it.name }
+        int countImages = images.size()
+        Closure replaceFont = line -> {
+          // The es-docs team has a recommended set of fonts for use with code, and they size similarly to the previous Roboto Mono, which is no longer available in the docs webpage
+          // We do not change the original SVG generator to use these because it requires the fonts to exist in the JVM running the code
+          line.replaceAll(
+            /font-family:\s*Roboto Mono[^;]*;/,
+            'font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;'
+          )
         }
-      }
-
-      List kibana = kibanaTree.files.collect { it.name }
-      int countKibana = kibana.size()
-      Closure replaceLinks = line -> {
-        // The kibana docs are not deployed to the normal docs location, so need absolute paths for internal references
-        line.replaceAll(
-          /\]\(\/reference\/([^)\s]+)\.md(#\S+)?\)/,
-          '](https://www.elastic.co/docs/reference/$1$2)'
-        )
-      }
-      if (countKibana == 0) {
-        logger.quiet("ESQL Docs: No function/operator kibana docs created. Skipping sync.")
-      } else {
-        logger.quiet("ESQL Docs: Found $countKibana generated kibana markdown files to patch into docs")
-        injected.fs.sync {
-          from kibanaFolder
-          into kibanaDocFolder
-          include '**/*.md', '**/*.json'
-          if (countKibana <= 100) {
-            // If we do not run the full test of tests, do not attempt to remove potentially unused files
-            preserve {
-              include '**/*.md', '**/*.json'
+        if (countImages == 0) {
+          logger.quiet("${folder.toUpperCase()} Docs: No function signatures created. Skipping sync.")
+        } else {
+          logger.quiet("${folder.toUpperCase()} Docs: Found $countImages generated SVG files to patch into docs")
+          injected.fs.sync {
+            from imagesFolder
+            into imagesDocFolder
+            include '**/*.svg'
+            if (countImages <= 100) {
+              // If we do not run the full test of tests, do not attempt to remove potentially unused files
+              preserve {
+                // Some operator files are currently static, so we must preserve them all
+                include '**/*.svg'
+              }
             }
+            filter replaceFont
           }
-          filter replaceLinks
+        }
+
+        List kibana = kibanaTree.files.collect { it.name }
+        int countKibana = kibana.size()
+        Closure replaceLinks = line -> {
+          // The kibana docs are not deployed to the normal docs location, so need absolute paths for internal references
+          line.replaceAll(
+            /\]\(\/reference\/([^)\s]+)\.md(#\S+)?\)/,
+            '](https://www.elastic.co/docs/reference/$1$2)'
+          )
+        }
+        if (countKibana == 0) {
+          logger.quiet("${folder.toUpperCase()} Docs: No function/operator kibana docs created. Skipping sync.")
+        } else {
+          logger.quiet("${folder.toUpperCase()} Docs: Found $countKibana generated kibana markdown files to patch into docs")
+          injected.fs.sync {
+            from kibanaFolder
+            into kibanaDocFolder
+            include '**/*.md', '**/*.json'
+            if (countKibana <= 100) {
+              // If we do not run the full test of tests, do not attempt to remove potentially unused files
+              preserve {
+                include '**/*.md', '**/*.json'
+              }
+            }
+            filter replaceLinks
+          }
         }
       }
     }
@@ -527,6 +537,7 @@ tasks.named('stringTemplates').configure {
   var bytesRefProperties = prop("BytesRef", "BytesRef", "BytesRef", "BYTES_REF", "org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF", "")
   var booleanProperties = prop("Boolean", "Boolean", "boolean", "BOOLEAN", "Byte.BYTES", "BitArray")
   var expHistoProperties = prop("ExponentialHistogram", "ExponentialHistogram", "ExponentialHistogram", "EXPONENTIAL_HISTOGRAM", "", "")
+  var tdigestProperties = prop("TDigest", "TDigest", "tdigest", "TDIGEST", "", "")
 
   File inInputFile = file("src/main/java/org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/X-InEvaluator.java.st")
   template {
@@ -595,6 +606,12 @@ tasks.named('stringTemplates').configure {
     it.properties = expHistoProperties
     it.inputFile = coalesceInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceExponentialHistogramEvaluator.java"
+  }
+
+  template {
+    it.properties = tdigestProperties
+    it.inputFile = coalesceInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceTDigestEvaluator.java"
   }
 
   File roundToInput = file("src/main/java/org/elasticsearch/xpack/esql/expression/function/scalar/math/X-RoundTo.java.st")

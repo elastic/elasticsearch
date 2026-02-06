@@ -21,7 +21,7 @@ rate_bytes_in:double | time_bucket:datetime
 ;
 
 rate_of_long_no_grouping_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=1m rate_bytes_in=(avg(rate(network.total_bytes_in[1m])))
 | EVAL rate_bytes_in=ROUND(rate_bytes_in, 6), step=step
@@ -63,7 +63,7 @@ rate_bytes_in:double | cluster:keyword | time_bucket:datetime
 ;
 
 rate_of_long_grouping_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=5m rate_bytes_in=(avg by (cluster) (rate(network.total_bytes_in[5m])))
 | EVAL rate_bytes_in=ROUND(rate_bytes_in, 6), step=step, cluster=cluster
@@ -138,7 +138,7 @@ rate_cost:double | time_bucket:datetime
 ;
 
 rate_of_double_no_grouping_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=1m rate_cost=(sum(rate(network.total_cost[1m])))
 | EVAL rate_cost=ROUND(rate_cost, 6), step=step
@@ -179,7 +179,7 @@ rate_bytes_in:double | cluster:keyword | time_bucket:datetime
 ;
 
 rate_with_filtering_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m rate_bytes_in=(sum by (cluster) (rate(network.total_bytes_in{pod="one"}[10m])))
 | EVAL rate_bytes_in=ROUND(rate_bytes_in, 6), step=step, cluster=cluster
@@ -259,7 +259,7 @@ sum_bytes:double | max_bytes:double | min_bytes:double | avg_bytes:double | time
 ;
 
 rate_of_aggregate_metric_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 required_capability: aggregate_metric_double_v0
 
 PROMQL index=k8s-downsampled step=30m avg_bytes=(avg(rate(network.total_bytes_in[30m])))
@@ -428,7 +428,7 @@ rate_bytes_in:double | cluster:keyword | time_bucket:datetime
 ;
 
 trange_absolute_with_rate_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=2m start="2024-05-10T00:15:00.000Z" end="2024-05-10T00:25:00.000Z" rate_bytes_in=(avg by (cluster) (rate(network.total_bytes_in[2m])))
 | EVAL rate_bytes_in=ROUND(rate_bytes_in, 6), step=step, cluster=cluster

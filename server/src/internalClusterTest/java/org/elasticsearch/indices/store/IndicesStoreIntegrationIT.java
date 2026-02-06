@@ -232,7 +232,6 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         shardActiveRequestSent.await();
         ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForNoRelocatingShards(true).get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        logClusterState();
         // delete the index. node_1 that still waits for the next cluster state update will then get the delete index next.
         // it must still delete the shard, even if it cannot find it anymore in indicesservice
         indicesAdmin().prepareDelete("test").get();

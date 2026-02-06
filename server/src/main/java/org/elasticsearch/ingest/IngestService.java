@@ -109,7 +109,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.core.UpdateForV10.Owner.DATA_MANAGEMENT;
 
 /**
  * Holder class for several ingest related services.
@@ -834,7 +833,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
     }
 
-    @UpdateForV10(owner = DATA_MANAGEMENT) // Change deprecation log for special characters in name to a failure
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // Change deprecation log for special characters in name to a failure
     void validatePipeline(
         Map<DiscoveryNode, IngestInfo> ingestInfos,
         ProjectId projectId,

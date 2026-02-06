@@ -95,10 +95,9 @@ public final class DocValuesForUtil {
         // NOTE: we expect multibyte values to be written "least significant byte" first
         int bytesPerValue = bitsPerValue / Byte.SIZE;
         long mask = (1L << bitsPerValue) - 1;
-        byte[] buffer = new byte[bytesPerValue * blockSize + Long.BYTES - bytesPerValue];
-        in.readBytes(buffer, 0, bytesPerValue * blockSize);
+        in.readBytes(this.encoded, 0, bytesPerValue * blockSize);
         for (int i = 0; i < blockSize; ++i) {
-            out[i] = ByteUtils.readLongLE(buffer, i * bytesPerValue) & mask;
+            out[i] = ByteUtils.readLongLE(this.encoded, i * bytesPerValue) & mask;
         }
     }
 

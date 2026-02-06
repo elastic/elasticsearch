@@ -37,6 +37,14 @@ public final class SearchFeatures implements FeatureSpecification {
     public static final NodeFeature NEGATIVE_FUNCTION_SCORE_BAD_REQUEST = new NodeFeature("search.negative.function.score.bad.request");
     public static final NodeFeature INDICES_BOOST_REMOTE_INDEX_FIX = new NodeFeature("search.indices_boost_remote_index_fix");
     public static final NodeFeature NESTED_AGG_TOP_HITS_WITH_INNER_HITS = new NodeFeature("nested_agg_top_hits_with_inner_hits");
+    public static final NodeFeature DATE_FORMAT_MISSING_AS_NULL = new NodeFeature("search.sort.date_format_missing_as_null");
+    public static final NodeFeature LIMIT_MAX_IDS_FEATURE = new NodeFeature("ids_query_limit_max_ids");
+    public static final NodeFeature EXPONENTIAL_HISTOGRAM_QUERYDSL_MIN_MAX = new NodeFeature(
+        "search.exponential_histogram_querydsl_min_max"
+    );
+    public static final NodeFeature EXPONENTIAL_HISTOGRAM_QUERYDSL_PERCENTILES = new NodeFeature(
+        "search.exponential_histogram_querydsl_percentiles"
+    );
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -51,7 +59,11 @@ public final class SearchFeatures implements FeatureSpecification {
             SEARCH_RESCORE_SCRIPT,
             NEGATIVE_FUNCTION_SCORE_BAD_REQUEST,
             INDICES_BOOST_REMOTE_INDEX_FIX,
-            NESTED_AGG_TOP_HITS_WITH_INNER_HITS
+            NESTED_AGG_TOP_HITS_WITH_INNER_HITS,
+            DATE_FORMAT_MISSING_AS_NULL,
+            LIMIT_MAX_IDS_FEATURE,
+            EXPONENTIAL_HISTOGRAM_QUERYDSL_MIN_MAX,
+            EXPONENTIAL_HISTOGRAM_QUERYDSL_PERCENTILES
         );
     }
 }

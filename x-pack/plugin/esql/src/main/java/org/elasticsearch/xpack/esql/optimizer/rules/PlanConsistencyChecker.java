@@ -71,6 +71,7 @@ public class PlanConsistencyChecker {
 
     private static void checkMissingFork(QueryPlan<?> plan, Failures failures) {
         for (QueryPlan<?> child : plan.children()) {
+            // TODO: this checks the set-semantics, but not the ordering
             checkMissingForkBranch(child, plan.outputSet(), failures);
         }
     }

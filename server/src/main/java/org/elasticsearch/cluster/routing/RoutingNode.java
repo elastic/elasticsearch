@@ -312,6 +312,13 @@ public class RoutingNode implements Iterable<ShardRouting> {
         return sb.toString();
     }
 
+    /**
+     * @return {@link DiscoveryNode#getShortNodeDescription()} if available, or just "{nodeId}" otherwise
+     */
+    public String getShortNodeDescription() {
+        return node != null ? node.getShortNodeDescription() : nodeId;
+    }
+
     private static final ShardRouting[] EMPTY_SHARD_ROUTING_ARRAY = new ShardRouting[0];
 
     public ShardRouting[] copyShards() {

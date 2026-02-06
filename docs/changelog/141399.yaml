@@ -1,0 +1,6 @@
+pr: 141399
+summary: Fixed a bug where match only text delegates loading to an incorrect parent
+  keyword field
+area: Logs
+type: bug
+issues: []

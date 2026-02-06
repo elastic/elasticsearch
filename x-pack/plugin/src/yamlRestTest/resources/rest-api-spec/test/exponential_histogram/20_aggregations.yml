@@ -204,3 +204,16 @@ setup:
   - lte: { aggregations.percentile_ranks_agg.values.1000\.0: 70.8 }
   - gte: { aggregations.percentile_ranks_agg.values.5000\.0: 77.9 }
   - lte: { aggregations.percentile_ranks_agg.values.5000\.0: 78.1 }
+
+---  
+"Exists query":
+  - do:
+      search:
+        index: test_exponential_histogram
+        body:
+          query:
+            exists:
+              field: histo
+
+  - match: { hits.total.value: 5 }
+

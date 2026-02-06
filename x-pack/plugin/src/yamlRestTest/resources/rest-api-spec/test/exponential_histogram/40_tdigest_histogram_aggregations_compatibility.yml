@@ -220,3 +220,16 @@ setup:
         2.0: 60.0
         5.0: 90.0
         8.0: 100.0
+
+---
+"Exists query over tdigest and exponential_histogram":
+  - do:
+      search:
+        index: test-data-stream
+        body:
+          query:
+            exists:
+              field: tdigest_or_exp_histo
+
+  - match: { hits.total.value: 2 }
+

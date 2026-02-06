@@ -1,5 +1,5 @@
 pr: 140477
 summary: "[Inference API] Add Mixedbread Rerank support to the Inference Plugin"
-area: Machine Learning
+area: Inference
 type: enhancement
 issues: []

@@ -132,7 +132,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         try {
             var operator = factory.get(driverContext);
             driverStarted = true;
-            drive(operator, localInput.iterator(), driverContext);
+            new TestDriverRunner().builder(driverContext).input(localInput).run(operator);
         } finally {
             if (driverStarted == false) {
                 // if drive hasn't even started then we need to release the input pages manually
@@ -160,7 +160,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         try {
             Operator operator = simple().get(driverContext);
             driverStarted = true;
-            drive(operator, input.iterator(), driverContext);
+            new TestDriverRunner().builder(driverContext).input(input).run(operator);
             // Either we get lucky and cranky doesn't throw and the test completes or we don't and it throws
         } catch (CircuitBreakingException e) {
             assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
@@ -204,7 +204,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
                     new PageConsumerOperator(result::add)
                 )
             ) {
-                runDriver(d);
+                new TestDriverRunner().run(d);
             }
         }
         return result;
@@ -224,7 +224,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
 
         var operator = simple().get(context);
-        List<Page> results = drive(operator, input.iterator(), context);
+        List<Page> results = new TestDriverRunner().builder(context).input(input).run(operator);
         assertSimpleOutput(origInput, results);
         assertOperatorStatus(operator, origInput, results);
         assertThat(context.breaker().getUsed(), equalTo(0L));
@@ -274,38 +274,6 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         }
     }
 
-    /**
-     * @deprecated use {@link TestDriverRunner}
-     */
-    @Deprecated
-    protected final List<Page> drive(Operator operator, Iterator<Page> input, DriverContext context) {
-        return new TestDriverRunner().run(operator, input, context);
-    }
-
-    /**
-     * @deprecated use {@link TestDriverRunner}
-     */
-    @Deprecated
-    protected final List<Page> drive(List<Operator> operators, Iterator<Page> input, DriverContext context) {
-        return new TestDriverRunner().run(operators, input, context);
-    }
-
-    /**
-     * @deprecated use {@link TestDriverRunner}
-     */
-    @Deprecated
-    public static void runDriver(Driver driver) {
-        new TestDriverRunner().run(driver);
-    }
-
-    /**
-     * @deprecated use {@link TestDriverRunner}
-     */
-    @Deprecated
-    public static void runDriver(List<Driver> drivers) {
-        new TestDriverRunner().run(drivers);
-    }
-
     public static void assertDriverContext(DriverContext driverContext) {
         assertTrue(driverContext.isFinished());
         assertThat(driverContext.getSnapshot().releasables(), empty());
@@ -322,7 +290,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
     // Returns the size of an empty bytesRefBlockHash depending on the underlying implementation.
     protected final String byteRefBlockHashSize() {
         if (HashImplFactory.SWISS_TABLES_HASHING.isEnabled()) {
-            return "213112b";
+            return "213120b";
         }
         return "392b";
     }

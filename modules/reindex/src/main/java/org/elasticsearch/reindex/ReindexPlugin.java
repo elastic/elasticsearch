@@ -22,11 +22,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.ScrollWorkerResumeInfo;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.WorkerResumeInfo;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.ReindexAction;
+import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
+import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -93,7 +93,8 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
             new RestReindexAction(clusterSupportsFeature),
             new RestUpdateByQueryAction(clusterSupportsFeature),
             new RestDeleteByQueryAction(clusterSupportsFeature),
-            new RestRethrottleAction(nodesInCluster)
+            new RestUpdateAndDeleteByQueryRethrottleAction(nodesInCluster),
+            new RestReindexRethrottleAction(nodesInCluster)
         );
     }
 

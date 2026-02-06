@@ -206,6 +206,9 @@ public class ParseIp {
                 }
                 offset++;
             }
+            if (v > 255) {
+                throw invalid(string);
+            }
             scratch.bytes()[dest] = (byte) v;
         }
         return scratch.bytesRefView();

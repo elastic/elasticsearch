@@ -157,11 +157,7 @@ public abstract class AbstractShardBulkInferenceActionFilterTestCase extends EST
             }
         };
 
-        BulkShardRequest request = new BulkShardRequest(
-            new ShardId("test", "test", 0),
-            WriteRequest.RefreshPolicy.NONE,
-            items
-        );
+        BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
         request.setInferenceFieldMap(fieldMap);
 
         filter.apply(mock(Task.class), TransportShardBulkAction.ACTION_NAME, request, mock(ActionListener.class), chain);

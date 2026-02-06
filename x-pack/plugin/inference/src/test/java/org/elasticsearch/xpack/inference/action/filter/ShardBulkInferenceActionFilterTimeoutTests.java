@@ -46,10 +46,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.INDICES_INFERENCE_BULK_TIMEOUT;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
@@ -318,25 +316,17 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends AbstractShardBul
 
         // Use 1ms timeout with a model loading delay that guarantees the timeout expires
         // before inference starts (pre-inference timeout check triggers after model loading)
-        ShardBulkInferenceActionFilter filter = createFilterInternal(
-            Map.of(model.getInferenceEntityId(), model),
-            (inputs, listener) -> {
-                chunkedInferCalled.set(true);
-                return DelayResult.immediate();
-            },
-            TimeValue.timeValueMillis(1),
-            () -> SLOW_DELAY_MS
-        );
+        ShardBulkInferenceActionFilter filter = createFilterInternal(Map.of(model.getInferenceEntityId(), model), (inputs, listener) -> {
+            chunkedInferCalled.set(true);
+            return DelayResult.immediate();
+        }, TimeValue.timeValueMillis(1), () -> SLOW_DELAY_MS);
 
-        Map<String, InferenceFieldMetadata> fieldMap = Map.of(
-            "semantic_field", inferenceFieldMetadata("semantic_field", model)
-        );
+        Map<String, InferenceFieldMetadata> fieldMap = Map.of("semantic_field", inferenceFieldMetadata("semantic_field", model));
 
         BulkItemRequest[] items = {
             bulkItemRequest(0, "semantic_field", text),
             bulkItemRequest(1, "semantic_field", text),
-            bulkItemRequest(2, "other_field", "no inference needed")
-        };
+            bulkItemRequest(2, "other_field", "no inference needed") };
 
         runFilterAndVerify(filter, fieldMap, items, results -> {
             assertTimeout(results[0].getPrimaryResponse(), "Item 0 (inference field)");

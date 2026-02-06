@@ -254,14 +254,13 @@ public class InferencePlugin extends Plugin
      * Maximum value is 30 days to prevent overflow in time calculations.
      */
     public static final Setting<TimeValue> INDICES_INFERENCE_BULK_TIMEOUT = Setting.timeSetting(
-            "indices.inference.bulk.timeout",
-            DEFAULT_BULK_TIMEOUT,
-            MIN_BULK_TIMEOUT,
-            MAX_BULK_TIMEOUT,
-            Setting.Property.NodeScope,
-            Setting.Property.Dynamic
+        "indices.inference.bulk.timeout",
+        DEFAULT_BULK_TIMEOUT,
+        MIN_BULK_TIMEOUT,
+        MAX_BULK_TIMEOUT,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
-
 
     public static final String X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER = "X-elastic-product-use-case";
     public static final String X_ELASTIC_ES_VERSION = "X-elastic-es-version";

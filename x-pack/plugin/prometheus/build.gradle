@@ -13,6 +13,8 @@ esplugin {
   extendedPlugins = ['x-pack-core']
 }
 
+def protobufVersion = "4.32.0"
+
 dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
@@ -26,7 +28,6 @@ dependencies {
   clusterModules project(':modules:mapper-extras')
   clusterModules project(':modules:data-streams')
 
-  def protobufVersion = "4.32.0"
   api "com.google.protobuf:protobuf-java:${protobufVersion}"
   javaRestTestImplementation "com.google.protobuf:protobuf-java:${protobufVersion}"
   javaRestTestImplementation sourceSets.main.output
@@ -47,7 +48,7 @@ dependencies {
 
 protobuf {
   protoc {
-    artifact = "com.google.protobuf:protoc:4.32.0"
+    artifact = "com.google.protobuf:protoc:${protobufVersion}"
   }
 }
 

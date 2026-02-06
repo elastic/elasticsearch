@@ -31,7 +31,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.oteldata.OTelPlugin;
-import org.elasticsearch.xpack.oteldata.otlp.OTLPMetricsTransportAction.MetricsResponse;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 import org.mockito.ArgumentCaptor;
 
@@ -78,7 +77,7 @@ public class OTLPMetricsTransportActionTests extends ESTestCase {
     }
 
     public void testSuccess() throws Exception {
-        MetricsResponse response = executeRequest(createMetricsRequest(createMetric()));
+        OTLPActionResponse response = executeRequest(createMetricsRequest(createMetric()));
 
         assertThat(response.getStatus(), equalTo(RestStatus.OK));
         ExportMetricsServiceResponse metricsServiceResponse = ExportMetricsServiceResponse.parseFrom(response.getResponse().array());
@@ -86,7 +85,7 @@ public class OTLPMetricsTransportActionTests extends ESTestCase {
     }
 
     public void testSuccessEmptyRequest() throws Exception {
-        MetricsResponse response = executeRequest(createMetricsRequest());
+        OTLPActionResponse response = executeRequest(createMetricsRequest());
 
         assertThat(response.getStatus(), equalTo(RestStatus.OK));
         ExportMetricsServiceResponse metricsServiceResponse = ExportMetricsServiceResponse.parseFrom(response.getResponse().array());
@@ -97,7 +96,7 @@ public class OTLPMetricsTransportActionTests extends ESTestCase {
         BulkItemResponse[] bulkItemResponses = new BulkItemResponse[] {
             failureResponse("metrics-generic.otel-default", RestStatus.TOO_MANY_REQUESTS, "too many requests"),
             successResponse() };
-        MetricsResponse response = executeRequest(createMetricsRequest(createMetric()), new BulkResponse(bulkItemResponses, 0));
+        OTLPActionResponse response = executeRequest(createMetricsRequest(createMetric()), new BulkResponse(bulkItemResponses, 0));
 
         assertThat(response.getStatus(), equalTo(RestStatus.TOO_MANY_REQUESTS));
         ExportMetricsPartialSuccess metricsServiceResponse = ExportMetricsServiceResponse.parseFrom(response.getResponse().array())
@@ -110,7 +109,7 @@ public class OTLPMetricsTransportActionTests extends ESTestCase {
     }
 
     public void testPartialSuccess() throws Exception {
-        MetricsResponse response = executeRequest(
+        OTLPActionResponse response = executeRequest(
             createMetricsRequest(createMetric()),
             new BulkResponse(
                 new BulkItemResponse[] {
@@ -157,7 +156,7 @@ public class OTLPMetricsTransportActionTests extends ESTestCase {
         if (randomBoolean()) {
             doThrow(exception).when(client).execute(any(), any(), any());
         }
-        MetricsResponse response = executeRequest(createMetricsRequest(createMetric()), exception);
+        OTLPActionResponse response = executeRequest(createMetricsRequest(createMetric()), exception);
 
         assertThat(response.getStatus(), equalTo(restStatus));
         ExportMetricsPartialSuccess metricsServiceResponse = ExportMetricsServiceResponse.parseFrom(response.getResponse().array())
@@ -166,38 +165,35 @@ public class OTLPMetricsTransportActionTests extends ESTestCase {
         assertThat(metricsServiceResponse.getErrorMessage(), equalTo(exception.getMessage()));
     }
 
-    private MetricsResponse executeRequest(OTLPMetricsTransportAction.MetricsRequest request) {
+    private OTLPActionResponse executeRequest(OTLPActionRequest request) {
         return executeRequest(request, listener -> listener.onResponse(new BulkResponse(new BulkItemResponse[] {}, 0)));
     }
 
-    private MetricsResponse executeRequest(OTLPMetricsTransportAction.MetricsRequest request, BulkResponse bulkResponse) {
+    private OTLPActionResponse executeRequest(OTLPActionRequest request, BulkResponse bulkResponse) {
         return executeRequest(request, listener -> listener.onResponse(bulkResponse));
     }
 
-    private MetricsResponse executeRequest(OTLPMetricsTransportAction.MetricsRequest request, Exception bulkFailure) {
+    private OTLPActionResponse executeRequest(OTLPActionRequest request, Exception bulkFailure) {
         return executeRequest(request, listener -> listener.onFailure(bulkFailure));
     }
 
-    private MetricsResponse executeRequest(
-        OTLPMetricsTransportAction.MetricsRequest request,
-        Consumer<ActionListener<BulkResponse>> bulkResponseConsumer
-    ) {
+    private OTLPActionResponse executeRequest(OTLPActionRequest request, Consumer<ActionListener<BulkResponse>> bulkResponseConsumer) {
         ArgumentCaptor<ActionListener<BulkResponse>> bulkResponseListener = ArgumentCaptor.captor();
         doNothing().when(client).execute(any(), any(), bulkResponseListener.capture());
 
-        ActionListener<MetricsResponse> metricsResponseListener = mock();
+        ActionListener<OTLPActionResponse> metricsResponseListener = mock();
         action.doExecute(null, request, metricsResponseListener);
         if (bulkResponseListener.getAllValues().isEmpty() == false) {
             bulkResponseConsumer.accept(bulkResponseListener.getValue());
         }
 
-        ArgumentCaptor<MetricsResponse> response = ArgumentCaptor.forClass(MetricsResponse.class);
+        ArgumentCaptor<OTLPActionResponse> response = ArgumentCaptor.forClass(OTLPActionResponse.class);
         verify(metricsResponseListener).onResponse(response.capture());
         return response.getValue();
     }
 
-    private static OTLPMetricsTransportAction.MetricsRequest createMetricsRequest(Metric... metrics) {
-        return new OTLPMetricsTransportAction.MetricsRequest(
+    private static OTLPActionRequest createMetricsRequest(Metric... metrics) {
+        return new OTLPActionRequest(
             new BytesArray(
                 ExportMetricsServiceRequest.newBuilder()
                     .addResourceMetrics(

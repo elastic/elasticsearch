@@ -368,6 +368,9 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
   method: testStopLookback_forceTrue_closeJobFalse
   issue: https://github.com/elastic/elasticsearch/issues/142032
+- class: org.elasticsearch.xpack.diskbbq.DirectIOIT
+  method: testDirectIONotUsed {p0=bbq_disk}
+  issue: https://github.com/elastic/elasticsearch/issues/141863
 
 # Examples:
 #

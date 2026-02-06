@@ -738,6 +738,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             case EXPONENTIAL_HISTOGRAM -> "ExponentialHistogram";
             case NULL -> "Null";
             case TDIGEST -> "TDigest";
+            case DENSE_VECTOR -> "DenseVector";
             default -> throw new UnsupportedOperationException("name for [" + type + "]");
         };
         return prefix + typeName;

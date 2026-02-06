@@ -5,6 +5,7 @@
 | number | result |
 | --- | --- |
 | aggregate_metric_double | double |
+| dense_vector | dense_vector |
 | double | double |
 | exponential_histogram | double |
 | integer | long |

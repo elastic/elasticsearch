@@ -1991,6 +1991,7 @@ public class EsqlCapabilities {
          * Dense_vector aggregation functions
          */
         DENSE_VECTOR_AGG_FUNCTIONS,
+
         /**
          * Marks the move to the hash(doc) % shard_count routing function. Added in #137062.
          */
@@ -2066,6 +2067,11 @@ public class EsqlCapabilities {
          * Fix bug with TS command where you can't group on aliases (i.e. `by c = cluster`)
          */
         TS_COMMAND_GROUP_ON_ALIASES,
+
+        /**
+         * Dense_vector additional aggregation functions
+         */
+        DENSE_VECTOR_ADDITIONAL_AGG_FUNCTIONS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

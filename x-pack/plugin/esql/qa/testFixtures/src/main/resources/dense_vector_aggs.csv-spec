@@ -1,0 +1,97 @@
+# Tests for SUM aggregation function with dense_vector
+
+sumDenseVectorBasic
+required_capability: dense_vector_additional_agg_functions
+
+FROM colors
+| WHERE id < 5
+| STATS total = SUM(rgb_vector)
+;
+
+total:dense_vector
+[946.0, 96.0, 136.0]
+;
+
+sumDenseVectorPrimaryColors
+required_capability: dense_vector_additional_agg_functions
+
+FROM colors
+| WHERE primary == true
+| STATS total = SUM(rgb_vector)
+;
+
+total:dense_vector
+[1148.0, 1021.0, 1148.0]
+;
+
+sumDenseVectorWithFilter
+required_capability: dense_vector_additional_agg_functions
+
+FROM colors
+| WHERE color IN ("red", "green", "blue")
+| STATS total = SUM(rgb_vector)
+;
+
+total:dense_vector
+[255.0, 128.0, 255.0]
+;
+
+sumDenseVectorSingleRow
+required_capability: dense_vector_additional_agg_functions
+
+FROM colors
+| WHERE color == "red"
+| STATS total = SUM(rgb_vector)
+;
+
+total:dense_vector
+[255.0, 0.0, 0.0]
+;
+
+sumDenseVectorEmptyResult
+required_capability: dense_vector_additional_agg_functions
+
+FROM colors
+| WHERE id < 0
+| STATS total = SUM(rgb_vector)
+;
+
+total:dense_vector
+null
+;
+
+sumDenseVectorFromDenseVectorIndex
+required_capability: dense_vector_additional_agg_functions
+
+FROM dense_vector
+| WHERE float_vector IS NOT NULL
+| STATS total = SUM(float_vector)
+;
+
+total:dense_vector
+[14.054, 15.032, 16.012]
+;
+
+sumDenseVectorWithCount
+required_capability: dense_vector_additional_agg_functions
+
+FROM colors
+| WHERE id < 5
+| STATS total = SUM(rgb_vector), cnt = COUNT(*)
+;
+
+total:dense_vector | cnt:long
+[946.0, 96.0, 136.0] | 5
+;
+
+sumDenseVectorMultipleAggs
+required_capability: dense_vector_additional_agg_functions
+
+FROM colors
+| WHERE id < 3
+| STATS sum_rgb = SUM(rgb_vector), count_colors = COUNT(*), count_vectors = COUNT(rgb_vector)
+;
+
+sum_rgb:dense_vector | count_colors:long | count_vectors:long
+[471.0, 76.0, 76.0]  | 3                 | 3
+;

@@ -20,6 +20,18 @@
       "params" : [
         {
           "name" : "number",
+          "type" : "dense_vector",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "dense_vector"
+    },
+    {
+      "params" : [
+        {
+          "name" : "number",
           "type" : "double",
           "optional" : false,
           "description" : ""

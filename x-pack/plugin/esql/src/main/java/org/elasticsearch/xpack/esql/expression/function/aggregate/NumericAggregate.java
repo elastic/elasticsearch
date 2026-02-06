@@ -67,7 +67,7 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
         }
         return isType(
             field(),
-            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
+            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG || dt == DataType.DENSE_VECTOR,
             sourceText(),
             DEFAULT,
             "numeric except unsigned_long or counter types"
@@ -80,7 +80,7 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
 
     @Override
     public DataType dataType() {
-        return DataType.DOUBLE;
+        return field().dataType() == DataType.DENSE_VECTOR ? DataType.DENSE_VECTOR : DataType.DOUBLE;
     }
 
     @Override
@@ -98,6 +98,9 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
         if (type == DataType.DOUBLE) {
             return doubleSupplier();
         }
+        if (type == DataType.DENSE_VECTOR) {
+            return denseVectorSupplier();
+        }
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }
 
@@ -106,4 +109,8 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
     protected abstract AggregatorFunctionSupplier intSupplier();
 
     protected abstract AggregatorFunctionSupplier doubleSupplier();
+
+    protected AggregatorFunctionSupplier denseVectorSupplier() {
+        throw new UnsupportedOperationException("dense_vector not supported for this aggregation");
+    }
 }

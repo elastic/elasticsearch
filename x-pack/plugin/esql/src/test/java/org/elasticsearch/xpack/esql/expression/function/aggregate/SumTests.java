@@ -27,6 +27,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -47,7 +48,8 @@ public class SumTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.aggregateMetricDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE),
             MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100),
             MultiRowTestCaseSupplier.tdigestCases(1, 100),
-            MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true)
+            MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
+            MultiRowTestCaseSupplier.denseVectorCases(1, 100)
         ).flatMap(List::stream).map(SumTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         suppliers.addAll(
@@ -106,6 +108,7 @@ public class SumTests extends AbstractAggregationTestCase {
         return new Sum(source, args.get(0));
     }
 
+    @SuppressWarnings("unchecked")
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
         return new TestCaseSupplier(fieldSupplier.name(), List.of(fieldSupplier.type()), () -> {
             var fieldTypedData = fieldSupplier.get();
@@ -137,6 +140,19 @@ public class SumTests extends AbstractAggregationTestCase {
                             .toArray();
                         yield sums.length == 0 ? null : Arrays.stream(sums).sum();
                     }
+                    case DENSE_VECTOR -> {
+                        List<List<Float>> vectors = data.stream().map(v -> (List<Float>) v).collect(Collectors.toList());
+                        if (vectors.isEmpty()) {
+                            yield null;
+                        }
+                        List<Float> sum = new ArrayList<>(vectors.get(0));
+                        for (int i = 1; i < vectors.size(); i++) {
+                            for (int j = 0; j < sum.size(); j++) {
+                                sum.set(j, sum.get(j) + vectors.get(i).get(j));
+                            }
+                        }
+                        yield sum;
+                    }
                     default -> throw new IllegalStateException("Unexpected value: " + fieldTypedData.type());
                 };
             }
@@ -149,7 +165,8 @@ public class SumTests extends AbstractAggregationTestCase {
                 expected instanceof Double d && Double.isFinite(d) == false
             );
 
-            var returnType = type.isWholeNumber() == false || type == UNSIGNED_LONG ? DataType.DOUBLE : DataType.LONG;
+            var returnType = type == DENSE_VECTOR ? DENSE_VECTOR
+                : type.isWholeNumber() == false || type == UNSIGNED_LONG ? DataType.DOUBLE : DataType.LONG;
 
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
@@ -158,5 +175,17 @@ public class SumTests extends AbstractAggregationTestCase {
                 equalTo(expected)
             );
         });
+    }
+
+    @Override
+    public void testGroupingAggregate() {
+        assumeTrue("Grouping not supported for dense_vector", testCase.expectedType() != DENSE_VECTOR);
+        super.testGroupingAggregate();
+    }
+
+    @Override
+    public void testGroupingAggregateToString() {
+        assumeTrue("Grouping not supported for dense_vector", testCase.expectedType() != DENSE_VECTOR);
+        super.testGroupingAggregateToString();
     }
 }

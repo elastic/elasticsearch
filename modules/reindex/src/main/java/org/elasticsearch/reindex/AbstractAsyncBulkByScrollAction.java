@@ -183,7 +183,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
     }
 
     /**
-     * Prepares a search request to be used in a HitSource.
+     * Prepares a search request to be used in a {@link HitSource}.
      * Preparation might set a sort order (if not set already) and disable scroll if max docs is small enough.
      */
     // Visible for testing

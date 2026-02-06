@@ -345,6 +345,19 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
 
     // TODO Add test for seekCeil with NOT_FOUND and END
 
+    /**
+     * Set up a time-series Lucene index with synthetic id.
+     *
+     * Note:
+     * Synthetic id for time-series indices require 3 fields to be indexed for every document (_tsid, @timestamp, _ts_routing_hash) in
+     * order to compute the synthetic ids.
+     *
+     * In the unit tests we could have added those fields explicitly for each doc, but that would mean duplicate the Lucene index
+     * options/field names/sort configuration and also force us to update the unit tests if the mappings/index sort configuration change
+     * (and it changed several time over the last years). So instead of adding Lucene fields explicitly as we would normally do in unit
+     * tests, the tests use the default mappers and default index sort configuration to parse and to index documents. We think this is the
+     * best way to stay close to the default options of time-series indices, while keeping it light enough for unit tests.
+     */
     private void runTest(CheckedBiConsumer<IndexWriter, TestDocParser, IOException> test) throws IOException {
         final var indexName = randomIdentifier();
         final var indexSettings = buildIndexSettings(indexName);
@@ -352,7 +365,11 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
         final var documentParser = buildDocumentParser(mapperService);
 
         try (var directory = newDirectory()) {
-            directory.setCheckIndexOnClose(false); // TODO would be nice to enable this
+            // Checking the index on close requires to support Terms#getMin()/getMax() methods on invalid (or incomplete) terms, something
+            // that is not supported in TSDBSyntheticIdFieldsProducer today.
+            //
+            // TODO would be nice to enable check-index-on-close
+            directory.setCheckIndexOnClose(false);
 
             final var indexWriterConfig = newIndexWriterConfig();
             // Configure the index writer for time-series indices

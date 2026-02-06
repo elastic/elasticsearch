@@ -15,8 +15,8 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogramTestUtils;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
-import org.elasticsearch.xpack.analytics.mapper.IndexWithCount;
 import org.elasticsearch.xpack.analytics.exponentialhistogram.ExponentialHistogramFieldMapper;
+import org.elasticsearch.xpack.analytics.mapper.IndexWithCount;
 
 import java.io.IOException;
 import java.util.Arrays;

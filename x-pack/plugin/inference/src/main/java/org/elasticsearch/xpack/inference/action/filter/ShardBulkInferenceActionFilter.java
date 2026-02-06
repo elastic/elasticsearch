@@ -84,6 +84,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.inference.telemetry.InferenceStats.serviceAndResponseAttributes;
+import static org.elasticsearch.xpack.inference.InferencePlugin.INDICES_INFERENCE_BULK_TIMEOUT;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunks;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunksLegacy;
 
@@ -100,8 +101,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     private static final Logger logger = LogManager.getLogger(ShardBulkInferenceActionFilter.class);
 
     private static final ByteSizeValue DEFAULT_BATCH_SIZE = ByteSizeValue.ofMb(1);
-    // sentinel value meaning effectively no timeout
-    private static final TimeValue DEFAULT_BULK_TIMEOUT = TimeValue.MINUS_ONE;
 
     /**
      * Defines the cumulative size limit of input data before triggering a batch inference call.
@@ -112,27 +111,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         DEFAULT_BATCH_SIZE,
         ByteSizeValue.ONE,
         ByteSizeValue.ofMb(100),
-        Setting.Property.NodeScope,
-        Setting.Property.OperatorDynamic
-    );
-
-    /**
-     * Maximum timeout value to prevent overflow in time calculations.
-     */
-    private static final TimeValue MAX_BULK_TIMEOUT = TimeValue.timeValueDays(30);
-
-    /**
-     * Defines the timeout for bulk inference operations.
-     * If the bulk inference takes longer than this timeout, the affected bulk items will fail.
-     * This should not affect items that do not require inference.
-     * Defaults to {@link TimeValue#MINUS_ONE} (meaning no timeout).
-     * Maximum value is 30 days to prevent overflow in time calculations.
-     */
-    public static final Setting<TimeValue> INDICES_INFERENCE_BULK_TIMEOUT = Setting.timeSetting(
-        "indices.inference.bulk.timeout",
-        DEFAULT_BULK_TIMEOUT,
-        TimeValue.MINUS_ONE,
-        MAX_BULK_TIMEOUT,
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic
     );
@@ -572,10 +550,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
          * @return The total content length of all newly added requests, or {@code 0} if no requests were added.
          */
         private long addFieldInferenceRequests(BulkItemRequest item, int itemIndex, Map<String, List<FieldInferenceRequest>> requestsMap) {
-            // Check timeout once per item. We intentionally don't short-circuit the entire batch here
-            // because items without inference fields should still pass through successfully after timeout.
-            boolean hasTimedOut = getRemainingTimeout().equals(TimeValue.ZERO);
-
             boolean isUpdateRequest = false;
             final IndexRequestWithIndexingPressure indexRequest;
             if (item.request() instanceof IndexRequest ir) {
@@ -680,13 +654,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         if (v.isBlank()) {
                             slot.addOrUpdateResponse(
                                 new FieldInferenceResponse(field, sourceField, v, order++, 0, null, EMPTY_CHUNKED_INFERENCE)
-                            );
-                        } else if (hasTimedOut) {
-                            slot.setFailure(
-                                new ElasticsearchStatusException(
-                                    "Bulk inference timed out after [" + inferenceTimeout + "]",
-                                    RestStatus.REQUEST_TIMEOUT
-                                )
                             );
                         } else {
                             requests.add(

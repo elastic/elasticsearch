@@ -46,11 +46,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
+import static org.elasticsearch.xpack.inference.InferencePlugin.INDICES_INFERENCE_BULK_TIMEOUT;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
-import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BULK_TIMEOUT;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomChunkedInferenceEmbedding;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
@@ -303,24 +305,27 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends AbstractShardBul
     }
 
     /**
-     * Tests that when timeout is set to zero, all inference items fail immediately
-     * and items without inference fields still pass through.
+     * Tests that when timeout is set to the minimum (1ms), inference items fail via timeout
+     * and items without inference fields still pass through. With a 1ms timeout and model
+     * loading delay that exceeds it, the pre-inference timeout check triggers.
      */
-    public void testZeroTimeoutFailsAllInferenceItems() throws Exception {
+    public void testMinimalTimeoutFailsAllInferenceItems() throws Exception {
         StaticModel model = StaticModel.createRandomInstance();
         String text = "some_text";
         model.putResult(text, randomChunkedInferenceEmbedding(model, List.of(text)));
 
         AtomicBoolean chunkedInferCalled = new AtomicBoolean(false);
 
+        // Use 1ms timeout with a model loading delay that guarantees the timeout expires
+        // before inference starts (pre-inference timeout check triggers after model loading)
         ShardBulkInferenceActionFilter filter = createFilterInternal(
             Map.of(model.getInferenceEntityId(), model),
             (inputs, listener) -> {
                 chunkedInferCalled.set(true);
                 return DelayResult.immediate();
             },
-            TimeValue.ZERO,
-            () -> 0
+            TimeValue.timeValueMillis(1),
+            () -> SLOW_DELAY_MS
         );
 
         Map<String, InferenceFieldMetadata> fieldMap = Map.of(
@@ -521,24 +526,6 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends AbstractShardBul
             new ClusterSettings(settings, Set.of(INDICES_INFERENCE_BATCH_SIZE, INDICES_INFERENCE_BULK_TIMEOUT))
         );
         return clusterService;
-    }
-
-<<<<<<< HEAD
-    // ========== Test Execution ==========
-
-    private void runFilterAndVerify(
-        ShardBulkInferenceActionFilter filter,
-        StaticModel model,
-        String field,
-        String[] texts,
-        Consumer<BulkItemRequest[]> verifier
-    ) throws Exception {
-        Map<String, InferenceFieldMetadata> fieldMap = Map.of(field, inferenceFieldMetadata(field, model));
-        BulkItemRequest[] items = new BulkItemRequest[texts.length];
-        for (int i = 0; i < texts.length; i++) {
-            items[i] = bulkItemRequest(i, field, texts[i]);
-        }
-        runFilterAndVerify(filter, fieldMap, items, verifier);
     }
 
     // ========== Supporting Types ==========

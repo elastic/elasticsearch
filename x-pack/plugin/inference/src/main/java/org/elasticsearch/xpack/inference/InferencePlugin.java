@@ -195,7 +195,6 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
-import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BULK_TIMEOUT;
 
 public class InferencePlugin extends Plugin
     implements
@@ -242,6 +241,27 @@ public class InferencePlugin extends Plugin
         "Elastic Inference Service",
         License.OperationMode.ENTERPRISE
     );
+
+    public static final TimeValue DEFAULT_BULK_TIMEOUT = TimeValue.timeValueHours(8);
+    public static final TimeValue MIN_BULK_TIMEOUT = TimeValue.timeValueMillis(1);
+    public static final TimeValue MAX_BULK_TIMEOUT = TimeValue.timeValueDays(30);
+
+    /**
+     * Defines the timeout for bulk inference operations.
+     * If the bulk inference takes longer than this timeout, the affected bulk items will fail.
+     * This should not affect items that do not require inference.
+     * Defaults to {@link TimeValue#MINUS_ONE} (meaning no timeout).
+     * Maximum value is 30 days to prevent overflow in time calculations.
+     */
+    public static final Setting<TimeValue> INDICES_INFERENCE_BULK_TIMEOUT = Setting.timeSetting(
+            "indices.inference.bulk.timeout",
+            DEFAULT_BULK_TIMEOUT,
+            MIN_BULK_TIMEOUT,
+            MAX_BULK_TIMEOUT,
+            Setting.Property.NodeScope,
+            Setting.Property.Dynamic
+    );
+
 
     public static final String X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER = "X-elastic-product-use-case";
     public static final String X_ELASTIC_ES_VERSION = "X-elastic-es-version";

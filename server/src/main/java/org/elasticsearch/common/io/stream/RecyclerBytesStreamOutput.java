@@ -177,24 +177,33 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     }
 
     @Override
-    public void writeVInt(int i) throws IOException {
-        int currentOffset = this.currentOffset;
-        final int remainingBytesInPage = maxOffset - currentOffset;
-
-        // Single byte values (most common)
-        if ((i & 0xFFFFFF80) == 0) {
-            if (1 > remainingBytesInPage) {
-                super.writeVInt(i);
-            } else {
-                this.currentBufferPool[currentOffset] = (byte) i;
-                this.currentOffset = currentOffset + 1;
-            }
+    public void writeVInt(int i) {
+        if ((i & 0xFFFF_FF80) != 0) {
+            // The cold-path multi-byte case is extracted to its own method so the hotter-path single-byte case can inline.
+            writeMultiByteVInt(i);
             return;
         }
 
-        int bytesNeeded = vIntLength(i);
-        if (bytesNeeded > remainingBytesInPage) {
-            super.writeVInt(i);
+        final var maxOffset = this.maxOffset;
+        var currentOffset = this.currentOffset;
+        if (currentOffset == maxOffset) {
+            ensureCapacityFromPosition(positionOffset + currentOffset + 1);
+            currentOffset = nextPage();
+        }
+
+        this.currentBufferPool[currentOffset] = (byte) i;
+        this.currentOffset = currentOffset + 1;
+    }
+
+    private void writeMultiByteVInt(int i) {
+        final int currentOffset = this.currentOffset;
+        final int remainingBytesInPage = maxOffset - currentOffset;
+        if (5 > remainingBytesInPage && vIntLength(i) > remainingBytesInPage) {
+            while ((i & 0xFFFF_FF80) != 0) {
+                writeByte((byte) ((i & 0x7F) | 0x80));
+                i >>>= 7;
+            }
+            writeByte((byte) (i & 0x7F));
         } else {
             this.currentOffset = StreamOutputHelper.putMultiByteVInt(this.currentBufferPool, i, currentOffset);
         }

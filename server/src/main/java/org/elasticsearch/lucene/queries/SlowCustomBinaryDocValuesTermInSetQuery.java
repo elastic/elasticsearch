@@ -17,7 +17,6 @@ import org.apache.lucene.util.StringSorter;
 
 import java.util.Collection;
 import java.util.Objects;
-import java.util.SortedSet;
 
 /**
  * A query for matching any value from a set of BytesRef values for a specific field.
@@ -30,34 +29,49 @@ public final class SlowCustomBinaryDocValuesTermInSetQuery extends AbstractBinar
     private final int termDataHashCode;
 
     public SlowCustomBinaryDocValuesTermInSetQuery(String fieldName, Collection<BytesRef> terms) {
-        super(fieldName, Objects.requireNonNull(terms)::contains);
-        this.termData = packTerms(fieldName, terms);
+        this(fieldName, packTerms(fieldName, Objects.requireNonNull(terms)));
+    }
+
+    private SlowCustomBinaryDocValuesTermInSetQuery(String fieldName, PrefixCodedTerms termData) {
+        super(fieldName, term -> containsTerm(termData, term));
+        this.termData = termData;
         this.termDataHashCode = termData.hashCode();
+    }
+
+    private static boolean containsTerm(PrefixCodedTerms termData, BytesRef term) {
+        PrefixCodedTerms.TermIterator iterator = termData.iterator();
+        for (BytesRef t = iterator.next(); t != null; t = iterator.next()) {
+            int cmp = t.compareTo(term);
+            if (cmp == 0) {
+                return true;
+            }
+            if (cmp > 0) {
+                // terms are sorted, so we've passed where it would be
+                return false;
+            }
+        }
+        return false;
     }
 
     private static PrefixCodedTerms packTerms(String field, Collection<BytesRef> terms) {
         BytesRef[] sortedTerms = terms.toArray(new BytesRef[0]);
-        // already sorted if we are a SortedSet with natural order
-        boolean sorted = terms instanceof SortedSet && ((SortedSet<BytesRef>) terms).comparator() == null;
-        if (sorted == false) {
-            new StringSorter(BytesRefComparator.NATURAL) {
+        new StringSorter(BytesRefComparator.NATURAL) {
 
-                @Override
-                protected void get(BytesRefBuilder builder, BytesRef result, int i) {
-                    BytesRef term = sortedTerms[i];
-                    result.length = term.length;
-                    result.offset = term.offset;
-                    result.bytes = term.bytes;
-                }
+            @Override
+            protected void get(BytesRefBuilder builder, BytesRef result, int i) {
+                BytesRef term = sortedTerms[i];
+                result.length = term.length;
+                result.offset = term.offset;
+                result.bytes = term.bytes;
+            }
 
-                @Override
-                protected void swap(int i, int j) {
-                    BytesRef tmp = sortedTerms[i];
-                    sortedTerms[i] = sortedTerms[j];
-                    sortedTerms[j] = tmp;
-                }
-            }.sort(0, sortedTerms.length);
-        }
+            @Override
+            protected void swap(int i, int j) {
+                BytesRef tmp = sortedTerms[i];
+                sortedTerms[i] = sortedTerms[j];
+                sortedTerms[j] = tmp;
+            }
+        }.sort(0, sortedTerms.length);
         PrefixCodedTerms.Builder builder = new PrefixCodedTerms.Builder();
         BytesRefBuilder previous = null;
         for (BytesRef term : sortedTerms) {
@@ -74,9 +88,9 @@ public final class SlowCustomBinaryDocValuesTermInSetQuery extends AbstractBinar
 
     @Override
     protected float matchCost() {
-        // SlowCustomBinaryDocValuesTermQuery uses 10 for a single term, and while we have multiple terms, they're contained with a
-        // HashSet, whose look up time is O(1). So, we're only slightly slower than a single term.
-        return 11;
+        // SlowCustomBinaryDocValuesTermQuery uses 10 for a single term, and since we perform a linear scan across all terms, we take the
+        // number of terms into account
+        return 10 + termData.size();
     }
 
     @Override

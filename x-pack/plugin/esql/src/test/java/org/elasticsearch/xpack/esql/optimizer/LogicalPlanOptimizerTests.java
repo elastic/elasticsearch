@@ -9073,6 +9073,82 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * <pre>{@code
+     * EsqlProject[[first_name{f}#6]]
+     * \_TopN[[Order[first_name{f}#6,ASC,LAST]],10[INTEGER]]
+     *   \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     * }</pre>
+     */
+    public void testPruneRedundantTopN() {
+        var plan = optimizedPlan("""
+            FROM test
+            | KEEP first_name
+            | SORT first_name
+            | LIMIT 100
+            | SORT first_name
+            | LIMIT 10
+            """);
+        var project = as(plan, Project.class);
+        var topN = as(project.child(), TopN.class);
+        as(topN.child(), EsRelation.class);
+    }
+
+    /**
+     * <pre>{@code
+     * EsqlProject[[first_name{f}#10, a{r}#7]]
+     * \_TopN[[Order[first_name{f}#10,ASC,LAST]],10[INTEGER],false]
+     *   \_Eval[[12[INTEGER] AS a#7]]
+     *     \_TopN[[Order[first_name{f}#10,ASC,LAST]],10[INTEGER],false]
+     *       \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     * }</pre>
+     */
+    public void testPruneRedundantTopNWithNodesInBetween() {
+        var plan = optimizedPlan("""
+            FROM test
+            | SORT first_name
+            | LIMIT 10
+            | DROP last_name
+            | KEEP first_name
+            | EVAL a = 12
+            | SORT first_name
+            | LIMIT 100
+            """);
+        var project = as(plan, Project.class);
+        var topN = as(project.child(), TopN.class);
+        var eval = as(topN.child(), Eval.class);
+        topN = as(eval.child(), TopN.class);
+        as(topN.child(), EsRelation.class);
+    }
+
+    /**
+     * <pre>{@code
+     * Project[[avg{r}#6, first_name{f}#9]]
+     * \_TopN[[Order[first_name{f}#9,ASC,LAST]],100[INTEGER]]
+     *   \_Eval[[$$SUM$avg$0{r$}#19 / $$COUNT$avg$1{r$}#20 AS avg#6]]
+     *     \_Aggregate[[first_name{f}#9],[SUM(salary{f}#13,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$avg$0#19, COUNT(salary{f}#13,t
+     * rue[BOOLEAN]) AS $$COUNT$avg$1#20, first_name{f}#9]]
+     *       \_TopN[[Order[first_name{f}#9,ASC,LAST]],10[INTEGER]]
+     *         \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     * }</pre>
+     */
+    public void testCanNotPruneRedundantTopNWithNodesInBetween() {
+        var plan = optimizedPlan("""
+            FROM test
+            | SORT first_name
+            | LIMIT 10
+            | STATS avg = AVG(salary) BY first_name
+            | SORT first_name
+            | LIMIT 100
+            """);
+        var project = as(plan, Project.class);
+        var topN = as(project.child(), TopN.class);
+        var eval = as(topN.child(), Eval.class);
+        var agg = as(eval.child(), Aggregate.class);
+        var topN2 = as(agg.child(), TopN.class);
+        as(topN2.child(), EsRelation.class);
+    }
+
+    /**
+     * <pre>{@code
      * Eval[[1[INTEGER] AS irrelevant1, 2[INTEGER] AS irrelevant2]]
      *    \_Limit[1000[INTEGER],false]
      *      \_Sample[0.015[DOUBLE],15[INTEGER]]

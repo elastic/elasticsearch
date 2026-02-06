@@ -92,12 +92,12 @@ public class ES813Int8FlatVectorFormat extends KnnVectorsFormat {
 
         @Override
         public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
-            scoreAndCollectAll(knnCollector, acceptDocs, reader.getRandomVectorScorer(field, target));
+            scoreAndCollectAll(knnCollector, acceptDocs, reader.getFloatVectorValues(field), reader.getRandomVectorScorer(field, target));
         }
 
         @Override
         public void search(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
-            scoreAndCollectAll(knnCollector, acceptDocs, reader.getRandomVectorScorer(field, target));
+            scoreAndCollectAll(knnCollector, acceptDocs, reader.getByteVectorValues(field), reader.getRandomVectorScorer(field, target));
         }
 
         @Override

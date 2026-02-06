@@ -482,19 +482,11 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                 new NamedWriteableRegistry.Entry(
                     NamedDiff.class,
                     CCMEnablementService.EnablementMetadata.NAME,
-                    in -> AbstractNamedDiffable.readDiffFrom(
-                        Metadata.ProjectCustom.class,
-                        CCMEnablementService.EnablementMetadata.NAME,
-                        in
-                    )
+                    in -> AbstractNamedDiffable.readDiffFrom(Metadata.ProjectCustom.class, CCMEnablementService.EnablementMetadata.NAME, in)
                 )
             );
             entries.add(
-                new NamedWriteableRegistry.Entry(
-                    PersistentTaskParams.class,
-                    AuthorizationPoller.TASK_NAME,
-                    AuthorizationTaskParams::new
-                )
+                new NamedWriteableRegistry.Entry(PersistentTaskParams.class, AuthorizationPoller.TASK_NAME, AuthorizationTaskParams::new)
             );
 
             // Retrieve the cluster state from a random node, and serialize and deserialize it.
